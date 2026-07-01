@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jobtext-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    // Exactly the SPEC §11 schedule set. The job handlers land in later build
+    // steps; until then every trigger runs the scheduled() entry point, which
+    // validates the environment and logs which schedule fired.
+    "crons": [
+      "*/5 * * * *", // webhook sweeper
+      "*/15 * * * *", // provisioning retry & reconcile
+      "0 * * * *", // usage re-reporter (hourly)
+      "30 * * * *", // sole-prop OTP nudge (hourly)
+      "0 13 * * *", // registration poller (daily)
+      "0 14 * * *", // grace & release (daily)
+      "0 15 * * *" // subscription reconcile (daily)
+    ]
+  },
+  // Only non-secret plain-text configuration belongs in "vars". Every credential
+  // this Worker needs (SPEC §10) is a Worker encrypted secret — `wrangler secret put`
+  // in production, `.dev.vars` locally. See .dev.vars.example for the full list.
+  "vars": {}
+}
