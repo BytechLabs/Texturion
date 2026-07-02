@@ -7,7 +7,9 @@
  *          (last_message_at, id) DESC, default 25; filters status,
  *          assigned_user_id, tag_id, is_spam, unread, q — served by the
  *          api_list_conversations SQL function (the per-user `unread`
- *          anti-join is inexpressible in PostgREST).
+ *          anti-join is inexpressible in PostgREST). Rows embed contact,
+ *          tags, unread, and `last_message` ({ id, direction, body ≤160,
+ *          created_at, has_attachments } | null) — the G4 snippet source.
  *   GET    /v1/conversations/:id             conversation + contact + tags +
  *          embedded first page of messages ({ data, next_cursor }, 50/page,
  *          attachments summarized per message).

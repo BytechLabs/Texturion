@@ -1,0 +1,60 @@
+import type { OnboardingDraft } from "./steps";
+
+/**
+ * Pre-company wizard draft (steps "name" and "number"). POST /v1/companies
+ * needs name + country + area code + AUP in a single call, so these two
+ * screens persist locally until the company exists; every later step writes
+ * server-side immediately (G7 resumability).
+ */
+const DRAFT_KEY = "jobtext:onboarding-draft";
+
+/** Pure parser so malformed storage never breaks the wizard. */
+export function parseDraft(raw: string | null): OnboardingDraft {
+  if (!raw) return {};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return {};
+    const obj = value as Record<string, unknown>;
+    const draft: OnboardingDraft = {};
+    if (typeof obj.name === "string") draft.name = obj.name;
+    if (obj.country === "US" || obj.country === "CA") {
+      draft.country = obj.country;
+    }
+    if (typeof obj.areaCode === "string" && /^\d{3}$/.test(obj.areaCode)) {
+      draft.areaCode = obj.areaCode;
+    }
+    if (typeof obj.usTexting === "boolean") draft.usTexting = obj.usTexting;
+    return draft;
+  } catch {
+    return {};
+  }
+}
+
+export function readOnboardingDraft(): OnboardingDraft {
+  if (typeof window === "undefined") return {};
+  try {
+    return parseDraft(window.localStorage.getItem(DRAFT_KEY));
+  } catch {
+    return {}; // storage blocked (private mode) — wizard still works per-visit
+  }
+}
+
+export function writeOnboardingDraft(patch: Partial<OnboardingDraft>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const next = { ...readOnboardingDraft(), ...patch };
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+/** Called once the company row exists — the server owns the state from here. */
+export function clearOnboardingDraft(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Nothing to clean up.
+  }
+}

@@ -75,6 +75,8 @@ describe("GET /v1/contacts", () => {
   it("composes the trgm q filter with soft-delete exclusion and keyset limit", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -92,6 +94,83 @@ describe("GET /v1/contacts", () => {
       "(name.ilike.*smi*,phone_e164.ilike.*smi*)",
     );
     expect(call.url.searchParams.get("limit")).toBe("11");
+  });
+
+  it("decorates rows with opted_out (G6 badge) and last_activity_at (conversation activity, never updated_at) via batched lookups", async () => {
+    const OTHER_ID = "eeeeeeee-1111-4222-8333-444444444444";
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow(), // +14165550199
+      contactRow({
+        id: OTHER_ID,
+        phone_e164: "+15125550105",
+        name: "Rosa Delgado",
+        created_at: "2026-06-30T09:00:00+00:00",
+      }),
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: "+15125550105" },
+    ]);
+    // Two conversations for the first contact (newest wins — the route
+    // orders last_message_at DESC and keeps the first per contact); none for
+    // the second (→ null, the "no texting yet" table state).
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { contact_id: CONTACT_ID, last_message_at: "2026-06-26T18:04:00+00:00" },
+      { contact_id: CONTACT_ID, last_message_at: "2026-05-01T10:00:00+00:00" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { id: string; opted_out: boolean; last_activity_at: string | null }[];
+    };
+    expect(body.data).toEqual([
+      expect.objectContaining({
+        id: CONTACT_ID,
+        opted_out: false,
+        last_activity_at: "2026-06-26T18:04:00+00:00",
+      }),
+      expect.objectContaining({
+        id: OTHER_ID,
+        opted_out: true,
+        last_activity_at: null,
+      }),
+    ]);
+
+    const lookup = sb.find("GET", "/rest/v1/opt_outs")[0];
+    expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(lookup.url.searchParams.get("revoked_at")).toBe("is.null");
+    expect(lookup.url.searchParams.get("phone_e164")).toBe(
+      "in.(+14165550199,+15125550105)",
+    );
+
+    const activity = sb.find("GET", "/rest/v1/conversations")[0];
+    expect(activity.url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    expect(activity.url.searchParams.get("contact_id")).toBe(
+      `in.(${CONTACT_ID},${OTHER_ID})`,
+    );
+    expect(activity.url.searchParams.get("order")).toBe(
+      "last_message_at.desc",
+    );
+  });
+
+  it("skips the opt-out and activity lookups entirely for an empty page", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: [], next_cursor: null });
+    expect(sb.find("GET", "/rest/v1/opt_outs")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
   });
 
   it("strips PostgREST/LIKE metacharacters from q", async () => {

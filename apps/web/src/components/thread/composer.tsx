@@ -1,0 +1,381 @@
+"use client";
+
+import { ImagePlus, Send, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useCreateNote } from "@/lib/api/conversations";
+import { ApiError } from "@/lib/api/error";
+import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
+import { cn } from "@/lib/utils";
+
+import { SEGMENT_TOOLTIP, segmentMeter } from "./segment-meter";
+import { TemplatePicker } from "./template-picker";
+
+/** SPEC §7 outbound media limits — validated here AND by the API. */
+const MAX_ATTACHMENTS = 3;
+const MAX_BYTES = 1024 * 1024;
+const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/gif"]);
+
+export interface DraftAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Removable chip previews for attached images (G5). */
+export function AttachmentChips({
+  attachments,
+  onRemove,
+}: {
+  attachments: DraftAttachment[];
+  onRemove: (id: string) => void;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <div className="flex gap-2 px-1 pb-2">
+      {attachments.map((attachment) => (
+        <span key={attachment.id} className="relative">
+          {/* Local object URL preview — never uploaded until send. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={attachment.previewUrl}
+            alt={attachment.file.name}
+            className="size-14 rounded-md border border-border object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(attachment.id)}
+            aria-label={`Remove ${attachment.file.name}`}
+            className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm hover:bg-secondary"
+          >
+            <X className="size-3" strokeWidth={1.75} />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Validate + admit files into the draft; G10 error copy. */
+export function admitFiles(
+  current: DraftAttachment[],
+  incoming: FileList | File[],
+): DraftAttachment[] {
+  const next = [...current];
+  for (const file of Array.from(incoming)) {
+    if (next.length >= MAX_ATTACHMENTS) {
+      toast.error("You can attach up to 3 photos per text.");
+      break;
+    }
+    if (!ACCEPTED_TYPES.has(file.type)) {
+      toast.error("Photos only — JPEG, PNG, or GIF.");
+      continue;
+    }
+    if (file.size > MAX_BYTES) {
+      toast.error("That image is over 1 MB. Try a smaller photo.");
+      continue;
+    }
+    next.push({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+  }
+  return next;
+}
+
+/**
+ * Segment meter (G5): >120 chars, amber ≥4 segments, plain tooltip.
+ * Warn text is amber-700 in light — --warning (amber-600) is tint-only
+ * there; it misses the G11 4.5:1 bar as text on white.
+ */
+export function SegmentMeterLabel({ text }: { text: string }) {
+  const meter = segmentMeter(text);
+  if (!meter.visible) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "cursor-default text-xs tabular-nums",
+            meter.warn
+              ? "text-amber-700 dark:text-warning"
+              : "text-muted-foreground",
+          )}
+        >
+          {meter.label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">{SEGMENT_TOOLTIP}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Auto-grow: 1 → 6 rows (G5), then internal scroll. */
+export function useAutoGrow(value: string) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const lineHeight = 24;
+    const max = lineHeight * 6 + 16;
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [value]);
+  return ref;
+}
+
+/**
+ * The G5 thread composer: auto-growing textarea, template picker (`/` or
+ * toolbar), up to 3 image attachments with chip previews, segment meter,
+ * petrol Send. Cmd/Ctrl+Enter sends; Enter is a newline (SMS is deliberate,
+ * not chat-instant). The API's queued insert is the optimistic UI — the row
+ * lands in the thread via the mutation and realtime.
+ *
+ * A Text/Note toggle writes internal notes (amber, POST /:id/notes). When a
+ * banner replaces the text composer (`noteOnly`), notes stay available —
+ * they're free and gated by nothing (SPEC §2).
+ */
+export function Composer({
+  conversationId,
+  noteOnly = false,
+}: {
+  conversationId: string;
+  noteOnly?: boolean;
+}) {
+  const send = useSendMessage(conversationId);
+  const createNote = useCreateNote(conversationId);
+  const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
+  const isNote = noteOnly || mode === "note";
+  const [text, setText] = useState("");
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const textareaRef = useAutoGrow(text);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs are revoked when chips are removed or the composer unmounts.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  useEffect(
+    () => () => {
+      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
+    },
+    [],
+  );
+
+  const removeAttachment = (id: string) => {
+    setAttachments((current) => {
+      const found = current.find((a) => a.id === id);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return current.filter((a) => a.id !== id);
+    });
+  };
+
+  const pending = send.isPending || createNote.isPending;
+  const canSend =
+    !pending &&
+    (isNote
+      ? text.trim() !== ""
+      : text.trim() !== "" || attachments.length > 0);
+
+  const doSend = useCallback(async () => {
+    if (!canSend) return;
+    const draftText = text;
+    const draftAttachments = attachments;
+
+    if (isNote) {
+      setText("");
+      createNote.mutate(draftText, {
+        onSuccess: () => textareaRef.current?.focus(),
+        onError: (error) => {
+          setText(draftText);
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : "That note didn't save. Try again.",
+          );
+        },
+      });
+      return;
+    }
+    // Clear immediately (fast by feel, G1); restore on failure.
+    setText("");
+    setAttachments([]);
+    let media: OutboundMedia[] | undefined;
+    try {
+      if (draftAttachments.length > 0) {
+        media = await Promise.all(
+          draftAttachments.map(async (a) => ({
+            content_type: a.file.type as OutboundMedia["content_type"],
+            base64: await fileToBase64(a.file),
+          })),
+        );
+      }
+    } catch {
+      setText(draftText);
+      setAttachments(draftAttachments);
+      toast.error("Couldn't read that photo. Try attaching it again.");
+      return;
+    }
+    send.mutate(
+      { body: draftText, media },
+      {
+        onSuccess: () => {
+          for (const a of draftAttachments) URL.revokeObjectURL(a.previewUrl);
+          textareaRef.current?.focus();
+        },
+        onError: (error) => {
+          setText(draftText);
+          setAttachments(draftAttachments);
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : "That didn't send. Check your connection and try again.",
+          );
+        },
+      },
+    );
+  }, [canSend, text, attachments, send, textareaRef, isNote, createNote]);
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      void doSend();
+      return;
+    }
+    // "/" in an empty draft opens the saved-replies picker inline (G5) —
+    // texts only; notes have no templates.
+    if (event.key === "/" && text === "" && !isNote) {
+      event.preventDefault();
+      setPickerOpen(true);
+    }
+  };
+
+  return (
+    <div className="border-t border-border bg-background p-3">
+      {!noteOnly && (
+        <div className="mb-2 flex gap-1" role="group" aria-label="Composer mode">
+          {(["sms", "note"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+              className={cn(
+                // tap-target + roomier mobile padding: G11 ≥44px hit area.
+                // Active tints use the darker G11-verified shades in light
+                // mode (amber-800 / teal-800 — see status-pill.tsx).
+                "tap-target rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:px-2.5 md:py-0.5 md:text-[11px]",
+                mode === m
+                  ? m === "note"
+                    ? "bg-warning/15 text-amber-800 dark:text-warning"
+                    : "bg-primary/10 text-teal-800 dark:text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m === "sms" ? "Text" : "Note"}
+            </button>
+          ))}
+        </div>
+      )}
+      {!isNote && (
+        <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
+      )}
+      <div className="flex items-end gap-2">
+        {!isNote && (
+          <div className="flex items-center">
+            <TemplatePicker
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onInsert={(body) => {
+                setText((current) =>
+                  current === "" ? body : `${current}${current.endsWith(" ") ? "" : " "}${body}`,
+                );
+                textareaRef.current?.focus();
+              }}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Attach a photo"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={attachments.length >= MAX_ATTACHMENTS}
+                >
+                  <ImagePlus className="size-4" strokeWidth={1.75} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Attach up to 3 photos</TooltipContent>
+            </Tooltip>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif"
+              multiple
+              hidden
+              onChange={(event) => {
+                if (event.target.files) {
+                  setAttachments((cur) => admitFiles(cur, event.target.files!));
+                }
+                event.target.value = "";
+              }}
+            />
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={onKeyDown}
+          rows={1}
+          placeholder={isNote ? "Write an internal note…" : "Write a text…"}
+          aria-label={isNote ? "Internal note" : "Message"}
+          className={cn(
+            "min-h-10 flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-[15px]",
+            isNote
+              ? "border-dashed border-amber-300 bg-amber-50/60 dark:border-amber-700/60 dark:bg-amber-950/20"
+              : "border-input",
+          )}
+        />
+        <div className="flex items-center gap-2 self-end pb-1">
+          {!isNote && <SegmentMeterLabel text={text} />}
+          <Button
+            type="button"
+            size="icon-sm"
+            onClick={() => void doSend()}
+            disabled={!canSend}
+            aria-label={isNote ? "Save note" : "Send message"}
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            className={cn(
+              isNote &&
+                "bg-warning text-white hover:bg-warning/90 dark:text-stone-950",
+            )}
+          >
+            <Send className="size-4" strokeWidth={1.75} />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

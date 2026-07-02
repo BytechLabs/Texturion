@@ -88,9 +88,12 @@ describe("GET /v1/notification-prefs", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
+    // The response also carries the server's VAPID application key (SPEC §8)
+    // — the browser's PushManager.subscribe() applicationServerKey source.
     expect(await res.json()).toEqual({
       email_enabled: false,
       push_enabled: true,
+      vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
 
     const call = sb.find("GET", "/rest/v1/notification_prefs")[0];
@@ -113,6 +116,7 @@ describe("GET /v1/notification-prefs", () => {
     expect(await res.json()).toEqual({
       email_enabled: true,
       push_enabled: true,
+      vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
   });
 });
@@ -139,9 +143,12 @@ describe("PUT /v1/notification-prefs", () => {
       },
     );
     expect(res.status).toBe(200);
+    // PUT echoes the GET shape (key included) so a toggle save never strips
+    // the VAPID key from a client cache.
     expect(await res.json()).toEqual({
       email_enabled: true,
       push_enabled: false,
+      vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
 
     const upsert = sb.find("POST", "/rest/v1/notification_prefs")[0];

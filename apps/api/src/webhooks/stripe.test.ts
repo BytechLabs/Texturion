@@ -73,6 +73,7 @@ function subscriptionFixture(
     status?: string;
     licensed?: string;
     metered?: string;
+    cancelAtPeriodEnd?: boolean;
   } = {},
 ) {
   const {
@@ -80,11 +81,13 @@ function subscriptionFixture(
     status = "active",
     licensed = env.STRIPE_STARTER_PRICE_ID,
     metered = env.STRIPE_STARTER_OVERAGE_PRICE_ID,
+    cancelAtPeriodEnd = false,
   } = overrides;
   return {
     id,
     object: "subscription",
     status,
+    cancel_at_period_end: cancelAtPeriodEnd,
     schedule: null,
     items: {
       object: "list",
@@ -342,6 +345,7 @@ describe("§9 event → state table", () => {
       current_period_start: new Date(PERIOD_START * 1000).toISOString(),
       current_period_end: new Date(PERIOD_END * 1000).toISOString(),
       canceled_at: null,
+      cancel_at_period_end: false,
     });
     // Fee stamp: gated on registration_fee_paid_at IS NULL (once ever, §2).
     const feeStamp = companyPatches[1];
@@ -436,9 +440,39 @@ describe("§9 event → state table", () => {
         plan: "starter",
         current_period_start: new Date(PERIOD_START * 1000).toISOString(),
         current_period_end: new Date(PERIOD_END * 1000).toISOString(),
+        cancel_at_period_end: false,
       });
     },
   );
+
+  it("customer.subscription.updated mirrors a pending period-end cancellation (SPEC §9 cancel_at_period_end display)", async () => {
+    // Portal cancellation: Stripe keeps status 'active' but flags
+    // cancel_at_period_end — the mirror must carry the flag (re-fetched
+    // truth) so /settings/billing can announce "your plan ends on {date}".
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "active", cancelAtPeriodEnd: true }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing" },
+      ]),
+    ]);
+    await deliver(
+      // The event body still claims no pending cancellation; the re-fetch wins.
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+    const patches = harness.callsTo("PATCH", /companies/);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].json()).toEqual({
+      subscription_status: "active",
+      plan: "starter",
+      current_period_start: new Date(PERIOD_START * 1000).toISOString(),
+      current_period_end: new Date(PERIOD_END * 1000).toISOString(),
+      cancel_at_period_end: true,
+    });
+  });
 
   it("customer.subscription.updated syncs a plan change (upgrade rollover)", async () => {
     const harness = makeHarness([
@@ -489,6 +523,7 @@ describe("§9 event → state table", () => {
     expect(patches[0].json()).toEqual({
       subscription_status: "canceled",
       canceled_at: canceledAt,
+      cancel_at_period_end: false,
     });
     expect(suspendCompanyNumbers).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
     // Ledger row FIRST, keyed to the same canceled_at the company row got.

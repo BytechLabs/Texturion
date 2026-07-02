@@ -11,8 +11,8 @@ import { unwrap } from "./http";
 export const COMPANY_COLUMNS =
   "id,name,country,us_texting_enabled,requested_area_code,plan," +
   "subscription_status,current_period_start,current_period_end," +
-  "overage_cap_multiplier,registration_fee_paid_at,canceled_at,created_at," +
-  "updated_at";
+  "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
+  "cancel_at_period_end,created_at,updated_at";
 
 const NUMBER_COLUMNS =
   "id,status,country,number_e164,requested_area_code,created_at";

@@ -225,6 +225,7 @@ async function handleCheckoutCompleted(
       current_period_start: period.start,
       current_period_end: period.end,
       canceled_at: null,
+      cancel_at_period_end: subscription.cancel_at_period_end === true,
       ...(plan ? { plan } : {}),
     })
     .eq("id", companyId);
@@ -299,6 +300,9 @@ export async function syncSubscription(
       subscription_status: status,
       current_period_start: period.start,
       current_period_end: period.end,
+      // §9: "handle cancel_at_period_end display" — a portal cancellation
+      // scheduled for period end is mirrored so the UI can announce it.
+      cancel_at_period_end: subscription.cancel_at_period_end === true,
       ...(plan ? { plan } : {}),
     })
     .eq("stripe_subscription_id", subscriptionId)
@@ -323,7 +327,13 @@ async function handleSubscriptionDeleted(
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")
-    .update({ subscription_status: "canceled", canceled_at: canceledAt })
+    .update({
+      subscription_status: "canceled",
+      canceled_at: canceledAt,
+      // The pending-cancellation flag is moot once the deletion lands —
+      // `subscription_status='canceled'` + `canceled_at` are the truth now.
+      cancel_at_period_end: false,
+    })
     .eq("stripe_subscription_id", subscription.id)
     .select("id,name");
   if (error) throw new Error(`cancellation mirror failed: ${error.message}`);

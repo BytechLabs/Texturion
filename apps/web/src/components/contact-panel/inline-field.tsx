@@ -1,0 +1,166 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { ApiError } from "@/lib/api/error";
+import { useUpdateContact, type ContactPatch } from "@/lib/api/contacts";
+import { cn } from "@/lib/utils";
+
+/**
+ * Inline auto-saving fields (G6): click-to-edit text, and a notes textarea
+ * that debounce-saves via PATCH /v1/contacts/:id with a quiet "Saved"
+ * indicator. Errors restore nothing silently — the value stays so the user
+ * can retry, with a toast naming what happened (G10).
+ */
+
+export function InlineTextField({
+  contactId,
+  field,
+  value,
+  label,
+  placeholder,
+}: {
+  contactId: string;
+  field: "name" | "address";
+  value: string | null;
+  label: string;
+  placeholder: string;
+}) {
+  const update = useUpdateContact(contactId);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(value ?? "");
+  }, [value, editing]);
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed === (value ?? "")) return;
+    const patch: ContactPatch = { [field]: trimmed === "" ? null : trimmed };
+    update.mutate(patch, {
+      onError: (error) =>
+        toast.error(
+          error instanceof ApiError
+            ? error.message
+            : `Couldn't save the ${field}. Try again.`,
+        ),
+    });
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={`Edit ${label}`}
+        className={cn(
+          "w-full truncate rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+          value ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {value || placeholder}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") {
+          setDraft(value ?? "");
+          setEditing(false);
+        }
+      }}
+      aria-label={label}
+      className="w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    />
+  );
+}
+
+export function AutoSaveNotes({
+  contactId,
+  value,
+}: {
+  contactId: string;
+  value: string | null;
+}) {
+  const update = useUpdateContact(contactId);
+  const [draft, setDraft] = useState(value ?? "");
+  const [saved, setSaved] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaved = useRef(value ?? "");
+
+  // Server-side changes (another teammate) refresh an idle editor only.
+  useEffect(() => {
+    if ((value ?? "") !== lastSaved.current && draft === lastSaved.current) {
+      lastSaved.current = value ?? "";
+      setDraft(value ?? "");
+    }
+  }, [value, draft]);
+
+  const onChange = (next: string) => {
+    setDraft(next);
+    setSaved(false);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const trimmed = next.trim() === "" ? null : next;
+      if ((trimmed ?? "") === lastSaved.current) return;
+      update.mutate(
+        { notes: trimmed },
+        {
+          onSuccess: () => {
+            lastSaved.current = trimmed ?? "";
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+          },
+          onError: (error) =>
+            toast.error(
+              error instanceof ApiError
+                ? error.message
+                : "Couldn't save notes. Try again.",
+            ),
+        },
+      );
+    }, 800);
+  };
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  return (
+    <div className="space-y-1">
+      <textarea
+        value={draft}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        placeholder="Notes about this customer…"
+        aria-label="Contact notes"
+        className="w-full resize-none rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      />
+      <p
+        aria-live="polite"
+        className={cn(
+          "h-4 text-right text-[11px] text-muted-foreground transition-opacity duration-150",
+          update.isPending || saved ? "opacity-100" : "opacity-0",
+        )}
+      >
+        {update.isPending ? "Saving…" : saved ? "Saved" : ""}
+      </p>
+    </div>
+  );
+}

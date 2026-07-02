@@ -1,11 +1,13 @@
 /**
- * GET /v1/usage (SPEC §7, §9) — current-period outbound segment usage from
- * usage_events (the app-side source of truth; never Stripe):
+ * GET /v1/usage (SPEC §7, §9; DESIGN G8) — current-period outbound segment
+ * usage from usage_events (the app-side source of truth; never Stripe):
  *   { period_start, period_end, included_segments, used_segments,
- *     overage_segments, cap_segments, projected_overage_cents }
+ *     overage_segments, cap_segments, projected_overage_cents,
+ *     history: [{ month: 'YYYY-MM', segments }] }
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
- * SPEC §2). A company that has never checked out (plan null / no period)
- * reads as zero usage.
+ * SPEC §2). `history` is the last 6 calendar months (oldest first, zero-
+ * filled) for the G8 "6-month history bars". A company that has never checked
+ * out (plan null / no period) reads as zero usage with an empty history.
  */
 import { Hono } from "hono";
 
@@ -27,6 +29,9 @@ interface CompanyUsageRow {
   current_period_end: string | null;
   overage_cap_multiplier: number | string | null;
 }
+
+/** DESIGN G8: the usage screen renders a 6-month history. */
+const HISTORY_MONTHS = 6;
 
 export const usageRoutes = new Hono<AppEnv>();
 
@@ -59,6 +64,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
+      history: [],
     });
   }
 
@@ -70,6 +76,14 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       }),
       "usage sum",
     ),
+  );
+
+  const history = unwrap<{ month: string; segments: number }[]>(
+    await db.rpc("api_usage_history", {
+      p_company_id: companyId,
+      p_months: HISTORY_MONTHS,
+    }),
+    "usage history",
   );
 
   const included = PLAN_INCLUDED_SEGMENTS[company.plan];
@@ -89,5 +103,6 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     projected_overage_cents: Math.round(
       overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan],
     ),
+    history,
   });
 });

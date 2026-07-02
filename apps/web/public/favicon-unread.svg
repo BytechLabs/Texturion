@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    JobText favicon — unread state (G9 "unread favicon dot"). Same J tile as
+    favicon.svg plus a petrol dot on a white badge in the top-right corner
+    (the white ring keeps the dot legible over the petrol tile and on any
+    tab-strip color). Swapped in by src/lib/push/use-unread-title.ts whenever
+    the inbox holds unread conversations.
+  -->
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#0F766E"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <g transform="translate(256 256) scale(1.25) translate(-158 -258)">
+      <path d="M 214 154 V 304 A 58 58 0 0 1 102 324" stroke-width="54"/>
+    </g>
+  </g>
+  <circle cx="384" cy="128" r="106" fill="#FFFFFF"/>
+  <circle cx="384" cy="128" r="66" fill="#0F766E"/>
+</svg>

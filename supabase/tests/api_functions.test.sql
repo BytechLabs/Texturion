@@ -1,5 +1,6 @@
--- JobText API route-function assertion suite (SPEC §7 — migration
--- 20260701010000_api_route_functions.sql).
+-- JobText API route-function assertion suite (SPEC §7 — migrations
+-- 20260701010000_api_route_functions.sql and
+-- 20260701050000_list_snippets_usage_history.sql).
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
 --   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
@@ -171,11 +172,53 @@ begin
     raise exception 'F2 FAILED: internal last_notified_at leaked';
   end if;
 
-  -- is_spam=true: only the spam thread
+  -- last_message snippet source (DESIGN G4 — cold-load row anatomy): the
+  -- newest messages row, embedded per conversation.
+  if rows[1]->'last_message'->>'body' <> 'Quote attached, let me know!'
+     or rows[1]->'last_message'->>'direction' <> 'outbound'
+     or (rows[1]->'last_message'->>'created_at') is null
+     or (rows[1]->'last_message'->>'has_attachments')::boolean is distinct from false then
+    raise exception 'F2 FAILED: last_message wrong: %', rows[1]->'last_message';
+  end if;
+  if rows[2]->'last_message'->>'direction' <> 'inbound' then
+    raise exception 'F2 FAILED: cv2 last_message wrong: %', rows[2]->'last_message';
+  end if;
+
+  -- has_attachments flips when the newest message carries media ("Photo"
+  -- snippet for body-less MMS).
+  insert into public.message_attachments
+    (message_id, company_id, storage_path, content_type, size_bytes)
+  select m.id, f.cid, 'mms-media/fixture/0', 'image/jpeg', 1000
+  from public.messages m
+  where m.conversation_id = f.cv1
+  order by m.created_at desc, m.id desc
+  limit 1;
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10));
+  if (rows[1]->'last_message'->>'has_attachments')::boolean is distinct from true then
+    raise exception 'F2 FAILED: has_attachments not reflected: %', rows[1]->'last_message';
+  end if;
+
+  -- notes ARE messages rows → they snippet too; body truncates to 160 chars
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, created_at)
+  values (f.cid, f.cv1, 'note', repeat('x', 300), null, '2026-07-01T12:05:00Z');
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10));
+  if rows[1]->'last_message'->>'direction' <> 'note'
+     or length(rows[1]->'last_message'->>'body') <> 160 then
+    raise exception 'F2 FAILED: note snippet / truncation wrong: %', rows[1]->'last_message';
+  end if;
+
+  -- is_spam=true: only the spam thread; no messages yet → last_message null
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_is_spam => true));
   if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv3 then
     raise exception 'F2 FAILED: is_spam filter wrong';
+  end if;
+  if rows[1]->'last_message' is distinct from 'null'::jsonb then
+    raise exception 'F2 FAILED: empty thread should embed last_message null: %',
+      rows[1]->'last_message';
   end if;
 
   -- status filter
@@ -241,6 +284,67 @@ begin
   end if;
 
   raise notice 'F2 PASSED: api_list_conversations filters, ordering, cursor, unread';
+end $$;
+
+-- ===========================================================================
+-- F2b. unread excludes the caller's own sends (DESIGN G4 — migration
+--      20260702000000): replying never marks the thread unread for the
+--      sender; inbound and teammates' messages still do. Flag and p_unread
+--      filter agree.
+-- ===========================================================================
+do $$
+declare
+  f record;
+  rows jsonb[];
+  r jsonb;
+  unread_cv2 boolean;
+begin
+  select * into f from fixture;
+
+  -- Owner reads cv2 at 12:15 (after its 11:00 inbound)…
+  insert into public.conversation_reads (conversation_id, user_id, last_read_at)
+  values (f.cv2, '11111111-1111-4111-8111-111111111111', '2026-07-01T12:15:00Z');
+
+  -- …then the MEMBER replies on cv2 at 12:30 (the open→reply→back flow).
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, sent_by_user_id, created_at)
+  values (f.cid, f.cv2, 'outbound', 'On my way!', 'queued',
+          '22222222-2222-4222-8222-222222222222', '2026-07-01T12:30:00Z');
+  update public.conversations
+     set last_message_at = '2026-07-01T12:30:00Z' where id = f.cv2;
+
+  -- Sender's view: cv2 must NOT be unread (own send; last read 11:30 covers
+  -- the 11:00 inbound). The old last_message_at comparison flagged it.
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10));
+  unread_cv2 := null;
+  foreach r in array rows loop
+    if (r->>'id')::uuid = f.cv2 then unread_cv2 := (r->>'unread')::boolean; end if;
+  end loop;
+  if unread_cv2 is distinct from false then
+    raise exception 'F2b FAILED: own outbound send marked unread for the sender: %', unread_cv2;
+  end if;
+
+  -- p_unread filter agrees: only cv1 (its inbound is still unread for member).
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10, p_unread => true));
+  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+    raise exception 'F2b FAILED: unread filter disagrees with the flag';
+  end if;
+
+  -- Teammate's view: the member's 12:30 reply IS unread for the owner (read
+  -- at 12:15) — only the author is excluded, not other members.
+  rows := array(select public.api_list_conversations(
+    f.cid, '11111111-1111-4111-8111-111111111111', 10));
+  unread_cv2 := null;
+  foreach r in array rows loop
+    if (r->>'id')::uuid = f.cv2 then unread_cv2 := (r->>'unread')::boolean; end if;
+  end loop;
+  if unread_cv2 is distinct from true then
+    raise exception 'F2b FAILED: teammate message not unread for other members: %', unread_cv2;
+  end if;
+
+  raise notice 'F2b PASSED: unread excludes own sends, keeps inbound + teammate messages';
 end $$;
 
 -- ===========================================================================
@@ -356,6 +460,40 @@ begin
   end if;
 
   raise notice 'F4 PASSED: api_period_segments period-scoped sum';
+end $$;
+
+-- ===========================================================================
+-- F4b. api_usage_history: zero-filled calendar-month buckets, oldest first,
+--      anchored on p_anchor (DESIGN G8 "6-month history bars").
+-- ===========================================================================
+do $$
+declare
+  f record;
+  hist jsonb;
+begin
+  select * into f from fixture;
+
+  -- Anchor inside July 2026: fixture has 7 segments in June, 6 in July.
+  hist := public.api_usage_history(f.cid, 6, '2026-07-10T00:00:00Z');
+  if jsonb_array_length(hist) <> 6 then
+    raise exception 'F4b FAILED: expected 6 buckets, got %', hist;
+  end if;
+  if hist->0->>'month' <> '2026-02' or hist->5->>'month' <> '2026-07' then
+    raise exception 'F4b FAILED: bucket range wrong: %', hist;
+  end if;
+  if (hist->0->>'segments')::bigint <> 0
+     or (hist->4->>'segments')::bigint <> 7
+     or (hist->5->>'segments')::bigint <> 6 then
+    raise exception 'F4b FAILED: bucket sums wrong: %', hist;
+  end if;
+
+  -- tenant isolation: another company reads all-zero buckets
+  hist := public.api_usage_history(gen_random_uuid(), 6, '2026-07-10T00:00:00Z');
+  if (select sum((b->>'segments')::bigint) from jsonb_array_elements(hist) b) <> 0 then
+    raise exception 'F4b FAILED: cross-tenant leak: %', hist;
+  end if;
+
+  raise notice 'F4b PASSED: api_usage_history month buckets, zero-fill, isolation';
 end $$;
 
 -- ===========================================================================

@@ -7,6 +7,20 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async redirects() {
+    return [
+      // The API's invite email points at /invites/accept?invite_id=… (see
+      // apps/api/src/routes/team.ts); the canonical accept page lives at
+      // /invite/[token] (G3). Other query params (Supabase auth code) pass
+      // through automatically.
+      {
+        source: "/invites/accept",
+        has: [{ type: "query", key: "invite_id", value: "(?<inviteId>.*)" }],
+        destination: "/invite/:inviteId",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

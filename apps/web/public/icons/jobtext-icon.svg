@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    JobText app icon — the "Jt" wordmark (source of truth for every raster).
+
+    Design (DESIGN.md G2/G9): calm petrol tile (#0F766E, teal-700), white
+    geometric "Jt" monogram drawn as round-capped strokes, no gradients, no
+    effects. The glyph ink stays inside the 80% maskable safe circle
+    (radius ~205 around 256,256) so the same artwork works for `purpose:
+    any` (this rounded tile) and `purpose: maskable` (full-bleed tile —
+    scripts/generate-icons.mjs flattens the corner radius).
+
+    Rendered by apps/web/scripts/generate-icons.mjs into:
+      icon-192.png / icon-512.png            (rounded tile, transparent corners)
+      icon-maskable-192.png / icon-maskable-512.png (full-bleed)
+      apple-touch-icon.png (180, full-bleed — iOS applies its own mask)
+  -->
+  <rect id="tile" x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#0F766E"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="54" stroke-linecap="round">
+    <!-- J: stem + fishhook bowl (dips 8px below the t bowl for overshoot) -->
+    <path d="M 214 154 V 304 A 58 58 0 0 1 102 324"/>
+    <!-- t: ascender stem flowing into an upturned terminal -->
+    <path d="M 344 142 V 310 A 44 44 0 0 0 410 348"/>
+    <!-- t crossbar -->
+    <path d="M 308 210 H 400"/>
+  </g>
+</svg>

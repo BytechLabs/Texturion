@@ -2,12 +2,16 @@
  * Notification preference + Web Push subscription routes (SPEC §7, §8) — any
  * active member. Mounted by the integration layer at /v1:
  *
- *   GET    /v1/notification-prefs        { email_enabled, push_enabled } for
- *          the caller in the active company. Rows are created at company
- *          creation and invite acceptance (defaults true/true); a missing row
- *          reads as those schema defaults.
+ *   GET    /v1/notification-prefs        { email_enabled, push_enabled,
+ *          vapid_public_key } for the caller in the active company. Rows are
+ *          created at company creation and invite acceptance (defaults
+ *          true/true); a missing row reads as those schema defaults.
+ *          `vapid_public_key` is the server's VAPID application key (SPEC §8)
+ *          — the browser needs it as `applicationServerKey` when calling
+ *          PushManager.subscribe(), so the prefs read is where the web app
+ *          picks it up (no separate config route, no rebuild on key rotation).
  *   PUT    /v1/notification-prefs        { email_enabled, push_enabled } —
- *          upsert on (user_id, company_id).
+ *          upsert on (user_id, company_id); echoes the same shape as GET.
  *   POST   /v1/push-subscriptions        { endpoint, keys: {p256dh, auth} }
  *          from PushSubscription.toJSON(); upsert on (user_id, endpoint) so a
  *          browser re-subscribe refreshes rotated keys. Subscriptions are
@@ -55,7 +59,8 @@ notificationsRoutes.get(
   "/notification-prefs",
   requireRole("member"),
   async (c) => {
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
@@ -66,7 +71,8 @@ notificationsRoutes.get(
       "notification prefs lookup",
     );
     // §6 schema defaults — the shape the row would have been created with.
-    return c.json(rows[0] ?? { email_enabled: true, push_enabled: true });
+    const prefs = rows[0] ?? { email_enabled: true, push_enabled: true };
+    return c.json({ ...prefs, vapid_public_key: env.VAPID_PUBLIC_KEY });
   },
 );
 
@@ -75,7 +81,8 @@ notificationsRoutes.put(
   requireRole("member"),
   async (c) => {
     const body = await parseJsonBody(c, prefsSchema);
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
@@ -92,7 +99,8 @@ notificationsRoutes.put(
         .select("email_enabled,push_enabled"),
       "notification prefs upsert",
     );
-    return c.json(rows[0]);
+    // Same shape as GET so client caches never lose the key on a toggle save.
+    return c.json({ ...rows[0], vapid_public_key: env.VAPID_PUBLIC_KEY });
   },
 );
 

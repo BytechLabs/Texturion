@@ -183,6 +183,31 @@ describe("GET /v1/company", () => {
     });
   });
 
+  it("selects cancel_at_period_end (and only customer-safe columns) for the view", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { id: COMPANY_ID, cancel_at_period_end: true },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ cancel_at_period_end: true });
+
+    // SPEC §9 "handle cancel_at_period_end display" — the flag is part of the
+    // company view; Stripe/Telnyx internals stay server-side (SPEC §10).
+    const select = sb
+      .find("GET", "/rest/v1/companies")[0]
+      .url.searchParams.get("select");
+    expect(select).toContain("cancel_at_period_end");
+    expect(select).not.toContain("stripe_");
+    expect(select).not.toContain("telnyx_");
+  });
+
   it("403s a non-member", async () => {
     const sb = stubWithRole(null);
     stubFetch(jwksRoute(auth), sb.route);

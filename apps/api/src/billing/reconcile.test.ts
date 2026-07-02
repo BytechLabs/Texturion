@@ -90,6 +90,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
         subscription_status: "active",
         current_period_start: new Date(PERIOD_START * 1000).toISOString(),
         current_period_end: new Date(PERIOD_END * 1000).toISOString(),
+        cancel_at_period_end: false,
         plan: "starter",
       },
     ]);

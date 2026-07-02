@@ -2,7 +2,12 @@
  * Contact routes (SPEC §5, §7, §10 matrix):
  *
  *   GET    /v1/contacts             M   — cursor list (created_at, id) DESC,
- *          trgm-backed `q` over name/phone, soft-deleted hidden.
+ *          trgm-backed `q` over name/phone, soft-deleted hidden; every row
+ *          carries the app-side `opted_out` state (DESIGN G6: the contacts
+ *          table shows an opted-out badge) and `last_activity_at` — the
+ *          newest conversations.last_message_at for the contact, null when
+ *          they have no conversation (the G6 "last activity" column; never
+ *          the record's updated_at, which any edit or CSV re-import touches).
  *   POST   /v1/contacts             M   — upsert on (company_id, phone_e164);
  *          existing rows (soft-deleted included) are updated and deleted_at
  *          cleared.
@@ -125,14 +130,70 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
   }
-  const rows = unwrap<{ id: string; created_at: string }[]>(
+  const rows = unwrap<
+    { id: string; created_at: string; phone_e164: string }[]
+  >(
     await query
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1),
     "contacts list",
   );
-  return c.json(buildPage(rows, limit, "created_at"));
+  const page = buildPage(rows, limit, "created_at");
+
+  // DESIGN G6: the contacts table shows an opted-out badge, so list rows
+  // carry the same app-side opt-out state as GET /v1/contacts/:id — one
+  // batched lookup per page (max 100 rows).
+  const optedOutPhones = new Set<string>();
+  if (page.data.length > 0) {
+    const active = unwrap<{ phone_e164: string }[]>(
+      await db
+        .from("opt_outs")
+        .select("phone_e164")
+        .eq("company_id", c.get("companyId"))
+        .is("revoked_at", null)
+        .in(
+          "phone_e164",
+          [...new Set(page.data.map((row) => row.phone_e164))],
+        ),
+      "opt-out lookup",
+    );
+    for (const row of active) optedOutPhones.add(row.phone_e164);
+  }
+
+  // DESIGN G6 "last activity" = conversation activity: the newest
+  // conversations.last_message_at per contact (messages and notes both move
+  // it — routes/conversations.ts), one batched lookup per page. Ordered DESC
+  // so first-seen per contact wins.
+  const lastActivityByContact = new Map<string, string>();
+  if (page.data.length > 0) {
+    const activity = unwrap<{ contact_id: string; last_message_at: string }[]>(
+      await db
+        .from("conversations")
+        .select("contact_id,last_message_at")
+        .eq("company_id", c.get("companyId"))
+        .in(
+          "contact_id",
+          page.data.map((row) => row.id),
+        )
+        .order("last_message_at", { ascending: false }),
+      "contact activity lookup",
+    );
+    for (const row of activity) {
+      if (!lastActivityByContact.has(row.contact_id)) {
+        lastActivityByContact.set(row.contact_id, row.last_message_at);
+      }
+    }
+  }
+
+  return c.json({
+    ...page,
+    data: page.data.map((row) => ({
+      ...row,
+      opted_out: optedOutPhones.has(row.phone_e164),
+      last_activity_at: lastActivityByContact.get(row.id) ?? null,
+    })),
+  });
 });
 
 contactsRoutes.post("/contacts", requireRole("member"), async (c) => {

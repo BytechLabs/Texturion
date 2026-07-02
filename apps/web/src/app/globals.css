@@ -3,76 +3,109 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * JobText design tokens (DESIGN.md G2) — shadcn/ui CSS-variable convention,
+ * light + dark. Warm stone neutrals, one confident "petrol" accent
+ * (#0F766E / teal-700; teal-500 on dark), semantic colors used sparingly.
+ * Values are the Tailwind v4 oklch palette so utility classes and tokens
+ * always agree.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --radius: 0.625rem; /* 10px — G2 */
+
+  /* Neutrals: stone. Background stone-50, surfaces white, text stone-900,
+     secondary text stone-500, borders stone-200. */
+  --background: oklch(0.985 0.001 106.423); /* stone-50 #FAFAF9 */
+  --foreground: oklch(0.216 0.006 56.043); /* stone-900 */
+  --card: oklch(1 0 0); /* white */
+  --card-foreground: oklch(0.216 0.006 56.043);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.216 0.006 56.043);
+
+  /* Petrol accent: teal-700 primary, teal-800 hover (via primary/90 or
+     explicit classes), teal-50 tinted backgrounds. */
+  --primary: oklch(0.511 0.096 186.391); /* teal-700 #0F766E */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: oklch(0.97 0.001 106.424); /* stone-100 */
+  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 */
+  --accent: oklch(0.97 0.001 106.424); /* stone-100 */
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325); /* red-600 */
+  --border: oklch(0.923 0.003 48.717); /* stone-200 */
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.511 0.096 186.391); /* petrol focus rings (G11) */
+
+  /* Semantic (muted, used sparingly — G2). */
+  --success: oklch(0.596 0.145 163.225); /* emerald-600 */
+  --warning: oklch(0.666 0.179 58.318); /* amber-600 */
+  --info: oklch(0.588 0.158 241.966); /* sky-600 */
+
+  /* Charts: petrol scale + supporting hues (usage history bars etc.). */
+  --chart-1: oklch(0.511 0.096 186.391); /* teal-700 */
+  --chart-2: oklch(0.704 0.14 182.503); /* teal-500 */
+  --chart-3: oklch(0.855 0.138 181.071); /* teal-300 */
+  --chart-4: oklch(0.666 0.179 58.318); /* amber-600 */
+  --chart-5: oklch(0.709 0.01 56.259); /* stone-400 */
+
+  /* Shell sidebar (G3): stone-100 background, active item = white pill +
+     petrol text. */
+  --sidebar: oklch(0.97 0.001 106.424); /* stone-100 */
+  --sidebar-foreground: oklch(0.216 0.006 56.043);
+  --sidebar-primary: oklch(0.511 0.096 186.391);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(1 0 0); /* white pill */
+  --sidebar-accent-foreground: oklch(0.511 0.096 186.391); /* petrol text */
+  --sidebar-border: oklch(0.923 0.003 48.717);
+  --sidebar-ring: oklch(0.511 0.096 186.391);
 }
 
+/* Dark (G2): background stone-950, surfaces stone-900, borders stone-800,
+   accent teal-500. Ships in MVP — system-follow + manual toggle. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.147 0.004 49.25); /* stone-950 */
+  --foreground: oklch(0.985 0.001 106.423); /* stone-50 */
+  --card: oklch(0.216 0.006 56.043); /* stone-900 */
+  --card-foreground: oklch(0.985 0.001 106.423);
+  --popover: oklch(0.216 0.006 56.043);
+  --popover-foreground: oklch(0.985 0.001 106.423);
+
+  --primary: oklch(0.704 0.14 182.503); /* teal-500 */
+  --primary-foreground: oklch(0.277 0.046 192.524); /* teal-950 — 4.5:1 on teal-500 */
+  --secondary: oklch(0.268 0.007 34.298); /* stone-800 */
+  --secondary-foreground: oklch(0.985 0.001 106.423);
+  --muted: oklch(0.268 0.007 34.298);
+  --muted-foreground: oklch(0.709 0.01 56.259); /* stone-400 */
+  --accent: oklch(0.268 0.007 34.298);
+  --accent-foreground: oklch(0.985 0.001 106.423);
+  --destructive: oklch(0.637 0.237 25.331); /* red-500 */
+  --border: oklch(0.268 0.007 34.298); /* stone-800 */
+  --input: oklch(0.268 0.007 34.298);
+  --ring: oklch(0.704 0.14 182.503);
+
+  --success: oklch(0.696 0.17 162.48); /* emerald-500 */
+  --warning: oklch(0.769 0.188 70.08); /* amber-500 */
+  --info: oklch(0.685 0.169 237.323); /* sky-500 */
+
+  --chart-1: oklch(0.704 0.14 182.503); /* teal-500 */
+  --chart-2: oklch(0.6 0.118 184.704); /* teal-600 */
+  --chart-3: oklch(0.437 0.078 188.216); /* teal-800 */
+  --chart-4: oklch(0.769 0.188 70.08); /* amber-500 */
+  --chart-5: oklch(0.553 0.013 58.071); /* stone-500 */
+
+  --sidebar: oklch(0.216 0.006 56.043); /* stone-900 */
+  --sidebar-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-primary: oklch(0.704 0.14 182.503);
+  --sidebar-primary-foreground: oklch(0.277 0.046 192.524);
+  --sidebar-accent: oklch(0.268 0.007 34.298); /* stone-800 pill */
+  --sidebar-accent-foreground: oklch(0.777 0.152 181.912); /* teal-400 text */
+  --sidebar-border: oklch(0.268 0.007 34.298);
+  --sidebar-ring: oklch(0.704 0.14 182.503);
 }
 
 @theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -92,6 +125,9 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -116,5 +152,58 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Inter with the G2 stylistic sets: cv11 (single-storey a alternates for
+       better small-size legibility) and ss01 (open digits). */
+    font-feature-settings:
+      "cv11" 1,
+      "ss01" 1;
+    line-height: 1.5; /* G2: 1.5 body */
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.2; /* G2: 1.2 headings */
+  }
+
+  /* G2/G11: prefers-reduced-motion disables all motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility tabular-nums {
+  /* Usage/billing figures and phone numbers align in columns (G2). */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "cv11" 1,
+    "ss01" 1,
+    "tnum" 1;
+}
+
+@utility tap-target {
+  /* G11: hit targets ≥44px on mobile. Small controls (chip removers, inline
+     pills) keep their visual size but extend their clickable area with an
+     invisible centered pseudo-element — no layout shift. Inert from md: up
+     (mouse pointers, G3 desktop). */
+  @media (width < 48rem) {
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
   }
 }

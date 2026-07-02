@@ -35,6 +35,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const HISTORY = [
+  { month: "2026-02", segments: 0 },
+  { month: "2026-03", segments: 120 },
+  { month: "2026-04", segments: 340 },
+  { month: "2026-05", segments: 280 },
+  { month: "2026-06", segments: 510 },
+  { month: "2026-07", segments: 90 },
+];
+
 function usageStub(
   company: Record<string, unknown>,
   used: number,
@@ -47,6 +56,7 @@ function usageStub(
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
+  sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   return sb;
 }
 
@@ -74,12 +84,19 @@ describe("GET /v1/usage", () => {
       overage_segments: 120,
       cap_segments: 1500,
       projected_overage_cents: 360,
+      history: HISTORY,
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_since: "2026-06-15T00:00:00+00:00",
+    });
+    // DESIGN G8: 6-month history bars ride along on the same response.
+    const historyRpc = sb.find("POST", "/rest/v1/rpc/api_usage_history")[0];
+    expect(historyRpc.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_months: 6,
     });
   });
 
@@ -138,7 +155,9 @@ describe("GET /v1/usage", () => {
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
+      history: [],
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_usage_history")).toHaveLength(0);
   });
 });
