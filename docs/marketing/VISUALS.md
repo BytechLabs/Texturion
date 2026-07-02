@@ -107,6 +107,41 @@ depth, not decoration-for-its-own-sake.
 - Re-run Lighthouse after the visual pass; performance/accessibility/best-practices/SEO must
   stay ≥95 (target 100). Visual richness and speed are BOTH required.
 
+## 5b. Navigation & dropdowns — branded, NOT bare text (BINDING)
+
+The current nav is bare text links and plain dropdown lists (just `<Link>{label}</Link>`).
+That reads like a wireframe, not a brand. Rebuild it (iteration 4 owns this) to the standard
+of Linear / Stripe / Vercel navs — the menu itself should feel designed and have personality.
+
+**Enrich the data model first:** `nav-links.ts` items must carry `{ label, href, description,
+icon }` (a lucide icon + a one-line plain-English description per item). Group where it helps.
+
+**Desktop dropdowns = designed mega-menu panels, not text lists:**
+- Rounded panel (10px), soft elevation + 1px border, generous padding, subtle enter animation
+  (150–200ms fade+rise, reduced-motion safe), petrol focus/hover states.
+- Each item is a two-line row: a petrol-tinted rounded icon chip on the left, the **label**
+  (medium weight) on top, a muted **one-line description** beneath. Hover = teal-50 tint +
+  petrol label + slight icon lift. Generous row height, real hit area.
+- Multi-column where the list is long (Trades, Compare): a tidy 2-column grid.
+- A **featured cell** in the Product/Features menu: a small petrol-tinted promo card ("The
+  shared inbox" with a mini live-thread or a framed screenshot thumbnail + a "See it →" link)
+  — this is the personality moment that makes the menu feel like a brand site.
+- The Compare menu rows may show a tiny "vs" motif; the Trades menu rows use per-trade icons.
+
+**Top-level bar:** keep it calm but give it life — the wordmark is a real petrol mark (not
+plain text), active/hover underline or pill in petrol, the primary CTA is the solid petrol
+button, "Log in" is quiet. Sticky with the blur + on-scroll border is good; keep it.
+
+**Mobile sheet:** not a flat text list — grouped sections with the same icons + descriptions,
+comfortable spacing, section headers, the pinned petrol CTA at the bottom. Feels like the app.
+
+**Footer** gets the same care: it's currently link columns; give it the wordmark mark, a short
+brand line, the "Made in Canada 🇨🇦" motif, tidy grouped columns with adequate spacing, and
+the theme toggle — a designed footer, not a raw sitemap.
+
+The test: a visitor opening any dropdown should think "this is a real, polished brand," not
+"this is a list of links." Bare-text dropdowns are a design-QA **major** from iteration 4 on.
+
 ## 6. Honesty rules (unchanged, absolute)
 
 - Real product screenshots only. No stock photography. No fake dashboards, fake charts with
