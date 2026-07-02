@@ -131,6 +131,14 @@ export function CrewSizeSlider() {
         </p>
       )}
 
+      {/* Every interactive ends in a conversion nudge (CONVERSION §5). */}
+      <a
+        href="/signup"
+        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
+      >
+        Start for {usd(jobtext.price)} flat →
+      </a>
+
       <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
         Per-user figure is a leading tool&apos;s published monthly seat price
         (${PER_USER_MONTHLY}/user/mo) as of July 2026 — and that tool bills

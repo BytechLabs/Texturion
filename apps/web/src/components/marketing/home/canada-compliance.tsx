@@ -13,7 +13,9 @@ import { FileCheck2, Leaf, MessageSquareOff, ShieldCheck, UserCheck } from "luci
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
+import { LazyCityAreaCodeWidget } from "@/components/marketing/lazy/lazy-city-area-code-widget";
+import { CityAreaCodeWidgetStatic } from "@/components/marketing/interactive/city-area-code-widget-static";
+import { CoverageMapNA, CarrierPaperworkShield } from "@/components/marketing/art";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 const PROOF_POINTS = [
@@ -45,7 +47,7 @@ const PROOF_POINTS = [
 
 export function CanadaCompliance() {
   return (
-    <Section id="canada">
+    <Section id="canada" defer intrinsic={1100}>
       {/* Canada beat — leads, with the area-code widget as its product visual. */}
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div>
@@ -68,28 +70,46 @@ export function CanadaCompliance() {
           >
             How JobText works in Canada →
           </Link>
+
+          {/* Coverage drawn (VISUALS §3): local numbers in the US AND Canada,
+              as a simple two-country motif — the honest ICP (SPEC §1). */}
+          <Reveal className="mt-8">
+            <CoverageMapNA className="max-w-sm" />
+          </Reveal>
         </div>
 
         <Reveal>
-          <CityAreaCodeWidget />
+          {/* Deferred: the typable widget (and its NANP lookup data) load on
+              viewport approach; the seeded Toronto → 416 result is meaningful
+              before/without JS (§3.10). */}
+          <LazyCityAreaCodeWidget fallback={<CityAreaCodeWidgetStatic />} />
         </Reveal>
       </div>
 
       {/* Compliance beat — the "and here's how the rules are handled" follow-on. */}
       <div className="mt-20">
-        <div className="max-w-2xl">
-          <p className="text-[13px] font-semibold text-primary">
-            The carrier stuff, handled
-          </p>
-          <h2 className="display-h2 mt-2 text-foreground">
-            Texting rules are real. We deal with them so you don&apos;t have to.
-          </h2>
-          <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-            Business texting in the US and Canada comes with real rules —
-            registering your business with the phone companies, honoring
-            opt-outs, recording consent. Most tools hand you a compliance
-            homework packet. JobText just does it.
-          </p>
+        <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
+          <div className="max-w-2xl">
+            <p className="text-[13px] font-semibold text-primary">
+              The carrier stuff, handled
+            </p>
+            <h2 className="display-h2 mt-2 text-foreground">
+              Texting rules are real. We deal with them so you don&apos;t have
+              to.
+            </h2>
+            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+              Business texting in the US and Canada comes with real rules —
+              registering your business with the phone companies, honoring
+              opt-outs, recording consent. Most tools hand you a compliance
+              homework packet. JobText just does it.
+            </p>
+          </div>
+
+          {/* "We handle the carrier paperwork" reframed as done-for-you
+              (CONVERSION §3) — a spot illustration, not a screenshot. */}
+          <Reveal className="mx-auto w-full max-w-xs lg:mx-0">
+            <CarrierPaperworkShield />
+          </Reveal>
         </div>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2">

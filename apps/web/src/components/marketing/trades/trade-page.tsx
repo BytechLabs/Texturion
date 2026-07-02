@@ -86,6 +86,15 @@ export interface TradeContent {
   /** The trade-specific scripted thread (reuses the shared ThreadDemo). */
   script: ThreadScript;
 
+  /**
+   * A trade-relevant supporting graphic (a spot illustration or infographic)
+   * shown beside the "how JobText fits" copy — so each trade page carries the
+   * unique thread demo (hero) PLUS at least one supporting visual (VISUALS §3
+   * trade-page rule), instead of rendering the same thread twice. Every trade
+   * page supplies one; the caller wraps its own art with a caption if wanted.
+   */
+  supportingGraphic: React.ReactNode;
+
   /** Use cases. */
   useCasesH2: string;
   useCases: TradeUseCase[];
@@ -126,7 +135,7 @@ export interface TradeContent {
 /* is about marketing PROSE, and none is shared).                              */
 /* -------------------------------------------------------------------------- */
 
-const PRIMARY_CTA = "Get your number";
+const PRIMARY_CTA = "Start for $29";
 const GUARANTEE_MICRO = "$29/mo flat · Month to month · 30-day money-back guarantee";
 
 function CtaRow() {
@@ -203,7 +212,9 @@ export function TradePage({ content }: { content: TradeContent }) {
         </div>
       </Section>
 
-      {/* How JobText fits — the annotated live thread. Light wash band. */}
+      {/* How JobText fits — a trade-relevant supporting graphic beside the copy.
+          The unique scripted thread is the hero centerpiece (§0.1); this beat
+          carries the page's second, distinct visual (VISUALS §3). Light wash. */}
       <Section
         bleed
         className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
@@ -215,24 +226,15 @@ export function TradePage({ content }: { content: TradeContent }) {
               <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
                 {content.threadLede}
               </p>
-              <p className="mt-6 text-[13px] text-muted-foreground/80">
-                Demo — scripted conversation, real interface.
-              </p>
               <Link
                 href="/features/shared-inbox"
-                className="mt-3 inline-flex items-center gap-1 text-[14px] font-medium text-primary underline-offset-4 hover:underline"
+                className="mt-6 inline-flex items-center gap-1 text-[14px] font-medium text-primary underline-offset-4 hover:underline"
               >
                 See how the shared inbox works
                 <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
               </Link>
             </div>
-            <div className="relative">
-              <ThreadDemo
-                script={content.script}
-                framing="desktop"
-                bodyClassName="min-h-[360px]"
-              />
-            </div>
+            <Reveal className="relative">{content.supportingGraphic}</Reveal>
           </div>
         </Container>
       </Section>

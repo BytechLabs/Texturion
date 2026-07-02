@@ -30,7 +30,8 @@ import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { CrewSizeSlider } from "@/components/marketing/interactive/crew-size-slider";
+import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
+import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { UsageMeterProof } from "@/components/marketing/home/usage-meter-proof";
 import { FirstWeekTimeline } from "@/components/marketing/home/first-week-timeline";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,8 @@ import {
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
-import { SegmentCounter } from "./segment-counter";
+import { LazySegmentCounter } from "./lazy-segment-counter";
+import { SegmentCounterStatic } from "./segment-counter-static";
 
 const PATH = LIVE_ROUTES.pricing;
 
@@ -329,8 +331,10 @@ export default function PricingPage() {
             <Reveal>
               {/* Reuses the shared slider; its own dated + sourced footnote
                   (§13.7) is part of the component, so no duplicate footnote
-                  here — the §PR footnote text lives inside CrewSizeSlider. */}
-              <CrewSizeSlider />
+                  here — the §PR footnote text lives inside CrewSizeSlider.
+                  Deferred: the static default state converts before/without JS;
+                  the draggable island loads on viewport approach. */}
+              <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
             </Reveal>
           </div>
         </div>
@@ -507,7 +511,10 @@ export default function PricingPage() {
               </p>
             </div>
             <Reveal>
-              <SegmentCounter />
+              {/* Deferred: the static default count is real (same estimator) and
+                  meaningful before/without JS; the typable counter loads on
+                  viewport approach. */}
+              <LazySegmentCounter fallback={<SegmentCounterStatic />} />
             </Reveal>
           </div>
         </Container>
@@ -574,7 +581,7 @@ export default function PricingPage() {
           <div className="mt-8 flex justify-center">
             <Button asChild size="lg">
               <Link href="/signup">
-                Get your number
+                Start for $29
                 <ArrowRight strokeWidth={1.75} aria-hidden />
               </Link>
             </Button>

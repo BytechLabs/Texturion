@@ -20,6 +20,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { OneNumberManyPeople } from "@/components/marketing/art";
 import { CLEANERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -28,7 +30,7 @@ const PATH = "/for/cleaners";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for cleaning businesses",
   description:
-    "A shared text inbox for cleaning companies: confirm recurring visits, keep every gate code and access note with the client, handle reschedules, and dispatch the right team. Local number, flat $29/mo.",
+    "A shared text inbox for cleaning companies: confirm recurring visits, keep every gate code with the client, and handle reschedules. Flat $29/mo.",
   path: PATH,
 });
 
@@ -53,6 +55,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "A regular client texts the door code and a note about the dog before her Friday clean. The office saves the access details to her contact, assigns the visit to the two-person team, and confirms a window — so whoever walks up on Friday already knows exactly how to get in.",
   script: CLEANERS_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="Access notes live on the client in one shared inbox — so whichever cleaner covers the visit already has the code, not a locked door and a busy phone."
+    >
+      <OneNumberManyPeople
+        className="w-full"
+        title="One business number and a shared inbox every cleaner on the team can see."
+      />
+    </TradeGraphic>
+  ),
 
   useCasesH2: "Where texting earns its keep in a cleaning business.",
   useCases: [

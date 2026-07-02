@@ -12,7 +12,9 @@ import { Check, Clock, Receipt, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { Button } from "@/components/ui/button";
-import { CrewSizeSlider } from "@/components/marketing/interactive/crew-size-slider";
+import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
+import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
+import { FlatVsPerSeatChart } from "@/components/marketing/art";
 import { HOME_ANCHORS } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +114,8 @@ export function PricingPreview() {
     <Section
       id="pricing"
       bleed
+      defer
+      intrinsic={1200}
       className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
     >
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -132,12 +136,35 @@ export function PricingPreview() {
             </Reveal>
           ))}
 
-          {/* The converting interaction + the usage-meter proof. */}
+          {/* The converting interaction + the usage-meter proof. The slider is
+              deferred (LazyIsland): its static default state converts before/
+              without JS; the draggable island loads on viewport approach. */}
           <Reveal className="flex h-full flex-col gap-6">
-            <CrewSizeSlider />
+            <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
             <UsageMeterProof />
           </Reveal>
         </div>
+
+        {/* Flat-vs-per-seat, drawn (VISUALS §3): the designed "at a glance"
+            twin of the slider — flat petrol line vs a climbing per-user line,
+            with the dated source. Inline SVG (themeable, zero-CLS, no-JS). */}
+        <Reveal className="mt-8">
+          <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+            <div className="grid items-center gap-6 lg:grid-cols-[1fr_1.2fr] lg:gap-10">
+              <div>
+                <h3 className="text-[20px] font-semibold text-foreground">
+                  Flat beats per-user — by more, the bigger you get.
+                </h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+                  JobText stays $29, then $79 for a crew of ten. A typical
+                  per-user tool keeps climbing with every person you add. Drag
+                  the slider above to see your crew&apos;s number.
+                </p>
+              </div>
+              <FlatVsPerSeatChart className="w-full" />
+            </div>
+          </div>
+        </Reveal>
 
         {/* Honesty strip — the first-month sum owned out loud, next to $29. */}
         <div className="mt-8 grid gap-3 rounded-2xl border border-border bg-card p-6 sm:grid-cols-3">

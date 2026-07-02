@@ -23,6 +23,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { FieldWorkerTruck } from "@/components/marketing/art";
 import { PLUMBERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -31,7 +33,7 @@ const PATH = "/for/plumbers";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for plumbers",
   description:
-    "A shared text inbox for your plumbing crew: customers text photos of the problem, anyone on the team replies, nothing gets missed. Local number, flat $29/mo, live in minutes.",
+    "A shared text inbox for your plumbing crew: customers text photos of the problem, anyone replies, nothing gets missed. Local number, flat $29/mo.",
   path: PATH,
 });
 
@@ -56,6 +58,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "A backed-up floor drain, a photo, a note to bring the auger, an assignment, a price, a booking. The whole call-out handled in the shared inbox — no voicemail, no “who's got this one?”",
   script: PLUMBERS_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="The number lives on the truck, not on a tech's personal cell — so every customer text lands in the shared inbox."
+    >
+      <FieldWorkerTruck
+        className="w-full"
+        title="A service van with the business number on its side, texting into the shared inbox."
+      />
+    </TradeGraphic>
+  ),
 
   useCasesH2: "Where texting earns its keep in a plumbing business.",
   useCases: [

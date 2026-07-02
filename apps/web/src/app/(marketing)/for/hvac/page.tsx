@@ -21,6 +21,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { FieldWorkerTruck } from "@/components/marketing/art";
 import { HVAC_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -29,7 +31,7 @@ const PATH = "/for/hvac";
 export const metadata: Metadata = buildMetadata({
   title: "Customer texting for HVAC companies",
   description:
-    "A shared text inbox for HVAC contractors: triage no-heat and no-cool calls fast in the cold snaps and heat waves, follow up on install quotes, and send maintenance-plan reminders your whole team can see. Local number, flat $29/mo.",
+    "A shared text inbox for HVAC contractors: triage no-heat and no-cool calls fast, follow up on install quotes, send maintenance reminders. Flat $29/mo.",
   path: PATH,
 });
 
@@ -54,6 +56,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "A customer texts a photo of the flashing furnace light at 6:41am. The office reads the fault code, drops a note about the likely part, bumps the customer up the cold-snap list, and a tech texts a window and a diagnostic price — before the customer has finished their coffee.",
   script: HVAC_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="The number goes on the vans, and every no-heat text lands in one shared inbox the whole team can triage — not a full voicemail box on one phone."
+    >
+      <FieldWorkerTruck
+        className="w-full"
+        title="A service van with the business number on its side, texting into the shared inbox."
+      />
+    </TradeGraphic>
+  ),
 
   useCasesH2: "Where texting earns its keep in an HVAC business.",
   useCases: [

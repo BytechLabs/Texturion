@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Barrel-import optimization (iteration-4 Lighthouse fix): the marketing +
+  // app code imports named exports from the `lucide-react` and `radix-ui`
+  // META-packages in 98 / 19 files. Without this, a barrel import can pull far
+  // more of the package into the shared vendor chunk than the few symbols used;
+  // rewriting them to per-module deep imports keeps the shared chunk (and thus
+  // its parse/eval cost, the TBT driver) to only what's actually referenced.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "radix-ui"],
+  },
   async redirects() {
     return [
       // The API's invite email points at /invites/accept?invite_id=… (see

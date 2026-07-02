@@ -188,6 +188,41 @@
     "tnum" 1;
 }
 
+/*
+ * cv-defer — skip the layout/paint/style work of a section that is off-screen
+ * until it nears the viewport (iteration-4 mobile-perf blocker).
+ *
+ * WHY: the home page's rich visual layer (VISUALS.md — the two live-DOM threads,
+ * the bento tiles, the inline-SVG art, all as real DOM) is a ~1,300-node
+ * document. Under mobile's 4x CPU throttle the browser spent ~1-2s in Style &
+ * Layout recalculating the WHOLE tree on load, which showed up as mobile TBT
+ * ~1.2-1.6s (and, on quieter hardware, as a delayed first paint). Almost none of
+ * that DOM is above the fold.
+ *
+ * `content-visibility: auto` tells the browser to treat each below-the-fold
+ * section like an off-screen element: its subtree is not laid out or painted
+ * until it scrolls close, so the initial-render Style & Layout cost collapses to
+ * the hero + the first section only. This removes ZERO visuals and ZERO
+ * nodes — every section is still fully in the server HTML (LCP-safe, SEO-safe,
+ * no-JS-safe); the browser just does the work lazily.
+ *
+ * `contain-intrinsic-size: auto <h>` reserves a plausible height so the
+ * scrollbar and anchor offsets are correct before a section is rendered, and the
+ * `auto` keyword makes the browser REMEMBER each section's real rendered size
+ * after it's been seen once — so scrolling back up never re-measures and never
+ * shifts (CLS-safe). The value is a per-section estimate passed via
+ * --cv-intrinsic; the fallback is a generous section height.
+ *
+ * Never applied to the hero or the first below-hero section (they're in/near the
+ * initial viewport — deferring them would fight the LCP). `contain-intrinsic-
+ * size` is ignored by browsers without content-visibility support, and the
+ * content renders normally there — progressive enhancement, no downside.
+ */
+@utility cv-defer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--cv-intrinsic, 720px);
+}
+
 @utility tap-target {
   /* G11: hit targets ≥44px on mobile. Small controls (chip removers, inline
      pills) keep their visual size but extend their clickable area with an
@@ -279,9 +314,10 @@
   [data-reveal][data-revealed="true"] {
     opacity: 1;
     transform: none;
+    /* Stagger via --reveal-delay (§1.5: 60ms steps, max 4), set by <Reveal>. */
     transition:
-      opacity 300ms ease-out,
-      transform 300ms ease-out;
+      opacity 300ms ease-out var(--reveal-delay, 0ms),
+      transform 300ms ease-out var(--reveal-delay, 0ms);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -290,4 +326,8 @@
       transform: none;
     }
   }
+
+  /* No-JS fail-safe: if the RevealActivator never runs, a <noscript> style tag
+     in the marketing layout reveals everything, so content is never stuck
+     invisible without JavaScript. */
 }

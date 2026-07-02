@@ -20,6 +20,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { OneNumberManyPeople } from "@/components/marketing/art";
 import { LANDSCAPERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -28,7 +30,7 @@ const PATH = "/for/landscapers";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for landscaping businesses",
   description:
-    "A shared text inbox for landscaping and lawn-care crews: quote from a yard photo, keep every property address in one place, confirm recurring visits, and reschedule around the weather. Local number, flat $29/mo.",
+    "A shared text inbox for landscaping crews: quote from a yard photo, keep every address in one place, reschedule around the weather. Flat $29/mo.",
   path: PATH,
 });
 
@@ -53,6 +55,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "A homeowner texts the worst corner of the front beds. The office recognizes the street, checks which crew is nearby, quotes the mulch and edging, and folds them into Thursday's route — then the customer asks about seasonal mowing, and that's the next job.",
   script: LANDSCAPERS_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="One business number, one shared inbox — so the office quoting the job and the crews out on sites all see the same conversation."
+    >
+      <OneNumberManyPeople
+        className="w-full"
+        title="One business number feeding a shared inbox every crew across every site can see."
+      />
+    </TradeGraphic>
+  ),
 
   useCasesH2: "Where texting earns its keep in a landscaping business.",
   useCases: [

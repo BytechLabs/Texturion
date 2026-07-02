@@ -16,13 +16,38 @@ import { ArrowRight, CircleCheck, FileUp, Search, Tag } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { ThreadDemo } from "@/components/marketing/thread-demo/thread-demo";
+import { LazyTileThread } from "@/components/marketing/lazy/lazy-tile-thread";
+import { StaticThread } from "@/components/marketing/thread-demo/static-thread";
+import type { ThreadScript } from "@/components/marketing/thread-demo/script";
 import {
   ASSIGN_TILE_SCRIPT,
   PHOTOS_TILE_SCRIPT,
 } from "@/components/marketing/thread-demo/script";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
+
+/**
+ * A large bento tile's live thread — deferred (BLUEPRINT §3.6 tiles are live
+ * DOM, but they must not hydrate on load). The COMPLETED thread renders as
+ * static server DOM (StaticThread, the serializable fallback); the auto-playing
+ * island loads only when the tile nears the viewport, and reduced-motion keeps
+ * the static frame. The `import()` lives in the LazyTileThread client wrapper
+ * (RSC can't pass a `load` function across the boundary).
+ */
+function BentoTileThread({ script }: { script: ThreadScript }) {
+  return (
+    <LazyTileThread
+      script={script}
+      fallback={
+        <StaticThread
+          script={script}
+          framing="desktop"
+          bodyClassName="flex flex-col gap-3 px-3 py-4 min-h-[200px]"
+        />
+      }
+    />
+  );
+}
 
 // Each tile links to the standalone feature page that covers it (all live routes
 // in site.ts): the inbox mechanics (notes, search, contacts, mark-done) go to
@@ -91,7 +116,7 @@ function MiniPills() {
 
 export function Bento() {
   return (
-    <Section id="features">
+    <Section id="features" defer intrinsic={1200}>
       <div className="max-w-2xl">
         <h2 className="display-h2 text-foreground">
           Everything a crew needs. Nothing a sales team invented.
@@ -103,12 +128,7 @@ export function Bento() {
         <Reveal className="sm:col-span-2 sm:row-span-2">
           <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5">
             <div className="flex-1">
-              <ThreadDemo
-                script={ASSIGN_TILE_SCRIPT}
-                framing="desktop"
-                hideControls
-                bodyClassName="min-h-[200px]"
-              />
+              <BentoTileThread script={ASSIGN_TILE_SCRIPT} />
             </div>
             <div className="mt-4">
               <h3 className="text-[17px] font-semibold text-foreground">
@@ -189,12 +209,7 @@ export function Bento() {
         <Reveal className="sm:col-span-2 sm:row-span-2" delay={60}>
           <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5">
             <div className="flex-1">
-              <ThreadDemo
-                script={PHOTOS_TILE_SCRIPT}
-                framing="desktop"
-                hideControls
-                bodyClassName="min-h-[200px]"
-              />
+              <BentoTileThread script={PHOTOS_TILE_SCRIPT} />
             </div>
             <div className="mt-4">
               <h3 className="text-[17px] font-semibold text-foreground">

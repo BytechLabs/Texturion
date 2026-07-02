@@ -14,6 +14,8 @@
 
 import { useId, useState } from "react";
 
+import { MissedTextMoney } from "@/components/marketing/art";
+
 const WEEKS_PER_MONTH = 4.33;
 
 function usd(n: number): string {
@@ -137,6 +139,10 @@ export function MissedTextCalculator() {
         <p className="mt-2 font-mono text-[13px] tabular-nums text-muted-foreground">
           {missed} × {ratePct}% × {usd(value)} × 4.33 weeks
         </p>
+
+        {/* The arithmetic, drawn (VISUALS §3): the "at risk" stack beside the
+            flat $29 coin — visualises the live figure, invents nothing. */}
+        <MissedTextMoney monthly={monthly} className="mx-auto mt-4 max-w-[240px]" />
       </div>
 
       <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">

@@ -41,7 +41,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <Section id="how-it-works">
+    <Section id="how-it-works" defer intrinsic={900}>
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="display-h2 text-foreground">
           From signup to texting, in three steps.

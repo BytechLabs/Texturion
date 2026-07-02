@@ -32,6 +32,8 @@ import {
   MiniPricing,
   RelatedLinks,
 } from "@/components/marketing/features/feature-page";
+import { FramedShot } from "@/components/marketing/shot";
+import { TextBecomesTask } from "@/components/marketing/art";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
 import { Section } from "@/components/marketing/ui/section";
 import { Container } from "@/components/marketing/ui/container";
@@ -43,7 +45,7 @@ const PATH = "/features/shared-inbox";
 export const metadata: Metadata = buildMetadata({
   title: "Shared SMS inbox for your whole team",
   description:
-    "One business number, one inbox everyone on the crew can see. Assign conversations, set a status, leave internal notes, tag, search, and mark texts done — from any phone. Flat $29/mo for the whole team.",
+    "One business number, one inbox the whole crew sees. Assign, status, note, tag, search, and mark texts done from any phone. Flat $29/mo for the team.",
   path: PATH,
 });
 
@@ -101,6 +103,9 @@ export default function SharedInboxPage() {
       <FeatureSection
         eyebrow="Assign & status"
         heading="One owner, one status, no double replies."
+        visual={
+          <FramedShot id="thread-open" className="mx-auto max-w-xl" />
+        }
         wash
       >
         <p>
@@ -128,6 +133,9 @@ export default function SharedInboxPage() {
       <FeatureSection
         eyebrow="Internal notes"
         heading="Talk about the job without texting the customer."
+        visual={
+          <FramedShot id="contact-panel" className="mx-auto max-w-xl" />
+        }
         flip
       >
         <p>
@@ -152,6 +160,18 @@ export default function SharedInboxPage() {
       <FeatureSection
         eyebrow="Realtime & done-marks"
         heading="When Dale replies, everyone's phone shows it answered."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <TextBecomesTask
+              className="w-full"
+              title="An inbound text becomes a handled, checked-off task in the shared inbox."
+            />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              A text lands, the crew handles it, and one tap marks it done —
+              struck through with a petrol check the whole team can see.
+            </p>
+          </div>
+        }
         wash
       >
         <p>

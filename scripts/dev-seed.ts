@@ -115,9 +115,15 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
-function makeSeedPng(): Uint8Array {
+function makeSeedPng(variant = 0): Uint8Array {
   const w = 320;
   const h = 240;
+  // Two believable "job photo" scenes so different MMS threads don't share one
+  // identical image: variant 0 = a leak puddle under the sink (cool gray),
+  // variant 1 = a warmer under-cabinet shot with the P-trap section darker.
+  const px = variant === 1 ? 120 : 200;
+  const py = variant === 1 ? 150 : 170;
+  const warm = variant === 1 ? 18 : 0;
   const raw = new Uint8Array(h * (1 + w * 3));
   for (let y = 0; y < h; y++) {
     const row = y * (1 + w * 3);
@@ -125,12 +131,12 @@ function makeSeedPng(): Uint8Array {
     for (let x = 0; x < w; x++) {
       const i = row + 1 + x * 3;
       // gradient base
-      let r = 90 + Math.round((x / w) * 60);
+      let r = 90 + warm + Math.round((x / w) * 60);
       let g = 105 + Math.round((y / h) * 50);
-      let b = 120 + Math.round(((x + y) / (w + h)) * 70);
-      // dark elliptical "puddle"
-      const dx = (x - 200) / 70;
-      const dy = (y - 170) / 34;
+      let b = 120 - warm + Math.round(((x + y) / (w + h)) * 70);
+      // dark elliptical "puddle" / pipe shadow
+      const dx = (x - px) / 70;
+      const dy = (y - py) / 34;
       if (dx * dx + dy * dy < 1) {
         r = 40;
         g = 44;
@@ -353,11 +359,16 @@ async function main() {
     // Dana — new, unread (two inbound in one cluster)
     { c: "dana", dir: "inbound", body: "Hi, do you do water heater replacements? Ours is leaking from the bottom.", at: minutesAgo(8) },
     { c: "dana", dir: "inbound", body: "It's a Rheem, about 10 years old", at: minutesAgo(7) },
-    // Marcus — open, assigned, multi-day, ends with a retryable failed send
+    // Marcus — open, assigned, multi-day: the "hero" thread. Carries the full
+    // message variety the marketing shots need — inbound, outbound, an internal
+    // note, an inbound MMS photo, delivery states, a struck-through done
+    // message (D14), and a retryable failed send at the end.
     { c: "marcus", dir: "inbound", body: "Hey, this is Marcus from 44 Cedar Ln. Kitchen sink is backing up again.", at: daysAgo(2, -9 * 60) },
+    { c: "marcus", dir: "inbound", body: "Here's what it looks like under there", at: daysAgo(2, -9 * 60 + 1), mms: true },
+    { c: "marcus", dir: "note", body: "Second callout this month on the same cast-iron stack. If it clogs again, quote him on replacing the section — don't keep snaking it.", at: daysAgo(2, -9 * 60 + 3), by: memberId },
     { c: "marcus", dir: "outbound", body: "Morning Marcus — we can come by tomorrow between 10 and noon. Does that work?", at: daysAgo(2, -9 * 60 + 6), by: ownerId, status: "delivered" },
     { c: "marcus", dir: "inbound", body: "Yes that works, thanks", at: daysAgo(2, -9 * 60 + 17) },
-    { c: "marcus", dir: "outbound", body: "On our way now — about 25 minutes out.", at: daysAgo(1, -10 * 60), by: memberId, status: "delivered" },
+    { c: "marcus", dir: "outbound", body: "On our way now — about 25 minutes out.", at: daysAgo(1, -10 * 60), by: memberId, status: "delivered", done: true, doneBy: memberId, doneAt: daysAgo(1, -9 * 60) },
     { c: "marcus", dir: "inbound", body: "Sink's draining great now. What do I owe you?", at: minutesAgo(3 * 60) },
     { c: "marcus", dir: "outbound", body: "Total is $180 — I can text you a payment link if that's easiest.", at: minutesAgo(118), by: ownerId, status: "failed", noTelnyxId: true, error_detail: "Telnyx API error: upstream connect timeout" },
     // Priya — waiting, quote + internal note
@@ -395,6 +406,9 @@ async function main() {
     encoding: m.dir === "outbound" && (m as { status?: string }).status === "delivered" ? "GSM-7" : null,
     error_code: "error_code" in m ? (m as { error_code?: string }).error_code : null,
     error_detail: "error_detail" in m ? (m as { error_detail?: string }).error_detail : null,
+    // D14 done state (struck-through message with actor + timestamp).
+    done_at: "done" in m && (m as { done?: boolean }).done ? (m as { doneAt?: string }).doneAt : null,
+    done_by_user_id: "done" in m && (m as { done?: boolean }).done ? (m as { doneBy?: string }).doneBy : null,
   }));
   const insertedMsgs = await insert<{ id: string; conversation_id: string; body: string }[]>(
     "messages",
@@ -402,19 +416,27 @@ async function main() {
   );
   console.log(`  messages: ${insertedMsgs.length}`);
 
-  // MMS attachment: real PNG uploaded to the private bucket.
-  const mmsMsg = insertedMsgs.find((m) => m.body === "Here's the leak under the sink")!;
-  const png = makeSeedPng();
-  const storagePath = `${companyId}/${mmsMsg.id}/0`;
-  await uploadAttachment(storagePath, png);
-  await insert("message_attachments", {
-    message_id: mmsMsg.id,
-    company_id: companyId,
-    storage_path: `mms-media/${storagePath}`,
-    content_type: "image/png",
-    size_bytes: png.length,
-    source_url: "https://media.telnyx.example/devseed-leak.png",
-  });
+  // MMS attachments: a real PNG per inbound photo, uploaded to the private
+  // bucket. Every message flagged `mms: true` in the script above gets one.
+  const mmsBodies = messages
+    .filter((m) => "mms" in m && (m as { mms?: boolean }).mms)
+    .map((m) => m.body);
+  let mmsVariant = 0;
+  for (const body of mmsBodies) {
+    const mmsMsg = insertedMsgs.find((m) => m.body === body)!;
+    const png = makeSeedPng(mmsVariant);
+    const storagePath = `${companyId}/${mmsMsg.id}/0`;
+    await uploadAttachment(storagePath, png);
+    await insert("message_attachments", {
+      message_id: mmsMsg.id,
+      company_id: companyId,
+      storage_path: `mms-media/${storagePath}`,
+      content_type: "image/png",
+      size_bytes: png.length,
+      source_url: `https://media.telnyx.example/devseed-photo-${mmsVariant}.png`,
+    });
+    mmsVariant += 1;
+  }
 
   /* -------------------------- opt-out + events --------------------------- */
   await insert("opt_outs", {

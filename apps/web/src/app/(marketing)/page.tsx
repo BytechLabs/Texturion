@@ -14,6 +14,7 @@
  *
  * Section order + density wave (§3):
  *  3.1  Hero (signature live-thread)        — dense/signature
+ *  3.1b Product showcase (framed inbox shot)— proof reveal (VISUALS §3)
  *  3.2  Truth bar ($29 as art)              — sparse
  *  3.3  The problem (three pains)           — sparse–med
  *  3.4  Inbox deep-dive (annotated)         — dense
@@ -32,6 +33,7 @@ import type { Metadata } from "next";
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
 import { buildMetadata } from "@/lib/marketing/seo";
 import { Hero } from "@/components/marketing/home/hero";
+import { ProductShowcase } from "@/components/marketing/home/product-showcase";
 import { TruthBar } from "@/components/marketing/home/truth-bar";
 import { Problem } from "@/components/marketing/home/problem";
 import { InboxDeepDive } from "@/components/marketing/home/inbox-deep-dive";
@@ -57,6 +59,7 @@ export default function HomePage() {
     <>
       <HomeJsonLd />
       <Hero />
+      <ProductShowcase />
       <TruthBar />
       <Problem />
       <InboxDeepDive />

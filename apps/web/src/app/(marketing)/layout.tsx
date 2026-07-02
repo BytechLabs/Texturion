@@ -1,6 +1,7 @@
 import { Footer } from "@/components/marketing/footer";
 import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
 import { organizationJsonLd } from "@/lib/marketing/seo";
 
 /**
@@ -21,7 +22,14 @@ export default function MarketingLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="flex min-h-svh flex-col bg-background">
+      {/* No-JS fail-safe: reveal every scroll-reveal element when JS is off, so
+          content is never permanently hidden without the RevealActivator. */}
+      <noscript>
+        <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
+      </noscript>
       <JsonLd data={organizationJsonLd()} />
+      {/* One shared IntersectionObserver drives every [data-reveal] (§1.5). */}
+      <RevealActivator />
       <Nav />
       <main className="flex-1">{children}</main>
       <Footer />

@@ -55,7 +55,7 @@ const FAQS = [
 
 export function Faq() {
   return (
-    <Section id="faq">
+    <Section id="faq" defer intrinsic={640}>
       <div className="mx-auto max-w-3xl">
         <h2 className="display-h2 text-center text-foreground">
           Fair questions, straight answers.

@@ -9,12 +9,18 @@ import { ArrowRight } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { MissedTextCalculator } from "@/components/marketing/interactive/missed-text-calculator";
+import { Texture } from "@/components/marketing/frame/texture";
+import { LazyMissedTextCalculator } from "@/components/marketing/lazy/lazy-missed-text-calculator";
+import { MissedCallToText } from "@/components/marketing/art";
+import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/missed-text-calculator-static";
 
 export function MissedTextMath() {
   return (
-    <Section>
-      <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+    <Section defer intrinsic={560} className="relative overflow-hidden">
+      {/* Faint texture so the breather has depth, not emptiness (VISUALS §1D). */}
+      <Texture variant="grid" fade="radial" opacity={0.3} />
+
+      <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div>
           <p className="text-[13px] font-semibold text-primary">Do the math</p>
           <h2 className="display-h2 mt-2 text-foreground">
@@ -25,7 +31,14 @@ export function MissedTextMath() {
             of them. We&apos;re only multiplying what you type; we don&apos;t
             quote industry stats we can&apos;t stand behind.
           </p>
-          <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
+
+          {/* Spot illustration (VISUALS §3): the missed call that becomes an
+              answered text — the section's idea, drawn. */}
+          <Reveal className="mt-8 max-w-[260px]">
+            <MissedCallToText />
+          </Reveal>
+
+          <p className="mt-8 text-[15px] leading-relaxed text-muted-foreground">
             JobText can&apos;t answer your phone. But customers who won&apos;t
             leave a voicemail will text — and a text in a shared inbox gets
             answered by whoever&apos;s free, not whoever&apos;s phone it is.
@@ -41,7 +54,9 @@ export function MissedTextMath() {
         </div>
 
         <Reveal>
-          <MissedTextCalculator />
+          {/* Deferred: the interactive calculator loads on viewport approach;
+              the static default state is meaningful before/without it (§3.7). */}
+          <LazyMissedTextCalculator fallback={<MissedTextCalculatorStatic />} />
         </Reveal>
       </div>
     </Section>

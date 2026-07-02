@@ -35,7 +35,7 @@ const CHIPS = [
 
 export function TruthBar() {
   return (
-    <Section id="trades" className="py-14 sm:py-16">
+    <Section id="trades" defer intrinsic={420} className="py-14 sm:py-16">
       <div className="grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16">
         {/* (1) The $29 as art. */}
         <Reveal className="text-center lg:text-left">

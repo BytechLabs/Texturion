@@ -8,6 +8,7 @@ import { PhoneOff, Smartphone, UserX } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
+import { OneNumberManyPeople } from "@/components/marketing/art";
 
 const CARDS = [
   {
@@ -32,15 +33,23 @@ const CARDS = [
 
 export function Problem() {
   return (
-    <Section>
-      <div className="max-w-2xl">
-        <h2 className="display-h2 text-foreground">
-          Your business runs on texts. Your texts run on one phone.
-        </h2>
-        <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-          Customers would rather text than call — so they text whoever&apos;s
-          number they have. That works until it doesn&apos;t.
-        </p>
+    <Section defer intrinsic={520}>
+      <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
+        <div className="max-w-2xl">
+          <h2 className="display-h2 text-foreground">
+            Your business runs on texts. Your texts run on one phone.
+          </h2>
+          <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+            Customers would rather text than call — so they text whoever&apos;s
+            number they have. That works until it doesn&apos;t.
+          </p>
+        </div>
+
+        {/* The shared-inbox idea, drawn (VISUALS §3): one number, the whole
+            crew can see it. A spot illustration, not a screenshot. */}
+        <Reveal className="mx-auto w-full max-w-xs lg:mx-0 lg:justify-self-end">
+          <OneNumberManyPeople />
+        </Reveal>
       </div>
 
       <div className="mt-12 grid gap-6 md:grid-cols-3">

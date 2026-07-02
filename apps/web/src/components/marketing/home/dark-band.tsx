@@ -13,8 +13,8 @@ import { Check } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { ThreadDemo } from "@/components/marketing/thread-demo/thread-demo";
-import { DARK_BAND_SCRIPT } from "@/components/marketing/thread-demo/script";
+import { GradientMesh } from "@/components/marketing/frame/gradient-mesh";
+import { FramedShot } from "@/components/marketing/shot";
 
 const BULLETS = [
   "Works on iPhone, Android, and any computer",
@@ -24,8 +24,20 @@ const BULLETS = [
 
 export function DarkBand() {
   return (
-    <Section bleed className="bg-stone-950 py-16 text-stone-50 sm:py-24">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+    <Section
+      bleed
+      defer
+      intrinsic={720}
+      className="relative overflow-hidden bg-stone-950 py-16 text-stone-50 sm:py-24"
+    >
+      {/* The dark exception's one contained energy area — a teal screen-light
+          wash (§1.2), forced to the dark treatment. */}
+      <GradientMesh
+        variant="dark"
+        placement="bottom-right"
+        className="opacity-90"
+      />
+      <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <div>
             <h2 className="display-h2 text-stone-50">
@@ -55,17 +67,20 @@ export function DarkBand() {
             </ul>
           </div>
 
-          {/* Phone-framed dark thread — the product at night. `dark` scope
-              forces the app's dark tokens on the thread regardless of theme. */}
+          {/* A REAL phone-framed dark-mode capture of the running app (VISUALS
+              §3: "the dark PWA band shows a PhoneFrame + real mobile
+              screenshot"). The `dark` scope forces the frame's dark tokens so
+              the bezel matches the product-at-night; FramedShot serves the
+              captured dark shot. Pre-sized → zero CLS, lazy below the fold. */}
           <Reveal className="dark flex justify-center lg:justify-end">
-            <ThreadDemo
-              script={DARK_BAND_SCRIPT}
-              framing="phone"
+            <FramedShot
+              id="mobile-thread"
+              frame="phone"
+              className="max-w-[280px]"
               pushBanner={{
                 title: "JobText",
                 body: "Marcus T: No hot water since this morning…",
               }}
-              bodyClassName="min-h-[280px] pt-14"
             />
           </Reveal>
         </div>

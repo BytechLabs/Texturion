@@ -231,6 +231,16 @@ export function CityAreaCodeWidget() {
         )}
       </div>
 
+      {/* Every interactive ends in a conversion nudge (CONVERSION §5). */}
+      {selected && (
+        <a
+          href="/signup"
+          className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Get your ({selected.areaCode}) number →
+        </a>
+      )}
+
       <p className={cn("mt-3 text-[12px] text-muted-foreground")}>
         Real numbering data — the same table the app uses to pick your number.
       </p>

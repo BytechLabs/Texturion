@@ -18,6 +18,8 @@ export function FinalCta() {
   return (
     <Section
       bleed
+      defer
+      intrinsic={560}
       className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
     >
       <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
@@ -48,7 +50,7 @@ export function FinalCta() {
         <div className="mt-8 flex justify-center">
           <Button asChild size="lg">
             <Link href="/signup">
-              Get your number
+              Start for $29
               <ArrowRight strokeWidth={1.75} aria-hidden />
             </Link>
           </Button>

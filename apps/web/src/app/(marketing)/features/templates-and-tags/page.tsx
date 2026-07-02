@@ -33,6 +33,8 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { SavedRepliesVisual } from "@/components/marketing/features/saved-replies-visual";
 import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual";
+import { FramedShot } from "@/components/marketing/shot";
+import { TextBecomesTask } from "@/components/marketing/art";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/templates-and-tags";
@@ -40,7 +42,7 @@ const PATH = "/features/templates-and-tags";
 export const metadata: Metadata = buildMetadata({
   title: "Saved replies, tags & team workflow",
   description:
-    "Write your on-my-way and quote-follow-up texts once, then send them in two taps with the / shortcut. Tag conversations the way you sell, mark a text done right in the thread, search everything, and import contacts by CSV.",
+    "Write your on-my-way and quote-follow-up texts once, send them in two taps. Tag conversations the way you sell, mark texts done, and search everything.",
   path: PATH,
 });
 
@@ -63,13 +65,14 @@ export default function TemplatesAndTagsPage() {
           "Pre-seeded sell pipeline tags",
           "Search every message and contact",
         ]}
-        visual={<SavedRepliesVisual />}
+        visual={<FramedShot id="thread-open" priority className="mx-auto max-w-xl" />}
       />
 
       {/* Section 1 — saved replies with the / shortcut. */}
       <FeatureSection
         eyebrow="Saved replies"
         heading="Write it once. Send it in two taps."
+        visual={<SavedRepliesVisual className="mx-auto max-w-md" />}
         wash
       >
         <p>
@@ -120,6 +123,18 @@ export default function TemplatesAndTagsPage() {
       <FeatureSection
         eyebrow="Done-marks"
         heading="Mark a text done, right in the thread."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <TextBecomesTask
+              className="w-full"
+              title="A message in a thread, checked off with a strikethrough and a petrol done-mark."
+            />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              A single message, checked off in place — struck through with a
+              petrol check and a note of who did it. Not a job, not a to-do app.
+            </p>
+          </div>
+        }
         wash
       >
         <p>
@@ -143,6 +158,7 @@ export default function TemplatesAndTagsPage() {
       <FeatureSection
         eyebrow="Contacts & search"
         heading="Your customer list, imported and searchable."
+        visual={<FramedShot id="contact-panel" className="mx-auto max-w-xl" />}
         flip
       >
         <p>

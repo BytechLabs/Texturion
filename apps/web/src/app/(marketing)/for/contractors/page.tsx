@@ -26,7 +26,9 @@ import { Section } from "@/components/marketing/ui/section";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
 import { TradeThread } from "@/components/marketing/trades/trade-thread";
+import { OneNumberManyPeople } from "@/components/marketing/art";
 import {
   CONTRACTORS_DONE_IDS,
   CONTRACTORS_DONE_LABELS,
@@ -39,7 +41,7 @@ const PATH = "/for/contractors";
 export const metadata: Metadata = buildMetadata({
   title: "Texting app for contractors and builders",
   description:
-    "A shared text inbox for contractors: the GC texts the address and paint colors, and every message becomes a task the crew works through and marks done — plus change orders and sub coordination, off your personal cell. Local number, flat $29/mo.",
+    "A shared text inbox for contractors: every message becomes a task the crew works through and marks done, off your personal cell. Flat $29/mo.",
   path: PATH,
 });
 
@@ -111,6 +113,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "The GC texts the address, the lockbox code, and the paint colors for each room. The crew lead reads it out, loads the paint, and confirms the plan — then the next morning a change order lands. One inbox, one owner, and a written record of exactly what was asked for.",
   script: CONTRACTORS_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="The number on the estimate is the business's, and every site text — the GC, the subs, the client — lands in one inbox the crew shares, off your personal cell."
+    >
+      <OneNumberManyPeople
+        className="w-full"
+        title="One business number feeding a shared inbox the whole crew works from."
+      />
+    </TradeGraphic>
+  ),
 
   afterThread: <MarkDoneSection />,
 

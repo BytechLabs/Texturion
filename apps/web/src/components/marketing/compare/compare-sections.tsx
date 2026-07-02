@@ -15,6 +15,7 @@ import { ArrowRight, Check, Scale } from "lucide-react";
 import { Container } from "@/components/marketing/ui/container";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
+import { ArtReveal, FlatVsPerSeatChart } from "@/components/marketing/art";
 import { Button } from "@/components/ui/button";
 
 /* -------------------------------------------------------------------------- */
@@ -41,7 +42,7 @@ export function CompareHero({
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button asChild size="lg">
             <Link href="/signup">
-              Get your number
+              Start for $29
               <ArrowRight strokeWidth={1.75} aria-hidden />
             </Link>
           </Button>
@@ -289,7 +290,7 @@ export function CompareCta({
         <div className="mt-8 flex justify-center">
           <Button asChild size="lg">
             <Link href="/signup">
-              Get your number
+              Start for $29
               <ArrowRight strokeWidth={1.75} aria-hidden />
             </Link>
           </Button>
@@ -297,6 +298,100 @@ export function CompareCta({
         <p className="mt-4 text-[13px] tabular-nums text-muted-foreground">
           $29/mo flat · Month to month · 30-day money-back guarantee
         </p>
+      </div>
+    </Section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* "At a glance" flat-vs-per-seat chart (VISUALS §3 comparison-page rule: a     */
+/* small at-a-glance visual PLUS the table, not just a table on white). The     */
+/* static SVG twin of the crew-size slider; per-user figure dated + sourced to  */
+/* /compare/quo. Reused by all three compare pages; each passes its own lead.   */
+/* -------------------------------------------------------------------------- */
+
+export function AtAGlanceChart({
+  heading,
+  lead,
+}: {
+  heading: string;
+  lead: React.ReactNode;
+}) {
+  return (
+    <Section
+      bleed
+      className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
+    >
+      <Container>
+        <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="display-h2 text-foreground">{heading}</h2>
+            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+              {lead}
+            </p>
+          </div>
+          <ArtReveal className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8">
+            <FlatVsPerSeatChart className="mx-auto max-w-2xl" />
+          </ArtReveal>
+        </div>
+      </Container>
+    </Section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Internal-link block (VISUALS §3 / SEO: compare pages were flagged for thin   */
+/* internal linking). Links out to the relevant feature + trade pages so the    */
+/* three comparisons weave into the site's link graph instead of dead-ending.   */
+/* Each page passes its own links; no shared copy.                              */
+/* -------------------------------------------------------------------------- */
+
+export interface CompareRelatedLink {
+  label: string;
+  href: string;
+  hint: string;
+}
+
+export function CompareRelatedLinks({
+  heading,
+  intro,
+  links,
+}: {
+  heading: string;
+  intro: string;
+  links: CompareRelatedLink[];
+}) {
+  return (
+    <Section>
+      <div className="mx-auto max-w-4xl">
+        <h2 className="text-2xl font-semibold text-foreground">{heading}</h2>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+          {intro}
+        </p>
+        <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+          {links.map((link) => (
+            <li key={link.href + link.label}>
+              <Link
+                href={link.href}
+                className="group flex items-start justify-between gap-4 rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-primary/30"
+              >
+                <span>
+                  <span className="text-[15px] font-medium text-foreground">
+                    {link.label}
+                  </span>
+                  <span className="mt-0.5 block text-[13px] leading-relaxed text-muted-foreground">
+                    {link.hint}
+                  </span>
+                </span>
+                <ArrowRight
+                  className="mt-0.5 size-4 shrink-0 text-primary opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </Section>
   );

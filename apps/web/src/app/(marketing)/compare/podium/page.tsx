@@ -25,10 +25,12 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Section } from "@/components/marketing/ui/section";
 import {
   Advantages,
+  AtAGlanceChart,
   BetterPickCallout,
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
   WhoEachIsFor,
@@ -45,7 +47,7 @@ const COMPETITOR = "Podium";
 export const metadata: Metadata = buildMetadata({
   title: "JobText vs Podium: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is a $29/mo flat, self-serve shared text inbox; Podium is a demo-only, annual-contract all-in-one platform (reported ~$399/mo). Where each one fits, and how to switch.",
+    "A fair, dated comparison: JobText is a $29/mo flat, self-serve text inbox; Podium is a demo-only, annual-contract all-in-one platform (reported ~$399/mo).",
   path: PATH,
 });
 
@@ -237,7 +239,7 @@ export default function ComparePodiumPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Compare", path: "/pricing" },
+          { name: "Compare", path: "/compare" },
           { name: "JobText vs Podium", path: PATH },
         ])}
       />
@@ -265,6 +267,12 @@ export default function ComparePodiumPage() {
           </div>
         </div>
       </Section>
+
+      {/* At-a-glance visual — flat vs per-seat (VISUALS §3 compare-page rule). */}
+      <AtAGlanceChart
+        heading="Flat, whatever your crew size."
+        lead="Podium doesn't publish a seat price, but the pattern is the one to watch with any per-user tool: the bill climbs as you hire. JobText stays flat — $29 up to three people, $79 up to ten. Here's that flat line against a typical per-user tool as a crew grows."
+      />
 
       {/* Who each is for — the honest concession. */}
       <WhoEachIsFor
@@ -404,6 +412,35 @@ export default function ComparePodiumPage() {
             </p>
           </>
         }
+      />
+
+      {/* Internal links — feature + trade pages (SEO: compare pages were flagged
+          for thin internal linking). */}
+      <CompareRelatedLinks
+        heading="Not sure Podium's breadth is what you need?"
+        intro="If the part you actually live in is the texting, here's what JobText does with it — and a couple of trades where a shared inbox earns its keep."
+        links={[
+          {
+            label: "The shared inbox",
+            href: "/features/shared-inbox",
+            hint: "Assign, status, note, tag, search, and mark texts done — one inbox the whole crew sees.",
+          },
+          {
+            label: "Compliance built in",
+            href: "/features/compliance",
+            hint: "Registration, opt-outs, and consent handled — without a sales call or annual contract.",
+          },
+          {
+            label: "Texting for plumbers",
+            href: "/for/plumbers",
+            hint: "Photo triage and on-my-way texts in one shared inbox, flat $29/mo.",
+          },
+          {
+            label: "Texting for HVAC",
+            href: "/for/hvac",
+            hint: "Triage the cold-snap surge across the whole crew, no per-seat bill.",
+          },
+        ]}
       />
 
       <CompareFaq heading="Switching questions, answered." faqs={FAQS} />

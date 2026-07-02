@@ -1,22 +1,27 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-
 import { cn } from "@/lib/utils";
 
 /**
  * Scroll-reveal wrapper (BLUEPRINT §1.5): opacity 0→1 + translateY 12px→0,
- * 300ms ease-out, ONCE, triggered at ~20% visibility via one tiny
- * IntersectionObserver (no animation library). The animation lives in
- * globals.css ([data-reveal]); this island only toggles data-revealed.
+ * 300ms ease-out, ONCE, triggered at ~20% visibility.
  *
- * CLS-safe: children render into an already-reserved box; only opacity and
- * transform change. prefers-reduced-motion is honored two ways — the CSS forces
- * the revealed state, and we also flip immediately without observing.
+ * PERF (iteration-4 Lighthouse fix): this is now a PURE SERVER COMPONENT — it
+ * emits only the `data-reveal` markup and ships ZERO per-instance JS. Previously
+ * every <Reveal> was its own client island with its own IntersectionObserver +
+ * useState + useEffect; the home page renders ~28 of them, so that was ~28
+ * hydrating islands' worth of main-thread work on load (a real slice of the TBT
+ * blocker). A single <RevealActivator> (mounted once in the marketing layout)
+ * now installs ONE shared IntersectionObserver that toggles `data-revealed` on
+ * every `[data-reveal]` element — 28 islands → 0 + one tiny activator.
  *
- * `delay` supports the §1.5 stagger (60ms steps, max 4 items) when a parent
- * maps children. The smallest possible client island: a single element + one
- * observer, no children serialization cost (children pass through as-is).
+ * The animation lives in globals.css ([data-reveal]); CLS-safe (children render
+ * into an already-reserved box, only opacity/transform change). Reduced motion
+ * is honored in CSS (forces the revealed state); the activator also reveals
+ * everything immediately when IntersectionObserver is unavailable, and a
+ * fail-safe timer in the activator reveals anything still hidden so no content
+ * is ever permanently invisible if JS is slow.
+ *
+ * `delay` supports the §1.5 stagger (60ms steps, max 4 items) via a CSS
+ * transition-delay, applied only once revealed.
  */
 export function Reveal({
   children,
@@ -30,44 +35,14 @@ export function Reveal({
   delay?: number;
   as?: React.ElementType;
 }) {
-  const ref = useRef<HTMLElement>(null);
-  const [revealed, setRevealed] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    // Respect reduced motion and browsers without IO: show immediately.
-    const prefersReduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (prefersReduced || typeof IntersectionObserver === "undefined") {
-      setRevealed(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setRevealed(true);
-            observer.disconnect(); // once-only
-            break;
-          }
-        }
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <Tag
-      ref={ref}
       data-reveal=""
-      data-revealed={revealed ? "true" : "false"}
-      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+      style={
+        delay
+          ? ({ "--reveal-delay": `${delay}ms` } as React.CSSProperties)
+          : undefined
+      }
       className={className}
     >
       {children}

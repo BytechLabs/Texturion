@@ -27,10 +27,12 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Section } from "@/components/marketing/ui/section";
 import {
   Advantages,
+  AtAGlanceChart,
   BetterPickCallout,
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
   WhoEachIsFor,
@@ -48,7 +50,7 @@ const COMPETITOR = "Quo";
 export const metadata: Metadata = buildMetadata({
   title: "JobText vs Quo: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is $29/mo flat, SMS-only, and Canada-first for service trades; Quo (formerly OpenPhone) is a per-user business phone system with calling from $15–19/user, texting metered separately. Where each fits, and how to switch.",
+    "A fair, dated comparison: JobText is $29/mo flat and SMS-only; Quo (formerly OpenPhone) is a per-user phone system with texting metered separately.",
   path: PATH,
 });
 
@@ -259,7 +261,7 @@ export default function CompareQuoPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Compare", path: "/pricing" },
+          { name: "Compare", path: "/compare" },
           { name: "JobText vs Quo", path: PATH },
         ])}
       />
@@ -286,6 +288,13 @@ export default function CompareQuoPage() {
           </div>
         </div>
       </Section>
+
+      {/* At-a-glance visual — flat vs per-seat. The chart's per-user line IS Quo's
+          published $19/user/mo (July 2026), so this page owns the sourced math. */}
+      <AtAGlanceChart
+        heading="Flat vs. per user, as the crew grows."
+        lead="Quo's Starter is $19/user a month on monthly billing. JobText is flat — $29 up to three people, $79 up to ten. For a solo operator Quo can be cheaper; the more you hire, the more the per-user line climbs while JobText holds. The figures below are Quo's published seat price, July 2026."
+      />
 
       <WhoEachIsFor
         heading="Who each one is really for."
@@ -425,6 +434,34 @@ export default function CompareQuoPage() {
             </p>
           </>
         }
+      />
+
+      {/* Internal links — feature + trade pages (SEO: thin-internal-linking fix). */}
+      <CompareRelatedLinks
+        heading="What JobText does with texting — in depth."
+        intro="Quo is a phone system; JobText is a texting inbox. If texting is the part that matters, here's what it looks like — and where a second number and a Canada-first head start earn their keep."
+        links={[
+          {
+            label: "Your business number",
+            href: "/features/business-number",
+            hint: "Two numbers on Pro at no add-on, next to Quo's $5/mo per extra number.",
+          },
+          {
+            label: "JobText in Canada",
+            href: "/canada",
+            hint: "Canadian crews text customers the same day — no US registration wait.",
+          },
+          {
+            label: "Texting for landscapers",
+            href: "/for/landscapers",
+            hint: "Quote from a photo and dispatch the nearest crew, all from one inbox.",
+          },
+          {
+            label: "Texting for contractors",
+            href: "/for/contractors",
+            hint: "Every message a task the crew works and checks off, off your personal cell.",
+          },
+        ]}
       />
 
       <CompareFaq heading="Switching questions, answered." faqs={FAQS} />

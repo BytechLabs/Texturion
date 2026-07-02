@@ -56,7 +56,7 @@ export function FeatureHero({
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button asChild size="lg">
               <Link href="/signup">
-                Get your number
+                Start for $29
                 <ArrowRight strokeWidth={1.75} aria-hidden />
               </Link>
             </Button>
@@ -262,7 +262,7 @@ export function MiniPricing({ body }: { body: React.ReactNode }) {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button asChild>
               <Link href="/signup">
-                Get your number
+                Start for $29
                 <ArrowRight strokeWidth={1.75} aria-hidden />
               </Link>
             </Button>
@@ -399,7 +399,7 @@ export function FeatureCta({
         <div className="mt-8 flex justify-center">
           <Button asChild size="lg">
             <Link href="/signup">
-              Get your number
+              Start for $29
               <ArrowRight strokeWidth={1.75} aria-hidden />
             </Link>
           </Button>

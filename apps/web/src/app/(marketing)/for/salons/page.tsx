@@ -21,6 +21,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
+import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { OneNumberManyPeople } from "@/components/marketing/art";
 import { SALONS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -29,7 +31,7 @@ const PATH = "/for/salons";
 export const metadata: Metadata = buildMetadata({
   title: "Text messaging for salons and barbershops",
   description:
-    "A shared text inbox for salons and barbershops: confirm appointments to cut no-shows, fill last-minute cancellations from your waitlist, and rebook clients — every stylist and the front desk on one number. Flat $29/mo.",
+    "A shared text inbox for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and rebook clients. Flat $29/mo.",
   path: PATH,
 });
 
@@ -54,6 +56,16 @@ const CONTENT: TradeContent = {
   threadLede:
     "A client texts to confirm Saturday and mentions she wants to go lighter. The desk flags the bigger lift for her stylist, who blocks extra time, adds a bond treatment, and sets the price expectation up front — so Saturday runs on schedule and there's no sticker shock at the chair.",
   script: SALONS_SCRIPT,
+  supportingGraphic: (
+    <TradeGraphic
+      caption="One number for the whole floor — the front desk and every stylist see the same conversations, so a confirmation never depends on who's at the desk."
+    >
+      <OneNumberManyPeople
+        className="w-full"
+        title="One salon number feeding a shared inbox the front desk and every stylist can see."
+      />
+    </TradeGraphic>
+  ),
 
   useCasesH2: "Where texting earns its keep in a salon.",
   useCases: [

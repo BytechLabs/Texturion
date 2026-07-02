@@ -51,7 +51,10 @@ export const LIVE_ROUTES = {
   forSalons: "/for/salons",
   forContractors: "/for/contractors",
 
-  // Comparison pages (BLUEPRINT §2, §6).
+  // Comparison pages (BLUEPRINT §2, §6). `compareIndex` is the /compare hub the
+  // three head-to-head pages' breadcrumbs terminate on (seo.ts breadcrumbJsonLd
+  // emits { name: "Compare", path: "/compare" }) and the Compare menu points at.
+  compareIndex: "/compare",
   comparePodium: "/compare/podium",
   compareHeymarket: "/compare/heymarket",
   compareQuo: "/compare/quo",

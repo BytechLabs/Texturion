@@ -31,6 +31,7 @@ import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
+import { CoverageMapNA } from "@/components/marketing/art";
 import {
   FeatureCta,
   FeatureFaq,
@@ -45,7 +46,7 @@ const PATH = "/canada";
 export const metadata: Metadata = buildMetadata({
   title: "Business texting in Canada — text customers the same day",
   description:
-    "Canadian crews text their customers the day they sign up — no US carrier registration to wait on. Local numbers in every province, CASL-aware consent and identification, and plain-English data disclosure. Flat $29/mo for the whole team.",
+    "Canadian crews text customers the day they sign up — no US carrier registration to wait on. Local numbers in every province, CASL-aware. Flat $29/mo.",
   path: PATH,
 });
 
@@ -83,7 +84,7 @@ export default function CanadaPage() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button asChild size="lg">
                   <Link href="/signup">
-                    Get your number
+                    Start for $29
                     <ArrowRight strokeWidth={1.75} aria-hidden />
                   </Link>
                 </Button>
@@ -111,7 +112,13 @@ export default function CanadaPage() {
             </div>
 
             <div className="relative">
-              <NumberCardsVisual />
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)] sm:p-8">
+                <CoverageMapNA className="w-full" />
+                <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+                  Local numbers across the US and Canada — Canadian crews text
+                  the same day they sign up.
+                </p>
+              </div>
             </div>
           </div>
         </Container>
@@ -121,6 +128,7 @@ export default function CanadaPage() {
       <FeatureSection
         eyebrow="Instant activation"
         heading="No registration wait. Just text."
+        visual={<NumberCardsVisual className="mx-auto max-w-md" />}
         wash
       >
         <p>

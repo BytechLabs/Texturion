@@ -290,7 +290,7 @@ export const SALONS_SCRIPT: ThreadScript = {
     {
       id: "sa-event-2",
       kind: "event",
-      text: "Jess added the tag Confirmed",
+      text: "Jess added the tag Scheduled",
     },
   ],
 };

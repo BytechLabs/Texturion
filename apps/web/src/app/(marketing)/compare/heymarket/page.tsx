@@ -25,10 +25,12 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Section } from "@/components/marketing/ui/section";
 import {
   Advantages,
+  AtAGlanceChart,
   BetterPickCallout,
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
   WhoEachIsFor,
@@ -46,7 +48,7 @@ const COMPETITOR = "Heymarket";
 export const metadata: Metadata = buildMetadata({
   title: "JobText vs Heymarket: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is $29/mo flat for the whole crew; Heymarket is $49/user (2-user minimum) with texts billed separately at 3¢/segment plus a $10/mo carrier fee. Where each fits, and how to switch.",
+    "A fair, dated comparison: JobText is $29/mo flat for the crew; Heymarket is $49/user (2-user minimum), with texts and a carrier fee billed separately.",
   path: PATH,
 });
 
@@ -256,7 +258,7 @@ export default function CompareHeymarketPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Compare", path: "/pricing" },
+          { name: "Compare", path: "/compare" },
           { name: "JobText vs Heymarket", path: PATH },
         ])}
       />
@@ -283,6 +285,12 @@ export default function CompareHeymarketPage() {
           </div>
         </div>
       </Section>
+
+      {/* At-a-glance visual — flat vs per-seat (VISUALS §3 compare-page rule). */}
+      <AtAGlanceChart
+        heading="One flat price vs. a bill that grows per seat."
+        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. JobText is flat — $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
+      />
 
       <WhoEachIsFor
         heading="Who each one is really for."
@@ -421,6 +429,34 @@ export default function CompareHeymarketPage() {
             </p>
           </>
         }
+      />
+
+      {/* Internal links — feature + trade pages (SEO: thin-internal-linking fix). */}
+      <CompareRelatedLinks
+        heading="If texting is the job, here's the JobText version."
+        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where JobText focuses — and where it fits a couple of trades."
+        links={[
+          {
+            label: "The shared inbox",
+            href: "/features/shared-inbox",
+            hint: "One number, one inbox the crew shares — assign, note, tag, search, done.",
+          },
+          {
+            label: "Templates, tags & workflow",
+            href: "/features/templates-and-tags",
+            hint: "Saved replies and sell-pipeline tags included, not billed per seat.",
+          },
+          {
+            label: "Texting for cleaners",
+            href: "/for/cleaners",
+            hint: "Recurring confirmations and access notes in one shared inbox, flat $29/mo.",
+          },
+          {
+            label: "Texting for salons",
+            href: "/for/salons",
+            hint: "Confirmations and waitlist fills across the whole floor, one number.",
+          },
+        ]}
       />
 
       <CompareFaq heading="Switching questions, answered." faqs={FAQS} />

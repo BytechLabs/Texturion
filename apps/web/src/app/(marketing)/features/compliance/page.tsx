@@ -37,6 +37,9 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { RegistrationStepperVisual } from "@/components/marketing/features/registration-stepper-visual";
 import { ConsentFooterVisual } from "@/components/marketing/features/consent-footer-visual";
+import { OptOutVisual } from "@/components/marketing/features/opt-out-visual";
+import { QuietHoursVisual } from "@/components/marketing/features/quiet-hours-visual";
+import { FirstWeekTimeline } from "@/components/marketing/art";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/compliance";
@@ -44,7 +47,7 @@ const PATH = "/features/compliance";
 export const metadata: Metadata = buildMetadata({
   title: "Compliance built in — we handle the carrier paperwork",
   description:
-    "10DLC registration, opt-outs, consent, and sender identification, handled for you. US texting turns on after carrier approval (about a week); Canadian texting is instant. STOP is honored automatically. Helps you follow TCPA and CASL.",
+    "10DLC registration, opt-outs, consent, and sender ID handled for you. STOP is honored automatically. Helps you follow TCPA and CASL. Flat $29/mo.",
   path: PATH,
 });
 
@@ -74,6 +77,15 @@ export default function CompliancePage() {
       <FeatureSection
         eyebrow="Registration, filed for you"
         heading="The 10DLC registration, without the 10DLC headache."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8">
+            <FirstWeekTimeline className="w-full" />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              Live on day zero. US texting turns on after a roughly one-week
+              carrier review — we file it the minute you pay.
+            </p>
+          </div>
+        }
         wash
       >
         <p>
@@ -100,6 +112,7 @@ export default function CompliancePage() {
       <FeatureSection
         eyebrow="Opt-outs"
         heading="STOP means stop — automatically, and for good."
+        visual={<OptOutVisual className="mx-auto max-w-md" />}
         flip
       >
         <p>
@@ -149,6 +162,7 @@ export default function CompliancePage() {
       <FeatureSection
         eyebrow="Quiet hours"
         heading="A gentle check before a late-night first text."
+        visual={<QuietHoursVisual />}
         flip
       >
         <p>

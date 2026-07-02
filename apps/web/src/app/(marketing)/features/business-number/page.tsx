@@ -28,6 +28,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
+import { CoverageMapNA, OneNumberManyPeople } from "@/components/marketing/art";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
@@ -35,7 +36,7 @@ const PATH = "/features/business-number";
 export const metadata: Metadata = buildMetadata({
   title: "Your business texting number — local, and yours",
   description:
-    "Get a local number for texting in the area code you choose, so your personal cell stays personal. Pro gives you two numbers — an office line and a field line, or two locations — each with its own inbox. Canadian numbers text the same day.",
+    "A local texting number in the area code you choose, so your personal cell stays personal. Pro gives you two numbers, each with its own inbox. Flat $29/mo.",
   path: PATH,
 });
 
@@ -90,6 +91,18 @@ export default function BusinessNumberPage() {
       <FeatureSection
         eyebrow="It's the company's number"
         heading="Get the business off your personal cell."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <OneNumberManyPeople
+              className="w-full"
+              title="One business number feeding a shared inbox the whole crew can see."
+            />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              One number, owned by the company — shared by the whole crew, on
+              their own phones.
+            </p>
+          </div>
+        }
         flip
       >
         <p>
@@ -135,6 +148,15 @@ export default function BusinessNumberPage() {
       <FeatureSection
         eyebrow="Canadian numbers"
         heading="A Canadian number that texts the same day."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <CoverageMapNA className="w-full" />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              Local numbers across the US and Canada — and Canadian numbers text
+              the same day you sign up.
+            </p>
+          </div>
+        }
         flip
       >
         <p>

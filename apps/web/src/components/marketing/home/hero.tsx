@@ -13,8 +13,10 @@
  * COMPLETED composition, so LCP paint / no-JS / reduced-motion are identical —
  * the finished two-phones story. The animation only replays that state on entry.
  *
- * Copy verbatim from COPY §H1. CTAs: "Get your number" → /signup, "See pricing"
- * → /pricing (never "Book a demo"). Truth line is win-first (§0 weapon #5).
+ * Copy from COPY §H1. Primary CTA is the site-wide "Start for $29" → /signup
+ * (CONVERSION §2 — the price-anchored petrol button, doctrine over COPY's softer
+ * "Get your number"); secondary "See pricing" → /pricing (never "Book a demo").
+ * Truth line is win-first (§0 weapon #5).
  */
 
 import Link from "next/link";
@@ -22,7 +24,9 @@ import { ArrowRight } from "lucide-react";
 
 import { GlowBackdrop } from "@/components/marketing/ui/glow-backdrop";
 import { Container } from "@/components/marketing/ui/container";
-import { TwoPhonesHero } from "@/components/marketing/thread-demo/two-phones-hero";
+import { Texture } from "@/components/marketing/frame/texture";
+import { LazyTwoPhonesHero } from "@/components/marketing/lazy/lazy-two-phones-hero";
+import { TwoPhonesStatic } from "@/components/marketing/thread-demo/two-phones-static";
 import { Button } from "@/components/ui/button";
 import { HOME_ANCHORS } from "@/lib/marketing/site";
 
@@ -31,6 +35,9 @@ export function Hero() {
     <section className="relative overflow-hidden pb-16 pt-28 sm:pb-24 sm:pt-32">
       {/* The ONE petrol/amber atmosphere, behind the LCP box (Track A). */}
       <GlowBackdrop />
+      {/* A whisper of dot texture under the atmosphere — depth, not decoration
+          (VISUALS §1D); aria-hidden, CSS-only, never over the LCP text. */}
+      <Texture variant="dots" fade="top" opacity={0.35} />
 
       <Container>
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
@@ -52,7 +59,7 @@ export function Hero() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button asChild size="lg">
                 <Link href="/signup">
-                  Get your number
+                  Start for $29
                   <ArrowRight strokeWidth={1.75} aria-hidden />
                 </Link>
               </Button>
@@ -74,9 +81,13 @@ export function Hero() {
             </p>
           </div>
 
-          {/* Right: the two-phones live-DOM centerpiece — no raster (LCP-safe). */}
+          {/* Right: the two-phones live-DOM centerpiece — no raster (LCP-safe).
+              The COMPLETED composition renders as pure server DOM (the LCP paints
+              beside the H1, no-JS / reduced-motion keep it); the animated island
+              hydrates AFTER first paint via next/dynamic (LazyIsland eager), so
+              its JS never blocks the LCP or inflates first-load TBT (§3.1). */}
           <div className="relative">
-            <TwoPhonesHero />
+            <LazyTwoPhonesHero fallback={<TwoPhonesStatic />} />
           </div>
         </div>
 
