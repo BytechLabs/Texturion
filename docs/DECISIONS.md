@@ -320,3 +320,135 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
   **destination**-local per D4, unchanged.
 - Per-user preferences surface = what exists: display name, theme (System/Light/Dark),
   notification toggles (email/push). No per-user timezone override in MVP.
+
+## D16. Number porting / transfers (port-in) — bring your existing number
+
+**Supersedes the D15-era "porting is a fast-follow / forward-your-number workaround" posture.**
+Number transfer (port-in) is now a **shipped MVP capability**: a business can bring its existing
+US or Canadian number to JobText instead of getting a new one. This is the honest answer to the
+top-3 buyer objection ("can I keep the number on my trucks and my Google listing?") — a real port,
+not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the binding product calls:
+
+- **Offered at signup AND post-signup.** Onboarding gets a **"New number vs. Bring my number"**
+  fork (§4.1). An existing paying company can also start a port later from Settings → Numbers
+  (`POST /v1/port-requests`). Pro's second number may be a port. Sole-prop companies keep their
+  1-number cap (a port counts as the one number).
+
+- **Paid-first is preserved, unchanged in principle. Pay first, then port.** The port order is
+  **created by the same `checkout.session.completed` webhook** that today starts the provisioning
+  saga — it is a *parallel branch of that trigger*, never a pre-payment action. No Telnyx porting
+  order, no LOA upload, no portability commitment happens before `payment_status=='paid'`. A phone
+  number row exists only after payment (D6/§1 rule 1 holds); for a port the row is created with
+  `source='ported'`, `status='provisioning'`, and its own porting sub-status. The portability
+  **check** (read-only, free, no commitment) is the one Telnyx call allowed pre-payment, so the
+  wizard can tell the customer "yes this number can move" before they pay — but the actual port
+  order is post-payment only.
+
+- **The port window is handled honestly, and we DO NOT auto-provision a bridge number.**
+  A port takes days to weeks; the number stays live on the **old carrier** until the FOC
+  (Firm Order Commitment) cutover date, and **JobText inbound/outbound on that number only works
+  after the messaging port completes** (voice `ported` → messaging `ported`, separate step). We set
+  this expectation loudly at checkout and render the live port state in-app (state machine below).
+  We **do not silently buy a temporary JobText number** during the port (it would confuse the ICP —
+  two numbers, unclear which to give customers — and undercut the whole "keep your number" promise).
+  Instead we offer an **explicit, opt-in "tide-me-over number"** the owner can choose in the port
+  wizard: a checkbox "Give me a temporary JobText number to text from while my number transfers"
+  → provisions a normal new number via the existing saga, which the owner later releases (or keeps,
+  paying for a 2nd number on Pro) after the port completes. Default is **off** — most customers
+  simply wait for the FOC date, which the copy makes safe and predictable. This keeps the default
+  path clean and honest while giving the impatient an out.
+
+- **A ported number gets the per-company messaging profile and 10DLC exactly like a purchased
+  number — reusing D2's machinery, not a parallel one.** The port order carries
+  `phone_number_configuration.messaging_profile_id = companies.telnyx_messaging_profile_id`
+  (the S1 profile, created up-front by the port saga just like provisioning), and messaging is
+  explicitly enabled on the port (`messaging.enable_messaging=true`). **10DLC brand + campaign are
+  submitted at payment time exactly as today (§4.4), so the campaign is APPROVED before the number
+  cuts over** — the D2 sequencing requirement for ports. When the messaging port reaches `ported`,
+  the number is assigned to the (already-approved) campaign via the identical R3 call
+  (`POST /v2/10dlc/phoneNumberCampaign`). No new registration state machine — the port state machine
+  drives *number readiness*, the existing registration state machine drives *US-send eligibility*.
+  These are enforced by **two independent, differently-scoped checks in the send path, not a single fused
+  gate** (PORTING.md §7): number readiness is **per-number** (`phone_numbers.status='active'`, which the
+  send path checks first — a still-porting number is rejected with the existing `conflict` "not ready to
+  send," *never* `registration_pending`), and US-eligibility is **per-company** (`getSendGates().usApproved`
+  on the company's campaign row, unaware of which number sends). Only after messaging ports and P6 flips
+  the number to `active` does a US-bound send reach the per-company registration gate. Net: a ported US
+  number is non-sendable until `active`, then governed by campaign `approved` exactly like a new number.
+
+- **Port-in fee: absorbed, no line item.** Telnyx charges **$0 per port for US and Canada**
+  (verified). There is therefore no pass-through and no Stripe line item for the port itself. The
+  **US $29 registration fee still applies** on the same terms as today (US company, or CA company
+  enabling US texting, once per company) — a ported US number needs a brand+campaign just like a new
+  one. Port customers pay the same plan price as new-number customers; porting is a $0-COGS feature
+  that removes the biggest adoption objection.
+
+- **US + Canada scope only** — matches D2's US/CA-only geo-permissions and the ICP. Local numbers
+  and toll-free numbers are both portable at Telnyx, but **MVP ports LOCAL numbers only** (D2 keeps
+  toll-free out of MVP; toll-free porting is a separate RespOrg process and stays a documented
+  post-MVP option). A portability check that returns a toll-free or non-US/CA number is rejected in
+  the wizard with a plain-language message.
+
+- **Rejections are a normal, recoverable state — fix-and-resubmit, mirroring the registration
+  rejection UX.** Losing-carrier rejections (account-number mismatch, illegible LOA, name/address
+  mismatch, PIN wrong) surface as a port `exception` with a human-readable reason; the owner edits
+  the port data / re-uploads the LOA or invoice in the same wizard and resubmits
+  (`POST /v1/port-requests/:id/resubmit`), incrementing an attempt counter. Telnyx port-in is **free
+  and re-submittable**, so there is no per-attempt cost to the customer or to us. The daily port
+  reconciliation cron is the authoritative fallback for missed webhooks, exactly like the
+  registration poller.
+
+- **Marketing copy flips from workaround to real porting.** The forwarding-workaround answer
+  (`docs/marketing/COPY.md` §H12 Q "can I keep my number", and the BLUEPRINT.md FAQ note that
+  frames it as call-forwarding) is **replaced** with the honest porting story: "Yes — bring your
+  number. It keeps working on your old carrier while it transfers (usually a few days to two weeks
+  for US, faster in Canada), and moves to JobText on the switch-over date. We'll tell you exactly
+  where it is the whole way." The business-number feature page and the compare pages gain a real
+  **"Bring your number"** capability line (replacing any "new number only" / "porting coming soon"
+  framing). The honesty rule is kept: we state the multi-day/week window and the old-carrier-until-
+  FOC reality plainly — no "instant port" claim, no hidden gotcha. Porting moves from the "not yet"
+  list to a shipped feature; the "why US takes about a week" and "30-day number grace" answers are
+  unaffected.
+
+- **Consistency with D1–D15:** no always-on servers (port polling + reconciliation are Cron
+  Triggers, §11); webhook-driven with a cron fallback (like every other async path); one messaging
+  profile per company (D2, reused); paid-first (D6/§1, preserved); the send gate stays per-destination
+  and, for a ported US number, layers number-readiness (per-number `status='active'`) ahead of the
+  existing per-company registration gate as two independent checks (above; D2). No change to pricing (D5)
+  beyond the $0 port fee. No change to the schema conventions (D7) — the new `port_requests` table follows
+  the same FK/RLS/append-friendly rules, and `phone_numbers` gains only a `source` and a nullable
+  `porting_status` mirror.
+
+- **Verified Telnyx port-in facts (re-checked 2026-07 against the Telnyx API reference, porting
+  quickstart, messaging-porting docs, and port-in-events docs) — these pin PORTING.md and correct earlier
+  hedges:**
+  - **Webhook wiring is one line in the shared dispatcher, not the route.** The `/webhooks/telnyx` route
+    hands every event to `dispatchTelnyxEvent` (`apps/api/src/messaging/dispatch.ts`), shared by the live
+    path and the webhook sweeper; the port branch
+    (`if (eventType.startsWith('porting_order.')) return handlePortingEvent(...)`) goes there, which also
+    covers sweeper replay. `porting_order.*` events are the only driver of FOC confirmation, P6 messaging
+    completion, exceptions, and cancellation.
+  - **Confirmed FOC = `activation_settings.foc_datetime_actual`, read via `GET /v2/porting_orders/{id}`.**
+    The `porting_order.status_changed` webhook body carries only
+    `{ id, customer_reference, status:{value,details}, support_key, updated_at, webhook_url }` — no
+    `activation_settings` — so the confirmed date is fetched on the `foc-date-confirmed` transition, not
+    read from the webhook. (`foc_datetime_requested` is the value we send.)
+  - **Portability check is the top-level `POST /v2/portability_checks`** (body `{phone_numbers:[...]}`) —
+    confirmed; it is NOT nested under `/v2/porting/`.
+  - **LOA + invoice attach via the porting-order PATCH `documents:{loa,invoice}` UUID object** (the
+    quickstart shows exactly this on `PATCH /v2/porting_orders/{id}`); `/v2/porting_orders/{id}/
+    additional_documents` is a separate endpoint for extra documents later, not the primary attach.
+  - **Messaging enablement (`messaging.enable_messaging=true` + `messaging_profile_id`) is settable only in
+    `draft`/`in-process`/`exception`, and is re-sent on every resubmit PATCH** (a rejection can drop the
+    messaging sub-order; exception is in-window) — never assumed to persist across a rejection.
+  - **A messaging exception (`messaging_port_status='exception'`) is auto-handled by Telnyx** (Messaging
+    Ops escalates the losing carrier's NetNumber-ID release; "you don't need to contact your previous
+    provider yourself"; most US/CA local exceptions clear in ~1–2 business days). So the "nothing you need
+    to do" customer copy is correct — this is distinct from a **10DLC assignment `FAILED`**
+    (`10dlc.phone_number.update`), which IS customer-actionable (ask the old provider to remove the number
+    from its carrier campaign). But a messaging exception can gate texting for days, and the flip to
+    `ported` may arrive only via a webhook that can be missed, so the daily reconcile cron re-GETs
+    exception-stuck orders and runs P6 on the reconciled `→ ported` transition. Relatedly, the orphan scan
+    in `reconcileNumbers` must exclude numbers matching an open (`status <> 'cancelled'`)
+    `port_requests.phone_e164`, or every voice-ported-but-messaging-pending number falsely pages the
+    operator for the 1–2-day window.
