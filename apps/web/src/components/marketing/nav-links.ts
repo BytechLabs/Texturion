@@ -1,11 +1,12 @@
 import { APP_LINKS, HOME_ANCHORS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
- * Nav link inventory (BLUEPRINT §12). Dropdown items whose standalone pages ship
- * in later iterations point at home-page anchors for now (site.ts), so there are
- * ZERO dead links this iteration. Real standalone pages: /security (Product menu)
- * and /pricing (the top-level Pricing link). Everything else in the feature/
- * trade/compare menus lands on the relevant home section until its page exists.
+ * Nav link inventory (BLUEPRINT §12). Every dropdown item resolves to a real
+ * standalone page — the feature pages, the six trade pages, /canada, and the
+ * three comparison pages all ship this iteration. The only home-anchor entries
+ * left are the two menu *triggers* (`href` on the menu itself): clicking the word
+ * "Product" or "Who it's for" scrolls to the relevant home overview, while the
+ * dropdown items navigate to the standalone pages. ZERO dead links.
  */
 
 export interface NavItem {
@@ -22,51 +23,79 @@ export interface NavMenu {
   items: NavItem[];
 }
 
-/** Product ▾ — 4 feature pages (anchored to home for now) + Security (live). */
+/** Product ▾ — 4 feature pages + Security (all live standalone pages). */
 export const productMenu: NavMenu = {
   label: "Product",
   href: HOME_ANCHORS.features,
   items: [
-    { label: "Shared inbox", href: HOME_ANCHORS.features },
-    { label: "Your business number", href: HOME_ANCHORS.features },
-    { label: "Compliance built in", href: HOME_ANCHORS.features },
-    { label: "Templates & tags", href: HOME_ANCHORS.features },
+    {
+      label: "Shared inbox",
+      href: LIVE_ROUTES.featuresSharedInbox,
+      live: true,
+    },
+    {
+      label: "Your business number",
+      href: LIVE_ROUTES.featuresBusinessNumber,
+      live: true,
+    },
+    {
+      label: "Compliance built in",
+      href: LIVE_ROUTES.featuresCompliance,
+      live: true,
+    },
+    {
+      label: "Templates & tags",
+      href: LIVE_ROUTES.featuresTemplatesAndTags,
+      live: true,
+    },
     { label: "Security", href: LIVE_ROUTES.security, live: true },
   ],
 };
 
-/** Who it's for ▾ — the six trades + Canada (all anchored for now). */
+/** Who it's for ▾ — the six trades + Canada (all live standalone pages). */
 export const tradesMenu: NavMenu = {
   label: "Who it's for",
   href: HOME_ANCHORS.trades,
   items: [
-    { label: "Plumbers", href: HOME_ANCHORS.trades },
-    { label: "Landscapers", href: HOME_ANCHORS.trades },
-    { label: "Cleaners", href: HOME_ANCHORS.trades },
-    { label: "HVAC", href: HOME_ANCHORS.trades },
-    { label: "Salons", href: HOME_ANCHORS.trades },
-    { label: "Contractors", href: HOME_ANCHORS.trades },
-    { label: "JobText in Canada", href: HOME_ANCHORS.canada },
+    { label: "Plumbers", href: LIVE_ROUTES.forPlumbers, live: true },
+    { label: "Landscapers", href: LIVE_ROUTES.forLandscapers, live: true },
+    { label: "Cleaners", href: LIVE_ROUTES.forCleaners, live: true },
+    { label: "HVAC", href: LIVE_ROUTES.forHvac, live: true },
+    { label: "Salons", href: LIVE_ROUTES.forSalons, live: true },
+    { label: "Contractors", href: LIVE_ROUTES.forContractors, live: true },
+    { label: "JobText in Canada", href: LIVE_ROUTES.canada, live: true },
   ],
 };
 
-/** Compare ▾ — the three launch comparisons (anchored for now). */
+/** Compare ▾ — the three launch comparisons (all live standalone pages). */
 export const compareMenu: NavMenu = {
   label: "Compare",
-  href: HOME_ANCHORS.compare,
+  href: LIVE_ROUTES.comparePodium,
   items: [
-    { label: "JobText vs Podium", href: HOME_ANCHORS.compare },
-    { label: "JobText vs Heymarket", href: HOME_ANCHORS.compare },
-    { label: "JobText vs Quo", href: HOME_ANCHORS.compare },
+    { label: "JobText vs Podium", href: LIVE_ROUTES.comparePodium, live: true },
+    {
+      label: "JobText vs Heymarket",
+      href: LIVE_ROUTES.compareHeymarket,
+      live: true,
+    },
+    { label: "JobText vs Quo", href: LIVE_ROUTES.compareQuo, live: true },
   ],
 };
 
 export const NAV_MENUS: NavMenu[] = [productMenu, tradesMenu, compareMenu];
 
-/** Flat top-level links between the menus. Pricing is a real standalone page
- * (BLUEPRINT §2, §8); Canada anchors to the home Canada beat until /canada ships. */
-export const PRICING_LINK: NavItem = { label: "Pricing", href: HOME_ANCHORS.pricing, live: true };
-export const CANADA_LINK: NavItem = { label: "Canada", href: HOME_ANCHORS.canada };
+/** Flat top-level links between the menus. Pricing and Canada are real
+ * standalone pages (BLUEPRINT §2, §8, §7). */
+export const PRICING_LINK: NavItem = {
+  label: "Pricing",
+  href: HOME_ANCHORS.pricing,
+  live: true,
+};
+export const CANADA_LINK: NavItem = {
+  label: "Canada",
+  href: LIVE_ROUTES.canada,
+  live: true,
+};
 
 export const LOGIN_HREF = APP_LINKS.login;
 export const SIGNUP_HREF = APP_LINKS.signup;

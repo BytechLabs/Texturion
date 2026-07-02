@@ -2,6 +2,12 @@ import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Optional isolated build output dir (JOBTEXT_DIST_DIR) so a production build
+  // can run without colliding with a concurrently-running `next dev` that shares
+  // the default `.next`. No effect when the env var is unset.
+  ...(process.env.JOBTEXT_DIST_DIR
+    ? { distDir: process.env.JOBTEXT_DIST_DIR }
+    : {}),
   // SPEC §3: next/image runs unoptimized on Cloudflare Workers (Cloudflare
   // Images is separately billed and the dashboard doesn't need it).
   images: {

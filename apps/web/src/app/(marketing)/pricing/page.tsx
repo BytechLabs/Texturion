@@ -347,22 +347,24 @@ export default function PricingPage() {
               Every cost, before you pay.
             </h2>
 
+            {/* Each row is a <div> whose ONLY children are <dt>/<dd> so the
+                definition-list / dlitem a11y rules pass (axe: a <dl>'s <div>
+                wrappers may contain nothing but <dt>/<dd>). The decorative
+                icon lives inside the <dt>, not as a sibling of the wrapper. */}
             <dl className="mt-10 space-y-5 rounded-2xl border border-border bg-card p-6 sm:p-8">
               {LEDGER.map(({ term, detail }) => (
-                <div key={term} className="flex gap-3.5">
-                  <CircleDollarSign
-                    className="mt-0.5 size-5 shrink-0 text-primary"
-                    strokeWidth={1.75}
-                    aria-hidden
-                  />
-                  <div>
-                    <dt className="text-[15px] font-semibold text-foreground">
-                      {term}
-                    </dt>
-                    <dd className="mt-1 text-[14px] leading-relaxed text-muted-foreground">
-                      {detail}
-                    </dd>
-                  </div>
+                <div key={term}>
+                  <dt className="flex items-start gap-3.5 text-[15px] font-semibold text-foreground">
+                    <CircleDollarSign
+                      className="mt-0.5 size-5 shrink-0 text-primary"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    {term}
+                  </dt>
+                  <dd className="mt-1 pl-[34px] text-[14px] leading-relaxed text-muted-foreground">
+                    {detail}
+                  </dd>
                 </div>
               ))}
             </dl>

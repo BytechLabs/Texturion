@@ -19,6 +19,61 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }> = [
     { path: LIVE_ROUTES.home, priority: 1, changeFrequency: "weekly" },
     { path: LIVE_ROUTES.pricing, priority: 0.9, changeFrequency: "weekly" },
+
+    // Feature pages (BLUEPRINT §2, §5).
+    {
+      path: LIVE_ROUTES.featuresSharedInbox,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
+      path: LIVE_ROUTES.featuresBusinessNumber,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
+      path: LIVE_ROUTES.featuresCompliance,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
+      path: LIVE_ROUTES.featuresTemplatesAndTags,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+
+    // Trade pages (BLUEPRINT §2, §5).
+    { path: LIVE_ROUTES.forPlumbers, priority: 0.7, changeFrequency: "monthly" },
+    {
+      path: LIVE_ROUTES.forLandscapers,
+      priority: 0.7,
+      changeFrequency: "monthly",
+    },
+    { path: LIVE_ROUTES.forCleaners, priority: 0.7, changeFrequency: "monthly" },
+    { path: LIVE_ROUTES.forHvac, priority: 0.7, changeFrequency: "monthly" },
+    { path: LIVE_ROUTES.forSalons, priority: 0.7, changeFrequency: "monthly" },
+    {
+      path: LIVE_ROUTES.forContractors,
+      priority: 0.7,
+      changeFrequency: "monthly",
+    },
+
+    // Canada (BLUEPRINT §2, §7).
+    { path: LIVE_ROUTES.canada, priority: 0.7, changeFrequency: "monthly" },
+
+    // Comparison pages (BLUEPRINT §2, §6).
+    {
+      path: LIVE_ROUTES.comparePodium,
+      priority: 0.6,
+      changeFrequency: "monthly",
+    },
+    {
+      path: LIVE_ROUTES.compareHeymarket,
+      priority: 0.6,
+      changeFrequency: "monthly",
+    },
+    { path: LIVE_ROUTES.compareQuo, priority: 0.6, changeFrequency: "monthly" },
+
     { path: LIVE_ROUTES.security, priority: 0.6, changeFrequency: "monthly" },
     { path: LIVE_ROUTES.contact, priority: 0.5, changeFrequency: "yearly" },
     { path: LIVE_ROUTES.status, priority: 0.4, changeFrequency: "weekly" },

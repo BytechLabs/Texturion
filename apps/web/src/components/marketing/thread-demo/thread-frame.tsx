@@ -30,7 +30,10 @@ function BrowserChrome({ url = "jobtext.app/inbox" }: { url?: string }) {
         <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
         <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
       </div>
-      <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-400 dark:bg-stone-800 dark:text-stone-500">
+      {/* stone-500 (not stone-400) so this quiet URL hint still clears WCAG AA
+          4.5:1 on white (G11) — a Lighthouse color-contrast finding. Reads as a
+          muted chrome hint, not body text. */}
+      <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
         {url}
       </div>
     </div>

@@ -3,12 +3,13 @@
  * nav, the footer, the sitemap, and JSON-LD BreadcrumbLists (BLUEPRINT §11.3:
  * "generated from the same route-data maps that drive nav/footer").
  *
- * Honesty rule for this iteration (Track A shell + Track B home): every link in
- * the nav and footer must resolve. Pages that ship in later iterations
- * (features, trades, compares, /pricing, /canada) are NOT linked to their future
- * URLs — they point at the relevant home-page anchor instead, so there are ZERO
- * dead links now. When those pages land, the `href` values here flip to the real
- * routes in one place and every surface updates together.
+ * Iteration 3 SEO content: the feature pages (shared-inbox, business-number,
+ * compliance, templates-and-tags), /canada, the six trade pages, and the three
+ * comparison pages are now REAL routes. Every link in the nav and footer resolves
+ * to a shipped page. The only entries that still point at a home-page anchor are
+ * the two menu *triggers* ("Product ▾" / "Who it's for ▾") — clicking the trigger
+ * word itself scrolls to the relevant home overview; its dropdown items go to the
+ * real standalone pages. There are ZERO dead links.
  */
 
 export const SITE_URL = "https://jobtext.app";
@@ -19,9 +20,8 @@ export function absoluteUrl(path: string): string {
 }
 
 /**
- * Real marketing routes that exist after this iteration (Track A + Track B).
- * These are the ONLY paths the sitemap emits and the only ones the nav/footer
- * link to as real routes; everything else routes to a home anchor below.
+ * Real marketing routes that exist. These are the paths the sitemap emits and the
+ * paths the nav/footer link to as real routes.
  */
 export const LIVE_ROUTES = {
   home: "/",
@@ -33,29 +33,43 @@ export const LIVE_ROUTES = {
   privacy: "/legal/privacy",
   aup: "/legal/aup",
   subprocessors: "/legal/subprocessors",
+
+  // Feature pages (BLUEPRINT §2, §5).
+  featuresSharedInbox: "/features/shared-inbox",
+  featuresBusinessNumber: "/features/business-number",
+  featuresCompliance: "/features/compliance",
+  featuresTemplatesAndTags: "/features/templates-and-tags",
+
+  // Canada (BLUEPRINT §2, §7).
+  canada: "/canada",
+
+  // Trade pages (BLUEPRINT §2, §5 template).
+  forPlumbers: "/for/plumbers",
+  forLandscapers: "/for/landscapers",
+  forCleaners: "/for/cleaners",
+  forHvac: "/for/hvac",
+  forSalons: "/for/salons",
+  forContractors: "/for/contractors",
+
+  // Comparison pages (BLUEPRINT §2, §6).
+  comparePodium: "/compare/podium",
+  compareHeymarket: "/compare/heymarket",
+  compareQuo: "/compare/quo",
 } as const;
 
 /**
  * Home-page section anchors (Track B renders sections with these ids in
- * BLUEPRINT §3 order). Nav/footer entries for not-yet-built standalone pages
- * point here so the click still lands somewhere true and relevant.
- *
- * These ids are verified against Track B's home sections at integration:
- * features, trades, canada, faq all exist as section ids on the home page.
- *
- * `pricing` and `compare` now resolve to the real /pricing page (it ships this
- * iteration): "Pricing" is a standalone page (BLUEPRINT §2, §8), and the fullest
- * "what you'll actually pay elsewhere" competitor comparison lives there (§8)
- * until the dedicated /compare/* pages ship. The home pricing section keeps its
- * id="pricing" for in-page use; nav/footer/hero point at the standalone page.
+ * BLUEPRINT §3 order). Used only by the two nav dropdown *triggers* — the word
+ * "Product" scrolls to the home features overview, "Who it's for" to the trades
+ * overview — while their dropdown items link to the real standalone pages above.
+ * These ids are verified against the home sections at integration.
  */
 export const HOME_ANCHORS = {
   features: "/#features",
-  pricing: LIVE_ROUTES.pricing,
   trades: "/#trades",
-  compare: LIVE_ROUTES.pricing,
-  canada: "/#canada",
-  faq: "/#faq",
+  /** "Pricing" is a real standalone page, not an anchor — kept here so the nav
+   * top-level link and the home "See pricing" CTAs share one source. */
+  pricing: LIVE_ROUTES.pricing,
 } as const;
 
 /** The app (separate Worker origin in production; same-origin route locally). */

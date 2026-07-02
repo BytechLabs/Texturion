@@ -1,11 +1,17 @@
 /**
- * Hero (Track B) — §3.1, the signature moment (§0.1).
+ * Hero (Track HERO+PERF) — §3.1, the signature moment (§0.1).
+ *
+ * The centerpiece is the TWO-PHONES composition (BLUEPRINT §0.1 / §3.1): a
+ * customer's plain text on a generic phone (left) MATERIALIZING on the right as
+ * a structured JobText conversation the whole crew can see. It is the product's
+ * entire argument in one moving object, and it *is* the app.
  *
  * LCP strategy (BLUEPRINT §3.1, panel resolution): the H1 TEXT is the
  * guaranteed LCP; the centerpiece is live DOM/CSS with NO raster image. The
  * atmosphere is Track A's GlowBackdrop (CSS gradient behind the box, never over
- * LCP text). The thread hydrates after first paint; its server render ships the
- * completed thread as static DOM so LCP + no-JS both show the finished thread.
+ * LCP text). <TwoPhonesHero> hydrates after first paint and server-renders the
+ * COMPLETED composition, so LCP paint / no-JS / reduced-motion are identical —
+ * the finished two-phones story. The animation only replays that state on entry.
  *
  * Copy verbatim from COPY §H1. CTAs: "Get your number" → /signup, "See pricing"
  * → /pricing (never "Book a demo"). Truth line is win-first (§0 weapon #5).
@@ -16,8 +22,7 @@ import { ArrowRight } from "lucide-react";
 
 import { GlowBackdrop } from "@/components/marketing/ui/glow-backdrop";
 import { Container } from "@/components/marketing/ui/container";
-import { ThreadDemo } from "@/components/marketing/thread-demo/thread-demo";
-import { WATER_HEATER_SCRIPT } from "@/components/marketing/thread-demo/script";
+import { TwoPhonesHero } from "@/components/marketing/thread-demo/two-phones-hero";
 import { Button } from "@/components/ui/button";
 import { HOME_ANCHORS } from "@/lib/marketing/site";
 
@@ -28,7 +33,7 @@ export function Hero() {
       <GlowBackdrop />
 
       <Container>
-        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
+        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
           {/* Left: text — the LCP lives here. */}
           <div>
             <p className="text-[13px] font-semibold text-primary">
@@ -69,13 +74,9 @@ export function Hero() {
             </p>
           </div>
 
-          {/* Right: the live-DOM centerpiece — no raster (LCP-safe). */}
+          {/* Right: the two-phones live-DOM centerpiece — no raster (LCP-safe). */}
           <div className="relative">
-            <ThreadDemo
-              script={WATER_HEATER_SCRIPT}
-              framing="desktop"
-              bodyClassName="min-h-[360px]"
-            />
+            <TwoPhonesHero />
           </div>
         </div>
 

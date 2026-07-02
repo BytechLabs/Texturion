@@ -1,17 +1,17 @@
-import { HOME_ANCHORS, LIVE_ROUTES } from "@/lib/marketing/site";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 import type { NavItem } from "./nav-links";
 
 /**
  * Footer link inventory (BLUEPRINT §12, COPY §F). Same honesty rule as the nav:
- * only pages that exist after this iteration link to real routes; everything
- * else lands on a home-page anchor, so there are ZERO dead links.
+ * every link resolves to a real route. The feature pages, six trade pages,
+ * /canada, and the three comparison pages all ship this iteration, so the
+ * Product / Who it's for / Compare columns now link to their standalone pages.
  *
- * Real routes shipping now (Track A): /pricing, /security, /contact, /status, and
- * the four legal pages terms/privacy/aup/subprocessors. The "SMS messaging policy"
- * and "30-day guarantee" pages ship in later iterations (BLUEPRINT §2 inventory),
- * so they are intentionally NOT in the footer yet — linking to a 404 would break
- * the honesty guard. They return here the moment their pages land.
+ * The "SMS messaging policy" and "30-day guarantee" pages ship in later
+ * iterations (BLUEPRINT §2 inventory), so they are intentionally NOT in the
+ * footer yet — linking to a 404 would break the honesty guard. They return here
+ * the moment their pages land. ZERO dead links.
  */
 
 export interface FooterColumn {
@@ -23,32 +23,56 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
   {
     heading: "Product",
     links: [
-      { label: "Shared inbox", href: HOME_ANCHORS.features },
-      { label: "Your business number", href: HOME_ANCHORS.features },
-      { label: "Compliance built in", href: HOME_ANCHORS.features },
-      { label: "Templates & tags", href: HOME_ANCHORS.features },
+      {
+        label: "Shared inbox",
+        href: LIVE_ROUTES.featuresSharedInbox,
+        live: true,
+      },
+      {
+        label: "Your business number",
+        href: LIVE_ROUTES.featuresBusinessNumber,
+        live: true,
+      },
+      {
+        label: "Compliance built in",
+        href: LIVE_ROUTES.featuresCompliance,
+        live: true,
+      },
+      {
+        label: "Templates & tags",
+        href: LIVE_ROUTES.featuresTemplatesAndTags,
+        live: true,
+      },
       { label: "Pricing", href: LIVE_ROUTES.pricing, live: true },
       { label: "Security", href: LIVE_ROUTES.security, live: true },
-      { label: "JobText in Canada", href: HOME_ANCHORS.canada },
+      { label: "JobText in Canada", href: LIVE_ROUTES.canada, live: true },
     ],
   },
   {
     heading: "Who it's for",
     links: [
-      { label: "Plumbers", href: HOME_ANCHORS.trades },
-      { label: "Landscapers", href: HOME_ANCHORS.trades },
-      { label: "Cleaners", href: HOME_ANCHORS.trades },
-      { label: "HVAC", href: HOME_ANCHORS.trades },
-      { label: "Salons", href: HOME_ANCHORS.trades },
-      { label: "Contractors", href: HOME_ANCHORS.trades },
+      { label: "Plumbers", href: LIVE_ROUTES.forPlumbers, live: true },
+      { label: "Landscapers", href: LIVE_ROUTES.forLandscapers, live: true },
+      { label: "Cleaners", href: LIVE_ROUTES.forCleaners, live: true },
+      { label: "HVAC", href: LIVE_ROUTES.forHvac, live: true },
+      { label: "Salons", href: LIVE_ROUTES.forSalons, live: true },
+      { label: "Contractors", href: LIVE_ROUTES.forContractors, live: true },
     ],
   },
   {
     heading: "Compare",
     links: [
-      { label: "JobText vs Podium", href: HOME_ANCHORS.compare },
-      { label: "JobText vs Heymarket", href: HOME_ANCHORS.compare },
-      { label: "JobText vs Quo", href: HOME_ANCHORS.compare },
+      {
+        label: "JobText vs Podium",
+        href: LIVE_ROUTES.comparePodium,
+        live: true,
+      },
+      {
+        label: "JobText vs Heymarket",
+        href: LIVE_ROUTES.compareHeymarket,
+        live: true,
+      },
+      { label: "JobText vs Quo", href: LIVE_ROUTES.compareQuo, live: true },
     ],
   },
   {

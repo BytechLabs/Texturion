@@ -15,17 +15,16 @@ import { Fan, Scissors, Shovel, Sparkles, Wrench } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { HOME_ANCHORS } from "@/lib/marketing/site";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-// The /for/<trade> pages ship in later iterations; until then the trade strip
-// lands on the on-page "Who it's for" beat (the same honesty guard the nav and
-// footer use via site.ts), so there are zero dead links.
+// The trade strip links each ICP trade to its own /for/<trade> page (BLUEPRINT
+// §3.4), all of which are live routes in site.ts.
 const TRADES = [
-  { label: "Plumbers", href: HOME_ANCHORS.trades, icon: Wrench },
-  { label: "Landscapers", href: HOME_ANCHORS.trades, icon: Shovel },
-  { label: "Cleaners", href: HOME_ANCHORS.trades, icon: Sparkles },
-  { label: "HVAC", href: HOME_ANCHORS.trades, icon: Fan },
-  { label: "Salons", href: HOME_ANCHORS.trades, icon: Scissors },
+  { label: "Plumbers", href: LIVE_ROUTES.forPlumbers, icon: Wrench },
+  { label: "Landscapers", href: LIVE_ROUTES.forLandscapers, icon: Shovel },
+  { label: "Cleaners", href: LIVE_ROUTES.forCleaners, icon: Sparkles },
+  { label: "HVAC", href: LIVE_ROUTES.forHvac, icon: Fan },
+  { label: "Salons", href: LIVE_ROUTES.forSalons, icon: Scissors },
 ] as const;
 
 const CHIPS = [

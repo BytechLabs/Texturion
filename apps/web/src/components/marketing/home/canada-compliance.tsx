@@ -14,7 +14,7 @@ import { FileCheck2, Leaf, MessageSquareOff, ShieldCheck, UserCheck } from "luci
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
-import { HOME_ANCHORS } from "@/lib/marketing/site";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 const PROOF_POINTS = [
   {
@@ -62,10 +62,8 @@ export function CanadaCompliance() {
             province, CASL-aware consent records, and a privacy policy that tells
             you plainly where your data lives.
           </p>
-          {/* /canada ships later; lands on this on-page Canada beat until then
-              (site.ts guard) — zero dead links. */}
           <Link
-            href={HOME_ANCHORS.canada}
+            href={LIVE_ROUTES.canada}
             className="mt-6 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
           >
             How JobText works in Canada →

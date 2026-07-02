@@ -7,8 +7,8 @@
  * placeholder images, BLUEPRINT §13.2/§13.1). No "example — real interface"
  * captions (the ONE label lives on §3.4).
  *
- * Tiles link to the relevant /features page (site.ts wires those to anchors
- * until the pages land). Server components except the two ThreadDemo islands.
+ * Tiles link to the relevant standalone /features page (site.ts LIVE_ROUTES).
+ * Server components except the two ThreadDemo islands.
  */
 
 import Link from "next/link";
@@ -21,13 +21,14 @@ import {
   ASSIGN_TILE_SCRIPT,
   PHOTOS_TILE_SCRIPT,
 } from "@/components/marketing/thread-demo/script";
-import { HOME_ANCHORS } from "@/lib/marketing/site";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
-// The /features/* pages ship in later iterations; until then every tile lands
-// on the on-page features beat (the same site.ts honesty guard the nav/footer
-// use), so there are zero dead links.
-const FEATURES_HREF = HOME_ANCHORS.features;
+// Each tile links to the standalone feature page that covers it (all live routes
+// in site.ts): the inbox mechanics (notes, search, contacts, mark-done) go to
+// the shared-inbox page; saved replies and tags go to the templates-and-tags page.
+const SHARED_INBOX_HREF = LIVE_ROUTES.featuresSharedInbox;
+const TEMPLATES_TAGS_HREF = LIVE_ROUTES.featuresTemplatesAndTags;
 
 function TileShell({
   title,
@@ -132,7 +133,7 @@ export function Bento() {
           <TileShell
             title="Internal notes."
             body="Talk about the job inside the conversation. Notes are marked, locked, and never sent to the customer."
-            href={FEATURES_HREF}
+            href={SHARED_INBOX_HREF}
           >
             <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-[13px] leading-relaxed text-stone-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
               <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-amber-800 dark:text-warning">
@@ -148,7 +149,7 @@ export function Bento() {
           <TileShell
             title="Saved replies."
             body="Type “/” and send your on-my-way, quote-follow-up, or booking text in two taps. Write them once, stop retyping them forever."
-            href={FEATURES_HREF}
+            href={TEMPLATES_TAGS_HREF}
           >
             <div className="rounded-lg border border-border bg-background p-2 text-[13px]">
               <div className="flex items-center gap-1.5 border-b border-border pb-1.5 text-muted-foreground">
@@ -168,7 +169,7 @@ export function Bento() {
           <TileShell
             title="Tags that match how you sell."
             body="Quote sent, scheduled, won, lost — ready out of the box, editable to fit how you actually work."
-            href={FEATURES_HREF}
+            href={TEMPLATES_TAGS_HREF}
           >
             <div className="flex flex-wrap gap-1.5">
               {["Quote sent", "Scheduled", "Won", "Lost"].map((t) => (
@@ -212,7 +213,7 @@ export function Bento() {
           <TileShell
             title="Search everything."
             body="Every message and contact, searchable. “What did we quote the Nguyens in March?” takes five seconds, not a phone poll."
-            href={FEATURES_HREF}
+            href={SHARED_INBOX_HREF}
           >
             <div className="rounded-lg border border-border bg-background p-2">
               <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -235,7 +236,7 @@ export function Bento() {
           <TileShell
             title="Contacts, imported."
             body="Bring your customer list in with a CSV. We show you exactly what will import before anything does."
-            href={FEATURES_HREF}
+            href={SHARED_INBOX_HREF}
           >
             <div className="rounded-lg border border-border bg-background p-2 text-[12px]">
               <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -255,7 +256,7 @@ export function Bento() {
           <TileShell
             title="Mark it done."
             body="Tap any message to check it off, right in the thread. The whole crew sees what's handled — no separate to-do app."
-            href={FEATURES_HREF}
+            href={SHARED_INBOX_HREF}
           >
             <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
               <span className="inline-flex items-center rounded-full bg-primary/10 p-0.5 text-primary">

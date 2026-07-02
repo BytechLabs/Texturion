@@ -19,7 +19,7 @@
 
 import { useId, useState } from "react";
 
-import { HOME_ANCHORS } from "@/lib/marketing/site";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /** Quo published monthly Starter seat price, July 2026 (teardown line 129). */
 const PER_USER_MONTHLY = 19;
@@ -135,11 +135,9 @@ export function CrewSizeSlider() {
         Per-user figure is a leading tool&apos;s published monthly seat price
         (${PER_USER_MONTHLY}/user/mo) as of July 2026 — and that tool bills
         texting separately, so real totals run higher.{" "}
-        {/* /compare/quo ships later; lands on the on-page pricing/comparison
-            beat until then (site.ts guard, HOME_ANCHORS.compare) — zero dead
-            links. The figure above stays dated + sourced in place. */}
+        {/* The dated per-user figure is sourced in full on the Quo comparison. */}
         <a
-          href={HOME_ANCHORS.compare}
+          href={LIVE_ROUTES.compareQuo}
           className="font-medium text-primary underline-offset-2 hover:underline"
         >
           See the sourced math

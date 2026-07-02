@@ -169,8 +169,11 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
           </div>
           <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5">
             <div className="flex items-center justify-between gap-2">
-              {/* The ONE load-bearing honesty label (panel resolution). */}
-              <span className="text-[13px] text-stone-400 dark:text-stone-500">
+              {/* The ONE load-bearing honesty label (panel resolution). Muted
+                  per §3.4, but stone-500/400 (not stone-400/500) so it clears
+                  WCAG AA 4.5:1 in both themes (G11) — a Lighthouse
+                  color-contrast finding; a load-bearing label must be legible. */}
+              <span className="text-[13px] text-stone-500 dark:text-stone-400">
                 Demo — scripted conversation, real interface.
               </span>
               {!reduced &&
