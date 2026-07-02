@@ -290,3 +290,33 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
 - Sentry: `@sentry/cloudflare` in both Workers + Next.js client, with the D8 PII scrubbing.
 - No mocks, stubs, simulations, or hardcoded values in product code paths. All config via
   validated env bindings.
+
+## D14. Message-level done state (user decision 2026-07-01, supersedes the v1.1 "jobs" idea)
+
+- Any message in a thread can be marked **Done / Not done** by any member. No job entity,
+  no separate screen — the message itself is the task.
+- Schema: `messages.done_at timestamptz NULL`, `messages.done_by_user_id uuid NULL`
+  (FK profiles, ON DELETE RESTRICT). New migration; never edit existing ones.
+- API: `PATCH /v1/messages/:id` body `{ done: boolean }` (any member; 404 outside company;
+  idempotent — marking done twice is a no-op returning the row). Emits the realtime
+  `message.status` broadcast so all open clients update.
+- UI (amends DESIGN.md G5): desktop — a quiet circle-check affordance appears on message
+  hover (right edge of the bubble, `stone-400`, petrol on hover); mobile — always-visible
+  subtle circle on the bubble's action row. Marking done: the message text gets
+  `line-through` + 55% opacity and a small petrol check badge with a tooltip
+  ("Done · Sam · 2:14 PM"). Clicking again clears it. Applies to inbound, outbound, and
+  notes alike. 150ms transition; aria-pressed toggle button, screen-reader label
+  "Mark done"/"Mark not done".
+- No filters, counts, or reports in MVP — strikethrough + sync is the whole feature.
+  (Revisit counts-per-conversation only if usage shows demand.)
+
+## D15. Timezones & preferences (user note 2026-07-01)
+
+- All in-app timestamps render in the **viewer's browser timezone** (correct default);
+  hovering a timestamp shows the absolute datetime including zone abbreviation.
+- `companies.timezone` (IANA, NOT NULL with default 'America/Toronto' for safe migration,
+  set from the creating browser at onboarding, editable in Settings → Workspace). Used for
+  business-facing daily framing (grace/usage email send windows) — quiet hours remain
+  **destination**-local per D4, unchanged.
+- Per-user preferences surface = what exists: display name, theme (System/Light/Dark),
+  notification toggles (email/push). No per-user timezone override in MVP.
