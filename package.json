@@ -10,6 +10,9 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "db:start": "pnpm dlx supabase start",
+    "db:reset": "pnpm dlx supabase db reset",
+    "db:test": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql"
   }
 }

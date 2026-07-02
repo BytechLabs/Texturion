@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@jobtext/shared": "workspace:*",
+    "@sentry/cloudflare": "10.63.0",
+    "@supabase/supabase-js": "2.110.0",
     "hono": "^4.12.27",
+    "jose": "6.2.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

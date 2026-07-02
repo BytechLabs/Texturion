@@ -6,6 +6,29 @@ on:
     branches: [main]
 
 jobs:
+  schema:
+    name: Schema tests (Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Apply migrations from zero (db reset)
+        run: supabase db reset
+
+      - name: Run schema assertion suite
+        run: docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+
   ci:
     runs-on: ubuntu-latest
     env:

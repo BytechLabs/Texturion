@@ -1,0 +1,3 @@
+-- Local development seed. Intentionally empty: SPEC §6 tags pre-seeding
+-- ('Quote sent', 'Scheduled', 'Won', 'Lost') is done per company by the API at
+-- company creation, not by database seed.
