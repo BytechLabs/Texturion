@@ -1,25 +1,45 @@
 "use client";
 
-import { lookupAreaCode, NANP_AREA_CODES } from "@jobtext/shared";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { FooterPreview } from "@/components/settings/footer-preview";
+import { TimezoneSelect } from "@/components/settings/timezone-select";
 import {
   LoadError,
   SettingsCard,
   SettingsPage,
 } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useRegistration } from "@/lib/api/registration";
 import type { CompanyView, RegistrationRow } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
+
+// Mirrors the API company schema (apps/api/src/routes/companies.ts): name 1–200.
+const companyNameSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter your company name.")
+    .max(200, "Keep it under 200 characters."),
+});
+type CompanyNameValues = z.infer<typeof companyNameSchema>;
 
 function WorkspaceSkeleton() {
   return (
@@ -35,25 +55,33 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   const update = useUpdateCompany();
-  const [name, setName] = useState(company.name);
-  const [error, setError] = useState<string | null>(null);
 
-  const trimmed = name.trim();
-  const dirty = trimmed !== company.name;
+  const form = useForm<CompanyNameValues>({
+    resolver: zodResolver(companyNameSchema),
+    defaultValues: { name: company.name },
+  });
 
-  function save() {
-    if (!dirty || trimmed === "") return;
-    setError(null);
+  // Keep the field in sync if the company name changes elsewhere (realtime).
+  useEffect(() => {
+    form.reset({ name: company.name });
+  }, [company.name, form]);
+
+  const name = form.watch("name");
+  const dirty = name.trim() !== company.name;
+
+  function onSubmit(values: CompanyNameValues) {
+    if (!dirty) return;
     update.mutate(
-      { name: trimmed },
+      { name: values.name },
       {
         onSuccess: () => toast.success("Company name saved."),
         onError: (cause) =>
-          setError(
-            cause instanceof ApiError
-              ? cause.message
-              : "Couldn't save the name. Try again.",
-          ),
+          form.setError("root", {
+            message:
+              cause instanceof ApiError
+                ? cause.message
+                : "Couldn't save the name. Try again.",
+          }),
       },
     );
   }
@@ -65,33 +93,38 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
     >
       <div className="space-y-4">
         {canEdit ? (
-          <form
-            className="flex flex-col gap-2 sm:flex-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              save();
-            }}
-          >
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="company-name" className="sr-only">
-                Company name
-              </Label>
-              <Input
-                id="company-name"
-                value={name}
-                maxLength={200}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="organization"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!dirty || trimmed === "" || update.isPending}
-              className="sm:self-start"
+          <Form {...form}>
+            <form
+              className="flex flex-col gap-2 sm:flex-row sm:items-start"
+              onSubmit={form.handleSubmit(onSubmit)}
+              noValidate
             >
-              {update.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel className="sr-only">Company name</FormLabel>
+                    <FormControl>
+                      <Input
+                        maxLength={200}
+                        autoComplete="organization"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                disabled={!dirty || update.isPending}
+                className="sm:self-start"
+              >
+                {update.isPending ? "Saving…" : "Save"}
+              </Button>
+            </form>
+          </Form>
         ) : (
           <p className="text-sm">
             {company.name}
@@ -100,9 +133,9 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
             </span>
           </p>
         )}
-        {error && (
+        {form.formState.errors.root && (
           <p role="alert" className="text-sm text-destructive">
-            {error}
+            {form.formState.errors.root.message}
           </p>
         )}
         <FooterPreview businessName={canEdit ? name : company.name} />
@@ -226,38 +259,65 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
 }
 
 function TimezoneCard({ company }: { company: CompanyView }) {
-  const activeNumber = company.numbers.find(
-    (n) => n.status !== "released" && n.number_e164 !== null,
-  );
-  const entry = activeNumber?.number_e164
-    ? lookupAreaCode(activeNumber.number_e164)
-    : (NANP_AREA_CODES[company.requested_area_code] ?? null);
+  const { role } = useActiveCompany();
+  const canEdit = role === "owner" || role === "admin";
+  const update = useUpdateCompany();
+  const [error, setError] = useState<string | null>(null);
 
-  const timezone = entry?.geographic ? entry.timezone : null;
-  const localTime = timezone
-    ? new Intl.DateTimeFormat(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: timezone,
-      }).format(new Date())
-    : null;
+  const timezone = company.timezone;
+  const localTime = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+  }).format(new Date());
+
+  function save(zone: string) {
+    setError(null);
+    update.mutate(
+      { timezone: zone },
+      {
+        onSuccess: () => toast.success("Timezone saved."),
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save the timezone. Try again.",
+          ),
+      },
+    );
+  }
 
   return (
-    <SettingsCard title="Timezone">
-      {timezone ? (
-        <p className="text-sm">
-          {timezone.replace(/_/g, " ")}
-          <span className="text-muted-foreground"> — {localTime} right now</span>
-          <span className="block text-xs text-muted-foreground">
-            From your business number&apos;s area code. Quiet-hours checks use
-            each customer&apos;s local time, not this one.
-          </span>
+    <SettingsCard
+      title="Timezone"
+      description="Dates in emails about your workspace are framed in your business's local time."
+    >
+      <div className="space-y-2">
+        {canEdit ? (
+          <TimezoneSelect
+            value={timezone}
+            onChange={save}
+            disabled={update.isPending}
+          />
+        ) : (
+          <p className="text-sm">{timezone.replace(/_/g, " ")}</p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          It&apos;s {localTime} in {timezone.replace(/_/g, " ")} right now.
+          Texting quiet hours always use each customer&apos;s local time, not
+          this one.
         </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          We&apos;ll show your timezone once your number is set up.
-        </p>
-      )}
+        {!canEdit && (
+          <p className="text-xs text-muted-foreground">
+            Only owners and admins can change the timezone.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
     </SettingsCard>
   );
 }

@@ -43,7 +43,7 @@ import { useTags } from "@/lib/api/tags";
 import { flattenPages } from "@/lib/api/pagination";
 import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 
@@ -426,7 +426,10 @@ function PriorConversations({
           >
             <span className="flex items-center gap-2">
               <StatusPill status={row.status} />
-              <span className="text-[13px] text-muted-foreground">
+              <span
+                className="text-[13px] text-muted-foreground"
+                title={formatAbsoluteDateTime(row.last_message_at)}
+              >
                 {formatRelativeTime(row.last_message_at)}
               </span>
             </span>

@@ -33,6 +33,7 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
 import { writeCompanyCookie } from "@/lib/company/cookie";
+import { browserTimezone } from "@/lib/format/time";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -108,14 +109,8 @@ function buildSchema(country: "US" | "CA", needsAup: boolean) {
             message: `Enter your ${einName} (numbers and dashes are fine).`,
           });
         }
-        if (v.website === "") {
-          ctx.addIssue({
-            code: "custom",
-            path: ["website"],
-            message:
-              "Enter your website — a Facebook or Google Business page works.",
-          });
-        }
+        // Website is optional on every path (G7). When present it must look
+        // like a URL (checked below); empty is always valid.
       } else {
         if (v.firstName === "") {
           ctx.addIssue({
@@ -319,18 +314,23 @@ export default function BusinessIdentityPage() {
         : {
             companyName: values.companyName,
             ein: values.ein,
-            website,
+            // Website is optional on the EIN path too (G7); omit when blank so
+            // the strict API schema treats it as absent, not empty.
+            ...(website ? { website } : {}),
           }),
     };
 
     try {
       let companyId = state.companyId;
       if (state.company === null) {
+        // D15: the creating browser's timezone rides along silently.
+        const timezone = browserTimezone();
         const company = await createCompany.mutateAsync({
           name: state.draft.name?.trim() ?? "",
           country,
           requested_area_code: state.draft.areaCode ?? "",
           ...(country === "CA" ? { us_texting_enabled: true } : {}),
+          ...(timezone ? { timezone } : {}),
           aup_accepted: true,
         });
         companyId = company.id;
@@ -630,9 +630,7 @@ export default function BusinessIdentityPage() {
             name="website"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Website{hasEin === "no" ? " (optional)" : ""}
-                </FormLabel>
+                <FormLabel>Website (optional)</FormLabel>
                 <FormControl>
                   <Input
                     type="url"

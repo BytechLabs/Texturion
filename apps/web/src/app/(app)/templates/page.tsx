@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
 import { useDeleteTemplate, useTemplates } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 import { TemplateDialog } from "./template-dialog";
 
@@ -38,7 +38,10 @@ function TemplateRow({
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {template.body}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p
+          className="mt-1 text-xs text-muted-foreground"
+          title={formatAbsoluteDateTime(template.updated_at)}
+        >
           Updated {formatRelativeTime(template.updated_at)}
         </p>
       </div>

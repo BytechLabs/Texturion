@@ -12,6 +12,11 @@ export const ERROR_CODES = [
   "validation_failed",
   "not_found",
   "conflict",
+  // Compose-only (SPEC §5, D4): a new outbound conversation lands in the
+  // destination's quiet hours (8pm–8am local). Structural signal so the UI
+  // shows the confirm dialog by CODE, never by sniffing the 409 message.
+  // Shares the 409 status and envelope with `conflict`.
+  "quiet_hours_confirmation_required",
   "rate_limited",
 ] as const;
 
@@ -30,6 +35,7 @@ export const ERROR_CODE_STATUS = {
   validation_failed: 422,
   not_found: 404,
   conflict: 409,
+  quiet_hours_confirmation_required: 409,
   rate_limited: 429,
 } as const satisfies Record<ErrorCode, number>;
 

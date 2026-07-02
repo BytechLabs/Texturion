@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useConversations } from "@/lib/api/conversations";
 import type { ConversationFilters } from "@/lib/api/filters";
 import { flattenPages } from "@/lib/api/pagination";
+import { prefersReducedMotion } from "@/lib/motion";
 
 import { ConversationRow } from "./conversation-row";
 import {
@@ -21,8 +22,12 @@ const ROW_HEIGHT = 68;
  * FLIP the rows that moved (G4: realtime re-sort animated, subtle). Runs
  * against the virtualizer's absolute offsets: any row whose offset changed
  * since the last layout animates from its old position over 200ms ease-out.
- * `prefers-reduced-motion` is honored globally (globals.css zeroes durations)
- * and by skipping WAAPI when unavailable.
+ *
+ * `prefers-reduced-motion` must be checked in JS here: this is a scripted
+ * WAAPI animation, which the globals.css media query does NOT zero (that rule
+ * only affects CSS transitions/animations). When the viewer asked to reduce
+ * motion — or WAAPI is unavailable — the offsets are still recorded so the
+ * next real move animates correctly, but no animation plays now.
  */
 function useFlipRows(
   rowElements: React.RefObject<Map<string, HTMLElement>>,
@@ -31,22 +36,25 @@ function useFlipRows(
   const previous = useRef<Map<string, number>>(new Map());
   useLayoutEffect(() => {
     const prev = previous.current;
-    for (const [id, offset] of offsets) {
-      const before = prev.get(id);
-      const el = rowElements.current.get(id);
-      if (
-        before !== undefined &&
-        before !== offset &&
-        el &&
-        typeof el.animate === "function"
-      ) {
-        el.animate(
-          [
-            { transform: `translateY(${before - offset}px)` },
-            { transform: "translateY(0px)" },
-          ],
-          { duration: 200, easing: "ease-out" },
-        );
+    const animate = !prefersReducedMotion();
+    if (animate) {
+      for (const [id, offset] of offsets) {
+        const before = prev.get(id);
+        const el = rowElements.current.get(id);
+        if (
+          before !== undefined &&
+          before !== offset &&
+          el &&
+          typeof el.animate === "function"
+        ) {
+          el.animate(
+            [
+              { transform: `translateY(${before - offset}px)` },
+              { transform: "translateY(0px)" },
+            ],
+            { duration: 200, easing: "ease-out" },
+          );
+        }
       }
     }
     previous.current = offsets;

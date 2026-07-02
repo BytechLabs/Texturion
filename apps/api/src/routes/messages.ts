@@ -13,6 +13,12 @@
  *   POST /v1/messages/:id/retry   re-send a `failed` outbound ONLY while
  *        telnyx_message_id IS NULL (the API call failed before an id was
  *        assigned); carrier-finalized failures → 409 `conflict`.
+ *   PATCH /v1/messages/:id        { done: boolean } — D14 done state. Any
+ *        member; company-scoped 404; idempotent (marking done twice is a
+ *        no-op returning the row). done=true stamps done_at +
+ *        done_by_user_id, done=false clears both; the DB broadcast trigger
+ *        emits `message.status` so all open clients update. Applies to
+ *        inbound, outbound, and notes alike.
  *   GET  /v1/conversations/:id/messages   cursor list, newest-first,
  *        (created_at, id) DESC, default 50 max 100; message objects carry
  *        `attachments: [{ id, content_type, size_bytes }]`.
@@ -80,6 +86,11 @@ const sendSchema = z
     (value) => value.body.trim().length > 0 || (value.media?.length ?? 0) > 0,
     { message: "Provide a body, media, or both." },
   );
+
+/** D14: PATCH /v1/messages/:id — the whole surface is one boolean. */
+const donePatchSchema = z.object({
+  done: z.boolean(),
+});
 
 interface ConversationSendView {
   id: string;
@@ -351,6 +362,53 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   );
 });
 
+messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
+  const env = getEnv(c.env);
+  const companyId = c.get("companyId");
+  const messageId = pathUuid(c, "id");
+  const body = await parseJsonBody(c, donePatchSchema);
+  const db = getDb(env);
+
+  // Company-scoped fetch (§10): a message outside the caller's company is
+  // indistinguishable from a missing one — 404 either way.
+  const rows = unwrap<MessageRow[]>(
+    await db
+      .from("messages")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("id", messageId)
+      .limit(1),
+    "message lookup",
+  );
+  const message = rows[0];
+  if (!message) throw new ApiError("not_found", "No such message.");
+
+  // Idempotent (D14): re-marking the current state is a no-op returning the
+  // row — no update, no broadcast, no done_at/done_by churn.
+  if (body.done === (message.done_at !== null)) {
+    const attachments = await loadAttachments(db, companyId, [message.id]);
+    return c.json(messageJson(message, attachments.get(message.id) ?? []));
+  }
+
+  // done=true stamps who/when; done=false clears both (messages_done_consistency).
+  const patch = body.done
+    ? { done_at: new Date().toISOString(), done_by_user_id: c.get("userId") }
+    : { done_at: null, done_by_user_id: null };
+  const updated = unwrap<MessageRow[]>(
+    await db
+      .from("messages")
+      .update(patch)
+      .eq("id", message.id)
+      .eq("company_id", companyId)
+      .select("*"),
+    "message done update",
+  )[0];
+  if (!updated) throw new Error(`message ${message.id} vanished during update`);
+
+  const attachments = await loadAttachments(db, companyId, [updated.id]);
+  return c.json(messageJson(updated, attachments.get(updated.id) ?? []));
+});
+
 messageRoutes.get(
   "/conversations/:id/messages",
   requireRole("member"),
@@ -381,6 +439,7 @@ messageRoutes.get(
       .select(
         "id,conversation_id,direction,body,status,segments,encoding," +
           "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
+          "done_at,done_by_user_id," +
           "created_at,message_attachments(id,content_type,size_bytes)",
       )
       .eq("company_id", companyId)

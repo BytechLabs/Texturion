@@ -4,12 +4,16 @@ import {
   type NanpGeographicEntry,
 } from "@jobtext/shared";
 
+import { cityNpaMatches } from "./city-npas";
+
 /**
  * Area-code picker search (DESIGN.md G7 step 2): type a city, state/province,
- * or code → "(416) — Ontario"-style hints, powered entirely by the shared
- * NANP table (code → { country, region, timezone }). Region codes expand to
- * full names; the IANA timezone's city ("America/Toronto" → "Toronto") is
- * matched too so typing a major city surfaces its area codes.
+ * or code → "(416) — Ontario"-style hints, powered by the shared NANP table
+ * (code → { country, region, timezone }) plus a curated metro-name → NPA index
+ * (./city-npas.ts). Region codes expand to full names; typing a major city
+ * name (Houston, Calgary, Charlotte…) surfaces the NPAs that actually serve it
+ * via the curated index, with the IANA timezone-city name as a last-resort
+ * fallback for anything the curated list misses.
  */
 
 export const US_REGION_NAMES: Readonly<Record<string, string>> = {
@@ -83,9 +87,10 @@ export function areaCodesForCountry(country: NanpCountry): AreaCodeHint[] {
 }
 
 /**
- * Rank: exact/prefix code match → region-name starts-with → region-name /
- * region-code match → timezone-city match. Empty/whitespace queries return []
- * (the picker shows its own prompt instead of 300+ rows).
+ * Rank: exact/prefix code match → curated metro-name match → region-name
+ * starts-with → region-name / region-code match → timezone-city match.
+ * Empty/whitespace queries return [] (the picker shows its own prompt instead
+ * of 300+ rows).
  */
 export function searchAreaCodes(
   query: string,
@@ -96,6 +101,8 @@ export function searchAreaCodes(
   if (q.length === 0) return [];
 
   const digits = /^\d{1,3}$/.test(q) ? q : null;
+  // Curated metro-name → NPA hits, constrained to the chosen country.
+  const cityCodes = digits ? new Set<string>() : new Set(cityNpaMatches(q));
   const ranked: { hint: AreaCodeHint; rank: number }[] = [];
 
   for (const [code, entry] of Object.entries(NANP_AREA_CODES)) {
@@ -105,12 +112,14 @@ export function searchAreaCodes(
     let rank: number | null = null;
     if (digits) {
       if (code.startsWith(digits)) rank = code === digits ? 0 : 1;
-    } else if (name.startsWith(q)) {
+    } else if (cityCodes.has(code)) {
       rank = 2;
-    } else if (name.includes(q) || entry.region.toLowerCase() === q) {
+    } else if (name.startsWith(q)) {
       rank = 3;
-    } else if (timezoneCity(entry.timezone).includes(q)) {
+    } else if (name.includes(q) || entry.region.toLowerCase() === q) {
       rank = 4;
+    } else if (timezoneCity(entry.timezone).includes(q)) {
+      rank = 5;
     }
     if (rank !== null) ranked.push({ hint: toHint(code, entry), rank });
   }

@@ -1,7 +1,10 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import {
   LoadError,
@@ -19,8 +22,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -41,7 +51,7 @@ import {
 } from "@/lib/api/team";
 import type { Invite, Member } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import {
   countActiveMembers,
   countPendingInvites,
@@ -88,7 +98,12 @@ function MemberRow({
           {name}
           {isSelf && <span className="text-muted-foreground"> (you)</span>}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p
+          className="text-xs text-muted-foreground"
+          title={formatAbsoluteDateTime(
+            deactivated ? (member.deactivated_at as string) : member.created_at,
+          )}
+        >
           {deactivated
             ? `Deactivated ${formatRelativeTime(member.deactivated_at as string)}`
             : `Joined ${formatRelativeTime(member.created_at)}`}
@@ -225,14 +240,23 @@ function InviteRow({ invite }: { invite: Invite }) {
   );
 }
 
+// Mirrors the API invite schema (apps/api/src/routes/team.ts): a real email +
+// role admin|member (owner never assignable).
+const inviteSchema = z.object({
+  email: z.email("Enter a valid email address."),
+  role: z.enum(["admin", "member"]),
+});
+type InviteValues = z.infer<typeof inviteSchema>;
+
 /** Invite form + pending list — rendered for owners/admins only (the API 403s members). */
 function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   const company = useCompany();
   const invites = useInvites();
   const createInvite = useCreateInvite();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "member">("member");
-  const [error, setError] = useState<string | null>(null);
+  const form = useForm<InviteValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: "", role: "member" },
+  });
 
   if (invites.isPending || company.isPending) {
     return (
@@ -262,30 +286,20 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     company.data.plan,
   );
 
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const trimmed = email.trim();
-    if (trimmed === "" || !trimmed.includes("@")) {
-      setError("Enter their email address.");
-      return;
-    }
-    setError(null);
-    createInvite.mutate(
-      { email: trimmed, role },
-      {
-        onSuccess: () => {
-          setEmail("");
-          setRole("member");
-          toast.success(`Invite sent to ${trimmed}.`);
-        },
-        onError: (cause) =>
-          setError(
+  function onSubmit(values: InviteValues) {
+    createInvite.mutate(values, {
+      onSuccess: () => {
+        form.reset({ email: "", role: "member" });
+        toast.success(`Invite sent to ${values.email}.`);
+      },
+      onError: (cause) =>
+        form.setError("root", {
+          message:
             cause instanceof ApiError
               ? cause.message
               : "Couldn't send the invite. Try again.",
-          ),
-      },
-    );
+        }),
+    });
   }
 
   return (
@@ -294,46 +308,69 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
       description="Teammates get an email link that adds them to this workspace."
       footer={<p className="text-sm text-muted-foreground">{seats.line}</p>}
     >
-      <form
-        onSubmit={submit}
-        className="flex flex-col gap-2 sm:flex-row sm:items-end"
-      >
-        <div className="flex-1 space-y-1.5">
-          <Label htmlFor="invite-email">Email</Label>
-          <Input
-            id="invite-email"
-            type="email"
-            inputMode="email"
-            autoComplete="off"
-            placeholder="teammate@company.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            disabled={seats.full}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-2 sm:flex-row sm:items-start"
+          noValidate
+        >
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    placeholder="teammate@company.com"
+                    disabled={seats.full}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="invite-role">Role</Label>
-          <Select
-            value={role}
-            onValueChange={(value) => setRole(value as "admin" | "member")}
-            disabled={seats.full}
+          <FormField
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={seats.full}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full sm:w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button
+            type="submit"
+            disabled={seats.full || createInvite.isPending}
+            className="sm:mt-[1.625rem]"
           >
-            <SelectTrigger id="invite-role" className="w-full sm:w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="submit" disabled={seats.full || createInvite.isPending}>
-          {createInvite.isPending ? "Sending…" : "Invite"}
-        </Button>
-      </form>
-      {error && (
+            {createInvite.isPending ? "Sending…" : "Invite"}
+          </Button>
+        </form>
+      </Form>
+      {form.formState.errors.root && (
         <p role="alert" className="mt-2 text-sm text-destructive">
-          {error}
+          {form.formState.errors.root.message}
         </p>
       )}
       {pending.length > 0 && (

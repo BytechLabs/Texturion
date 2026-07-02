@@ -9,7 +9,7 @@ import { unwrap } from "./http";
 
 /** Customer-visible company columns (SPEC §10: internals stay server-side). */
 export const COMPANY_COLUMNS =
-  "id,name,country,us_texting_enabled,requested_area_code,plan," +
+  "id,name,country,us_texting_enabled,requested_area_code,timezone,plan," +
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end,created_at,updated_at";

@@ -3,14 +3,17 @@
  *
  *   POST  /v1/companies  any authed user (company-exempt) — create company:
  *         zod body { name, country, requested_area_code, us_texting_enabled?,
- *         aup_accepted: true }; area code must be a geographic US/CA NANP code
- *         in the company's country; AUP acceptance is mandatory (422).
+ *         timezone?, aup_accepted: true }; area code must be a geographic
+ *         US/CA NANP code in the company's country; AUP acceptance is
+ *         mandatory (422); timezone must be a valid IANA zone when present
+ *         (D15 — onboarding sends the browser's zone; DB default otherwise).
  *         Creates company + owner membership + pre-seeded pipeline tags +
  *         notification_prefs atomically (api_create_company SQL function).
  *   GET   /v1/company    M   — company + plan/subscription/period/cap +
  *         numbers summary + registration summary.
- *   PATCH /v1/company    O/A — { name? }; { overage_cap_multiplier? } is
- *         owner-only (number or null — SPEC §2 cap, §10 matrix).
+ *   PATCH /v1/company    O/A — { name?, timezone? } (timezone IANA-validated,
+ *         D15); { overage_cap_multiplier? } is owner-only (number or null —
+ *         SPEC §2 cap, §10 matrix).
  */
 import { NANP_AREA_CODES } from "@jobtext/shared";
 import { Hono } from "hono";
@@ -23,12 +26,16 @@ import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { COMPANY_COLUMNS, loadCompanyView } from "./core/company-view";
 import { parseJsonBody, unwrap } from "./core/http";
+import { isValidIanaTimezone } from "./core/timezone";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(200),
   country: z.enum(["US", "CA"]),
   requested_area_code: z.string().regex(/^\d{3}$/),
   us_texting_enabled: z.boolean().optional(),
+  // D15: onboarding sends the browser's IANA zone; validated below against
+  // the runtime's timezone database (a zod enum cannot express it).
+  timezone: z.string().trim().min(1).max(100).optional(),
   // The AUP gate (SPEC §4.1 step 1): anything but literal true is 422.
   aup_accepted: z.literal(true),
 });
@@ -36,6 +43,7 @@ const createSchema = z.object({
 const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
+    timezone: z.string().trim().min(1).max(100).optional(),
     overage_cap_multiplier: z
       .number()
       .positive()
@@ -45,9 +53,21 @@ const patchSchema = z
   })
   .refine(
     (body) =>
-      body.name !== undefined || "overage_cap_multiplier" in body,
+      body.name !== undefined ||
+      body.timezone !== undefined ||
+      "overage_cap_multiplier" in body,
     { message: "Provide at least one field to update." },
   );
+
+/** D15: reject anything the runtime's IANA database does not know. */
+function assertValidTimezone(timezone: string): void {
+  if (!isValidIanaTimezone(timezone)) {
+    throw new ApiError(
+      "validation_failed",
+      `timezone: ${timezone} is not a valid IANA timezone.`,
+    );
+  }
+}
 
 export const companiesRoutes = new Hono<AppEnv>();
 
@@ -67,6 +87,7 @@ companiesRoutes.post("/companies", async (c) => {
       "us_texting_enabled: US companies always have US texting enabled.",
     );
   }
+  if (body.timezone !== undefined) assertValidTimezone(body.timezone);
 
   const db = getDb(getEnv(c.env));
   const company = unwrap<Record<string, unknown>>(
@@ -78,6 +99,8 @@ companiesRoutes.post("/companies", async (c) => {
       // us_texting_enabled applies to CA (SPEC §4.2); US is always true.
       p_us_texting_enabled:
         body.country === "US" ? true : (body.us_texting_enabled ?? true),
+      // Omitted → the SQL default ('America/Toronto', D15) applies.
+      ...(body.timezone !== undefined ? { p_timezone: body.timezone } : {}),
     }),
     "company create",
   );
@@ -107,6 +130,10 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
 
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name;
+  if (body.timezone !== undefined) {
+    assertValidTimezone(body.timezone);
+    patch.timezone = body.timezone;
+  }
   if ("overage_cap_multiplier" in body) {
     patch.overage_cap_multiplier =
       body.overage_cap_multiplier === null

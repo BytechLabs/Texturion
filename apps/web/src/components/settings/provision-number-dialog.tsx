@@ -75,9 +75,10 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
           <Input
             id="area-code"
             value={code}
-            onChange={(event) =>
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 3))
-            }
+            onChange={(event) => {
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 3));
+              if (error) setError(null); // clear stale submit error on edit
+            }}
             placeholder={country === "CA" ? "416" : "212"}
             inputMode="numeric"
             autoComplete="off"

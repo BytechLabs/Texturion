@@ -21,6 +21,8 @@ function msg(partial: Partial<Message> & { created_at: string }): Message {
     error_code: null,
     error_detail: null,
     telnyx_message_id: null,
+    done_at: null,
+    done_by_user_id: null,
     attachments: [],
     ...partial,
   };

@@ -14,7 +14,7 @@ import type {
 } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { MemberAvatar, useMemberNames } from "./member-avatar";
@@ -141,7 +141,10 @@ export function ConversationRow({
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-xs tabular-nums text-muted-foreground">
+        <span
+          className="text-xs tabular-nums text-muted-foreground"
+          title={formatAbsoluteDateTime(conversation.last_message_at)}
+        >
           {formatRelativeTime(conversation.last_message_at)}
         </span>
         <span className="flex items-center gap-1.5">

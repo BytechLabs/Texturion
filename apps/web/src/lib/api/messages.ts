@@ -7,6 +7,9 @@ import {
 import { useCompanyId } from "@/lib/company/provider";
 
 import {
+  detailPatchMessage,
+  doneMutationPatch,
+  threadPatchMessage,
   threadUpsertMessages,
   type ThreadData,
 } from "./cache";
@@ -15,7 +18,7 @@ import { listApplyConversation } from "./cache";
 import { patchConversationLists } from "./conversations";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
-import type { Message, Page } from "./types";
+import type { ConversationDetail, Me, Message, Page } from "./types";
 
 /** Outbound media item (SPEC §7: ≤3 items, ≤1 MB decoded, jpeg/png/gif). */
 export interface OutboundMedia {
@@ -92,6 +95,82 @@ export function useSendMessage(conversationId: string) {
           filters,
         );
       });
+    },
+  });
+}
+
+/**
+ * PATCH /v1/messages/:id { done } — the D14 toggle. Optimistic: the thread
+ * and detail caches flip immediately (strikethrough appears at click), roll
+ * back on error, and are replaced by the server row on success. Other clients
+ * update via the message.status broadcast the DB trigger emits.
+ */
+export function useSetMessageDone(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { messageId: string; done: boolean }) =>
+      apiFetch<Message>(`/v1/messages/${input.messageId}`, {
+        method: "PATCH",
+        companyId,
+        body: { done: input.done },
+      }),
+    onMutate: async (input) => {
+      const threadKey = keys.thread(companyId, conversationId);
+      const detailKey = keys.conversations.detail(companyId, conversationId);
+      await queryClient.cancelQueries({ queryKey: threadKey });
+
+      const previousThread = queryClient.getQueryData<ThreadData>(threadKey);
+      const previousDetail =
+        queryClient.getQueryData<ConversationDetail>(detailKey);
+
+      // The viewer marked it — the me cache is warm (the shell loads it).
+      const userId =
+        queryClient.getQueryData<Me>(keys.me)?.user_id ?? null;
+      const patch = doneMutationPatch(input.done, userId);
+
+      if (previousThread) {
+        queryClient.setQueryData<ThreadData>(
+          threadKey,
+          threadPatchMessage(previousThread, input.messageId, patch),
+        );
+      }
+      if (previousDetail) {
+        queryClient.setQueryData<ConversationDetail>(
+          detailKey,
+          detailPatchMessage(previousDetail, input.messageId, patch),
+        );
+      }
+      return { previousThread, previousDetail };
+    },
+    onError: (_error, _input, context) => {
+      // Roll back both caches to their pre-mutation snapshots.
+      if (context?.previousThread) {
+        queryClient.setQueryData(
+          keys.thread(companyId, conversationId),
+          context.previousThread,
+        );
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(
+          keys.conversations.detail(companyId, conversationId),
+          context.previousDetail,
+        );
+      }
+    },
+    onSuccess: (message) => {
+      // Replace the optimistic row with the server's (authoritative done_at).
+      queryClient.setQueryData<ThreadData>(
+        keys.thread(companyId, conversationId),
+        (thread) =>
+          thread
+            ? threadPatchMessage(thread, message.id, message)
+            : thread,
+      );
+      queryClient.setQueryData<ConversationDetail>(
+        keys.conversations.detail(companyId, conversationId),
+        (detail) => detailPatchMessage(detail, message.id, message),
+      );
     },
   });
 }

@@ -10,8 +10,8 @@
  *     consent_source='attested' (+at/+by) on the contact and a
  *     consent_attested event (§5, D4).
  *   • quiet hours (soft, §5): destination local hour outside 08–20 requires
- *     quiet_hours_confirmed=true (409 otherwise); confirmed sends log a
- *     quiet_hours_confirmed event.
+ *     quiet_hours_confirmed=true (409 `quiet_hours_confirmation_required`
+ *     otherwise); confirmed sends log a quiet_hours_confirmed event.
  *   • open-conversation conflict (conversations_open_uq): append to the
  *     existing open conversation and return it with 200 — gates and
  *     attestation still apply and are recorded.
@@ -320,8 +320,10 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   const hour = destinationLocalHour(destination, new Date());
   const quietHours = hour !== null && (hour >= 20 || hour < 8);
   if (quietHours && body.quiet_hours_confirmed !== true) {
+    // Structural signal: dedicated code (409, same envelope) so the UI shows
+    // the quiet-hours confirm dialog by CODE, not by sniffing the message.
     throw new ApiError(
-      "conflict",
+      "quiet_hours_confirmation_required",
       `It's ${String(hour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to send anyway.`,
     );
   }

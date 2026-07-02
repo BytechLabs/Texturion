@@ -20,7 +20,7 @@ import {
 import { useContacts } from "@/lib/api/contacts";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 function SkeletonRows() {
   return (
@@ -145,7 +145,13 @@ export function ContactsTable({
                           CSV re-import or notes edit must not read as a
                           fresh text (G10). */}
                       {contact.last_activity_at ? (
-                        formatRelativeTime(contact.last_activity_at)
+                        <span
+                          title={formatAbsoluteDateTime(
+                            contact.last_activity_at,
+                          )}
+                        >
+                          {formatRelativeTime(contact.last_activity_at)}
+                        </span>
                       ) : (
                         <>
                           <span aria-hidden>—</span>

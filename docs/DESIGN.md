@@ -115,7 +115,7 @@ Implemented as CSS variables in `globals.css` (shadcn/ui convention, light + dar
   **Banner states replace the composer** (full-width tinted card, one sentence + optional
   action): opted-out (red tint, "This customer opted out of texting. Sends are blocked.");
   registration pending for US destination (amber, "US texting activates once your
-  registration is approved — usually 1–3 business days."); subscription past_due (amber,
+  registration is approved — usually 3–7 business days."); subscription past_due (amber,
   "Update your payment method to send messages." + button); usage cap (amber, owner gets
   "Raise cap" inline button, members see "Ask your account owner").
 - New outbound conversation (compose flow): recipient field (searches contacts, accepts raw
@@ -153,7 +153,7 @@ back always available, state persisted server-side (resumable). Flow:
    "500 outgoing texts included" in human terms, US one-time fee line shown to US companies
    with tooltip. **The honest-timeline card sits here, pre-payment**: "You'll get your
    number instantly. Receiving texts works right away. Sending to US numbers activates
-   after carrier registration (usually 1–3 business days) — we handle it."
+   after carrier registration (usually 3–7 business days) — we handle it."
 5. **Stripe Checkout** (hosted) → return to `/onboarding/setting-up`.
 6. **Setting-up screen** (realtime-driven, no polling UI): three checklist rows animating
    pending→done via Broadcast events — "Creating your number" → reveals the number in

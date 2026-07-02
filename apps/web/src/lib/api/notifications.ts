@@ -8,7 +8,18 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { NotificationPrefs, PushSubscriptionRow } from "./types";
+import type { NotificationPrefs } from "./types";
+
+/*
+ * Push subscribe/unsubscribe (POST/DELETE /v1/push-subscriptions) is NOT a
+ * mutation hook. The real path lives in the framework-free push machine
+ * (lib/push/subscription-machine.ts) — it must interleave subscribe with the
+ * browser permission prompt and PushManager calls, none of which a TanStack
+ * mutation can express, so the machine calls apiFetch directly (unit-tested
+ * with a stubbed PushManager). Standalone useCreate/useDeletePushSubscription
+ * hooks were dead exports duplicating those calls and have been removed to
+ * keep a single subscribe code path (see lib/push/use-push-subscription.ts).
+ */
 
 /** GET /v1/notification-prefs — per-user email/push toggles (G8). */
 export function useNotificationPrefs() {
@@ -50,37 +61,5 @@ export function useUpdateNotificationPrefs() {
     onSuccess: (prefs) => {
       queryClient.setQueryData(keys.notificationPrefs(companyId), prefs);
     },
-  });
-}
-
-/**
- * POST /v1/push-subscriptions — register a PushSubscription.toJSON() payload
- * (VAPID Web Push, SPEC §8). Permission is requested only from settings or
- * the first-visit card — never an ambush (G8).
- */
-export function useCreatePushSubscription() {
-  const companyId = useCompanyId();
-  return useMutation({
-    mutationFn: (input: {
-      endpoint: string;
-      keys: { p256dh: string; auth: string };
-    }) =>
-      apiFetch<PushSubscriptionRow>("/v1/push-subscriptions", {
-        method: "POST",
-        companyId,
-        body: input,
-      }),
-  });
-}
-
-/** DELETE /v1/push-subscriptions/:id — caller's own subscription only. */
-export function useDeletePushSubscription() {
-  const companyId = useCompanyId();
-  return useMutation({
-    mutationFn: (subscriptionId: string) =>
-      apiFetch<void>(`/v1/push-subscriptions/${subscriptionId}`, {
-        method: "DELETE",
-        companyId,
-      }),
   });
 }

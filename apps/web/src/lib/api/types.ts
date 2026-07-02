@@ -105,6 +105,8 @@ export interface CompanyView {
   country: Country;
   us_texting_enabled: boolean;
   requested_area_code: string;
+  /** D15: workspace IANA timezone (business-facing daily framing). */
+  timezone: string;
   plan: PlanId | null;
   subscription_status: SubscriptionStatus;
   current_period_start: string | null;
@@ -195,6 +197,9 @@ export interface Message {
   error_code: string | null;
   error_detail: string | null;
   telnyx_message_id: string | null;
+  /** D14 done state — set/cleared together by PATCH /v1/messages/:id. */
+  done_at: string | null;
+  done_by_user_id: string | null;
   created_at: string;
   /**
    * Present on every message read surface (SPEC §7). POST /v1/conversations

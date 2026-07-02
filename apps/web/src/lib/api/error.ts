@@ -6,7 +6,7 @@ import {
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope
- * `{ error: { code, message } }`, G12). `code` is one of the ten stable SPEC
+ * `{ error: { code, message } }`, G12). `code` is one of the stable SPEC
  * codes, or `internal_error` for a 5xx / unparseable body. `message` is the
  * server's customer-facing sentence (G10: what happened + what to do).
  */

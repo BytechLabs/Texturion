@@ -25,6 +25,8 @@ export interface CreateCompanyInput {
   requested_area_code: string;
   /** CA only — US companies always have US texting enabled. */
   us_texting_enabled?: boolean;
+  /** D15: the creating browser's IANA zone, captured silently at onboarding. */
+  timezone?: string;
   /** AUP gate (SPEC §4.1) — anything but literal true is 422. */
   aup_accepted: true;
 }
@@ -47,6 +49,8 @@ export function useCreateCompany() {
 
 export interface CompanyPatch {
   name?: string;
+  /** D15: workspace IANA timezone (O/A, validated server-side). */
+  timezone?: string;
   /** Owner-only: number, or null to remove the cap (SPEC §2). */
   overage_cap_multiplier?: number | null;
 }

@@ -192,6 +192,8 @@ export function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
     error_detail: null,
     idempotency_key: "11111111-2222-4333-8444-555555555555",
     provider_cost: null,
+    done_at: null,
+    done_by_user_id: null,
     created_at: "2026-07-01T12:00:00.000Z",
     updated_at: "2026-07-01T12:00:00.000Z",
     ...overrides,

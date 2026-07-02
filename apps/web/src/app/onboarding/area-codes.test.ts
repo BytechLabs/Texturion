@@ -33,6 +33,54 @@ describe("searchAreaCodes", () => {
     expect(denver.map((h) => h.code)).toContain("303");
   });
 
+  // Note 1 regression: the curated metro index finds cities whose name is not
+  // the head of their IANA timezone (Houston/Dallas share America/Chicago,
+  // Charlotte is America/New_York, Calgary is America/Edmonton, …). Each
+  // expected NPA is verified against NANPA/CNAC (see city-npas.ts source note).
+  it.each([
+    ["US", "Houston", "713"],
+    ["US", "Houston", "832"],
+    ["US", "Dallas", "214"],
+    ["US", "San Antonio", "210"],
+    ["US", "Charlotte", "704"],
+    ["US", "Nashville", "615"],
+    ["US", "Columbus", "614"],
+    ["US", "Phoenix", "602"],
+    ["US", "Seattle", "206"],
+    ["US", "Miami", "305"],
+    ["US", "Atlanta", "404"],
+    ["US", "Boston", "617"],
+    ["CA", "Vancouver", "604"],
+    ["CA", "Vancouver", "236"],
+    ["CA", "Calgary", "403"],
+    ["CA", "Edmonton", "780"],
+    ["CA", "Winnipeg", "204"],
+    ["CA", "Ottawa", "613"],
+    ["CA", "Halifax", "902"],
+    ["CA", "Montreal", "514"],
+  ] as const)(
+    "finds %s city %s → NPA %s from the curated index",
+    (country, city, code) => {
+      const hits = searchAreaCodes(city, country, 50);
+      expect(hits.map((h) => h.code)).toContain(code);
+    },
+  );
+
+  it("keeps curated-city matches in the chosen country only", () => {
+    // "London" is a curated CA metro (519/226/548); it must not leak US codes,
+    // and a US search for it falls through to region/timezone matching only.
+    const londonCa = searchAreaCodes("London", "CA", 50);
+    expect(londonCa.map((h) => h.code)).toContain("519");
+    expect(londonCa.every((h) => h.country === "CA")).toBe(true);
+  });
+
+  it("ranks a curated city match above a bare region-name substring", () => {
+    // Typing "Houston" must lead with Houston NPAs, not some unrelated TX code
+    // that merely shares the "texas" region string.
+    const hits = searchAreaCodes("Houston", "US", 8);
+    expect(["713", "281", "832", "346"]).toContain(hits[0].code);
+  });
+
   it("matches region full names and 2-letter codes", () => {
     const ontario = searchAreaCodes("ontario", "CA", 100);
     expect(ontario.length).toBeGreaterThan(5);

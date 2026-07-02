@@ -51,6 +51,17 @@ const contactPhone = z
   .trim()
   .regex(/^\+?[0-9()\-. ]{10,20}$/, "must be a phone number");
 
+/**
+ * Optional website (G7: optional on every path). A blank string is treated as
+ * absent (the web form omits it, but an empty string from any client coerces
+ * to `undefined` rather than failing the URL check); when present it must be a
+ * real URL ≤255 chars.
+ */
+const optionalWebsite = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.url().max(255).optional(),
+);
+
 const brandCommonShape = {
   /** Customer-facing brand display name (SPEC §4.4: `displayName`). */
   displayName: nonEmpty(255),
@@ -67,10 +78,9 @@ const brandCommonShape = {
 
 /**
  * Standard path: legal business name + full EIN (US) / BN (CA). Website is
- * required here — it is optional only for sole proprietors (SPEC §4.1 step 3).
- * `strictObject` makes the EIN-vs-sole-prop branch a real XOR: sole-prop keys
- * on a standard payload (or vice versa) are a validation error, never silently
- * dropped.
+ * optional on every path (G7). `strictObject` makes the EIN-vs-sole-prop branch
+ * a real XOR: sole-prop keys on a standard payload (or vice versa) are a
+ * validation error, never silently dropped.
  */
 export const standardBrandSchema = z.strictObject({
   ...brandCommonShape,
@@ -79,7 +89,7 @@ export const standardBrandSchema = z.strictObject({
     .string()
     .trim()
     .regex(/^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/, "must be an EIN or BN"),
-  website: z.url().max(255),
+  website: optionalWebsite,
 });
 
 /**
@@ -96,7 +106,7 @@ export const soleProprietorBrandSchema = z.strictObject({
     .string()
     .trim()
     .refine(isUsCaDestination, "must be a US or Canadian mobile number (+1...)"),
-  website: z.url().max(255).optional(),
+  website: optionalWebsite,
 });
 
 export const brandDraftSchema = z.union([

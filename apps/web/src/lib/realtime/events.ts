@@ -1,4 +1,5 @@
 import type {
+  Message,
   MessageDirection,
   MessageStatus,
   NumberStatus,
@@ -19,7 +20,29 @@ export interface MessageCreatedEvent {
 
 export interface MessageStatusEvent {
   message_id: string;
-  status: MessageStatus;
+  /** Null for notes — their delivery status never exists (SPEC §6). */
+  status: MessageStatus | null;
+  /**
+   * D14: the trigger includes the done fields on every message.status
+   * broadcast (done toggles emit this same event). Optional so payloads from
+   * a not-yet-migrated database still patch delivery state correctly.
+   */
+  done_at?: string | null;
+  done_by_user_id?: string | null;
+}
+
+/**
+ * The cache patch a message.status broadcast carries (pure — unit-tested):
+ * always the delivery status; the D14 done fields only when the payload has
+ * them, so an older payload can never wipe local done state.
+ */
+export function messageStatusPatch(event: MessageStatusEvent): Partial<Message> {
+  const patch: Partial<Message> = { status: event.status ?? null };
+  if ("done_at" in event) patch.done_at = event.done_at ?? null;
+  if ("done_by_user_id" in event) {
+    patch.done_by_user_id = event.done_by_user_id ?? null;
+  }
+  return patch;
 }
 
 export interface ConversationUpdatedEvent {

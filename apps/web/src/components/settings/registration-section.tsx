@@ -197,7 +197,7 @@ function EnableUsCard() {
                 <DialogDescription>
                   A one-time $29 registration fee is charged to your card on
                   file, and we register your business with US carriers.
-                  Approval usually takes 1–3 business days — we handle it and
+                  Approval usually takes 3–7 business days — we handle it and
                   email you when it&apos;s live.
                 </DialogDescription>
               </DialogHeader>
@@ -319,7 +319,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
       detail: approved
         ? null
         : inReview
-          ? "Usually 1–3 business days — we handle it"
+          ? "Usually 3–7 business days — we handle it"
           : null,
     },
     {

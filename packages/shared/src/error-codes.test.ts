@@ -23,8 +23,15 @@ describe("error codes (SPEC §7)", () => {
       validation_failed: 422,
       not_found: 404,
       conflict: 409,
+      quiet_hours_confirmation_required: 409,
       rate_limited: 429,
     });
+  });
+
+  it("shares the 409 status between conflict and quiet-hours confirmation", () => {
+    expect(ERROR_CODE_STATUS.quiet_hours_confirmation_required).toBe(
+      ERROR_CODE_STATUS.conflict,
+    );
   });
 
   it("has a status entry for every code and no extras", () => {

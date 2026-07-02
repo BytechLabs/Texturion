@@ -216,6 +216,31 @@ describe("PUT /v1/registration", () => {
     expect(brand?.data).toMatchObject({ companyName: "Acme Plumbing LLC" });
   });
 
+  it("accepts the EIN branch with no website — website is optional (G7)", async () => {
+    const harness = buildHarness();
+    const noWebsite: Record<string, unknown> = { ...BRAND_BODY };
+    delete noWebsite.website;
+    const res = await harness.request(
+      "/v1/registration",
+      jsonInit("PUT", { brand: noWebsite, campaign: CAMPAIGN_BODY }),
+    );
+    expect(res.status).toBe(200);
+    const brand = harness.rest
+      .rows("messaging_registrations")
+      .find((row) => row.kind === "brand");
+    expect(brand?.status).toBe("draft");
+    expect(brand?.data).not.toHaveProperty("website");
+  });
+
+  it("treats an empty-string website as absent on the EIN branch (G7)", async () => {
+    const harness = buildHarness();
+    const res = await harness.request(
+      "/v1/registration",
+      jsonInit("PUT", { brand: { ...BRAND_BODY, website: "  " }, campaign: CAMPAIGN_BODY }),
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("upserts the sole-prop branch and flags both rows", async () => {
     const harness = buildHarness();
     const res = await harness.request(

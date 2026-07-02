@@ -19,6 +19,9 @@ export interface MessageRow {
   error_detail: string | null;
   idempotency_key: string | null;
   provider_cost: number | string | null;
+  /** D14 done state: set/cleared together (messages_done_consistency). */
+  done_at: string | null;
+  done_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 }

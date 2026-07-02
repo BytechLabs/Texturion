@@ -756,6 +756,172 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
   });
 });
 
+describe("PATCH /v1/messages/:id — done state (D14)", () => {
+  const DONE_AT = "2026-07-02T14:14:00.000Z";
+
+  function doneStubs(row: Partial<MessageRow>, options: { found?: boolean } = {}) {
+    const message = messageRow({
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      conversation_id: CONVERSATION_ID,
+      ...row,
+    });
+    const lookup = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "messages",
+        (url) => url.searchParams.get("id") === `eq.${MESSAGE_ID}`,
+      ),
+      () => (options.found === false ? [] : [message]),
+    );
+    const update = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
+      { ...message, ...(call.body as Partial<MessageRow>) },
+    ]);
+    const attachmentsLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    return {
+      lookup,
+      update,
+      attachmentsLookup,
+      all: [
+        jwksRoute(auth),
+        companyMembersRoute(env, [
+          { id: "11111111-0000-4000-8000-000000000011", role: "member" },
+        ]),
+        lookup.route,
+        update.route,
+        attachmentsLookup.route,
+      ],
+    };
+  }
+
+  async function patchDone(body: unknown): Promise<Response> {
+    return app.fetch(
+      new Request(`https://api.jobtext.app/v1/messages/${MESSAGE_ID}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${await auth.token()}`,
+          "X-Company-Id": COMPANY_ID,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+      env,
+    );
+  }
+
+  it("marks done: stamps done_at + done_by_user_id and returns the row", async () => {
+    const stubs = doneStubs({ done_at: null, done_by_user_id: null });
+    stubFetch(...stubs.all);
+
+    const response = await patchDone({ done: true });
+    expect(response.status).toBe(200);
+
+    // Company-scoped everywhere (§10) — lookup AND update.
+    expect(stubs.lookup.calls[0].url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    expect(stubs.update.calls).toHaveLength(1);
+    expect(stubs.update.calls[0].url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    expect(stubs.update.calls[0].body).toEqual({
+      done_at: expect.any(String),
+      done_by_user_id: auth.subject,
+    });
+
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      id: MESSAGE_ID,
+      done_at: expect.any(String),
+      done_by_user_id: auth.subject,
+      attachments: [],
+    });
+    expect(body).not.toHaveProperty("body_tsv");
+  });
+
+  it("clears done: nulls both columns", async () => {
+    const stubs = doneStubs({
+      done_at: DONE_AT,
+      done_by_user_id: auth.subject,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await patchDone({ done: false });
+    expect(response.status).toBe(200);
+    expect(stubs.update.calls[0].body).toEqual({
+      done_at: null,
+      done_by_user_id: null,
+    });
+    expect(await response.json()).toMatchObject({
+      done_at: null,
+      done_by_user_id: null,
+    });
+  });
+
+  it("is idempotent: re-marking done is a no-op returning the row (no update)", async () => {
+    const stubs = doneStubs({
+      done_at: DONE_AT,
+      done_by_user_id: auth.subject,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await patchDone({ done: true });
+    expect(response.status).toBe(200);
+    expect(stubs.update.calls).toHaveLength(0);
+    expect(await response.json()).toMatchObject({
+      done_at: DONE_AT,
+      done_by_user_id: auth.subject,
+    });
+  });
+
+  it("is idempotent for not-done too: clearing a clear row never writes", async () => {
+    const stubs = doneStubs({ done_at: null, done_by_user_id: null });
+    stubFetch(...stubs.all);
+
+    const response = await patchDone({ done: false });
+    expect(response.status).toBe(200);
+    expect(stubs.update.calls).toHaveLength(0);
+  });
+
+  it("404s a message outside the caller's company (tenant isolation, §10)", async () => {
+    const stubs = doneStubs({}, { found: false });
+    stubFetch(...stubs.all);
+
+    const response = await patchDone({ done: true });
+    expect(response.status).toBe(404);
+    expect(await errorCode(response)).toBe("not_found");
+    expect(stubs.update.calls).toHaveLength(0);
+  });
+
+  it("422s a body without a boolean done", async () => {
+    const stubs = doneStubs({});
+    stubFetch(...stubs.all);
+    for (const body of [{}, { done: "yes" }, { done: 1 }]) {
+      const response = await patchDone(body);
+      expect(response.status, JSON.stringify(body)).toBe(422);
+    }
+    expect(stubs.update.calls).toHaveLength(0);
+  });
+
+  it("works on notes and inbound rows alike (D14: any message is the task)", async () => {
+    for (const row of [
+      { direction: "note", status: null } as const,
+      { direction: "inbound", status: "received" } as const,
+    ]) {
+      const stubs = doneStubs({ ...row, done_at: null, done_by_user_id: null });
+      stubFetch(...stubs.all);
+      const response = await patchDone({ done: true });
+      expect(response.status, row.direction).toBe(200);
+      expect(stubs.update.calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("GET /v1/conversations/:id/messages (§7)", () => {
   it("pages newest-first with attachments summarized", async () => {
     const conversationCheck = stubRoute(
@@ -802,6 +968,9 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     const query = list.calls[0].url.searchParams;
     expect(query.get("order")).toBe("created_at.desc,id.desc");
     expect(query.get("limit")).toBe("3");
+    // D14: every message payload carries the done fields.
+    expect(query.get("select")).toContain("done_at");
+    expect(query.get("select")).toContain("done_by_user_id");
 
     const body = (await response.json()) as {
       data: { id: string; attachments: unknown[] }[];

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, Info } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { toast } from "sonner";
 
 import {
   HONEST_TIMELINE,
@@ -97,21 +98,27 @@ function PlanStep() {
       // Keep the button in its busy state while the browser navigates.
     } catch (cause) {
       setChoosing(null);
-      if (cause instanceof ApiError) {
+      if (cause instanceof ApiError && cause.code === "conflict") {
+        // A live subscription or missing draft changed under us — the message
+        // is specific and actionable; surface it inline (no retry — refetch
+        // re-routes the step guard to the honest surface).
         setFormError(cause.message);
-        if (cause.code === "conflict") {
-          // A live subscription or missing draft changed under us — refetch;
-          // the step guard re-routes to the honest surface.
-          void queryClient.invalidateQueries({
-            queryKey: keys.company(companyId),
-          });
-          void queryClient.invalidateQueries({
-            queryKey: keys.registration(companyId),
-          });
-        }
-      } else {
-        setFormError("Something went wrong on our end. Try again in a moment.");
+        void queryClient.invalidateQueries({
+          queryKey: keys.company(companyId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: keys.registration(companyId),
+        });
+        return;
       }
+      // G10 error toast: what happened + what to do, with a one-tap retry.
+      const message =
+        cause instanceof ApiError
+          ? cause.message
+          : "We couldn't open checkout — this is usually a brief connection hiccup. Check your connection and try again.";
+      toast.error(message, {
+        action: { label: "Try again", onClick: () => void choose(plan) },
+      });
     }
   }
 

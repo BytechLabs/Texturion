@@ -6,7 +6,7 @@ import { Fragment } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 import { StatusPill } from "./status-pill";
 
@@ -85,7 +85,10 @@ export function SearchResults({ q }: { q: string }) {
                 </span>
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-xs tabular-nums text-muted-foreground">
+                <span
+                  className="text-xs tabular-nums text-muted-foreground"
+                  title={formatAbsoluteDateTime(hit.matched_at)}
+                >
                   {formatRelativeTime(hit.matched_at)}
                 </span>
                 <StatusPill status={hit.status} />

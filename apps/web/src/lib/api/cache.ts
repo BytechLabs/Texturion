@@ -5,6 +5,7 @@ import {
   type ConversationFilters,
 } from "./filters";
 import type {
+  ConversationDetail,
   ConversationListItem,
   ConversationSnippet,
   Message,
@@ -129,6 +130,41 @@ export function threadApplyStatus(
   status: MessageStatus,
 ): ThreadData {
   return threadPatchMessage(thread, messageId, { status });
+}
+
+/**
+ * The optimistic D14 done patch (PATCH /v1/messages/:id): done=true stamps
+ * now + the acting user; done=false clears both — mirroring exactly what the
+ * API writes so the optimistic row and the server row agree in shape.
+ */
+export function doneMutationPatch(
+  done: boolean,
+  userId: string | null,
+  now: Date = new Date(),
+): Pick<Message, "done_at" | "done_by_user_id"> {
+  return done
+    ? { done_at: now.toISOString(), done_by_user_id: userId }
+    : { done_at: null, done_by_user_id: null };
+}
+
+/**
+ * Patch one message inside a detail response's embedded first page (the
+ * GET /v1/conversations/:id cache). Same reference when nothing changed.
+ */
+export function detailPatchMessage(
+  detail: ConversationDetail | undefined,
+  messageId: string,
+  patch: Partial<Message>,
+): ConversationDetail | undefined {
+  if (!detail) return detail;
+  let changed = false;
+  const data = detail.messages.data.map((message) => {
+    if (message.id !== messageId) return message;
+    changed = true;
+    return { ...message, ...patch };
+  });
+  if (!changed) return detail;
+  return { ...detail, messages: { ...detail.messages, data } };
 }
 
 /**

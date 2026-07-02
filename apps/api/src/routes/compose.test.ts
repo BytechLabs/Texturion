@@ -371,7 +371,7 @@ describe("POST /v1/conversations — quiet hours (§5)", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    expect(await errorCode(response)).toBe("quiet_hours_confirmation_required");
     // Nothing was created.
     expect(stubs.contactInsert.calls).toHaveLength(0);
     expect(stubs.conversationInsert.calls).toHaveLength(0);

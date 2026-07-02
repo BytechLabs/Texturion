@@ -57,7 +57,8 @@ const CONVERSATION_COLUMNS =
 
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +
-  "sent_by_user_id,error_code,error_detail,telnyx_message_id,created_at," +
+  "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
+  "done_at,done_by_user_id,created_at," +
   "message_attachments(id,content_type,size_bytes)";
 
 const listQuerySchema = z.object({
@@ -365,7 +366,8 @@ conversationsRoutes.post(
         })
         .select(
           "id,conversation_id,direction,body,status,segments,encoding," +
-            "sent_by_user_id,error_code,error_detail,telnyx_message_id,created_at",
+            "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
+            "done_at,done_by_user_id,created_at",
         ),
       "note insert",
     );

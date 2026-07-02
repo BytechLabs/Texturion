@@ -240,6 +240,9 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
     const msgCall = sb.find("GET", "/rest/v1/messages")[0];
     expect(msgCall.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(msgCall.url.searchParams.get("limit")).toBe("51");
+    // D14: the embedded first page carries the done fields too.
+    expect(msgCall.url.searchParams.get("select")).toContain("done_at");
+    expect(msgCall.url.searchParams.get("select")).toContain("done_by_user_id");
   });
 
   it("404s for another company's conversation and malformed ids", async () => {
@@ -510,6 +513,8 @@ describe("POST /v1/conversations/:id/notes", () => {
       error_code: null,
       error_detail: null,
       telnyx_message_id: null,
+      done_at: null,
+      done_by_user_id: null,
       created_at: "2026-07-01T11:00:00+00:00",
     };
   }

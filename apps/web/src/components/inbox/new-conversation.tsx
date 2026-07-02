@@ -58,8 +58,9 @@ type Recipient =
 /**
  * /inbox/new — the G5 outbound-first compose flow: contact search + raw
  * number with live E.164 formatting, the D4 consent checkbox, first-message
- * footer preview, segment meter, quiet-hours dialog driven by the API's 409
- * (compose.ts contract: code `conflict`, message names quiet_hours_confirmed).
+ * footer preview, segment meter, quiet-hours dialog driven by the API's
+ * `quiet_hours_confirmation_required` code (409; matched structurally, never
+ * by message text).
  */
 export function NewConversation() {
   const router = useRouter();
@@ -171,8 +172,7 @@ export function NewConversation() {
       onError: (error) => {
         if (
           error instanceof ApiError &&
-          error.code === "conflict" &&
-          error.message.includes("quiet_hours_confirmed")
+          error.code === "quiet_hours_confirmation_required"
         ) {
           setQuietHours({
             localTime: destinationLocalTimeLabel(destinationE164),
@@ -386,9 +386,10 @@ export function NewConversation() {
           </div>
           {footerNeeded && (
             <div className="space-y-0.5 px-1">
-              <p className="text-[13px] text-stone-400 dark:text-stone-500">
-                {footerText}
-              </p>
+              {/* G5 wants this quiet, but the footer text is real content the
+                  sender must read — stone-400 was 2.48:1. muted-foreground is
+                  quiet yet clears AA (4.61:1 light / 7.63:1 dark). */}
+              <p className="text-[13px] text-muted-foreground">{footerText}</p>
               <p className="text-[11px] text-muted-foreground">
                 Added to your first message to this contact
               </p>

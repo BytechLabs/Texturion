@@ -14,6 +14,7 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useCreateCompany } from "@/lib/api/companies";
 import { writeCompanyCookie } from "@/lib/company/cookie";
+import { browserTimezone } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { areaCodeHint, searchAreaCodes } from "../area-codes";
@@ -108,12 +109,15 @@ export default function NumberStepPage() {
       setFormError("You need to agree to the texting rules before continuing.");
       return;
     }
+    // D15: the creating browser's timezone rides along silently.
+    const timezone = browserTimezone();
     try {
       const company = await createCompany.mutateAsync({
         name: (draft.name ?? "").trim(),
         country: "CA",
         requested_area_code: selected.code,
         us_texting_enabled: false,
+        ...(timezone ? { timezone } : {}),
         aup_accepted: true,
       });
       writeCompanyCookie(company.id);
@@ -227,7 +231,10 @@ export default function NumberStepPage() {
                     <li key={hint.code}>
                       <button
                         type="button"
-                        onClick={() => setAreaCode(hint.code)}
+                        onClick={() => {
+                          setAreaCode(hint.code);
+                          setFormError(null); // clear "pick an area code" once fixed
+                        }}
                         className="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors duration-150 ease-out hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                       >
                         <span className="tabular-nums">{hint.label}</span>
@@ -284,7 +291,10 @@ export default function NumberStepPage() {
           <label className="flex items-start gap-2 text-sm text-muted-foreground">
             <Checkbox
               checked={aupAccepted}
-              onCheckedChange={(checked) => setAupAccepted(checked === true)}
+              onCheckedChange={(checked) => {
+                setAupAccepted(checked === true);
+                if (checked === true) setFormError(null); // clear AUP error
+              }}
               className="mt-0.5"
               aria-label="Agree to the texting rules"
             />

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   listApplyConversation,
   snippetFromMessage,
-  threadApplyStatus,
+  threadPatchMessage,
   threadUpsertMessages,
   type ThreadData,
 } from "@/lib/api/cache";
@@ -30,10 +30,11 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName } from "@/lib/format/phone";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-import type {
-  ConversationUpdatedEvent,
-  MessageCreatedEvent,
-  MessageStatusEvent,
+import {
+  messageStatusPatch,
+  type ConversationUpdatedEvent,
+  type MessageCreatedEvent,
+  type MessageStatusEvent,
 } from "./events";
 import { activeConversationFromPath } from "./path";
 
@@ -246,12 +247,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
 
     function handleMessageStatus(event: MessageStatusEvent) {
-      // Payload carries the status — pure cache patch, no fetch (§8).
+      // Payload carries the status AND the D14 done fields — pure cache
+      // patch, no fetch (§8; done toggles broadcast this same event).
+      const patch = messageStatusPatch(event);
       queryClient.setQueriesData<ThreadData>(
         { queryKey: keys.threads(companyId) },
         (thread) =>
           thread
-            ? threadApplyStatus(thread, event.message_id, event.status)
+            ? threadPatchMessage(thread, event.message_id, patch)
             : thread,
       );
       // Detail responses embed a message page too — keep badges in sync.
@@ -263,7 +266,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           const data = detail.messages.data.map((message) => {
             if (message.id !== event.message_id) return message;
             changed = true;
-            return { ...message, status: event.status };
+            return { ...message, ...patch };
           });
           if (!changed) return detail;
           return { ...detail, messages: { ...detail.messages, data } };
