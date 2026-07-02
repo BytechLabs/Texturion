@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "stripe:setup": "node --experimental-strip-types scripts/stripe-setup.ts"
   },
   "dependencies": {
     "@jobtext/shared": "workspace:*",
@@ -16,10 +17,12 @@
     "@supabase/supabase-js": "2.110.0",
     "hono": "^4.12.27",
     "jose": "6.2.3",
+    "stripe": "22.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260701.1",
+    "@types/node": "^22.18.0",
     "@eslint/js": "^9.39.4",
     "eslint": "^9.39.4",
     "typescript": "^5.9.3",

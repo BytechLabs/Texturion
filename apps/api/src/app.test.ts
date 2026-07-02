@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { getEnv, type Bindings } from "./env";
 import { app } from "./index";
+import { completeEnv as sharedCompleteEnv } from "./test/support";
 
 // Test-only route to drive the onError hook. Registered at module scope
 // because Hono freezes its route matcher on the first request.
@@ -9,21 +10,14 @@ app.get("/__test__/boom", () => {
   throw new Error("secret internal detail");
 });
 
-/** A complete set of bindings, as `wrangler dev` would supply from .dev.vars. */
+/**
+ * A complete set of bindings, as `wrangler dev` would supply from .dev.vars.
+ * Sourced from the shared test helper so this suite stays in lockstep with
+ * the env schema (which grows as tracks add bindings); spread into a fresh
+ * mutable object because these tests delete/blank individual keys.
+ */
 function completeEnv(): Bindings {
-  return {
-    SUPABASE_URL: "https://abcdefghijkl.supabase.co",
-    SUPABASE_SECRET_KEY: "sb_secret_0123456789abcdef",
-    SUPABASE_JWKS_URL:
-      "https://abcdefghijkl.supabase.co/auth/v1/.well-known/jwks.json",
-    TELNYX_API_KEY: "KEY0123456789ABCDEF",
-    TELNYX_PUBLIC_KEY: "3fJ8mQz1xW9yK2vL5nB7cD4eF6gH8iJ0kL2mN4oP6qR=",
-    STRIPE_SECRET_KEY: "rk_test_0123456789abcdef",
-    STRIPE_WEBHOOK_SECRET: "whsec_0123456789abcdef",
-    RESEND_API_KEY: "re_0123456789abcdef",
-    SENTRY_DSN: "https://0123456789abcdef@o000001.ingest.sentry.io/0000001",
-    APP_ORIGIN: "https://app.jobtext.app",
-  };
+  return { ...sharedCompleteEnv() };
 }
 
 describe("env validation", () => {

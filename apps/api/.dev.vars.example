@@ -11,3 +11,16 @@ STRIPE_WEBHOOK_SECRET=
 RESEND_API_KEY=
 SENTRY_DSN=
 APP_ORIGIN=
+API_ORIGIN=
+RESEND_FROM=
+# Web Push VAPID key pair (SPEC §8) — generate once with `npx web-push generate-vapid-keys`.
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+# Stripe catalog ids — printed by `pnpm --filter @jobtext/api stripe:setup`
+# (run once per Stripe mode with STRIPE_SECRET_KEY set; SPEC §9).
+STRIPE_STARTER_PRICE_ID=
+STRIPE_PRO_PRICE_ID=
+STRIPE_STARTER_OVERAGE_PRICE_ID=
+STRIPE_PRO_OVERAGE_PRICE_ID=
+STRIPE_US_FEE_PRICE_ID=
+STRIPE_SMS_METER_EVENT_NAME=sms_segments

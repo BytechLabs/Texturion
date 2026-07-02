@@ -5,10 +5,41 @@ import { cors } from "hono/cors";
 
 import { companyContext } from "./auth/company";
 import { jwtAuth } from "./auth/jwt";
+import { runGraceJob } from "./billing/grace";
+import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
-import { getEnv, type Bindings } from "./env";
+import { getEnv, type Bindings, type Env } from "./env";
 import { ApiError, errorResponse } from "./http/errors";
+import {
+  reportUnreportedUsage,
+  sweepWebhookEvents,
+} from "./messaging/crons";
 import { sentryOptions } from "./observability/sentry";
+import { attachmentsRoutes } from "./routes/attachments";
+import { billingRoutes } from "./routes/billing";
+import { companiesRoutes } from "./routes/companies";
+import { composeRoutes } from "./routes/compose";
+import { contactsRoutes } from "./routes/contacts";
+import { conversationsRoutes } from "./routes/conversations";
+import { meRoutes } from "./routes/me";
+import { messageRoutes } from "./routes/messages";
+import { notificationsRoutes } from "./routes/notifications";
+import { numbersRoutes } from "./routes/numbers";
+import { registrationRoutes } from "./routes/registration";
+import { searchRoutes } from "./routes/search";
+import { tagsRoutes } from "./routes/tags";
+import { teamRoutes } from "./routes/team";
+import { templatesRoutes } from "./routes/templates";
+import { usageRoutes } from "./routes/usage";
+import { reconcileNumbers } from "./telnyx/provisioning";
+import {
+  nudgeSoleProprietorOtp,
+  pollRegistrations,
+  retryCampaignAssignments,
+} from "./telnyx/registration";
+import { stripeWebhookRoute } from "./webhooks/stripe";
+import { telnyxWebhookRoute } from "./webhooks/telnyx";
 
 export const app = new Hono<AppEnv>();
 
@@ -24,9 +55,9 @@ export const app = new Hono<AppEnv>();
  *                  POST /v1/invites/accept).
  *
  * /health stays outside the chain (unauthenticated liveness). /webhooks/* is
- * deliberately not mounted at all yet: webhook routes authenticate by provider
- * signature — not JWT — and land in later build steps; until then they must
- * 404, and they must never carry CORS headers (SPEC §7).
+ * mounted OUTSIDE the chain: webhook routes authenticate by provider
+ * signature — Telnyx Ed25519 / Stripe HMAC — not JWT, and they must never
+ * carry CORS headers (SPEC §7).
  */
 app.use(
   "/v1/*",
@@ -50,6 +81,38 @@ app.get("/health", (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * The /v1 surface (SPEC §7). Every sub-app sits behind the CORS → JWT →
+ * company-context chain above. Mount order matters in ONE place: compose
+ * (POST /v1/conversations, the outbound-first creation flow) registers before
+ * the general conversations router, so the POST resolves to compose while
+ * every other /v1/conversations/* route falls through to the general router.
+ */
+app.route("/v1", meRoutes);
+app.route("/v1", companiesRoutes);
+app.route("/v1/billing", billingRoutes);
+app.route("/v1", usageRoutes);
+app.route("/v1/numbers", numbersRoutes);
+app.route("/v1/registration", registrationRoutes);
+app.route("/v1", composeRoutes); // POST /v1/conversations — before conversationsRoutes
+app.route("/v1", conversationsRoutes);
+app.route("/v1", messageRoutes);
+app.route("/v1", attachmentsRoutes);
+app.route("/v1", contactsRoutes);
+app.route("/v1", tagsRoutes);
+app.route("/v1", templatesRoutes);
+app.route("/v1", searchRoutes);
+app.route("/v1", teamRoutes);
+app.route("/v1", notificationsRoutes);
+
+/**
+ * Webhooks (SPEC §7): unversioned, outside the JWT/CORS chain — the provider
+ * signature IS the authentication, and no CORS headers are ever emitted here
+ * (the CORS middleware above is scoped to /v1/*).
+ */
+app.route("/webhooks/telnyx", telnyxWebhookRoute);
+app.route("/webhooks/stripe", stripeWebhookRoute);
+
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 
 app.onError((error, c) => {
@@ -68,20 +131,70 @@ app.onError((error, c) => {
   );
 });
 
+type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
+
+/**
+ * SPEC §11 cron table — one entry per wrangler.jsonc trigger, in §11 order.
+ * Every job is idempotent and clock-injected where it needs a clock, so the
+ * trigger's own scheduledTime is passed through. Exported so tests can assert
+ * this map stays in lockstep with wrangler.jsonc and the §11 schedule set.
+ */
+export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
+  // Webhook sweeper: replay unprocessed webhook_events (both providers).
+  "*/5 * * * *": [sweepWebhookEvents],
+  // Provisioning retry & reconcile: resume provisioning/provision_failed
+  // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
+  // number-assignments.
+  "*/15 * * * *": [reconcileNumbers, retryCampaignAssignments],
+  // Usage re-reporter, then the 80%/100% usage-alert check (§9 metering
+  // pipeline tail) over the freshly-reported state.
+  "0 * * * *": [reportUnreportedUsage, runUsageAlertsJob],
+  // Sole-prop OTP nudge (≥12h outstanding, once per submission).
+  "30 * * * *": [nudgeSoleProprietorOtp],
+  // Registration poller (webhooks are primary; this is the D2 fallback).
+  "0 13 * * *": [pollRegistrations],
+  // Grace & release: day-1/15/27 warnings, day-30 release + campaign
+  // deactivation.
+  "0 14 * * *": [runGraceJob],
+  // Subscription reconcile: re-mirror non-active companies from Stripe;
+  // report stale invites.
+  "0 15 * * *": [runSubscriptionReconcileJob],
+};
+
 const handler = {
   fetch: app.fetch,
 
   /**
-   * Cron entry point (SPEC §11). The scheduled jobs land in later build steps;
-   * until then this handler's real job is to validate the environment on every
-   * trigger — so a misconfigured Worker fails loudly on its first cron — and to
-   * record which schedule fired.
+   * Cron entry point (SPEC §11): validate the environment (a misconfigured
+   * Worker fails loudly on its first trigger), then run every job mapped to
+   * the schedule that fired. Jobs on a shared trigger run sequentially but
+   * fail independently — one job's failure never starves its siblings, and
+   * the run still rejects so Sentry (which wraps scheduled()) records it.
    */
   async scheduled(controller, env) {
-    getEnv(env);
-    console.log(
-      `cron fired: "${controller.cron}" at ${new Date(controller.scheduledTime).toISOString()}`,
-    );
+    const validated = getEnv(env);
+    const jobs = CRON_JOBS[controller.cron];
+    if (!jobs) {
+      throw new Error(
+        `No scheduled jobs are mapped to cron "${controller.cron}" — wrangler.jsonc and CRON_JOBS are out of sync.`,
+      );
+    }
+    const now = new Date(controller.scheduledTime);
+
+    const failures: unknown[] = [];
+    for (const job of jobs) {
+      try {
+        await job(validated, now);
+      } catch (cause) {
+        failures.push(cause);
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `cron "${controller.cron}": ${failures.length} of ${jobs.length} job(s) failed`,
+      );
+    }
   },
 } satisfies ExportedHandler<Bindings>;
 

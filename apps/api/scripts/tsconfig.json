@@ -1,0 +1,22 @@
+{
+  // Typechecks the operator scripts, which run under Node
+  // (`node --experimental-strip-types`), not the Workers runtime — hence
+  // Node types + NodeNext resolution, and `erasableSyntaxOnly` to guarantee
+  // the file stays runnable by type stripping alone.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["./*.ts"]
+}

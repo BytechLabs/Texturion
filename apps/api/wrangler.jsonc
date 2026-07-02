@@ -5,13 +5,13 @@
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
   "triggers": {
-    // Exactly the SPEC §11 schedule set. The job handlers land in later build
-    // steps; until then every trigger runs the scheduled() entry point, which
-    // validates the environment and logs which schedule fired.
+    // Exactly the SPEC §11 schedule set. Each expression maps to its job(s)
+    // in src/index.ts CRON_JOBS; src/mount.test.ts asserts this list and that
+    // map stay in lockstep, and scheduled() fails loudly on an unmapped cron.
     "crons": [
       "*/5 * * * *", // webhook sweeper
-      "*/15 * * * *", // provisioning retry & reconcile
-      "0 * * * *", // usage re-reporter (hourly)
+      "*/15 * * * *", // provisioning retry & reconcile (+ §4.4 R3 assignment retry)
+      "0 * * * *", // usage re-reporter + 80%/100% usage alerts (hourly)
       "30 * * * *", // sole-prop OTP nudge (hourly)
       "0 13 * * *", // registration poller (daily)
       "0 14 * * *", // grace & release (daily)
@@ -20,6 +20,12 @@
   },
   // Only non-secret plain-text configuration belongs in "vars". Every credential
   // this Worker needs (SPEC §10) is a Worker encrypted secret — `wrangler secret put`
-  // in production, `.dev.vars` locally. See .dev.vars.example for the full list.
+  // in production, `.dev.vars` locally. See .dev.vars.example for the full list,
+  // including the billing bindings (API_ORIGIN, RESEND_FROM, the
+  // STRIPE_*_PRICE_ID set printed by `pnpm stripe:setup`, and
+  // STRIPE_SMS_METER_EVENT_NAME) and the §8 Web Push VAPID pair
+  // (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) — kept as secrets alongside the
+  // rest so the whole binding set has one injection path from GitHub Actions
+  // (SPEC §10).
   "vars": {}
 }

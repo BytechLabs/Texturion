@@ -22,6 +22,19 @@ export function completeEnv(): Env {
     RESEND_API_KEY: "re_0123456789abcdef",
     SENTRY_DSN: "https://0123456789abcdef@o000001.ingest.sentry.io/0000001",
     APP_ORIGIN: "https://app.jobtext.app",
+    API_ORIGIN: "https://api.jobtext.app",
+    RESEND_FROM: "JobText <notifications@jobtext.app>",
+    // A REAL (test-only) P-256 pair in the standard VAPID encoding, so the
+    // §8 Web Push crypto paths run for real in tests.
+    VAPID_PUBLIC_KEY:
+      "BD_hP_N07omlLXk14YXRFvsSICDKoywjGtx-T1_5PdLX155D623P5Ci-5sRhh5g2Qj5j0aQPiDWSgT2DlOefImw",
+    VAPID_PRIVATE_KEY: "L9lOg9x05mb1bG5kwUIpxSSf8YiMrm6KZn-c_GIyqAM",
+    STRIPE_STARTER_PRICE_ID: "price_starter_licensed_0001",
+    STRIPE_PRO_PRICE_ID: "price_pro_licensed_0001",
+    STRIPE_STARTER_OVERAGE_PRICE_ID: "price_starter_overage_0001",
+    STRIPE_PRO_OVERAGE_PRICE_ID: "price_pro_overage_0001",
+    STRIPE_US_FEE_PRICE_ID: "price_us_registration_0001",
+    STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
   };
 }
 
@@ -89,7 +102,7 @@ export async function createTestAuth(
 export type FetchRoute = (
   url: URL,
   request: Request,
-) => Response | Promise<Response> | undefined;
+) => Response | undefined | Promise<Response | undefined>;
 
 /**
  * Replace global fetch (the test-only network edge) with a dispatcher over the

@@ -1,0 +1,176 @@
+/**
+ * 80%/100% usage-alert job suite (SPEC §2, §9, §11): thresholds computed
+ * against the plan's INCLUDED quota from real usage_events sums (the same
+ * api_period_segments RPC the usage route uses), one email per
+ * (company, period, threshold) via the usage_alerts ledger. Real product code
+ * with only global fetch stubbed.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { runUsageAlertsJob } from "./usage-alerts";
+import {
+  endpoint,
+  makeHarness,
+  type Harness,
+  type StubEndpoint,
+} from "../test/billing-support";
+import { completeEnv, stubFetch } from "../test/support";
+
+const env = completeEnv();
+const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+const PERIOD_START = "2026-06-15T00:00:00.000Z";
+
+interface UsageState {
+  /** Sum api_period_segments reports for the company. */
+  used: number;
+  /** Ledger thresholds already present (80/100). */
+  ledger: Set<number>;
+  plan?: "starter" | "pro";
+}
+
+function usageEndpoints(state: UsageState): StubEndpoint[] {
+  return [
+    endpoint("GET", /\/rest\/v1\/companies/, () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        plan: state.plan ?? "starter",
+        current_period_start: PERIOD_START,
+      },
+    ]),
+    endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, () => state.used),
+    endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
+      const row = call.json() as { threshold: number };
+      if (state.ledger.has(row.threshold)) return [];
+      state.ledger.add(row.threshold);
+      return [{ company_id: COMPANY_ID }];
+    }),
+    endpoint("GET", /\/rest\/v1\/company_members/, () => [
+      { user_id: "11111111-1111-4111-8111-111111111111" },
+    ]),
+    endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
+      id: "11111111-1111-4111-8111-111111111111",
+      email: "owner@example.com",
+    })),
+    endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
+  ];
+}
+
+function run(state: UsageState): { harness: Harness; done: Promise<void> } {
+  const harness = makeHarness(usageEndpoints(state));
+  stubFetch(harness.route);
+  return { harness, done: runUsageAlertsJob(env) };
+}
+
+function sentEmails(harness: Harness): { subject: string; to: string[] }[] {
+  return harness
+    .callsTo("POST", /api\.resend\.com/)
+    .map((call) => call.json() as { subject: string; to: string[] });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
+  it("below 80% of the included quota: no ledger writes, no email", async () => {
+    const state: UsageState = { used: 399, ledger: new Set() }; // 500 included
+    const { harness, done } = run(state);
+    await done;
+    expect(harness.callsTo("POST", /usage_alerts/)).toHaveLength(0);
+    expect(sentEmails(harness)).toHaveLength(0);
+  });
+
+  it("crossing 80% (starter: 400 of 500) sends exactly the 80% alert", async () => {
+    const state: UsageState = { used: 400, ledger: new Set() };
+    const { harness, done } = run(state);
+    await done;
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toContain("80%");
+    expect(emails[0].to).toEqual(["owner@example.com"]);
+    expect(state.ledger).toEqual(new Set([80]));
+  });
+
+  it("re-running with the 80% ledger row present sends nothing (PK idempotency)", async () => {
+    const state: UsageState = { used: 450, ledger: new Set([80]) };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(0);
+  });
+
+  it("at 100% both thresholds are recorded and emailed once each", async () => {
+    const state: UsageState = { used: 500, ledger: new Set() };
+    const { harness, done } = run(state);
+    await done;
+    const subjects = sentEmails(harness).map((email) => email.subject);
+    expect(subjects).toHaveLength(2);
+    expect(subjects[0]).toContain("80%");
+    expect(subjects[1]).toContain("all 500 included messages");
+    expect(state.ledger).toEqual(new Set([80, 100]));
+
+    // Converged: the next run is a pure no-op.
+    const again = run(state);
+    await again.done;
+    expect(sentEmails(again.harness)).toHaveLength(0);
+  });
+
+  it("thresholds follow the plan quota (pro: 2000 of 2500 = 80%)", async () => {
+    const state: UsageState = { used: 2000, ledger: new Set(), plan: "pro" };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(1);
+    expect(state.ledger).toEqual(new Set([80]));
+  });
+
+  it("one broken tenant does not starve the rest; the run still fails loudly", async () => {
+    const OTHER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
+    const ledger = new Set<number>();
+    const harness = makeHarness([
+      endpoint("GET", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Broken Co",
+          plan: "starter",
+          current_period_start: PERIOD_START,
+        },
+        {
+          id: OTHER_ID,
+          name: "Fine Co",
+          plan: "starter",
+          current_period_start: PERIOD_START,
+        },
+      ]),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, (call) => {
+        const body = call.json() as { p_company_id: string };
+        if (body.p_company_id === COMPANY_ID) {
+          return new Response(JSON.stringify({ message: "boom" }), {
+            status: 500,
+          });
+        }
+        return 500; // Fine Co is at 100%
+      }),
+      endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
+        const row = call.json() as { threshold: number };
+        ledger.add(row.threshold);
+        return [{ company_id: OTHER_ID }];
+      }),
+      endpoint("GET", /\/rest\/v1\/company_members/, () => [
+        { user_id: "11111111-1111-4111-8111-111111111111" },
+      ]),
+      endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
+        id: "11111111-1111-4111-8111-111111111111",
+        email: "owner@example.com",
+      })),
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
+    ]);
+    stubFetch(harness.route);
+
+    await expect(runUsageAlertsJob(env)).rejects.toThrow(
+      /failed for 1 company/,
+    );
+    // Fine Co still got both alerts despite Broken Co's failure.
+    expect(ledger).toEqual(new Set([80, 100]));
+    expect(sentEmails(harness)).toHaveLength(2);
+  });
+});

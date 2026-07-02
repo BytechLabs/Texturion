@@ -13,6 +13,12 @@
     "test": "pnpm -r test",
     "db:start": "pnpm dlx supabase start",
     "db:reset": "pnpm dlx supabase db reset",
-    "db:test": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql"
+    "db:test": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql",
+    "db:test:api-functions": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/api_functions.test.sql",
+    "db:test:messaging": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/messaging.test.sql",
+    "db:test:provisioning": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/provisioning.test.sql",
+    "db:test:notifications": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/notifications.test.sql",
+    "db:test:service-role-grants": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/service_role_grants.test.sql",
+    "db:test:all": "docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql && docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/api_functions.test.sql && docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/messaging.test.sql && docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/provisioning.test.sql && docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/notifications.test.sql && docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/service_role_grants.test.sql"
   }
 }

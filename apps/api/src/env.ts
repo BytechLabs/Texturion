@@ -16,6 +16,26 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.url(),
   APP_ORIGIN: z.url(),
+  /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
+  API_ORIGIN: z.url(),
+  /** Resend sender, e.g. `JobText <notifications@jobtext.app>` (SPEC §3). */
+  RESEND_FROM: z.string().min(1),
+  /**
+   * Web Push VAPID key pair as Worker secrets (SPEC §8). Standard encoding
+   * (`npx web-push generate-vapid-keys`): base64url uncompressed P-256 point
+   * (65 bytes) and base64url private scalar (32 bytes).
+   */
+  VAPID_PUBLIC_KEY: z.string().min(1),
+  VAPID_PRIVATE_KEY: z.string().min(1),
+  // Stripe catalog ids printed by `pnpm stripe:setup` (SPEC §9: the catalog is
+  // created by a checked-in setup script, ids stored as env config).
+  STRIPE_STARTER_PRICE_ID: z.string().min(1),
+  STRIPE_PRO_PRICE_ID: z.string().min(1),
+  STRIPE_STARTER_OVERAGE_PRICE_ID: z.string().min(1),
+  STRIPE_PRO_OVERAGE_PRICE_ID: z.string().min(1),
+  STRIPE_US_FEE_PRICE_ID: z.string().min(1),
+  /** Billing Meter `event_name` (SPEC §9: 'sms_segments'). */
+  STRIPE_SMS_METER_EVENT_NAME: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

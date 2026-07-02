@@ -1,12 +1,28 @@
 /**
- * Integration tests for the mounted middleware chain (SPEC §7, §10):
+ * Integration tests for the mounted app (SPEC §7, §10, §11):
  * CORS → JWT → company context on /v1/*, /health outside the chain,
- * /webhooks/* unmounted and CORS-free. Exercises the REAL exported app;
- * only global fetch (JWKS + PostgREST) is stubbed.
+ * /webhooks/* mounted signature-authenticated and CORS-free, the full §7
+ * route inventory, and the §11 cron map in lockstep with wrangler.jsonc.
+ * Exercises the REAL exported app; only global fetch (JWKS + PostgREST) is
+ * stubbed.
  */
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { app } from "./index";
+import { runGraceJob } from "./billing/grace";
+import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { runUsageAlertsJob } from "./billing/usage-alerts";
+import { app, CRON_JOBS } from "./index";
+import { reportUnreportedUsage, sweepWebhookEvents } from "./messaging/crons";
+import { composeRoutes } from "./routes/compose";
+import { conversationsRoutes } from "./routes/conversations";
+import { reconcileNumbers } from "./telnyx/provisioning";
+import {
+  nudgeSoleProprietorOtp,
+  pollRegistrations,
+  retryCampaignAssignments,
+} from "./telnyx/registration";
 import {
   companyMembersRoute,
   completeEnv,
@@ -188,17 +204,23 @@ describe("CORS (SPEC §7: exact origin, enumerated methods/headers, none on /web
     expect(actual.headers.get("access-control-allow-origin")).toBeNull();
   });
 
-  it("/webhooks/* does not exist yet and carries no CORS headers", async () => {
+  it("/webhooks/* authenticates by provider signature (not JWT) and carries no CORS headers", async () => {
+    // Signature rejection is local crypto/header work: no JWKS, no PostgREST.
     stubFetch();
     for (const path of ["/webhooks/telnyx", "/webhooks/stripe"]) {
+      // Unsigned POST → 400 from the route's own verify step. A 401 here
+      // would mean the JWT chain leaked onto /webhooks/*; a 404 would mean
+      // the route is not mounted.
       const post = await app.request(
         path,
         { method: "POST", headers: { Origin: ORIGIN }, body: "{}" },
         env,
       );
-      expect(post.status).toBe(404);
+      expect(post.status).toBe(400);
       expect(post.headers.get("access-control-allow-origin")).toBeNull();
 
+      // No CORS middleware on /webhooks/*: preflights find no handler and
+      // never earn CORS headers (SPEC §7).
       const preflight = await app.request(
         path,
         {
@@ -211,5 +233,157 @@ describe("CORS (SPEC §7: exact origin, enumerated methods/headers, none on /web
       expect(preflight.headers.get("access-control-allow-origin")).toBeNull();
       expect(preflight.headers.get("access-control-allow-methods")).toBeNull();
     }
+  });
+});
+
+describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", () => {
+  /** Registered (method, path) pairs, trailing slash normalized. */
+  const registered = new Set(
+    app.routes.map(
+      (route) =>
+        `${route.method} ${route.path !== "/" && route.path.endsWith("/") ? route.path.slice(0, -1) : route.path}`,
+    ),
+  );
+
+  const EXPECTED: [string, string][] = [
+    ["GET", "/health"],
+    // me / companies
+    ["GET", "/v1/me"],
+    ["POST", "/v1/companies"],
+    ["GET", "/v1/company"],
+    ["PATCH", "/v1/company"],
+    // billing
+    ["POST", "/v1/billing/checkout"],
+    ["POST", "/v1/billing/portal"],
+    ["POST", "/v1/billing/change-plan"],
+    ["GET", "/v1/usage"],
+    // numbers
+    ["GET", "/v1/numbers"],
+    ["POST", "/v1/numbers/provision"],
+    ["DELETE", "/v1/numbers/:id"],
+    // registration
+    ["GET", "/v1/registration"],
+    ["PUT", "/v1/registration"],
+    ["POST", "/v1/registration/submit"],
+    ["POST", "/v1/registration/otp"],
+    ["POST", "/v1/registration/otp/resend"],
+    ["POST", "/v1/registration/enable-us"],
+    // conversations (compose owns the POST)
+    ["POST", "/v1/conversations"],
+    ["GET", "/v1/conversations"],
+    ["GET", "/v1/conversations/:id"],
+    ["PATCH", "/v1/conversations/:id"],
+    ["GET", "/v1/conversations/:id/events"],
+    ["POST", "/v1/conversations/:id/notes"],
+    ["POST", "/v1/conversations/:id/read"],
+    ["POST", "/v1/conversations/:id/tags"],
+    ["DELETE", "/v1/conversations/:id/tags/:tag_id"],
+    // messages
+    ["GET", "/v1/conversations/:id/messages"],
+    ["POST", "/v1/messages/send"],
+    ["POST", "/v1/messages/:id/retry"],
+    // attachments
+    ["GET", "/v1/attachments/:id/url"],
+    // contacts
+    ["GET", "/v1/contacts"],
+    ["POST", "/v1/contacts"],
+    ["GET", "/v1/contacts/:id"],
+    ["PATCH", "/v1/contacts/:id"],
+    ["DELETE", "/v1/contacts/:id"],
+    ["POST", "/v1/contacts/import"],
+    ["POST", "/v1/contacts/:id/opt-out"],
+    ["POST", "/v1/contacts/:id/opt-out/revoke"],
+    // tags / templates / search
+    ["GET", "/v1/tags"],
+    ["PATCH", "/v1/tags/:id"],
+    ["DELETE", "/v1/tags/:id"],
+    ["GET", "/v1/templates"],
+    ["POST", "/v1/templates"],
+    ["PATCH", "/v1/templates/:id"],
+    ["DELETE", "/v1/templates/:id"],
+    ["GET", "/v1/search"],
+    // team
+    ["GET", "/v1/members"],
+    ["PATCH", "/v1/members/:id"],
+    ["DELETE", "/v1/members/:id"],
+    ["GET", "/v1/invites"],
+    ["POST", "/v1/invites"],
+    ["DELETE", "/v1/invites/:id"],
+    ["POST", "/v1/invites/accept"],
+    // notifications
+    ["GET", "/v1/notification-prefs"],
+    ["PUT", "/v1/notification-prefs"],
+    ["POST", "/v1/push-subscriptions"],
+    ["DELETE", "/v1/push-subscriptions/:id"],
+    // webhooks (unversioned, outside the /v1 chain)
+    ["POST", "/webhooks/telnyx"],
+    ["POST", "/webhooks/stripe"],
+  ];
+
+  it.each(EXPECTED)("%s %s is mounted", (method, path) => {
+    expect(registered.has(`${method} ${path}`)).toBe(true);
+  });
+
+  it("POST /v1/conversations resolves to compose: the general router registers no competing handler", () => {
+    // compose owns the outbound-first POST (SPEC §7) and is mounted first;
+    // the general conversations router must not register the same route at
+    // all, so there is no order-dependent shadowing to regress.
+    const composeOwners = composeRoutes.routes.filter(
+      (route) => route.method === "POST" && route.path === "/conversations",
+    );
+    const generalOwners = conversationsRoutes.routes.filter(
+      (route) => route.method === "POST" && route.path === "/conversations",
+    );
+    expect(composeOwners.length).toBeGreaterThan(0);
+    expect(generalOwners).toHaveLength(0);
+    // And the mounted app carries exactly compose's registrations, nothing more.
+    const appOwners = app.routes.filter(
+      (route) => route.method === "POST" && route.path === "/v1/conversations",
+    );
+    expect(appOwners).toHaveLength(composeOwners.length);
+  });
+});
+
+describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () => {
+  /** The §11 schedule set, extracted from wrangler.jsonc's triggers block. */
+  function wranglerCrons(): string[] {
+    const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+    const block = /"crons":\s*\[([\s\S]*?)\]/.exec(raw);
+    if (!block) throw new Error("wrangler.jsonc has no crons block");
+    return [...block[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  }
+
+  it("CRON_JOBS covers exactly the wrangler.jsonc schedule set", () => {
+    expect(Object.keys(CRON_JOBS).sort()).toEqual(wranglerCrons().sort());
+  });
+
+  it("wrangler.jsonc carries exactly the seven §11 schedules", () => {
+    expect(wranglerCrons().sort()).toEqual(
+      [
+        "*/5 * * * *", // webhook sweeper
+        "*/15 * * * *", // provisioning retry & reconcile
+        "0 * * * *", // usage re-reporter (+ 80%/100% usage alerts)
+        "30 * * * *", // sole-prop OTP nudge
+        "0 13 * * *", // registration poller
+        "0 14 * * *", // grace & release
+        "0 15 * * *", // subscription reconcile
+      ].sort(),
+    );
+  });
+
+  it("each schedule dispatches to the §11 job(s), by identity", () => {
+    expect(CRON_JOBS["*/5 * * * *"]).toEqual([sweepWebhookEvents]);
+    expect(CRON_JOBS["*/15 * * * *"]).toEqual([
+      reconcileNumbers,
+      retryCampaignAssignments,
+    ]);
+    expect(CRON_JOBS["0 * * * *"]).toEqual([
+      reportUnreportedUsage,
+      runUsageAlertsJob,
+    ]);
+    expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
+    expect(CRON_JOBS["0 13 * * *"]).toEqual([pollRegistrations]);
+    expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
+    expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
   });
 });
