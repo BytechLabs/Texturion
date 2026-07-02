@@ -6,8 +6,6 @@ import "./globals.css";
 // fails `next dev` and `next build` loudly (SPEC §3, §10).
 import "@/env";
 
-import { ServiceWorkerRegistrar } from "@/components/notifications/service-worker-registrar";
-
 import { Providers } from "./providers";
 
 // Inter variable, self-hosted via next/font (DESIGN.md G2). The stylistic
@@ -30,7 +28,14 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "JobText — a shared SMS inbox for your crew",
+  // Canonical/OG resolution base + the "%s · JobText" title template
+  // (BLUEPRINT §11.1). The marketing home overrides this with an absolute
+  // title; every other marketing page supplies just the "%s" half.
+  metadataBase: new URL("https://jobtext.app"),
+  title: {
+    default: "JobText — a shared SMS inbox for your crew",
+    template: "%s · JobText",
+  },
   description:
     "One local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
   // Favicons + PWA icons (G9). The SVG favicon is the runtime default; the
@@ -75,10 +80,9 @@ export default function RootLayout({
     // hydrates (class-strategy dark mode, G2).
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
+        {/* Global providers = ThemeProvider only (app-providers.tsx carries the
+            Query/tooltip/toaster/service-worker weight for signed-in routes). */}
         <Providers>{children}</Providers>
-        {/* /sw.js registration (G9: push + offline shell). Render-null and
-            prompt-free — permission requests stay in settings (G8). */}
-        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

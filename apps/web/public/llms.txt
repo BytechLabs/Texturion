@@ -1,0 +1,51 @@
+# JobText
+
+JobText is a shared SMS text inbox for small service businesses in the United States and Canada — plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number, and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close — from any phone. It replaces running the business off one person's personal cell.
+
+Website: https://jobtext.app
+
+## Positioning
+- Flat per-company pricing, not per seat: $29/mo covers 3 people; $79/mo covers 10.
+- Transparent and self-serve: see the price, pay, start texting. No demo, no sales call, no annual contract, no phone number in the nav.
+- Month to month. Cancel anytime from billing settings. 30-day money-back guarantee (full first-invoice refund, registration fee included).
+- Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
+
+## Pricing (USD, plus sales tax where applicable)
+- Starter — $29/mo: 3 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
+- Pro — $79/mo: 10 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving free and unlimited.
+- A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send. Sending a photo counts as three texts.
+- One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever — never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.
+- Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.
+
+## The honest US timeline (a trust feature, stated before payment)
+- Day one: your number is live and receiving texts; texting Canadian customers works immediately.
+- US texting activates after the phone companies approve your business registration — typically 3–7 business days (about a week). JobText files everything the minute you pay and emails you the moment you're approved.
+
+## Product features
+- Shared inbox with per-conversation owner and status (new, open, waiting, closed).
+- Internal notes (marked, never sent to the customer).
+- Saved replies (templates) via a "/" shortcut.
+- Tags for how you sell (Quote sent, Scheduled, Won, Lost).
+- Photos both ways (MMS); receiving photos is free.
+- Search across every message and contact; CSV contact import with a dry-run preview.
+- Works on every phone with no download (a web app you add to your home screen; push notifications; dark mode).
+- Two numbers on Pro (two locations, or an office line and a field line), each with its own inbox.
+
+## Compliance, handled by the product
+- Registration with the US phone companies is filed automatically at signup.
+- STOP opt-outs are honored instantly; future sends to opted-out numbers are blocked.
+- Consent is recorded (name and date) when you start a conversation.
+- Your business name and a "Reply STOP to opt out" line are added to the first text automatically.
+- Helps you follow the rules (TCPA in the US, CASL in Canada). It does not make you compliant on its own, and it does not send marketing blasts.
+
+## What JobText does NOT do
+- No voice calls, no mass/broadcast texting, no review management, no scheduled/automated sends.
+- No number porting yet (forward your existing number in the meantime); no CAD billing yet (charged in USD).
+
+## Security & data
+- Tenant isolation via row-level security; encryption in transit and at rest.
+- Message content, names, addresses, and phone numbers are kept out of analytics and error logs.
+- Data is processed in the United States (Supabase on AWS us-east-1).
+
+## Contact
+- Support is by email only, usually within one business day.

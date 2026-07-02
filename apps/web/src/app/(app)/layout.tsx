@@ -2,6 +2,8 @@ import { AppShell } from "@/components/shell/app-shell";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
 
+import { AppProviders } from "../app-providers";
+
 /**
  * The signed-in application: company context (X-Company-Id source), one
  * realtime channel per company, and the G3 responsive shell. Middleware
@@ -14,10 +16,12 @@ export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <CompanyProvider>
-      <RealtimeProvider>
-        <AppShell>{children}</AppShell>
-      </RealtimeProvider>
-    </CompanyProvider>
+    <AppProviders>
+      <CompanyProvider>
+        <RealtimeProvider>
+          <AppShell>{children}</AppShell>
+        </RealtimeProvider>
+      </CompanyProvider>
+    </AppProviders>
   );
 }

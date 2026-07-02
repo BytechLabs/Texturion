@@ -207,3 +207,87 @@
     }
   }
 }
+
+/* ==========================================================================
+   MARKETING-ONLY additions (BLUEPRINT §1.1, §1.2, §1.5) — owned by Track A.
+   Bounded by the brand: one numeral-display scale, one petrol glow gradient,
+   the once-only reveal. The app itself never uses these.
+   ========================================================================== */
+
+@utility display-numeral {
+  /* The one weight/scale escalation the marketing site earns (§1.1): a true
+     display-scale tabular petrol numeral, used exactly twice per home page —
+     the $29 in the truth bar and the day counts in the first-week timeline.
+     Never for prose. */
+  font-size: clamp(88px, 12vw, 132px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "cv11" 1,
+    "ss01" 1,
+    "tnum" 1;
+}
+
+@utility display-hero {
+  /* Hero H1 scale (§1.1). Sentence case, weight 600, tight tracking. */
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+@utility display-h2 {
+  /* Section H2 scale (§1.1). */
+  font-size: clamp(30px, 3.5vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+@utility marketing-glow {
+  /* The ONE petrol radial glow per page (§1.2), rendered as a decorative layer
+     BEHIND content (never over LCP text). CSS gradients only — no image, no
+     blur() filter (a large blur is a paint cost; soft-stop gradients instead).
+     A petrol core low-left + a warm amber lift upper-right over the stone-50
+     base, so the hero sits in warm morning light. Consumed by GlowBackdrop. */
+  background-image:
+    radial-gradient(
+      60% 55% at 18% 82%,
+      rgba(15, 118, 110, 0.12) 0%,
+      rgba(15, 118, 110, 0) 70%
+    ),
+    radial-gradient(
+      50% 50% at 85% 12%,
+      rgba(251, 191, 36, 0.06) 0%,
+      rgba(251, 191, 36, 0) 72%
+    );
+}
+
+@layer utilities {
+  /* Scroll-reveal keyframe (§1.5): opacity 0→1 + translateY 12px→0, 300ms
+     ease-out, ONCE. The IntersectionObserver in <Reveal> toggles
+     data-revealed; the layout box is already reserved (CLS-safe). Fully
+     disabled under prefers-reduced-motion (base rule above forces it visible). */
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(12px);
+    will-change: opacity, transform;
+  }
+
+  [data-reveal][data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 300ms ease-out,
+      transform 300ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-reveal] {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
