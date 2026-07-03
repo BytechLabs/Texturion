@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
+import { sweepDeletedAttachments } from "./attachments/sweep";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { app, CRON_JOBS } from "./index";
 import { reportUnreportedUsage, sweepWebhookEvents } from "./messaging/crons";
@@ -306,6 +307,7 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["GET", "/v1/attachments/:id/url"],
     ["POST", "/v1/attachments"],
     ["GET", "/v1/attachments"],
+    ["DELETE", "/v1/attachments/:id"],
     // contacts
     ["GET", "/v1/contacts"],
     ["GET", "/v1/contacts/export"],
@@ -408,6 +410,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["*/15 * * * *"]).toEqual([
       reconcileNumbers,
       retryCampaignAssignments,
+      sweepDeletedAttachments,
     ]);
     expect(CRON_JOBS["0 * * * *"]).toEqual([
       reportUnreportedUsage,

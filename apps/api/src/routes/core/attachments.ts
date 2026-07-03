@@ -53,9 +53,15 @@ const ALLOWED_EXACT_TYPES = new Set([
 /**
  * True when `contentType` is in the D19 allow-list. Image types match by the
  * `image/` prefix (D19 `image/*`); all others are exact.
+ *
+ * `image/svg+xml` is DENIED despite the `image/` prefix: an SVG is an active
+ * document (embedded `<script>`/`<foreignObject>`/event handlers), so serving
+ * one inline via a signed URL is a stored-XSS vector. The realistic tradesperson
+ * set (a photo of a part) never needs SVG, so it is excluded outright.
  */
 export function isAllowedAttachmentType(contentType: string): boolean {
   const type = contentType.trim().toLowerCase();
+  if (type === "image/svg+xml") return false;
   if (type.startsWith("image/")) return type.length > "image/".length;
   return ALLOWED_EXACT_TYPES.has(type);
 }
@@ -91,20 +97,61 @@ export function safeFilename(name: string): string {
 }
 
 /**
+ * A canonical marker for "the bytes are a known executable / script". It is NOT
+ * an allow-listed MIME (nothing declares this), so `bytesMatchDeclaredType`
+ * always rejects a file whose bytes sniff to it — a renamed `.exe`/`.elf`/shell
+ * script uploaded as `application/pdf` (or any allowed type) is refused BEFORE
+ * signing (D19 §2.3), closing the "MZ-as-PDF" hole where a null-sniff was
+ * silently trusted.
+ */
+export const EXECUTABLE_SNIFF = "application/x-executable";
+
+/**
+ * True when the leading bytes are a known native-executable or script signature
+ * we must never accept, whatever the file was declared as (D19 §2.3). Covers:
+ *   - PE/DOS  `MZ`                        (Windows .exe/.dll)
+ *   - ELF     `\x7FELF`                   (Linux/Unix binaries)
+ *   - Mach-O  the 4 fat/thin magics       (macOS binaries)
+ *   - Java    `\xCA\xFE\xBA\xBE`          (class file — shares Mach-O fat magic)
+ *   - Scripts `#!` shebang                (shell/perl/python launchers)
+ */
+function isExecutableSignature(startsWith: (sig: number[], offset?: number) => boolean): boolean {
+  return (
+    startsWith([0x4d, 0x5a]) || // MZ — PE/DOS executable
+    startsWith([0x7f, 0x45, 0x4c, 0x46]) || // \x7F E L F
+    startsWith([0xfe, 0xed, 0xfa, 0xce]) || // Mach-O 32 BE / CA FE BA BE handled below
+    startsWith([0xfe, 0xed, 0xfa, 0xcf]) || // Mach-O 64 BE
+    startsWith([0xce, 0xfa, 0xed, 0xfe]) || // Mach-O 32 LE
+    startsWith([0xcf, 0xfa, 0xed, 0xfe]) || // Mach-O 64 LE
+    startsWith([0xca, 0xfe, 0xba, 0xbe]) || // Mach-O fat / Java class
+    startsWith([0x23, 0x21]) // #! shebang script
+  );
+}
+
+/**
  * Sniff the content-type from the leading bytes (D19 §2.3: "Server re-validates
  * content-type from the bytes, never trusting the client-declared type").
  *
  * Returns a canonical MIME string for the file signatures the allow-list cares
- * about, or `null` when the bytes match no known signature. A `null` is NOT a
- * rejection on its own — many allowed types (text/plain, text/csv, the various
- * OpenXML/ODF payloads that are all ZIP containers) have no distinctive magic
- * beyond ZIP — so the route treats "sniff disagrees with a concrete, different
- * known type" as the reject signal, not "sniff couldn't identify it".
+ * about, `EXECUTABLE_SNIFF` when the bytes are a known executable/script (always
+ * rejected downstream), or `null` when the bytes match no known signature. A
+ * `null` is NOT a rejection on its own — many allowed types (text/plain,
+ * text/csv, the various OpenXML/ODF payloads that are all ZIP containers) have
+ * no distinctive magic beyond ZIP — so the route treats "sniff disagrees with a
+ * concrete, different known type" as the reject signal, not "sniff couldn't
+ * identify it". Executables are the exception: they have distinctive magic and
+ * are ALWAYS rejected, never trusted-by-default.
  */
 export function sniffContentType(bytes: Uint8Array): string | null {
   const startsWith = (sig: number[], offset = 0): boolean =>
     bytes.length >= offset + sig.length &&
     sig.every((byte, i) => bytes[offset + i] === byte);
+
+  // Executables / scripts FIRST — a renamed binary declared as any allowed type
+  // must be caught, never fall through to the null-sniff "trust the declaration"
+  // path (D19 §2.3). These magics are checked before the ZIP branch so a
+  // self-extracting `MZ`-prefixed archive can't masquerade as an office doc.
+  if (isExecutableSignature(startsWith)) return EXECUTABLE_SNIFF;
 
   // Images
   if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
@@ -137,13 +184,21 @@ export function sniffContentType(bytes: Uint8Array): string | null {
  *   - an image/pdf declaration MUST match the sniffed image/pdf signature;
  *   - a ZIP-based office/zip declaration is accepted when the bytes are a ZIP;
  *   - anything where the sniff names a DIFFERENT concrete media class than the
- *     declaration is rejected (e.g. declared image/png, bytes are a PDF).
+ *     declaration is rejected (e.g. declared image/png, bytes are a PDF);
+ *   - bytes that sniff to a known executable/script (EXECUTABLE_SNIFF) are
+ *     ALWAYS rejected, whatever the declaration — a renamed .exe/.elf/.dll or a
+ *     shell script uploaded as application/pdf never passes (D19 §2.3).
  */
 export function bytesMatchDeclaredType(
   bytes: Uint8Array,
   declared: string,
 ): boolean {
   const sniffed = sniffContentType(bytes);
+  // Known executable/script bytes are ALWAYS rejected, whatever was declared —
+  // an .exe/.elf/.dll/shell script renamed to any allowed type never passes
+  // (D19 §2.3). This must precede the null-trust path so it can never be
+  // trusted-by-default.
+  if (sniffed === EXECUTABLE_SNIFF) return false;
   if (sniffed === null) return true; // no distinctive magic — trust the allow-listed declaration
   const type = declared.trim().toLowerCase();
 

@@ -62,9 +62,22 @@ export function decideAuthRedirect(
 /**
  * Validate a ?next= target from the URL: only same-origin absolute paths are
  * honored (open-redirect guard). Falls back to /inbox.
+ *
+ * The WHATWG URL parser treats a backslash as a forward slash, so `/\evil.com`
+ * (and `/\/evil.com`) resolve to the protocol-relative `//evil.com` when the
+ * callback handler does `new URL(next, origin)` — an off-site redirect. So,
+ * beyond the leading-slash / no-`//` check, reject ANY backslash and ANY
+ * control char or space (code point <= 0x20: CR/LF/tab/space are stripped by
+ * the parser and can re-expose a `//` or a scheme). A genuine same-origin path
+ * (`/inbox/abc-123`, `/settings/billing`) has none of these and passes intact.
  */
 export function safeNextPath(next: string | null | undefined): string {
   if (!next) return "/inbox";
+  // A single leading slash, but not `//` (protocol-relative).
   if (!next.startsWith("/") || next.startsWith("//")) return "/inbox";
+  for (let i = 0; i < next.length; i++) {
+    const code = next.charCodeAt(i);
+    if (code <= 0x20 || code === 0x5c /* backslash */) return "/inbox";
+  }
   return next;
 }

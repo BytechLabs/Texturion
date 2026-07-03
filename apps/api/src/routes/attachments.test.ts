@@ -400,6 +400,40 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
     ).toHaveLength(0);
   });
 
+  it("422s an executable declared as an ALLOWED type (MZ bytes as application/pdf, D19 §2.3)", async () => {
+    // The declared type is allow-listed, so it passes assertAllowedType and reaches
+    // the byte re-check — the executable magic must be caught there, never trusted.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/tasks", () => [
+      { conversation_id: CONV_ID, deleted_at: null },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const mzBytes = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // Windows PE
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/attachments",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("task", TASK_ID, {
+          name: "invoice.pdf",
+          type: "application/pdf",
+          bytes: mzBytes,
+        }),
+      },
+    );
+    expect(res.status).toBe(422);
+    // Never uploaded the renamed executable, never inserted a row.
+    expect(
+      sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
+    ).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
+  });
+
   it("422s at the soft per-owner cap of 10", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/tasks", () => [
@@ -506,5 +540,99 @@ describe("GET /v1/attachments (list one owner)", () => {
       );
       expect(res.status, qs).toBe(422);
     }
+  });
+});
+
+describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", () => {
+  it("soft-deletes a live task attachment, audits task_attachment_removed, returns 204", async () => {
+    const sb = stubWithRole("member");
+    // The soft-delete is a PATCH ...RETURNING; return the row it matched.
+    sb.on("PATCH", "/rest/v1/attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        owner_type: "task",
+        conversation_id: CONV_ID,
+        file_name: "quote.pdf",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+
+    // Company-scoped, live-only soft-delete (never a hard row delete here — the
+    // sweep cron reclaims the Storage object after the grace window).
+    const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
+    expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(patch.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
+    expect(patch.url.searchParams.get("deleted_at")).toBe("is.null");
+    expect(patch.body).toMatchObject({ deleted_at: expect.any(String) });
+    expect(sb.find("DELETE", "/rest/v1/attachments")).toHaveLength(0);
+
+    const event = (
+      sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
+        string,
+        unknown
+      >[]
+    )[0];
+    expect(event).toMatchObject({
+      type: "task_attachment_removed",
+      conversation_id: CONV_ID,
+      actor_user_id: auth.subject,
+      payload: { attachment_id: ATTACHMENT_ID, file_name: "quote.pdf" },
+    });
+  });
+
+  it("audits note_attachment_removed for a note-owned attachment", async () => {
+    const sb = stubWithRole("member");
+    sb.on("PATCH", "/rest/v1/attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        owner_type: "note",
+        conversation_id: CONV_ID,
+        file_name: "spec.pdf",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+    const event = (
+      sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
+        string,
+        unknown
+      >[]
+    )[0];
+    expect(event).toMatchObject({ type: "note_attachment_removed" });
+  });
+
+  it("404s an id outside the company / already deleted (no event written)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("PATCH", "/rest/v1/attachments", () => []); // matched no live row
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 });

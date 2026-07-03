@@ -10,13 +10,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ApiError } from "@/lib/api/error";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+} from "@/components/ui/popover";
 import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
-import { useCreateTaskFromMessage } from "@/lib/api/tasks";
 import type { Message } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 import { doneToggleLabel, isDone } from "./done";
+import { MakeTaskForm } from "./make-task-form";
 
 /** Telnyx error for a send blocked by the profile-level opt-out list. */
 const OPTED_OUT_ERROR_CODE = "40300";
@@ -86,10 +92,13 @@ function MessageOverflow({
   conversationId: string;
 }) {
   const retry = useRetryMessage(conversationId);
-  const createTask = useCreateTaskFromMessage(conversationId);
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const retryable = isRetryable(message);
   const hasBody = message.body.trim() !== "";
+  // A promoted message can't be re-promoted (server 409); hide the affordance
+  // when we already know it's a task, so the primary path is a clean create.
+  const alreadyTask = message.has_task === true;
 
   const copyText = async () => {
     try {
@@ -100,67 +109,73 @@ function MessageOverflow({
     }
   };
 
-  // §4.1 / T5.1: promote a message to a task via the real /v1 write. The hook
-  // refetches the conversation checklist (so the new task appears in the context
-  // panel at once) + the /tasks lists + the `task_created` audit line. Omitting
-  // the title lets the RPC seed it from the message body (T5.1 default). A
-  // re-promote is blocked server-side (409 conflict → "already a task").
-  const makeTask = async () => {
-    try {
-      await createTask.mutateAsync({ message_id: message.id });
-      toast.success("Made a task from this message.");
-    } catch (error) {
-      toast.error(
-        error instanceof ApiError && error.code === "conflict"
-          ? "This message is already a task."
-          : "Couldn't make a task. Try again.",
-      );
-    } finally {
-      setOpen(false);
-    }
-  };
-
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="More actions"
-          className={cn(
-            "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
-            "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-            // Match the done toggle's reveal — subtle-always mobile, hover desktop.
-            "data-[state=open]:opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
+    // The task form Popover is ANCHORED to the same overflow button (its
+    // trigger), so selecting "Make a task" closes the menu and opens a compact
+    // inline prefilled form in place (T5.1) — not a direct create.
+    <Popover open={taskFormOpen} onOpenChange={setTaskFormOpen}>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        {/* PopoverAnchor (positioning only, no click handler) so the click that
+            opens the menu can't also toggle the popover — the popover opens
+            solely via setTaskFormOpen when "Make a task" is selected. */}
+        <PopoverAnchor asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="More actions"
+              className={cn(
+                "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
+                "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                // Match the done toggle's reveal — subtle-always mobile, hover desktop.
+                "data-[state=open]:opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
+              )}
+            >
+              <MoreHorizontal aria-hidden className="size-4" strokeWidth={1.75} />
+            </button>
+          </DropdownMenuTrigger>
+        </PopoverAnchor>
+        <DropdownMenuContent align="end" className="w-44">
+          {!alreadyTask && (
+            <DropdownMenuItem
+              onSelect={() => {
+                // Close the menu, then open the inline form on the next tick so
+                // the two overlays don't fight for focus.
+                setMenuOpen(false);
+                setTaskFormOpen(true);
+              }}
+            >
+              <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
+              Make a task
+            </DropdownMenuItem>
           )}
-        >
-          <MoreHorizontal aria-hidden className="size-4" strokeWidth={1.75} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem
-          onSelect={() => void makeTask()}
-          disabled={createTask.isPending}
-        >
-          <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
-          Make a task
-        </DropdownMenuItem>
-        {hasBody && (
-          <DropdownMenuItem onSelect={() => void copyText()}>
-            <Copy className="size-4" strokeWidth={1.75} aria-hidden />
-            Copy text
-          </DropdownMenuItem>
-        )}
-        {retryable && (
-          <DropdownMenuItem
-            onSelect={() => retry.mutate(message.id)}
-            disabled={retry.isPending}
-          >
-            <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
-            Retry send
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {hasBody && (
+            <DropdownMenuItem onSelect={() => void copyText()}>
+              <Copy className="size-4" strokeWidth={1.75} aria-hidden />
+              Copy text
+            </DropdownMenuItem>
+          )}
+          {retryable && (
+            <DropdownMenuItem
+              onSelect={() => retry.mutate(message.id)}
+              disabled={retry.isPending}
+            >
+              <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
+              Retry send
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <PopoverContent align="end" className="w-80">
+        <PopoverHeader className="mb-3">
+          <PopoverTitle>Make a task</PopoverTitle>
+        </PopoverHeader>
+        <MakeTaskForm
+          message={message}
+          conversationId={conversationId}
+          onDone={() => setTaskFormOpen(false)}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

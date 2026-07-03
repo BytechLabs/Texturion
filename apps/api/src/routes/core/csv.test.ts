@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { csvField, parseCsv, serializeCsv } from "./csv";
+import { csvField, csvSafeText, parseCsv, serializeCsv } from "./csv";
 
 describe("parseCsv (RFC 4180 subset)", () => {
   it("parses plain rows with LF and CRLF endings", () => {
@@ -46,6 +46,33 @@ describe("csvField (RFC 4180 quoting)", () => {
   it("renders null/undefined as the empty field", () => {
     expect(csvField(null)).toBe("");
     expect(csvField(undefined)).toBe("");
+  });
+});
+
+describe("csvSafeText (OWASP CSV/formula-injection guard)", () => {
+  it("apostrophe-prefixes cells beginning with a formula trigger", () => {
+    for (const lead of ["=", "+", "-", "@", "\t", "\r", "\n"]) {
+      const payload = `${lead}HYPERLINK("http://evil")`;
+      expect(csvSafeText(payload)).toBe(`'${payload}`);
+    }
+  });
+  it("neutralizes a classic DDE payload", () => {
+    expect(csvSafeText('=cmd|" /C calc"!A1')).toBe(`'=cmd|" /C calc"!A1`);
+  });
+  it("leaves ordinary free text untouched", () => {
+    expect(csvSafeText("Smith, John")).toBe("Smith, John");
+    expect(csvSafeText("O'Brien")).toBe("O'Brien");
+    expect(csvSafeText("Won;Quote sent")).toBe("Won;Quote sent");
+  });
+  it("leaves a bare E.164 phone number untouched (not a free-text column, but guards must never mangle it)", () => {
+    // A '+'-led string WOULD be guarded — that's why the export leaves the
+    // phone column bare (never routed through csvSafeText). Assert csvSafeText
+    // is a pure guard and the export's column choice is what protects phones.
+    expect(csvSafeText("+14165550199")).toBe("'+14165550199");
+  });
+  it("renders null/undefined as the empty field", () => {
+    expect(csvSafeText(null)).toBe("");
+    expect(csvSafeText(undefined)).toBe("");
   });
 });
 

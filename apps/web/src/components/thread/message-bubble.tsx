@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, CheckCheck, CircleCheck, Lock } from "lucide-react";
+import { Check, CheckCheck, CircleCheck, ListChecks, Lock } from "lucide-react";
 import { format } from "date-fns";
+import Link from "next/link";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import {
@@ -135,6 +136,32 @@ function DoneBadge({ message }: { message: Message }) {
 }
 
 /**
+ * T5.1 / APP-LAYOUT-V2 §4.1: the quiet STONE task marker a promoted message
+ * carries in its action row — visually distinct from the petrol done-check
+ * (petrol stays reserved for done). Stone at rest, petrol on hover/focus; a
+ * Link to the conversation where the task lives in the checklist (the app has
+ * no standalone task page — a task's home is its thread's context panel, the
+ * same target for-you/board rows navigate to).
+ */
+function TaskIndicator({ conversationId }: { conversationId: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href={`/inbox/${conversationId}`}
+          aria-label="This message is a task — open its checklist"
+          className="tap-target inline-flex items-center rounded-full p-0.5 text-stone-400 transition-colors duration-150 ease-out hover:text-primary focus-visible:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:text-stone-500"
+        >
+          <ListChecks aria-hidden className="size-3" strokeWidth={2} />
+          <span className="sr-only">This message is a task</span>
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>This message is a task</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
  * One message bubble (G5): inbound = white card + stone border, left;
  * outbound = teal-50/teal-900 (dark teal-950/teal-100), right; note =
  * amber-50 dashed border + lock + "Internal note". Max width 65% (85%
@@ -160,6 +187,7 @@ export function MessageBubble({
   const attachments = message.attachments ?? [];
   const failed = message.status === "failed";
   const done = isDone(message);
+  const hasTask = message.has_task === true;
 
   return (
     <div
@@ -232,8 +260,10 @@ export function MessageBubble({
             generic-attachment owner shown in-thread; MMS media on real messages
             still renders via AttachmentImage above. */}
         {note && <NoteAttachments noteId={message.id} />}
-        {(isLastOfCluster || failed || done) && (
+        {(isLastOfCluster || failed || done || hasTask) && (
           <span className="flex items-center gap-1.5">
+            {/* Exactly one petrol mark (done) + one stone glyph (task): T5.1. */}
+            {hasTask && <TaskIndicator conversationId={conversationId} />}
             {done && <DoneBadge message={message} />}
             {(isLastOfCluster || failed) &&
               (note || !outbound ? (

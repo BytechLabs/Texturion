@@ -123,10 +123,19 @@ export async function geocodeContactsJob(
       patch.lng = result.hit.lng;
     }
 
-    const { error: writeError } = await db
+    // Conditional write-back: only cache the result if the row's address is
+    // still the one we geocoded. A concurrent edit (routes/contacts.ts) that
+    // changed the address reset geocode_status to 'pending' under us; writing
+    // this coordinate would cache it against the STALE address and — because we
+    // also stamp a terminal status — the row would never be re-geocoded. Gating
+    // on the captured address makes the edit win: our update matches zero rows,
+    // the row stays 'pending', and the next run re-geocodes the new address.
+    const { data: written, error: writeError } = await db
       .from("contacts")
       .update(patch)
-      .eq("id", contact.id);
+      .eq("id", contact.id)
+      .eq("address", contact.address)
+      .select("id");
     if (writeError) {
       // A cache-write failure is not fatal to the batch — log and continue so
       // one bad row never starves the rest; the row stays retryable.
@@ -137,6 +146,13 @@ export async function geocodeContactsJob(
       Sentry.captureMessage(
         `geocode cache write failed for contact ${contact.id}`,
         "warning",
+      );
+    } else if ((written ?? []).length === 0) {
+      // No row matched: the address changed under us (a concurrent edit reset
+      // the row to 'pending'). We deliberately did NOT cache — the row stays
+      // retryable and the next run geocodes the current address.
+      console.info(
+        `geocode skipped stale write for contact ${contact.id} (address changed under the cron)`,
       );
     }
   }

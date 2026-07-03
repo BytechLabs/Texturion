@@ -39,7 +39,6 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { insertConversationEvents } from "./core/events";
 import {
   decodeOutboundMedia,
   MMS_SEGMENTS,
@@ -64,6 +63,7 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import { loadMessageTaskFlags } from "./core/message-tasks";
 
 /** SPEC §7: sends and composes REQUIRE an Idempotency-Key header. */
 export function requireIdempotencyKey(c: Context): string {
@@ -389,48 +389,35 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   const message = rows[0];
   if (!message) throw new ApiError("not_found", "No such message.");
 
-  // Idempotent (D14): re-marking the current state is a no-op returning the
-  // row — no update, no broadcast, no done_at/done_by churn.
-  if (body.done === (message.done_at !== null)) {
-    const attachments = await loadAttachments(db, companyId, [message.id]);
-    return c.json(messageJson(message, attachments.get(message.id) ?? []));
+  // D14/D22: the flip AND its audit event are ONE atomic transaction via the
+  // set_message_done security-definer RPC — never two PostgREST round-trips (a
+  // crash between them left the audit and the done-state permanently
+  // inconsistent, and for a promoted message dropped its ONE completion audit).
+  // The RPC is company-scoped (§10), idempotent (a redundant mark-done writes
+  // nothing and returns 'unchanged' — no update, no broadcast, no done_at/done_by
+  // churn), and audits ONLY a real done↔undone transition (message_done/
+  // message_undone, body NEVER copied into the payload — D8/D22 PII posture; the
+  // timeline joins the live message by message_id). For a promoted message this
+  // is the ONE completion audit — tasks never re-audit done (TASKS.md T2.1). The
+  // shipped broadcast_message_change trigger fires `message.status` off the
+  // UPDATE for free (§8 broadcast-from-DB).
+  const userId = c.get("userId");
+  const { data, error } = await db.rpc("set_message_done", {
+    p_company_id: companyId,
+    p_message_id: message.id,
+    p_done: body.done,
+    p_actor_user_id: userId,
+  });
+  if (error) throw new Error(`set_message_done failed: ${error.message}`);
+  const result = data as {
+    outcome: "updated" | "unchanged" | "not_found";
+    message: MessageRow | null;
+  };
+  if (result.outcome === "not_found" || !result.message) {
+    throw new ApiError("not_found", "No such message.");
   }
 
-  // done=true stamps who/when; done=false clears both (messages_done_consistency).
-  const userId = c.get("userId");
-  const patch = body.done
-    ? { done_at: new Date().toISOString(), done_by_user_id: userId }
-    : { done_at: null, done_by_user_id: null };
-  const updated = unwrap<MessageRow[]>(
-    await db
-      .from("messages")
-      .update(patch)
-      .eq("id", message.id)
-      .eq("company_id", companyId)
-      .select("*"),
-    "message done update",
-  )[0];
-  if (!updated) throw new Error(`message ${message.id} vanished during update`);
-
-  // D22 audit: a REAL done↔undone transition appends exactly one
-  // conversation_events row (the idempotent no-op above returned early, so a
-  // redundant mark-done writes no event — only real transitions are audited,
-  // no timeline spam). The message body is NOT copied into the payload; the
-  // timeline joins the live message by message_id (D8 PII posture, D22). For a
-  // promoted message this is the ONE completion audit — tasks never re-audit
-  // done (TASKS.md T2.1), so there is no task_completed/task_reopened event.
-  // conversation_id is always non-null (a message belongs to a thread), so the
-  // shipped conversation_events_conv_required CHECK holds unchanged.
-  await insertConversationEvents(db, [
-    {
-      company_id: companyId,
-      conversation_id: updated.conversation_id,
-      actor_user_id: userId,
-      type: body.done ? "message_done" : "message_undone",
-      payload: { message_id: updated.id },
-    },
-  ]);
-
+  const updated = result.message;
   const attachments = await loadAttachments(db, companyId, [updated.id]);
   return c.json(messageJson(updated, attachments.get(updated.id) ?? []));
 });
@@ -484,10 +471,18 @@ messageRoutes.get(
     >(await query, "messages list");
 
     const page = buildPage(rows, limit);
+    // D17/T5.1: flag messages that carry a live task so the thread can render
+    // the stone task indicator on a promoted message (one batch query/page).
+    const promoted = await loadMessageTaskFlags(
+      db,
+      companyId,
+      page.data.map((row) => row.id),
+    );
     return c.json({
       data: page.data.map(({ message_attachments, ...rest }) => ({
         ...rest,
         attachments: message_attachments ?? [],
+        has_task: promoted.has(rest.id),
       })),
       next_cursor: page.next_cursor,
     });

@@ -239,6 +239,53 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   return c.json(row, 201);
 });
 
+/**
+ * DELETE /v1/attachments/:id (D19) — soft-delete a live note/task attachment:
+ * stamp `deleted_at` on the row and audit a note_/task_attachment_removed event.
+ * The Storage object is NOT removed here — the D19 sweep cron
+ * (sweepDeletedAttachments) hard-deletes the object + row after a grace window,
+ * so an in-flight signed URL can't 404 mid-download and the removal is
+ * idempotent under retries. Company-scoped (§10): an id outside the caller's
+ * company (or already deleted) is `not_found`.
+ */
+attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) => {
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+
+  // Soft-delete only a still-live row we own; RETURNING tells us it existed.
+  const deleted = unwrap<
+    { id: string; owner_type: OwnerType; conversation_id: string; file_name: string }[]
+  >(
+    await db
+      .from("attachments")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("company_id", companyId)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select("id,owner_type,conversation_id,file_name"),
+    "attachment soft-delete",
+  );
+  const row = deleted[0];
+  if (!row) return errorResponse(c, "not_found", "No such attachment.");
+
+  const removedType: ConversationEventType =
+    row.owner_type === "note"
+      ? "note_attachment_removed"
+      : "task_attachment_removed";
+  const event: ConversationEventRow = {
+    company_id: companyId,
+    conversation_id: row.conversation_id,
+    actor_user_id: userId,
+    type: removedType,
+    payload: { attachment_id: row.id, file_name: row.file_name },
+  };
+  await insertConversationEvents(db, [event]);
+
+  return c.body(null, 204);
+});
+
 attachmentsRoutes.get("/attachments", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const ownerTypeRaw = c.req.query("owner_type");

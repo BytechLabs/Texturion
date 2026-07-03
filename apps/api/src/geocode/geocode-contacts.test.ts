@@ -84,6 +84,22 @@ describe("geocodeContactsJob", () => {
     );
   });
 
+  it("guards the cache write-back on the captured address (a concurrent edit wins, no stale coordinate)", async () => {
+    const { route, captured } = stubGeocodeWorld(
+      [{ id: "c1", address: "1 King St W, Toronto" }],
+      () => [{ lat: "43.6489", lon: "-79.3817" }],
+    );
+    stubFetch(route);
+
+    await geocodeContactsJob(env, undefined, noSleep);
+
+    // The UPDATE is scoped to BOTH the id AND the address we geocoded, so a row
+    // whose address changed under us matches zero rows and keeps its coordinate.
+    const write = captured.updates[0];
+    expect(write.url.searchParams.get("id")).toBe("eq.c1");
+    expect(write.url.searchParams.get("address")).toBe("eq.1 King St W, Toronto");
+  });
+
   it("scans only rows that still need geocoding (null/failed), with an address, not deleted", async () => {
     const { route, captured } = stubGeocodeWorld([], () => []);
     stubFetch(route);

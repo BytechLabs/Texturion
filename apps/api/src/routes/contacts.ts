@@ -35,7 +35,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { parseCsv, serializeCsv } from "./core/csv";
+import { csvSafeText, parseCsv, serializeCsv } from "./core/csv";
 import {
   insertConversationEvents,
   latestConversationId,
@@ -302,9 +302,13 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
   const table: (string | null)[][] = [
     [...EXPORT_HEADER],
     ...rows.map((row) => [
-      row.name,
+      // Free-text columns are guarded against CSV/formula injection (a name or
+      // tag beginning with =+-@ etc. is apostrophe-prefixed so a spreadsheet
+      // treats it as text). phone_e164 is format-validated E.164 — left bare so
+      // the round-trip stays exact; consent_*/created_at are enum/timestamps.
+      csvSafeText(row.name),
       row.phone_e164,
-      [...(tagsByContact.get(row.id) ?? [])].join(";"),
+      csvSafeText([...(tagsByContact.get(row.id) ?? [])].join(";")),
       row.consent_source,
       row.consent_at,
       row.created_at,
@@ -568,13 +572,20 @@ contactsRoutes.post(
       const value = (cells[index] ?? "").trim();
       return value === "" ? null : value;
     };
+    // Undo the export's CSV-injection guard (csvSafeText): a name we exported
+    // that began with a formula trigger carries a single leading apostrophe
+    // followed by that trigger char (=+-@ / tab / CR / LF). Strip exactly that
+    // apostrophe so an export→import round-trip is lossless (D20 §3.1), without
+    // touching a legitimate leading apostrophe before ordinary text.
+    const unguard = (value: string | null): string | null =>
+      value !== null && /^'[=+\-@\t\r\n]/.test(value) ? value.slice(1) : value;
     const upsertRows = entries.map(({ phone, cells }) => {
       const row: Record<string, unknown> = {
         company_id: companyId,
         phone_e164: phone,
         deleted_at: null,
       };
-      if (nameCol !== -1) row.name = cell(cells, nameCol);
+      if (nameCol !== -1) row.name = unguard(cell(cells, nameCol));
       if (addressCol !== -1) {
         const address = cell(cells, addressCol);
         row.address = address;

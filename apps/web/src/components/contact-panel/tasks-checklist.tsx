@@ -164,7 +164,9 @@ function TaskRow({
         checked={done}
         onCheckedChange={(value) => runToggle(value === true)}
         aria-label={done ? "Mark not done" : "Mark done"}
-        className="mt-0.5"
+        // tap-target: ≥44px mobile hit area (G11 / §7). The Radix Checkbox is a
+        // button and hosts the utility's centered ::after with no layout shift.
+        className="tap-target mt-0.5"
       />
       <div className="min-w-0 flex-1">
         <p

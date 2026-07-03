@@ -848,6 +848,104 @@ begin
   raise notice 'A23 PASSED: task RPCs are service-role-only (anon/authenticated/public denied)';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- A24. set_message_done ATOMICITY (D22 §5.1 — closes the D14 two-write gap):
+--      ONE call flips messages.done_at + done_by_user_id AND writes the
+--      message_done/message_undone audit row in the SAME transaction, is
+--      idempotent (a redundant mark writes no second event), and is
+--      company-scoped (a foreign company_id → not_found, no write).
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  res jsonb; n_done int; n_undone int;
+  v_done_at timestamptz; v_done_by uuid;
+begin
+  -- Clean slate for the fixture message/conversation.
+  update public.messages set done_at=null, done_by_user_id=null
+   where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
+  delete from public.conversation_events
+   where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003'
+     and type in ('message_done','message_undone');
+
+  -- Mark done → flip + exactly one message_done audit, atomically.
+  res := public.set_message_done(
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
+    'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
+  if res->>'outcome' <> 'updated' then raise exception 'A24 FAILED: mark-done outcome % (want updated)', res->>'outcome'; end if;
+
+  select done_at, done_by_user_id into v_done_at, v_done_by
+   from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
+  if v_done_at is null or v_done_by <> 'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7' then
+    raise exception 'A24 FAILED: done_at/done_by not stamped by set_message_done';
+  end if;
+  select count(*) into n_done from public.conversation_events
+   where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_done'
+     and (payload->>'message_id')::uuid='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
+  if n_done <> 1 then raise exception 'A24 FAILED: want 1 message_done event, got %', n_done; end if;
+
+  -- Idempotent: re-mark done → unchanged, NO second event, no write.
+  res := public.set_message_done(
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
+    'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
+  if res->>'outcome' <> 'unchanged' then raise exception 'A24 FAILED: redundant mark outcome % (want unchanged)', res->>'outcome'; end if;
+  select count(*) into n_done from public.conversation_events
+   where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_done';
+  if n_done <> 1 then raise exception 'A24 FAILED: idempotent mark wrote a 2nd message_done event (got %)', n_done; end if;
+
+  -- Undo → clears both columns + exactly one message_undone audit.
+  res := public.set_message_done(
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', false,
+    'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
+  if res->>'outcome' <> 'updated' then raise exception 'A24 FAILED: undo outcome % (want updated)', res->>'outcome'; end if;
+  select done_at, done_by_user_id into v_done_at, v_done_by
+   from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
+  if v_done_at is not null or v_done_by is not null then
+    raise exception 'A24 FAILED: undo did not clear done_at/done_by';
+  end if;
+  select count(*) into n_undone from public.conversation_events
+   where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_undone';
+  if n_undone <> 1 then raise exception 'A24 FAILED: want 1 message_undone event, got %', n_undone; end if;
+
+  -- Company-scoped: a foreign company_id → not_found, and writes nothing.
+  res := public.set_message_done(
+    'c7c7c7c7-c7c7-4c7c-8c7c-c7c7c7c7c7c7',
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
+    'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
+  if res->>'outcome' <> 'not_found' then raise exception 'A24 FAILED: cross-company outcome % (want not_found)', res->>'outcome'; end if;
+  select done_at into v_done_at from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
+  if v_done_at is not null then raise exception 'A24 FAILED: cross-company call mutated the message'; end if;
+
+  raise notice 'A24 PASSED: set_message_done flips done_at + writes audit atomically; idempotent; company-scoped';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- A25. set_message_done is service-role-only (SPEC §6 RLS posture): mirrors A23.
+-- ---------------------------------------------------------------------------
+do $$
+declare bad text;
+begin
+  foreach bad in array array['anon','authenticated','public'] loop
+    if exists (
+      select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='public' and p.proname='set_message_done'
+        and has_function_privilege(bad, p.oid, 'execute')
+    ) then
+      raise exception 'A25 FAILED: role % can execute set_message_done', bad;
+    end if;
+  end loop;
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and p.proname='set_message_done'
+      and has_function_privilege('service_role', p.oid, 'execute')
+  ) then
+    raise exception 'A25 FAILED: service_role cannot execute set_message_done';
+  end if;
+  raise notice 'A25 PASSED: set_message_done is service-role-only';
+end $$;
+
 rollback;
 
 select 'ALL APP-V2 SCHEMA TESTS PASSED' as result;

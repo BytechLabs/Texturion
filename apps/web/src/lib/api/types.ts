@@ -212,6 +212,13 @@ export interface Message {
    * returns the bare row — hooks normalize a missing array to [].
    */
   attachments?: AttachmentSummary[];
+  /**
+   * D17/T5.1: true when a LIVE task rows over this message. The list read
+   * surfaces (`GET /conversations/:id` + `.../messages`) set it; the bare
+   * POST-compose row and optimistic patches omit it (treated as false), so the
+   * thread's stone task indicator only appears once the message re-reads.
+   */
+  has_task?: boolean;
 }
 
 /** Contact embed on GET /v1/conversations/:id. */

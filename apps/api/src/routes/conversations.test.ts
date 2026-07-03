@@ -210,6 +210,11 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
         ],
       },
     ]);
+    // T5.1: the embedded page annotates has_task from a batch tasks lookup.
+    // Promote the one message so the embed flags it.
+    sb.on("GET", "/rest/v1/tasks", () => [
+      { message_id: "99999999-1111-4222-8333-444444444444" },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -224,7 +229,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
     expect(body.contact).toMatchObject({ name: "Jo" });
     expect(body.tags).toEqual([{ id: TAG_ID, name: "Won", color: null }]);
     const messages = body.messages as {
-      data: { attachments: unknown[] }[];
+      data: { attachments: unknown[]; has_task: boolean }[];
       next_cursor: string | null;
     };
     expect(messages.data[0].attachments).toEqual([
@@ -234,6 +239,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
         size_bytes: 123,
       },
     ]);
+    expect(messages.data[0].has_task).toBe(true);
     expect(messages.next_cursor).toBeNull();
 
     // The messages page is company-scoped and newest-first with limit 50+1.

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   attachmentStoragePath,
   bytesMatchDeclaredType,
+  EXECUTABLE_SNIFF,
   isAllowedAttachmentType,
   safeFilename,
   sniffContentType,
@@ -40,6 +41,13 @@ describe("isAllowedAttachmentType (D19 §2.4)", () => {
       expect(isAllowedAttachmentType(type), type).toBe(false);
     }
   });
+
+  it("blocks image/svg+xml despite the image/ prefix (stored-XSS vector)", () => {
+    // SVG is an active document (embedded script) — never inline-servable.
+    expect(isAllowedAttachmentType("image/svg+xml")).toBe(false);
+    expect(isAllowedAttachmentType("IMAGE/SVG+XML")).toBe(false);
+    expect(isAllowedAttachmentType("  image/svg+xml  ")).toBe(false);
+  });
 });
 
 describe("sniffContentType", () => {
@@ -58,6 +66,16 @@ describe("sniffContentType", () => {
 
   it("returns null for bytes with no known signature (e.g. plain text)", () => {
     expect(sniffContentType(new TextEncoder().encode("hello,world\n"))).toBeNull();
+  });
+
+  it("recognizes executable/script signatures as EXECUTABLE_SNIFF (D19 §2.3)", () => {
+    const mz = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // Windows PE
+    const elf = new Uint8Array([0x7f, 0x45, 0x4c, 0x46]); // Linux ELF
+    const machO = new Uint8Array([0xcf, 0xfa, 0xed, 0xfe]); // Mach-O 64 LE
+    const shebang = new TextEncoder().encode("#!/bin/sh\nrm -rf /\n");
+    for (const bytes of [mz, elf, machO, shebang]) {
+      expect(sniffContentType(bytes)).toBe(EXECUTABLE_SNIFF);
+    }
   });
 });
 
@@ -85,6 +103,17 @@ describe("bytesMatchDeclaredType (D19 §2.3)", () => {
   it("trusts an allow-listed declaration when the bytes have no distinctive magic", () => {
     const text = new TextEncoder().encode("a,b,c\n1,2,3\n");
     expect(bytesMatchDeclaredType(text, "text/csv")).toBe(true);
+  });
+
+  it("rejects an executable declared as any allowed type (MZ-as-PDF, D19 §2.3)", () => {
+    const mz = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // .exe renamed to .pdf
+    expect(bytesMatchDeclaredType(mz, "application/pdf")).toBe(false);
+    expect(bytesMatchDeclaredType(mz, "application/zip")).toBe(false);
+    expect(bytesMatchDeclaredType(mz, "application/octet-stream")).toBe(false);
+    const elf = new Uint8Array([0x7f, 0x45, 0x4c, 0x46]);
+    expect(bytesMatchDeclaredType(elf, "image/png")).toBe(false);
+    const shebang = new TextEncoder().encode("#!/usr/bin/env python\n");
+    expect(bytesMatchDeclaredType(shebang, "text/plain")).toBe(false);
   });
 });
 

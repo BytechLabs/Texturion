@@ -448,6 +448,37 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     ]);
   });
 
+  it("strips the export's CSV-injection guard apostrophe from a name on import (lossless round-trip, D20 §3.1)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) => {
+      const rows = call.body as { phone_e164: string }[];
+      return rows.map((row, i) => ({
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        phone_e164: row.phone_e164,
+      }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // A previously-exported guarded name: `'=HYPERLINK(...)` — the leading
+    // apostrophe + comma force RFC quoting in the cell.
+    const csv =
+      'phone,name\r\n+14165550100,"\'=HYPERLINK(""http://evil"",""click"")"\r\n';
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    const upsert = sb.find("POST", "/rest/v1/contacts")[0].body as {
+      name: string;
+    }[];
+    // The guard apostrophe is stripped: the stored name equals the original.
+    expect(upsert[0].name).toBe('=HYPERLINK("http://evil","click")');
+  });
+
   it("does not re-emit opt-out events for already-active opt-outs", async () => {
     const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/contacts", () => []);
@@ -663,6 +694,45 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
+  });
+
+  it("neutralizes CSV/formula injection in the name and tags columns, leaves phone bare (OWASP)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        id: CONTACT_ID,
+        name: '=HYPERLINK("http://evil","click")',
+        phone_e164: "+14165550199",
+        consent_source: "attested",
+        consent_at: "2026-06-01T00:00:00+00:00",
+        created_at: "2026-05-01T00:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        contact_id: CONTACT_ID,
+        // A tag crafted to trigger a formula on open.
+        conversation_tags: [{ tags: { name: "+1+1" } }],
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/export",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const text = new TextDecoder("utf-8").decode(bytes.slice(3));
+    const line = text.split("\r\n")[1];
+    // The formula name is apostrophe-guarded (then RFC-quoted because it also
+    // contains a comma); the tag is guarded; the phone stays bare E.164.
+    expect(line).toBe(
+      `"'=HYPERLINK(""http://evil"",""click"")",+14165550199,'+1+1,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
+    );
   });
 
   it("respects the current q filter (export what I'm looking at) and is not shadowed by /:id", async () => {

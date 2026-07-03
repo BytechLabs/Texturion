@@ -272,10 +272,31 @@ async function activateRow(
 }
 
 /**
+ * A persisted order id that Telnyx AUTHORITATIVELY reports as dead
+ * (`failed`/unknown) — distinct from a transport/5xx failure while the order
+ * may still be in flight. Only THIS signal is safe to clear `telnyx_order_id`
+ * on; clearing on a transient GET error would discard the recovery pointer for
+ * an order that could still succeed, and the next retry would buy a SECOND
+ * number (a real double-purchase / cost leak). See {@link resumeProvisioning}.
+ */
+class OrderDeadError extends Error {
+  constructor(orderId: string, status: string) {
+    super(`number order ${orderId} finished as '${status}'`);
+    this.name = "OrderDeadError";
+  }
+}
+
+/**
  * Crash-after-buy recovery half 1: a persisted order id is completed from the
  * order resource. Returns the updated row when the order finished, the row
  * unchanged while the order is still pending, or null when there is no order
  * to recover (caller continues the saga).
+ *
+ * Throws {@link OrderDeadError} ONLY when Telnyx authoritatively reports the
+ * order failed/unknown (the caller then clears the id and reorders fresh). A
+ * transport/5xx failure propagates as its original error — the order may still
+ * be pending, so the caller MUST keep the id and re-GET it next pass rather than
+ * ordering a duplicate.
  */
 async function recoverFromOrder(
   env: Env,
@@ -294,10 +315,8 @@ async function recoverFromOrder(
     return activateRow(db, row, orderedNumber, owned?.id ?? null);
   }
   if (status === "pending") return row; // order in flight — wait, don't reorder
-  // Failed/unknown order: clear it so the retry path orders fresh.
-  throw new Error(
-    `number order ${row.telnyx_order_id} finished as '${status ?? "unknown"}'`,
-  );
+  // Authoritatively dead (failed/unknown): safe to clear + reorder fresh.
+  throw new OrderDeadError(row.telnyx_order_id, status ?? "unknown");
 }
 
 /**
@@ -447,10 +466,18 @@ export async function resumeProvisioning(
     const fromOrder = await recoverFromOrder(env, db, row);
     if (fromOrder) return fromOrder;
   } catch (cause) {
-    // A dead order id must not wedge the row forever: clear it, record the
-    // failure, and let the next retry order fresh.
-    const cleared = await updateNumberRow(db, row.id, { telnyx_order_id: null });
-    return recordProvisionFailure(env, db, company, cleared, cause);
+    if (cause instanceof OrderDeadError) {
+      // Telnyx AUTHORITATIVELY reported the order dead: clear the id so the next
+      // retry orders fresh (no live order exists to double-buy against).
+      const cleared = await updateNumberRow(db, row.id, {
+        telnyx_order_id: null,
+      });
+      return recordProvisionFailure(env, db, company, cleared, cause);
+    }
+    // Transport/5xx while the order may still be PENDING: keep telnyx_order_id
+    // so the next retry re-GETs the SAME order. Clearing it here would strand a
+    // possibly-succeeding order and let orderNumberForRow buy a second number.
+    return recordProvisionFailure(env, db, company, row, cause);
   }
   try {
     const adopted = await adoptOrphanNumber(env, db, company, row);

@@ -84,9 +84,21 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
 
   it("safeNextPath only honors same-origin absolute paths", () => {
     expect(safeNextPath("/inbox/abc")).toBe("/inbox/abc");
+    expect(safeNextPath("/settings/billing")).toBe("/settings/billing");
+    expect(safeNextPath("/inbox/abc-123")).toBe("/inbox/abc-123");
     expect(safeNextPath("https://evil.example")).toBe("/inbox");
     expect(safeNextPath("//evil.example")).toBe("/inbox");
     expect(safeNextPath(null)).toBe("/inbox");
     expect(safeNextPath("")).toBe("/inbox");
+  });
+
+  it("safeNextPath rejects backslash/control-char open-redirect bypasses", () => {
+    // The URL parser folds `\` -> `/`, so `/\evil` would resolve to `//evil`
+    // (protocol-relative → off-site) when the callback does new URL(next, origin).
+    expect(safeNextPath("/\\evil.example")).toBe("/inbox");
+    expect(safeNextPath("/\\/evil.example")).toBe("/inbox");
+    expect(safeNextPath("/\tevil.example")).toBe("/inbox");
+    expect(safeNextPath("/\nevil.example")).toBe("/inbox");
+    expect(safeNextPath("/ evil.example")).toBe("/inbox");
   });
 });

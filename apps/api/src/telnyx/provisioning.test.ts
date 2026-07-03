@@ -281,6 +281,57 @@ describe("failure handling (§4.3)", () => {
     await resumeProvisioning(env, stored);
     expect(emails).toHaveLength(1);
   });
+
+  it("preserves telnyx_order_id on a transient order-GET failure (no double purchase)", async () => {
+    const { env, rest, telnyx } = setup();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: CHECKOUT,
+      requested_area_code: "212",
+      country: "US",
+      telnyx_order_id: "order-inflight",
+    });
+    // The order may still be PENDING at Telnyx; the recovery GET fails transiently.
+    telnyx.on("GET", /^\/v2\/number_orders\/order-inflight$/, () =>
+      telnyxError(503, "service_unavailable"),
+    );
+
+    const stored = rest.rows("phone_numbers")[0] as unknown as PhoneNumberRow;
+    const row = await resumeProvisioning(env, stored);
+
+    // The failure is recorded, but the order id is KEPT so the next retry
+    // re-GETs the SAME order — never orders a second number against a possibly
+    // still-succeeding one.
+    expect(row.status).toBe("provision_failed");
+    expect(row.telnyx_order_id).toBe("order-inflight");
+    expect(rest.rows("phone_numbers")[0].telnyx_order_id).toBe("order-inflight");
+    // Crucially: no fresh number order was placed during this failed resume.
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+  });
+
+  it("clears telnyx_order_id when Telnyx authoritatively reports the order dead", async () => {
+    const { env, rest, telnyx } = setup();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: CHECKOUT,
+      requested_area_code: "212",
+      country: "US",
+      telnyx_order_id: "order-dead",
+    });
+    // Telnyx says the order failed — no live order to double-buy against.
+    telnyx.on("GET", /^\/v2\/number_orders\/order-dead$/, () => ({
+      data: { id: "order-dead", status: "failed", phone_numbers: [] },
+    }));
+
+    const stored = rest.rows("phone_numbers")[0] as unknown as PhoneNumberRow;
+    const row = await resumeProvisioning(env, stored);
+
+    // The dead order id is cleared so the retry path can order fresh.
+    expect(row.telnyx_order_id).toBeNull();
+    expect(rest.rows("phone_numbers")[0].telnyx_order_id).toBeNull();
+  });
 });
 
 describe("reconcileNumbers — §11 crash-window recovery", () => {

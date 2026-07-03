@@ -181,7 +181,10 @@ function TaskRow({ task }: { task: ForYouTask }) {
         onCheckedChange={onComplete}
         disabled={complete.isPending}
         aria-label={`Complete task: ${task.title}`}
-        className="shrink-0"
+        // tap-target: ≥44px hit area on mobile (G11 / §7); the Radix Checkbox
+        // is a button and hosts the utility's centered ::after with no layout
+        // shift. This row is not overflow-clipped, so the pad shows in full.
+        className="tap-target shrink-0"
       />
       {/* The title is the one bold thing; tap it to open the source thread. */}
       <button

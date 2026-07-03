@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+import { sweepDeletedAttachments } from "./attachments/sweep";
 import { companyContext } from "./auth/company";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
@@ -152,8 +153,14 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   "*/5 * * * *": [sweepWebhookEvents],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
-  // number-assignments.
-  "*/15 * * * *": [reconcileNumbers, retryCampaignAssignments],
+  // number-assignments. Also reclaims soft-deleted attachment objects/rows past
+  // the signed-URL grace window (D19 §2 sweep) — piggybacks this 15-min cadence,
+  // comfortably longer than the 300s signed-URL TTL.
+  "*/15 * * * *": [
+    reconcileNumbers,
+    retryCampaignAssignments,
+    sweepDeletedAttachments,
+  ],
   // Usage re-reporter, then the 80%/100% usage-alert check (§9 metering
   // pipeline tail) over the freshly-reported state.
   "0 * * * *": [reportUnreportedUsage, runUsageAlertsJob],

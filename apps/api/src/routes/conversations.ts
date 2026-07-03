@@ -54,6 +54,7 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import { loadMessageTaskFlags } from "./core/message-tasks";
 
 const MMS_BUCKET = "mms-media";
 const MMS_SIGNED_URL_TTL_SECONDS = 3600;
@@ -218,6 +219,13 @@ conversationsRoutes.get(
       "messages page",
     );
     const messagesPage = buildPage(messageRows, messageLimit, "created_at");
+    // D17/T5.1: annotate each embedded message with whether a live task rows
+    // over it, so the thread shows the stone task indicator (one batch query).
+    const promoted = await loadMessageTaskFlags(
+      db,
+      companyId,
+      messagesPage.data.map((message) => message.id),
+    );
 
     const { contacts, conversation_tags, ...conversation } = row;
     return c.json({
@@ -231,6 +239,7 @@ conversationsRoutes.get(
           ({ message_attachments, ...message }) => ({
             ...message,
             attachments: message_attachments,
+            has_task: promoted.has(message.id),
           }),
         ),
         next_cursor: messagesPage.next_cursor,

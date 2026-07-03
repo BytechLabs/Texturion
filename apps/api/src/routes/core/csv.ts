@@ -76,6 +76,25 @@ export function csvField(value: string | null | undefined): string {
 }
 
 /**
+ * OWASP CSV/formula-injection guard for EXPORT cells that carry free text (a
+ * contact name, a tag). When a cell begins with a formula-trigger character a
+ * spreadsheet (Excel/Sheets/LibreOffice) would evaluate it as a formula on
+ * open — `=cmd|'…'!A1`, `+`/`-`/`@` DDE payloads, etc. Prefixing a single
+ * apostrophe forces the engine to treat the whole cell as literal text.
+ *
+ * Applied ONLY at the export-cell level for free-text columns (name, tags) —
+ * NOT inside csvField — so the phone (E.164) column and csvField's lossless RFC
+ * quoting stay intact. Includes \t/\r/\n alongside =+-@ because several engines
+ * treat a leading whitespace-then-formula the same way. The importer strips one
+ * leading guard apostrophe so the export→import round-trip stays lossless
+ * (D20 §3.1).
+ */
+export function csvSafeText(value: string | null | undefined): string {
+  const text = value ?? "";
+  return /^[=+\-@\t\r\n]/.test(text) ? `'${text}` : text;
+}
+
+/**
  * Serialize rows (a header row + data rows, each a string array) into an
  * RFC-4180 CSV string with CRLF line endings. Used by `GET /v1/contacts/export`
  * (D20 §3.1). The caller prepends a UTF-8 BOM for Excel.

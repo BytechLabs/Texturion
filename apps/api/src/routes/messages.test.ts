@@ -775,32 +775,51 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       ),
       () => (options.found === false ? [] : [message]),
     );
-    const update = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
-      { ...message, ...(call.body as Partial<MessageRow>) },
-    ]);
+    // D14/D22: the done flip AND its audit event are ONE atomic transaction via
+    // the set_message_done security-definer RPC (never a separate PATCH +
+    // conversation_events INSERT). The stub mirrors the RPC's real semantics:
+    // company-scoped not_found, idempotent no-op ('unchanged', no write, no
+    // event), and a real transition ('updated', flip + one audit row in the
+    // same txn — modelled here as a single call).
+    const rpc = stubRoute(rpcMatch(env, "set_message_done"), (call) => {
+      const args = call.body as {
+        p_company_id: string;
+        p_message_id: string;
+        p_done: boolean;
+        p_actor_user_id: string;
+      };
+      if (options.found === false || args.p_company_id !== COMPANY_ID) {
+        return { outcome: "not_found", message: null };
+      }
+      const alreadyDone = message.done_at !== null;
+      if (args.p_done === alreadyDone) {
+        return { outcome: "unchanged", message };
+      }
+      const flipped = args.p_done
+        ? {
+            ...message,
+            done_at: DONE_AT,
+            done_by_user_id: args.p_actor_user_id,
+          }
+        : { ...message, done_at: null, done_by_user_id: null };
+      return { outcome: "updated", message: flipped };
+    });
     const attachmentsLookup = stubRoute(
       restMatch(env, "GET", "message_attachments"),
       () => [],
     );
-    // D22: a real done↔undone transition appends one conversation_events row.
-    const events = stubRoute(
-      restMatch(env, "POST", "conversation_events"),
-      () => [],
-    );
     return {
       lookup,
-      update,
+      rpc,
       attachmentsLookup,
-      events,
       all: [
         jwksRoute(auth),
         companyMembersRoute(env, [
           { id: "11111111-0000-4000-8000-000000000011", role: "member" },
         ]),
         lookup.route,
-        update.route,
+        rpc.route,
         attachmentsLookup.route,
-        events.route,
       ],
     };
   }
@@ -820,24 +839,25 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     );
   }
 
-  it("marks done: stamps done_at + done_by_user_id and returns the row", async () => {
+  it("marks done: flips done_at + done_by_user_id via the atomic RPC", async () => {
     const stubs = doneStubs({ done_at: null, done_by_user_id: null });
     stubFetch(...stubs.all);
 
     const response = await patchDone({ done: true });
     expect(response.status).toBe(200);
 
-    // Company-scoped everywhere (§10) — lookup AND update.
+    // Company-scoped everywhere (§10) — the pre-RPC lookup AND the RPC args.
     expect(stubs.lookup.calls[0].url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
-    expect(stubs.update.calls).toHaveLength(1);
-    expect(stubs.update.calls[0].url.searchParams.get("company_id")).toBe(
-      `eq.${COMPANY_ID}`,
-    );
-    expect(stubs.update.calls[0].body).toEqual({
-      done_at: expect.any(String),
-      done_by_user_id: auth.subject,
+    // The flip + audit happen in ONE set_message_done transaction (D22 §5.1) —
+    // never a separate PATCH + conversation_events round-trip.
+    expect(stubs.rpc.calls).toHaveLength(1);
+    expect(stubs.rpc.calls[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_message_id: MESSAGE_ID,
+      p_done: true,
+      p_actor_user_id: auth.subject,
     });
 
     const body = (await response.json()) as Record<string, unknown>;
@@ -850,7 +870,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     expect(body).not.toHaveProperty("body_tsv");
   });
 
-  it("clears done: nulls both columns", async () => {
+  it("clears done: nulls both columns via the atomic RPC", async () => {
     const stubs = doneStubs({
       done_at: DONE_AT,
       done_by_user_id: auth.subject,
@@ -859,9 +879,9 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
 
     const response = await patchDone({ done: false });
     expect(response.status).toBe(200);
-    expect(stubs.update.calls[0].body).toEqual({
-      done_at: null,
-      done_by_user_id: null,
+    expect(stubs.rpc.calls[0].body).toMatchObject({
+      p_done: false,
+      p_message_id: MESSAGE_ID,
     });
     expect(await response.json()).toMatchObject({
       done_at: null,
@@ -869,7 +889,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     });
   });
 
-  it("is idempotent: re-marking done is a no-op returning the row (no update)", async () => {
+  it("is idempotent: re-marking done returns the row unchanged (RPC no-op)", async () => {
     const stubs = doneStubs({
       done_at: DONE_AT,
       done_by_user_id: auth.subject,
@@ -878,20 +898,25 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
 
     const response = await patchDone({ done: true });
     expect(response.status).toBe(200);
-    expect(stubs.update.calls).toHaveLength(0);
+    // The route delegates idempotency to the RPC: a redundant mark-done returns
+    // 'unchanged' — no flip, no audit event (the RPC writes nothing).
+    expect(stubs.rpc.calls).toHaveLength(1);
     expect(await response.json()).toMatchObject({
       done_at: DONE_AT,
       done_by_user_id: auth.subject,
     });
   });
 
-  it("is idempotent for not-done too: clearing a clear row never writes", async () => {
+  it("is idempotent for not-done too: clearing a clear row is a no-op", async () => {
     const stubs = doneStubs({ done_at: null, done_by_user_id: null });
     stubFetch(...stubs.all);
 
     const response = await patchDone({ done: false });
     expect(response.status).toBe(200);
-    expect(stubs.update.calls).toHaveLength(0);
+    expect(await response.json()).toMatchObject({
+      done_at: null,
+      done_by_user_id: null,
+    });
   });
 
   it("404s a message outside the caller's company (tenant isolation, §10)", async () => {
@@ -901,7 +926,8 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     const response = await patchDone({ done: true });
     expect(response.status).toBe(404);
     expect(await errorCode(response)).toBe("not_found");
-    expect(stubs.update.calls).toHaveLength(0);
+    // The pre-RPC company-scoped lookup 404s before any write RPC.
+    expect(stubs.rpc.calls).toHaveLength(0);
   });
 
   it("422s a body without a boolean done", async () => {
@@ -911,7 +937,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       const response = await patchDone(body);
       expect(response.status, JSON.stringify(body)).toBe(422);
     }
-    expect(stubs.update.calls).toHaveLength(0);
+    expect(stubs.rpc.calls).toHaveLength(0);
   });
 
   it("works on notes and inbound rows alike (D14: any message is the task)", async () => {
@@ -923,7 +949,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       stubFetch(...stubs.all);
       const response = await patchDone({ done: true });
       expect(response.status, row.direction).toBe(200);
-      expect(stubs.update.calls).toHaveLength(1);
+      expect(stubs.rpc.calls).toHaveLength(1);
       vi.unstubAllGlobals();
     }
   });
@@ -948,6 +974,11 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
           : [],
     }));
     const list = stubRoute(restMatch(env, "GET", "messages"), () => rows);
+    // T5.1: the list annotates has_task from a batch tasks lookup. Promote the
+    // newest message (m3) so the response flags exactly it.
+    const tasks = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      { message_id: "00000000-0000-4000-8000-000000000003" },
+    ]);
     stubFetch(
       jwksRoute(auth),
       companyMembersRoute(env, [
@@ -955,6 +986,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
       ]),
       conversationCheck.route,
       list.route,
+      tasks.route,
     );
 
     const response = await app.fetch(
@@ -980,13 +1012,20 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     expect(query.get("select")).toContain("done_by_user_id");
 
     const body = (await response.json()) as {
-      data: { id: string; attachments: unknown[] }[];
+      data: { id: string; attachments: unknown[]; has_task: boolean }[];
       next_cursor: string | null;
     };
     expect(body.data).toHaveLength(2);
     expect(body.data[0].attachments).toEqual([
       { id: "at-1", content_type: "image/jpeg", size_bytes: 4 },
     ]);
+    // T5.1: the promoted newest message is flagged; the other is not.
+    expect(body.data[0].has_task).toBe(true);
+    expect(body.data[1].has_task).toBe(false);
+    // The tasks lookup was company-scoped, live-only, and keyed to the page ids.
+    const taskQuery = tasks.calls[0].url.searchParams;
+    expect(taskQuery.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(taskQuery.get("deleted_at")).toBe("is.null");
     expect(body.next_cursor).not.toBeNull();
   });
 
