@@ -50,7 +50,11 @@ Apply across the app, tastefully:
   ease-out micro-interactions (respect reduced motion). The selected conversation, the active tab,
   a pressed button should feel alive and precise.
 - Type + rhythm: tighten the type scale and vertical rhythm; confident hierarchy from weight and
-  size; generous but purposeful spacing. Numbers in a tabular face where they matter.
+  size; generous but purposeful spacing. Numbers in a tabular face where they matter. The app
+  typeface is Golos Text (uncommon, UI-grade, self-hosted via next/font/local, variable wght
+  100-900, tabular figures), replacing Inter everywhere in the app. It is NOT Inter and NOT the
+  marketing display face; the source woff2 was fetched from Google Fonts OFL (golostext) and is
+  staged for the build.
 - Iconography: one cohesive, beautiful icon set, consistent weight and size, aligned to the grid.
 - The inbox list, thread bubbles, contact panel, tasks, and settings all get the same crafted
   treatment so nothing looks like a wireframe.
@@ -62,7 +66,8 @@ Apply across the app, tastefully:
 - Accessible: AA contrast, visible focus rings, 44px mobile targets, keyboard paths, reduced
   motion.
 - On brand: petrol and warm-stone stay the anchor; the marketing identity does not leak into the
-  app (the app stays Inter, no marketing display font, no marker language).
+  app (the app uses Golos Text, never Inter and never the marketing display font, no marker
+  language).
 - Behavior preserved: realtime, filters, the composer, done, tasks, everything keeps working.
 
 ## 4. Build + validation
