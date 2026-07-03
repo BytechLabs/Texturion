@@ -17,29 +17,30 @@ spacing. The craft lives in the spacing rhythm, the type hierarchy, and the rest
 or decoration. Sleek, clean, calm. When in doubt, remove. Reference: the calm mockup
 (scratchpad/shell-mockup-calm.html, Artifact calm-v1).
 
-## 1. Kill the left sidebar. Primary nav moves to a refined top bar.
+## 1. A calm left sidebar (REVISED: sidebar with visuals, not a top bar)
 
-Explored alternatives: wide text sidebar (out), slim icon rail (still a sidebar), top bar,
-command-first. Decision: a single refined TOP BAR holds global navigation, so the left edge is
-freed for the actual work.
+The user prefers a sidebar to the top bar, done well: with icons and visuals, calm and clean, not
+the bare-text version that was rejected. So the global nav is a left SIDEBAR. Reference: the sidebar
+mockup (scratchpad/shell-mockup-sidebar.html, Artifact sidebar-v1).
 
-Top bar (h ~56px, sticky, a real surface not a hairline):
-- Left: the JobText mark, then a compact workspace/company control if multi-company.
-- Center-left: the primary surfaces as understated segmented tabs: For You, Inbox, Tasks,
-  Contacts. The active tab gets the one crafted accent moment (a soft petrol underline or a filled
-  pill with a subtle inset), not a flat block.
-- Center/right: a prominent search field (the existing global search + command-K), inviting, not a
-  tiny icon.
-- Right: a compose action, the notifications bell, and the user avatar menu (settings, theme, sign
-  out). Compact, balanced, beautiful.
-- Mobile: keep the bottom tab bar (it is the right pattern on phones); the top bar collapses to the
-  mark + search + avatar.
+Sidebar (~230px, white, a single hairline right border, NO shadow):
+- Top: a company/workspace switcher tile (a small petrol logo tile + company name + plan, a
+  double-chevron); on hover a whisper-grey fill.
+- A prominent petrol "New message" compose button.
+- Primary nav as icon + label rows: For you, Inbox, Tasks, Contacts. Each has a calm line icon, a
+  label, and a right-aligned count or unread dot where it earns it. Active = a soft petrol-tint fill
+  with petrol-deep text and icon (not a heavy block); hover = whisper grey. Generous padding.
+- A quiet "Shortcuts" group below (Saved replies, Numbers), smaller and muted.
+- Pinned to the bottom: the user tile (avatar + name + role) opening the account menu (settings,
+  theme, sign out).
+Everything calm: hairlines, whitespace, one rationed petrol accent (the active item + compose), no
+shadows, flat single-tone avatars.
 
-Below the top bar the content owns the full width: Inbox is (list | thread | optional context),
-Tasks/Contacts are full-surface. No global left nav column. The build renders this and confirms it
-reads better than a minimal icon rail; bias to the top bar per the brief, but if the render shows
-the top bar cramps the inbox, a beautifully crafted 60px icon rail is the sanctioned fallback (not
-a text sidebar).
+To the right of the sidebar: Inbox is (list | thread | optional context); the list gets a slim
+header (search + the All/Unread/Mine segment); Tasks, Contacts, For-you are full surfaces with their
+own calm headers. Global search stays reachable (the list search + command-K). Mobile: the sidebar
+collapses to a bottom tab bar with the same icons; compose is a FAB. The prior top-bar shell is
+retired; the top-bar components built earlier are repurposed or removed.
 
 ## 2. Calm surface treatment (REVISED: remove the shadows and the clutter)
 
