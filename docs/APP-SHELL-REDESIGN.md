@@ -7,12 +7,15 @@ product behavior stay; the look and the navigation change. This is the APP only;
 own identity. Keep the petrol brand and warm-stone base, but execute with real craft. No em-dashes
 anywhere.
 
-## 0. The core recalibration
+## 0. The core recalibration (REVISED: calm, not elevated)
 
-The Wealthsimple-restraint pass went too flat: border-only surfaces, no depth, a plain text
-sidebar. Flat and empty is not the same as calm and premium. The new bar is Linear / Height /
-Superhuman / Campsite: precise spacing, considered color, tasteful depth, beautiful states, and
-micro-interactions. Calm still, but crafted, not bare.
+Two failed passes bound the target. Pass one was flat and bland (border-only, no craft), which read
+as unfinished. Pass two over-corrected into raised cards and shadows everywhere, which read as heavy
+and cluttered. Neither is Wealthsimple. The real target is CALM: generous whitespace, quiet
+restraint, hairlines instead of cards, near-zero shadow, few things on screen, refined type and
+spacing. The craft lives in the spacing rhythm, the type hierarchy, and the restraint, NOT in depth
+or decoration. Sleek, clean, calm. When in doubt, remove. Reference: the calm mockup
+(scratchpad/shell-mockup-calm.html, Artifact calm-v1).
 
 ## 1. Kill the left sidebar. Primary nav moves to a refined top bar.
 
@@ -38,27 +41,30 @@ reads better than a minimal icon rail; bias to the top bar per the brief, but if
 the top bar cramps the inbox, a beautifully crafted 60px icon rail is the sanctioned fallback (not
 a text sidebar).
 
-## 2. Aesthetic elevation (fix "extremely ugly")
+## 2. Calm surface treatment (REVISED: remove the shadows and the clutter)
 
-Apply across the app, tastefully:
-- Depth: introduce soft, layered elevation on panels, cards, popovers, and the thread composer
-  (a subtle shadow plus a hairline, not heavy). Surfaces should feel like surfaces, not flat paper.
-- Surface + color: move off dead-flat stone. A very subtle warm-to-cool wash or a whisper of
-  texture on the app background, tinted panels, crisp considered dividers. Spend one confident
-  petrol moment per view (the active nav, the primary action), rationed.
-- States: beautiful hover, active, focus, selected, and loading states with 150 to 200ms
-  ease-out micro-interactions (respect reduced motion). The selected conversation, the active tab,
-  a pressed button should feel alive and precise.
-- Type + rhythm: tighten the type scale and vertical rhythm; confident hierarchy from weight and
-  size; generous but purposeful spacing. Numbers in a tabular face where they matter. The app
-  typeface is Golos Text (uncommon, UI-grade, self-hosted via next/font/local, variable wght
-  100-900, tabular figures), replacing Inter everywhere in the app. It is NOT Inter and NOT the
-  marketing display face; the source woff2 was fetched from Google Fonts OFL (golostext) and is
-  staged for the build.
-- Iconography: one cohesive, beautiful icon set, consistent weight and size, aligned to the grid.
-- The inbox list, thread bubbles, contact panel, tasks, and settings all get the same crafted
-  treatment so nothing looks like a wireframe.
-- Dark mode gets equal craft (real dark surfaces with depth, not inverted flatness).
+The reference is the calm mockup (scratchpad/shell-mockup-calm.html). Apply across the app:
+- No shadows. Remove the raised/elevated look entirely. Surfaces are separated by generous
+  whitespace and a single 1px hairline, not by drop shadows or lifted cards. At most one
+  barely-there shadow on a true floating layer (a menu, the detail drawer), never on rows, panels,
+  bubbles, or the composer.
+- Whitespace first. Generous padding and row height, calm gaps, a confident measure. The list
+  breathes: clean rows with air between them, no per-row card or border. Fewer elements per screen.
+- De-clutter. Drop decorative chips and busy tags from the default view; show one piece of metadata
+  where it earns its place. Lighten every divider to a hairline. Flat single-tone avatars (a soft
+  tint, not gradients).
+- Quiet color. A near-white warm ground, white surfaces, one rationed petrol accent (the active
+  tab, the primary button, the selected row as a soft petrol tint). No gradients, no petrol-tinted
+  shadows.
+- States are subtle tints, not lifts. Selected = a soft petrol-tint fill; hover = a whisper of warm
+  grey. Calm ~150ms transitions, reduced-motion safe.
+- Type + rhythm carry it. Golos Text (self-hosted, latin-subset woff2 via next/font/local, variable
+  wght, tabular figures) with a clear, calm hierarchy from size and weight; this is where the
+  crafted feeling comes from, not decoration. Golos replaces Inter everywhere in the app.
+- Bubbles are flat: inbound white with a hairline, outbound solid petrol, no shadow, generous
+  spacing. The composer is a clean bordered field, no shadow.
+- Same calm treatment across inbox, thread, contacts, tasks, settings, so nothing is heavy and
+  nothing is a wireframe. Dark mode mirrors it with calm dark surfaces and hairlines, no glow.
 
 ## 3. Guardrails
 
