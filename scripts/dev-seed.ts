@@ -296,6 +296,11 @@ async function main() {
       notes: "Recurring kitchen-sink clogs — old cast iron stack. Prefers morning visits.",
       consent_source: "inbound_sms",
       consent_at: daysAgo(2),
+      // Geocoded (D25) so at least one task shows a pin on the Map view.
+      lat: 30.2711,
+      lng: -97.7437,
+      geocoded_at: daysAgo(2),
+      geocode_status: "ok",
     },
     { phone_e164: "+15125550103", name: "Priya Shah", consent_source: "inbound_sms", consent_at: daysAgo(4) },
     { phone_e164: "+15125550104", name: "Tom Bell", consent_source: "inbound_sms", consent_at: daysAgo(6) },
@@ -308,6 +313,10 @@ async function main() {
     address: null,
     notes: null,
     consent_attested_by: null,
+    lat: null,
+    lng: null,
+    geocoded_at: null,
+    geocode_status: "no_address",
     ...c,
   }));
   const contacts = await insert<{ id: string; phone_e164: string }[]>(
@@ -454,6 +463,159 @@ async function main() {
     { company_id: companyId, conversation_id: conv("tom"), actor_user_id: ownerId, type: "status_changed", payload: { from: "open", to: "closed" }, created_at: daysAgo(5, 5) },
     { company_id: companyId, conversation_id: conv("rosa"), actor_user_id: ownerId, type: "opted_out", payload: {}, created_at: daysAgo(3, 4) },
   ]);
+
+  /* -------------------------------- tasks -------------------------------- */
+  // Promote a few real messages to tasks (D17) so the /tasks views (List /
+  // Board / Calendar / Map) and the demo are populated. Varied: some with due
+  // dates (calendar), some assigned, one on the geocoded Marcus contact (map),
+  // one done (derived from its source message's done_at). We insert the task
+  // rows directly and also write their conversation_events (task_created /
+  // task_assigned / task_due_set) so the thread interweaving + the drawer
+  // activity timeline are populated, and one task-linked internal note so the
+  // discussion primitive (D-D) shows in both the thread and the drawer.
+  const msgByBody = (body: string) =>
+    insertedMsgs.find((m) => m.body === body)!;
+
+  // Marcus (assigned to member, due tomorrow morning, on a geocoded contact →
+  // shows on the Map). Promotes his opening request.
+  const marcusMsg = msgByBody(
+    "Hey, this is Marcus from 44 Cedar Ln. Kitchen sink is backing up again.",
+  );
+  // Dana (unassigned, due in 3 days). Promotes her water-heater inbound.
+  const danaMsg = msgByBody(
+    "Hi, do you do water heater replacements? Ours is leaking from the bottom.",
+  );
+  // Priya (assigned to owner, no due date). Promotes her quote request.
+  const priyaMsg = msgByBody(
+    "Hi, could you quote a bathroom faucet replacement? Nothing fancy.",
+  );
+  // Jake (assigned to member, DONE — its source message is done). Promotes his
+  // MMS leak photo; done derives from the source message being marked done.
+  const jakeMsg = msgByBody("Here's the leak under the sink");
+
+  const taskSpecs = [
+    {
+      key: "marcus",
+      message_id: marcusMsg.id,
+      conversation_id: marcusMsg.conversation_id,
+      title: "Quote replacing the cast-iron stack section",
+      description:
+        "Second callout this month on the same line. Bring the camera and quote the section replacement instead of snaking it again.",
+      assigned_user_id: memberId,
+      due_at: daysAgo(-1, 9), // tomorrow ~9am
+      created_at: daysAgo(2, -9 * 60 + 4),
+    },
+    {
+      key: "dana",
+      message_id: danaMsg.id,
+      conversation_id: danaMsg.conversation_id,
+      title: "Water heater replacement quote for Dana",
+      description: "Rheem, ~10 years old, leaking from the bottom.",
+      assigned_user_id: null,
+      due_at: daysAgo(-3, 10), // in 3 days
+      created_at: minutesAgo(6),
+    },
+    {
+      key: "priya",
+      message_id: priyaMsg.id,
+      conversation_id: priyaMsg.conversation_id,
+      title: "Book Priya's faucet install",
+      description: "Standard single-handle, $240-280 quoted. Confirm shutoff valves.",
+      assigned_user_id: ownerId,
+      due_at: null,
+      created_at: daysAgo(4, 1),
+    },
+    {
+      key: "jake",
+      message_id: jakeMsg.id,
+      conversation_id: jakeMsg.conversation_id,
+      title: "Bring a replacement P-trap for Jake",
+      description: "",
+      assigned_user_id: memberId,
+      due_at: daysAgo(1, -1 * 60), // yesterday (a past due, but it's done)
+      created_at: minutesAgo(25 * 60 + 2),
+    },
+  ] as const;
+
+  const insertedTasks = await insert<{ id: string; conversation_id: string }[]>(
+    "tasks",
+    taskSpecs.map((t) => ({
+      company_id: companyId,
+      message_id: t.message_id,
+      conversation_id: t.conversation_id,
+      title: t.title,
+      description: t.description,
+      assigned_user_id: t.assigned_user_id,
+      due_at: t.due_at,
+      created_by_user_id: ownerId,
+      created_at: t.created_at,
+    })),
+  );
+  const taskByKey = new Map(
+    taskSpecs.map((t, i) => [t.key, insertedTasks[i]]),
+  );
+  console.log(`  tasks: ${insertedTasks.length}`);
+
+  // Mark Jake's source message done → his task renders as done (derived, D17).
+  await rest(`messages?id=eq.${jakeMsg.id}`, {
+    method: "PATCH",
+    body: { done_at: minutesAgo(24 * 60), done_by_user_id: memberId },
+  });
+
+  // Task lifecycle events (interweave in the thread + the drawer activity).
+  const taskEvents = taskSpecs.flatMap((t) => {
+    const task = taskByKey.get(t.key)!;
+    const rows: unknown[] = [
+      {
+        company_id: companyId,
+        conversation_id: t.conversation_id,
+        actor_user_id: ownerId,
+        type: "task_created",
+        payload: { task_id: task.id, message_id: t.message_id },
+        created_at: t.created_at,
+      },
+    ];
+    if (t.assigned_user_id) {
+      rows.push({
+        company_id: companyId,
+        conversation_id: t.conversation_id,
+        actor_user_id: ownerId,
+        type: "task_assigned",
+        payload: {
+          task_id: task.id,
+          from_user_id: null,
+          to_user_id: t.assigned_user_id,
+        },
+        created_at: t.created_at,
+      });
+    }
+    if (t.due_at) {
+      rows.push({
+        company_id: companyId,
+        conversation_id: t.conversation_id,
+        actor_user_id: ownerId,
+        type: "task_due_set",
+        payload: { task_id: task.id, due_at: t.due_at },
+        created_at: t.created_at,
+      });
+    }
+    return rows;
+  });
+  await insert("conversation_events", taskEvents);
+
+  // A task-linked internal note (D-D) on Marcus's task — shows the discussion
+  // primitive both interwoven in the thread (with an "on:" chip) and in the
+  // drawer's activity timeline.
+  await insert("messages", {
+    company_id: companyId,
+    conversation_id: marcusMsg.conversation_id,
+    direction: "note",
+    body: "Called the supplier — the cast-iron section is in stock. Bringing it tomorrow.",
+    status: null,
+    sent_by_user_id: memberId,
+    task_id: taskByKey.get("marcus")!.id,
+    created_at: daysAgo(1, -8 * 60),
+  });
 
   /* ------------------------------ tags/reads ----------------------------- */
   const tags = await rest<{ id: string; name: string }[]>(

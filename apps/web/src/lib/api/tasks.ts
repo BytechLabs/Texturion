@@ -14,6 +14,7 @@ import {
   detailPatchMessage,
   doneMutationPatch,
   threadPatchMessage,
+  threadUpsertMessages,
   type ThreadData,
 } from "./cache";
 import { keys } from "./keys";
@@ -257,8 +258,12 @@ export interface UpdateTaskInput {
 /**
  * PATCH /v1/tasks/:id — metadata only (T4). Assign / set-due / rename all flow
  * through here; an assignee change writes `task_assigned`, a due change
- * `task_due_set`. The returned row replaces the detail cache; the checklist +
- * lists are invalidated so their derived views re-read.
+ * `task_due_set`. OPTIMISTIC: the edited fields patch the detail cache at the
+ * click (so the drawer's fields never flicker back), roll back on error, and
+ * the server row replaces the optimistic one on success. The checklist + lists
+ * are invalidated so their derived views re-read. The detail cache is also
+ * invalidated on settle so the `activity` timeline picks up the new
+ * `task_assigned` / `task_due_set` line.
  */
 export function useUpdateTask(conversationId: string) {
   const companyId = useCompanyId();
@@ -272,12 +277,37 @@ export function useUpdateTask(conversationId: string) {
         body,
       });
     },
+    onMutate: async (input) => {
+      const { taskId, ...patch } = input;
+      const detailKey = keys.tasks.detail(companyId, taskId);
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const previousDetail = queryClient.getQueryData<TaskDetail>(detailKey);
+      if (previousDetail) {
+        queryClient.setQueryData<TaskDetail>(detailKey, {
+          ...previousDetail,
+          ...patch,
+        });
+      }
+      return { previousDetail, detailKey };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(context.detailKey, context.previousDetail);
+      }
+    },
     onSuccess: (task) => {
       queryClient.setQueryData<TaskDetail>(
         keys.tasks.detail(companyId, task.id),
         (detail) => (detail ? { ...detail, ...task } : detail),
       );
       invalidateTasks(queryClient, companyId, conversationId);
+    },
+    onSettled: (_data, _error, input) => {
+      // Pull the fresh task_assigned / task_due_set line into the drawer's
+      // activity timeline (the detail carries `activity`).
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
     },
   });
 }
@@ -304,6 +334,43 @@ export function useSetTaskDue(conversationId: string) {
     setDueAsync: (taskId: string, due_at: string | null) =>
       update.mutateAsync({ taskId, due_at }),
   };
+}
+
+/**
+ * POST /v1/conversations/:id/notes { body, task_id } — the task drawer's note
+ * composer (TASKS-V2 D-D). One primitive: the note is an internal note that
+ * interweaves in the conversation thread AND collects in the task's activity
+ * timeline. On success it upserts the note into the open thread cache (so it
+ * shows immediately in the thread with its "on: <task title>" chip) and
+ * invalidates the task detail (so the drawer's activity picks it up) plus the
+ * conversation events (belt-and-braces). `taskId` scopes the invalidation.
+ */
+export function useCreateTaskNote(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { taskId: string; body: string }) =>
+      apiFetch<Message>(`/v1/conversations/${conversationId}/notes`, {
+        method: "POST",
+        companyId,
+        body: { body: input.body, task_id: input.taskId },
+      }),
+    onSuccess: (note, input) => {
+      queryClient.setQueryData<ThreadData>(
+        keys.thread(companyId, conversationId),
+        (thread) =>
+          threadUpsertMessages(thread, [
+            { ...note, attachments: note.attachments ?? [] },
+          ]),
+      );
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, conversationId),
+      });
+    },
+  });
 }
 
 /**

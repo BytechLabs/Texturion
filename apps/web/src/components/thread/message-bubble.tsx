@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 import { NoteAttachments } from "@/components/attachments/note-attachments";
 
+import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
+
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
 import { MessageActions } from "./message-actions";
@@ -162,6 +164,25 @@ function TaskIndicator({ conversationId }: { conversationId: string }) {
 }
 
 /**
+ * TASKS-V2 D-D: the "on: <task title>" chip a task-linked note carries so its
+ * context is clear in the thread. Clicking it opens the task drawer (`?task=`),
+ * the same target every task line uses. Quiet stone chip on the amber note card.
+ */
+function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
+  const { openTask } = useTaskDrawer();
+  return (
+    <button
+      type="button"
+      onClick={() => openTask(task.id)}
+      className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-white/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <ListChecks className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+      <span className="truncate">on: {task.title}</span>
+    </button>
+  );
+}
+
+/**
  * One message bubble (G5): inbound = white card + stone border, left;
  * outbound = teal-50/teal-900 (dark teal-950/teal-100), right; note =
  * amber-50 dashed border + lock + "Internal note". Max width 65% (85%
@@ -244,6 +265,12 @@ export function MessageBubble({
                 <Lock className="size-3" strokeWidth={1.75} aria-hidden />
                 Internal note
               </span>
+            )}
+            {/* D-D: a task-linked note shows its task chip. */}
+            {note && message.task && (
+              <div className="mb-1">
+                <NoteTaskChip task={message.task} />
+              </div>
             )}
             {/* D14 done: strikethrough + 55% opacity, 150ms ease-out. */}
             <span

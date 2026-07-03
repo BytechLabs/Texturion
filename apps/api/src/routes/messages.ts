@@ -63,7 +63,10 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
-import { loadMessageTaskFlags } from "./core/message-tasks";
+import {
+  loadMessageTaskFlags,
+  loadNoteTaskLinks,
+} from "./core/message-tasks";
 
 /** SPEC §7: sends and composes REQUIRE an Idempotency-Key header. */
 export function requireIdempotencyKey(c: Context): string {
@@ -452,7 +455,7 @@ messageRoutes.get(
       .select(
         "id,conversation_id,direction,body,status,segments,encoding," +
           "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
-          "done_at,done_by_user_id," +
+          "done_at,done_by_user_id,task_id," +
           "created_at,message_attachments(id,content_type,size_bytes)",
       )
       .eq("company_id", companyId)
@@ -478,11 +481,24 @@ messageRoutes.get(
       companyId,
       page.data.map((row) => row.id),
     );
+    // TASKS-V2 D-D: resolve the linked task { id, title } for task-linked notes
+    // so the thread renders the "on: <task title>" chip (one batch/page).
+    const taskLinks = await loadNoteTaskLinks(
+      db,
+      companyId,
+      page.data
+        .map((row) => row.task_id)
+        .filter((v): v is string => typeof v === "string"),
+    );
     return c.json({
       data: page.data.map(({ message_attachments, ...rest }) => ({
         ...rest,
         attachments: message_attachments ?? [],
         has_task: promoted.has(rest.id),
+        task:
+          typeof rest.task_id === "string"
+            ? taskLinks.get(rest.task_id) ?? null
+            : null,
       })),
       next_cursor: page.next_cursor,
     });

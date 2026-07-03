@@ -10,14 +10,10 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import {
-  TaskAssignee,
-  TaskDoneCheckbox,
-  TaskDue,
-  TaskStatusPill,
-} from "../task-atoms";
-import { taskThreadHref } from "../task-format";
+import { TaskDoneCheckbox, TaskStatusPill } from "../task-atoms";
 import { EmptyTasks } from "../task-empty";
+import { InlineAssignee, InlineDue } from "../task-inline-edit";
+import { useTaskDrawer } from "../use-task-drawer";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
 /**
@@ -77,42 +73,48 @@ export function ListView({ state }: { state: TaskPageState }) {
   );
 }
 
-/** One roomy list row — desktop grid, mobile stacked; both deep-link back. */
+/**
+ * One roomy list row — desktop grid, mobile stacked. The title opens the task
+ * detail drawer (TASKS-V2 D-A); assignee + due are inline quick-edits (D-B); a
+ * quiet "Open conversation" link still deep-links to the source thread.
+ */
 function TaskRow({ task }: { task: Task }) {
+  const { openTask } = useTaskDrawer();
   return (
     <li className="group border-b border-border-subtle">
       <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-secondary/40 md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
           <TaskDoneCheckbox task={task} className="mt-0.5 md:mt-0" />
           <div className="min-w-0 flex-1">
-            <Link
-              href={taskThreadHref(task)}
+            <button
+              type="button"
+              onClick={() => openTask(task.id)}
               className={cn(
-                "block truncate text-sm font-medium text-foreground transition-colors hover:text-primary",
+                "block max-w-full truncate text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:underline",
                 task.done && "text-muted-foreground line-through opacity-70",
               )}
             >
               {task.title}
-            </Link>
+            </button>
             <Link
-              href={`/inbox/${task.conversation_id}`}
+              href={`/inbox/${task.conversation_id}?message=${task.message_id}`}
               className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"
             >
               Open conversation
               <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
             </Link>
             {/* Mobile-only meta row (the desktop grid shows these as columns). */}
-            <div className="mt-1.5 flex items-center gap-3 md:hidden">
-              <TaskAssignee task={task} />
-              <TaskDue task={task} className="text-[12px]" />
+            <div className="mt-1.5 flex items-center gap-2 md:hidden">
+              <InlineAssignee task={task} />
+              <InlineDue task={task} />
             </div>
           </div>
         </div>
         <div className="hidden min-w-0 md:block">
-          <TaskAssignee task={task} />
+          <InlineAssignee task={task} />
         </div>
-        <div className="hidden text-[13px] md:block">
-          <TaskDue task={task} />
+        <div className="hidden md:block">
+          <InlineDue task={task} />
         </div>
         <div className="hidden md:block">
           <TaskStatusPill task={task} />

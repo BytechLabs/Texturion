@@ -54,7 +54,10 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
-import { loadMessageTaskFlags } from "./core/message-tasks";
+import {
+  loadMessageTaskFlags,
+  loadNoteTaskLinks,
+} from "./core/message-tasks";
 
 const MMS_BUCKET = "mms-media";
 const MMS_SIGNED_URL_TTL_SECONDS = 3600;
@@ -66,7 +69,7 @@ const CONVERSATION_COLUMNS =
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +
   "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
-  "done_at,done_by_user_id,created_at," +
+  "done_at,done_by_user_id,task_id,created_at," +
   "message_attachments(id,content_type,size_bytes)";
 
 const listQuerySchema = z.object({
@@ -95,6 +98,11 @@ const patchSchema = z
 const noteSchema = z
   .object({
     body: z.string().max(4096),
+    // TASKS-V2 (D17 D-D): an optional link to a task in THIS conversation. A
+    // note composed from the task drawer sets this so the note appears both
+    // interwoven in the thread AND collected in the task's activity timeline.
+    // Validated below to belong to the same conversation + company (422 else).
+    task_id: z.uuid().optional(),
   })
   .refine((value) => value.body.trim().length > 0, {
     message: "body: a note needs text.",
@@ -226,6 +234,15 @@ conversationsRoutes.get(
       companyId,
       messagesPage.data.map((message) => message.id),
     );
+    // TASKS-V2 D-D: resolve the linked task { id, title } for task-linked notes
+    // so the thread renders the "on: <task title>" chip (one batch query).
+    const taskLinks = await loadNoteTaskLinks(
+      db,
+      companyId,
+      messagesPage.data
+        .map((message) => message.task_id)
+        .filter((v): v is string => typeof v === "string"),
+    );
 
     const { contacts, conversation_tags, ...conversation } = row;
     return c.json({
@@ -240,6 +257,10 @@ conversationsRoutes.get(
             ...message,
             attachments: message_attachments,
             has_task: promoted.has(message.id),
+            task:
+              typeof message.task_id === "string"
+                ? taskLinks.get(message.task_id) ?? null
+                : null,
           }),
         ),
         next_cursor: messagesPage.next_cursor,
@@ -365,10 +386,37 @@ conversationsRoutes.post(
       return errorResponse(c, "not_found", "No such conversation.");
     }
 
+    // TASKS-V2 (D17 D-D): a task-linked note must point at a LIVE task in the
+    // SAME conversation + company. Anything else (a task in another thread,
+    // another company, or a soft-deleted/absent task) is 422 validation_failed
+    // — the note-as-discussion invariant, enforced before the insert.
+    let taskLink: { id: string; title: string } | null = null;
+    if (body.task_id !== undefined) {
+      const tasks = unwrap<{ id: string; title: string }[]>(
+        await db
+          .from("tasks")
+          .select("id,title")
+          .eq("company_id", companyId)
+          .eq("id", body.task_id)
+          .eq("conversation_id", id)
+          .is("deleted_at", null)
+          .limit(1),
+        "note task link lookup",
+      );
+      if (tasks.length === 0) {
+        throw new ApiError(
+          "validation_failed",
+          "task_id: no such live task in this conversation.",
+        );
+      }
+      taskLink = { id: tasks[0].id, title: tasks[0].title };
+    }
+
     // SPEC §6/§7: a note IS a messages row — direction 'note', status NULL
     // (messages_note_status), authored by the caller. It threads, searches,
     // and paginates with the rest of the conversation for free, and the
-    // messages broadcast trigger pushes it live (§8).
+    // messages broadcast trigger pushes it live (§8). A task_id (validated
+    // above) links it to a task for the drawer's activity timeline (D-D).
     const inserted = unwrap<(Record<string, unknown> & { created_at: string })[]>(
       await db
         .from("messages")
@@ -379,11 +427,12 @@ conversationsRoutes.post(
           body: body.body,
           status: null,
           sent_by_user_id: c.get("userId"),
+          task_id: body.task_id ?? null,
         })
         .select(
           "id,conversation_id,direction,body,status,segments,encoding," +
             "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
-            "done_at,done_by_user_id,created_at",
+            "done_at,done_by_user_id,task_id,created_at",
         ),
       "note insert",
     );
@@ -403,7 +452,9 @@ conversationsRoutes.post(
     );
 
     // Message objects carry `attachments` everywhere (§7); notes have none.
-    return c.json({ ...note, attachments: [] }, 201);
+    // A task-linked note carries its `task` { id, title } so the thread renders
+    // the "on: <task title>" chip immediately, without a refetch (D-D).
+    return c.json({ ...note, attachments: [], task: taskLink }, 201);
   },
 );
 

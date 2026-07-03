@@ -169,6 +169,18 @@ export function CalendarView({ state }: { state: TaskPageState }) {
           We couldn&apos;t load your scheduled tasks. Try again.
         </p>
       )}
+      {/* Teach the calendar rather than leave it reading as broken: when no
+          task in the visible window has a due date, explain how they appear. */}
+      {!query.isPending && !query.isError && tasks.length === 0 && (
+        <div className="rounded-app-card border border-app-line bg-app-stone-1 px-4 py-3 text-center">
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            No tasks are scheduled in this range. A task appears here once it has
+            a <span className="font-medium text-foreground">due date</span> —
+            set one on a task from its row, the checklist, or its detail drawer,
+            then drag it between days to reschedule.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

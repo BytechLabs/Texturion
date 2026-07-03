@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { UnreadTitleManager } from "@/components/notifications/unread-title-manager";
 import { cn } from "@/lib/utils";
 
+import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
+
 import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
@@ -49,6 +51,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileTabBar />
       <ComposeFab />
       <CommandPalette />
+      {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable
+          from the /tasks views, the checklist, and thread task-event lines. */}
+      <TaskDrawerHost />
       {/* G9 unread indicators: `(3) …` title prefix + favicon dot. */}
       <UnreadTitleManager />
     </div>

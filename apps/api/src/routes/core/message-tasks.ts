@@ -37,3 +37,36 @@ export async function loadMessageTaskFlags(
   for (const row of rows) promoted.add(row.message_id);
   return promoted;
 }
+
+/** The `task` embed a task-linked note carries for the thread chip (D-D). */
+export interface NoteTaskLink {
+  id: string;
+  title: string;
+}
+
+/**
+ * Resolve the linked task's `{ id, title }` for each task-linked note
+ * (TASKS-V2 D-D). `taskIds` are the distinct non-null `messages.task_id`
+ * values on a page; a soft-deleted task still resolves its title (the chip
+ * stays meaningful even after the task is removed). Empty input → empty map.
+ * Company-scoped (§10). One batched lookup per page.
+ */
+export async function loadNoteTaskLinks(
+  db: Db,
+  companyId: string,
+  taskIds: string[],
+): Promise<Map<string, NoteTaskLink>> {
+  const byId = new Map<string, NoteTaskLink>();
+  const distinct = [...new Set(taskIds)];
+  if (distinct.length === 0) return byId;
+  const rows = unwrap<{ id: string; title: string }[]>(
+    await db
+      .from("tasks")
+      .select("id,title")
+      .eq("company_id", companyId)
+      .in("id", distinct),
+    "note task-link lookup",
+  );
+  for (const row of rows) byId.set(row.id, { id: row.id, title: row.title });
+  return byId;
+}

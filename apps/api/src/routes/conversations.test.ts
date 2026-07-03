@@ -506,7 +506,7 @@ describe("POST /v1/conversations/:id/read", () => {
 describe("POST /v1/conversations/:id/notes", () => {
   const NOTE_ID = "abababab-1111-4222-8333-444444444444";
 
-  function noteRow() {
+  function noteRow(overrides: Record<string, unknown> = {}) {
     return {
       id: NOTE_ID,
       conversation_id: CONV_ID,
@@ -521,7 +521,9 @@ describe("POST /v1/conversations/:id/notes", () => {
       telnyx_message_id: null,
       done_at: null,
       done_by_user_id: null,
+      task_id: null,
       created_at: "2026-07-01T11:00:00+00:00",
+      ...overrides,
     };
   }
 
@@ -544,7 +546,12 @@ describe("POST /v1/conversations/:id/notes", () => {
       },
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ ...noteRow(), attachments: [] });
+    // An unlinked note carries task: null (no task_id in the body).
+    expect(await res.json()).toEqual({
+      ...noteRow(),
+      attachments: [],
+      task: null,
+    });
 
     const insert = sb.find("POST", "/rest/v1/messages")[0];
     expect(insert.body).toMatchObject({
@@ -554,6 +561,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       body: "Customer prefers mornings",
       status: null,
       sent_by_user_id: auth.subject,
+      task_id: null,
     });
 
     // last_message_at moves forward only (never backwards).
@@ -579,6 +587,71 @@ describe("POST /v1/conversations/:id/notes", () => {
       { method: "POST", companyId: COMPANY_ID, body: { body: "hello" } },
     );
     expect(res.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/messages")).toHaveLength(0);
+  });
+
+  it("links a note to a task in the same conversation (D-D) and returns the task chip", async () => {
+    const TASK_ID = "cccccccc-1111-4222-8333-444444444444";
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    // The task-link validation lookup: a LIVE task in this conversation+company.
+    sb.on("GET", "/rest/v1/tasks", () => [
+      { id: TASK_ID, title: "Fix the sink" },
+    ]);
+    sb.on("POST", "/rest/v1/messages", () =>
+      Response.json([noteRow({ task_id: TASK_ID })], { status: 201 }),
+    );
+    sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/notes`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { body: "Ordered the part", task_id: TASK_ID },
+      },
+    );
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { task: unknown; task_id: string };
+    expect(json.task).toEqual({ id: TASK_ID, title: "Fix the sink" });
+    expect(json.task_id).toBe(TASK_ID);
+
+    // The validation lookup was scoped to this conversation + company + live.
+    const lookup = sb.find("GET", "/rest/v1/tasks")[0];
+    expect(lookup.url.searchParams.get("id")).toBe(`eq.${TASK_ID}`);
+    expect(lookup.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
+    expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
+
+    // The insert carried the task_id.
+    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    expect(insert.body).toMatchObject({ task_id: TASK_ID });
+  });
+
+  it("422s a note linked to a task outside the conversation, without inserting", async () => {
+    const TASK_ID = "cccccccc-1111-4222-8333-444444444444";
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    // No live task in this conversation matches → validation fails.
+    sb.on("GET", "/rest/v1/tasks", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/notes`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { body: "stray note", task_id: TASK_ID },
+      },
+    );
+    expect(res.status).toBe(422);
     expect(sb.find("POST", "/rest/v1/messages")).toHaveLength(0);
   });
 

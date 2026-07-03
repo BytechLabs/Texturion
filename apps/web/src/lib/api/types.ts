@@ -51,7 +51,25 @@ export type ConversationEventType =
   // no-op writes none). payload is `{ message_id }` only; the timeline joins
   // the live message body at render time (§4.3 — never a stored excerpt).
   | "message_done"
-  | "message_undone";
+  | "message_undone"
+  // D17 / TASKS.md T8 — task metadata lifecycle, written on the source
+  // conversation by the task-mutation RPCs (create_task/assign_task/
+  // update_task/delete_task). Each carries `payload.task_id`; the thread renders
+  // them as quiet interwoven system lines (system-line.tsx eventSentence) that
+  // link to open the task drawer.
+  //   task_created   payload: { task_id, message_id }
+  //   task_assigned  payload: { task_id, from_user_id, to_user_id }
+  //   task_due_set   payload: { task_id, due_at }        (due_at null = cleared)
+  //   task_deleted   payload: { task_id }
+  | "task_created"
+  | "task_assigned"
+  | "task_due_set"
+  | "task_deleted"
+  // D19 / TASKS.md T8 — generic-attachment audit for note + task owners.
+  | "note_attachment_added"
+  | "note_attachment_removed"
+  | "task_attachment_added"
+  | "task_attachment_removed";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {
@@ -219,6 +237,20 @@ export interface Message {
    * thread's stone task indicator only appears once the message re-reads.
    */
   has_task?: boolean;
+  /**
+   * TASKS-V2 (D17 D-D): the task this note is linked to (a `direction='note'`
+   * message composed from the task drawer). Null/absent for every non-note or
+   * unlinked message. Present on the message read surfaces + the note-create
+   * response so the thread renders the "on: <task title>" chip.
+   */
+  task_id?: string | null;
+  task?: MessageTaskLink | null;
+}
+
+/** The linked-task chip a task-linked note carries in the thread (D-D). */
+export interface MessageTaskLink {
+  id: string;
+  title: string;
 }
 
 /** Contact embed on GET /v1/conversations/:id. */
@@ -345,6 +377,30 @@ export interface TaskSourceMessage {
   direction: MessageDirection;
 }
 
+/**
+ * One item in the task drawer's merged activity+discussion timeline
+ * (TASKS-V2 D-C + D-D, GET /v1/tasks/:id `activity`). Either a `task_*` audit
+ * event (D-C) or a task-linked internal note (D-D), sorted oldest-first.
+ */
+export type TaskActivityItem =
+  | {
+      kind: "event";
+      id: string;
+      type: ConversationEventType;
+      payload: Record<string, unknown>;
+      actor_user_id: string | null;
+      actor: TaskProfile | null;
+      created_at: string;
+    }
+  | {
+      kind: "note";
+      id: string;
+      body: string;
+      author_user_id: string | null;
+      author: TaskProfile | null;
+      created_at: string;
+    };
+
 /** GET /v1/tasks/:id — the full detail (row + resolved profiles + source). */
 export interface TaskDetail extends Task {
   assignee: TaskProfile | null;
@@ -357,6 +413,8 @@ export interface TaskDetail extends Task {
     size_bytes: number | null;
     created_at: string;
   }[];
+  /** The merged activity+discussion timeline (D-C events + D-D notes). */
+  activity: TaskActivityItem[];
 }
 
 // ---------------------------------------------------------------------------

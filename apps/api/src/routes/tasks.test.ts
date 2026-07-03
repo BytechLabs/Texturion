@@ -275,8 +275,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // Company-scoped, live rows only.
     expect(q.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("deleted_at")).toBe("is.null");
-    // Inner-embed of the source message drives the derived status.
-    expect(q.get("select")).toContain("messages!inner");
+    // Inner-embed of the SOURCE message (disambiguated from the reverse
+    // messages.task_id FK) drives the derived status.
+    expect(q.get("select")).toContain("messages!message_id!inner");
   });
 
   it("derives done from the joined messages.done_at (no task-side column)", async () => {
@@ -530,6 +531,91 @@ describe("GET /v1/conversations/:id/tasks — checklist", () => {
       "GET",
       `/v1/conversations/${CONVERSATION_ID}/tasks`,
     );
+    expect(response.status).toBe(404);
+  });
+});
+
+// --------------------------------------------------------------------------
+// GET /v1/tasks/:id — detail + merged activity feed (TASKS-V2 D-C + D-D)
+// --------------------------------------------------------------------------
+describe("GET /v1/tasks/:id — detail + activity", () => {
+  it("returns detail plus the merged task_* events + linked notes, oldest-first", async () => {
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        messages: {
+          id: MESSAGE_ID,
+          body: "fix the sink",
+          done_at: null,
+          done_by_user_id: null,
+          created_at: "2026-07-02T12:00:00.000Z",
+          direction: "inbound",
+        },
+      }),
+    ]);
+    // profiles lookup (assignee/creator) — the route calls it up to twice.
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => [
+      { user_id: auth.subject, display_name: "Sam" },
+    ]);
+    const attachments = stubRoute(
+      restMatch(env, "GET", "attachments"),
+      () => [],
+    );
+    // Activity arm 1: task_* conversation_events for this task.
+    const events = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [
+        {
+          id: "eeeeeeee-0000-4000-8000-0000000000e1",
+          type: "task_created",
+          payload: { task_id: TASK_ID, message_id: MESSAGE_ID },
+          actor_user_id: auth.subject,
+          created_at: "2026-07-02T12:00:00.000Z",
+        },
+      ],
+    );
+    // Activity arm 2: task-linked notes (messages.task_id = TASK_ID).
+    const notes = stubRoute(restMatch(env, "GET", "messages"), () => [
+      {
+        id: "dddddddd-0000-4000-8000-0000000000d1",
+        body: "ordered the part",
+        sent_by_user_id: auth.subject,
+        created_at: "2026-07-02T13:00:00.000Z",
+      },
+    ]);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      detail.route,
+      profiles.route,
+      attachments.route,
+      events.route,
+      notes.route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      activity: { kind: string; id: string; created_at: string }[];
+      source_message: { id: string } | null;
+    };
+    expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
+    // Merged + sorted oldest-first: the create event (12:00) then the note (13:00).
+    expect(body.activity.map((a) => a.kind)).toEqual(["event", "note"]);
+
+    // The event arm filtered on the audit payload's task_id + the task types.
+    const evq = events.calls[0].url.searchParams;
+    expect(evq.get("payload->>task_id")).toBe(`eq.${TASK_ID}`);
+    expect(evq.get("type")).toContain("task_created");
+    // The note arm filtered on messages.task_id + direction note.
+    const nq = notes.calls[0].url.searchParams;
+    expect(nq.get("task_id")).toBe(`eq.${TASK_ID}`);
+    expect(nq.get("direction")).toBe("eq.note");
+  });
+
+  it("404s an unknown task", async () => {
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => []);
+    stubFetch(jwksRoute(auth), membersRoute(), detail.route);
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(404);
   });
 });

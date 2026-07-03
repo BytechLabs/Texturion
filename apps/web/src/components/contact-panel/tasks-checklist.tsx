@@ -1,15 +1,15 @@
 "use client";
 
-import { format, isSameYear } from "date-fns";
 import { ChevronDown, Paperclip } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { AttachmentsSection } from "@/components/attachments/attachments-section";
-import { useMemberNames, MemberAvatar } from "@/components/inbox/member-avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { undoableToast } from "@/components/ui/optimistic-undo";
+import { InlineAssignee, InlineDue } from "@/components/tasks/task-inline-edit";
+import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { ApiError } from "@/lib/api/error";
 import {
   useConversationTasks,
@@ -88,24 +88,6 @@ export function TasksChecklist({
   );
 }
 
-/**
- * Due-date label for a checklist row: compact and tabular. Same-year dates drop
- * the year ("Jul 8"); older/other years keep it ("Jul 8 2025"). `overdue` is
- * computed against `now` and only ever true for a NOT-done task (a done task is
- * never overdue — completion clears the pressure, matching the list view).
- */
-export function dueLabel(
-  dueAt: string,
-  done: boolean,
-  now: Date = new Date(),
-): { text: string; overdue: boolean } {
-  const date = new Date(dueAt);
-  const text = isSameYear(date, now)
-    ? format(date, "MMM d")
-    : format(date, "MMM d yyyy");
-  return { text, overdue: !done && date.getTime() < now.getTime() };
-}
-
 function TaskRow({
   task,
   conversationId,
@@ -114,7 +96,7 @@ function TaskRow({
   conversationId: string;
 }) {
   const toggle = useToggleTaskDone(conversationId);
-  const memberNames = useMemberNames();
+  const { openTask } = useTaskDrawer();
   // Reflect the toggle optimistically at the row so the checkbox + strikethrough
   // move at click even before the checklist cache patch settles.
   const [optimisticDone, setOptimisticDone] = useState<boolean | null>(null);
@@ -124,11 +106,6 @@ function TaskRow({
   // checklist row carries `attachment_count`, so the toggle can show the count
   // without fetching; the list only fetches when the row is expanded.
   const [filesOpen, setFilesOpen] = useState(false);
-
-  const assigneeName = task.assigned_user_id
-    ? memberNames.get(task.assigned_user_id) ?? null
-    : null;
-  const due = task.due_at ? dueLabel(task.due_at, done) : null;
 
   const runToggle = (next: boolean) => {
     setOptimisticDone(next);
@@ -169,37 +146,22 @@ function TaskRow({
         className="tap-target mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <p
+        <button
+          type="button"
+          onClick={() => openTask(task.id)}
           className={cn(
-            "text-[13px] font-medium text-foreground transition-[opacity] duration-150 ease-out",
+            "block max-w-full truncate text-left text-[13px] font-medium text-foreground transition-[opacity,color] duration-150 ease-out hover:text-primary focus-visible:outline-none focus-visible:underline",
             // D14 done treatment: strikethrough + 55% opacity.
             done && "text-muted-foreground line-through opacity-55",
           )}
         >
           {task.title}
-        </p>
-        {(assigneeName || due) && (
-          <div className="mt-0.5 flex items-center gap-2">
-            {assigneeName && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <MemberAvatar name={assigneeName} className="size-4" />
-                <span className="text-[11px]">{assigneeName}</span>
-              </span>
-            )}
-            {due && (
-              <span
-                className={cn(
-                  "text-[11px] tabular-nums",
-                  due.overdue
-                    ? "text-amber-700 dark:text-warning"
-                    : "text-muted-foreground",
-                )}
-              >
-                {due.text}
-              </span>
-            )}
-          </div>
-        )}
+        </button>
+        {/* D-B: inline quick-edits — assignee + due, without opening the drawer. */}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1">
+          <InlineAssignee task={task} />
+          <InlineDue task={task} />
+        </div>
         {/* D19: attach-a-file affordance + existing task attachments. The
             "Files (N)" toggle recedes to stone; opening it mounts the shared
             AttachmentsSection which fetches this task's attachments and offers

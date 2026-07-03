@@ -347,11 +347,13 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const createdCursor =
     dueSorted || rawCursor === undefined ? null : decodeCursor(rawCursor);
 
-  // messages!inner embeds the source row so status can filter on done_at and
-  // the response carries the derived `done`. has_location joins contacts via
-  // the source conversation only when requested (keeps the common path lean).
+  // messages!message_id!inner embeds the SOURCE row (tasks.message_id → messages,
+  // disambiguated from the reverse messages.task_id FK) so status can filter on
+  // done_at and the response carries the derived `done`. has_location joins
+  // contacts via the source conversation only when requested (keeps the common
+  // path lean).
   const select =
-    `${TASK_COLUMNS},messages!inner(id,done_at)` +
+    `${TASK_COLUMNS},messages!message_id!inner(id,done_at)` +
     (hasLocation
       ? ",conversations!inner(id,contacts!inner(id,name,lat,lng))"
       : "");
@@ -514,7 +516,7 @@ tasksRoutes.get(
     const rows = unwrap<ChecklistRow[]>(
       await db
         .from("tasks")
-        .select(`${TASK_COLUMNS},messages!inner(id,done_at)`)
+        .select(`${TASK_COLUMNS},messages!message_id!inner(id,done_at)`)
         .eq("company_id", companyId)
         .eq("conversation_id", conversationId)
         .is("deleted_at", null)
@@ -591,7 +593,7 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
       .from("tasks")
       .select(
         `${TASK_COLUMNS},` +
-          "messages!inner(id,body,done_at,done_by_user_id,created_at,direction)",
+          "messages!message_id!inner(id,body,done_at,done_by_user_id,created_at,direction)",
       )
       .eq("company_id", companyId)
       .eq("id", id)
@@ -633,6 +635,15 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
     "task attachments",
   );
 
+  // TASKS-V2 D-C + D-D: the merged activity-and-discussion timeline. Reuses
+  // existing data — no new table. Two arms, both company + task scoped:
+  //   1. the task_* conversation_events for THIS task (filtered by the audit
+  //      payload's task_id), and
+  //   2. the internal notes linked to this task (messages.task_id = id).
+  // Merged and sorted (created_at, id) ASC so the drawer reads oldest-first,
+  // like the thread. Author display names are resolved from profiles.
+  const activity = await loadTaskActivity(db, companyId, id, profiles);
+
   const { messages, ...task } = row;
   const done = (messages?.done_at ?? null) !== null;
   return c.json({
@@ -645,8 +656,157 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
     created_by: profiles.get(row.created_by_user_id) ?? null,
     source_message: messages,
     attachments,
+    activity,
   });
 });
+
+// --------------------------------------------------------------------------
+// Task activity feed (TASKS-V2 D-C + D-D) — reuse existing rows, no new table.
+// --------------------------------------------------------------------------
+
+/** One merged activity item: a task_* audit event OR a task-linked note. */
+type TaskActivityItem =
+  | {
+      kind: "event";
+      id: string;
+      type: string;
+      payload: Record<string, unknown>;
+      actor_user_id: string | null;
+      actor: { user_id: string; display_name: string | null } | null;
+      created_at: string;
+    }
+  | {
+      kind: "note";
+      id: string;
+      body: string;
+      author_user_id: string | null;
+      author: { user_id: string; display_name: string | null } | null;
+      created_at: string;
+    };
+
+/**
+ * Assemble the task's merged activity+discussion timeline (D-C/D-D). Two
+ * company-scoped arms: the `task_*` conversation_events for this task id (the
+ * audit payload carries `task_id`) and the internal notes linked to the task
+ * (`messages.task_id = taskId`). `profiles` is the already-resolved
+ * assignee/creator name cache; note/event actor names not in it are resolved in
+ * one extra batch. Result is sorted (created_at, id) ASC (oldest-first).
+ */
+async function loadTaskActivity(
+  db: Db,
+  companyId: string,
+  taskId: string,
+  profiles: Map<string, Record<string, unknown>>,
+): Promise<TaskActivityItem[]> {
+  // Arm 1: task_* audit events for this task (payload->>'task_id' = taskId).
+  const eventRows = unwrap<
+    {
+      id: string;
+      type: string;
+      payload: Record<string, unknown> | null;
+      actor_user_id: string | null;
+      created_at: string;
+    }[]
+  >(
+    await db
+      .from("conversation_events")
+      .select("id,type,payload,actor_user_id,created_at")
+      .eq("company_id", companyId)
+      .in("type", [
+        "task_created",
+        "task_assigned",
+        "task_due_set",
+        "task_deleted",
+        "task_attachment_added",
+        "task_attachment_removed",
+      ])
+      .eq("payload->>task_id", taskId)
+      .order("created_at", { ascending: true }),
+    "task activity events",
+  );
+
+  // Arm 2: internal notes linked to this task (messages.task_id = taskId).
+  const noteRows = unwrap<
+    {
+      id: string;
+      body: string;
+      sent_by_user_id: string | null;
+      created_at: string;
+    }[]
+  >(
+    await db
+      .from("messages")
+      .select("id,body,sent_by_user_id,created_at")
+      .eq("company_id", companyId)
+      .eq("task_id", taskId)
+      .eq("direction", "note")
+      .order("created_at", { ascending: true }),
+    "task activity notes",
+  );
+
+  // Resolve any actor/author names not already in the profiles cache (one batch).
+  const needed = new Set<string>();
+  for (const e of eventRows) {
+    if (e.actor_user_id && !profiles.has(e.actor_user_id)) {
+      needed.add(e.actor_user_id);
+    }
+  }
+  for (const n of noteRows) {
+    if (n.sent_by_user_id && !profiles.has(n.sent_by_user_id)) {
+      needed.add(n.sent_by_user_id);
+    }
+  }
+  if (needed.size > 0) {
+    const found = unwrap<{ user_id: string; display_name: string | null }[]>(
+      await db
+        .from("profiles")
+        .select("user_id,display_name")
+        .in("user_id", [...needed]),
+      "task activity profiles",
+    );
+    for (const p of found) profiles.set(p.user_id, p);
+  }
+  const nameOf = (
+    userId: string | null,
+  ): { user_id: string; display_name: string | null } | null => {
+    if (!userId) return null;
+    const p = profiles.get(userId);
+    return p
+      ? { user_id: userId, display_name: (p.display_name as string) ?? null }
+      : null;
+  };
+
+  const items: TaskActivityItem[] = [
+    ...eventRows.map(
+      (e): TaskActivityItem => ({
+        kind: "event",
+        id: e.id,
+        type: e.type,
+        payload: e.payload ?? {},
+        actor_user_id: e.actor_user_id,
+        actor: nameOf(e.actor_user_id),
+        created_at: e.created_at,
+      }),
+    ),
+    ...noteRows.map(
+      (n): TaskActivityItem => ({
+        kind: "note",
+        id: n.id,
+        body: n.body,
+        author_user_id: n.sent_by_user_id,
+        author: nameOf(n.sent_by_user_id),
+        created_at: n.created_at,
+      }),
+    ),
+  ];
+  items.sort((a, b) => {
+    const at = Date.parse(a.created_at);
+    const bt = Date.parse(b.created_at);
+    if (at !== bt) return at - bt;
+    return a.id < b.id ? -1 : 1;
+  });
+  return items;
+}
 
 /**
  * PATCH /v1/tasks/:id — metadata only (T4). No `done` field. An assignee

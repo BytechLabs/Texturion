@@ -946,6 +946,74 @@ begin
   raise notice 'A25 PASSED: set_message_done is service-role-only';
 end $$;
 
+-- ===========================================================================
+-- A26. messages.task_id link (TASKS-V2 D-D): a nullable uuid FK → tasks.id with
+--      ON DELETE SET NULL, indexed (partial on task_id IS NOT NULL). A note can
+--      link to a task; the RLS/grants posture matches the rest of messages
+--      (deny-by-default; service_role has DML; anon/authenticated have none).
+-- ===========================================================================
+do $$
+declare tid_null boolean; del text; has_idx boolean; v_task_id uuid; v_note_id uuid;
+begin
+  -- column exists, nullable
+  select is_nullable='YES' into tid_null from information_schema.columns
+  where table_schema='public' and table_name='messages' and column_name='task_id';
+  if tid_null is null then raise exception 'A26 FAILED: messages.task_id missing'; end if;
+  if not tid_null then raise exception 'A26 FAILED: messages.task_id must be nullable'; end if;
+
+  -- FK → tasks with ON DELETE SET NULL ('n')
+  select con.confdeltype into del
+  from pg_constraint con
+  join pg_attribute att on att.attrelid=con.conrelid and att.attnum=con.conkey[1]
+  where con.conrelid='public.messages'::regclass and con.contype='f' and att.attname='task_id';
+  if del is null then raise exception 'A26 FAILED: messages.task_id is not a FK'; end if;
+  if del <> 'n' then raise exception 'A26 FAILED: messages.task_id ON DELETE is % (want n=SET NULL)', del; end if;
+
+  -- index present (leads with task_id)
+  select exists (
+    select 1 from pg_index i
+    join pg_class ic on ic.oid=i.indexrelid
+    join pg_class tc on tc.oid=i.indrelid
+    join pg_namespace n on n.oid=tc.relnamespace
+    join pg_attribute a on a.attrelid=tc.oid and a.attnum=i.indkey[0]
+    where n.nspname='public' and tc.relname='messages' and a.attname='task_id')
+  into has_idx;
+  if not has_idx then raise exception 'A26 FAILED: no index leads with messages.task_id'; end if;
+
+  -- a note can link to a task; ON DELETE SET NULL clears the link on hard delete
+  v_task_id := (public.create_task(
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
+    'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004',
+    'Linkable', null, null, null,
+    'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7')->'task'->>'id')::uuid;
+  insert into public.messages (company_id, conversation_id, direction, body, status, task_id)
+  values ('b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7','b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003',
+          'note','ordered the part', null, v_task_id)
+  returning id into v_note_id;
+  if (select task_id from public.messages where id=v_note_id) <> v_task_id then
+    raise exception 'A26 FAILED: note did not link to the task';
+  end if;
+  -- hard-delete the task → the note survives with task_id cleared (SET NULL)
+  delete from public.tasks where id=v_task_id;
+  if (select task_id from public.messages where id=v_note_id) is not null then
+    raise exception 'A26 FAILED: ON DELETE SET NULL did not clear the note link';
+  end if;
+
+  -- grants posture matches messages (deny-by-default for end-user roles)
+  if has_table_privilege('anon','public.messages','SELECT')
+   or has_table_privilege('authenticated','public.messages','SELECT') then
+    raise exception 'A26 FAILED: anon/authenticated must have no privilege on messages';
+  end if;
+  if not has_table_privilege('service_role','public.messages','SELECT,INSERT,UPDATE,DELETE') then
+    raise exception 'A26 FAILED: service_role must have full DML on messages';
+  end if;
+  raise notice 'A26 PASSED: messages.task_id nullable FK (SET NULL) + index; note links; grants match messages';
+end $$;
+
+delete from public.messages where task_id is null and direction='note'
+  and conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and body='ordered the part';
+delete from public.conversation_events where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003';
+
 rollback;
 
 select 'ALL APP-V2 SCHEMA TESTS PASSED' as result;

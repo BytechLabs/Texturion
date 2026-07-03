@@ -21,7 +21,7 @@ import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
 import type { Message } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-import { doneToggleLabel, isDone } from "./done";
+import { doneToggleLabel, isDone, isUnsentOutbound } from "./done";
 import { MakeTaskForm } from "./make-task-form";
 
 /** Telnyx error for a send blocked by the profile-level opt-out list. */
@@ -99,6 +99,10 @@ function MessageOverflow({
   // A promoted message can't be re-promoted (server 409); hide the affordance
   // when we already know it's a task, so the primary path is a clean create.
   const alreadyTask = message.has_task === true;
+  // Promoting a never-sent outbound (queued/failed) to a task is nonsensical —
+  // nothing reached the customer, so there is nothing to track. Withhold "Make
+  // a task" alongside the Done toggle (withheld in MessageActions below).
+  const promotable = !alreadyTask && !isUnsentOutbound(message);
 
   const copyText = async () => {
     try {
@@ -135,7 +139,7 @@ function MessageOverflow({
           </DropdownMenuTrigger>
         </PopoverAnchor>
         <DropdownMenuContent align="end" className="w-44">
-          {!alreadyTask && (
+          {promotable && (
             <DropdownMenuItem
               onSelect={() => {
                 // Close the menu, then open the inline form on the next tick so
@@ -190,9 +194,14 @@ export function MessageActions({
   message: Message;
   conversationId: string;
 }) {
+  // A never-sent outbound (queued/failed) has no delivered work to complete, so
+  // its Done toggle is withheld (marking it done is nonsensical). "Make a task"
+  // is withheld inside MessageOverflow for the same reason. The overflow itself
+  // stays (Copy text / Retry send remain useful on a failed send).
+  const done = !isUnsentOutbound(message);
   return (
     <div className="flex shrink-0 items-center gap-0.5 self-center">
-      <DoneToggle message={message} conversationId={conversationId} />
+      {done && <DoneToggle message={message} conversationId={conversationId} />}
       <MessageOverflow message={message} conversationId={conversationId} />
     </div>
   );

@@ -43,6 +43,24 @@ export function isDone(message: Pick<Message, "done_at">): boolean {
   return message.done_at !== null;
 }
 
+/**
+ * True for an outbound message that has never actually been sent — a `queued`
+ * (still waiting to go out) or `failed` (send rejected) outbound. Marking such a
+ * message "done" or promoting it to a task is nonsensical: nothing was ever
+ * delivered to the customer, so there is no work to complete or track. Both the
+ * per-message Done toggle and "Make a task" are withheld for these (message-
+ * actions.tsx). Received inbound, sent/delivered outbound, and notes are all
+ * unaffected.
+ */
+export function isUnsentOutbound(
+  message: Pick<Message, "direction" | "status">,
+): boolean {
+  return (
+    message.direction === "outbound" &&
+    (message.status === "queued" || message.status === "failed")
+  );
+}
+
 /** aria-pressed toggle label (D14): "Mark done" / "Mark not done". */
 export function doneToggleLabel(done: boolean): string {
   return done ? "Mark not done" : "Mark done";

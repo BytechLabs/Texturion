@@ -6,12 +6,43 @@ import {
   doneEventSentence,
   doneToggleLabel,
   isDone,
+  isUnsentOutbound,
 } from "./done";
 
 describe("isDone", () => {
   it("is true exactly when done_at is set", () => {
     expect(isDone({ done_at: null })).toBe(false);
     expect(isDone({ done_at: "2026-07-02T14:14:00Z" })).toBe(true);
+  });
+});
+
+describe("isUnsentOutbound", () => {
+  it("is false for a received inbound message (real customer text)", () => {
+    expect(
+      isUnsentOutbound({ direction: "inbound", status: "received" }),
+    ).toBe(false);
+  });
+
+  it("is false for a sent/delivered outbound message (it left)", () => {
+    expect(isUnsentOutbound({ direction: "outbound", status: "sent" })).toBe(
+      false,
+    );
+    expect(
+      isUnsentOutbound({ direction: "outbound", status: "delivered" }),
+    ).toBe(false);
+  });
+
+  it("is false for a note (an internal note is not an unsent send)", () => {
+    expect(isUnsentOutbound({ direction: "note", status: null })).toBe(false);
+  });
+
+  it("is true for a queued or failed outbound (never actually sent)", () => {
+    expect(isUnsentOutbound({ direction: "outbound", status: "queued" })).toBe(
+      true,
+    );
+    expect(isUnsentOutbound({ direction: "outbound", status: "failed" })).toBe(
+      true,
+    );
   });
 });
 
