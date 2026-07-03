@@ -138,8 +138,11 @@ export function FilterBar({
             className={cn(
               // min-h-11 below md: the G11 ≥44px mobile hit-target bar.
               "min-h-11 flex-1 rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
+              // §3.1: active segment is a QUIET stone pill (white lift + near-
+              // black text), never petrol — petrol is spent on the one compose
+              // action in this region, not on the filter control.
               segment === id
-                ? "bg-card text-primary shadow-none"
+                ? "bg-card text-foreground shadow-none"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -264,9 +267,12 @@ function FilterSheet({
         >
           <SlidersHorizontal className="size-4" strokeWidth={1.75} />
           {count > 0 && (
+            // §3.1: reserve petrol for the one compose action in this region.
+            // The active-filter count reads as a quiet near-black chip, not a
+            // second petrol accent (the active chips below carry the detail).
             <span
               aria-hidden
-              className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground"
+              className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-foreground text-[9px] font-semibold text-background"
             >
               {count}
             </span>

@@ -1,11 +1,10 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 
 import { REGISTRATION_COPY } from "@/components/registration/copy";
 import { Button } from "@/components/ui/button";
+import { NumberReveal } from "@/components/ui/number-reveal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMeCompany } from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -15,11 +14,17 @@ import { formatPhone } from "@/lib/format/phone";
  * G4 bespoke empty states — never generic.
  */
 
-/** Filtered view with nothing in it: quiet one-liner. */
+/**
+ * Filtered view with nothing in it — delight moment #2 (§3.1): quiet and
+ * kind, one line, centered, generous air, no illustration, no emoji. The
+ * reassurance IS the design.
+ */
 export function FilteredEmptyState() {
   return (
-    <div className="flex flex-1 items-center justify-center p-8">
-      <p className="text-sm text-muted-foreground">Nothing waiting on you. 🎉</p>
+    <div className="flex flex-1 items-center justify-center p-10">
+      <p className="text-[15px] text-muted-foreground">
+        Nothing waiting on you.
+      </p>
     </div>
   );
 }
@@ -38,7 +43,6 @@ export function FilteredEmptyState() {
 export function ActivationEmptyState() {
   const me = useMeCompany();
   const { role } = useActiveCompany();
-  const [copied, setCopied] = useState(false);
 
   const numbers = me.data?.company?.numbers ?? [];
   const activeNumber = numbers.find(
@@ -106,39 +110,21 @@ export function ActivationEmptyState() {
 
   const display = formatPhone(activeNumber.number_e164);
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(display);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard unavailable (permissions): the number stays selectable.
-    }
-  };
-
+  // Delight moment #1 — the activation reveal (§3.1): the app's most confident,
+  // exclamation-free peak of magic. The shared <NumberReveal> renders it in the
+  // §2.2 emotional-number scale (36px tabular Inter, tight tracking) with the
+  // one budgeted fade+rise, a copy button, and the warm caption centered with
+  // breathing room around it.
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="flex items-center gap-2">
-        <p className="select-all text-[32px] font-semibold leading-tight tabular-nums text-foreground">
-          {display}
-        </p>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={copy}
-          aria-label={copied ? "Number copied" : "Copy number"}
-        >
-          {copied ? (
-            <Check className="size-4 text-success" strokeWidth={1.75} />
-          ) : (
-            <Copy className="size-4" strokeWidth={1.75} />
-          )}
-        </Button>
-      </div>
-      <p className="max-w-[260px] text-sm text-muted-foreground">
-        This is your business number. Text it from your phone right now — your
-        message will appear here.
-      </p>
+    <div className="flex flex-1 flex-col items-center justify-center p-10 text-center">
+      <NumberReveal
+        value={display}
+        copyable
+        copyLabel="Copy your business number"
+        // Center the number+copy row; constrain the caption to a calm measure.
+        className="flex flex-col items-center [&>div:first-child]:justify-center [&>p]:max-w-[280px] [&>p]:text-[15px] [&>p]:leading-relaxed"
+        caption="This is your business number. Text it from your phone right now — your message will appear here."
+      />
     </div>
   );
 }
@@ -150,7 +136,7 @@ export function ListSkeleton() {
       {Array.from({ length: 8 }, (_, i) => (
         <div
           key={i}
-          className="flex h-[68px] items-center gap-3 border-b border-border/60 px-4"
+          className="flex h-[68px] items-center gap-3 border-b border-border-subtle px-4"
         >
           <Skeleton className="size-2 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2">

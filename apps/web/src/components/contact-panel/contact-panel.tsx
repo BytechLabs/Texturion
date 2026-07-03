@@ -126,8 +126,11 @@ export function ContactPanel({
   };
 
   return (
+    // §3.3: the contact panel is a CALM surface — roomy 20px padding, 32px
+    // between groups, quiet auto-saving fields. Progressive disclosure: the
+    // thread stays the hero; this detail lives in the toggled panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="space-y-4 p-4">
+      <div className="space-y-8 p-5">
         <section className="space-y-1">
           <InlineTextField
             contactId={contact.id}
@@ -217,13 +220,15 @@ export function ContactPanel({
         </section>
       </div>
 
-      {/* Quiet danger zone (G6). */}
+      {/* §3.3 quiet danger zone: opting out is routine and reversible, so it
+          sits alone, neutral (stone-500) until hovered — no red scare-styling.
+          The confirm dialog still guards the actual action. */}
       {!contact.opted_out && (
-        <div className="mt-auto border-t border-border p-4">
+        <div className="mt-auto border-t border-border p-5">
           <button
             type="button"
             onClick={() => setConfirmOptOut(true)}
-            className="inline-flex items-center gap-1.5 text-[13px] text-destructive underline-offset-2 hover:underline"
+            className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
           >
             <Ban className="size-3.5" strokeWidth={1.75} aria-hidden />
             Opt out this contact

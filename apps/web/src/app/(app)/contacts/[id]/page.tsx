@@ -141,8 +141,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-xl font-medium tabular-nums">
           {formatPhone(contact.phone_e164)}
         </p>
@@ -240,7 +240,10 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
         <ConsentLine contact={contact} />
       </SettingsCard>
 
-      <SettingsCard title="Danger zone">
+      {/* §3.3: the danger zone stays genuinely quiet — these are routine,
+          reversible actions, so the triggers are neutral until hovered, no red
+          scare-styling. The typed/confirm gauntlet lives in the dialogs. */}
+      <SettingsCard title="Manage this contact">
         <div className="space-y-4">
           {!contact.opted_out && (
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -248,9 +251,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 Stop all texting to this customer.
               </p>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={() => setConfirmingOptOut(true)}
               >
                 Opt out this contact
@@ -263,9 +266,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               they reappear if they text you again.
             </p>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="text-destructive hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={() => setConfirmingDelete(true)}
             >
               Delete contact
@@ -362,10 +365,10 @@ export default function ContactDetailPage({
   const contact = useContact(id);
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6 md:px-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 md:px-6">
       <Link
         href="/contacts"
-        className="inline-flex min-h-[44px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex min-h-[44px] items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
       >
         <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden />
         Contacts

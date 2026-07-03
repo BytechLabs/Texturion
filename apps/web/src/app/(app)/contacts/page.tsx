@@ -14,17 +14,19 @@ export default function ContactsPage() {
   const [importing, setImporting] = useState(false);
   const canImport = role === "owner" || role === "admin";
 
+  // Import is the single obvious action for this view (§5), so it carries the
+  // one petrol element in the region.
   const importButton = canImport ? (
-    <Button variant="outline" onClick={() => setImporting(true)}>
+    <Button onClick={() => setImporting(true)}>
       <Upload strokeWidth={1.75} aria-hidden />
       Import CSV
     </Button>
   ) : null;
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6 md:px-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8 md:px-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">Contacts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
         {importButton}
       </div>
       <ContactsTable emptyAction={importButton} />

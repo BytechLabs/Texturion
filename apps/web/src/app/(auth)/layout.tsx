@@ -15,8 +15,11 @@ export default function AuthLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <AppProviders>
-      <div className="flex min-h-svh flex-col items-center justify-center gap-6 px-4 py-10">
-        <Wordmark href="/" className="text-xl" />
+      {/* §3.5: one centered card on the stone-50 field, generous air above the
+          form (≥15vh top) so the first taste of the app feels calm and
+          premium; 24px card padding; the wordmark sits quietly above. */}
+      <div className="flex min-h-svh flex-col items-center px-4 pb-16 pt-[15vh]">
+        <Wordmark href="/" className="mb-8 text-xl" />
         <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6">
           {children}
         </div>

@@ -1,14 +1,18 @@
 "use client";
 
+import { Gauge } from "lucide-react";
 import Link from "next/link";
 
 import { CapControl } from "@/components/settings/cap-control";
+import { CalmEmptyState } from "@/components/settings/empty-state";
 import {
   LoadError,
   SettingsCard,
   SettingsPage,
 } from "@/components/settings/section";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tertiary } from "@/components/ui/tertiary";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
 import type { Usage, UsageMonth } from "@/lib/api/types";
@@ -46,18 +50,25 @@ function PeriodMeter({ usage }: { usage: Usage }) {
   const warning = ratio >= 0.8;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <p className="text-3xl font-semibold tabular-nums tracking-tight">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+        {/* The §3.6 "balance"-style hero: the used figure in the tokens-track
+            emotional-number scale (32–36px tabular, tight tracking) with the
+            calm fade+rise reveal. The "of N included" recedes to body-secondary;
+            the period drops to tertiary. */}
+        <span className="app-emotional-number app-motion-message-in text-foreground">
           {usage.used_segments.toLocaleString()}
-        </p>
-        <p className="text-sm text-muted-foreground">
+        </span>
+        <p className="pb-0.5 text-sm text-muted-foreground">
           of {usage.included_segments.toLocaleString()} included messages used
         </p>
         {periodRange(usage) && (
-          <p className="ml-auto text-sm tabular-nums text-muted-foreground">
+          <Tertiary
+            as="p"
+            className="ml-auto pb-0.5 text-sm tabular-nums"
+          >
             {periodRange(usage)}
-          </p>
+          </Tertiary>
         )}
       </div>
       <div
@@ -66,7 +77,7 @@ function PeriodMeter({ usage }: { usage: Usage }) {
         aria-valuemax={usage.included_segments}
         aria-valuenow={Math.min(usage.used_segments, usage.included_segments)}
         aria-label={`${usage.used_segments} of ${usage.included_segments} included messages used`}
-        className="h-3 w-full overflow-hidden rounded-full bg-border"
+        className="h-3 w-full overflow-hidden rounded-full bg-secondary"
       >
         <div
           className={cn(
@@ -153,7 +164,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
                 }
               />
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-tertiary">
               {monthLabel(entry.month)}
             </span>
           </div>
@@ -189,18 +200,19 @@ export default function UsageSettingsPage() {
         />
       ) : usage.data.period_start === null ? (
         <SettingsCard>
-          <p className="text-sm text-muted-foreground">
-            Usage shows up here once your subscription starts.{" "}
-            <Link
-              href="/settings/billing"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              See billing
-            </Link>
-          </p>
+          <CalmEmptyState
+            icon={<Gauge strokeWidth={1.5} aria-hidden />}
+            title="Your message count starts with your subscription"
+            description="Once your plan is live, this is where you'll watch what you've used each period."
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/settings/billing">See billing</Link>
+              </Button>
+            }
+          />
         </SettingsCard>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-8">
           <SettingsCard title="This period">
             <PeriodMeter usage={usage.data} />
           </SettingsCard>

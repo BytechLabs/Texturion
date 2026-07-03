@@ -74,7 +74,7 @@ export function SearchResults({ q }: { q: string }) {
             <Link
               key={hit.id}
               href={`/inbox/${hit.id}`}
-              className="flex items-center gap-3 border-b border-border/60 px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
+              className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">
@@ -86,7 +86,7 @@ export function SearchResults({ q }: { q: string }) {
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1">
                 <span
-                  className="text-xs tabular-nums text-muted-foreground"
+                  className="text-xs tabular-nums text-foreground-tertiary"
                   title={formatAbsoluteDateTime(hit.matched_at)}
                 >
                   {formatRelativeTime(hit.matched_at)}
@@ -106,12 +106,12 @@ export function SearchResults({ q }: { q: string }) {
             <Link
               key={contact.id}
               href={`/inbox/new?contact=${contact.id}`}
-              className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
+              className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
             >
               <span className="truncate text-sm font-medium text-foreground">
                 {contactDisplayName(contact)}
               </span>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-xs tabular-nums text-foreground-tertiary">
                 {formatPhone(contact.phone_e164)}
               </span>
             </Link>

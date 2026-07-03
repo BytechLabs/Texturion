@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Copy, Loader2 } from "lucide-react";
+import { Check, Circle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import { Suspense, useEffect, useState } from "react";
 import { REGISTRATION_COPY } from "@/components/registration/copy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberReveal } from "@/components/ui/number-reveal";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import {
@@ -34,11 +35,19 @@ import { useProvisioningEvents } from "./use-provisioning-events";
 
 type RowStatus = "done" | "working" | "waiting";
 
-function RowIcon({ status }: { status: RowStatus }) {
+function RowIcon({ status, order = 0 }: { status: RowStatus; order?: number }) {
   if (status === "done") {
     return (
-      <span className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground animate-in fade-in duration-200">
-        <Check className="size-4" strokeWidth={2} aria-hidden />
+      <span
+        // §3.4 signature moment: the gentle green check cascade, via the
+        // tokens-track `app-motion-check-cascade` class + `--cascade-delay` so
+        // rows settle in order. A done step is a genuine positive, so it turns
+        // the encouraging success green (§2.1), not petrol. The globals.css
+        // reduced-motion base rule zeroes the animation for free.
+        className="app-motion-check-cascade flex size-6 items-center justify-center rounded-full bg-success text-white"
+        style={{ "--cascade-delay": `${order * 140}ms` } as React.CSSProperties}
+      >
+        <Check className="size-4" strokeWidth={2.25} aria-hidden />
       </span>
     );
   }
@@ -50,7 +59,7 @@ function RowIcon({ status }: { status: RowStatus }) {
     );
   }
   return (
-    <span className="flex size-6 items-center justify-center text-muted-foreground/50">
+    <span className="flex size-6 items-center justify-center text-tertiary">
       <Circle className="size-5" strokeWidth={1.75} aria-hidden />
     </span>
   );
@@ -59,15 +68,18 @@ function RowIcon({ status }: { status: RowStatus }) {
 function ChecklistRow({
   status,
   title,
+  order = 0,
   children,
 }: {
   status: RowStatus;
   title: string;
+  /** Position in the list — drives the check-cascade stagger (§3.4). */
+  order?: number;
   children?: React.ReactNode;
 }) {
   return (
     <li className="flex gap-4 py-5 first:pt-0 last:pb-0">
-      <RowIcon status={status} />
+      <RowIcon status={status} order={order} />
       <div className="min-w-0 flex-1 space-y-1.5">
         <p
           className={cn(
@@ -83,49 +95,6 @@ function ChecklistRow({
         {children}
       </div>
     </li>
-  );
-}
-
-function NumberReveal({ e164 }: { e164: string }) {
-  const [copied, setCopied] = useState(false);
-  const formatted = formatPhone(e164);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 animate-in fade-in duration-200">
-      {/* 36px tabular reveal (G7). */}
-      <span className="text-4xl font-semibold tabular-nums tracking-tight">
-        {formatted}
-      </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(formatted);
-            setCopied(true);
-          } catch {
-            // Clipboard blocked — the number is on screen to copy by hand.
-          }
-        }}
-      >
-        {copied ? (
-          <>
-            <Check className="size-4" aria-hidden /> Copied
-          </>
-        ) : (
-          <>
-            <Copy className="size-4" aria-hidden /> Copy
-          </>
-        )}
-      </Button>
-    </div>
   );
 }
 
@@ -329,24 +298,39 @@ function SettingUp() {
     !owes || campaignApproved ? "done" : confirming ? "waiting" : "working";
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
 
+  // The §3.4 peak: once the number lands, the heading carries the app's ONE
+  // exclamation mark (G10) and the number reveals below. Until then it stays a
+  // calm, honest present-tense status line.
+  const numberReady = Boolean(activeNumber?.number_e164);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Setting up your number
+        {/* §3.4: the hero line carries the app's ONE exclamation mark once the
+            number lands (G10). */}
+        <h1 className="app-hero-line">
+          {numberReady ? "Your number is ready!" : "Setting up your number"}
         </h1>
         <p className="text-sm text-muted-foreground">
-          This screen updates itself — no refreshing needed.
+          {numberReady
+            ? "Everything below is live — text your new number to see it land."
+            : "This screen updates itself — no refreshing needed."}
         </p>
       </div>
 
       <ul
-        className="divide-y divide-border rounded-lg border border-border bg-card px-5 py-5"
+        className="divide-y divide-border-subtle rounded-lg border border-border bg-card px-6 py-5"
         aria-live="polite"
       >
-        <ChecklistRow status={numberStatus} title="Creating your number">
+        <ChecklistRow status={numberStatus} order={0} title="Creating your number">
           {activeNumber?.number_e164 ? (
-            <NumberReveal e164={activeNumber.number_e164} />
+            // §3.4 number reveal via the tokens-track primitive: the
+            // emotional-number scale + fade-rise + copy button.
+            <NumberReveal
+              value={formatPhone(activeNumber.number_e164)}
+              copyValue={formatPhone(activeNumber.number_e164)}
+              copyable
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               {confirming
@@ -360,6 +344,7 @@ function SettingUp() {
 
         <ChecklistRow
           status={registrationStatus}
+          order={1}
           title="Registering your business with carriers"
         >
           {!owes ? (
@@ -394,9 +379,9 @@ function SettingUp() {
           )}
         </ChecklistRow>
 
-        <ChecklistRow status={inboxStatus} title="Inbox ready">
+        <ChecklistRow status={inboxStatus} order={2} title="Inbox ready">
           {activeNumber ? (
-            <div className="space-y-3 animate-in fade-in duration-200">
+            <div className="space-y-3 animate-in fade-in duration-300 ease-out">
               <p className="text-sm text-muted-foreground">
                 Text your new number from your phone and watch it land.
               </p>

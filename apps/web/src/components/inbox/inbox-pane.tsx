@@ -65,11 +65,15 @@ export function InboxPane() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <RegistrationStatusBanner />
+      {/* §3.1: the compose action is the single petrol element for this
+          region — desktop gets a petrol "New" button in the list header;
+          mobile uses the petrol FAB (G3), so its header stays title-only. */}
       <header className="hidden items-center justify-between px-4 pb-1 pt-4 md:flex">
         <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
-        <Button asChild variant="ghost" size="icon-sm" aria-label="New conversation">
+        <Button asChild size="sm" aria-label="New conversation">
           <Link href="/inbox/new">
             <SquarePen className="size-4" strokeWidth={1.75} />
+            New
           </Link>
         </Button>
       </header>

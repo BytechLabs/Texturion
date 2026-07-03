@@ -46,10 +46,15 @@ export function StepShell({
         )}
         <ProgressDots index={index} total={total} />
       </div>
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+      <div className="space-y-2.5">
+        {/* §3.4 hero line — the one warm display moment per onboarding screen,
+            via the tokens-track `.app-hero-line` utility (28–30px Inter, tight
+            tracking, balanced wrap). Not the marketing .display-hero (§6). */}
+        <h1 className="app-hero-line">{title}</h1>
         {subtitle ? (
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <p className="text-[15px] leading-relaxed text-muted-foreground">
+            {subtitle}
+          </p>
         ) : null}
       </div>
       {children}

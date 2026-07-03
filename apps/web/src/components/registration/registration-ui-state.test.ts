@@ -53,7 +53,7 @@ describe("SPEC §4.4 banner copy — exact strings", () => {
     expect(REGISTRATION_COPY.rejected("brand address mismatch")).toBe(
       "US registration needs a fix: brand address mismatch. Update and resubmit — it takes 2 minutes.",
     );
-    expect(REGISTRATION_COPY.approved).toBe("🎉 US texting is live.");
+    expect(REGISTRATION_COPY.approved).toBe("US texting is live.");
   });
 
   it("keeps the SPEC §4.1 checkout copy verbatim on the timeline card", () => {

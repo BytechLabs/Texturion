@@ -38,7 +38,7 @@ export default function NumbersSettingsPage() {
           }}
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {numbers.data.data.length === 0 ? (
             <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
               No number yet — it&apos;s created automatically when your

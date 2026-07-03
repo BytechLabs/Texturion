@@ -54,7 +54,7 @@ export default function NotificationsSettingsPage() {
       ) : prefs.isError ? (
         <LoadError onRetry={() => prefs.refetch()} />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <SettingsCard title="When a customer texts">
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">

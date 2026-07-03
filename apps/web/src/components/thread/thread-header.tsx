@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { Button } from "@/components/ui/button";
+import { undoableToast } from "@/components/ui/optimistic-undo";
 import {
   Dialog,
   DialogContent,
@@ -91,6 +92,72 @@ export function ThreadHeader({
     );
   };
 
+  // §4/§5: close / reopen / assign / mark-spam are routine and reversible —
+  // do them instantly, then offer a 5s "Undo" toast (no confirm gauntlet).
+  // Each captures the prior value so Undo fires the exact inverse mutation.
+  const closeOrReopen = () => {
+    const wasClosed = conversation.status === "closed";
+    const prev = conversation.status;
+    update.mutate(
+      { status: wasClosed ? "open" : "closed" },
+      {
+        onError: (e) => onApiError(e, "Couldn't update the status."),
+        onSuccess: () =>
+          undoableToast({
+            message: wasClosed ? "Conversation reopened" : "Conversation closed",
+            onUndo: () =>
+              update.mutate(
+                { status: prev },
+                { onError: (e) => onApiError(e, "Couldn't undo.") },
+              ),
+          }),
+      },
+    );
+  };
+
+  const toggleSpam = () => {
+    const wasSpam = conversation.is_spam;
+    update.mutate(
+      { is_spam: !wasSpam },
+      {
+        onError: (e) => onApiError(e, "Couldn't update spam."),
+        onSuccess: () =>
+          undoableToast({
+            message: wasSpam ? "Marked as not spam" : "Marked as spam",
+            onUndo: () =>
+              update.mutate(
+                { is_spam: wasSpam },
+                { onError: (e) => onApiError(e, "Couldn't undo.") },
+              ),
+          }),
+      },
+    );
+  };
+
+  const assignTo = (userId: string | null) => {
+    const prev = conversation.assigned_user_id;
+    if (userId === prev) return;
+    const label =
+      userId === null
+        ? "Unassigned"
+        : `Assigned to ${memberNames.get(userId) ?? "teammate"}`;
+    update.mutate(
+      { assigned_user_id: userId },
+      {
+        onError: (e) => onApiError(e, "Couldn't assign."),
+        onSuccess: () =>
+          undoableToast({
+            message: label,
+            onUndo: () =>
+              update.mutate(
+                { assigned_user_id: prev },
+                { onError: (e) => onApiError(e, "Couldn't undo.") },
+              ),
+          }),
+      },
+    );
+  };
+
   return (
     <header className="flex items-center gap-2 border-b border-border bg-background px-2 py-2 md:px-4">
       <Button
@@ -111,7 +178,10 @@ export function ThreadHeader({
         className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors duration-150 ease-out hover:bg-secondary/60"
         aria-label={`View contact details for ${name}`}
       >
-        <span className="block truncate text-sm font-semibold text-foreground">
+        {/* §3.2: the customer's name is near-black but 500-weight (the thread
+            body is the hero, not the header); the number recedes to 13px
+            stone-500. No petrol anywhere in this header. */}
+        <span className="block truncate text-sm font-medium text-foreground">
           {name}
         </span>
         <span className="block truncate text-[13px] tabular-nums text-muted-foreground">
@@ -132,7 +202,7 @@ export function ThreadHeader({
             >
               <StatusPill status={conversation.status} />
               <ChevronDown
-                className="size-3 text-muted-foreground"
+                className="size-3 text-foreground-tertiary"
                 strokeWidth={1.75}
                 aria-hidden
               />
@@ -175,14 +245,7 @@ export function ThreadHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Assign to</DropdownMenuLabel>
-            <DropdownMenuItem
-              onSelect={() =>
-                update.mutate(
-                  { assigned_user_id: null },
-                  { onError: (e) => onApiError(e, "Couldn't unassign.") },
-                )
-              }
-            >
+            <DropdownMenuItem onSelect={() => assignTo(null)}>
               Unassigned
             </DropdownMenuItem>
             {(members.data?.data ?? [])
@@ -190,12 +253,7 @@ export function ThreadHeader({
               .map((member) => (
                 <DropdownMenuItem
                   key={member.user_id}
-                  onSelect={() =>
-                    update.mutate(
-                      { assigned_user_id: member.user_id },
-                      { onError: (e) => onApiError(e, "Couldn't assign.") },
-                    )
-                  }
+                  onSelect={() => assignTo(member.user_id)}
                 >
                   <MemberAvatar
                     name={member.display_name || "Teammate"}
@@ -228,20 +286,11 @@ export function ThreadHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() => setStatus(closed ? "open" : "closed")}
-            >
+            <DropdownMenuItem onSelect={closeOrReopen}>
               <Undo2 className="size-4" strokeWidth={1.75} />
               {closed ? "Reopen conversation" : "Close conversation"}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() =>
-                update.mutate(
-                  { is_spam: !conversation.is_spam },
-                  { onError: (e) => onApiError(e, "Couldn't update spam.") },
-                )
-              }
-            >
+            <DropdownMenuItem onSelect={toggleSpam}>
               <OctagonAlert className="size-4" strokeWidth={1.75} />
               {conversation.is_spam ? "Not spam" : "Mark as spam"}
             </DropdownMenuItem>

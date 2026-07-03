@@ -188,7 +188,7 @@ export default function BillingSettingsPage() {
       ) : company.isError ? (
         <LoadError onRetry={() => company.refetch()} />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <StatusNotices company={company.data} />
 
           {company.data.subscription_status === "canceled" ? (

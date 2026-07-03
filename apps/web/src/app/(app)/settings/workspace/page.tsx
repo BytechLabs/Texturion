@@ -335,7 +335,7 @@ export default function WorkspaceSettingsPage() {
       ) : company.isError ? (
         <LoadError onRetry={() => company.refetch()} />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <CompanyNameCard company={company.data} />
           <BusinessIdentityCard company={company.data} />
           <TimezoneCard company={company.data} />

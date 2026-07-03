@@ -103,7 +103,10 @@ export function ConversationRow({
       aria-current={active ? "page" : undefined}
       aria-label={`Conversation with ${name}${unread ? ", unread" : ""}`}
       className={cn(
-        "flex h-[68px] items-center gap-3 border-b border-border/60 px-4 transition-colors duration-150 ease-out",
+        // §3.1: 12px vertical rhythm, subtle stone-100 interior hairline so
+        // the list reads as one calm column, not a stack of boxes. Hover is a
+        // fill change only (stone-50→stone-100), no border/shadow shift.
+        "flex h-[68px] items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out",
         active ? "bg-secondary" : "hover:bg-secondary/60",
       )}
     >
@@ -141,8 +144,10 @@ export function ConversationRow({
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
+        {/* §3.1: time drops to tertiary stone-400 (dark stone-500) — chrome,
+            not content. The unread petrol dot is the row's only accent. */}
         <span
-          className="text-xs tabular-nums text-muted-foreground"
+          className="text-xs tabular-nums text-foreground-tertiary"
           title={formatAbsoluteDateTime(conversation.last_message_at)}
         >
           {formatRelativeTime(conversation.last_message_at)}

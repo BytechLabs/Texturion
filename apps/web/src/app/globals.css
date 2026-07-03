@@ -29,7 +29,18 @@
   --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
   --secondary-foreground: oklch(0.216 0.006 56.043);
   --muted: oklch(0.97 0.001 106.424); /* stone-100 */
-  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 */
+  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 — secondary labels, snippets */
+  /* APP ELEVATION §2.1 — tertiary text: one step quieter than muted, for
+     timestamps, assignee names, system/timeline lines, in-cluster delivery
+     state, dividers-with-text. stone-400 (2.5:1 on white) is BELOW the AA 4.5:1
+     floor by design: it is for genuinely NON-ESSENTIAL meta only. Anything
+     carrying essential meaning must use --muted-foreground (stone-500, 4.6:1+)
+     instead — the <Tertiary essential> helper and the §6 guardrail enforce
+     this. Marketing does not consume this token. */
+  --foreground-tertiary: oklch(0.709 0.01 56.259); /* stone-400 */
+  /* Interior hairlines (row separators, in-card splits) almost disappear;
+     surface edges keep the crisper --border (stone-200). §2.1/§2.4. */
+  --border-subtle: oklch(0.97 0.001 106.424); /* stone-100 */
   --accent: oklch(0.97 0.001 106.424); /* stone-100 */
   --accent-foreground: oklch(0.216 0.006 56.043);
   --destructive: oklch(0.577 0.245 27.325); /* red-600 */
@@ -77,6 +88,10 @@
   --secondary-foreground: oklch(0.985 0.001 106.423);
   --muted: oklch(0.268 0.007 34.298);
   --muted-foreground: oklch(0.709 0.01 56.259); /* stone-400 */
+  /* Dark tertiary drops to stone-500 to cut glare on the dark field while
+     staying above AA for non-essential meta (§2.1). */
+  --foreground-tertiary: oklch(0.553 0.013 58.071); /* stone-500 */
+  --border-subtle: oklch(0.268 0.007 34.298); /* stone-800 — interior rules on dark */
   --accent: oklch(0.268 0.007 34.298);
   --accent-foreground: oklch(0.985 0.001 106.423);
   --destructive: oklch(0.637 0.237 25.331); /* red-500 */
@@ -104,6 +119,26 @@
   --sidebar-ring: oklch(0.704 0.14 182.503);
 }
 
+/*
+ * APP ELEVATION §2.5 — motion tokens. Durations + easing exposed as variables
+ * so every app transition/animation reads from one calm source. ease-out only,
+ * no bounce, no spring (locked, matches DESIGN.md G2). The prefers-reduced-
+ * motion base rule below zeroes any transition/animation that consumes these;
+ * JS-driven motion additionally consults lib/motion.ts. Marketing keeps its own
+ * literal 300ms reveal timing and does not read these.
+ */
+:root {
+  --motion-micro: 150ms; /* hover / focus / fill change */
+  --motion-panel: 200ms; /* overlay / panel slide / message arrival */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* calm ease-out, no overshoot */
+
+  /* §2.3 — editorial whitespace on the calm surfaces (settings, onboarding,
+     auth, empty states, contact panel). The inbox/thread stay dense and do not
+     consume these; calm-surface components read them for consistent rhythm. */
+  --space-section: 2rem; /* 32px — desktop section spacing on calm surfaces */
+  --space-card: 1.5rem; /* 24px — calm-surface card / panel padding */
+}
+
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
@@ -122,6 +157,11 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  /* App elevation §2.1: expose tertiary + subtle-border so utilities resolve
+     (text-foreground-tertiary, border-border-subtle). Additive — marketing
+     never references these. */
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-border-subtle: var(--border-subtle);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -240,6 +280,108 @@
       height: max(100%, 44px);
       transform: translate(-50%, -50%);
     }
+  }
+}
+
+/* ==========================================================================
+   APP-ELEVATION additions (APP-UI-ELEVATION.md §2.2, §2.5, §4) — the calm base
+   for the AUTHENTICATED app. Distinct from the MARKETING-ONLY block below: the
+   app never imports .display-* / .marketing-glow / [data-reveal], and marketing
+   never imports these. Both surfaces share only the base tokens above.
+   ========================================================================== */
+
+@utility text-tertiary {
+  /* §2.1/§2.2: the quiet meta voice — timestamps, assignee names, system lines,
+     in-cluster delivery state. NON-ESSENTIAL meta only (stone-400 is below the
+     AA text floor); the <Tertiary> helper bumps to muted-foreground when the
+     text is essential. Pairs with tabular-nums where numeric. */
+  color: var(--foreground-tertiary);
+}
+
+@utility app-hero-line {
+  /* §2.2 — the "warm display moment" WITHOUT a new font: the ONE hero line per
+     big calm screen (the onboarding question, the activation caption, the
+     empty-state headline). Slightly larger Inter, tighter tracking; the extra
+     air is spaced by the consuming layout. NOT the marketing .display-hero. */
+  font-size: clamp(1.75rem, 4vw, 1.875rem); /* 28 → 30px */
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+@utility app-emotional-number {
+  /* §2.2 — the emotional number: the activation/onboarding number reveal and
+     the usage "balance" figure. THREE moments only (§1). 32–36px tabular Inter,
+     tight tracking. Consumed by the <NumberReveal> primitive. */
+  font-size: clamp(2rem, 6vw, 2.25rem); /* 32 → 36px */
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "cv11" 1,
+    "ss01" 1,
+    "tnum" 1;
+}
+
+@layer utilities {
+  /* §4 — message arrival: 200ms fade + 4px rise, ease-out. Authored as a CSS
+     keyframe so the prefers-reduced-motion base rule zeroes it for free. */
+  @keyframes app-message-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* §4 — optimistic row/thread leave: 150ms slide + fade on close/reopen/
+     assign/spam/archive. Paired with the undo helper; the row animates out
+     while focus moves on. */
+  @keyframes app-row-leave {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(8px);
+    }
+  }
+
+  /* §3.4/§4 — the ONE signature motion: the setting-up green check cascade.
+     A gentle scale-in per row, staggered by the consumer via --cascade-delay.
+     Reduced-motion collapses it to the final state (base rule + the JS guard in
+     lib/motion.ts). No confetti, ever. */
+  @keyframes app-check-cascade {
+    from {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    60% {
+      transform: scale(1.06);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .app-motion-message-in {
+    animation: app-message-in var(--motion-panel, 200ms) var(--ease-out) both;
+  }
+
+  .app-motion-row-leave {
+    animation: app-row-leave var(--motion-micro, 150ms) var(--ease-out) both;
+  }
+
+  .app-motion-check-cascade {
+    animation: app-check-cascade var(--motion-panel, 200ms) var(--ease-out)
+      var(--cascade-delay, 0ms) both;
   }
 }
 

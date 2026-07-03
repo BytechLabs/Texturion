@@ -1,9 +1,10 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { CalmEmptyState } from "@/components/settings/empty-state";
 import { LoadError } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,23 +83,21 @@ export function ContactsTable({
             <LoadError onRetry={() => contacts.refetch()} />
           </div>
         ) : rows.length === 0 ? (
-          <div className="space-y-3 px-4 py-10 text-center">
-            {searching ? (
-              <p className="text-sm text-muted-foreground">
-                No matches for &quot;{query.trim()}&quot;.
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  No contacts yet — they&apos;re added automatically when a
-                  customer texts you.
-                </p>
-                {emptyAction && (
-                  <div className="flex justify-center">{emptyAction}</div>
-                )}
-              </>
-            )}
-          </div>
+          searching ? (
+            <CalmEmptyState
+              title={`No matches for "${query.trim()}"`}
+              description="Try a name or the last few digits of a number."
+            />
+          ) : (
+            // The §5 kind empty state (delight moment #2): one warm line, one
+            // action, generous air — never a generic "No data".
+            <CalmEmptyState
+              icon={<Users strokeWidth={1.5} aria-hidden />}
+              title="Your customers show up here on their own"
+              description="Every person who texts your business number is added automatically — or bring your list over in one go."
+              action={emptyAction ?? undefined}
+            />
+          )
         ) : (
           <>
             <Table>
@@ -140,10 +139,11 @@ export function ContactsTable({
                     <TableCell className="tabular-nums text-muted-foreground">
                       {formatPhone(contact.phone_e164)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                    <TableCell className="text-right tabular-nums text-tertiary">
                       {/* Conversation activity (G6), never updated_at — a
                           CSV re-import or notes edit must not read as a
-                          fresh text (G10). */}
+                          fresh text (G10). Timestamps recede to tertiary
+                          (§2.1) — meta, not content. */}
                       {contact.last_activity_at ? (
                         <span
                           title={formatAbsoluteDateTime(

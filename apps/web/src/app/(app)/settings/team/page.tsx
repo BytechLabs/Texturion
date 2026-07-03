@@ -399,7 +399,7 @@ export default function TeamSettingsPage() {
       title="Team"
       description="Who can see and answer your customers' texts."
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
         {members.isPending ? (
           <div className="space-y-3" aria-label="Loading team">
             <Skeleton className="h-16 w-full rounded-lg" />

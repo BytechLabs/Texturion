@@ -134,7 +134,7 @@ function DoneToggle({
         // ≥44px on mobile (G11), where this is the always-visible D14 action.
         "tap-target shrink-0 rounded-full p-1 transition-[color,opacity] duration-150 ease-out",
         "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        done ? "text-primary" : "text-stone-400 dark:text-stone-500",
+        done ? "text-primary" : "text-foreground-tertiary",
         // Mobile: always visible on the bubble's action row; desktop: revealed
         // on hover/focus of the message group.
         !done &&

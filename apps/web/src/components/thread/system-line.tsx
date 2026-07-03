@@ -8,10 +8,12 @@ import type { ConversationStatus } from "@/lib/api/types";
 /** Day divider (G5): "Today", "Yesterday", "Jun 12" — centered, quiet. */
 export function DayDivider({ label }: { label: string }) {
   return (
+    // §2.1: interior rules soften to stone-100 (dark stone-800) so the line
+    // almost disappears; the date label carries the meaning at stone-500.
     <div className="flex items-center gap-3 py-2" role="separator" aria-label={label}>
-      <span className="h-px flex-1 bg-border" aria-hidden />
+      <span className="h-px flex-1 bg-border-subtle" aria-hidden />
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <span className="h-px flex-1 bg-border" aria-hidden />
+      <span className="h-px flex-1 bg-border-subtle" aria-hidden />
     </div>
   );
 }
@@ -80,7 +82,10 @@ export function SystemLine({
   memberName: (userId: string | null) => string | null;
 }) {
   return (
-    <p className="py-1 text-center text-xs text-muted-foreground/80">
+    // §3.2: timeline events are quiet by design — centered 12px, recede to
+    // stone-500. (The spec's "stone-400" tertiary target fails AA at 2.5:1 as
+    // read-for-meaning text; §6 mandates stone-500 where meta carries meaning.)
+    <p className="py-1 text-center text-xs text-muted-foreground">
       {eventSentence(event, memberName)}
     </p>
   );

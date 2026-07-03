@@ -150,10 +150,9 @@ function PlanStep() {
               <h2 className="text-sm font-medium text-muted-foreground">
                 {plan.name}
               </h2>
-              <p className="mt-1">
-                <span className="text-3xl font-semibold tabular-nums tracking-tight">
-                  {plan.price}
-                </span>
+              <p className="mt-1 flex items-baseline gap-1.5">
+                {/* §3.4: the price in the tokens-track emotional-number scale. */}
+                <span className="app-emotional-number">{plan.price}</span>
                 <span className="text-sm text-muted-foreground">/month</span>
               </p>
               <ul className="mt-4 flex-1 space-y-2">
@@ -208,18 +207,21 @@ function PlanStep() {
           </p>
         ) : null}
 
-        {/* The honest-timeline card (G7, pre-payment; SPEC §4.1 verbatim). */}
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-medium">What happens after you pay</h2>
-          <ul className="mt-2 space-y-1.5">
+        {/* The honest-timeline card (G7, pre-payment; SPEC §4.1 verbatim) —
+            the §3.4 emotional peak: one warm section, calm padding, plain
+            language, no wall of compliance text. */}
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-[15px] font-medium">What happens after you pay</h2>
+          <ul className="mt-3 space-y-2">
             {timeline.map((line) => (
               <li
                 key={line}
-                className="flex items-start gap-2 text-sm text-muted-foreground"
+                className="flex items-start gap-2.5 text-sm text-muted-foreground"
               >
-                <span
+                <Check
+                  className="mt-0.5 size-4 shrink-0 text-success"
+                  strokeWidth={1.75}
                   aria-hidden
-                  className="mt-[7px] size-1.5 shrink-0 rounded-full bg-primary/50"
                 />
                 {line}
               </li>

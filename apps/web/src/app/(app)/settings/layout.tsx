@@ -17,14 +17,14 @@ export default function SettingsLayout({
   const atIndex = pathname === "/settings";
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl gap-8 px-4 py-6 md:px-6">
+    <div className="mx-auto flex w-full max-w-5xl gap-8 px-4 py-8 md:px-6 lg:gap-10">
       <aside
         className={cn(
           "w-full shrink-0 lg:block lg:w-52",
           atIndex ? "block" : "hidden",
         )}
       >
-        <h1 className="mb-3 px-1 text-lg font-semibold tracking-tight lg:mb-4">
+        <h1 className="mb-4 px-1 text-2xl font-semibold tracking-tight lg:mb-5">
           Settings
         </h1>
         {/* Desktop link list */}

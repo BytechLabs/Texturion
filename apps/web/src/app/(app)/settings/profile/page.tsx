@@ -101,7 +101,7 @@ export default function ProfileSettingsPage() {
 
   return (
     <SettingsPage title="Profile" description="You, across this workspace.">
-      <div className="space-y-4">
+      <div className="space-y-6">
         <SettingsCard
           title="Display name"
           description="How teammates see you on assignments and notes."

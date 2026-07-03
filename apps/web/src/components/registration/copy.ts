@@ -21,7 +21,7 @@ export const REGISTRATION_COPY = {
   rejected: (reason: string) =>
     `US registration needs a fix: ${reason}. Update and resubmit — it takes 2 minutes.`,
   /** §4.4 "Approved". */
-  approved: "🎉 US texting is live.",
+  approved: "US texting is live.",
   /** G7: the green toast fired on the approval realtime event. */
   approvedToast: "You're live — US texting is on.",
 } as const;
