@@ -4,11 +4,10 @@
  * Copy verbatim; the calculator is the interactive island.
  */
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
+import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { Texture } from "@/components/marketing/frame/texture";
 import { LazyMissedTextCalculator } from "@/components/marketing/lazy/lazy-missed-text-calculator";
 import { MissedCallToText } from "@/components/marketing/art";
@@ -16,14 +15,14 @@ import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/m
 
 export function MissedTextMath() {
   return (
-    <Section defer intrinsic={560} className="relative overflow-hidden">
+    <LedgerSection n={7} defer intrinsic={560} className="relative overflow-hidden">
       {/* Faint texture so the breather has depth, not emptiness (VISUALS §1D). */}
       <Texture variant="grid" fade="radial" opacity={0.3} />
 
       <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div>
-          <p className="text-[13px] font-semibold text-primary">Do the math</p>
-          <h2 className="display-h2 mt-2 text-foreground">
+          <SectionEyebrow n={7} label="Do the math" />
+          <h2 className="display-h2 mt-3 text-foreground">
             What&apos;s a missed conversation worth?
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
@@ -44,13 +43,9 @@ export function MissedTextMath() {
             answered by whoever&apos;s free, not whoever&apos;s phone it is.
             That&apos;s $29 a month against the number beside this.
           </p>
-          <Link
-            href="/signup"
-            className="mt-6 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
-          >
+          <ArrowLink href="/signup" className="mt-6">
             Get your number
-            <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
-          </Link>
+          </ArrowLink>
         </div>
 
         <Reveal>
@@ -59,6 +54,6 @@ export function MissedTextMath() {
           <LazyMissedTextCalculator fallback={<MissedTextCalculatorStatic />} />
         </Reveal>
       </div>
-    </Section>
+    </LedgerSection>
   );
 }

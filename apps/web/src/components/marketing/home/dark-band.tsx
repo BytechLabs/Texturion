@@ -9,10 +9,9 @@
  * badges (§13.6). Copy verbatim from §H7.
  */
 
-import { Check } from "lucide-react";
-
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SignalCheck } from "@/components/marketing/ledger/signal-check";
 import { GradientMesh } from "@/components/marketing/frame/gradient-mesh";
 import { FramedShot } from "@/components/marketing/shot";
 
@@ -24,7 +23,8 @@ const BULLETS = [
 
 export function DarkBand() {
   return (
-    <Section
+    <LedgerSection
+      n={8}
       bleed
       defer
       intrinsic={720}
@@ -40,7 +40,14 @@ export function DarkBand() {
       <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <div>
-            <h2 className="display-h2 text-stone-50">
+            {/* Section 08 eyebrow — inline on the dark band (spine collapses on
+                bleed bands, §2.2); light-on-dark ledger meta. */}
+            <p className="jt-meta flex items-center gap-2 text-teal-400">
+              <span className="tabular-nums">08</span>
+              <span aria-hidden className="h-px w-6 bg-teal-400/40" />
+              <span className="text-stone-400">On the job site</span>
+            </p>
+            <h2 className="display-h2 mt-4 text-stone-50">
               Built for the truck, not the desk.
             </h2>
             <p className="mt-6 text-lg leading-relaxed text-stone-300">
@@ -59,7 +66,7 @@ export function DarkBand() {
               {BULLETS.map((b) => (
                 <li key={b} className="flex items-center gap-3 text-[15px] text-stone-200">
                   <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-teal-500/15 text-teal-400">
-                    <Check className="size-3" strokeWidth={2.5} aria-hidden />
+                    <SignalCheck className="size-3.5 text-teal-400" />
                   </span>
                   {b}
                 </li>
@@ -85,6 +92,6 @@ export function DarkBand() {
           </Reveal>
         </div>
       </div>
-    </Section>
+    </LedgerSection>
   );
 }

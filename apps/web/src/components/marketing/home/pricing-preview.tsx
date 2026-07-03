@@ -7,10 +7,12 @@
  */
 
 import Link from "next/link";
-import { Check, Clock, Receipt, ShieldCheck } from "lucide-react";
+import { Clock, Receipt, ShieldCheck } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SignalCheck } from "@/components/marketing/ledger/signal-check";
+import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { Button } from "@/components/ui/button";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
@@ -88,11 +90,9 @@ function PlanCard({ plan }: { plan: Plan }) {
       <ul className="mt-5 flex-1 space-y-3">
         {plan.features.map((f) => (
           <li key={f} className="flex gap-2.5 text-[14px] leading-relaxed text-foreground">
-            <Check
-              className="mt-0.5 size-4 shrink-0 text-success"
-              strokeWidth={2}
-              aria-hidden
-            />
+            <span className="mt-0.5 shrink-0">
+              <SignalCheck className="size-4" />
+            </span>
             <span>{f}</span>
           </li>
         ))}
@@ -111,7 +111,8 @@ function PlanCard({ plan }: { plan: Plan }) {
 
 export function PricingPreview() {
   return (
-    <Section
+    <LedgerSection
+      n={9}
       id="pricing"
       bleed
       defer
@@ -120,7 +121,12 @@ export function PricingPreview() {
     >
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="max-w-2xl">
-          <h2 className="display-h2 text-foreground">
+          <p className="jt-meta flex items-center gap-2 text-primary">
+            <span className="tabular-nums">09</span>
+            <span aria-hidden className="h-px w-6 bg-primary/40" />
+            <span className="text-muted-foreground">Pricing</span>
+          </p>
+          <h2 className="display-h2 mt-4 text-foreground">
             One flat price for the whole crew.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
@@ -203,14 +209,11 @@ export function PricingPreview() {
           </p>
           {/* /pricing ships later; this section IS the on-page pricing beat, so
               the link stays on-page (site.ts guard) — zero dead links. */}
-          <Link
-            href={HOME_ANCHORS.pricing}
-            className="text-[15px] font-medium text-primary underline-offset-2 hover:underline"
-          >
-            See full pricing and the fine print we put in large print →
-          </Link>
+          <ArrowLink href={HOME_ANCHORS.pricing}>
+            See full pricing and the fine print we put in large print
+          </ArrowLink>
         </div>
       </div>
-    </Section>
+    </LedgerSection>
   );
 }

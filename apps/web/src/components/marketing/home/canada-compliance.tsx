@@ -8,11 +8,12 @@
  * hours scoped to STARTING a new late-night conversation (SPEC §5).
  */
 
-import Link from "next/link";
 import { FileCheck2, Leaf, MessageSquareOff, ShieldCheck, UserCheck } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
+import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { LazyCityAreaCodeWidget } from "@/components/marketing/lazy/lazy-city-area-code-widget";
 import { CityAreaCodeWidgetStatic } from "@/components/marketing/interactive/city-area-code-widget-static";
 import { CoverageMapNA, CarrierPaperworkShield } from "@/components/marketing/art";
@@ -47,11 +48,12 @@ const PROOF_POINTS = [
 
 export function CanadaCompliance() {
   return (
-    <Section id="canada" defer intrinsic={1100}>
+    <LedgerSection n={10} id="canada" defer intrinsic={1100}>
       {/* Canada beat — leads, with the area-code widget as its product visual. */}
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div>
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <SectionEyebrow n={10} label="Canada & the rules" />
+          <span className="mt-4 flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Leaf className="size-5" strokeWidth={1.75} aria-hidden />
           </span>
           <h2 className="display-h2 mt-4 text-foreground">
@@ -64,12 +66,9 @@ export function CanadaCompliance() {
             province, CASL-aware consent records, and a privacy policy that tells
             you plainly where your data lives.
           </p>
-          <Link
-            href={LIVE_ROUTES.canada}
-            className="mt-6 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
-          >
-            How JobText works in Canada →
-          </Link>
+          <ArrowLink href={LIVE_ROUTES.canada} className="mt-6">
+            How JobText works in Canada
+          </ArrowLink>
 
           {/* Coverage drawn (VISUALS §3): local numbers in the US AND Canada,
               as a simple two-country motif — the honest ICP (SPEC §1). */}
@@ -90,10 +89,8 @@ export function CanadaCompliance() {
       <div className="mt-20">
         <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
           <div className="max-w-2xl">
-            <p className="text-[13px] font-semibold text-primary">
-              The carrier stuff, handled
-            </p>
-            <h2 className="display-h2 mt-2 text-foreground">
+            <p className="jt-meta text-primary">The carrier stuff, handled</p>
+            <h2 className="display-h2 mt-3 text-foreground">
               Texting rules are real. We deal with them so you don&apos;t have
               to.
             </h2>
@@ -144,6 +141,6 @@ export function CanadaCompliance() {
           never held up.)
         </p>
       </div>
-    </Section>
+    </LedgerSection>
   );
 }

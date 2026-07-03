@@ -12,27 +12,38 @@
  * <HomeJsonLd/> is Track A's WebSite + SoftwareApplication node, rendered once
  * here per Track A's SEO-lane contract (their component, invoked by this page).
  *
- * Section order + density wave (§3):
- *  3.1  Hero (signature live-thread)        — dense/signature
- *  3.1b Product showcase (framed inbox shot)— proof reveal (VISUALS §3)
- *  3.2  Truth bar ($29 as art)              — sparse
- *  3.3  The problem (three pains)           — sparse–med
- *  3.4  Inbox deep-dive (annotated)         — dense
- *  3.5  How it works + first-week timeline  — med
- *  3.6  Features bento (2 live-DOM tiles)   — dense
- *  3.7  Missed-text math (breather)         — sparse
- *  3.8  Dark band — built for the truck     — dense
- *  3.9  Pricing + slider + usage meter      — med
- *  3.10 Canada + compliance (interleaved)   — med
- *  3.11 FAQ                                 — sparse
- *  3.12 Final CTA (founder + security)      — sparse
+ * Ledger identity (iteration 5, ART-DIRECTION.md): the page is one authored
+ * "job ledger" — every band is a <LedgerSection> numbered on the spine 01…12
+ * (the primary anti-bland device, REFERENCES anti-bland #4), and the signature
+ * Dispatch Desk hero (HERO-CONCEPT.md) replaces the iteration-4 two-phones hero.
+ * The section order + density wave are unchanged (BLUEPRINT §3 / §1.4); iter 5
+ * layers on the spine numbering, silhouette variety, the recurring ledger-row
+ * grammar, the two sanctioned 132px numerals, the FILED stamp, one dark band +
+ * one petrol-flood close, and the seven REFERENCES elevate items.
+ *
+ * Section order, spine number, and silhouette (anti-bland #1 — no two adjacent
+ * bands share a shape):
+ *  01 Dispatch Desk hero        — participatory live ticket
+ *     Product showcase          — framed inbox-shot proof reveal
+ *  02 Truth bar ($29 as art)    — expressive numeral
+ *  03 The problem               — ruled ledger-entry trio (asymmetric)
+ *  04 Inbox deep-dive           — live-product split
+ *  05 How it works + timeline   — infographic + the 2nd numeral (Day 0)
+ *  06 Features bento            — asymmetric bento w/ switchable live tile
+ *  07 Missed-text math          — sparse breather + calculator
+ *  08 Dark band                 — dark product/night band
+ *  09 Pricing + slider          — pricing w/ live proof
+ *  10 Canada + compliance       — interleaved editorial
+ *  11 FAQ                       — ledger-row accordion
+ *  12 Final CTA                 — petrol-flood close
  */
 
 import type { Metadata } from "next";
 
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
 import { buildMetadata } from "@/lib/marketing/seo";
-import { Hero } from "@/components/marketing/home/hero";
+import { DispatchHero } from "@/components/marketing/hero-dispatch";
+import { LedgerStyles } from "@/components/marketing/ledger";
 import { ProductShowcase } from "@/components/marketing/home/product-showcase";
 import { TruthBar } from "@/components/marketing/home/truth-bar";
 import { Problem } from "@/components/marketing/home/problem";
@@ -58,7 +69,13 @@ export default function HomePage() {
   return (
     <>
       <HomeJsonLd />
-      <Hero />
+      {/* The marketing-scoped ledger identity styles (FILED stamp, highlight-
+          swipe, spine, arrow-expand). One inert <style>, zero JS; globals.css
+          and components/ui are untouched (iteration-5 constraint). */}
+      <LedgerStyles />
+      {/* 01 — the signature Dispatch Desk hero (HERO-CONCEPT.md). Replaces the
+          iteration-4 two-phones hero. Composes at the top per the ownership. */}
+      <DispatchHero />
       <ProductShowcase />
       <TruthBar />
       <Problem />

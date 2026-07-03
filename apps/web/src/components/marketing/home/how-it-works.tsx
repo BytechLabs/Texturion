@@ -11,7 +11,8 @@
 import { MapPinned, MessageSquareText, Users } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 
 import { FirstWeekTimeline } from "./first-week-timeline";
 
@@ -41,9 +42,14 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <Section id="how-it-works" defer intrinsic={900}>
+    <LedgerSection n={5} id="how-it-works" defer intrinsic={900}>
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="display-h2 text-foreground">
+        <SectionEyebrow
+          n={5}
+          label="How it works"
+          className="justify-center"
+        />
+        <h2 className="display-h2 mt-4 text-foreground">
           From signup to texting, in three steps.
         </h2>
       </div>
@@ -98,10 +104,11 @@ export function HowItWorks() {
         </ol>
       </div>
 
-      {/* Part B — the first-week timeline as the expressive honesty object. */}
+      {/* Part B — the first-week timeline as the expressive honesty object. The
+          Day 0 numeral is the SECOND (and last) sanctioned display numeral. */}
       <Reveal className="mt-16">
         <FirstWeekTimeline />
       </Reveal>
-    </Section>
+    </LedgerSection>
   );
 }

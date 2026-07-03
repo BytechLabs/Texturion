@@ -13,14 +13,12 @@
  * hero's primary CTA (CONVERSION §2).
  */
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
 import { GlowFrame } from "@/components/marketing/frame/glow-frame";
 import { Texture } from "@/components/marketing/frame/texture";
 import { FramedShot } from "@/components/marketing/shot";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
+import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 
 export function ProductShowcase() {
   return (
@@ -39,13 +37,9 @@ export function ProductShowcase() {
           This is the shared inbox — every customer text in one place, with who
           owns it and what&apos;s handled, visible to the whole crew.
         </p>
-        <Link
-          href="/signup"
-          className="inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
-        >
+        <ArrowLink href="/signup" className="shrink-0">
           See your inbox
-          <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
-        </Link>
+        </ArrowLink>
       </Reveal>
     </Section>
   );

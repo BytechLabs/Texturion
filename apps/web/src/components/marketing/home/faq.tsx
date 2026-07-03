@@ -8,7 +8,8 @@
 
 import { ChevronDown } from "lucide-react";
 
-import { Section } from "@/components/marketing/ui/section";
+import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
+import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 
 const FAQS = [
   {
@@ -55,30 +56,44 @@ const FAQS = [
 
 export function Faq() {
   return (
-    <Section id="faq" defer intrinsic={640}>
+    <LedgerSection n={11} id="faq" defer intrinsic={680}>
       <div className="mx-auto max-w-3xl">
-        <h2 className="display-h2 text-center text-foreground">
+        <SectionEyebrow n={11} label="Questions" className="justify-center" />
+        <h2 className="display-h2 mt-4 text-center text-foreground">
           Fair questions, straight answers.
         </h2>
 
-        <div className="mt-12 divide-y divide-border border-y border-border">
-          {FAQS.map((item) => (
-            <details key={item.q} className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
-                {item.q}
+        {/* Each entry wears the ticket grammar: a tabular index on a petrol
+            status spine, and the summary reads like a ledger row (craft #3).
+            Stays native <details> — no JS island. */}
+        <div className="mt-12 space-y-2">
+          {FAQS.map((item, i) => (
+            <details
+              key={item.q}
+              className="group relative overflow-hidden rounded-[10px] border border-border bg-card pl-3 open:border-primary/30"
+            >
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-[2px] rounded-l-[10px] bg-stone-300 transition-colors group-open:bg-primary dark:bg-stone-700"
+              />
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-4 text-left text-[16px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
+                <span className="jt-meta tabular-nums text-primary">
+                  {`${(i + 1).toString().padStart(2, "0")}`}
+                </span>
+                <span className="flex-1">{item.q}</span>
                 <ChevronDown
                   className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
                   strokeWidth={1.75}
                   aria-hidden
                 />
               </summary>
-              <p className="pb-5 pr-8 text-[15px] leading-relaxed text-muted-foreground">
+              <p className="px-4 pb-5 pl-11 pr-8 text-[15px] leading-relaxed text-muted-foreground">
                 {item.a}
               </p>
             </details>
           ))}
         </div>
       </div>
-    </Section>
+    </LedgerSection>
   );
 }
