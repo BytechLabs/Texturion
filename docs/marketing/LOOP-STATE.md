@@ -24,3 +24,73 @@ job-ledger identity system), **HERO-CONCEPT.md** (the signature hero build spec)
 Granola, Solidroad — set the quality bar; §3 anti-bland rules + §4 elevate-items are the execution
 floor iter 5 and all remaining iterations must meet; design-QA judges against it). On conflict:
 honesty wins, then clarity/conversion, then performance gates, then look/feel.
+
+---
+
+## App v2 build plan (post-critique-panel, 2026-07-02)
+
+The app-v2 specs (`docs/DECISIONS.md` D17–D22, `docs/TASKS.md`, `docs/APP-LAYOUT-V2.md`,
+`docs/APP-FEATURES-V2.md`, `docs/HOME-AND-VIEWS.md` D23–D25) are reconciled — every blocker + major
+from the panel is resolved (see the resolution list in the pass notes). Build waves below are in
+**dependency order**. Rule of thumb: **the whole backend wave (B) can run concurrently with any
+non-DB frontend wave (F0)** — the DB/API is the long pole; UI shell/composer/filter work that does
+not read the new tables should start in parallel and wire to the API as each backend slice lands.
+
+**Wave B — backend (`apps/api` + `supabase`)** — schema + API; the long pole; start first:
+
+- **B1. Tasks schema + API (D17/TASKS.md).** New migration: `tasks` table (`message_id` **NOT NULL**,
+  `conversation_id` denormalized, **no** status/done column, soft-delete, partial-unique on
+  `message_id`), `moddatetime`, RLS deny-by-default, the single **`task.changed {conversation_id}`**
+  metadata broadcast trigger. Routes: `POST /v1/tasks {message_id}`, `GET /v1/tasks` (filtered,
+  default Open·Mine), `GET /v1/conversations/:id/tasks`, `GET`/`PATCH`/`DELETE /v1/tasks/:id`
+  (metadata + soft-delete). **No** `PATCH /v1/tasks/:id {done}` — completion is the message route.
+- **B2. Generic attachments schema + API (D19).** New migration: generic `attachments` table
+  (`owner_type IN ('note','task')`, append-only + soft-delete, no `updated_at`), private `attachments`
+  bucket (25 MB, MIME allow-list), Storage RLS defense-in-depth. Routes: `POST /v1/attachments`
+  (Worker-mediated, multipart + signed-URL), `GET /v1/attachments/:id/url`. Serves **both** note and
+  task attachments; **no** `task_attachments` table or `task-media` bucket. (B1 and B2 share the same
+  migration window; B1's task attachments depend on B2's table.)
+- **B3. Done-audit + conversation-attachments API (D22/D21).** Extend the existing
+  `PATCH /v1/messages/:id {done}` handler to append a `conversation_events` row (`type=message_done`/
+  `message_undone`, `payload {message_id}`, in-txn, D14-no-op-idempotent) — this is the **one**
+  completion path tasks also use. Add the task/attachment event `type` literals (canonical list in
+  TASKS.md T8; **no** CHECK change). New read route `GET /v1/conversations/:id/attachments` (the
+  **two-arm union**: `message_attachments` JOINed through `messages` + the generic `attachments`
+  table, sorted in the API layer). Depends on B1+B2 for the union's task/note arm.
+- **B4. Auth/SSO backend + config (D18).** Supabase Auth Google + Apple provider config (ops runbook,
+  no product code); `/auth/callback` Route Handler is a web-app route (belongs to F below, but the
+  provider setup + redirect allow-list are ops here). Worker JWKS verification unchanged.
+- **B5. Contacts export + vCard import (D20).** `GET /v1/contacts/export` (filtered CSV, round-trips
+  the importer), `POST /v1/contacts/import-vcard` (a second parser into the existing idempotent
+  upsert). No schema change. (Independent of B1–B3; can land any time in the wave.)
+
+**Wave F0 — frontend, NON-DB (`apps/web`)** — runs **concurrent with Wave B** (no new-table reads):
+
+- Layout overhaul (fixed `100dvh` 3-pane shell, reading track, docked composer aligned to the 42rem
+  track, receded nav rail + collapse, auto dock/float context panel — no user Fixed/Float knob).
+- Composer rebuild (Google-Messages pill, `+` overflow, auto-grow, derive-send-from-content, no
+  up/down buttons, passive segment hint).
+- Filter redesign (kill the fly-out; segmented status tabs with the **single quiet count on Open
+  only**, removable chips, `+ Filter` cmdk popover, URL-state).
+- SSO buttons + `/auth/callback` route + Settings→Account email/password change + **Sign-in methods**
+  UI (D18 — needs only Supabase Auth, not the new app tables).
+
+**Wave F1 — frontend, reads Wave B (`apps/web`)** — after the matching backend slice lands:
+
+- Per-message **done** (vertically centered, hover-reveal, auditable) — after **B3**.
+- **Tasks UI** in the thread: overflow "Make a task", the **stone** promoted-message indicator (never
+  a petrol badge), the conversation **checklist** (checkbox → the message PATCH) — after **B1**.
+- Dedicated **`/tasks` page** (List view, canonical tabs `Open | Mine | All | Done`, deep-links,
+  first-run empty state teaches promotion) + task detail — after **B1**; Board/Calendar/Map views
+  (D25, lazy client islands; Board ships **To do / Done** only until the T9 richer-status decision) —
+  after B1.
+- **Attachments gallery** (single header-overflow entry, two-source union, `mms|note|task` origin
+  tags) — after **B3** (+B2 for note/task arms).
+- **In-thread filter** (All/Messages/Notes/Events — **client-side** over already-embedded data) —
+  after the layout thread work (F0); no new endpoint.
+- **Contacts import/export UI** (shared import surface: CSV · vCard · Pick-from-phone
+  progressive-enhancement; CSV export button) — after **B5**.
+
+**/for-you home + notifications bell (D23/D24)** ride on top once tasks + assignments read models
+exist (mostly derived queries) — sequence after F1's tasks slice; treat D23–D25 numbers as
+**provisional** (HOME-AND-VIEWS.md) for shell placement only.

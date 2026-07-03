@@ -46,10 +46,18 @@ This is secondary to /for-you; do not over-invest.
 
 1. **List** (default) — rows: title, linked conversation/contact, assignee, status pill, due,
    quiet meta; filters (assignee/status/due/overdue/unassigned) as one-glance chips (no fly-out).
-2. **Board** (kanban) — columns by status **To do → In progress → Waiting → Done**; drag a card to
-   change status (optimistic + undo; keyboard-accessible move as well); card shows title + assignee
-   avatar + due + a link glyph to its conversation. Calm columns, border-first, petrol only on the
-   active/over state.
+2. **Board** (kanban) — drag a card to change state (optimistic + undo; keyboard-accessible move as
+   well); card shows title + assignee avatar + due + a link glyph to its conversation. Calm columns,
+   border-first, petrol only on the active/over state.
+   - **Status reconciliation with D17's derived model (important).** D17/TASKS.md gives a task **no
+     stored status column** — completion is *derived* from `messages.done_at`, so MVP has only two
+     states: **To do (open) → Done**. The richer **To do → In progress → Waiting → Done** board is a
+     **fast-follow** that requires the deferred "richer status" decision (TASKS.md T9): it adds a
+     stored `task_status` distinct from message-completion (the `Done` column would still be driven by
+     `messages.done_at`, but In-progress/Waiting are task-owned metadata). **Until that decision is
+     ratified, the Board ships two columns (To do / Done)** where moving a card to/from Done calls the
+     source message's `PATCH /v1/messages/:id {done}` (the same derived path as every other view). Do
+     not build a stored multi-status column ahead of the T9 decision.
 3. **Calendar** — month/week by `due_at`; tasks as chips on their day; click → task detail; drag to
    reschedule (optimistic). This is the scheduling view; a separate Gantt/timeline is intentionally
    NOT built (enterprise-PM bloat for this ICP — calendar covers scheduling).

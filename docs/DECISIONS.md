@@ -459,3 +459,280 @@ not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the bindi
     in `reconcileNumbers` must exclude numbers matching an open (`status <> 'cancelled'`)
     `port_requests.phone_e164`, or every voice-ported-but-messaging-pending number falsely pages the
     operator for the 1–2-day window.
+
+---
+
+## D17. Tasks — message-done stays trivial; promotion to a first-class Task is optional (user decision 2026-07-02)
+
+D14 stands unchanged as the floor: **any** message can be marked Done/Not-done by any member with
+zero ceremony (strikethrough + audit tooltip), no task entity required. D17 adds an **opt-in** layer
+on top — it never replaces D14's one-tap done.
+
+- **Promotion, not a parallel system.** A member may **promote a message to a Task** (thread overflow
+  menu → "Make a task"). A Task is a lightweight record that *points at* the source message; the
+  message's existing `done_at` remains the **single shared truth** for completion. There is no second
+  done-state to keep in sync — the Task reads/writes the same `messages.done_at`.
+- **Bidirectional done-sync falls out of the shared-truth design, it is not bespoke plumbing.**
+  Checking the task's box calls the **same** `PATCH /v1/messages/:id {done}` (D14) on the source
+  message; marking the source message done in-thread flips the task's rendered state because both read
+  `messages.done_at`. One write path, one broadcast (`message.status`), both surfaces update live. This
+  is deliberately the lowest-upkeep shape — a Task adds *metadata* (assignee, due, notes, attachments),
+  never a competing completion flag.
+- **Schema (new migration, never edit existing):** `tasks` (`id`, `company_id`, `message_id` FK →
+  messages **NOT NULL** ON DELETE RESTRICT, `conversation_id` denormalized for cheap listing, `title`
+  text — seeded from the message body, editable, `assigned_user_id` uuid NULL FK profiles, `due_at`
+  timestamptz NULL, `created_by_user_id`, `created_at`, `updated_at`, soft-delete `deleted_at`). **No
+  `status`/`done`/`done_at`/`done_by` column and no `task_status` enum** — completion is derived from
+  the joined `messages.done_at` (avoids the exact dual-source-of-truth bug D17 is designed to prevent).
+  `status` in the UI = a derived label: `open` when `done_at IS NULL`, `done` otherwise. UNIQUE(message_id)
+  WHERE deleted_at IS NULL (one live task per message). Index `tasks(company_id, assigned_user_id) WHERE
+  deleted_at IS NULL` and `tasks(company_id, due_at) WHERE deleted_at IS NULL`. Full build spec (table,
+  RLS, indexes, functions) in `docs/TASKS.md` T1.
+- **`message_id` is NOT NULL — every task promotes a real message; standalone (message-less) tasks are
+  OUT of MVP.** Because completion *derives* from `messages.done_at`, a task with no message would have
+  no completion source. Keeping `message_id` NOT NULL means completion is *always* derivable with zero
+  branching, and holds the calm discipline that a task is a pointer to a real customer message, not a
+  free-floating to-do. A task-owned `done_at` for null-message tasks (Option B) is a **deferred D17
+  amendment**, not something the build spec adds silently (see `docs/TASKS.md` T0.1 / T9).
+- **Surfaces:** (1) **in-conversation** — promoted tasks render as a checklist in the toggled contact/
+  overview panel (checkbox = done state); (2) **dedicated `/tasks` page** — full-height list reusing the
+  inbox's own segmented status tabs (Open | Mine | All | Done) + `+ Filter` chips (assignee/due), each row
+  linking to its source message **and** conversation. `/tasks` is one-petrol-element (the primary action);
+  everything else stone — not a Linear-style dense dashboard (APP-UI-ELEVATION §6).
+- **Task attachments** go to Supabase Storage on the **same generic `attachments` table + bucket** as note
+  attachments (D19), scoped by `owner_type='task'`. No new storage machinery.
+- **Auditability:** promote / assign / set-due / delete emit `conversation_events` rows on the source
+  conversation (D22), so a task's lifecycle is visible in the same timeline as everything else. Done/undone
+  is audited **once** via D22 on the underlying message (`message_done`/`message_undone`) — the task
+  inherits it for free; there is **no** separate `task_completed`/`task_reopened` event (it would
+  double-log the same fact). The canonical `conversation_event_type` additions live in **one place** —
+  `docs/TASKS.md` T8 — and every doc cites that list rather than restating a divergent one.
+- **Realtime (refines "no new channel"):** **done rides the existing `message.status` broadcast** —
+  checking a task calls `PATCH /v1/messages/:id {done}`, so no new channel is needed for completion
+  (D9). Task **metadata** changes (create / assign / set-due / soft-delete) have **no** message write,
+  so they need their own minimal signal or `/tasks` + the checklist go stale until refetch. The
+  lowest-upkeep D9-consistent fix is a **single ID-only `task.changed {conversation_id}`** broadcast on
+  `company:{id}` (the existing membership-authorized topic — no new RLS policy), **not** a
+  `task.created/updated/deleted` trio and **not** a done signal. Spec in `docs/TASKS.md` T1.3.
+- **Consistency:** honors D14 (message-is-the-task floor), D7 (FK/RLS/soft-delete conventions, derived
+  state over duplicated state), D8 (Worker-mediated, membership-scoped), D9 (reuses the `message.status`
+  broadcast for done; a minimal ID-only `task.changed` for metadata). API: `POST /v1/tasks {message_id}`
+  (message_id **required** — promote only), `PATCH /v1/tasks/:id {title?, assigned_user_id?, due_at?}`
+  (**metadata only — no `done` field**), `DELETE /v1/tasks/:id` (soft-delete), `GET /v1/tasks` (cursor
+  list, filters), `GET /v1/conversations/:id/tasks`. Toggling done stays on `PATCH /v1/messages/:id` —
+  tasks never own it, and there is **no** `PATCH /v1/tasks/:id {done}` route.
+
+## D18. Auth — Google + Apple SSO, and email/password change in settings
+
+**Decision:** add Google and Apple as Supabase Auth OAuth providers alongside the existing email/password,
+and ship self-service email + password change in Settings. Keep the D8 auth boundary intact: the **browser**
+talks to Supabase Auth directly (`@supabase/ssr`), the Worker never brokers login.
+
+- **Provider setup (config, not code):** Google via a Google Cloud OAuth 2.0 Web client (authorized
+  redirect URI = the Supabase project's `…/auth/v1/callback`); Apple via an Apple **Services ID** (the
+  OAuth client), a Sign-in-with-Apple **Key**, and the **Team ID** — registered in the Supabase dashboard
+  Apple provider (Client IDs = the Services ID; Apple's client secret is a short-lived JWT Supabase mints
+  from the key). Both providers list JobText's production + preview origins in the Auth **redirect allow
+  list**. No secrets ship to the browser (D8): the frontend still only gets `NEXT_PUBLIC_SUPABASE_URL` +
+  publishable key.
+- **PKCE flow with a server callback route (required for `@supabase/ssr`):** the "Continue with Google/
+  Apple" buttons call `supabase.auth.signInWithOAuth({ provider, options:{ redirectTo:
+  '<origin>/auth/callback?next=…' } })`. The provider redirects back to a Next.js **Route Handler**
+  `GET /auth/callback` that runs `exchangeCodeForSession(code)` via a `createServerClient` bound to the
+  request/response cookies, then redirects to `next` (default `/inbox`). This is a **web-app UI route on
+  `apps/web`**, not a Worker/API auth route — it is the one and only OAuth server touchpoint and does not
+  violate "no Worker auth route" (D8).
+- **OAuth → company-link flow (the real integration work).** Supabase creates the `auth.users` row; the
+  `profiles` trigger (D7) fills `display_name` from the OAuth identity. JobText's tenancy is separate
+  (`company_members`, D8), so after any first sign-in the app routes on membership, identically for
+  password and OAuth users:
+  - **Invited user (email matches an open `invites` row):** the existing invite-accept path binds
+    company + role and consumes the invite; seat limit enforced at acceptance (D8). Works whether they
+    accept by setting a password or by clicking "Continue with Google/Apple" — we match on the verified
+    email from the OAuth identity, so an invited teammate can SSO straight in.
+  - **No membership + no invite:** they land on the **company-first onboarding** (`POST /v1/companies`,
+    D6) exactly like a password signup — OAuth changes *how they authenticate*, never *how a tenant is
+    created*. No auto-creation of a company from an OAuth login.
+  - **Account linking:** rely on Supabase's automatic linking by verified email (same email across
+    password + Google + Apple resolves to one `auth.users`), so a user who signed up with a password can
+    later "Continue with Google" without orphaning their membership. Manual identity-unlink is out of MVP.
+    (Apple caveat, documented for support: Apple only returns name/email on the *first* consent and offers
+    private-relay addresses — we persist the email at first sign-in and never assume it re-arrives.)
+- **Email change (Settings → Account):** `supabase.auth.updateUser({ email })` from the browser. Leave
+  Supabase **"Secure email change" ON** — it emails a confirmation to **both** the current and the new
+  address, and the change only commits when confirmed. UI states it plainly ("Confirm from both your old
+  and new inbox"). On commit, Supabase updates `auth.users.email`; JobText reads email from there, so no
+  app mirror to reconcile. OAuth-only users (no password) can still set/confirm an email this way.
+- **Password change (Settings → Account):** `supabase.auth.updateUser({ password })`. Leave **"Secure
+  password change" ON** — Supabase requires **reauthentication only if the session is older than 24h**;
+  when required, the UI calls `supabase.auth.reauthenticate()` (emails a 6-digit nonce) and passes it as
+  `updateUser({ password, nonce })`. Enforce Supabase's leaked-password + min-strength checks (already on
+  per D8 posture). Users with **no password yet** (OAuth-only) get a "Set a password" affordance that is
+  the same `updateUser({ password })` call — turning an SSO account into a dual-login account.
+- **Settings → Account "Sign-in methods" (design the OAuth-only edge, don't just assert it).** Render a
+  small **linked-methods list** from Supabase's `user.identities` array: **Google · Apple · Password**,
+  each with a present/absent state. Show **"Set a password"** only when **no password identity exists**
+  (an OAuth-only account) — the flow for a plumber who signed up with "Continue with Apple" and later
+  wants to log in on a shop desktop without their phone. For **Apple private-relay** accounts, show the
+  relay address **read-only** with a one-line note that email delivery routes through Apple (the account
+  may have no reachable real email). Manual unlink stays out of MVP; this is read-with-one-action (set
+  password), not a management console. Full UI in `docs/APP-FEATURES-V2.md` §1.8.
+- **Consistency:** no change to the Worker's JWKS verification (D8) — an OAuth-issued Supabase JWT verifies
+  identically (same `iss`/`aud`, ES256). No new tables. Sessions, RLS, and the `X-Company-Id` scoping are
+  unchanged. Calm UI: SSO buttons are stone-outlined with the provider mark; the **one petrol element** on
+  the auth screen stays the primary email submit / "Continue" action (APP-UI-ELEVATION accent budget).
+
+## D19. Attachments storage — one generic table, one bucket, for note AND task attachments
+
+**Decision:** notes and tasks store attachments in **Supabase Storage** (the product-owner call — lowest
+upkeep, already in stack), via a **single generic `attachments` table** and a **single private bucket**,
+deliberately *parallel to but separate from* the existing `message_attachments` / `mms-media` machinery
+(D7). Lowest-upkeep shape wins: one polymorphic table beats a table-per-owner.
+
+- **Why a new generic table, not extend `message_attachments`:** `message_attachments` is MMS-shaped
+  (Telnyx-sourced, image-biased, downloaded in the webhook path, metered). Note/task attachments are
+  **user-uploaded, any file type, un-metered, no Telnyx origin**. Overloading the MMS table would tangle
+  the webhook ingest path with user uploads. A generic table keeps each concern clean while giving the
+  gallery (D21) one uniform shape to union over.
+- **Schema (`attachments`, new migration):** `id`, `company_id` NOT NULL, `owner_type` text CHECK IN
+  (`'note'`,`'task'`) , `owner_id` uuid NOT NULL (→ the `messages` row for a note, the `tasks` row for a
+  task — enforced in app code, not a polymorphic FK, per D7's explicit-FK preference sidestep for
+  polymorphism), `conversation_id` uuid NULL (denormalized for note attachments, powers the gallery query
+  cheaply), `storage_path` text NOT NULL, `file_name` text, `content_type` text, `size_bytes` bigint,
+  `uploaded_by_user_id` uuid FK profiles, `created_at`, soft-delete `deleted_at`. Indexes:
+  `attachments(company_id, conversation_id) WHERE deleted_at IS NULL`,
+  `attachments(owner_type, owner_id) WHERE deleted_at IS NULL`. Append-friendly; hard-delete only via the
+  owner's soft-delete cascade in app code.
+- **Bucket + path (`attachments`, private):** company-scoped, deterministic path
+  `attachments/{company_id}/{owner_type}/{owner_id}/{uuid}-{safe_filename}`. **Company_id is the leading
+  path segment** so a single RLS predicate authorizes the whole tree. Keep it distinct from `mms-media` so
+  bucket-level MIME/size limits differ (MMS is image-only; note attachments are any type).
+- **RLS (Storage `storage.objects`) + Worker-mediated uploads (D8 posture preserved):** the browser never
+  writes Storage directly. Uploads go through the API: `POST /v1/attachments` validates membership + owner
+  ownership, then the Worker (using the `sb_secret_` key) either streams the bytes or, for large files,
+  **mints a `createSignedUploadUrl`** the browser uses once (`uploadToSignedUrl`) — no broad
+  authenticated-role INSERT grant on `storage.objects`, matching D8's "no anon/authenticated grants on data
+  tables." A defense-in-depth RLS policy on `storage.objects` still restricts any authenticated path to
+  `(storage.foldername(name))[2] = <caller's company>` (company is path segment 2 under the bucket), so a
+  leaked token can't cross tenants even if grants widen later.
+- **Allowed types + sizes (sane, un-metered, decisive):** bucket `file_size_limit = 25 MB` per file;
+  `allowed_mime_types` = images (`image/*`), PDFs, common docs (`application/pdf`, Office/OpenDocument,
+  `text/plain`, `text/csv`), and archives (`application/zip`) — the realistic set a tradesperson attaches
+  (a photo of a part, a quote PDF, a spec sheet). **Explicitly blocked:** executables/scripts
+  (`.exe/.bat/.sh/.js/.html` and `application/x-*` executable types) — rejected at the API before signing.
+  A soft **per-owner cap of 10 attachments** keeps a note/task from becoming a dumping ground. Server
+  re-validates content-type from the bytes, never trusting the client-declared type.
+- **Serving:** identical to MMS — short-lived **signed download URLs** (`createSignedUrl`, ~60–300s TTL)
+  minted by the API on demand (D7). Thumbnails for images reuse the existing blur-up/lightbox path.
+- **Consistency:** D7 (private bucket, company-keyed, signed URLs — same pattern as `mms-media`); D8
+  (Worker-mediated, `sb_secret_` key, membership check, RLS defense-in-depth); D17/D19 shared by tasks.
+  No metering (D5 meters outbound SMS only). Deleting a note/task soft-deletes its attachment rows and
+  best-effort removes the objects on a sweep cron (never blocks the user action).
+
+## D20. Contacts — CSV export, vCard import, Web Contacts Picker progressive enhancement
+
+**Decision:** extend the existing CSV **import** (D10) with CSV **export**, **vCard (.vcf) import**, and a
+**Web Contacts Picker** progressive enhancement. Native address-book integration stays **roadmap**
+(documented, not built). All three additions are thin, additive API routes — no schema change (contacts
+already exist, UNIQUE(company_id, phone_e164), D7).
+
+- **CSV export — `GET /v1/contacts/export`.** Streams a UTF-8 CSV (BOM for Excel) of the company's contacts
+  (name, phone_e164, tags, consent_source/consent_at, created_at), respecting the *current filter/search*
+  so "export what I'm looking at" works. Owner/admin or any member (read-only, same visibility as the list).
+  Round-trips with the import columns so export→edit→import is lossless. Excludes soft-deleted contacts.
+- **vCard (.vcf) import — `POST /v1/contacts/import-vcard`.** Accepts one .vcf containing one or many
+  `VCARD` blocks (the format phones/Google/Apple export). Parse **vCard 3.0 and 4.0** (`FN`/`N` → name,
+  `TEL` → phone). **Normalize every `TEL` to E.164** against the company's default country (US/CA per D2);
+  drop non-mobile-shaped or un-normalizable numbers with a per-row reason in the import report. A card with
+  multiple `TEL`s creates one contact per **distinct valid** number (contacts are phone-keyed, D7). Reuse
+  the **exact upsert + dedupe + consent-attestation gating** the CSV importer already enforces (D4: import
+  is a `consent_source='import'` path) — vCard is just a second parser feeding the same idempotent upsert,
+  not a second import pipeline. Same preview→confirm UI and same per-row error report as CSV.
+- **Web Contacts Picker — progressive enhancement, feature-detected, never required.** On supported
+  browsers (Chrome on Android; **no iOS/Safari, no desktop** — so it is strictly additive), show a "Pick
+  from phone contacts" button guarded by `('contacts' in navigator) && ('ContactsManager' in window)`.
+  It calls `navigator.contacts.select(['name','tel'], { multiple: true })` **inside the tap gesture**
+  (required; secure top-level context only), maps results into the same normalize→preview→confirm flow as
+  vCard/CSV, and posts to the shared upsert route. If the API is absent the button simply isn't rendered —
+  the CSV/vCard paths remain the universal fallback. This is a **client convenience over the existing
+  import**, adding no new server surface beyond the shared upsert.
+- **Native address book = roadmap (explicitly not built):** true OS contact sync needs native apps (out of
+  MVP scope, D9/D11). Documented as a fast-follow so the decision is on record; the Contacts Picker is the
+  progressive-enhancement stand-in for MVP.
+- **Consistency:** D10 (CSV import already shipped; these are sibling routes under the contacts surface),
+  D4 (imports carry `consent_source='import'`; no bulk-blast capability is introduced — import populates
+  contacts, it never sends), D7 (phone-keyed upsert, soft-delete respected), D8 (all routes membership-
+  scoped, Worker-side). Calm UI: one shared import surface with source tabs (CSV file · vCard file · Pick
+  from phone), a single preview→confirm step, one petrol confirm action.
+
+## D21. Conversation-view data support — in-thread filter + cross-source attachments gallery
+
+**Decision:** the in-thread filter (Messages/Notes/Events) and the attachments gallery are specified as
+**UX in APP-LAYOUT-V2**; the binding *data/API* calls live here. Both are cheap reads over data that
+already exists — no new storage, minimal new surface.
+
+- **In-thread filter needs no new endpoint.** Notes are `messages` rows with `direction='note'` and events
+  live in `conversation_events` (both D7); `GET /v1/conversations/:id` already embeds messages and the
+  timeline. The **All | Messages | Notes | Events** segmented control is a **client-side filter** over
+  data already on the page (with the existing message cursor pagination for "load more"). If a server
+  filter is ever wanted for very long threads, it is an additive `?kind=` query param on the messages list
+  — not required for MVP.
+- **Attachments gallery — one new read endpoint, `GET /v1/conversations/:id/attachments`.** Returns a
+  single date-sorted list **unioning two sources**: (1) `message_attachments` for every message in the
+  conversation (inbound + outbound MMS, D7) and (2) the new `attachments` rows (D19) whose
+  `conversation_id` matches (note attachments; task attachments surface here too when their source message
+  belongs to the conversation). Each item: `{ id, source: 'mms'|'note'|'task', kind: 'image'|'file',
+  file_name, content_type, size_bytes, created_at, thumbnail? }` plus a **freshly-minted short-lived signed
+  URL** (D7/D19) — the endpoint is the single place that authorizes + signs, so the browser never sees a
+  Storage grant. Cursor-paginated on `(created_at, id) DESC` (D10 convention). Category tabs (Images |
+  Files) filter client-side over the returned set.
+- **Consistency:** D7 (both attachment sources already private-bucket + signed-URL; the union is a read,
+  not a copy), D8 (endpoint verifies membership on the conversation, mints signed URLs Worker-side), D10
+  (cursor list shape, `{ data, next_cursor }`), D19 (note/task attachments), D17 (task attachments).
+  Calm UI: a stone-surfaced grid in the toggled right panel, lazy-loaded, click→existing lightbox
+  (images) or signed-URL download (files) — Telegram's "Shared Media" trimmed to a tradesperson's reality.
+
+## D22. Auditability — done/undone events, note-attachment and task events in the timeline
+
+**Decision:** every completion and task/attachment lifecycle change writes a `conversation_events` row
+(D7 audit table) and renders in the thread's Events timeline (D21). This closes the D14 gap (D14 broadcast
+`message.status` for live UI but did not persist an audit row) and makes the new task/attachment actions
+first-class in the same audit surface — one timeline, no second log.
+
+- **Shipped column names are canonical (was a cross-doc mismatch).** The `conversation_events` table
+  (SPEC.md) has columns **`type`** (the `conversation_event_type` enum — **not** `event_type`),
+  **`payload`** (jsonb — **not** `meta`), and **`actor_user_id`**. Every doc that writes an event uses
+  exactly these three names. The full list of enum literals to add is pinned in **one place** —
+  `docs/TASKS.md` T8 — and this decision cites that list rather than restating it.
+- **Done / undone is now audited.** `PATCH /v1/messages/:id {done}` (D14) additionally inserts a
+  `conversation_events` row: **`type`**=`'message_done'` / `'message_undone'`, `actor_user_id`, and a
+  `message_id` reference in the **`payload`** (so the timeline can render "Sam marked a message done ·
+  2:14 PM" by joining the **live** message body — the body is **not** copied into the event, keeping one
+  source for the text and respecting D8's PII posture). Insert is **in the same transaction** as the
+  `done_at` write and is **idempotent with the D14 no-op** — a redundant mark-done that changes nothing
+  writes **no** event (only real transitions are audited), preventing timeline spam. The `message.status`
+  broadcast (D9/D14) is unchanged; the event row is the durable record behind it.
+- **Task lifecycle audited (D17):** `type`=`task_created` (promote), `task_assigned`
+  (payload: from/to user), `task_due_set`, `task_deleted` — each a `conversation_events` row on the source
+  conversation, actor-stamped. A task's done/undone is **not** re-audited separately; it flows through the
+  underlying message's `message_done`/`message_undone` (shared truth, D17) so there is exactly one audit
+  event per real completion, no double-logging. **There is no `task_completed`/`task_reopened` event** —
+  they are explicitly dropped (they would double-log completion; TASKS.md T2.1/T8).
+- **Note-attachment audited (D19):** `note_attachment_added` / `note_attachment_removed`
+  (payload: file_name, attachment_id) on the note's conversation, actor-stamped — so "who attached the
+  quote PDF and when" is answerable from the same timeline. Task attachments likewise emit
+  `task_attachment_added/removed` on the source conversation.
+- **The `conversation_events_conv_required` CHECK does NOT change.** Every new event type
+  (`message_done`/`message_undone`, all `task_*`, both `*_attachment_*`) always carries a **non-null
+  `conversation_id`** (a message, task, and note each belong to a conversation), so the shipped CHECK
+  (SPEC.md — which only *permits* null `conversation_id` for
+  `'opted_out','opt_out_revoked','consent_attested'`) is satisfied as-is. **No `ALTER` to the constraint
+  is needed** (editing a shipped constraint is forbidden by D14/D7). This is an explicit migration fact.
+- **Rendering (D21):** all of the above appear as centered stone-400 timeline lines under the **Events**
+  segment of the in-thread filter — invisible until the user selects Events, honoring "nothing fights for
+  attention" (APP-UI-ELEVATION). Existing event types (status/assign/tag/opt-out, D3/D7) are unchanged and
+  share the row style.
+- **Consistency:** D7 (extends the existing `conversation_events` table + its `(conversation_id, created_at)`
+  index — no new audit store), D8 (actor is the verified `sub`, membership-scoped), D9/D14 (broadcast
+  untouched; events are the durable complement), D17/D19/D21 (task + attachment + timeline all land in one
+  audit surface). Append-only, never edited or deleted (D7).
