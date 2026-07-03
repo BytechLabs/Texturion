@@ -1,9 +1,9 @@
 /**
- * <Texture> — a faint background texture primitive (VISUALS §1D, §4.1).
+ * <Texture>, a faint background texture primitive (VISUALS §1D, §4.1).
  *
  * Kills the "empty" feeling without noise: a whisper of dot-grid or topographic
  * line work, painted as an aria-hidden decorative layer BEHIND content. Pure CSS
- * gradients + a tiny inline data-URI SVG (never a large raster, VISUALS §5) —
+ * gradients + a tiny inline data-URI SVG (never a large raster, VISUALS §5),
  * LCP-safe, themeable, zero network.
  *
  * Absolutely positioned to fill its (relative) parent. Fades toward the edges via
@@ -25,7 +25,7 @@ type TextureVariant = "dots" | "grid" | "topo";
  * on light; dark mode lifts opacity via the wrapper (see `--tx-opacity`).
  */
 const TILES: Record<TextureVariant, { uri: string; size: number }> = {
-  // Dot grid — a single 1.2px dot per 22px cell.
+  // Dot grid, a single 1.2px dot per 22px cell.
   dots: {
     size: 22,
     uri:
@@ -34,7 +34,7 @@ const TILES: Record<TextureVariant, { uri: string; size: number }> = {
         `<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22'><circle cx='2' cy='2' r='1.1' fill='%2378716c'/></svg>`,
       ),
   },
-  // Fine line grid — 1px hairlines on a 28px cell.
+  // Fine line grid, 1px hairlines on a 28px cell.
   grid: {
     size: 28,
     uri:
@@ -43,7 +43,7 @@ const TILES: Record<TextureVariant, { uri: string; size: number }> = {
         `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><path d='M28 0H0V28' fill='none' stroke='%2378716c' stroke-width='1'/></svg>`,
       ),
   },
-  // Topographic contour hint — two offset arcs per 80px cell.
+  // Topographic contour hint, two offset arcs per 80px cell.
   topo: {
     size: 80,
     uri:
@@ -58,8 +58,8 @@ export interface TextureProps {
   variant?: TextureVariant;
   className?: string;
   /**
-   * Edge-fade mask. `"radial"` (default) fades toward all edges — best for a
-   * centered section motif. `"top"` fades in from the top edge only — best under
+   * Edge-fade mask. `"radial"` (default) fades toward all edges, best for a
+   * centered section motif. `"top"` fades in from the top edge only, best under
    * a hero. `"none"` tiles flat (rare).
    */
   fade?: "radial" | "top" | "bottom" | "none";

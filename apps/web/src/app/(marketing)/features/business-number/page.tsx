@@ -1,11 +1,11 @@
 /**
- * /features/business-number — the business number + multi-number story
+ * /features/business-number, the business number + multi-number story
  * (BLUEPRINT §2, §4). Targets "business phone number for texting" and
  * "second number for business texting".
  *
  * Angles (§4): local numbers, type-a-city area-code picker (the shared NANP
  * widget), what "local" does for answer rates (framed as common sense, not fake
- * stats), multi-number is REAL — Pro includes 2 (two locations, or office +
+ * stats), multi-number is REAL. Pro includes 2 (two locations, or office +
  * field) with per-number threading, the number is the business's not an
  * employee's, and the Canada instant path. 700+ words, hand-written, unique
  * FAQ. buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
@@ -28,13 +28,14 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import { Illustration } from "@/components/marketing/illustration";
+import { Display } from "@/components/marketing/display";
+import { PhotoFrame } from "@/components/marketing/photo-frame";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Your business texting number — local, and yours",
+  title: "Your business texting number, local, and yours",
   description:
     "A local texting number in the area code you choose, so your personal cell stays personal. Pro gives you two numbers, each with its own inbox. Flat $29/mo.",
   path: PATH,
@@ -52,8 +53,13 @@ export default function BusinessNumberPage() {
 
       <FeatureHero
         eyebrow="Your business number"
-        title="A texting number that belongs to the business."
-        sub="Pick a local number in the area code you want, and give your customers one place to text. Your personal cell goes back to being personal — and the number, the contacts, and every conversation stay with the company, not with whoever's phone they landed on."
+        title={
+          <>
+            A number that belongs to the business, so every text gets{" "}
+            <Display.Mark>caught</Display.Mark>.
+          </>
+        }
+        sub="Pick a local number in the area code you want, and give your customers one place to text. Your personal cell goes back to being personal, and the number, the contacts, and every conversation stay with the company, not with whoever's phone they landed on."
         truthChips={[
           "Local number, your area code",
           "Two numbers on Pro",
@@ -62,7 +68,7 @@ export default function BusinessNumberPage() {
         visual={<InboxListVisual />}
       />
 
-      {/* Section 1 — pick a local number, your area code. */}
+      {/* Section 1, pick a local number, your area code. */}
       <FeatureSection
         eyebrow="Local, on purpose"
         heading="Type a city. Get a local number."
@@ -70,8 +76,8 @@ export default function BusinessNumberPage() {
         wash
       >
         <p>
-          When you sign up, you tell JobText where your customers are — a city or
-          an area code — and we find you a local number to match. A shop in
+          When you sign up, you tell JobText where your customers are, a city or
+          an area code, and we find you a local number to match. A shop in
           Toronto gets a (416) or (647); a shop in Austin gets a (512). The
           picker above uses the exact same numbering data the app uses to choose
           your number, so what you see here is what you&apos;ll get.
@@ -79,7 +85,7 @@ export default function BusinessNumberPage() {
         <p>
           Local matters for a plain, common-sense reason: people answer a number
           that looks like it&apos;s from around the corner. A neighbourhood area
-          code reads as a real local business, not a call centre — which is
+          code reads as a real local business, not a call centre, which is
           exactly what you are. We won&apos;t quote you an invented
           &ldquo;answer-rate&rdquo; statistic; we&apos;ll just say your number
           should look like it belongs where your customers live, and let you
@@ -87,21 +93,17 @@ export default function BusinessNumberPage() {
         </p>
       </FeatureSection>
 
-      {/* Section 2 — the number is the business's. */}
+      {/* Section 2, the number is the business's. */}
       <FeatureSection
         eyebrow="It's the company's number"
         heading="Get the business off your personal cell."
         visual={
-          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <Illustration
-              id="shared-inbox"
-              alt="One business number feeding a shared inbox the whole crew can see."
-            />
-            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
-              One number, owned by the company — shared by the whole crew, on
-              their own phones.
-            </p>
-          </div>
+          <PhotoFrame
+            id="owner-apron-phone"
+            className="mx-auto max-w-md"
+            sizes="(min-width: 1024px) 40vw, 90vw"
+            caption={{ label: "One number, shared by the crew" }}
+          />
         }
         flip
       >
@@ -110,37 +112,33 @@ export default function BusinessNumberPage() {
           has a problem. Quotes and bookings land in someone&apos;s private
           messages, between the family group chat and the dentist reminder. When
           that person is off, the business is off. When that person leaves, the
-          conversations — and sometimes the customers — leave with them.
+          conversations, and sometimes the customers, leave with them.
         </p>
         <p>
           A JobText number fixes that at the root. It&apos;s owned by the
           company and shared by the crew, so the front door to your business is a
           single, consistent number that everyone can answer and nobody can walk
           off with. Your own cell stops buzzing with work at 9pm, and the
-          history of every customer stays where it belongs — with the business.
+          history of every customer stays where it belongs, with the business.
         </p>
       </FeatureSection>
 
-      {/* Section 3 — bring your existing number (real porting). */}
+      {/* Section 3, bring your existing number (real porting). */}
       <FeatureSection
         eyebrow="Bring your number"
-        heading="Keep the number on your trucks — transfer it to JobText, free."
+        heading="Keep the number on your trucks, transfer it to JobText, free."
         visual={
-          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <Illustration
-              id="bring-your-number"
-              alt="Transferring your existing business number to JobText — we handle the paperwork."
-            />
-            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
-              You upload a recent bill; we handle the carrier paperwork and keep
-              you posted at every step.
-            </p>
-          </div>
+          <PhotoFrame
+            id="tools-wall"
+            className="mx-auto max-w-md"
+            sizes="(min-width: 1024px) 40vw, 90vw"
+            caption={{ label: "The number on the truck, kept" }}
+          />
         }
         wash
       >
         <p>
-          Already have a number your customers know — the one on your trucks,
+          Already have a number your customers know, the one on your trucks,
           your yard signs, and your Google listing? Bring it with you.{" "}
           <strong>
             You can transfer your existing US or Canadian number to JobText for
@@ -148,30 +146,30 @@ export default function BusinessNumberPage() {
           </strong>
           , and keep every customer who has it saved. At signup, choose
           &ldquo;Bring my number,&rdquo; tell us your current carrier details,
-          and upload a recent bill — from there we handle the paperwork with the
+          and upload a recent bill, from there we handle the paperwork with the
           phone companies for you.
         </p>
         <p>
           A transfer typically takes about 1 to 7 business days. The important
           part: your number keeps working on your current carrier the whole
-          time, so nothing goes dark — it switches over to JobText on the
+          time, so nothing goes dark, it switches over to JobText on the
           transfer date, and texting through JobText turns on once the transfer
           finishes. We show you exactly where the transfer is the entire way and
           email you at each step. In a hurry? Get a new local number now and
           transfer your existing one alongside it.{" "}
           <a
             href="/signup"
-            className="font-medium text-primary underline-offset-2 hover:underline"
+            className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
           >
             Bring your number when you sign up →
           </a>
         </p>
       </FeatureSection>
 
-      {/* Section 4 — multi-number (the under-sold weapon). */}
+      {/* Section 4, multi-number (the under-sold weapon). */}
       <FeatureSection
         eyebrow="Multi-number, for real"
-        heading="Two numbers on Pro — two front doors, one crew."
+        heading="Two numbers on Pro, two front doors, one crew."
         visual={<NumberCardsVisual />}
       >
         <p>
@@ -184,34 +182,29 @@ export default function BusinessNumberPage() {
           your whole team still works out of the one shared inbox.
         </p>
         <p>
-          It&apos;s a genuinely useful setup that usually costs extra elsewhere —
+          It&apos;s a genuinely useful setup that usually costs extra elsewhere,
           the per-user tools tend to bill a few dollars a month for every added
           number. On JobText, the second number is simply part of Pro.
         </p>
       </FeatureSection>
 
-      {/* Section 5 — Canada instant path. */}
+      {/* Section 5. Canada instant path. */}
       <FeatureSection
         eyebrow="Canadian numbers"
         heading="A Canadian number that texts the same day."
         visual={
-          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <Illustration
-              id="canada"
-              alt="Local numbers across the US and Canada, found on a map."
-              className="mx-auto max-w-xs"
-            />
-            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
-              Local numbers across the US and Canada — and Canadian numbers text
-              the same day you sign up.
-            </p>
-          </div>
+          <PhotoFrame
+            id="phone-in-hand"
+            className="mx-auto max-w-md"
+            sizes="(min-width: 1024px) 40vw, 90vw"
+            caption={{ label: "Texting day one, in Canada" }}
+          />
         }
         flip
       >
         <p>
           If your customers are in Canada, a Canadian number on JobText is live
-          for texting the day you sign up — no US carrier registration to wait
+          for texting the day you sign up, no US carrier registration to wait
           on, because that requirement doesn&apos;t apply to a Canadian business
           texting Canadian customers. Local numbers are available across every
           province, and CASL-aware consent and identification are handled for you
@@ -224,7 +217,7 @@ export default function BusinessNumberPage() {
           it is.{" "}
           <a
             href="/canada"
-            className="font-medium text-primary underline-offset-2 hover:underline"
+            className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
           >
             See the full Canada story →
           </a>
@@ -238,34 +231,34 @@ export default function BusinessNumberPage() {
           {
             icon: MapPin,
             title: "Your area code",
-            body: "Choose a local number that matches where your customers are — real NANP data, the same table onboarding uses.",
+            body: "Choose a local number that matches where your customers are, real NANP data, the same table onboarding uses.",
           },
           {
             icon: Building2,
             title: "Owned by the company",
-            body: "The number, contacts, and history belong to the business — techs come and go, the number stays.",
+            body: "The number, contacts, and history belong to the business, techs come and go, the number stays.",
           },
           {
             icon: Layers,
             title: "Two numbers on Pro",
-            body: "Two locations, or an office line and a field line — each with its own inbox thread, both in one shared workspace.",
+            body: "Two locations, or an office line and a field line, each with its own inbox thread, both in one shared workspace.",
           },
           {
             icon: ShieldCheck,
             title: "Personal cells stay private",
-            body: "Customers text the business number, not a tech's mobile — so nobody's personal phone becomes the company hotline.",
+            body: "Customers text the business number, not a tech's mobile, so nobody's personal phone becomes the company hotline.",
           },
         ]}
       />
 
       {/* Honest details. */}
       <HonestDetails
-        lead="A phone number is a serious thing to hand your customers, so here's exactly how JobText numbers work — including what isn't possible yet."
+        lead="A phone number is a serious thing to hand your customers, so here's exactly how JobText numbers work, including what isn't possible yet."
         items={[
           {
-            term: "A transfer takes days, not minutes — and we set the timeline honestly.",
+            term: "A transfer takes days, not minutes, and we set the timeline honestly.",
             detail:
-              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time — it only switches to JobText on the transfer date, and texting through JobText turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
+              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time, it only switches to JobText on the transfer date, and texting through JobText turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
           },
           {
             term: "Numbers are US and Canada only.",
@@ -275,7 +268,7 @@ export default function BusinessNumberPage() {
           {
             term: "A number requires a paid plan.",
             detail:
-              "There's no free, unclaimed number sitting around — the phone companies charge for every number, and free numbers attract spam that wrecks delivery. A number is provisioned only after you subscribe, usually within a minute or two.",
+              "There's no free, unclaimed number sitting around, the phone companies charge for every number, and free numbers attract spam that wrecks delivery. A number is provisioned only after you subscribe, usually within a minute or two.",
           },
           {
             term: "Sole proprietors get one number.",
@@ -296,7 +289,7 @@ export default function BusinessNumberPage() {
             </p>
             <p>
               US shops pay a one-time $29 to register the business with the phone
-              companies — once, ever — so the first month is $58 and every month
+              companies, once, ever, so the first month is $58 and every month
               after is $29. Canadian businesses that stick to Canadian customers
               never pay it.
             </p>
@@ -307,12 +300,12 @@ export default function BusinessNumberPage() {
       {/* Internal links. */}
       <RelatedLinks
         heading="Where a business number does the most work"
-        intro="A dedicated number matters most for crews spread across jobs and trades that live on their phones. Here's where it fits — and how the flat-price model compares to the per-user tools."
+        intro="A dedicated number matters most for crews spread across jobs and trades that live on their phones. Here's where it fits, and how the flat-price model compares to the per-user tools."
         links={[
           {
             label: "Texting for contractors",
             href: "/for/contractors",
-            hint: "Keep subs, GCs, and clients off one personal cell — on the company's number.",
+            hint: "Keep subs, GCs, and clients off one personal cell, on the company's number.",
           },
           {
             label: "Texting for landscapers",
@@ -332,7 +325,7 @@ export default function BusinessNumberPage() {
         ]}
       />
 
-      {/* Page-specific FAQ — unique to business-number. */}
+      {/* Page-specific FAQ, unique to business-number. */}
       <FeatureFaq
         heading="Number questions, straight answers."
         faqs={[
@@ -342,7 +335,7 @@ export default function BusinessNumberPage() {
           },
           {
             q: "Can I keep the number already on my trucks and my Google listing?",
-            a: "Yes — transfer it to JobText. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date — texting through JobText turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
+            a: "Yes, transfer it to JobText. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date, texting through JobText turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
           },
           {
             q: "What do the two numbers on Pro actually get me?",

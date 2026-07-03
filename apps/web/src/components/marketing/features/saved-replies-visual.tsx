@@ -1,13 +1,13 @@
 /**
- * Saved-replies picker visual (features track) — /features/templates-and-tags.
+ * Saved-replies picker visual (features track), /features/templates-and-tags.
  *
  * A live-DOM render of the app's composer with the template picker open
  * (DESIGN.md G5: template picker, "/" also opens it inline). Shows real plumbing
- * saved replies — the ones that ship as the trade's pre-seeded pack (COPY §P
- * saved-replies pack) — so the "type /, tap, sent" claim is concrete. The first
+ * saved replies, the ones that ship as the trade's pre-seeded pack (COPY §P
+ * saved-replies pack), so the "type /, tap, sent" claim is concrete. The first
  * template is keyboard-highlighted to read as a live picker.
  *
- * Server component — static DOM, matches the composer + popover tokens.
+ * Server component, static DOM, matches the composer + popover tokens.
  */
 
 import { CornerDownLeft, Slash } from "lucide-react";
@@ -21,7 +21,7 @@ interface Template {
 
 /** The plumbing pack that pre-seeds a new plumbing workspace (COPY §P). */
 const TEMPLATES: Template[] = [
-  { name: "On my way", preview: "On my way — should be with you in about 20…" },
+  { name: "On my way", preview: "On my way, should be with you in about 20…" },
   { name: "Photo request", preview: "Can you text us a photo of the problem, and…" },
   { name: "Quote follow-up", preview: "Hi, just checking you received our quote…" },
   { name: "Booking confirmation", preview: "You're booked for {day} between {time}…" },
@@ -36,7 +36,7 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
         className,
       )}
     >
-      {/* Template popover — anchored above the composer, like the app's picker. */}
+      {/* Template popover, anchored above the composer, like the app's picker. */}
       <div className="overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[12px] text-muted-foreground">
           <Slash className="size-3.5" strokeWidth={1.75} aria-hidden />

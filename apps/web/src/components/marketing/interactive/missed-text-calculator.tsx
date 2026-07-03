@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Missed-text calculator (Track B) — §3.8 / COPY §H8.
+ * Missed-text calculator (Track B), §3.8 / COPY §H8.
  *
  * Demoted breather (BLUEPRINT panel resolution): pure arithmetic done in the
  * open, never an asserted industry stat. The formula is always visible and the
- * defaults are honest ("your numbers, not ours — change them"). Keyboard-
+ * defaults are honest ("your numbers, not ours, change them"). Keyboard-
  * accessible controlled inputs, tabular numerals, aria-live on the output.
  *
  * Math (§3.8): missed/week × booking-rate × avg job value = weekly revenue at
@@ -133,14 +133,15 @@ export function MissedTextCalculator() {
           </span>{" "}
           in work that went somewhere else.
         </p>
-        {/* Formula always visible — we show our work (§3.8). */}
-        <p className="mt-2 font-mono text-[13px] tabular-nums text-muted-foreground">
+        {/* Formula always visible, we show our work (§3.8). --graphite (not
+            muted-foreground, which was 4.45:1 on this petrol-tinted panel). */}
+        <p className="mt-2 font-mono text-[13px] tabular-nums text-[color:var(--graphite)]">
           {missed} × {ratePct}% × {usd(value)} × 4.33 weeks
         </p>
       </div>
 
       <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-        Your numbers, not ours — change any of them. That&apos;s{" "}
+        Your numbers, not ours, change any of them. That&apos;s{" "}
         <span className="font-medium text-foreground">$29 a month</span> against
         the figure above.
       </p>

@@ -5,9 +5,9 @@ import { ImageResponse } from "next/og";
  * a petrol left rule, the pricing-page title, the JobText wordmark bottom-left,
  * and the "$29/mo flat" truth chip bottom-right (the chip §10.3 mandates for
  * pricing/home). Same Satori/Node-runtime constraints as the route-group default
- * (no runtime='edge' — OpenNext forbids it, SPEC §3; Satori built-in font).
+ * (no runtime='edge'. OpenNext forbids it, SPEC §3; Satori built-in font).
  */
-export const alt = "JobText pricing — $29/mo flat for the whole crew";
+export const alt = "JobText pricing, $29/mo flat for the whole crew";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

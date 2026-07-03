@@ -1,22 +1,22 @@
 "use client";
 
 /**
- * <LazyIsland> — defer a heavy interactive island's JS download, hydration, and
+ * <LazyIsland>, defer a heavy interactive island's JS download, hydration, and
  * script-evaluation cost until the visitor actually needs it (BLUEPRINT §3.1 /
  * §3.4 mandate: "defer non-critical islands via next/dynamic … loads on
  * viewport approach; static first frame server-rendered so the section is
  * meaningful with JS off").
  *
  * WHY this exists (the iteration-4 Lighthouse blocker): every home/pricing
- * client island — the two-phones hero, the deep-dive, the two bento thread
+ * client island, the caught-hero thread, the deep-dive, the two bento thread
  * tiles, the crew-size slider, the missed-text calculator, the area-code
- * widget, the segment counter — was a STATIC import, so all of them landed in
+ * widget, the segment counter, was a STATIC import, so all of them landed in
  * the initial bundle and hydrated on load. That is ~2s of main-thread script
  * evaluation → TBT ~1.7–2.1s → mobile Perf < 90. Deferring the non-critical
  * islands cuts the initial bundle and spreads (or eliminates) their eval.
  *
  * HOW it works, without shipping a wireframe:
- *  - The server renders `fallback` — a real, meaningful static frame (the
+ *  - The server renders `fallback`, a real, meaningful static frame (the
  *    COMPLETED thread, or the widget's resting state). That frame is what the
  *    LCP paints and what a no-JS / reduced-motion visitor keeps. It is NOT a
  *    skeleton; the page is fully useful before (and without) the island.
@@ -24,10 +24,10 @@
  *    the caller as `load`. Nothing of it is in the initial chunk.
  *  - We only fire that `import()` when the island nears the viewport (rootMargin
  *    pre-warms it) OR, for above-the-fold islands (`eager`), after the page has
- *    gone idle — so first paint and the hero LCP are never blocked by it.
+ *    gone idle, so first paint and the hero LCP are never blocked by it.
  *  - Reduced-motion: the interactive layer for pure-motion islands (the thread
- *    demos) never needs to load at all — the static completed frame IS the
- *    reduced-motion experience — so `skipWhenReducedMotion` keeps them static.
+ *    demos) never needs to load at all, the static completed frame IS the
+ *    reduced-motion experience, so `skipWhenReducedMotion` keeps them static.
  *
  * CLS-safe: the swap happens inside whatever box the caller reserves; the
  * fallback and the loaded island occupy the same layout slot, so nothing
@@ -44,7 +44,7 @@ import {
 
 /**
  * Keyed on the loaded component type `C` (not a free prop type), so
- * `componentProps` is exactly the props `C` declares — no `never`-inference and
+ * `componentProps` is exactly the props `C` declares, no `never`-inference and
  * no prop-variance friction between the loader's component and the forwarded
  * props (the iteration-4 typecheck friction).
  */
@@ -64,7 +64,7 @@ export interface LazyIslandProps<C extends ComponentType<any>> {
   eager?: boolean;
   /**
    * When the reduced-motion preference is set, never load the interactive
-   * layer — the static fallback already IS the finished, meaningful frame. Used
+   * layer, the static fallback already IS the finished, meaningful frame. Used
    * by the pure-motion thread demos (the slider/calculator/widget still load,
    * because they are functional, not decorative motion).
    */
@@ -104,28 +104,44 @@ export function LazyIsland<C extends ComponentType<any>>({
           if (!cancelled) setLoaded(() => mod.default);
         })
         .catch(() => {
-          // On a chunk-load failure the static fallback simply stays — the
+          // On a chunk-load failure the static fallback simply stays, the
           // section remains meaningful, never blank.
         });
     };
 
-    // Above-the-fold islands: wait for idle so first paint + LCP win the CPU.
+    // Above-the-fold islands (the hero "catch" replay): the static frame is
+    // already the LCP, so the interactive/animation layer must hydrate only
+    // AFTER the LCP paint has settled, never competing with it for the main
+    // thread (under CPU contention an early requestIdleCallback could fire inside
+    // the LCP window and inflate LCP). So: wait for the window `load` event first
+    // (fires after first render), THEN idle. Reduced-motion users already skip
+    // this via skipWhenReducedMotion at the call site.
     if (eager) {
       const w = window as Window &
         typeof globalThis & {
           requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
         };
-      if (typeof w.requestIdleCallback === "function") {
-        const id = w.requestIdleCallback(start, { timeout: 2000 });
-        return () => {
-          cancelled = true;
-          w.cancelIdleCallback?.(id);
-        };
+      const afterPaint = () => {
+        if (cancelled) return;
+        if (typeof w.requestIdleCallback === "function") {
+          idleId = w.requestIdleCallback(start, { timeout: 2000 });
+        } else {
+          timeoutId = window.setTimeout(start, 200);
+        }
+      };
+      let idleId: number | undefined;
+      let timeoutId: number | undefined;
+      // If the page has already loaded, defer one frame; else wait for `load`.
+      if (document.readyState === "complete") {
+        timeoutId = window.setTimeout(afterPaint, 0);
+      } else {
+        window.addEventListener("load", afterPaint, { once: true });
       }
-      const t = window.setTimeout(start, 200);
       return () => {
         cancelled = true;
-        window.clearTimeout(t);
+        window.removeEventListener("load", afterPaint);
+        if (idleId !== undefined) w.cancelIdleCallback?.(idleId);
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       };
     }
 

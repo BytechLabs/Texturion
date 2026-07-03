@@ -17,7 +17,7 @@ const PATH = "/contact";
 export const metadata: Metadata = buildMetadata({
   title: "Contact",
   description:
-    "Get in touch with JobText. Email is our only support channel — no chat bot, no phone tree — and a real person answers, usually within one business day.",
+    "Get in touch with JobText. Email is our only support channel, no chat bot, no phone tree, and a real person answers, usually within one business day.",
   path: PATH,
 });
 
@@ -37,7 +37,7 @@ export default function ContactPage() {
             Talk to a real person.
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            Email is how we do support — deliberately. No chat widget, no phone
+            Email is how we do support, deliberately. No chat widget, no phone
             tree, no &quot;press 1.&quot; {SUPPORT_SLA} A person on the team reads
             every message.
           </p>

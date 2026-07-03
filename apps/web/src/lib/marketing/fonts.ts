@@ -1,54 +1,154 @@
-import { Fraunces } from "next/font/google";
+import localFont from "next/font/local";
 
 /**
- * Fraunces — the MARKETING display face (VISUALS-V2 §5), defined ONCE here and
- * mounted as the `--font-display` CSS variable on the (marketing) route-group
- * subtree (layout.tsx). Marketing headline utilities (.jt-hero-h1, .display-hero,
- * .display-h2, .display-numeral, .font-display) resolve it; body/UI keep Inter.
+ * The MARKETING type trio (DESIGN-DIRECTION §3), locked by a real render pass
+ * (the /fontlab route: the "Caught" hero headline set in every §3 display
+ * candidate over the live palette, screenshotted at desktop + mobile). Chosen
+ * for confidence + warmth + subject fit ("trades announce themselves to the
+ * street, bold, hand-set lettering"):
  *
- * THE CWV FIX (VISUALS-V2 §7 — mobile Lighthouse >=90, CLS < 0.05). The first cut
- * shipped the full multi-axis + italic variable font under `display: "swap"`, which
- * caused two mobile-only regressions on the hero H1 (the LCP element):
- *   1. CLS ~0.17 — the display-optical Fraunces glyphs are far wider than the
- *      serif fallback, so the H1 rewrapped by a whole line at common phone widths
- *      (e.g. 412px: fallback 3 lines, Fraunces 4) when the font swapped in.
- *   2. LCP inflated — the H1's final paint waited on the late-swapping display font
- *      instead of painting immediately.
+ *   Display  Basteleur (Velvetyne, OFL), a warm, heavy, hand-set serif that
+ *            reads like painted van / yard-sign lettering. Two cuts:
+ *              - Bold      → the headline weight (--font-display)
+ *              - Moonlight → a lighter, sharper companion for composed emphasis
+ *                            (--font-display-alt), the weight-contrast half of
+ *                            the <Display> system (Basteleur has no true italic,
+ *                            so emphasis is weight/optical contrast, not slant).
+ *   Body     Hanken Grotesk (OFL, variable wght), a warm workhorse grotesque
+ *            with more character than the marketing default; --font-body-mkt.
+ *   Mono     Commit Mono (OFL), the "work-order honesty" mono for the numbers
+ *            that matter ($29, phone numbers, timestamps); --font-mono-mkt.
  *
- * The fix, at the root:
- *   - PAYLOAD: pin to the two weights headlines use (500/600), `normal` only, and
- *     DROP the `opsz`/`SOFT`/`WONK` axes — ~36 KiB latin subset vs. the ~233 KiB the
- *     first cut shipped. (next/font forbids `axes` + pinned `weight` together, so
- *     dropping the axes is what lets us pin the weight.) Fraunces' own old-style
- *     serif character carries the personality at headline scale; the axis nudges
- *     were imperceptible there next to their cost.
- *   - `display: "optional"` + `preload: false`: Fraunces is kept entirely OFF the
- *     hero's critical path. The H1 paints immediately from the HTML + inlined CSS
- *     in the fallback and NEVER late-swaps on that load (so no swap-induced reflow
- *     and no font tax on the LCP frame). Fraunces still paints on first load
- *     wherever it arrives in time (fast connections, warm cache) and always on
- *     repeat visits; on a cold slow-mobile first paint the headline shows in the
- *     serif fallback rather than Inter. Paired with the H1 `min-height` reservation
- *     (ledger-css.tsx), which fixes the box height so the optional font can never
- *     shift the sections below, this drives CLS to ~0 and takes the font off the
- *     LCP path. This trades a slice of first-paint display personality on the worst
- *     connections for the hard CWV gate — the gate wins (VISUALS-V2 §7: "Don't let
- *     the visual richness tank CWV").
+ * All four are self-hosted, latin-subset woff2 (scripts/subset-fonts.mjs →
+ * src/app/fonts/marketing/), mounted as CSS variables on the (marketing)
+ * route-group subtree ONLY (layout.tsx). The APP keeps Inter, nothing outside
+ * the marketing subtree can resolve these variables (the two-surfaces rule).
+ *
+ * font-display: OPTIONAL on all three faces, chosen by measurement on the built
+ * site (Lighthouse mobile Lantern + desktop). Two facts drove it:
+ *
+ *   1. CLS. With "swap", the three non-preloaded faces (Hanken body, Commit mono,
+ *      Basteleur Moonlight) swap in after first paint and the size-adjusted
+ *      fallback does not hold their box perfectly, which the layout-shifts audit
+ *      caught as a ~0.07 CLS on DESKTOP (mobile was ~0.005). "optional" removes the
+ *      post-paint swap entirely: a face is used only if it is ready inside the
+ *      browser's ~100 ms block window, else the metric-matched fallback stays for
+ *      that load and the font is cached for the next navigation, so NO swap can
+ *      ever reflow. That drops desktop CLS to ~0.001 (mobile to 0) and lifts
+ *      desktop Perf to 100. On a warm/fast connection (desktop, good mobile) the
+ *      preloaded Basteleur Bold makes the window, so the signature hero lettering
+ *      still renders; on a cold slow mobile load the hero paints in the SERIF
+ *      fallback (still display-serif, not a sans) and upgrades next nav.
+ *   2. LCP model. The hero H1 (the LCP element) is a text node. Neither "swap" nor
+ *      "optional" moves the *modeled* mobile LCP much: measured, the mobile LCP is
+ *      gated by Lantern's estimate of the React/Next framework-JS parse cost before
+ *      first paint (simFCP ~1.66 s under the 4x CPU throttle), not by the font, so
+ *      display mode is roughly LCP-neutral on mobile and we pick it on the CLS win.
+ *      The one font lever that helped was the PRELOAD budget: preloading only the
+ *      LCP face (Basteleur Bold), not all three above-the-fold faces, frees the
+ *      critical path (see gen-font-preloads.mjs).
+ *
+ * ZERO-CLS FALLBACK METRICS: every face sets `adjustFontFallback` to the system
+ * base whose PROPORTIONS it actually matches, so next/font emits a size-adjusted
+ * `@font-face` (size-adjust + ascent/descent/line-gap overrides computed from the
+ * real woff2 metrics) for the fallback. That makes the fallback occupy nearly the
+ * SAME box as the web font. This is belt-and-suspenders with `display:optional`
+ * (which already forbids any post-paint swap): even an in-window upgrade lands in a
+ * box the fallback already sized, so nothing jumps. Basteleur is a serif → its
+ * fallback is matched to "Times New Roman" (matching it against Arial, the sans
+ * default, mis-sized the fallback and was the font shift the layout-shifts audit
+ * flagged). Hanken and Commit are matched to "Arial". The `fallback` arrays name
+ * the system faces the browser paints before the metric fallback resolves, in the
+ * same category so nothing jumps.
  */
-export const fraunces = Fraunces({
-  subsets: ["latin"],
-  display: "optional",
-  weight: ["500", "600"],
-  style: "normal",
+
+// Basteleur, the display face. Bold cut = headline weight, Moonlight = the
+// lighter emphasis cut. Both exposed under one family with two weights so the
+// <Display> component can flip weight for emphasis via a single variable.
+export const basteleur = localFont({
+  src: [
+    {
+      path: "../../app/fonts/marketing/Basteleur-Moonlight.woff2",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../../app/fonts/marketing/Basteleur-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-display",
-  // preload:false — keep Fraunces OFF the critical path (VISUALS-V2 §7). This is
-  // the rework's remaining mobile regression: the display font was preloaded at
-  // VeryHigh priority, so on simulated Slow-4G its ~36 KB competed with the
-  // document/CSS for bandwidth ahead of the LCP paint (~+0.9s LCP). With
-  // `display:"optional"` the hero H1 already paints in the metric-matched serif
-  // fallback and never late-swaps, so preloading Fraunces buys nothing for the
-  // LCP frame — it only steals critical bandwidth. Dropping the preload lets the
-  // font load lazily (it still applies on fast connections / warm cache / repeat
-  // visits) while the LCP element paints from the HTML + inlined CSS alone.
-  preload: false,
+  // OPTIONAL (see the font-display note above): the size-adjusted serif fallback
+  // paints headline text (incl. the LCP hero H1) at first paint; the preloaded
+  // Bold makes the block window on warm/fast loads so the hero lettering renders,
+  // and there is never a post-paint swap to reflow. The H1 min-height reservation
+  // holds the box regardless.
+  display: "optional",
+  // Serif display face: match the auto-generated metric fallback to a SERIF base
+  // (Times New Roman), not the sans-serif default. This sizes the fallback box to
+  // Basteleur's real metrics so the headline (incl. the LCP hero) never reflows;
+  // the H1 min-height reservation then only has to hold the wrap.
+  adjustFontFallback: "Times New Roman",
+  fallback: ["Georgia", "Cambria", "Times New Roman", "serif"],
 });
+
+// Hanken Grotesk, the body workhorse (variable wght, latin subset).
+export const hankenGrotesk = localFont({
+  src: [
+    {
+      path: "../../app/fonts/marketing/HankenGrotesk-latin.woff2",
+      weight: "100 900",
+      style: "normal",
+    },
+  ],
+  variable: "--font-body-mkt",
+  // OPTIONAL: the body copy is below the LCP. Under "swap" Hanken swapping in was a
+  // measured desktop-CLS contributor; "optional" paints the size-adjusted Arial
+  // fallback and only upgrades within the block window, so no swap ever reflows.
+  display: "optional",
+  // Sans body face: size-adjusted fallback against Arial so paragraph and label
+  // text holds its box (the body/mono reflow the audit flagged).
+  adjustFontFallback: "Arial",
+  fallback: [
+    "Arial",
+    "ui-sans-serif",
+    "system-ui",
+    "-apple-system",
+    "Segoe UI",
+    "sans-serif",
+  ],
+});
+
+// Commit Mono, the "work-order" data mono ($29, phone, timestamps).
+export const commitMono = localFont({
+  src: [
+    {
+      path: "../../app/fonts/marketing/CommitMono-latin.woff2",
+      weight: "400",
+      style: "normal",
+    },
+  ],
+  variable: "--font-mono-mkt",
+  // OPTIONAL: the data mono ($29, phone numbers, timestamps) sits below the LCP.
+  // Under "swap" Commit Mono swapping in was a measured desktop-CLS contributor;
+  // "optional" paints the size-adjusted fallback and only upgrades within the block
+  // window, so the numerals never reflow.
+  display: "optional",
+  // Size-adjusted fallback so the mono numerals ($29, timestamps) hold their box.
+  adjustFontFallback: "Arial",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+});
+
+/**
+ * The (marketing) layout applies the three `.variable` members DIRECTLY in its
+ * JSX (basteleur.variable, hankenGrotesk.variable, commitMono.variable), never a
+ * pre-joined string. That is deliberate: next/font's compiler plugin only
+ * registers a font for PRELOAD when it sees the font const's member accessed
+ * statically in rendered JSX. A string concatenated here hid that access, so the
+ * fonts never entered the font manifest and NONE were preloaded, the browser
+ * discovered them late from the inlined @font-face, which delayed the hero
+ * Basteleur swap (LCP lag) and shifted layout on swap. Referencing the members
+ * directly in the layout fixes both. Mounting all three exposes --font-display /
+ * --font-body-mkt / --font-mono-mkt to the marketing utilities in globals.css.
+ */

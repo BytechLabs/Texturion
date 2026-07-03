@@ -1,5 +1,5 @@
 /**
- * <Photo> — render one real photograph from the photography set
+ * <Photo>, render one real photograph from the photography set
  * (public/img/manifest.ts): warm, authentic tradespeople / service-business
  * imagery (VISUALS-V2 §2), the replacement for the removed hand-made "art."
  *
@@ -10,7 +10,7 @@
  *   - `loading="lazy"` + `decoding="async"` by default (pass `priority` above fold);
  *   - the tiny blur data-URI sits behind as the background until the raster paints;
  *   - `images.unoptimized` is on (Cloudflare) and files are pre-sized at build
- *     time, so a plain <img>/<picture> is correct — next/image adds nothing.
+ *     time, so a plain <img>/<picture> is correct, next/image adds nothing.
  *
  * `sizes` defaults to a sensible full-width-on-mobile / half-on-desktop hint;
  * override at the call site when the layout box is known.
@@ -29,7 +29,7 @@ export interface PhotoProps {
   id: string;
   /** Override the manifest alt (e.g. "" to mark decorative when captioned). */
   alt?: string;
-  /** Above-the-fold? Eager-load instead of lazy (rare — most are below). */
+  /** Above-the-fold? Eager-load instead of lazy (rare, most are below). */
   priority?: boolean;
   /** Responsive `sizes` hint; defaults to full-width mobile / half desktop. */
   sizes?: string;

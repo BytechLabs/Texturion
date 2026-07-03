@@ -22,10 +22,10 @@ import { APP_LINKS, HOME_ANCHORS, LIVE_ROUTES } from "@/lib/marketing/site";
  * mega-menu, not a bare-text dropdown, so every item carries the four fields
  * VISUALS §5b mandates: { label, href, description (one plain-English line),
  * icon (a lucide component) }. The dropdown panels render each item as a
- * two-line row — a petrol-tinted icon chip + the label (medium) + the muted
- * description — and long lists (Trades, Compare) as a tidy multi-column grid.
+ * two-line row, a petrol-tinted icon chip + the label (medium) + the muted
+ * description, and long lists (Trades, Compare) as a tidy multi-column grid.
  *
- * Every item resolves to a real standalone page — the four feature pages, the
+ * Every item resolves to a real standalone page, the four feature pages, the
  * six trade pages, /canada, and the three comparison pages all ship. The only
  * home-anchor entries are the two menu *triggers* (`href` on the menu itself):
  * clicking the word "Product" or "Who it's for" scrolls to the relevant home
@@ -46,7 +46,7 @@ export interface NavItem {
 /**
  * The featured promo cell in the Product menu (VISUALS §5b): a petrol-tinted
  * card carrying a mini live-thread snippet and a "See the shared inbox →" link
- * — the personality moment that makes the menu feel like a brand, not a list.
+ *, the personality moment that makes the menu feel like a brand, not a list.
  * The snippet echoes the app's real thread grammar (inbound white bubble →
  * teal-50 outbound reply with a Delivered check), scripted from COPY §H4.
  */
@@ -69,7 +69,7 @@ export interface NavMenu {
   featured?: NavFeatured;
 }
 
-/** Product ▾ — 4 feature pages + Security, plus the featured shared-inbox cell. */
+/** Product ▾, 4 feature pages + Security, plus the featured shared-inbox cell. */
 export const productMenu: NavMenu = {
   label: "Product",
   href: HOME_ANCHORS.features,
@@ -92,7 +92,7 @@ export const productMenu: NavMenu = {
     {
       label: "Compliance built in",
       href: LIVE_ROUTES.featuresCompliance,
-      description: "Carrier registration, opt-outs, and consent — handled.",
+      description: "Carrier registration, opt-outs, and consent, handled.",
       icon: ShieldCheck,
       live: true,
     },
@@ -106,7 +106,7 @@ export const productMenu: NavMenu = {
     {
       label: "Security",
       href: LIVE_ROUTES.security,
-      description: "Encrypted, isolated, and never sold — the plain details.",
+      description: "Encrypted, isolated, and never sold, the plain details.",
       icon: Shield,
       live: true,
     },
@@ -120,7 +120,7 @@ export const productMenu: NavMenu = {
   },
 };
 
-/** Who it's for ▾ — the six trades + Canada, two-column with per-trade icons. */
+/** Who it's for ▾, the six trades + Canada, two-column with per-trade icons. */
 export const tradesMenu: NavMenu = {
   label: "Who it's for",
   href: HOME_ANCHORS.trades,
@@ -178,7 +178,7 @@ export const tradesMenu: NavMenu = {
   ],
 };
 
-/** Compare ▾ — the three launch comparisons; each row shows a "vs" motif. The
+/** Compare ▾, the three launch comparisons; each row shows a "vs" motif. The
  * menu trigger's own landing route is the /compare hub (its breadcrumb target). */
 export const compareMenu: NavMenu = {
   label: "Compare",
@@ -234,8 +234,8 @@ export const SIGNUP_HREF = APP_LINKS.signup;
  * the hero, after each major proof section, and in the closing band").
  *
  * DOC CONFLICT RESOLVED IN THE DOCTRINE'S FAVOR: COPY §Global lists "Get your
- * number" as the primary label, but CONVERSION.md — equal-authority, and the one
- * that governs conversion — mandates the exact string "Start for $29" so the
+ * number" as the primary label, but CONVERSION.md, equal-authority, and the one
+ * that governs conversion, mandates the exact string "Start for $29" so the
  * price anchor rides in the button itself. CONVERSION.md wins (it is the more
  * specific, later, conversion-governing doctrine, and the iteration-4 task
  * restates "consistent 'Start for $29'" explicitly). "Get your number" survives

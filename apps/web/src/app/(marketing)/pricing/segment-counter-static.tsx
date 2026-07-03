@@ -1,9 +1,9 @@
 /**
- * <SegmentCounterStatic> — the §PR segment counter at its default message, as
+ * <SegmentCounterStatic>, the §PR segment counter at its default message, as
  * pure server DOM. The no-JS / pre-hydration frame so the trust demo shows a
  * real, correct count before (and without) the interactive island. It computes
  * the default with the SAME pure `estimateSegments` (@jobtext/shared) the
- * interactive island and the app's billing use — so the count is real, not a
+ * interactive island and the app's billing use, so the count is real, not a
  * placeholder, and the swap to the typable textarea is seamless.
  *
  * <LazyIsland> loads the interactive counter on viewport approach.
@@ -26,10 +26,10 @@ export function SegmentCounterStatic() {
   return (
     <div className="rounded-[10px] border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
       <p className="text-[14px] font-medium text-foreground">
-        Type your usual message — we&apos;ll count it with the same code that
+        Type your usual message, we&apos;ll count it with the same code that
         does our billing.
       </p>
-      {/* Inert preview — the interactive island replaces this with a textarea. */}
+      {/* Inert preview, the interactive island replaces this with a textarea. */}
       <div className="mt-3 min-h-[6.5rem] w-full rounded-md border border-input bg-background px-3 py-2.5 text-[15px] leading-relaxed text-foreground">
         {DEFAULT_MESSAGE}
       </div>

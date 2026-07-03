@@ -1,5 +1,5 @@
 /**
- * Home page (Track B) — composes the BLUEPRINT §3 sections in the canonical
+ * Home page (Track B), composes the BLUEPRINT §3 sections in the canonical
  * density-wave order (§1.4). Renders ONLY the ordered sections; Track A's
  * (marketing)/layout.tsx supplies <Nav/> + <Footer/> and the route-group
  * wiring (CONTRACT). ROOT / resolves here.
@@ -7,42 +7,43 @@
  * The page is fully static (BLUEPRINT §11.4): every section is a server
  * component except the small client islands (the thread demos, the three
  * interactives), which hydrate after first paint. The LCP is the hero H1 text
- * over a server-rendered thread — no raster hero image (§3.1).
+ * over a server-rendered thread, no raster hero image (§3.1).
  *
  * <HomeJsonLd/> is Track A's WebSite + SoftwareApplication node, rendered once
  * here per Track A's SEO-lane contract (their component, invoked by this page).
  *
- * Ledger identity (iteration 5, ART-DIRECTION.md): the page is one authored
- * "job ledger" — every band is a <LedgerSection> numbered on the spine 01…12
- * (the primary anti-bland device, REFERENCES anti-bland #4), and the signature
- * Dispatch Desk hero (HERO-CONCEPT.md) replaces the iteration-4 two-phones hero.
- * The section order + density wave are unchanged (BLUEPRINT §3 / §1.4); iter 5
- * layers on the spine numbering, silhouette variety, the recurring ledger-row
- * grammar, the two sanctioned 132px numerals, the FILED stamp, one dark band +
- * one petrol-flood close, and the seven REFERENCES elevate items.
+ * The "Caught" identity (DESIGN-DIRECTION.md, BINDING): the page opens on the
+ * signature Caught hero (the customer text that would have been missed, now
+ * caught and claimed by a name) and everything else stays quiet around it.
+ * Structure comes from GROUND changes (paper to the one deep-petrol band and
+ * back) and display-lettering rhythm, NOT from a numbered spine (§0: the ledger
+ * 01…12 numbering, the FILED stamp, and fake indicators are removed).
  *
- * Section order, spine number, and silhouette (anti-bland #1 — no two adjacent
- * bands share a shape):
- *  01 Dispatch Desk hero        — participatory live ticket
- *     Product showcase          — framed inbox-shot proof reveal
- *  02 Truth bar ($29 as art)    — expressive numeral
- *  03 The problem               — ruled ledger-entry trio (asymmetric)
- *  04 Inbox deep-dive           — live-product split
- *  05 How it works + timeline   — infographic + the 2nd numeral (Day 0)
- *  06 Features bento            — asymmetric bento w/ switchable live tile
- *  07 Missed-text math          — sparse breather + calculator
- *  08 Dark band                 — dark product/night band
- *  09 Pricing + slider          — pricing w/ live proof
- *  10 Canada + compliance       — interleaved editorial
- *  11 FAQ                       — ledger-row accordion
- *  12 Final CTA                 — petrol-flood close
+ * Section order (real content logic: a text arrives, someone catches it, the job
+ * gets done, here is the price, start), with no two adjacent bands sharing a
+ * silhouette. Structure is carried by GROUND changes and display-lettering
+ * rhythm, NOT a counter:
+ *  - Caught hero            the signature: a message lands, a name attaches
+ *    Product showcase       framed inbox-shot proof reveal
+ *  - Truth bar ($29 as art) the one expressive numeral
+ *  - The problem            asymmetric register + duotone photo
+ *  - Inbox deep-dive        the same catch, slowed down (real product demo)
+ *  - How it works + timeline steps + the Day 0 numeral
+ *  - Features bento         asymmetric bento with a switchable live tile
+ *  - Missed-text math       sparse breather + calculator
+ *  - Built for the truck    real dark-mode screenshot on paper (the ONE deep
+ *                           ground is reserved for the final close)
+ *  - Pricing + slider       petrol-tinted panel with live proof
+ *  - Canada + compliance    interleaved editorial, flipped silhouettes
+ *  - FAQ                    accordion
+ *  - Final CTA              the one deep-petrol flood close
  */
 
 import type { Metadata } from "next";
 
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
 import { buildMetadata } from "@/lib/marketing/seo";
-import { DispatchHero } from "@/components/marketing/hero-dispatch";
+import { CaughtHero } from "@/components/marketing/hero-caught";
 import { LedgerStyles } from "@/components/marketing/ledger";
 import { ProductShowcase } from "@/components/marketing/home/product-showcase";
 import { TruthBar } from "@/components/marketing/home/truth-bar";
@@ -58,9 +59,9 @@ import { Faq } from "@/components/marketing/home/faq";
 import { FinalCta } from "@/components/marketing/home/final-cta";
 
 export const metadata: Metadata = buildMetadata({
-  title: "JobText — Shared text inbox for your crew | $29/mo flat",
+  title: "JobText. Shared text inbox for your crew | $29/mo flat",
   description:
-    "One local business number your whole crew can text from — reply, assign, tag, and close together. Flat $29/mo for the team, month to month, no sales calls. US & Canada.",
+    "One local business number your whole crew can text from, reply, assign, tag, and close together. Flat $29/mo for the team, month to month, no sales calls. US & Canada.",
   path: "/",
   absoluteTitle: true,
 });
@@ -69,13 +70,15 @@ export default function HomePage() {
   return (
     <>
       <HomeJsonLd />
-      {/* The marketing-scoped ledger identity styles (FILED stamp, highlight-
-          swipe, spine, arrow-expand). One inert <style>, zero JS; globals.css
-          and components/ui are untouched (iteration-5 constraint). */}
+      {/* Marketing-scoped CSS for the remaining drawn affordances (the delivered
+          check, the arrow-expand CTA). One inert <style>, zero JS; globals.css
+          and components/ui are untouched. The ledger costume (FILED stamp, spine
+          numbering, pulse/ghost) is removed per DESIGN-DIRECTION §0. */}
       <LedgerStyles />
-      {/* 01 — the signature Dispatch Desk hero (HERO-CONCEPT.md). Replaces the
-          iteration-4 two-phones hero. Composes at the top per the ownership. */}
-      <DispatchHero />
+      {/* The signature "Caught" hero (DESIGN-DIRECTION §2, §3), the customer
+          text that would have been missed, now caught and claimed by a name.
+          The one place the site spends its boldness. */}
+      <CaughtHero />
       <ProductShowcase />
       <TruthBar />
       <Problem />

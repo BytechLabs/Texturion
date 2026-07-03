@@ -19,7 +19,7 @@ import {
 
 /**
  * The mobile navigation sheet (VISUALS §5b): not a flat text list, but grouped
- * sections that mirror the desktop mega-menu — section headers, the same
+ * sections that mirror the desktop mega-menu, section headers, the same
  * petrol-tinted icon chips, and the one-line descriptions, with comfortable
  * spacing so it feels like the app. The primary petrol CTA is pinned to the
  * bottom of the sheet, always reachable (CONVERSION §2). Every row is ≥44px
@@ -29,7 +29,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-6">
-        {/* Pricing — a flat top-level link, given its own quiet row. */}
+        {/* Pricing, a flat top-level link, given its own quiet row. */}
         <FlatRow item={PRICING_LINK} onNavigate={onNavigate} />
 
         {NAV_MENUS.map((menu) => (

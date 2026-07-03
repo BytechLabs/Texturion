@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * City → area-code widget (Track B) — §3.11 Canada beat / COPY §H11.
+ * City → area-code widget (Track B), §3.11 Canada beat / COPY §H11.
  *
  * Type a city (or a 3-digit code) and see the local area code, drawn from the
  * app's own verified NANP data (@jobtext/shared via city-lookup). A real
@@ -211,22 +211,24 @@ export function CityAreaCodeWidget() {
                     : selected.city}
                 </span>
                 {selected.regionLabel && !selected.city.startsWith("Area code") && (
-                  <span className="text-muted-foreground">
+                  // --graphite (8.3:1 on this petrol-tinted panel); muted-foreground
+                  // was 4.45:1 here, a hair under AA.
+                  <span className="text-[color:var(--graphite)]">
                     {" "}
-                    — {selected.regionLabel}
+                    , {selected.regionLabel}
                   </span>
                 )}
               </p>
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-[12px] text-[color:var(--graphite)]">
                 {selected.country === "CA"
-                  ? "Canadian number — texting works the same day you sign up."
-                  : "US number — receiving works day one; texting turns on in about a week."}
+                  ? "Canadian number, texting works the same day you sign up."
+                  : "US number, receiving works day one; texting turns on in about a week."}
               </p>
             </div>
           </>
         ) : (
-          <p className="text-[14px] text-muted-foreground">
-            No match — try a nearby city or a 3-digit area code.
+          <p className="text-[14px] text-[color:var(--graphite)]">
+            No match, try a nearby city or a 3-digit area code.
           </p>
         )}
       </div>
@@ -242,7 +244,7 @@ export function CityAreaCodeWidget() {
       )}
 
       <p className={cn("mt-3 text-[12px] text-muted-foreground")}>
-        Real numbering data — the same table the app uses to pick your number.
+        Real numbering data, the same table the app uses to pick your number.
       </p>
     </div>
   );

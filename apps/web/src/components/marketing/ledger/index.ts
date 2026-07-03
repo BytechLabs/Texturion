@@ -1,14 +1,11 @@
 /**
- * Ledger identity system (iteration 5) — the job-ledger primitives that make the
- * home page read as ONE authored object (ART-DIRECTION §2, REFERENCES §3–4).
- * Barrel for the numbered spine, the section-number chip, the ticket/status
- * motif, the FILED stamp, the self-drawing check, and the arrow-expand CTA.
+ * Marketing drawn-affordance primitives. What survives the DESIGN-DIRECTION §0
+ * removals is only the honest, still-used material: the marketing-scoped CSS
+ * (the delivered-check draw, the one highlight swipe, the arrow-expand CTA) and
+ * the quiet arrow-expand text link. The ledger COSTUME is gone: no 01…12 spine
+ * numbering, no section-number eyebrow, no status-spine / FILED ticket, no
+ * self-drawing "done" glyph left over from the old grammar (§0).
  */
 
 export { LedgerStyles } from "./ledger-css";
-export { LedgerSection } from "./ledger-section";
-export { SectionEyebrow, pad2 } from "./section-number";
-export { StatusSpine, TicketMeta, LedgerRow } from "./ticket";
-export { FiledStamp } from "./filed-stamp";
-export { SignalCheck } from "./signal-check";
 export { ArrowLink } from "./arrow-link";

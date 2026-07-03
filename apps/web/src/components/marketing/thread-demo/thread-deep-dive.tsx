@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Thread deep-dive (Track B) — §3.4 "What actually happens when a text lands".
+ * Thread deep-dive (Track B), §3.4 "What actually happens when a text lands".
  *
  * Not a second hero: the hero autoplays the spectacle; this slows the SAME
  * story down and annotates the mechanics (BLUEPRINT panel resolution). Reuses
@@ -15,6 +15,7 @@ import { ChevronRight, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { Display } from "@/components/marketing/display";
 
 import type { ThreadBeat, ThreadScript } from "./script";
 import { ThreadFrame } from "./thread-frame";
@@ -28,7 +29,7 @@ import { useReducedMotion } from "./use-thread-player";
 
 const CAPTIONS = [
   "A text to your business number becomes a conversation everyone can see.",
-  "Leave a note for the team — customers never see notes.",
+  "Leave a note for the team, customers never see notes.",
   "Assign it to whoever's closest. One owner, no double replies.",
   "Reply from any phone. Delivery is confirmed, in writing.",
   "Tag it the way you sell: quote sent, scheduled, won.",
@@ -97,14 +98,17 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
       {/* Left: sticky captions */}
       <div className="lg:sticky lg:top-28">
-        <p className="text-[13px] font-semibold text-primary">See it work</p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          What actually happens when a text lands.
-        </h2>
-        <p className="mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">
-          Here&apos;s the same conversation, slowed down. A customer texts your
+        <p className="font-mono-mkt text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+          See it work
+        </p>
+        <Display as="h2" size="h2" className="mt-3">
+          What happens when a text{" "}
+          <Display.Mark>lands</Display.Mark>.
+        </Display>
+        <p className="mt-4 max-w-md text-lg leading-relaxed text-[color:var(--ink-70)]">
+          Here is the same conversation, slowed down. A customer texts your
           business number, and step by step, this is what your crew sees and
-          does — assign it, note it, reply, confirm, tag.
+          does: assign it, note it, reply, confirm, tag.
         </p>
 
         <ol className="mt-8 space-y-1">
@@ -117,15 +121,15 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                 key={caption}
                 className={cn(
                   "flex gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200",
-                  isActive && "bg-primary/5",
+                  isActive && "bg-[color:var(--petrol-12)]/50",
                 )}
               >
                 <span
                   className={cn(
-                    "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors duration-200",
+                    "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors duration-200",
                     isActive || isPast
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground",
+                      ? "bg-[color:var(--petrol)] text-white"
+                      : "bg-[color:var(--petrol-12)] text-[color:var(--petrol)]",
                   )}
                   aria-hidden
                 >
@@ -135,8 +139,8 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   className={cn(
                     "text-[15px] leading-snug transition-colors duration-200",
                     isActive
-                      ? "font-medium text-foreground"
-                      : "text-muted-foreground",
+                      ? "font-medium text-[color:var(--ink)]"
+                      : "text-[color:var(--ink-70)]",
                   )}
                 >
                   {caption}
@@ -171,10 +175,10 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
             <div className="flex items-center justify-between gap-2">
               {/* The ONE load-bearing honesty label (panel resolution). Muted
                   per §3.4, but stone-500/400 (not stone-400/500) so it clears
-                  WCAG AA 4.5:1 in both themes (G11) — a Lighthouse
+                  WCAG AA 4.5:1 in both themes (G11), a Lighthouse
                   color-contrast finding; a load-bearing label must be legible. */}
               <span className="text-[13px] text-stone-500 dark:text-stone-400">
-                Demo — scripted conversation, real interface.
+                Demo, scripted conversation, real interface.
               </span>
               {!reduced &&
                 (done ? (
@@ -206,7 +210,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   </button>
                 ))}
             </div>
-            {/* Inline CTA — closes the mid-page dead zone (§3.4), secondary weight. */}
+            {/* Inline CTA, closes the mid-page dead zone (§3.4), secondary weight. */}
             <a
               href="/signup"
               className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"

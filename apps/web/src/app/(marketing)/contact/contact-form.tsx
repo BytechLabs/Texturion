@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 
 /**
- * Contact form — the honest option (BLUEPRINT §2): email is JobText's only
+ * Contact form, the honest option (BLUEPRINT §2): email is JobText's only
  * support channel, so this composes a pre-filled message and opens your email
  * app via a mailto: link. We say so plainly under the button rather than pretend
  * a marketing backend exists. No data is sent anywhere by this page itself.
@@ -24,7 +24,7 @@ export function ContactForm() {
     const bodyLines = [
       message,
       "",
-      "—",
+      ", ",
       name && `Name: ${name}`,
       email && `Reply-to: ${email}`,
     ].filter(Boolean);

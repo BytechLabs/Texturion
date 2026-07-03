@@ -1,19 +1,19 @@
 /**
- * The problem (Track B) — §3.3 / COPY §H3.
+ * The problem (§H3), the "that's my chaos" recognition beat. The human moment is
+ * a real, duotone-graded photo of a shop owner buried in his phone; the three
+ * pains read as a ruled register (not a 1/1/1 card grid), which keeps the
+ * silhouette different from the sections around it.
  *
- * The "that's my chaos" recognition beat. VISUALS-V2 §2: the human/emotional
- * moment is carried by a REAL warm photo of a shop owner buried in his phone —
- * far more on-brand for a tradesperson than a generic illustration — framed in
- * the one cohesive <PhotoFrame> treatment with a ledger caption chip. The three
- * pains stay as ruled ledger entries (not a 1/1/1 card grid). Copy verbatim.
- * Server component.
+ * DESIGN-DIRECTION §0: no section number, no ledger spine. A composed <Display>
+ * headline carries the promise; the marker highlights "one phone", the true pain.
+ * Sits on the paper ground. Server component.
  */
 
 import { PhoneOff, Smartphone, UserX } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
-import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
+import { Section } from "@/components/marketing/ui/section";
+import { Display } from "@/components/marketing/display";
 import { PhotoFrame } from "@/components/marketing/photo-frame";
 
 const ROWS = [
@@ -39,55 +39,53 @@ const ROWS = [
 
 export function Problem() {
   return (
-    <LedgerSection n={3} defer intrinsic={560}>
-      {/* Asymmetric editorial split: copy + illustration up top, then the three
-          pains as ruled ledger entries below (not a 1/1/1 card grid). */}
+    <Section defer intrinsic={560}>
       <div className="grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
-        <div className="max-w-2xl">
-          <SectionEyebrow n={3} label="The problem" />
-          <h2 className="display-h2 mt-4 text-foreground">
+        <Reveal className="max-w-2xl">
+          <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+            <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+            The problem
+          </p>
+          <Display as="h2" size="h2" className="mt-4">
             Your business runs on texts. Your texts run on{" "}
-            <span className="jt-swipe text-foreground">one phone.</span>
-          </h2>
-          <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-            Customers would rather text than call — so they text whoever&apos;s
+            <Display.Mark>one phone</Display.Mark>.
+          </Display>
+          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
+            Customers would rather text than call, so they text whoever&apos;s
             number they have. That works until it doesn&apos;t.
           </p>
-        </div>
+        </Reveal>
 
-        {/* The recognition photo — a real owner reading a customer text at the
-            counter, framed once with a ledger caption chip. */}
+        {/* The recognition photo: a real owner reading a customer text, in the
+            one duotone frame language, with a true corner label. */}
         <Reveal className="w-full lg:justify-self-end">
           <PhotoFrame
             id="owner-apron-phone"
             className="mx-auto w-full max-w-md lg:mx-0"
             sizes="(min-width: 1024px) 40vw, 92vw"
-            caption={{ pill: "New", label: "Customer text · just now" }}
+            caption={{ label: "Customer text, just now" }}
           />
         </Reveal>
       </div>
 
-      {/* The three pains as a ruled ledger — petrol hairlines + tabular indices,
-          asymmetric two-column rows. Reads as an accounting register, not cards. */}
-      <div className="mt-12 border-t border-primary/20">
+      {/* The three pains as a ruled register: warm hairlines, asymmetric rows.
+          Reads as a work-order log, not a card grid. */}
+      <div className="mt-12 border-t border-[color:var(--hairline)]">
         {ROWS.map((row, i) => {
           const Icon = row.icon;
           return (
             <Reveal key={row.title} delay={Math.min(i, 3) * 60}>
-              <div className="grid items-start gap-4 border-b border-border py-6 sm:grid-cols-[auto_1fr] sm:gap-6">
+              <div className="grid items-start gap-4 border-b border-[color:var(--hairline)] py-6 sm:grid-cols-[auto_1fr] sm:gap-6">
                 <div className="flex items-center gap-3">
-                  <span className="jt-meta tabular-nums text-primary">
-                    {`0${i + 1}`}
-                  </span>
-                  <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <span className="flex size-9 items-center justify-center rounded-lg bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
                     <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                   </span>
                 </div>
                 <div className="grid gap-1 sm:grid-cols-[minmax(0,16rem)_1fr] sm:items-baseline sm:gap-6">
-                  <h3 className="text-lg font-semibold text-foreground">
+                  <h3 className="text-lg font-semibold text-[color:var(--ink)]">
                     {row.title}
                   </h3>
-                  <p className="text-[15px] leading-relaxed text-muted-foreground">
+                  <p className="text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                     {row.body}
                   </p>
                 </div>
@@ -96,6 +94,6 @@ export function Problem() {
           );
         })}
       </div>
-    </LedgerSection>
+    </Section>
   );
 }

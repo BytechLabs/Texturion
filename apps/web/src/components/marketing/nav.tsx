@@ -23,7 +23,7 @@ import { Wordmark } from "./wordmark";
  * Marketing header (BLUEPRINT §12, VISUALS §5b): sticky; stone-50 at ~92%
  * opacity with blur; a bottom 1px border appears on scroll. Left: the petrol
  * wordmark mark. Center: the designed mega-menu nav (Product / Pricing / Who
- * it's for / Compare / Canada) — rounded elevated panels with two-line rows,
+ * it's for / Compare / Canada), rounded elevated panels with two-line rows,
  * per-menu icons, and a featured cell in Product. Right: a quiet "Log in" and
  * the solid petrol primary CTA (the site-wide "Start for $29", CONVERSION §2).
  * Mobile → hamburger → full sheet with grouped icon sections and a pinned CTA.
@@ -86,7 +86,7 @@ export function Nav() {
                   <Wordmark />
                 </SheetTitle>
                 <SheetDescription className="sr-only">
-                  JobText navigation — product, who it&apos;s for, compare, and
+                  JobText navigation, product, who it&apos;s for, compare, and
                   pricing.
                 </SheetDescription>
                 <MobileNav onNavigate={() => setMobileOpen(false)} />

@@ -39,7 +39,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      intro="One policy for both countries. It follows Canada's PIPEDA and Quebec's Law 25, and it tells you plainly where your data is processed — in the United States."
+      intro="One policy for both countries. It follows Canada's PIPEDA and Quebec's Law 25, and it tells you plainly where your data is processed, in the United States."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Privacy policy"
       path={PATH}
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
             details you provide to register with the phone companies (legal
             business name, address, and a business identifier such as an EIN or
             BN). For the sole-proprietor path we collect the last four digits of
-            an SSN/SIN and a mobile number for a one-time verification code — we
+            an SSN/SIN and a mobile number for a one-time verification code, we
             never collect or store a full SSN/SIN.
           </li>
           <li>
@@ -108,7 +108,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           When a business starts a conversation with a new contact, JobText
-          records that consent was attested — a name and a date — and
+          records that consent was attested, a name and a date, and
           automatically adds the business&apos;s identity and a &quot;Reply STOP
           to opt out&quot; line to the first message. When someone texts STOP,
           the opt-out is recorded and future sends to that number are blocked.
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
           . Our database, authentication, and file storage run on Supabase in the
           AWS <code className="rounded bg-muted px-1 py-0.5 text-sm">us-east-1</code>{" "}
           region. If you are in Canada, your data is transferred to and processed
-          in the United States — we state this plainly rather than burying it.
+          in the United States, we state this plainly rather than burying it.
           The full list of the vendors that process data on our behalf, and the
           region each operates in, is on our{" "}
           <LegalLink href="/legal/subprocessors">
@@ -133,10 +133,10 @@ export default function PrivacyPage() {
 
       <LegalSectionBlock id="sharing" heading="6. Who we share with">
         <p>
-          We share data only with the sub-processors that make the service run —
+          We share data only with the sub-processors that make the service run,
           the phone carrier (Telnyx), payments (Stripe), infrastructure
           (Supabase/AWS, Cloudflare), email (Resend), and error/analytics tooling
-          (Sentry, PostHog) — each limited to what its job requires and listed on
+          (Sentry, PostHog), each limited to what its job requires and listed on
           our <LegalLink href="/legal/subprocessors">sub-processors page</LegalLink>
           . We may disclose data if the law requires it. We do not sell personal
           information.

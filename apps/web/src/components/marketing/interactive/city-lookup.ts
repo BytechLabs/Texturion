@@ -1,12 +1,12 @@
 /**
  * City / area-code resolution for the §3.11 widget (Track B).
  *
- * Resolves a free-text query — a city name or a 3-digit area code — to a real
+ * Resolves a free-text query, a city name or a 3-digit area code, to a real
  * NANP result. It reuses the app's OWN verified data: the onboarding
  * `CITY_NPAS` index (city → NPAs, with a build-time invariant asserting every
  * code exists in the shared table) and the shared `NANP_AREA_CODES` table
  * (@jobtext/shared) for region/country. So the widget shows exactly what the
- * app's onboarding area-code picker would — one source of truth, nothing
+ * app's onboarding area-code picker would, one source of truth, nothing
  * invented (BLUEPRINT §3.10/§3.11: "reuses the NANP table island").
  */
 

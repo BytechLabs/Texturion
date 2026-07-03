@@ -7,7 +7,7 @@ import { SITE_URL, absoluteUrl } from "./site";
  *
  * - `title` feeds the root "%s · JobText" template unless `absoluteTitle` is set
  *   (the home page uses an absolute title).
- * - Descriptions are hand-written per page (no templating — §11.1).
+ * - Descriptions are hand-written per page (no templating, §11.1).
  * - `alternates.canonical` is emitted for every page.
  * - OpenGraph + Twitter (summary_large_image) share the page title/description;
  *   images come from the route's own opengraph-image.tsx (Next auto-wires them),
@@ -49,7 +49,7 @@ export function buildMetadata({
 /*                                                                            */
 /* Official Next pattern: inline <script type="application/ld+json"> in a     */
 /* server component, escaping "<" to block breakout. NO FAQPage (dead rich    */
-/* result since May 2026, §11.2). NO aggregateRating/review (none exist —     */
+/* result since May 2026, §11.2). NO aggregateRating/review (none exist ,     */
 /* fabrication risks a manual action, §13.1).                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -74,7 +74,7 @@ export function organizationJsonLd() {
   } as const;
 }
 
-/** WebSite node — home only. */
+/** WebSite node, home only. */
 export function websiteJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -87,7 +87,7 @@ export function websiteJsonLd() {
 }
 
 /**
- * SoftwareApplication (WebApplication) with the two REAL offers — home + pricing.
+ * SoftwareApplication (WebApplication) with the two REAL offers, home + pricing.
  * Each Offer carries priceCurrency USD, a string price, and a monthly-subscription
  * qualifier so a parser can't read it as a one-time charge (§11.2 finding).
  * Deliberately no aggregateRating / review.
@@ -141,7 +141,7 @@ export interface Breadcrumb {
   path: string;
 }
 
-/** BreadcrumbList — sub-pages only (still fully supported, §11.2). */
+/** BreadcrumbList, sub-pages only (still fully supported, §11.2). */
 export function breadcrumbJsonLd(crumbs: Breadcrumb[]) {
   return {
     "@context": "https://schema.org",

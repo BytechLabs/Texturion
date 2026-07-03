@@ -3,10 +3,10 @@
 /**
  * Text-length explainer + counter (COPY §PR "Text-length explainer + counter").
  * A trust demo, not a toy: it counts with the EXACT `estimateSegments` code from
- * @jobtext/shared that the app uses for its send-time segment pre-check — the same
+ * @jobtext/shared that the app uses for its send-time segment pre-check, the same
  * package the product bills against (Telnyx's finalized parts stay authoritative
  * for the invoice; this is the app-side estimate, per SPEC §2). Copy verbatim
- * from §PR: "Type your usual message — we'll count it with the same code that
+ * from §PR: "Type your usual message, we'll count it with the same code that
  * does our billing."
  *
  * Client island (BLUEPRINT §11.4: below-fold island < 15KB gz; the only JS the
@@ -26,8 +26,8 @@ export function SegmentCounter() {
   const id = useId();
 
   const { segments, unitsUsed, encoding } = estimateSegments(text);
-  // UCS-2 is triggered by ANY character outside GSM-7 — emoji, but also an
-  // em-dash, curly quotes, or accents — so we never claim "emoji" when the real
+  // UCS-2 is triggered by ANY character outside GSM-7, emoji, but also an
+  // em-dash, curly quotes, or accents, so we never claim "emoji" when the real
   // cause might be a dash. "Special characters or emoji" is true for every UCS-2
   // case and matches SPEC §2's own tooltip wording.
   const isUnicode = encoding === "UCS-2";
@@ -46,7 +46,7 @@ export function SegmentCounter() {
         htmlFor={id}
         className="text-[14px] font-medium text-foreground"
       >
-        Type your usual message — we&apos;ll count it with the same code that
+        Type your usual message, we&apos;ll count it with the same code that
         does our billing.
       </label>
       <textarea
@@ -71,7 +71,7 @@ export function SegmentCounter() {
         </span>
       </div>
 
-      {/* The one honest technical footnote — segments demoted to a tooltip-level
+      {/* The one honest technical footnote, segments demoted to a tooltip-level
           aside exactly like the app's own UI copy rule (SPEC §2, BLUEPRINT §13.8:
           lead with "texts," never "segments"). */}
       <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">

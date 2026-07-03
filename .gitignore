@@ -9,6 +9,9 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Generated at build time by scripts/gen-font-preloads.mjs (hero-font preload URLs)
+apps/web/public/marketing-font-preloads.json
+
 # Local tool state
 .claude/settings.local.json
 

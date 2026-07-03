@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The ONE petrol radial glow per page (BLUEPRINT §1.2), as a decorative,
- * aria-hidden layer painted BEHIND content — never over LCP text, never
+ * aria-hidden layer painted BEHIND content, never over LCP text, never
  * animated, exactly one per page. Pure CSS gradient (marketing-glow utility in
  * globals.css): a petrol core low-left + a warm amber lift upper-right over the
  * stone-50 base, so the hero sits in warm morning light. No image, no blur()

@@ -1,5 +1,5 @@
 /**
- * <MissedTextCalculatorStatic> — the §3.7 calculator at its default resting
+ * <MissedTextCalculatorStatic>, the §3.7 calculator at its default resting
  * state, as pure server DOM. The LCP-neutral / no-JS / pre-hydration frame for
  * the missed-text calculator, so the section is meaningful before (and without)
  * the interactive island. <LazyIsland> swaps in the draggable version on
@@ -38,7 +38,7 @@ function StaticField({
         <span>{label}</span>
         <span className="tabular-nums text-primary">{display}</span>
       </div>
-      {/* Inert track — the interactive island replaces this with a real slider. */}
+      {/* Inert track, the interactive island replaces this with a real slider. */}
       <div className="mt-2 h-1.5 w-full rounded-full bg-secondary" aria-hidden />
     </div>
   );
@@ -61,13 +61,13 @@ export function MissedTextCalculatorStatic() {
           </span>{" "}
           in work that went somewhere else.
         </p>
-        <p className="mt-2 font-mono text-[13px] tabular-nums text-muted-foreground">
+        <p className="mt-2 font-mono text-[13px] tabular-nums text-[color:var(--graphite)]">
           {MISSED} × {RATE_PCT}% × {usd(JOB_VALUE)} × 4.33 weeks
         </p>
       </div>
 
       <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-        Your numbers, not ours — change any of them. That&apos;s{" "}
+        Your numbers, not ours, change any of them. That&apos;s{" "}
         <span className="font-medium text-foreground">$29 a month</span> against
         the figure above.
       </p>

@@ -1,11 +1,11 @@
 /**
- * Trade thread scripts (trades track) — one genuinely-specific scripted
+ * Trade thread scripts (trades track), one genuinely-specific scripted
  * conversation per trade page (BLUEPRINT §5: "an example conversation rendered
  * in the real thread UI, static, trade-specific"; §5 guard: zero shared
  * sentences between pages).
  *
  * These reuse the heroperf-owned `ThreadScript` model (thread-demo/script.ts)
- * verbatim — the trades track only supplies DATA, never edits the shared
+ * verbatim, the trades track only supplies DATA, never edits the shared
  * component or the shared thread-demo scripts. Every line here is real trade
  * dialogue: the jargon, the numbers, the objections, and the flow are specific
  * to that trade and appear on no other page.
@@ -17,7 +17,7 @@
 import type { ThreadScript } from "@/components/marketing/thread-demo/script";
 
 /* -------------------------------------------------------------------------- */
-/* Plumbers — emergency backup, elbow-deep, photo triage (COPY §P anchor,      */
+/* Plumbers, emergency backup, elbow-deep, photo triage (COPY §P anchor,      */
 /* expanded with a distinct after-hours turn). "A Tuesday, in texts."          */
 /* -------------------------------------------------------------------------- */
 
@@ -40,7 +40,7 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
       kind: "note",
       by: "Priya",
       body:
-        "Second backup on that street this month — Dale, bring the auger and the camera",
+        "Second backup on that street this month. Dale, bring the auger and the camera",
       time: "7:55 AM",
     },
     {
@@ -53,7 +53,7 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Dale",
       body:
-        "Hi Marcus, Dale from Reyes Plumbing. From your photo that looks like a main line clog — we can be there tomorrow at 8am. It's $180 for the auger service, and we'll quote anything bigger before we touch it. Want the 8am?",
+        "Hi Marcus, Dale from Reyes Plumbing. From your photo that looks like a main line clog, we can be there tomorrow at 8am. It's $180 for the auger service, and we'll quote anything bigger before we touch it. Want the 8am?",
       time: "8:03 AM",
       delivered: "delivered",
     },
@@ -73,7 +73,7 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Landscapers — spring cleanup quote from a yard photo, crews across sites.    */
+/* Landscapers, spring cleanup quote from a yard photo, crews across sites.    */
 /* Distinct jargon: bed edging, mulch yards, mowing rotation.                  */
 /* -------------------------------------------------------------------------- */
 
@@ -96,7 +96,7 @@ export const LANDSCAPERS_SCRIPT: ThreadScript = {
       kind: "note",
       by: "Marco",
       body:
-        "That's the Oakridge cul-de-sac — Sofia's crew is three doors down Thursday. Roughly 4 yards of mulch, half a day.",
+        "That's the Oakridge cul-de-sac. Sofia's crew is three doors down Thursday. Roughly 4 yards of mulch, half a day.",
       time: "9:20 AM",
     },
     {
@@ -109,7 +109,7 @@ export const LANDSCAPERS_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Sofia",
       body:
-        "Hi Diane, Sofia from Greenline. From the photo I'd budget a full bed cleanup, fresh edging, and about 4 yards of mulch — $640 all in. My crew is on your street Thursday, so we could fold you in that morning. Sound good?",
+        "Hi Diane, Sofia from Greenline. From the photo I'd budget a full bed cleanup, fresh edging, and about 4 yards of mulch, $640 all in. My crew is on your street Thursday, so we could fold you in that morning. Sound good?",
       time: "9:34 AM",
       delivered: "delivered",
     },
@@ -129,7 +129,7 @@ export const LANDSCAPERS_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Cleaners — recurring client, gate code / access note, reschedule.           */
+/* Cleaners, recurring client, gate code / access note, reschedule.           */
 /* Distinct jargon: biweekly, lockbox, turnover, team of two.                  */
 /* -------------------------------------------------------------------------- */
 
@@ -143,7 +143,7 @@ export const CLEANERS_SCRIPT: ThreadScript = {
       kind: "inbound",
       from: "Nadia K",
       body:
-        "Hi! We're out of town for our biweekly Friday clean. Door code is 4-4-8-2, and the dog is in the crate — please don't let him out. Key's in the lockbox if the code acts up.",
+        "Hi! We're out of town for our biweekly Friday clean. Door code is 4-4-8-2, and the dog is in the crate, please don't let him out. Key's in the lockbox if the code acts up.",
       time: "3:18 PM",
     },
     {
@@ -151,7 +151,7 @@ export const CLEANERS_SCRIPT: ThreadScript = {
       kind: "note",
       by: "Elena",
       body:
-        "Saving the gate code to her contact so the whole team has it — Rosa, you and Ana have this one Friday",
+        "Saving the gate code to her contact so the whole team has it. Rosa, you and Ana have this one Friday",
       time: "3:22 PM",
     },
     {
@@ -164,7 +164,7 @@ export const CLEANERS_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Rosa",
       body:
-        "Got it, Nadia — code 4482, dog stays crated, lockbox as backup. Ana and I will be there Friday between 10 and noon and I'll text you when we lock up. Anything you want us to focus on this time?",
+        "Got it, Nadia, code 4482, dog stays crated, lockbox as backup. Ana and I will be there Friday between 10 and noon and I'll text you when we lock up. Anything you want us to focus on this time?",
       time: "3:29 PM",
       delivered: "delivered",
     },
@@ -184,7 +184,7 @@ export const CLEANERS_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* HVAC — no-heat call in a January cold snap, seasonal triage, maintenance.   */
+/* HVAC, no-heat call in a January cold snap, seasonal triage, maintenance.   */
 /* Distinct jargon: furnace lockout, filter, maintenance plan, blower.         */
 /* -------------------------------------------------------------------------- */
 
@@ -198,7 +198,7 @@ export const HVAC_SCRIPT: ThreadScript = {
       kind: "inbound",
       from: "Greg P",
       body:
-        "Furnace quit overnight and it's -18 out. It's clicking then shutting off — the little light is flashing 3 times. Can someone come today?",
+        "Furnace quit overnight and it's -18 out. It's clicking then shutting off, the little light is flashing 3 times. Can someone come today?",
       photo: { label: "Furnace status light" },
       time: "6:41 AM",
     },
@@ -220,7 +220,7 @@ export const HVAC_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Tariq",
       body:
-        "Morning Greg, Tariq from Northline Heating. Three flashes points to a pressure-switch lockout — often a blocked intake or the induced-draft motor. I can be there by 11. Diagnostic is $120 and applies to the repair. In the meantime, keep the thermostat set and don't keep resetting it. Okay to head over?",
+        "Morning Greg, Tariq from Northline Heating. Three flashes points to a pressure-switch lockout, often a blocked intake or the induced-draft motor. I can be there by 11. Diagnostic is $120 and applies to the repair. In the meantime, keep the thermostat set and don't keep resetting it. Okay to head over?",
       time: "6:55 AM",
       delivered: "delivered",
     },
@@ -240,7 +240,7 @@ export const HVAC_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Salons — appointment confirmation + a rebook, front desk is one person.     */
+/* Salons, appointment confirmation + a rebook, front desk is one person.     */
 /* Distinct jargon: color consult, root touch-up, stylist, waitlist.          */
 /* -------------------------------------------------------------------------- */
 
@@ -254,7 +254,7 @@ export const SALONS_SCRIPT: ThreadScript = {
       kind: "inbound",
       from: "Bri L",
       body:
-        "Hi! Confirming my color appointment Saturday. Also — I'd love to go a few shades lighter than last time, is that something we can talk through first?",
+        "Hi! Confirming my color appointment Saturday. Also. I'd love to go a few shades lighter than last time, is that something we can talk through first?",
       photo: { label: "Hair color inspo" },
       time: "1:04 PM",
     },
@@ -263,7 +263,7 @@ export const SALONS_SCRIPT: ThreadScript = {
       kind: "note",
       by: "Priya",
       body:
-        "Bri's booked with Jess 2pm Sat. Big lift from her current level — flag it so Jess adds time and a bond treatment.",
+        "Bri's booked with Jess 2pm Sat. Big lift from her current level, flag it so Jess adds time and a bond treatment.",
       time: "1:08 PM",
     },
     {
@@ -276,7 +276,7 @@ export const SALONS_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Jess",
       body:
-        "Hi Bri! You're confirmed for Saturday at 2 with me. That inspo is a bigger lift from where we are now, so I'll block extra time and add a bond treatment to keep it healthy — it'll run a little more than a root touch-up. Want me to text you the updated total before Saturday?",
+        "Hi Bri! You're confirmed for Saturday at 2 with me. That inspo is a bigger lift from where we are now, so I'll block extra time and add a bond treatment to keep it healthy, it'll run a little more than a root touch-up. Want me to text you the updated total before Saturday?",
       time: "1:15 PM",
       delivered: "delivered",
     },
@@ -296,9 +296,9 @@ export const SALONS_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Contractors — the builder-sends-address-and-paint-color scenario, made      */
+/* Contractors, the builder-sends-address-and-paint-color scenario, made      */
 /* concrete via D14 mark-done: EACH text is a task the crew works through and  */
-/* checks off in the thread (DECISIONS D14 — the message IS the task; NO jobs  */
+/* checks off in the thread (DECISIONS D14, the message IS the task; NO jobs  */
 /* feature). Distinct jargon: GC, subs, change order, punch list.              */
 /*                                                                            */
 /* `done` beats carry the D14 done state (line-through + petrol check badge),  */
@@ -315,7 +315,7 @@ export const CONTRACTORS_SCRIPT: ThreadScript = {
       kind: "inbound",
       from: "Ben (GC)",
       body:
-        "Crew's starting the Riverside unit tomorrow. Address is 214 Riverside, lockbox 7-1-9-0. Powder room and hall get Chantilly Lace, primary bedroom is Hale Navy — two coats.",
+        "Crew's starting the Riverside unit tomorrow. Address is 214 Riverside, lockbox 7-1-9-0. Powder room and hall get Chantilly Lace, primary bedroom is Hale Navy, two coats.",
       time: "4:02 PM",
     },
     {
@@ -331,7 +331,7 @@ export const CONTRACTORS_SCRIPT: ThreadScript = {
       kind: "outbound",
       by: "Luis",
       body:
-        "Got it Ben — 214 Riverside, code 7190, Chantilly Lace in the powder room and hall, Hale Navy two coats in the primary. I'll have the crew there at 7. I'll text you a photo once the primary's cut in.",
+        "Got it Ben, 214 Riverside, code 7190, Chantilly Lace in the powder room and hall, Hale Navy two coats in the primary. I'll have the crew there at 7. I'll text you a photo once the primary's cut in.",
       time: "4:16 PM",
       delivered: "delivered",
     },
@@ -340,7 +340,7 @@ export const CONTRACTORS_SCRIPT: ThreadScript = {
       kind: "inbound",
       from: "Ben (GC)",
       body:
-        "One change — client wants the hall in Hale Navy too now, not Chantilly. Can you price the extra coat?",
+        "One change, client wants the hall in Hale Navy too now, not Chantilly. Can you price the extra coat?",
       time: "8:47 AM",
     },
     {
@@ -359,8 +359,8 @@ export const CONTRACTORS_SCRIPT: ThreadScript = {
  * The done-marked beat ids for the contractors thread (D14). The trades-owned
  * <TradeThread> renders these two with strikethrough + the petrol check badge:
  * the address/paint spec is done (crew briefed, paint loaded) and Luis's
- * confirmation is done. The live change-order turn is left open — a new task,
- * not yet worked through — so the reader sees the thread as a working task list.
+ * confirmation is done. The live change-order turn is left open, a new task,
+ * not yet worked through, so the reader sees the thread as a working task list.
  */
 export const CONTRACTORS_DONE_IDS: readonly string[] = ["co-in-1", "co-out-1"];
 

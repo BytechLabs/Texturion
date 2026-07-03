@@ -1,17 +1,21 @@
 /**
- * Pricing preview (Track B) — §3.9 / COPY §H9. Pricing on the home page IS the
- * positioning (anti-Podium). Two plan cards, the honesty strip that OWNS the
- * first-month sum out loud ($58 then $29), the crew-size slider (the converting
- * interaction), and the live usage-meter proof. One of the two allowed washes
- * (stone-50 → teal-50). All figures from SPEC §2; copy verbatim from §H9.
+ * Pricing preview (§H9). Pricing on the home page IS the positioning: two plan
+ * cards, the honesty strip that owns the first-month sum out loud ($58 then
+ * $29), the crew-size slider (the converting interaction), and the live
+ * usage-meter proof.
+ *
+ * DESIGN-DIRECTION §0: no section number, no ledger spine. A composed <Display>
+ * headline opens it; prices are set in the work-order mono. Sits on a subtle
+ * petrol-tinted panel wash (a ground change from the plain paper around it, not
+ * the app's stone/teal gradient). All figures from SPEC §2; copy per §H9.
  */
 
 import Link from "next/link";
 import { Clock, Receipt, ShieldCheck } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
-import { SignalCheck } from "@/components/marketing/ledger/signal-check";
+import { Section } from "@/components/marketing/ui/section";
+import { Display, MarkerCheck } from "@/components/marketing/display";
 import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { Button } from "@/components/ui/button";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
@@ -48,7 +52,7 @@ const PLANS: Plan[] = [
   {
     name: "Pro",
     price: "$79",
-    tagline: "For crews up to ten — and a second number.",
+    tagline: "For crews up to ten, and a second number.",
     badge: "For bigger crews",
     highlighted: true,
     features: [
@@ -66,31 +70,40 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col rounded-2xl border bg-card p-6",
-        plan.highlighted ? "border-primary/40 ring-1 ring-primary/20" : "border-border",
+        "flex h-full flex-col rounded-2xl border bg-[color:var(--paper-2)] p-6",
+        plan.highlighted
+          ? "border-[color:var(--petrol)]/40 ring-1 ring-[color:var(--petrol)]/20"
+          : "border-[color:var(--hairline)]",
       )}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">{plan.name}</h3>
+        <h3 className="text-lg font-semibold text-[color:var(--ink)]">
+          {plan.name}
+        </h3>
         {plan.badge && (
-          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[12px] font-medium text-teal-800 dark:text-primary">
+          <span className="font-mono-mkt rounded-full bg-[color:var(--petrol-12)] px-2.5 py-0.5 text-[12px] font-medium text-[color:var(--deep)]">
             {plan.badge}
           </span>
         )}
       </div>
       <div className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-[48px] font-semibold leading-none tabular-nums text-foreground">
+        <span className="font-mono-mkt text-[48px] font-semibold leading-none tabular-nums text-[color:var(--ink)]">
           {plan.price}
         </span>
-        <span className="text-[15px] text-muted-foreground">/mo</span>
+        <span className="text-[15px] text-[color:var(--graphite)]">/mo</span>
       </div>
-      <p className="mt-2 text-[14px] text-muted-foreground">{plan.tagline}</p>
+      <p className="mt-2 text-[14px] text-[color:var(--graphite)]">
+        {plan.tagline}
+      </p>
 
       <ul className="mt-5 flex-1 space-y-3">
         {plan.features.map((f) => (
-          <li key={f} className="flex gap-2.5 text-[14px] leading-relaxed text-foreground">
+          <li
+            key={f}
+            className="flex gap-2.5 text-[14px] leading-relaxed text-[color:var(--ink)]"
+          >
             <span className="mt-0.5 shrink-0">
-              <SignalCheck className="size-4" />
+              <MarkerCheck className="size-4" color="petrol" draw={false} />
             </span>
             <span>{f}</span>
           </li>
@@ -110,29 +123,28 @@ function PlanCard({ plan }: { plan: Plan }) {
 
 export function PricingPreview() {
   return (
-    <LedgerSection
-      n={9}
+    <Section
       id="pricing"
       bleed
       defer
       intrinsic={1200}
-      className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
+      className="bg-[color:var(--paper-2)]"
     >
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div className="max-w-2xl">
-          <p className="jt-meta flex items-center gap-2 text-primary">
-            <span className="tabular-nums">09</span>
-            <span aria-hidden className="h-px w-6 bg-primary/40" />
-            <span className="text-muted-foreground">Pricing</span>
+        <Reveal className="max-w-2xl">
+          <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+            <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+            Pricing
           </p>
-          <h2 className="display-h2 mt-4 text-foreground">
-            One flat price for the whole crew.
-          </h2>
-          <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+          <Display as="h2" size="h2" className="mt-4">
+            One flat price for the{" "}
+            <Display.Mark>whole crew</Display.Mark>.
+          </Display>
+          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
             No per-user fees. No quote calls. No annual contracts. This is the
             whole price list.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr_1.05fr] lg:items-stretch">
           {PLANS.map((plan) => (
@@ -141,39 +153,37 @@ export function PricingPreview() {
             </Reveal>
           ))}
 
-          {/* The converting interaction + the usage-meter proof. The slider is
-              deferred (LazyIsland): its static default state converts before/
-              without JS; the draggable island loads on viewport approach. */}
+          {/* The converting interaction + the usage-meter proof. */}
           <Reveal className="flex h-full flex-col gap-6">
             <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
             <UsageMeterProof />
           </Reveal>
         </div>
 
-        {/* Honesty strip — the first-month sum owned out loud, next to $29. */}
-        <div className="mt-8 grid gap-3 rounded-2xl border border-border bg-card p-6 sm:grid-cols-3">
+        {/* Honesty strip: the first-month sum owned out loud, next to $29. */}
+        <div className="mt-8 grid gap-3 rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper)] p-6 sm:grid-cols-3">
           <div className="flex gap-3">
-            <Receipt className="size-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden />
-            <p className="text-[14px] leading-relaxed text-foreground">
+            <Receipt className="size-5 shrink-0 text-[color:var(--petrol)]" strokeWidth={1.75} aria-hidden />
+            <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
               <span className="font-semibold">
-                US shops: $29/mo + a one-time $29 to register with the phone
-                companies = $58 your first month, then $29 every month after.
+                US shops: $29/mo plus a one-time $29 to register with the phone
+                companies is $58 your first month, then $29 every month after.
               </span>{" "}
               The registration fee is charged once, ever. Canadian businesses
               that don&apos;t text US numbers never pay it and never wait.
             </p>
           </div>
           <div className="flex gap-3">
-            <Clock className="size-5 shrink-0 text-amber-600 dark:text-warning" strokeWidth={1.75} aria-hidden />
-            <p className="text-[14px] leading-relaxed text-foreground">
+            <Clock className="size-5 shrink-0 text-[color:var(--petrol)]" strokeWidth={1.75} aria-hidden />
+            <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
               Day one, you&apos;re not idle: receiving texts and texting Canadian
               numbers work right away. Texting US numbers turns on in about a
-              week (3–7 business days), once the phone companies approve you.
+              week (3 to 7 business days), once the phone companies approve you.
             </p>
           </div>
           <div className="flex gap-3">
-            <ShieldCheck className="size-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden />
-            <p className="text-[14px] leading-relaxed text-foreground">
+            <ShieldCheck className="size-5 shrink-0 text-[color:var(--petrol)]" strokeWidth={1.75} aria-hidden />
+            <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
               Prices in USD, plus sales tax where it applies. That&apos;s the
               whole list.
             </p>
@@ -181,17 +191,15 @@ export function PricingPreview() {
         </div>
 
         <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[14px] text-muted-foreground">
-            30-day money-back guarantee — full refund, including the
-            registration fee.
+          <p className="text-[14px] text-[color:var(--ink-70)]">
+            30-day money-back guarantee, full refund, including the registration
+            fee.
           </p>
-          {/* /pricing ships later; this section IS the on-page pricing beat, so
-              the link stays on-page (site.ts guard) — zero dead links. */}
           <ArrowLink href={HOME_ANCHORS.pricing}>
             See full pricing and the fine print we put in large print
           </ArrowLink>
         </div>
       </div>
-    </LedgerSection>
+    </Section>
   );
 }

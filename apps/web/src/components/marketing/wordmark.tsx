@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
  * The JobText marketing wordmark (BLUEPRINT §10.3): a rounded speech-bubble tile
  * in petrol containing a white "J", followed by the "JobText" wordmark in Inter
  * 600 with the petrol accent on "Text". Links to the marketing home by default
- * (the app shell's Wordmark defaults to /inbox — this one is for chrome).
+ * (the app shell's Wordmark defaults to /inbox, this one is for chrome).
  */
 export function Wordmark({
   href = "/",

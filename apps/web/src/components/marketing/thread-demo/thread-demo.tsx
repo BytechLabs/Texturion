@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ThreadDemo (Track B) — the shared live-thread component.
+ * ThreadDemo (Track B), the shared live-thread component.
  *
  * The signature moment (BLUEPRINT §0.1): a real React component that renders a
  * JobText conversation in the app's visual language and animates a scripted
@@ -11,7 +11,7 @@
  *
  * - `mode="auto"`: plays once on viewport entry, then offers Replay (hero).
  * - `mode="static"`: renders the completed thread with a Play affordance
- *   (reduced-motion / no-JS fallback the server pre-renders — identical to what
+ *   (reduced-motion / no-JS fallback the server pre-renders, identical to what
  *   the LCP paints, §3.1).
  * Reduced motion collapses `auto` to `static` behavior automatically.
  */
@@ -83,11 +83,11 @@ export function ThreadDemo({
   const [armed, setArmed] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Arm on viewport entry (one-shot) — the hero autoplays once when scrolled to.
+  // Arm on viewport entry (one-shot), the hero autoplays once when scrolled to.
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    // Already (even partly) in view on mount — arm immediately. The hero sits
+    // Already (even partly) in view on mount, arm immediately. The hero sits
     // above the fold, so this fires without waiting on the observer, and a tall
     // frame never gets starved by a fractional threshold.
     const rect = el.getBoundingClientRect();

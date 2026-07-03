@@ -1,10 +1,10 @@
 /**
- * /compare/heymarket — JobText vs Heymarket (BLUEPRINT §5–6).
+ * /compare/heymarket. JobText vs Heymarket (BLUEPRINT §5–6).
  *
  * The flat-team-price page: JobText's one flat price vs Heymarket's per-user
  * seats with a 2-user minimum, messages billed separately on top of seats, and
  * a $10/mo-per-campaign carrier fee. Heymarket is a genuine, enterprise-grade
- * shared inbox with SOC 2, HIPAA/BAA, email, and deep CRM integrations — we
+ * shared inbox with SOC 2, HIPAA/BAA, email, and deep CRM integrations, we
  * concede that outright (§6); the honest read is "different buyer."
  *
  * Every Heymarket claim is dated "as of July 2026" and traces to
@@ -23,6 +23,7 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Section } from "@/components/marketing/ui/section";
+import { Display } from "@/components/marketing/display";
 import {
   Advantages,
   AtAGlanceChart,
@@ -54,7 +55,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 /* -------------------------------------------------------------------------- */
-/* Comparison table — every cell dated + sourced (§6, §13.7).                  */
+/* Comparison table, every cell dated + sourced (§6, §13.7).                  */
 /* -------------------------------------------------------------------------- */
 
 const ROWS: ComparisonRow[] = [
@@ -73,7 +74,7 @@ const ROWS: ComparisonRow[] = [
   {
     label: "How texts are priced",
     jobtext: {
-      value: "Included — 500 on Starter, 2,500 on Pro",
+      value: "Included, 500 on Starter, 2,500 on Pro",
       emphasis: true,
       note: "Outgoing texts are in the plan; receiving is free and unlimited.",
     },
@@ -90,13 +91,13 @@ const ROWS: ComparisonRow[] = [
     },
     competitor: {
       value: "$10 per month, per campaign",
-      note: 'Pricing page: "$10 per month per campaign" covering 10DLC registration and compliance — a recurring charge, not one-time.',
+      note: 'Pricing page: "$10 per month per campaign" covering 10DLC registration and compliance, a recurring charge, not one-time.',
     },
   },
   {
     label: "How you buy",
     jobtext: {
-      value: "Self-serve — sign up and pay online",
+      value: "Self-serve, sign up and pay online",
       emphasis: true,
       note: "No demo required (SPEC §1).",
     },
@@ -120,7 +121,7 @@ const ROWS: ComparisonRow[] = [
   {
     label: "Email channel",
     jobtext: {
-      value: "Not included — texting only",
+      value: "Not included, texting only",
       note: "JobText is a shared SMS inbox; no email inbox.",
     },
     competitor: {
@@ -133,7 +134,7 @@ const ROWS: ComparisonRow[] = [
     label: "Enterprise compliance",
     jobtext: {
       value: "Encryption + tenant isolation + US residency, stated plainly",
-      note: "No SOC 2 or HIPAA/BAA claims — we don't hold them yet (SPEC §10).",
+      note: "No SOC 2 or HIPAA/BAA claims, we don't hold them yet (SPEC §10).",
     },
     competitor: {
       value: "SOC 2 Type 2, TCPA, HIPAA (BAA available)",
@@ -144,14 +145,14 @@ const ROWS: ComparisonRow[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* "What you'll actually pay" — the all-in math, single-segment stated.        */
+/* "What you'll actually pay", the all-in math, single-segment stated.        */
 /* -------------------------------------------------------------------------- */
 
 function HeymarketCostStack() {
   const rows: { label: string; jobtext: string; heymarket: string }[] = [
     {
       label: "Seats (3 people)",
-      jobtext: "$29 flat — covers 3",
+      jobtext: "$29 flat, covers 3",
       heymarket: "$49/user × 3 = $147",
     },
     {
@@ -171,15 +172,15 @@ function HeymarketCostStack() {
     },
   ];
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border">
+    <div className="overflow-x-auto rounded-2xl border border-[color:var(--hairline)]">
       <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
         <thead>
-          <tr className="border-b border-border">
-            <th className="p-4 text-[13px] font-medium text-muted-foreground" />
-            <th className="border-l border-border bg-primary/5 p-4 font-semibold text-primary">
+          <tr className="border-b border-[color:var(--hairline)]">
+            <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
+            <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
               JobText Starter
             </th>
-            <th className="border-l border-border p-4 font-semibold text-foreground">
+            <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
               Heymarket Standard
             </th>
           </tr>
@@ -191,26 +192,26 @@ function HeymarketCostStack() {
               <tr
                 key={r.label}
                 className={cn(
-                  "border-b border-border last:border-b-0",
-                  isTotal && "bg-secondary/20",
+                  "border-b border-[color:var(--hairline)] last:border-b-0",
+                  isTotal && "bg-[color:var(--paper-2)]",
                 )}
               >
                 <th
                   scope="row"
                   className={cn(
-                    "p-4 text-left align-top text-[13px] font-medium text-muted-foreground",
-                    isTotal && "font-semibold text-foreground",
+                    "p-4 text-left align-top text-[13px] font-medium text-[color:var(--graphite)]",
+                    isTotal && "font-semibold text-[color:var(--ink)]",
                   )}
                 >
                   {r.label}
                 </th>
-                <td className="border-l border-border bg-primary/5 p-4 align-top font-semibold tabular-nums text-foreground">
+                <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-semibold tabular-nums text-[color:var(--ink)]">
                   {r.jobtext}
                 </td>
                 <td
                   className={cn(
-                    "border-l border-border p-4 align-top tabular-nums text-muted-foreground",
-                    isTotal && "font-semibold text-foreground",
+                    "border-l border-[color:var(--hairline)] p-4 align-top tabular-nums text-[color:var(--ink-70)]",
+                    isTotal && "font-semibold text-[color:var(--ink)]",
                   )}
                 >
                   {r.heymarket}
@@ -233,11 +234,11 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Does Heymarket really route you to a demo even though prices are listed?",
-    a: "As of July 2026, yes — the per-user prices are printed on Heymarket's pricing page, but the button on every paid tier says \"Book a free demo\" rather than sign up. JobText skips that step: the price is on the page and the button starts your account. If a guided demo is something you actively want, that's a point for Heymarket, not against it.",
+    a: "As of July 2026, yes, the per-user prices are printed on Heymarket's pricing page, but the button on every paid tier says \"Book a free demo\" rather than sign up. JobText skips that step: the price is on the page and the button starts your account. If a guided demo is something you actively want, that's a point for Heymarket, not against it.",
   },
   {
     q: "We might need email and SMS in one inbox. Can JobText do that?",
-    a: "No — JobText is a shared SMS inbox, texting only. Heymarket added a shared email channel (billed per segment), so if a unified text-and-email inbox is a requirement, Heymarket fits that better and we'd tell you to use it. If texting is the whole job, JobText does that one thing for a flat price.",
+    a: "No. JobText is a shared SMS inbox, texting only. Heymarket added a shared email channel (billed per segment), so if a unified text-and-email inbox is a requirement, Heymarket fits that better and we'd tell you to use it. If texting is the whole job, JobText does that one thing for a flat price.",
   },
   {
     q: "Is Heymarket more secure than JobText?",
@@ -245,11 +246,11 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "How long until I can text US customers on JobText?",
-    a: "About a week. Every business that texts US numbers has to register with the carriers first — Heymarket handles that with its $10/mo campaign fee, we handle it with a one-time $29 fee. We file yours the minute you pay; approval usually lands in 3–7 business days, and receiving texts works right away. Canadian texting is same-day.",
+    a: "About a week. Every business that texts US numbers has to register with the carriers first. Heymarket handles that with its $10/mo campaign fee, we handle it with a one-time $29 fee. We file yours the minute you pay; approval usually lands in 3–7 business days, and receiving texts works right away. Canadian texting is same-day.",
   },
   {
     q: "Can I bring my existing number over?",
-    a: "Yes — you can transfer your existing US or Canadian number into JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the carrier paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier the whole time — it switches to JobText on the transfer date, and texting on it turns on once the transfer completes. If you want to text before it finishes, get a new local number now and transfer your old one alongside it.",
+    a: "Yes, you can transfer your existing US or Canadian number into JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the carrier paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier the whole time, it switches to JobText on the transfer date, and texting on it turns on once the transfer completes. If you want to text before it finishes, get a new local number now and transfer your old one alongside it.",
   },
 ];
 
@@ -266,25 +267,30 @@ export default function CompareHeymarketPage() {
 
       <CompareHero
         eyebrow="JobText vs Heymarket"
-        title="JobText vs Heymarket: one flat price vs per-seat plus extras."
-        lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations — genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. JobText is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
+        title={
+          <>
+            One <Display.Mark>flat price</Display.Mark>, next to per-seat plus
+            extras.
+          </>
+        }
+        lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations, genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. JobText is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
         visual={
           <CompareHeroPhoto
             photoId="crew-rooftop"
-            caption="The whole crew on one shared number for a single flat price — no per-seat bill that climbs with every hire."
+            caption="The whole crew on one shared number for a single flat price, no per-seat bill that climbs with every hire."
           />
         }
       />
 
       <Section>
         <div className="mx-auto max-w-4xl">
-          <h2 className="display-h2 text-foreground">
+          <Display as="h2" size="h2">
             Side by side, with the sources in the cells.
-          </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          </Display>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
             JobText facts are from our own product and pricing. Every Heymarket
             figure is dated July 2026 and cites the exact line item from its
-            public pricing page — including the parts that count in Heymarket&apos;s
+            public pricing page, including the parts that count in Heymarket&apos;s
             favor.
           </p>
           <div className="mt-8">
@@ -293,10 +299,10 @@ export default function CompareHeymarketPage() {
         </div>
       </Section>
 
-      {/* At-a-glance visual — flat vs per-seat (VISUALS §3 compare-page rule). */}
+      {/* At-a-glance visual, flat vs per-seat (VISUALS §3 compare-page rule). */}
       <AtAGlanceChart
         heading="One flat price vs. a bill that grows per seat."
-        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. JobText is flat — $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
+        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. JobText is flat, $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
       />
 
       <WhoEachIsFor
@@ -322,7 +328,7 @@ export default function CompareHeymarketPage() {
             <p>
               You&apos;re a larger or regulated team that needs SOC 2, a HIPAA
               BAA, a unified text-and-email inbox, and deep Salesforce or HubSpot
-              integrations — and per-user pricing is normal for how you buy
+              integrations, and per-user pricing is normal for how you buy
               software.
             </p>
             <p>
@@ -335,7 +341,7 @@ export default function CompareHeymarketPage() {
 
       <BetterPickCallout
         heading="Where Heymarket may be the better pick."
-        intro="Heymarket is a serious product, and it beats JobText in concrete ways. If any of these are on your must-have list, buy Heymarket — you'll be happier."
+        intro="Heymarket is a serious product, and it beats JobText in concrete ways. If any of these are on your must-have list, buy Heymarket, you'll be happier."
         points={[
           {
             title: "Enterprise compliance you can hand to an auditor.",
@@ -353,7 +359,7 @@ export default function CompareHeymarketPage() {
         recommendation={
           <>
             Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email inbox,
-            or CRM-deep automations, buy Heymarket — it&apos;s built for that and
+            or CRM-deep automations, buy Heymarket, it&apos;s built for that and
             does it well. If you&apos;re a small crew who just wants texting to
             land in one place at one flat price, that&apos;s where JobText is the
             better-value call.
@@ -363,7 +369,7 @@ export default function CompareHeymarketPage() {
 
       <Advantages
         heading="Where JobText wins for a small crew."
-        lead="For a two-to-ten-person shop, the pricing model is the whole story — and it runs the other way from Heymarket's."
+        lead="For a two-to-ten-person shop, the pricing model is the whole story, and it runs the other way from Heymarket's."
         items={[
           {
             title: "One flat price, no seat counting.",
@@ -375,7 +381,7 @@ export default function CompareHeymarketPage() {
           },
           {
             title: "No monthly carrier line item.",
-            body: "We charge one $29 registration fee, once ever. Heymarket's carrier compliance is $10 a month per campaign — a recurring charge that never goes away.",
+            body: "We charge one $29 registration fee, once ever. Heymarket's carrier compliance is $10 a month per campaign, a recurring charge that never goes away.",
           },
           {
             title: "The buy button actually buys.",
@@ -387,14 +393,14 @@ export default function CompareHeymarketPage() {
           },
           {
             title: "Refund if it's not for you.",
-            body: "Full refund of your first invoice, registration fee included, within 30 days — no forms, no clawback for texts you sent.",
+            body: "Full refund of your first invoice, registration fee included, within 30 days, no forms, no clawback for texts you sent.",
           },
         ]}
       />
 
       <PayMathBlock
         heading="What a 3-person crew actually pays."
-        lead="Same crew, same 500 texts a month, at published prices as of July 2026. Heymarket's total assumes each text is a single 160-character segment — longer texts count as more, so real Heymarket bills can run higher, not lower."
+        lead="Same crew, same 500 texts a month, at published prices as of July 2026. Heymarket's total assumes each text is a single 160-character segment, longer texts count as more, so real Heymarket bills can run higher, not lower."
         footnote={
           <>
             JobText&apos;s numbers come straight from our published plans (SPEC
@@ -417,37 +423,37 @@ export default function CompareHeymarketPage() {
         body={
           <>
             <p>
-              Start JobText alongside Heymarket — sign up, choose your local
+              Start JobText alongside Heymarket, sign up, choose your local
               number, and add the crew in minutes. Run both while you shift your
               texting over, then cancel Heymarket once your conversations live in
               JobText. Because we&apos;re month to month, there&apos;s no exit
               window on our side to plan around.
             </p>
             <p>
-              <strong className="font-semibold text-foreground">
+              <strong className="font-semibold text-[color:var(--ink)]">
                 On keeping your number:
               </strong>{" "}
               you can transfer your existing US or Canadian number into JobText
-              for free — choose &ldquo;Bring my number&rdquo; at signup, share
+              for free, choose &ldquo;Bring my number&rdquo; at signup, share
               your current carrier details, and upload a recent bill; we handle
               the paperwork. A transfer typically takes about 1 to 7 business
               days, and your number keeps working on your current carrier until
-              it switches over to JobText — texting on it turns on once the
+              it switches over to JobText, texting on it turns on once the
               transfer completes. No rush to move everyone at once.
             </p>
           </>
         }
       />
 
-      {/* Internal links — feature + trade pages (SEO: thin-internal-linking fix). */}
+      {/* Internal links, feature + trade pages (SEO: thin-internal-linking fix). */}
       <CompareRelatedLinks
         heading="If texting is the job, here's the JobText version."
-        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where JobText focuses — and where it fits a couple of trades."
+        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where JobText focuses, and where it fits a couple of trades."
         links={[
           {
             label: "The shared inbox",
             href: "/features/shared-inbox",
-            hint: "One number, one inbox the crew shares — assign, note, tag, search, done.",
+            hint: "One number, one inbox the crew shares, assign, note, tag, search, done.",
           },
           {
             label: "Templates, tags & workflow",
@@ -471,7 +477,7 @@ export default function CompareHeymarketPage() {
 
       <CompareCta
         heading="One flat price, texts included, no demo."
-        sub="$29 a month covers the whole crew and your texts — no per-seat bill, no per-segment meter, no monthly carrier line item. Month to month, with a 30-day refund if it's not for you."
+        sub="$29 a month covers the whole crew and your texts, no per-seat bill, no per-segment meter, no monthly carrier line item. Month to month, with a 30-day refund if it's not for you."
       />
     </>
   );

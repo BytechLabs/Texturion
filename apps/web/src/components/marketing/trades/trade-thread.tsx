@@ -1,5 +1,5 @@
 /**
- * TradeThread (trades track) — a STATIC, server-rendered thread that reuses the
+ * TradeThread (trades track), a STATIC, server-rendered thread that reuses the
  * heroperf-owned thread primitives (thread-demo/thread-primitives + thread-frame)
  * as read-only building blocks, and adds the ONE thing the shared ThreadDemo
  * can't show: the D14 mark-done state (line-through + petrol check badge).
@@ -7,9 +7,9 @@
  * The animated live thread on each trade page is the shared <ThreadDemo> (the
  * signature moment, reused). This component is the trades-owned static
  * illustration used specifically by /for/contractors to make the
- * "each text is a task the crew marks done" scenario concrete (DECISIONS D14 —
+ * "each text is a task the crew marks done" scenario concrete (DECISIONS D14,
  * the message itself is the task; there is NO jobs feature). It renders the
- * completed thread at rest with a plain "Example — real interface" label, so it
+ * completed thread at rest with a plain "Example, real interface" label, so it
  * needs no client JS.
  *
  * Done-state tokens match the app's real DoneBadge (components/thread/
@@ -66,7 +66,7 @@ function DoneWrap({
       {/* Dim the whole beat and strike through only the message text. The
           shared bubble primitives put message text in a `.break-words` div
           (never the timestamp/delivery line), so this selector strikes the
-          copy without touching the meta — matching the app's D14 treatment. */}
+          copy without touching the meta, matching the app's D14 treatment. */}
       <div className="opacity-55 [&_.break-words]:line-through">{children}</div>
       <div className={cn("flex", align === "end" ? "justify-end" : "justify-start")}>
         <DoneBadge label={label} />
@@ -142,7 +142,7 @@ export function TradeThread({
 
       <div className="border-t border-border px-3 py-2">
         <span className="text-[12px] text-muted-foreground">
-          Example — real interface. Tap any message to mark it done; the whole
+          Example, real interface. Tap any message to mark it done; the whole
           crew sees what&apos;s handled.
         </span>
       </div>

@@ -1,8 +1,8 @@
 /**
- * <CityAreaCodeWidgetStatic> — the area-code widget seeded to its default
+ * <CityAreaCodeWidgetStatic>, the area-code widget seeded to its default
  * (Toronto → 416), as pure server DOM. The LCP-neutral / no-JS / pre-hydration
  * frame so the Canada beat shows a real local-number result before (and
- * without) the interactive island — and, importantly, so the NANP lookup data
+ * without) the interactive island, and, importantly, so the NANP lookup data
  * (@jobtext/shared table + the onboarding city index) stays OUT of the initial
  * bundle until the widget nears the viewport. <LazyIsland> swaps in the typable
  * combobox on viewport approach.
@@ -25,7 +25,7 @@ export function CityAreaCodeWidgetStatic() {
           strokeWidth={1.75}
           aria-hidden
         />
-        {/* Inert input — the interactive island replaces it with a real combobox. */}
+        {/* Inert input, the interactive island replaces it with a real combobox. */}
         <div className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-[15px] text-foreground">
           Toronto
         </div>
@@ -42,10 +42,12 @@ export function CityAreaCodeWidgetStatic() {
               (416)
             </span>{" "}
             number for <span className="font-medium">Toronto</span>
-            <span className="text-muted-foreground"> — Ontario</span>
+            {/* --graphite (8.3:1 on the petrol-tinted panel); muted-foreground
+                was 4.45:1 here, a hair under AA. */}
+            <span className="text-[color:var(--graphite)]">. Ontario</span>
           </p>
-          <p className="text-[12px] text-muted-foreground">
-            Canadian number — texting works the same day you sign up.
+          <p className="text-[12px] text-[color:var(--graphite)]">
+            Canadian number, texting works the same day you sign up.
           </p>
         </div>
       </div>
@@ -58,7 +60,7 @@ export function CityAreaCodeWidgetStatic() {
       </a>
 
       <p className="mt-3 text-[12px] text-muted-foreground">
-        Real numbering data — the same table the app uses to pick your number.
+        Real numbering data, the same table the app uses to pick your number.
       </p>
     </div>
   );

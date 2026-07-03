@@ -1,13 +1,13 @@
 /**
- * Quiet-hours nudge visual (features track) — /features/compliance.
+ * Quiet-hours nudge visual (features track), /features/compliance.
  *
  * A live-DOM render of the app's quiet-hours dialog (SPEC §5, DESIGN.md G5):
  * when you START a new conversation with someone between 8pm and 8am in their
  * local time, JobText checks first ("It's 9:14 PM for this customer. Send
- * anyway?" — Send / Wait). It's a nudge, not a hard block, and it never fires on
+ * anyway?". Send / Wait). It's a nudge, not a hard block, and it never fires on
  * replies. Rendering the real dialog makes the scoped behavior unmistakable.
  *
- * Server component — static DOM, matches the app's dialog tokens. The time zone
+ * Server component, static DOM, matches the app's dialog tokens. The time zone
  * is inferred from the customer's area code (SPEC §5). Safe fictional number.
  */
 
@@ -48,7 +48,7 @@ export function QuietHoursVisual({ className }: { className?: string }) {
       </div>
 
       <p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">
-        Only when you <em>start</em> a late-night conversation — replies are
+        Only when you <em>start</em> a late-night conversation, replies are
         never held up.
       </p>
     </div>

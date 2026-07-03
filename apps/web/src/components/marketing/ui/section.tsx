@@ -28,7 +28,7 @@ export function Section({
   /**
    * Skip this section's layout/paint work while it is off-screen
    * (`content-visibility: auto`, iteration-4 mobile-perf fix). Turn on for
-   * every below-the-fold section — NOT the hero or the first below-hero
+   * every below-the-fold section, NOT the hero or the first below-hero
    * section, which are in/near the initial viewport. Removes no nodes/visuals;
    * the section is still fully server-rendered (LCP/SEO/no-JS safe), the browser
    * just defers the work until it nears the viewport.
@@ -37,7 +37,7 @@ export function Section({
   /**
    * Reserved height estimate for a deferred section (`contain-intrinsic-size`),
    * so the scrollbar and anchor offsets are right before it renders. A rough
-   * per-section value is enough — the browser remembers the real size after the
+   * per-section value is enough, the browser remembers the real size after the
    * section is first seen (`auto` keyword). Defaults to a generous 720px.
    */
   intrinsic?: number;

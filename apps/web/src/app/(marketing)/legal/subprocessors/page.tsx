@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Sub-processors",
   description:
-    "The third-party vendors JobText uses to run the service, what each one processes, and the region it operates in — from the SMS carrier to payments, hosting, email, and analytics.",
+    "The third-party vendors JobText uses to run the service, what each one processes, and the region it operates in, from the SMS carrier to payments, hosting, email, and analytics.",
   path: PATH,
 });
 
@@ -49,7 +49,7 @@ const ROWS: Row[] = [
     name: "Supabase (on AWS)",
     purpose: "Database, authentication, and file storage",
     data: "All account, contact, and message data; MMS attachments",
-    region: "United States — AWS us-east-1",
+    region: "United States. AWS us-east-1",
   },
   {
     name: "Cloudflare",
@@ -66,13 +66,13 @@ const ROWS: Row[] = [
   {
     name: "Sentry",
     purpose: "Error monitoring",
-    data: "Error diagnostics with PII scrubbed — no message bodies or phone numbers",
+    data: "Error diagnostics with PII scrubbed, no message bodies or phone numbers",
     region: "United States",
   },
   {
     name: "PostHog",
     purpose: "Product analytics (events only)",
-    data: "Event names, counts, and UUIDs — no message content; cookieless on marketing pages",
+    data: "Event names, counts, and UUIDs, no message content; cookieless on marketing pages",
     region: "United States",
   },
 ];
@@ -126,7 +126,7 @@ export default function SubprocessorsPage() {
         <p>
           Data lives primarily in the United States (Supabase on AWS{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-sm">us-east-1</code>
-          ). We keep message content out of Sentry and PostHog by design — see our{" "}
+          ). We keep message content out of Sentry and PostHog by design, see our{" "}
           <LegalLink href="/security">security page</LegalLink> and{" "}
           <LegalLink href="/legal/privacy">privacy policy</LegalLink>.
         </p>

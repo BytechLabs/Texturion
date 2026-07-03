@@ -1,5 +1,5 @@
 /**
- * Pricing page (Track A shell family) — BLUEPRINT §8 (full spec) + COPY §PR
+ * Pricing page (Track A shell family). BLUEPRINT §8 (full spec) + COPY §PR
  * (verbatim). Pricing on its own page IS the positioning (anti-Podium): every
  * cost on one page and a buy button instead of a sales call.
  *
@@ -9,9 +9,9 @@
  * counter → guarantee block → FAQ (8) → CTA band.
  *
  * Reuses the shared marketing components (crew-size slider, usage-meter proof,
- * first-week timeline) rather than re-implementing them — one source of truth,
+ * first-week timeline) rather than re-implementing them, one source of truth,
  * one motion grammar. Competitor numbers carry "as of July 2026" and per-cell
- * sourcing (§6, §13.7). SoftwareApplication + BreadcrumbList JSON-LD only —
+ * sourcing (§6, §13.7). SoftwareApplication + BreadcrumbList JSON-LD only,
  * NO FAQPage (§11.2, dead rich result). Fully static (§11.4).
  */
 
@@ -49,14 +49,14 @@ import { SegmentCounterStatic } from "./segment-counter-static";
 const PATH = LIVE_ROUTES.pricing;
 
 export const metadata: Metadata = buildMetadata({
-  title: "Pricing — $29/mo flat for the whole crew",
+  title: "Pricing, $29/mo flat for the whole crew",
   description:
     "JobText pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day money-back guarantee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
 /* -------------------------------------------------------------------------- */
-/* Plan cards — everything from SPEC §2, in human words, nothing omitted (§8). */
+/* Plan cards, everything from SPEC §2, in human words, nothing omitted (§8). */
 /* Copy verbatim from COPY §PR plan cards.                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -90,7 +90,7 @@ const PLANS: Plan[] = [
   {
     name: "Pro",
     price: "$79",
-    tagline: "For crews up to ten — and a second number.",
+    tagline: "For crews up to ten, and a second number.",
     badge: "For bigger crews",
     highlighted: true,
     features: [
@@ -161,7 +161,7 @@ function PlanCard({ plan }: { plan: Plan }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Honesty ledger — the trust centerpiece (§8). Every cost, before you pay.    */
+/* Honesty ledger, the trust centerpiece (§8). Every cost, before you pay.    */
 /* Copy verbatim from COPY §PR honesty ledger.                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -173,17 +173,17 @@ const LEDGER: { term: string; detail: React.ReactNode }[] = [
   {
     term: "Register with the phone companies: $29, one time, ever.",
     detail:
-      "The phone companies require every business that texts to register first; this covers the fee they charge to review and approve you, which we pay on your behalf — including a resubmission if your first attempt bounces. Cancel and come back next year: you won't pay it again. Canadian businesses that don't text US numbers never pay it. For a US shop, that means $58 your first month, then $29 every month after.",
+      "The phone companies require every business that texts to register first; this covers the fee they charge to review and approve you, which we pay on your behalf, including a resubmission if your first attempt bounces. Cancel and come back next year: you won't pay it again. Canadian businesses that don't text US numbers never pay it. For a US shop, that means $58 your first month, then $29 every month after.",
   },
   {
     term: "Extra texts",
     detail:
-      "3¢ each on Starter, 2.5¢ on Pro — only after your included texts run out, only up to the cap you control.",
+      "3¢ each on Starter, 2.5¢ on Pro, only after your included texts run out, only up to the cap you control.",
   },
   {
     term: "Tax",
     detail:
-      "Prices are in USD, plus sales tax where it applies, calculated at checkout. (CAD billing isn't here yet — we'd rather tell you now than surprise you at checkout.)",
+      "Prices are in USD, plus sales tax where it applies, calculated at checkout. (CAD billing isn't here yet, we'd rather tell you now than surprise you at checkout.)",
   },
   {
     term: "That's the whole list.",
@@ -219,7 +219,7 @@ const COMPARE_ROWS: { label: string; cells: string[] }[] = [
     cells: [
       "Included",
       "~$15 (3¢/segment × 500)",
-      "Not included — metered at 1¢/segment (~$5)",
+      "Not included, metered at 1¢/segment (~$5)",
       "Not published",
     ],
   },
@@ -239,13 +239,13 @@ const COMPARE_ROWS: { label: string; cells: string[] }[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* Pricing FAQ (8) — COPY §PR verbatim. NO FAQPage JSON-LD (§11.2).            */
+/* Pricing FAQ (8). COPY §PR verbatim. NO FAQPage JSON-LD (§11.2).            */
 /* -------------------------------------------------------------------------- */
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
-    a: "No — and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So JobText is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
+    a: "No, and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So JobText is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
   },
   {
     q: "Do texts customers send me count against my 500?",
@@ -257,23 +257,23 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What happens when I hit my allowance?",
-    a: "We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up to a spending cap — 3× your allowance by default. Hit the cap and sending pauses until you raise it; account owners can do that in one click. You'll never get a surprise bill.",
+    a: "We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up to a spending cap, 3× your allowance by default. Hit the cap and sending pauses until you raise it; account owners can do that in one click. You'll never get a surprise bill.",
   },
   {
     q: "Will I ever pay the $29 registration fee twice?",
-    a: "No. It's charged at most once per company, ever — even if you cancel and come back. It only exists at all because the phone companies charge a real fee to review and approve every business that texts, and we'd rather show you that fee than bury it in the subscription.",
+    a: "No. It's charged at most once per company, ever, even if you cancel and come back. It only exists at all because the phone companies charge a real fee to review and approve every business that texts, and we'd rather show you that fee than bury it in the subscription.",
   },
   {
     q: "Can I change plans or cancel later?",
-    a: "Yes. Upgrades apply immediately. Downgrades apply at the end of your billing period. Canceling takes two clicks in billing settings — no phone call, no chat-with-retention. We hold your number for 30 days in case you change your mind.",
+    a: "Yes. Upgrades apply immediately. Downgrades apply at the end of your billing period. Canceling takes two clicks in billing settings, no phone call, no chat-with-retention. We hold your number for 30 days in case you change your mind.",
   },
   {
     q: "Are prices really in USD for Canadian businesses?",
-    a: "For now, yes — your card is charged in USD and your bank converts it. CAD billing is coming; until it's real, we won't pretend otherwise.",
+    a: "For now, yes, your card is charged in USD and your bank converts it. CAD billing is coming; until it's real, we won't pretend otherwise.",
   },
   {
     q: "What am I not getting at these prices?",
-    a: "JobText is a shared texting inbox — it doesn't do voice calls, mass text blasts, or review management. If you need those, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "JobText is a shared texting inbox, it doesn't do voice calls, mass text blasts, or review management. If you need those, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];
 
@@ -290,7 +290,7 @@ export default function PricingPage() {
         ]}
       />
 
-      {/* Hero — H1 + sub (COPY §PR). */}
+      {/* Hero. H1 + sub (COPY §PR). */}
       <Container className="pt-16 sm:pt-24">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-semibold text-primary">Pricing</p>
@@ -319,7 +319,7 @@ export default function PricingPage() {
         </p>
       </Container>
 
-      {/* Crew-size slider — flat beats per-user. */}
+      {/* Crew-size slider, flat beats per-user. */}
       <Section>
         <div className="mx-auto max-w-4xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -331,7 +331,7 @@ export default function PricingPage() {
             <Reveal>
               {/* Reuses the shared slider; its own dated + sourced footnote
                   (§13.7) is part of the component, so no duplicate footnote
-                  here — the §PR footnote text lives inside CrewSizeSlider.
+                  here, the §PR footnote text lives inside CrewSizeSlider.
                   Deferred: the static default state converts before/without JS;
                   the draggable island loads on viewport approach. */}
               <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
@@ -340,7 +340,7 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Honesty ledger — the trust centerpiece, with the first-week timeline. */}
+      {/* Honesty ledger, the trust centerpiece, with the first-week timeline. */}
       <Section
         bleed
         className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
@@ -382,7 +382,7 @@ export default function PricingPage() {
                   aria-hidden
                 />
                 <p className="text-[14px] leading-relaxed text-foreground">
-                  Receiving texts works the moment your number is ready —
+                  Receiving texts works the moment your number is ready,
                   usually live in a minute or two. Texting Canadian numbers works
                   immediately. Texting US numbers turns on after the phone
                   companies approve you, typically 3–7 business days (about a
@@ -408,7 +408,7 @@ export default function PricingPage() {
         </Container>
       </Section>
 
-      {/* "What you'll actually pay elsewhere" — dated, per-cell sourced. */}
+      {/* "What you'll actually pay elsewhere", dated, per-cell sourced. */}
       <Section>
         <div className="mx-auto max-w-4xl">
           <h2 className="display-h2 text-foreground">
@@ -503,7 +503,7 @@ export default function PricingPage() {
               </h2>
               <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
                 A plain text up to 160 characters counts as one text. Longer
-                texts, or texts with emoji, count as more than one — the texting
+                texts, or texts with emoji, count as more than one, the texting
                 networks split them behind the scenes (the technical word is
                 &quot;segments,&quot; but you never have to think about it). Your
                 500 is 500 of these, and the composer always shows the count
@@ -534,7 +534,7 @@ export default function PricingPage() {
               <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
                 If JobText isn&apos;t right for your crew, email us within 30
                 days of signing up and we&apos;ll refund your first invoice in
-                full — subscription and registration fee included. No &quot;minus
+                full, subscription and registration fee included. No &quot;minus
                 credits used,&quot; no forms, no retention call. We&apos;d rather
                 have your trust than your $29.
               </p>
@@ -543,7 +543,7 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Pricing FAQ (8) — no FAQPage JSON-LD (§11.2). */}
+      {/* Pricing FAQ (8), no FAQPage JSON-LD (§11.2). */}
       <Section>
         <div className="mx-auto max-w-3xl">
           <h2 className="display-h2 text-center text-foreground">

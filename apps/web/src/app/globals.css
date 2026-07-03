@@ -1,7 +1,31 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * The `dark:` variant. Default Tailwind is `&:is(.dark *)` (any descendant of a
+ * `.dark` ancestor). We refine it so the MARKETING surface is light-locked:
+ *  - APP surface (not under .mkt-scope): unchanged — fires under the html-level
+ *    `.dark` next-themes sets, exactly as before.
+ *  - MARKETING surface (under .mkt-scope): the html-level `.dark` (OS dark
+ *    preference) must NOT flip it — the marketing identity is a light painted
+ *    panel (DESIGN-DIRECTION §3), and letting the OS flip it turned the 76 marketing
+ *    `dark:` utilities on over the light palette (dark-on-dark, the color-contrast
+ *    audit failures). BUT the one intentional dark moment — the dark-band phone,
+ *    which adds `.dark` LOCALLY inside the marketing tree — must still fire. So a
+ *    marketing element is "dark" only when it sits inside a `.dark` that is itself
+ *    inside `.mkt-scope` (a local dark region), never merely because `<html>` is
+ *    `.dark`. This keeps the app dark mode intact and the marketing pages light.
+ */
+@custom-variant dark {
+  /* App (or anything outside the marketing scope): the standard rule. */
+  &:is(.dark *):not(.mkt-scope *) {
+    @slot;
+  }
+  /* Marketing: only a local `.dark` region inside .mkt-scope counts. */
+  &:is(.mkt-scope .dark *) {
+    @slot;
+  }
+}
 
 /*
  * JobText design tokens (DESIGN.md G2) — shadcn/ui CSS-variable convention,
@@ -386,69 +410,191 @@
 }
 
 /* ==========================================================================
-   MARKETING-ONLY additions (BLUEPRINT §1.1, §1.2, §1.5) — owned by Track A.
-   Bounded by the brand: one numeral-display scale, one petrol glow gradient,
-   the once-only reveal. The app itself never uses these.
+   MARKETING-ONLY additions (DESIGN-DIRECTION §3), owned by the marketing
+   surface. The "Caught" identity: Basteleur display, Hanken body, Commit Mono
+   data, over a brand-washed pale petrol-grey ground with a rationed marker
+   yellow. Bounded by the brand; the app itself never uses any of these.
    ========================================================================== */
 
+/*
+ * DESIGN-DIRECTION §3 palette, 5 named brand tokens (+ graphite), scoped to
+ * marketing DOM via `.mkt-scope` (the (marketing) layout root). Deliberately
+ * NOT the app's stone/teal oklch tokens: the ground is a pale petrol-grey
+ * "painted panel", not cream and not white. Additive, the app's :root tokens
+ * are untouched, and nothing here leaks into (app)/ because it is gated on
+ * `.mkt-scope`. Tints are derived from these five; no new hues.
+ */
+.mkt-scope {
+  --petrol: #0f766e; /* brand anchor: links, key marks */
+  --deep: #0b4f49; /* the single dark band ground (used once) */
+  --ink: #101615; /* headlines on light / body-dark; warm green-black */
+  --paper: #e6ebe8; /* the dominant ground: pale petrol-grey painted panel */
+  --marker: #f4d64e; /* legal-pad yellow. RATIONED: highlight one word, mark the act */
+  --graphite: #444b4c; /* secondary text */
+
+  /* Derived tints (from the five, no new hues). */
+  --paper-2: #eef2f0; /* a half-step lighter panel for card surfaces on paper */
+  --paper-edge: #d8e0dc; /* a half-step darker panel edge for hairlines on paper */
+  --petrol-12: rgba(15, 118, 110, 0.12);
+  --petrol-24: rgba(15, 118, 110, 0.24);
+  --marker-40: rgba(244, 214, 78, 0.4);
+  /* Softer body inks. SOLID (not alpha): the alpha versions composited over the
+     hero glow gradient to ~4.2:1 and failed the color-contrast audit at desktop
+     width. As solids they read the same "softer than full ink" but hold AA over
+     the glow: --ink-70 #434a48 = 7.5:1 on paper (7.8:1 over the glow-lifted bg),
+     --ink-55 #5b615f = 4.9:1 on paper. */
+  --ink-70: #434a48; /* soft body text (was rgba(16,22,21,0.7)) */
+  --ink-55: #5b615f; /* quieter body text (was rgba(16,22,21,0.55)) */
+  --hairline: rgba(68, 75, 76, 0.18); /* graphite @ 18%, warm hairline, not a broadsheet rule */
+
+  /* FORCE LIGHT (accessibility + identity). The marketing identity is a LIGHT
+     "painted panel" surface (DESIGN-DIRECTION §3); there is no marketing dark
+     theme, only the one honest dark screenshot inside its own scoped `.dark`
+     region. But ThemeProvider is global (defaultTheme:"system"), so under an OS
+     dark preference `<html>` gets `.dark` and every APP token the marketing DOM
+     consumes (bg-card, text-foreground, text-muted-foreground, text-primary,
+     border-border, ...) flipped to its night value while the marketing palette
+     tokens stayed light. Result: dark app-surface behind light-palette text, or
+     light-palette dark text on a flipped-dark card — the color-contrast audit
+     failed (1.04 / 1.85 / 1.96:1). Re-asserting the LIGHT app-token values on
+     the scope root pins the whole marketing subtree to light regardless of OS
+     theme; a nested explicit `.dark` region (the dark-band phone) still flips
+     them back for just that region. The app's own :root/.dark are untouched. */
+  --background: oklch(0.985 0.001 106.423); /* stone-50 */
+  --foreground: oklch(0.216 0.006 56.043); /* stone-900 */
+  --card: oklch(1 0 0); /* white */
+  --card-foreground: oklch(0.216 0.006 56.043);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.216 0.006 56.043);
+  --primary: oklch(0.511 0.096 186.391); /* teal-700 #0F766E (== petrol) */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: oklch(0.97 0.001 106.424); /* stone-100 */
+  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 */
+  --foreground-tertiary: oklch(0.709 0.01 56.259); /* stone-400 */
+  --border-subtle: oklch(0.97 0.001 106.424); /* stone-100 */
+  --accent: oklch(0.97 0.001 106.424); /* stone-100 */
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325); /* red-600 */
+  --border: oklch(0.923 0.003 48.717); /* stone-200 */
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.511 0.096 186.391); /* petrol focus rings */
+  color-scheme: light;
+
+  /* The dominant ground (§3): the marketing surface sits on the pale petrol-grey
+     "painted panel", not the app's stone/white. Set on the scope root so every
+     marketing band inherits the paper ground and the warm green-black ink,
+     without touching the app's :root tokens or the app surface. */
+  background-color: var(--paper);
+  color: var(--ink);
+}
+
+/* DARK-SCOPE marketing tokens (accessibility fix). The marketing surface has one
+   honest dark moment: the real dark-mode product screenshot, wrapped in a `.dark`
+   region so the app tokens inside the phone frame flip to their night values.
+   Problem: the MARKETING palette tokens (--ink, --graphite, --deep, --petrol) did
+   NOT flip, so any marketing-colored text landing in that `.dark` region rendered
+   dark-on-dark (measured 1.05:1 / 1.96:1 / 1.86:1 — the color-contrast audit
+   fails). Here every marketing token that can carry text gets a dark-readable
+   value (all AA+ on the stone-950 / stone-900 dark grounds); the paper ground
+   itself flips to the dark field. Covers a `.dark` element inside the marketing
+   scope AND its descendants. Marketing-scoped only; the app surface is untouched. */
+.mkt-scope .dark,
+.mkt-scope.dark {
+  --ink: #e7ece9; /* headlines / body on dark: near-paper, 14.6:1 on stone-950 */
+  --graphite: #a7b0ac; /* secondary text on dark, 7.9:1 */
+  --petrol: #5ed0c4; /* links / key marks on dark: a lifted petrol, 9.4:1 */
+  --deep: #1c1917; /* the "deep" ground on dark reads as the dark field itself */
+  --paper: #1c1917; /* the ground under this region is the dark field, not petrol-grey */
+  --paper-2: #292524; /* card panels on dark: stone-900 */
+  --paper-edge: #3a3532; /* panel edges on dark */
+  --marker-40: rgba(244, 214, 78, 0.28); /* the highlight reads lighter on dark */
+  --ink-70: rgba(231, 236, 233, 0.72);
+  --ink-55: rgba(231, 236, 233, 0.55);
+  --hairline: rgba(231, 236, 233, 0.16);
+  --petrol-12: rgba(94, 208, 196, 0.14);
+  --petrol-24: rgba(94, 208, 196, 0.26);
+  color: var(--ink);
+}
+
+/* Card / panel surfaces on the paper ground read as a half-step lighter painted
+   panel with a warm hairline, not the app's white card on stone. One consistent
+   frame language for the marketing surface (§3–4). */
+@utility panel-card {
+  background-color: var(--paper-2);
+  border: 1px solid var(--hairline);
+}
+
+/* The one deep-petrol band ground (§3), used exactly once on the page. */
+@utility ground-deep {
+  background-color: var(--deep);
+  color: var(--paper);
+}
+
+@utility font-display {
+  /* The MARKETING display face (DESIGN-DIRECTION §3): Basteleur, mounted in the
+     (marketing) layout as --font-display, scoped to marketing DOM. HEADLINES +
+     the expressive numeral moments only, never body/UI. Inert (serif fallback)
+     wherever --font-display is unset (the app). Weight 700 = the Bold cut;
+     weight 300 = the Moonlight emphasis cut. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+}
+
+@utility font-body-mkt {
+  /* The MARKETING body face: Hanken Grotesk (--font-body-mkt), set on the
+     (marketing) subtree root so marketing prose reads warm, not Inter. */
+  font-family: var(--font-body-mkt), ui-sans-serif, system-ui, sans-serif;
+}
+
+@utility font-mono-mkt {
+  /* The MARKETING data mono: Commit Mono (--font-mono-mkt) for the numbers that
+     matter, $29, phone numbers, timestamps, usage counts. */
+  font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 @utility display-numeral {
-  /* The one weight/scale escalation the marketing site earns (§1.1): a true
-     display-scale tabular petrol numeral, used exactly twice per home page —
-     the $29 in the truth bar and the day counts in the first-week timeline.
-     Never for prose. Now set in the Fraunces display face (VISUALS-V2 §5 — the
-     "numeral moments" are called out as a personality slot): Fraunces has
-     tabular lining figures, so the price reads characterful AND aligned. */
-  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
-    serif;
-  /* The display face is now the pinned Fraunces master (no opsz/SOFT/WONK axes —
-     dropped for payload + CLS, VISUALS-V2 §7); its tabular lining figures still
-     read characterful and stay aligned. */
-  font-size: clamp(88px, 12vw, 132px);
+  /* The one true display-scale numeral (§3 signature). Used sparingly, the $29
+     in the truth bar, the day counts in the first-week timeline. Never prose.
+     Set in Commit Mono (the data mono): a true tabular numeral reads honest and
+     aligned, and keeps the numeral moment in the "work-order" voice rather than
+     borrowing the display serif's figures. Petrol is applied by the call site. */
+  font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: clamp(84px, 12vw, 128px);
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-@utility font-display {
-  /* The MARKETING display face (VISUALS-V2 §5): Fraunces, loaded in the
-     (marketing) layout and exposed as --font-display, scoped to marketing DOM.
-     Use on HEADLINES and the expressive numeral moments only — never body/UI
-     (those stay --font-inter). If --font-display is unresolved (any surface
-     outside marketing, e.g. the app), this falls back to the serif stack, so
-     the utility is inert where the variable isn't set. */
-  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
-    serif;
-  /* Fraunces' own old-style-serif character carries the warmth at headline sizes;
-     the SOFT/WONK/opsz axes were dropped for payload + CLS (VISUALS-V2 §7). */
-}
-
 @utility display-hero {
-  /* Hero H1 scale (§1.1) — now in the Fraunces display face (VISUALS-V2 §5).
-     Sentence case; Fraunces at its display optical size reads confident and
-     warm at this scale. Slightly lighter tracking than Inter wanted (the serif
-     doesn't need the same negative kern). */
-  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
-    serif;
-  font-size: clamp(40px, 5vw, 64px);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.05;
+  /* Hero H1 scale (§3), Basteleur Bold. The heavy hand-set forms read confident
+     and warm at this scale; the H1 min-height reservation below holds the box so
+     the swap-in never shifts. Sentence case. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+  font-size: clamp(42px, 5.4vw, 72px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
+  color: var(--ink);
 }
 
 @utility display-h2 {
-  /* Section H2 scale (§1.1) — Fraunces display face (VISUALS-V2 §5). */
-  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
-    serif;
-  font-size: clamp(30px, 3.5vw, 40px);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  /* Section H2 scale (§3), Basteleur Bold. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+  font-size: clamp(30px, 3.6vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.08;
+  color: var(--ink);
 }
 
 @utility marketing-glow {
   /* The ONE petrol radial glow per page (§1.2), rendered as a decorative layer
-     BEHIND content (never over LCP text). CSS gradients only — no image, no
+     BEHIND content (never over LCP text). CSS gradients only, no image, no
      blur() filter (a large blur is a paint cost; soft-stop gradients instead).
      A petrol core low-left + a warm amber lift upper-right over the stone-50
      base, so the hero sits in warm morning light. Consumed by GlowBackdrop. */
@@ -463,6 +609,111 @@
       rgba(251, 191, 36, 0.06) 0%,
       rgba(251, 191, 36, 0) 72%
     );
+}
+
+/* --------------------------------------------------------------------------
+   The <Display> expressive-headline system (DESIGN-DIRECTION §3 signature).
+   Headlines are COMPOSED, not typed: weight/optical contrast, a marker-yellow
+   highlight swipe, a hand-marker underline/circle, one petrol accent word.
+   These utilities are the styling half; the <Display>/<Marker> components
+   compose them. All marketing-scoped; the app never references them.
+   -------------------------------------------------------------------------- */
+
+@utility dsp-emph {
+  /* Composable emphasis word inside a <Display>: the Basteleur MOONLIGHT cut
+     (weight 300), a lighter, sharper optical contrast against the Bold body of
+     the headline. Basteleur has no true italic, so emphasis is weight/optical
+     contrast, which is more distinctive than a faux-slant anyway. Optionally
+     italicized by the call site via .dsp-emph-italic. */
+  font-weight: 300;
+}
+
+@utility dsp-emph-italic {
+  /* A real slant on the emphasis cut where the composition wants it (§3 "italic
+     treatments"). Basteleur ships no italic master, so this is a restrained
+     synthetic oblique, used sparingly, only on short emphasis words. */
+  font-weight: 300;
+  font-style: italic;
+}
+
+@utility dsp-accent {
+  /* The single petrol accent word in a headline (§3 "one petrol accent"). */
+  color: var(--petrol);
+}
+
+@utility dsp-marker {
+  /* The marker-yellow HIGHLIGHT SWIPE behind the one promise word (§3 RATIONED
+     marker). A wobbly, hand-laid band sitting behind the glyphs, clipped to the
+     text baseline area, tilted a hair so it reads drawn, not boxed. The word
+     stays on top via position/z-index on its inner span. */
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+}
+
+@utility dsp-marker-swipe {
+  /* The band itself (a decorative ::pseudo-equivalent span the component
+     renders, so the swipe can be reduced-motion-animated independently). */
+  position: absolute;
+  left: -0.08em;
+  right: -0.08em;
+  top: 0.14em;
+  bottom: 0.04em;
+  z-index: -1;
+  background: var(--marker);
+  border-radius: 3px 5px 4px 6px;
+  transform: rotate(-1.15deg);
+}
+
+@layer utilities {
+  /* The marker "paints on" once when its headline REVEALS (§5 motion: one quiet
+     drawn gesture, reduced-motion-safe). The default resting state is FULLY
+     PAINTED (visible with JS off, reduced motion, and pre-reveal), the draw only
+     replays when a [data-reveal] ancestor flips to revealed AND motion is
+     allowed. So the mark is never invisible; the animation is pure enhancement.
+     Compositor-friendly (clip-path / stroke-dashoffset only). */
+  @keyframes mkt-marker-paint {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes mkt-marker-draw {
+    from {
+      stroke-dashoffset: var(--marker-len, 240);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Resting state: painted. The swipe is a solid band; the SVG strokes are at
+     offset 0 (their inline dashoffset is also 0 by default, see the components). */
+  .dsp-marker-swipe {
+    clip-path: none;
+  }
+
+  /* Draw-on only inside a revealed container (so it plays as the headline scrolls
+     in, not on page mount). data-draw marks the eligible elements. */
+  [data-revealed="true"] .dsp-marker-swipe[data-draw="true"] {
+    animation: mkt-marker-paint 520ms ease-out both;
+  }
+
+  [data-revealed="true"] .mkt-marker-path[data-draw="true"] {
+    /* --marker-len is set inline per path to match its length. */
+    animation: mkt-marker-draw 640ms ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Reduced motion: present, fully painted, no draw, override the reveal rule. */
+    [data-revealed="true"] .dsp-marker-swipe[data-draw="true"],
+    [data-revealed="true"] .mkt-marker-path[data-draw="true"] {
+      animation: none;
+    }
+  }
 }
 
 @layer utilities {
@@ -483,6 +734,15 @@
     transition:
       opacity 300ms ease-out var(--reveal-delay, 0ms),
       transform 300ms ease-out var(--reveal-delay, 0ms);
+  }
+
+  /* Fail-safe / instant reveal: snap to the final visible state with NO fade, so
+     text is never caught mid-opacity-transition by the contrast audit (a false
+     positive) and is never left hidden. Set by RevealActivator's fail-safe path. */
+  [data-reveal][data-reveal-instant="true"] {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -1,18 +1,19 @@
 /**
- * How it works + the first week (Track B) — §3.5 / COPY §H5.
+ * How it works + the first week (§H5).
  *
- * Part A: three steps joined by a hand-crafted dashed SVG connector (petrol,
- * 1.75 stroke), numbered petrol circles, responsive vertical stack on mobile.
- * Part B: the first-week timeline as art (the §0.2 expressive object).
+ * Part A: three steps joined by a dashed petrol connector, petrol step circles.
+ * Part B: the first-week timeline, the honest US wait rendered win-first with
+ * the Day 0 expressive numeral.
  *
- * Server component — pure DOM/SVG, part of the static LCP-safe render.
+ * DESIGN-DIRECTION §0: no section number. A composed <Display> headline opens it;
+ * sits on the paper ground. Server component, pure DOM/SVG, LCP-safe static.
  */
 
 import { MapPinned, MessageSquareText, Users } from "lucide-react";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
-import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
+import { Section } from "@/components/marketing/ui/section";
+import { Display } from "@/components/marketing/display";
 
 import { FirstWeekTimeline } from "./first-week-timeline";
 
@@ -22,14 +23,14 @@ const STEPS = [
     icon: MapPinned,
     title: "Pick your number.",
     body:
-      "Type your city or area code and we'll find you a local number. It's usually live in a minute or two, and it belongs to your business — not to anyone's phone.",
+      "Type your city or area code and we'll find you a local number. It's usually live in a minute or two, and it belongs to your business, not to anyone's phone.",
   },
   {
     n: 2,
     icon: Users,
     title: "Invite the crew.",
     body:
-      "Send your team a link. They open it on whatever phone they already have — nothing to install, nothing to configure. Starter covers 3 people, Pro covers 10.",
+      "Send your team a link. They open it on whatever phone they already have, nothing to install, nothing to configure. Starter covers 3 people, Pro covers 10.",
   },
   {
     n: 3,
@@ -42,21 +43,19 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <LedgerSection n={5} id="how-it-works" defer intrinsic={900}>
+    <Section id="how-it-works" defer intrinsic={900}>
       <div className="mx-auto max-w-2xl text-center">
-        <SectionEyebrow
-          n={5}
-          label="How it works"
-          className="justify-center"
-        />
-        <h2 className="display-h2 mt-4 text-foreground">
+        <p className="font-mono-mkt flex items-center justify-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+          <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+          How it works
+        </p>
+        <Display as="h2" size="h2" className="mt-4">
           From signup to texting, in three steps.
-        </h2>
+        </Display>
       </div>
 
-      {/* Part A — three steps with the dashed SVG connector. */}
+      {/* Part A, three steps with the dashed connector. */}
       <div className="relative mt-14">
-        {/* Desktop connector: a dashed petrol path behind the three circles. */}
         <svg
           className="pointer-events-none absolute inset-x-0 top-6 hidden h-2 w-full md:block"
           viewBox="0 0 1000 8"
@@ -69,10 +68,11 @@ export function HowItWorks() {
             y1="4"
             x2="833"
             y2="4"
-            stroke="var(--color-primary)"
+            stroke="var(--petrol)"
             strokeWidth="1.75"
             strokeDasharray="6 7"
             strokeLinecap="round"
+            opacity="0.5"
           />
         </svg>
 
@@ -86,16 +86,16 @@ export function HowItWorks() {
                 delay={Math.min(i, 3) * 60}
                 className="relative text-center"
               >
-                <span className="relative z-10 mx-auto flex size-12 items-center justify-center rounded-full border border-primary/20 bg-card text-primary">
+                <span className="relative z-10 mx-auto flex size-12 items-center justify-center rounded-full border border-[color:var(--hairline)] bg-[color:var(--paper-2)] text-[color:var(--petrol)]">
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-                  <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold tabular-nums text-primary-foreground">
+                  <span className="font-mono-mkt absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-[color:var(--petrol)] text-[11px] font-semibold tabular-nums text-white">
                     {step.n}
                   </span>
                 </span>
-                <h3 className="mt-5 text-lg font-semibold text-foreground">
+                <h3 className="mt-5 text-lg font-semibold text-[color:var(--ink)]">
                   {step.title}
                 </h3>
-                <p className="mx-auto mt-2 max-w-xs text-[15px] leading-relaxed text-muted-foreground">
+                <p className="mx-auto mt-2 max-w-xs text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                   {step.body}
                 </p>
               </Reveal>
@@ -104,11 +104,10 @@ export function HowItWorks() {
         </ol>
       </div>
 
-      {/* Part B — the first-week timeline as the expressive honesty object. The
-          Day 0 numeral is the SECOND (and last) sanctioned display numeral. */}
+      {/* Part B, the first-week timeline with the Day 0 expressive numeral. */}
       <Reveal className="mt-16">
         <FirstWeekTimeline />
       </Reveal>
-    </LedgerSection>
+    </Section>
   );
 }

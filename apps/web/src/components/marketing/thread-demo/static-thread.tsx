@@ -1,15 +1,15 @@
 /**
- * <StaticThread> — the COMPLETED thread, rendered as pure server DOM.
+ * <StaticThread>, the COMPLETED thread, rendered as pure server DOM.
  *
  * This is the LCP-safe, no-JS, reduced-motion, and pre-hydration frame for every
  * live thread demo (BLUEPRINT §3.1: "the server-render ships the completed
  * thread as static DOM so the LCP and the no-JS/reduced-motion experience are
  * both the finished, meaningful thread"). It reuses the exact same thread
  * primitives (ThreadFrame + bubbles) the interactive islands use, so the static
- * frame and the hydrated island are visually identical — the swap is seamless.
+ * frame and the hydrated island are visually identical, the swap is seamless.
  *
  * It carries NO client runtime: no "use client", no timers, no player. That is
- * the whole point — it renders on the server, ships zero island JS, and lets
+ * the whole point, it renders on the server, ships zero island JS, and lets
  * <LazyIsland> defer the animated version's download/eval until it's needed.
  * The animated island only ever *replays* this same finished state.
  */

@@ -1,5 +1,5 @@
 /**
- * Marketing route + link inventory — the single source of truth that drives the
+ * Marketing route + link inventory, the single source of truth that drives the
  * nav, the footer, the sitemap, and JSON-LD BreadcrumbLists (BLUEPRINT §11.3:
  * "generated from the same route-data maps that drive nav/footer").
  *
@@ -7,7 +7,7 @@
  * compliance, templates-and-tags), /canada, the six trade pages, and the three
  * comparison pages are now REAL routes. Every link in the nav and footer resolves
  * to a shipped page. The only entries that still point at a home-page anchor are
- * the two menu *triggers* ("Product ▾" / "Who it's for ▾") — clicking the trigger
+ * the two menu *triggers* ("Product ▾" / "Who it's for ▾"), clicking the trigger
  * word itself scrolls to the relevant home overview; its dropdown items go to the
  * real standalone pages. There are ZERO dead links.
  */
@@ -62,15 +62,15 @@ export const LIVE_ROUTES = {
 
 /**
  * Home-page section anchors (Track B renders sections with these ids in
- * BLUEPRINT §3 order). Used only by the two nav dropdown *triggers* — the word
+ * BLUEPRINT §3 order). Used only by the two nav dropdown *triggers*, the word
  * "Product" scrolls to the home features overview, "Who it's for" to the trades
- * overview — while their dropdown items link to the real standalone pages above.
+ * overview, while their dropdown items link to the real standalone pages above.
  * These ids are verified against the home sections at integration.
  */
 export const HOME_ANCHORS = {
   features: "/#features",
   trades: "/#trades",
-  /** "Pricing" is a real standalone page, not an anchor — kept here so the nav
+  /** "Pricing" is a real standalone page, not an anchor, kept here so the nav
    * top-level link and the home "See pricing" CTAs share one source. */
   pricing: LIVE_ROUTES.pricing,
 } as const;

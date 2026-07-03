@@ -172,7 +172,7 @@ self.addEventListener("fetch", (event) => {
         .then(
           (cached) =>
             cached ??
-            new Response("You're offline — JobText needs a connection.", {
+            new Response("You're offline. JobText needs a connection.", {
               status: 503,
               headers: { "Content-Type": "text/plain; charset=utf-8" },
             }),

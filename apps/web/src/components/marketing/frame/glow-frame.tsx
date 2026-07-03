@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * <GlowFrame> — a glow + gentle-tilt wrapper for a framed product visual
+ * <GlowFrame>, a glow + gentle-tilt wrapper for a framed product visual
  * (VISUALS §1B/§4, BLUEPRINT §1.3).
  *
  * Adds depth to a hero/feature-hero shot: a contained petrol glow behind the
  * child, plus an optional gentle settle-tilt (BLUEPRINT §1.3 caps it at 2°; no 3D
- * perspective stacks — those read dated). The tilt eases from its resting angle
+ * perspective stacks, those read dated). The tilt eases from its resting angle
  * to flat as the element scrolls into view, so a shot arrives with a whisper of
  * life and lands square.
  *
@@ -15,7 +15,7 @@
  * either way. Themeable via the petrol token. Zero-CLS: transform/opacity only,
  * inside a reserved box.
  *
- * The smallest possible island — one element, one observer. Wraps a
+ * The smallest possible island, one element, one observer. Wraps a
  * <BrowserFrame>/<PhoneFrame> (or any node). For a purely static glow with no
  * tilt, pass `tilt={0}` and it renders as an inert wrapper (still fine on the
  * server-rendered first paint).

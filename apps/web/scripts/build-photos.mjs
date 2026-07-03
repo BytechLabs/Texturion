@@ -152,18 +152,80 @@ const PHOTOS = [
 ];
 
 /**
- * The one art-director grade, applied to EVERY photo so the set reads as one
- * shoot (VISUALS-V2 §2). A gentle WARM WHITE-BALANCE shift that KEEPS full color
- * (NOT sharp's `.tint()`, which duotones the image): lift the red channel a hair,
- * pull the blue channel down a hair, plus a small saturation/brightness normalize.
- * This nudges the cyan-lit under-sink plumbing shots and the cool rooftop toward
- * the warm morning-light temperature of the rest, without going sepia. Subtle —
- * authentic, not Instagram-filtered.
+ * The §3 DUOTONE grade — the "Caught" imagery treatment (DESIGN-DIRECTION §4).
+ * Every photo is re-graded to ONE consistent duotone in the palette so the set
+ * reads as one owned frame language: PETROL shadows → PAPER highlights, plus a
+ * whisper of grain. This replaces the earlier warm-white-balance grade (which
+ * kept full color); the brand now runs a single-hue graded set, cohesive with
+ * the painted-panel ground and the petrol accent, unmistakably not stock.
+ *
+ * Technique (all in sharp, reproducible):
+ *   1. desaturate to a tonal map (`greyscale`) and gently normalize contrast so
+ *      the luminance range is clean before the ramp;
+ *   2. apply a two-point duotone via a per-channel LINEAR ramp from the shadow
+ *      color (deep petrol #0B4F49) at black to the highlight color (paper
+ *      #E6EBE8) at white — each output channel = shadow + (highlight - shadow) *
+ *      luminance. This is the classic duotone: blacks take the petrol, whites
+ *      take the paper, midtones interpolate;
+ *   3. a hair of brightness lift so faces don't crush;
+ *   4. GRAIN is added separately (a low-opacity monochrome noise overlay) after
+ *      resize, so its size is consistent per output width (see grain()).
+ *
+ * Shadow/highlight are the §3 tokens. Kept subtle: this is a graded photograph,
+ * not a hard 2-color poster — the ramp preserves tonal detail.
  */
+const DUO_SHADOW = { r: 0x0b, g: 0x4f, b: 0x49 }; // --deep  #0B4F49 (petrol shadows)
+const DUO_HIGHLIGHT = { r: 0xe6, g: 0xeb, b: 0xe8 }; // --paper #E6EBE8 (paper highlights)
+
+function duotone(pipeline) {
+  // channel multiplier a = (highlight - shadow)/255, offset b = shadow.
+  const a = [
+    (DUO_HIGHLIGHT.r - DUO_SHADOW.r) / 255,
+    (DUO_HIGHLIGHT.g - DUO_SHADOW.g) / 255,
+    (DUO_HIGHLIGHT.b - DUO_SHADOW.b) / 255,
+  ];
+  const b = [DUO_SHADOW.r, DUO_SHADOW.g, DUO_SHADOW.b];
+  return (
+    pipeline
+      // Desaturate to a tonal map while KEEPING 3 bands (greyscale collapses to 1,
+      // which .linear can't per-channel-expand). saturation:0 gives the same
+      // luminance map with r=g=b, so the per-channel ramp below maps that
+      // luminance independently into the two duotone colors.
+      .modulate({ saturation: 0 })
+      .normalise({ lower: 1, upper: 99 }) // clean the tonal range before the ramp
+      .linear(a, b) // two-point duotone ramp: black→petrol, white→paper
+      .modulate({ brightness: 1.03 })
+  ); // tiny lift so midtones/faces stay open
+}
+
+/** Back-compat name used by the pipeline below. */
 function grade(pipeline) {
-  return pipeline
-    .modulate({ saturation: 1.05, brightness: 1.02 })
-    .linear([1.045, 1.0, 0.955], [0, 0, 0]); // per-channel: warm R, neutral G, cool-down B
+  return duotone(pipeline);
+}
+
+/**
+ * A whisper of grain (DESIGN-DIRECTION §4). A low-opacity monochrome noise layer
+ * composited over the duotone at `over`, so the flat single-hue ramp gains a
+ * subtle film texture (authentic, not digital-clean). Generated at the target
+ * size so grain density is consistent per width. Deterministic seed → the build
+ * is reproducible.
+ */
+async function grainOverlay(w, h) {
+  // sharp can synthesize noise; a faint gaussian mono noise composited at low
+  // opacity reads as film grain. Rendered mid-grey so it lifts AND darkens evenly.
+  const noise = await sharp({
+    create: {
+      width: w,
+      height: h,
+      channels: 3,
+      background: { r: 128, g: 128, b: 128 },
+      noise: { type: "gaussian", mean: 128, sigma: 14 },
+    },
+  })
+    .greyscale()
+    .png()
+    .toBuffer();
+  return noise;
 }
 
 if (!existsSync(srcDir)) {
@@ -186,18 +248,28 @@ for (const photo of PHOTOS) {
   for (const w of WIDTHS) {
     const h = Math.round(w / ASPECT);
     const base = `${photo.key}-${w}`;
-    const cropped = grade(
+    // 1. crop to the one 4:3 silhouette, then duotone-grade (petrol→paper ramp).
+    const duo = await grade(
       sharp(inPath).resize(w, h, { fit: "cover", position: sharp.strategy.attention }),
-    );
-    await cropped.clone().webp({ quality: 82, effort: 5 }).toFile(join(outDir, `${base}.webp`));
-    await cropped.clone().avif({ quality: 62, effort: 5 }).toFile(join(outDir, `${base}.avif`));
+    )
+      .png()
+      .toBuffer();
+    // 2. composite the whisper of grain over the duotone at low opacity via
+    //    soft-light, so the flat ramp gains film texture without muddying it.
+    const grain = await grainOverlay(w, h);
+    const graded = sharp(duo).composite([
+      { input: grain, blend: "soft-light", opacity: 0.12 },
+    ]);
+    await graded.clone().webp({ quality: 82, effort: 5 }).toFile(join(outDir, `${base}.webp`));
+    await graded.clone().avif({ quality: 62, effort: 5 }).toFile(join(outDir, `${base}.avif`));
     variants.push({ w, h, base });
   }
 
   // Primary = the first (largest) variant; carry its intrinsic w/h in the manifest.
   const primary = variants[0];
 
-  // 20px blur-up placeholder (base64 WebP data-URI), same grade so it matches.
+  // 20px blur-up placeholder (base64 WebP data-URI), SAME duotone grade so it
+  // matches the graded raster (no grain at this size — invisible + noisy).
   const blurH = Math.max(1, Math.round(20 / ASPECT));
   const blurBuf = await grade(
     sharp(inPath).resize(20, blurH, { fit: "cover", position: sharp.strategy.attention }),
@@ -211,13 +283,14 @@ for (const photo of PHOTOS) {
 }
 
 // ---- emit manifest.ts -------------------------------------------------------
-const manifest = `// AUTOGENERATED by apps/web/scripts/build-photos.mjs — do not edit by hand.
+const manifest = `// AUTOGENERATED by apps/web/scripts/build-photos.mjs. Do not edit by hand.
 //
-// The JobText marketing photography set (VISUALS-V2 §2). Warm, authentic
+// The JobText marketing photography set (DESIGN-DIRECTION §4). Real, authentic
 // tradespeople / service-business photos from Unsplash (photographer-contributed,
-// the FREE license — free commercial use, no attribution required). One
-// art-director warm grade is applied to the whole set by the build script so it
-// reads as one shoot. Sources + photographers are recorded in
+// the FREE license: free commercial use, no attribution required). Every photo is
+// re-graded to ONE consistent DUOTONE in the palette (petrol shadows #0B4F49 to
+// paper highlights #E6EBE8) plus a whisper of grain, so the set reads as one
+// owned frame language (not stock). Sources + photographers are recorded in
 // public/img/CREDITS.md. To reproduce: node apps/web/scripts/build-photos.mjs.
 //
 // Each entry is pre-sized WebP + AVIF at two display widths (primary + small),

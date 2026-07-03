@@ -1,14 +1,14 @@
 /**
- * Inbox-list visual (features track) — the shared-inbox flagship product visual.
+ * Inbox-list visual (features track), the shared-inbox flagship product visual.
  *
  * A live-DOM render of the app's conversation list (DESIGN.md G4 row anatomy):
  * unread dot, contact name/number, one-line snippet, relative time, assignee
- * avatar, status pill. It shows the whole point of a SHARED inbox — many
+ * avatar, status pill. It shows the whole point of a SHARED inbox, many
  * conversations, different owners, different statuses, all visible to the crew
- * at once — using the same seed company (Reyes Plumbing) and the same tokens as
+ * at once, using the same seed company (Reyes Plumbing) and the same tokens as
  * the thread primitives, so the two visual sets are identical (BLUEPRINT §1.3).
  *
- * Server component — pure DOM, no interactivity, part of the static render.
+ * Server component, pure DOM, no interactivity, part of the static render.
  */
 
 import { StickyNote } from "lucide-react";
@@ -31,7 +31,7 @@ interface Row {
   note?: boolean;
 }
 
-/** Seed rows — Reyes Plumbing crew (Priya/Dale/Marcus), 555-01XX safe range. */
+/** Seed rows. Reyes Plumbing crew (Priya/Dale/Marcus), 555-01XX safe range. */
 const ROWS: Row[] = [
   {
     name: "Karen M",
@@ -45,7 +45,7 @@ const ROWS: Row[] = [
   {
     name: "Nguyen family",
     number: "(647) 555-0143",
-    snippet: "You: Here's the quote for the water heater swap —",
+    snippet: "You: Here's the quote for the water heater swap ,",
     time: "18m",
     status: "open",
     assignee: "Priya",
@@ -71,7 +71,7 @@ const ROWS: Row[] = [
   {
     name: "Rivera, D.",
     number: "(905) 555-0109",
-    snippet: "You: All done — you're good to run the washer.",
+    snippet: "You: All done, you're good to run the washer.",
     time: "Tue",
     status: "closed",
     assignee: "Dale",
@@ -137,7 +137,7 @@ export function InboxListVisual({ className }: { className?: string }) {
         className,
       )}
     >
-      {/* Browser-chrome hint — "it's just the web" (BLUEPRINT §1.3). */}
+      {/* Browser-chrome hint, "it's just the web" (BLUEPRINT §1.3). */}
       <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
         <div className="flex gap-1.5" aria-hidden>
           <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
@@ -145,14 +145,14 @@ export function InboxListVisual({ className }: { className?: string }) {
           <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
         </div>
         {/* stone-500 (not stone-400) so this quiet URL hint still clears WCAG
-            AA 4.5:1 on white (G11) — matches the corrected thread-frame.tsx
+            AA 4.5:1 on white (G11), matches the corrected thread-frame.tsx
             primitive. Reads as a muted chrome hint, not body text. */}
         <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
           jobtext.app/inbox
         </div>
       </div>
 
-      {/* Filter segments — matches G4 "Open | Mine | All | Closed". */}
+      {/* Filter segments, matches G4 "Open | Mine | All | Closed". */}
       <div className="flex items-center gap-1 border-b border-border px-3 py-2">
         {["Open", "Mine", "All", "Closed"].map((seg, i) => (
           <span

@@ -13,7 +13,7 @@ export interface LegalSection {
  * Shared layout for legal & trust pages (BLUEPRINT §9): a readable measure
  * (~68ch), a sticky table of contents on desktop, a last-updated date, and a
  * BreadcrumbList (§11.2). Content is passed as children (real, substantive copy
- * — never lorem). The `sections` array drives the TOC and must match the
+ *, never lorem). The `sections` array drives the TOC and must match the
  * children's section ids.
  */
 export function LegalPage({
@@ -44,22 +44,26 @@ export function LegalPage({
       />
       <div className="lg:grid lg:grid-cols-[1fr_16rem] lg:gap-12">
         <article className="mx-auto w-full max-w-[68ch]">
-          <header className="mb-10 border-b border-border pb-8">
-            <p className="text-sm font-semibold text-primary">Legal</p>
-            {/* Fraunces display face on the legal H1 (VISUALS-V2 §5, §8: the
-                legal page headers are in the personality scope). Kept at a calm,
-                readable scale — legal stays quiet, but wears the brand voice. */}
-            <h1 className="font-display mt-2 text-[32px] font-semibold leading-tight tracking-tight text-foreground sm:text-[40px]">
+          <header className="mb-10 border-b border-[color:var(--hairline)] pb-8">
+            {/* Mono meta eyebrow with the petrol rule (no number, §0). */}
+            <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+              <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+              Legal
+            </p>
+            {/* The Basteleur display face on the legal H1 (DESIGN-DIRECTION §3:
+                legal headers wear the identity). Kept at a calm, readable scale,
+                legal stays quiet but wears the brand lettering. */}
+            <h1 className="font-display mt-3 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[color:var(--ink)] sm:text-[40px]">
               {title}
             </h1>
             {intro && (
-              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+              <p className="mt-4 text-lg leading-relaxed text-[color:var(--ink-70)]">
                 {intro}
               </p>
             )}
-            <p className="mt-6 text-sm text-muted-foreground">
+            <p className="font-mono-mkt mt-6 text-[13px] text-[color:var(--graphite)]">
               Last updated{" "}
-              <time dateTime="2026-07-02" className="font-medium text-foreground/80">
+              <time dateTime="2026-07-02" className="font-medium text-[color:var(--ink)]">
                 {lastUpdated}
               </time>
               .
@@ -73,9 +77,9 @@ export function LegalPage({
         <aside className="hidden lg:block">
           <nav
             aria-label="On this page"
-            className="sticky top-24 border-l border-border pl-4"
+            className="sticky top-24 border-l border-[color:var(--hairline)] pl-4"
           >
-            <p className="mb-3 text-xs font-semibold text-muted-foreground">
+            <p className="font-mono-mkt mb-3 text-[12px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
               On this page
             </p>
             <ul className="space-y-2">
@@ -83,7 +87,7 @@ export function LegalPage({
                 <li key={s.id}>
                   <Link
                     href={`#${s.id}`}
-                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    className="text-sm text-[color:var(--ink-70)] transition-colors hover:text-[color:var(--petrol)]"
                   >
                     {s.heading}
                   </Link>
@@ -108,7 +112,7 @@ export function LegalLink({
   return (
     <a
       href={href}
-      className="font-medium text-primary underline-offset-4 hover:underline"
+      className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
     >
       {children}
     </a>
@@ -127,10 +131,10 @@ export function LegalSectionBlock({
 }) {
   return (
     <section id={id} className="scroll-mt-24">
-      <h2 className="text-xl font-semibold tracking-tight text-foreground">
+      <h2 className="font-display text-[20px] font-bold tracking-[-0.005em] text-[color:var(--ink)]">
         {heading}
       </h2>
-      <div className="mt-3 space-y-4 leading-relaxed text-foreground/80">
+      <div className="mt-3 space-y-4 leading-relaxed text-[color:var(--ink-70)]">
         {children}
       </div>
     </section>

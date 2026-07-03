@@ -19,7 +19,7 @@ export const metadata: Metadata = buildMetadata({
  * Honest static status page (BLUEPRINT §2, §14): states the current posture
  * plainly and says the live, hosted status page (Instatus/BetterStack at
  * status.jobtext.app) is being stood up. We do NOT fabricate live uptime numbers
- * or component metrics — that would be the opposite of the trust this page is
+ * or component metrics, that would be the opposite of the trust this page is
  * meant to earn.
  */
 export default function StatusPage() {
@@ -61,8 +61,8 @@ export default function StatusPage() {
 
           <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted-foreground">
             <p>
-              A live, hosted status page — with real-time component health and a
-              full incident history — is being stood up at{" "}
+              A live, hosted status page, with real-time component health and a
+              full incident history, is being stood up at{" "}
               <span className="font-medium text-foreground">
                 status.jobtext.app
               </span>
@@ -81,7 +81,7 @@ export default function StatusPage() {
                 </strong>{" "}
                 (typically 3–7 business days after you pay). If your US texts
                 aren&apos;t sending yet, that&apos;s the approval wait, not an
-                outage — receiving texts and texting Canadian numbers work the
+                outage, receiving texts and texting Canadian numbers work the
                 whole time.
               </li>
               <li>

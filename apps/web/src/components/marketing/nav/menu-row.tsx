@@ -14,7 +14,7 @@ import type { NavItem } from "../nav-links";
  * The row is a Next <Link> that forwards its ref and any extra props to the
  * underlying <a>. That forwarding matters: it is rendered as the `asChild` child
  * of a Radix NavigationMenu.Link, which merges collection registration, focus
- * handling, and the close-on-select behavior onto it — dropping those props would
+ * handling, and the close-on-select behavior onto it, dropping those props would
  * break keyboard nav and auto-close.
  */
 export const MenuRow = React.forwardRef<

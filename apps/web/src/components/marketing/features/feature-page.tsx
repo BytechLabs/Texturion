@@ -1,29 +1,45 @@
 /**
- * Feature-page building blocks (features track) — BLUEPRINT §4 template.
+ * Feature-page building blocks (features track). BLUEPRINT §4 template, rebuilt
+ * to the "Caught" marketing identity (DESIGN-DIRECTION, BINDING).
  *
- * The four /features/* pages share this skeleton (hero → alternating job-named
- * sections → honest-details block → mini-pricing strip → page-specific FAQ →
+ * The four /features/* pages share this skeleton (hero -> alternating job-named
+ * sections -> honest-details block -> mini-pricing strip -> page-specific FAQ ->
  * CTA band) but ZERO copy: every page passes its own hand-written content, so
- * there are no shared sentences across pages (the §5/§6 scaled-content guard,
- * applied to features too). These are pure presentational primitives that reuse
- * the shared marketing UI (Container, Section, Reveal, Button) and the app's
- * token language — no new design system.
+ * there are no shared sentences across pages (the scaled-content guard).
+ *
+ * Identity notes (DESIGN-DIRECTION §2-§4):
+ *  - Ground, not counters. Sections are separated by GROUND changes (the pale
+ *    petrol-grey --paper panel to the one deep-petrol band and back) and by
+ *    display-lettering rhythm. There are NO section numbers (§0).
+ *  - Composed headlines. The hero and section headings are authored with the
+ *    <Display> system: the page passes a ReactNode title composed with
+ *    <Display.Mark> (the one marker-yellow promise word), <Display.Emph> (the
+ *    Moonlight cut), and <Display.Accent> (the one petrol word). Boldness is
+ *    spent here; everything else stays quiet.
+ *  - True eyebrows only. The eyebrow is a mono meta label with a short petrol
+ *    rule, never a number, never a fake "live" dot (§0).
+ *  - CTA copy is "Start for $29" and keeps the same words through the flow (§6).
  *
  * Server components throughout; the only client islands a page mounts are the
  * shared thread-demo / interactive widgets it drops into `visual` slots.
  */
 
 import Link from "next/link";
-import { ArrowRight, Check, type LucideIcon } from "lucide-react";
+import { ArrowRight, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/marketing/ui/container";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
+import { Display } from "@/components/marketing/display";
+import { MarkerCheck } from "@/components/marketing/display";
+import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { cn } from "@/lib/utils";
 
 /* -------------------------------------------------------------------------- */
-/* Hero — eyebrow → H1 → sub → CTA row → truth chips + one framed visual.      */
+/* Hero: mono eyebrow -> composed <Display> H1 -> sub -> CTA row -> truth      */
+/* chips + one framed visual, over the painted-panel paper ground.            */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureHero({
@@ -34,59 +50,70 @@ export function FeatureHero({
   visual,
 }: {
   eyebrow: string;
-  title: string;
-  sub: string;
+  /** A composed <Display> headline (page authors the marker/emph/accent). */
+  title: ReactNode;
+  sub: ReactNode;
   /** Short, verifiable truth chips under the CTAs (no adjectives-as-stats). */
   truthChips: string[];
   /** The feature-specific product visual (live thread demo, widget, or DOM). */
-  visual: React.ReactNode;
+  visual: ReactNode;
 }) {
   return (
-    <Container className="pb-8 pt-24 sm:pt-28">
-      <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
-        <div>
-          <p className="text-[13px] font-semibold text-primary">{eyebrow}</p>
-          <h1 className="display-hero mt-4 text-balance text-foreground">
-            {title}
-          </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            {sub}
-          </p>
+    <section className="relative overflow-hidden pb-14 pt-28 sm:pb-20 sm:pt-32">
+      <Container>
+        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
+          <div>
+            <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+              <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+              {eyebrow}
+            </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button asChild size="lg">
-              <Link href="/signup">
-                Start for $29
-                <ArrowRight strokeWidth={1.75} aria-hidden />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/pricing">See pricing</Link>
-            </Button>
+            <Display as="h1" size="hero" className="mt-5 text-balance">
+              {title}
+            </Display>
+
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
+              {sub}
+            </p>
+
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link href="/signup">
+                  Start for $29
+                  <ArrowRight strokeWidth={1.75} aria-hidden />
+                </Link>
+              </Button>
+              <ArrowLink href="/pricing">See pricing</ArrowLink>
+            </div>
+
+            <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2.5">
+              {truthChips.map((chip) => (
+                <li
+                  key={chip}
+                  className="flex items-center gap-2 text-[13px] text-[color:var(--ink-70)]"
+                >
+                  <MarkerCheck
+                    color="petrol"
+                    draw={false}
+                    className="size-4 shrink-0"
+                  />
+                  {chip}
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-muted-foreground">
-            {truthChips.map((chip) => (
-              <li key={chip} className="flex items-center gap-1.5">
-                <Check
-                  className="size-3.5 shrink-0 text-primary"
-                  strokeWidth={2}
-                  aria-hidden
-                />
-                {chip}
-              </li>
-            ))}
-          </ul>
+          <Reveal className="relative">{visual}</Reveal>
         </div>
-
-        <div className="relative">{visual}</div>
-      </div>
-    </Container>
+      </Container>
+    </section>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Alternating job-named content section (copy ↔ visual).                      */
+/* Alternating job-named content section (copy <-> visual). Ground alternates  */
+/* paper <-> a half-step lighter panel so adjacent bands never share a         */
+/* silhouette (§4), no gradient wash costume.                                  */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureSection({
@@ -99,25 +126,29 @@ export function FeatureSection({
   id,
 }: {
   eyebrow?: string;
-  heading: string;
-  /** Prose — one or more <p>/lists; the page supplies unique body copy. */
-  children: React.ReactNode;
-  visual?: React.ReactNode;
-  /** When true, the visual sits on the LEFT (alternating rhythm, §1.4). */
+  /** Composed <Display> heading (ReactNode) or a plain string. */
+  heading: ReactNode;
+  /** Prose, one or more <p>/lists; the page supplies unique body copy. */
+  children: ReactNode;
+  visual?: ReactNode;
+  /** When true, the visual sits on the LEFT (alternating rhythm). */
   flip?: boolean;
-  /** The one-of-two allowed stone→teal wash bands (§1.2). */
+  /** Paint this band on the half-step-lighter panel ground (a ground change). */
   wash?: boolean;
   id?: string;
 }) {
   const copy = (
     <div className={cn(!visual && "mx-auto max-w-3xl")}>
       {eyebrow && (
-        <p className="text-[13px] font-semibold text-primary">{eyebrow}</p>
+        <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+          <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
+          {eyebrow}
+        </p>
       )}
-      <h2 className={cn("display-h2 text-foreground", eyebrow && "mt-2")}>
+      <Display as="h2" size="h2" className={cn(eyebrow && "mt-3")}>
         {heading}
-      </h2>
-      <div className="prose-feature mt-5 space-y-4 text-lg leading-relaxed text-muted-foreground">
+      </Display>
+      <div className="prose-feature mt-5 space-y-4 text-lg leading-relaxed text-[color:var(--ink-70)]">
         {children}
       </div>
     </div>
@@ -127,10 +158,9 @@ export function FeatureSection({
     <Section
       id={id}
       bleed={wash}
-      className={cn(
-        wash &&
-          "bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24",
-      )}
+      className={cn(wash && "bg-[color:var(--paper-2)] py-16 sm:py-24")}
+      /* wash paints the half-step-lighter panel ground (a ground change, §4),
+         no gradient costume. */
     >
       {wash ? (
         <Container>
@@ -148,8 +178,8 @@ function SectionInner({
   visual,
   flip,
 }: {
-  copy: React.ReactNode;
-  visual?: React.ReactNode;
+  copy: ReactNode;
+  visual?: ReactNode;
   flip: boolean;
 }) {
   if (!visual) return <>{copy}</>;
@@ -162,7 +192,8 @@ function SectionInner({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Honest-details block — limits stated plainly (BLUEPRINT §4).                */
+/* Honest-details block: limits stated plainly (BLUEPRINT §4). A ruled ledger  */
+/* of terms on paper cards, warm hairlines, not a broadsheet grid.             */
 /* -------------------------------------------------------------------------- */
 
 export function HonestDetails({
@@ -177,17 +208,19 @@ export function HonestDetails({
   return (
     <Section>
       <div className="mx-auto max-w-3xl">
-        <h2 className="display-h2 text-foreground">{heading}</h2>
-        <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+        <Display as="h2" size="h2">
+          {heading}
+        </Display>
+        <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
           {lead}
         </p>
-        <dl className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card">
+        <dl className="mt-8 divide-y divide-[color:var(--hairline)] overflow-hidden rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
           {items.map(({ term, detail }) => (
             <div key={term} className="p-5 sm:p-6">
-              <dt className="text-[15px] font-semibold text-foreground">
+              <dt className="text-[15px] font-semibold text-[color:var(--ink)]">
                 {term}
               </dt>
-              <dd className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
+              <dd className="mt-1.5 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                 {detail}
               </dd>
             </div>
@@ -199,32 +232,34 @@ export function HonestDetails({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Feature-mapped strip — small icon rows tying the feature to the workflow.   */
+/* Feature-mapped strip: small icon rows tying the feature to the workflow.    */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureStrip({
   heading,
   items,
 }: {
-  heading: string;
+  heading: ReactNode;
   items: { icon: LucideIcon; title: string; body: string }[];
 }) {
   return (
     <Section>
-      <h2 className="display-h2 text-foreground">{heading}</h2>
+      <Display as="h2" size="h2">
+        {heading}
+      </Display>
       <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, i) => {
           const Icon = item.icon;
           return (
             <Reveal key={item.title} delay={Math.min(i, 3) * 60}>
-              <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-full flex-col rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-5">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                 </span>
-                <h3 className="mt-4 text-[16px] font-semibold text-foreground">
+                <h3 className="mt-4 text-[16px] font-semibold text-[color:var(--ink)]">
                   {item.title}
                 </h3>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
+                <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
                   {item.body}
                 </p>
               </div>
@@ -237,41 +272,34 @@ export function FeatureStrip({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Mini-pricing strip — the whole price list, compact (BLUEPRINT §4).          */
+/* Mini-pricing strip: the whole price list, compact, with the $29 in the      */
+/* work-order mono (BLUEPRINT §4). On the paper ground, a bordered panel.       */
 /* -------------------------------------------------------------------------- */
 
-export function MiniPricing({ body }: { body: React.ReactNode }) {
+export function MiniPricing({ body }: { body: ReactNode }) {
   return (
-    <Section
-      bleed
-      className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
-    >
+    <Section bleed className="bg-[color:var(--paper-2)] py-16 sm:py-24">
       <Container>
-        <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper)] p-6 sm:p-8">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-[40px] font-semibold leading-none tabular-nums text-foreground">
+            <span className="font-mono-mkt text-[44px] font-semibold leading-none tabular-nums text-[color:var(--petrol)]">
               $29
             </span>
-            <span className="text-[15px] text-muted-foreground">
-              /mo — the whole crew, month to month
+            <span className="text-[15px] text-[color:var(--ink-70)]">
+              /mo, the whole crew, month to month
             </span>
           </div>
-          <div className="prose-feature mt-5 space-y-3 text-[15px] leading-relaxed text-muted-foreground">
+          <div className="prose-feature mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
             {body}
           </div>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
             <Button asChild>
               <Link href="/signup">
                 Start for $29
                 <ArrowRight strokeWidth={1.75} aria-hidden />
               </Link>
             </Button>
-            <Link
-              href="/pricing"
-              className="text-[15px] font-medium text-primary underline-offset-2 hover:underline"
-            >
-              See full pricing →
-            </Link>
+            <ArrowLink href="/pricing">See full pricing</ArrowLink>
           </div>
         </div>
       </Container>
@@ -280,9 +308,7 @@ export function MiniPricing({ body }: { body: React.ReactNode }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Internal-link block — related trade + compare pages (BLUEPRINT §4/§11).     */
-/* Every /features page links out to relevant trade pages and a comparison, so */
-/* the four pages weave into the site's link graph instead of being dead ends. */
+/* Internal-link block: related trade + compare pages (BLUEPRINT §4/§11).      */
 /* -------------------------------------------------------------------------- */
 
 export interface RelatedLink {
@@ -303,8 +329,10 @@ export function RelatedLinks({
   return (
     <Section>
       <div className="mx-auto max-w-4xl">
-        <h2 className="text-2xl font-semibold text-foreground">{heading}</h2>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+        <h2 className="font-display text-[26px] font-bold leading-tight tracking-[-0.01em] text-[color:var(--ink)] sm:text-[30px]">
+          {heading}
+        </h2>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-[color:var(--ink-70)]">
           {intro}
         </p>
         <ul className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -312,18 +340,18 @@ export function RelatedLinks({
             <li key={link.href + link.label}>
               <Link
                 href={link.href}
-                className="group flex items-start justify-between gap-4 rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-primary/30"
+                className="group flex items-start justify-between gap-4 rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-4 transition-colors hover:border-[color:var(--petrol)]/40"
               >
                 <span>
-                  <span className="text-[15px] font-medium text-foreground">
+                  <span className="text-[15px] font-medium text-[color:var(--ink)]">
                     {link.label}
                   </span>
-                  <span className="mt-0.5 block text-[13px] leading-relaxed text-muted-foreground">
+                  <span className="mt-0.5 block text-[13px] leading-relaxed text-[color:var(--ink-70)]">
                     {link.hint}
                   </span>
                 </span>
                 <ArrowRight
-                  className="mt-0.5 size-4 shrink-0 text-primary opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                  className="mt-0.5 size-4 shrink-0 text-[color:var(--petrol)] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
                   strokeWidth={1.75}
                   aria-hidden
                 />
@@ -337,34 +365,35 @@ export function RelatedLinks({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Page-specific FAQ — native <details>, NO FAQPage JSON-LD (§11.2).           */
-/* Each feature page passes its own questions; no two pages share a Q or A.     */
+/* Page-specific FAQ: native <details>, NO FAQPage JSON-LD (§11.2).            */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureFaq({
   heading,
   faqs,
 }: {
-  heading: string;
-  faqs: { q: string; a: React.ReactNode }[];
+  heading: ReactNode;
+  faqs: { q: string; a: ReactNode }[];
 }) {
   return (
     <Section>
       <div className="mx-auto max-w-3xl">
-        <h2 className="display-h2 text-center text-foreground">{heading}</h2>
-        <div className="mt-12 divide-y divide-border border-y border-border">
+        <Display as="h2" size="h2" className="text-center">
+          {heading}
+        </Display>
+        <div className="mt-12 divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
           {faqs.map((item) => (
             <details key={item.q} className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
                 {item.q}
                 <span
-                  className="shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-45"
+                  className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
                   aria-hidden
                 >
                   +
                 </span>
               </summary>
-              <div className="pb-5 pr-8 text-[15px] leading-relaxed text-muted-foreground">
+              <div className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                 {item.a}
               </div>
             </details>
@@ -376,35 +405,43 @@ export function FeatureFaq({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Closing CTA band — the second allowed wash (BLUEPRINT §4).                   */
+/* Closing CTA band: the ONE deep-petrol ground per page (§3 "used once"),     */
+/* the earned crescendo. Paper gives way to the dark band; light type, one     */
+/* paper-white button, a single marker check. No fake indicators.              */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureCta({
   heading,
   sub,
 }: {
-  heading: string;
+  heading: ReactNode;
   sub: string;
 }) {
   return (
     <Section
       bleed
-      className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
+      className="relative overflow-hidden bg-[color:var(--deep)] py-16 text-[color:var(--paper)] sm:py-24"
     >
       <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="display-h2 text-foreground">{heading}</h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
+        <h2 className="font-display text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.005em] text-[color:var(--paper)] sm:text-[44px]">
+          {heading}
+        </h2>
+        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--paper)]/85">
           {sub}
         </p>
         <div className="mt-8 flex justify-center">
-          <Button asChild size="lg">
+          <Button
+            asChild
+            size="lg"
+            className="bg-[color:var(--paper)] text-[color:var(--deep)] hover:bg-white"
+          >
             <Link href="/signup">
               Start for $29
               <ArrowRight strokeWidth={1.75} aria-hidden />
             </Link>
           </Button>
         </div>
-        <p className="mt-4 text-[13px] tabular-nums text-muted-foreground">
+        <p className="font-mono-mkt mt-4 text-[13px] text-[color:var(--paper)]/70">
           $29/mo flat · Month to month · 30-day money-back guarantee
         </p>
       </div>

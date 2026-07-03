@@ -16,7 +16,7 @@ import { MegaMenu } from "./mega-menu";
  * The desktop primary navigation (VISUALS §5b): a shared Radix NavigationMenu
  * root hosting the three mega-menus (Product / Who it's for / Compare) and the
  * two flat links (Pricing / Canada). The Root owns hover-intent, keyboard nav,
- * and the single animated Viewport the panels render into — so only one panel is
+ * and the single animated Viewport the panels render into, so only one panel is
  * ever open, and switching between menus cross-fades in one elevated card.
  *
  * The Viewport is the rounded, elevated panel surface (soft shadow + 1px border,

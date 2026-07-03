@@ -12,7 +12,7 @@ import { MenuRow } from "./menu-row";
 
 /**
  * A designed desktop mega-menu panel (VISUALS §5b), built on Radix
- * NavigationMenu (already in the `radix-ui` package — no new dependency). Radix
+ * NavigationMenu (already in the `radix-ui` package, no new dependency). Radix
  * gives us the right primitive for a *nav* (semantic links, hover-intent
  * open/close, full keyboard path, aria) instead of the wrong `menuitem` roles a
  * DropdownMenu would apply to navigation.
@@ -53,7 +53,7 @@ export function MegaMenu({ menu }: { menu: NavMenu }) {
           // The Content is the intrinsically-sized panel: Radix measures ITS
           // width/height to drive --radix-navigation-menu-viewport-{width,height}
           // on the shared Viewport. It must therefore carry the fixed width and
-          // NOT be `absolute w-full` — an absolutely-positioned w-full element
+          // NOT be `absolute w-full`, an absolutely-positioned w-full element
           // measures to 0 width, clipping the whole panel to a sliver (the bug).
           "p-3",
           hasFeatured

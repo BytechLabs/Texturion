@@ -1,34 +1,33 @@
 /**
- * BentoLiveSwitchStatic (iteration 5) — the server-rendered fallback for the
- * switchable live tile (REFERENCES craft #7). Renders the first panel ("Assign &
- * track") as a completed static thread with the ledger-row header and BOTH tab
- * labels visible (the first pre-selected), so the surface is meaningful and the
- * switch is discoverable with JS off / reduced-motion / before hydration. The
- * interactive island swaps in after first paint and makes the tabs live.
+ * BentoLiveSwitchStatic, the server-rendered fallback for the switchable live
+ * tile. Renders the first panel ("Assign & track") as a completed static thread
+ * with both tab labels visible (the first pre-selected), so the surface is
+ * meaningful and the switch is discoverable with JS off / reduced-motion /
+ * before hydration. The interactive island swaps in after first paint.
  *
- * Pure server DOM, no hooks. The tab buttons are inert here (real controls in
- * the island).
+ * DESIGN-DIRECTION §0: no ledger-row header, no `#0119 · filed` ticket costume.
+ * The real product state lives in the thread frame itself (status pill,
+ * assignee). Pure server DOM, no hooks. The tab buttons are inert here.
  */
 
 import { cn } from "@/lib/utils";
 import { StaticThread } from "@/components/marketing/thread-demo/static-thread";
-import { StatusSpine, TicketMeta } from "@/components/marketing/ledger/ticket";
 import { ASSIGN_TILE_SCRIPT } from "@/components/marketing/thread-demo/script";
 
 const TABS = ["Assign & track", "Photos, both ways"] as const;
 
 export function BentoLiveSwitchStatic() {
   return (
-    <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5">
+    <div className="panel-card flex h-full flex-col rounded-[14px] p-5">
       <div className="mb-3 flex flex-wrap gap-1.5">
         {TABS.map((tab, i) => (
           <span
             key={tab}
             className={cn(
-              "rounded-full px-3 py-1 text-[13px] font-medium",
+              "font-mono-mkt rounded-full px-3 py-1 text-[13px] font-medium",
               i === 0
-                ? "bg-primary/10 text-teal-800 dark:text-primary"
-                : "text-muted-foreground",
+                ? "bg-[color:var(--petrol-12)] text-[color:var(--deep)]"
+                : "text-[color:var(--graphite)]",
             )}
           >
             {tab}
@@ -37,13 +36,6 @@ export function BentoLiveSwitchStatic() {
       </div>
 
       <div className="flex-1">
-        <div className="relative mb-2 overflow-hidden rounded-[8px] border border-border bg-card pl-2.5">
-          <StatusSpine status="filed" />
-          <div className="px-2.5 py-1.5">
-            <TicketMeta id="#0119" status="filed" assignee="Dale" />
-          </div>
-        </div>
-
         <div className="min-h-[220px]">
           <StaticThread
             script={ASSIGN_TILE_SCRIPT}
@@ -54,15 +46,15 @@ export function BentoLiveSwitchStatic() {
       </div>
 
       <div className="mt-4">
-        <h3 className="text-[17px] font-semibold text-foreground">
+        <h3 className="text-[17px] font-semibold text-[color:var(--ink)]">
           Assign and track.
         </h3>
-        <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
-          Every conversation has one owner and one status — new, open, waiting,
+        <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
+          Every conversation has one owner and one status: new, open, waiting,
           or closed. At a glance, you know what&apos;s handled and what&apos;s
           not.
         </p>
-        <p className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+        <p className="mt-3 rounded-lg bg-[color:var(--petrol-12)]/50 px-3 py-2 text-[13px] leading-relaxed text-[color:var(--ink)]">
           Two locations, or an office line and a field line? Pro gives you two
           separate numbers, each with its own inbox.
         </p>

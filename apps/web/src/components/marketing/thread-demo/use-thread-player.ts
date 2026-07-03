@@ -10,7 +10,7 @@
  *
  * Respects prefers-reduced-motion: when reduced, the hook reports every beat as
  * already visible and every delivery state terminal, and never schedules
- * timers — the caller renders the completed thread statically with a Play
+ * timers, the caller renders the completed thread statically with a Play
  * affordance (BLUEPRINT §1.5, §3.1). The same completed thread is what the
  * server pre-renders for LCP / no-JS.
  */
@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DeliveryState, ThreadScript } from "./script";
 
-/** Beat-to-beat cadence (ms). Kept calm — this is a demo, not a chat race. */
+/** Beat-to-beat cadence (ms). Kept calm, this is a demo, not a chat race. */
 const BEAT_DELAY = 1500;
 /** Extra dwell before an outbound bubble flips Sending… → Delivered. */
 const SEND_SETTLE = 900;
@@ -62,7 +62,7 @@ function terminalDelivery(script: ThreadScript): Record<string, DeliveryState> {
 
 /**
  * @param autoStart when true (and motion is allowed), the thread begins playing
- *   as soon as `armed` is set — used by the hero to autoplay once on viewport
+ *   as soon as `armed` is set, used by the hero to autoplay once on viewport
  *   entry. The deep-dive passes false and drives via step controls.
  */
 export function useThreadPlayer(

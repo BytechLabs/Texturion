@@ -23,7 +23,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 /**
- * Each point describes only what SPEC §10 actually implements — no SOC 2 claim,
+ * Each point describes only what SPEC §10 actually implements, no SOC 2 claim,
  * no badge we don't hold (BLUEPRINT §2, §13.8). This page also feeds the
  * sub-processors page and the home security strip.
  */
@@ -31,17 +31,17 @@ const POINTS = [
   {
     Icon: ShieldCheck,
     title: "Your data is isolated from every other business",
-    body: "Every business on JobText is a separate tenant. Each database query is scoped to one business by its ID, and Postgres row-level security is enabled deny-by-default on every table as a second line of defense — so one business can never see another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
+    body: "Every business on JobText is a separate tenant. Each database query is scoped to one business by its ID, and Postgres row-level security is enabled deny-by-default on every table as a second line of defense, so one business can never see another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
   },
   {
     Icon: Lock,
     title: "Encrypted in transit and at rest",
-    body: "Traffic to JobText runs over HTTPS/TLS. Your data — messages, contacts, and attachments — is encrypted at rest by our infrastructure providers. Message attachments live in a private, per-business storage bucket and are served only through short-lived signed links.",
+    body: "Traffic to JobText runs over HTTPS/TLS. Your data, messages, contacts, and attachments, is encrypted at rest by our infrastructure providers. Message attachments live in a private, per-business storage bucket and are served only through short-lived signed links.",
   },
   {
     Icon: Webhook,
     title: "Signed webhooks, verified on arrival",
-    body: "Texts and payments reach us through webhooks. We verify every one cryptographically before acting on it — Ed25519 signatures on carrier events, HMAC signatures on payment events — and reject anything that doesn't check out. A signature is the webhook's only way in.",
+    body: "Texts and payments reach us through webhooks. We verify every one cryptographically before acting on it. Ed25519 signatures on carrier events, HMAC signatures on payment events, and reject anything that doesn't check out. A signature is the webhook's only way in.",
   },
   {
     Icon: KeyRound,
@@ -51,12 +51,12 @@ const POINTS = [
   {
     Icon: ShieldOff,
     title: "Your messages stay out of our analytics and error logs",
-    body: "We keep message content, names, addresses, and phone numbers out of our error monitoring (Sentry) and product analytics (PostHog). Error reports strip request and response bodies and redact phone-number patterns; analytics record events, counts, and IDs only — never message text. This is a real, verifiable policy, not a promise for later.",
+    body: "We keep message content, names, addresses, and phone numbers out of our error monitoring (Sentry) and product analytics (PostHog). Error reports strip request and response bodies and redact phone-number patterns; analytics record events, counts, and IDs only, never message text. This is a real, verifiable policy, not a promise for later.",
   },
   {
     Icon: ScrollText,
     title: "Abuse defenses built in",
-    body: "Outbound texting is restricted to US and Canadian destinations, rate-limited per business, and bounded by a spending cap you control — layered defenses against SMS pumping and runaway bills. Opt-outs are enforced automatically at send time.",
+    body: "Outbound texting is restricted to US and Canadian destinations, rate-limited per business, and bounded by a spending cap you control, layered defenses against SMS pumping and runaway bills. Opt-outs are enforced automatically at send time.",
   },
 ] as const;
 
@@ -77,7 +77,7 @@ export default function SecurityPage() {
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
             No badges we don&apos;t hold, no jargon. Here is exactly how JobText
-            protects your business&apos;s data — each point is something the
+            protects your business&apos;s data, each point is something the
             product actually does today.
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function SecurityPage() {
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             JobText processes and stores data in the United States (Supabase on
             AWS us-east-1). The full list of vendors that process data on our
-            behalf — and the region each operates in — is on our{" "}
+            behalf, and the region each operates in, is on our{" "}
             <a
               href="/legal/subprocessors"
               className="font-medium text-primary underline-offset-4 hover:underline"

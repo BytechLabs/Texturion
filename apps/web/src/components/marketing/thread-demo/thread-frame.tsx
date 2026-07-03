@@ -1,9 +1,9 @@
 /**
- * Thread frame (Track B) — the chrome around a demo thread.
+ * Thread frame (Track B), the chrome around a demo thread.
  *
  * Two framings per BLUEPRINT §1.3:
  * - "desktop": a white card with a minimal stone browser-chrome hint (three
- *   dots + `jobtext.app/inbox` URL) — quietly reinforces "it's just the web,
+ *   dots + `jobtext.app/inbox` URL), quietly reinforces "it's just the web,
  *   no download". Used by the hero right phone / deep-dive.
  * - "phone": a neutral rounded frame (stone ring, 28px radius), NO Apple/Android
  *   device chrome (keeps the PWA story honest). Used by the hero left phone and
@@ -31,7 +31,7 @@ function BrowserChrome({ url = "jobtext.app/inbox" }: { url?: string }) {
         <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
       </div>
       {/* stone-500 (not stone-400) so this quiet URL hint still clears WCAG AA
-          4.5:1 on white (G11) — a Lighthouse color-contrast finding. Reads as a
+          4.5:1 on white (G11), a Lighthouse color-contrast finding. Reads as a
           muted chrome hint, not body text. */}
       <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
         {url}

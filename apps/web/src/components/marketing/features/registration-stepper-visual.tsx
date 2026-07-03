@@ -1,13 +1,13 @@
 /**
- * Registration-stepper visual (features track) — the /features/compliance
+ * Registration-stepper visual (features track), the /features/compliance
  * product visual. A live-DOM render of the app's registration state machine
  * (SPEC §4.4: brand → campaign → approved) as the friendly stepper G7/G8
  * describe, in an "In review" state. It shows the honest US timeline as a
  * designed object: what's already done, what the carriers are reviewing, and
- * what turns on at the end — the same win-first frame as the home first-week
+ * what turns on at the end, the same win-first frame as the home first-week
  * timeline, scoped to the registration flow.
  *
- * Server component — pure DOM, matches the amber registration banner tokens.
+ * Server component, pure DOM, matches the amber registration banner tokens.
  */
 
 import { Check, Clock, Loader2 } from "lucide-react";
@@ -29,7 +29,7 @@ const STEPS: Step[] = [
     state: "done",
   },
   {
-    title: "Carrier review — in progress",
+    title: "Carrier review, in progress",
     detail: "Typically 3–7 business days. Nothing for you to do.",
     state: "active",
   },
@@ -128,7 +128,7 @@ export function RegistrationStepperVisual({
       </ol>
 
       <p className="mt-2 rounded-lg bg-secondary/60 px-3 py-2 text-[13px] leading-relaxed text-muted-foreground">
-        Receiving texts and texting Canadian numbers already work — this only
+        Receiving texts and texting Canadian numbers already work, this only
         gates US-bound texting.
       </p>
     </div>

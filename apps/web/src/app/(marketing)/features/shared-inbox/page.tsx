@@ -1,9 +1,9 @@
 /**
- * /features/shared-inbox — the flagship feature page (BLUEPRINT §2, §4).
+ * /features/shared-inbox, the flagship feature page (BLUEPRINT §2, §4).
  *
  * Head-term target ("shared sms inbox", "team text inbox"): 900+ words of
  * hand-written, page-specific content, its own unique FAQ (not a shared block),
- * and its own product visuals — the live inbox-list DOM and the steppable
+ * and its own product visuals, the live inbox-list DOM and the steppable
  * thread deep-dive reused from the home §3.4 primitives. Every claim traces to
  * SPEC §1/§6 and DESIGN.md G4/G5. NO shared sentences with the other feature
  * pages. buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
@@ -32,8 +32,9 @@ import {
   MiniPricing,
   RelatedLinks,
 } from "@/components/marketing/features/feature-page";
+import { Display } from "@/components/marketing/display";
 import { FramedShot } from "@/components/marketing/shot";
-import { Illustration } from "@/components/marketing/illustration";
+import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
 import { Section } from "@/components/marketing/ui/section";
 import { Container } from "@/components/marketing/ui/container";
@@ -61,31 +62,37 @@ export default function SharedInboxPage() {
 
       <FeatureHero
         eyebrow="Shared inbox"
-        title="One number. One inbox your whole crew can see."
-        sub="Every text to your business number lands in a single inbox that everyone on the team opens — on their own phone, at the same time. No more forwarding screenshots, no more 'did anyone answer the Hendersons?' The conversation belongs to the business, not to whoever's holding the phone."
+        title={
+          <>
+            One number. Every customer text{" "}
+            <Display.Mark>caught</Display.Mark> by the whole crew.
+          </>
+        }
+        sub="Every text to your business number lands in a single inbox that everyone on the team opens, on their own phone, at the same time. No more forwarding screenshots, no more 'did anyone answer the Hendersons?' The conversation belongs to the business, not to whoever's holding the phone."
         truthChips={[
           "Everyone sees every text",
           "Works on any phone, no app",
-          "Realtime — replies show up as they happen",
+          "Realtime, replies show up as they happen",
         ]}
         visual={<InboxListVisual />}
       />
 
-      {/* Section 1 — one number, whole team (copy | inbox-list already in hero;
+      {/* Section 1, one number, whole team (copy | inbox-list already in hero;
           this uses the steppable deep-dive as its second, richer visual). */}
       <Section>
         <Container>
           <div className="mx-auto mb-12 max-w-3xl">
-            <p className="text-[13px] font-semibold text-primary">
+            <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
+              <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
               The core idea
             </p>
-            <h2 className="display-h2 mt-2 text-foreground">
+            <Display as="h2" size="h2" className="mt-3">
               A text stops being one person&apos;s problem.
-            </h2>
-            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+            </Display>
+            <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
               When a customer texts your business number, JobText turns that text
               into a conversation in a shared inbox. Priya sees it. Dale sees it.
-              Marcus sees it. Whoever is free picks it up — and because everyone
+              Marcus sees it. Whoever is free picks it up, and because everyone
               is looking at the same thread, two people never reply to the same
               customer, and nobody assumes someone else already did. The mess of
               a business run from one personal cell simply goes away: the number
@@ -99,7 +106,7 @@ export default function SharedInboxPage() {
         </Container>
       </Section>
 
-      {/* Section 2 — assign & status. */}
+      {/* Section 2, assign & status. */}
       <FeatureSection
         eyebrow="Assign & status"
         heading="One owner, one status, no double replies."
@@ -109,7 +116,7 @@ export default function SharedInboxPage() {
         wash
       >
         <p>
-          Every conversation can be assigned to exactly one person — the tech
+          Every conversation can be assigned to exactly one person, the tech
           who&apos;s closest, the office manager who took the first call,
           whoever should carry it. Assignment shows as a small avatar on the
           conversation and as a system line in the thread (&ldquo;Priya assigned
@@ -129,7 +136,7 @@ export default function SharedInboxPage() {
         </p>
       </FeatureSection>
 
-      {/* Section 3 — notes. */}
+      {/* Section 3, notes. */}
       <FeatureSection
         eyebrow="Internal notes"
         heading="Talk about the job without texting the customer."
@@ -145,7 +152,7 @@ export default function SharedInboxPage() {
           that street.&rdquo; In JobText you write those as internal notes,
           right inside the conversation where they belong. Notes are drawn in an
           unmistakable amber card with a lock icon and an &ldquo;Internal
-          note&rdquo; label — they are never sent to the customer, ever, and the
+          note&rdquo; label, they are never sent to the customer, ever, and the
           design makes it impossible to confuse one for an outgoing text.
         </p>
         <p>
@@ -156,27 +163,17 @@ export default function SharedInboxPage() {
         </p>
       </FeatureSection>
 
-      {/* Section 4 — realtime + mark done. */}
+      {/* Section 4, realtime + mark done. Real product DOM (the done-mark on a
+          message), not a generic illustration (§4). */}
       <FeatureSection
         eyebrow="Realtime & done-marks"
         heading="When Dale replies, everyone's phone shows it answered."
-        visual={
-          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <Illustration
-              id="shared-inbox"
-              alt="An inbound text becomes a handled, checked-off task in the shared inbox."
-            />
-            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
-              A text lands, the crew handles it, and one tap marks it done —
-              struck through with a petrol check the whole team can see.
-            </p>
-          </div>
-        }
+        visual={<TagsDoneVisual className="mx-auto max-w-md" />}
         wash
       >
         <p>
           JobText is live. The moment someone on the crew sends a reply, the
-          conversation updates on every other phone — the status changes, the
+          conversation updates on every other phone, the status changes, the
           snippet updates, the thread re-sorts to the top. You don&apos;t
           refresh, you don&apos;t poll, you don&apos;t wonder. If a customer
           texts while you&apos;re looking at their thread, the new message just
@@ -184,22 +181,22 @@ export default function SharedInboxPage() {
           tells you, and the conversation jumps up the list.
         </p>
         <p>
-          For the little things inside a thread — a question you&apos;ve handled,
-          an address you&apos;ve noted — tap the message to mark it done. It
+          For the little things inside a thread, a question you&apos;ve handled,
+          an address you&apos;ve noted, tap the message to mark it done. It
           draws a strikethrough and a small petrol check, and the whole crew sees
           it&apos;s handled. It&apos;s a lightweight way to keep a long
           conversation tidy without leaving the inbox for a separate to-do list.
         </p>
       </FeatureSection>
 
-      {/* Feature strip — how the pieces map to a crew's day. */}
+      {/* Feature strip, how the pieces map to a crew's day. */}
       <FeatureStrip
         heading="Everything a shared inbox should do."
         items={[
           {
             icon: Users,
             title: "The whole crew, one view",
-            body: "Starter covers 3 people, Pro covers 10 — all looking at the same inbox, all on their own phones. No per-seat surprise on the bill.",
+            body: "Starter covers 3 people, Pro covers 10, all looking at the same inbox, all on their own phones. No per-seat surprise on the bill.",
           },
           {
             icon: UserSquare,
@@ -209,12 +206,12 @@ export default function SharedInboxPage() {
           {
             icon: ClipboardList,
             title: "Statuses that clear a queue",
-            body: "New, Open, Waiting, Closed — filter to the work that still needs you and stop scrolling past what's done.",
+            body: "New, Open, Waiting, Closed, filter to the work that still needs you and stop scrolling past what's done.",
           },
           {
             icon: Lock,
             title: "Notes that stay internal",
-            body: "Amber, locked, and never sent — talk about the job inside the conversation without the customer ever seeing it.",
+            body: "Amber, locked, and never sent, talk about the job inside the conversation without the customer ever seeing it.",
           },
           {
             icon: Search,
@@ -224,19 +221,19 @@ export default function SharedInboxPage() {
           {
             icon: RefreshCw,
             title: "Realtime across the team",
-            body: "Replies, status changes, and new texts show up on every phone as they happen — no refresh, no double-reply.",
+            body: "Replies, status changes, and new texts show up on every phone as they happen, no refresh, no double-reply.",
           },
         ]}
       />
 
-      {/* Honest details — limits stated plainly (§4). */}
+      {/* Honest details, limits stated plainly (§4). */}
       <HonestDetails
         lead="A shared inbox is only trustworthy if you know exactly what it does and doesn't do. Here's the fine print, in plain words."
         items={[
           {
             term: "It's a texting inbox, not a phone system.",
             detail:
-              "JobText handles SMS and MMS to and from your business number. It doesn't place or receive voice calls, and it doesn't do mass text blasts — it's built for one-to-one conversations a crew can share.",
+              "JobText handles SMS and MMS to and from your business number. It doesn't place or receive voice calls, and it doesn't do mass text blasts, it's built for one-to-one conversations a crew can share.",
           },
           {
             term: "Receiving is free and unlimited; sending is what counts.",
@@ -246,12 +243,12 @@ export default function SharedInboxPage() {
           {
             term: "Seats are enforced, honestly.",
             detail:
-              "Starter is 3 people and Pro is 10 — real limits, enforced in the app, not a soft cap that quietly bills you for a fourth teammate. When you outgrow Starter, upgrading to Pro is one click and applies immediately.",
+              "Starter is 3 people and Pro is 10, real limits, enforced in the app, not a soft cap that quietly bills you for a fourth teammate. When you outgrow Starter, upgrading to Pro is one click and applies immediately.",
           },
           {
             term: "Assignment is a convention, not a lock.",
             detail:
-              "Assigning a conversation to one person signals ownership; it doesn't stop a teammate from stepping in when they're needed. Anyone on the crew can read and reply to any conversation — that's the point of a shared inbox.",
+              "Assigning a conversation to one person signals ownership; it doesn't stop a teammate from stepping in when they're needed. Anyone on the crew can read and reply to any conversation, that's the point of a shared inbox.",
           },
         ]}
       />
@@ -268,7 +265,7 @@ export default function SharedInboxPage() {
             </p>
             <p>
               For US shops there&apos;s a one-time $29 fee to register your
-              business with the phone companies — charged once, ever — so your
+              business with the phone companies, charged once, ever, so your
               first month is $58 and every month after is $29. Canadian
               businesses that don&apos;t text US numbers never pay it.
             </p>
@@ -276,10 +273,10 @@ export default function SharedInboxPage() {
         }
       />
 
-      {/* Internal links — trades + related features + a comparison. */}
+      {/* Internal links, trades + related features + a comparison. */}
       <RelatedLinks
         heading="See the shared inbox in your trade"
-        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades — and where JobText's flat, shared model stands next to the per-seat tools."
+        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades, and where JobText's flat, shared model stands next to the per-seat tools."
         links={[
           {
             label: "Texting for plumbers",
@@ -304,21 +301,21 @@ export default function SharedInboxPage() {
         ]}
       />
 
-      {/* Page-specific FAQ — unique to shared-inbox (§4 flagship rule). */}
+      {/* Page-specific FAQ, unique to shared-inbox (§4 flagship rule). */}
       <FeatureFaq
         heading="Shared inbox questions, straight answers."
         faqs={[
           {
             q: "How many people can share one inbox?",
-            a: "Three on Starter, ten on Pro — a flat price either way, never per seat. Everyone shares the same inbox and the same business number; they just open a link on their own phone. There are no extra charges as you add teammates up to your plan's limit.",
+            a: "Three on Starter, ten on Pro, a flat price either way, never per seat. Everyone shares the same inbox and the same business number; they just open a link on their own phone. There are no extra charges as you add teammates up to your plan's limit.",
           },
           {
             q: "Can two people reply to the same customer by accident?",
-            a: "It's designed against. Every conversation carries one assignee and a status, and the list updates in realtime — so if Dale is typing a reply, the rest of the crew sees the conversation move and knows it's handled. Anyone can still jump in when they need to; the point is that nobody has to guess.",
+            a: "It's designed against. Every conversation carries one assignee and a status, and the list updates in realtime, so if Dale is typing a reply, the rest of the crew sees the conversation move and knows it's handled. Anyone can still jump in when they need to; the point is that nobody has to guess.",
           },
           {
             q: "Do customers know it's a shared inbox and not one person's phone?",
-            a: "No — to the customer it's a normal text conversation with your business. Internal notes and assignments live inside JobText and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
+            a: "No, to the customer it's a normal text conversation with your business. Internal notes and assignments live inside JobText and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
           },
           {
             q: "What happens to conversations when a teammate leaves?",
@@ -330,7 +327,7 @@ export default function SharedInboxPage() {
           },
           {
             q: "Can I search old conversations?",
-            a: "Yes. Every message and every contact is searchable from the inbox — type a name, a number, or a phrase like 'water heater' and you get the conversations and contacts that match, with the matching text highlighted.",
+            a: "Yes. Every message and every contact is searchable from the inbox, type a name, a number, or a phrase like 'water heater' and you get the conversations and contacts that match, with the matching text highlighted.",
           },
         ]}
       />

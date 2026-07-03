@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * LazyBentoLiveSwitch (iteration 5) — defers the switchable live tile island
+ * LazyBentoLiveSwitch (iteration 5), defers the switchable live tile island
  * until it nears the viewport (REFERENCES craft #7; below the fold, so it must
- * not hydrate on load — perf gate §11.4). The `import()` lives here (RSC
+ * not hydrate on load, perf gate §11.4). The `import()` lives here (RSC
  * boundary); the server passes the serializable static fallback (the first panel
- * as completed DOM). NOT skipWhenReducedMotion — the tabs are FUNCTIONAL, not
+ * as completed DOM). NOT skipWhenReducedMotion, the tabs are FUNCTIONAL, not
  * decorative motion, so the switch stays drivable under reduced motion.
  */
 

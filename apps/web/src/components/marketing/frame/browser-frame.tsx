@@ -1,11 +1,11 @@
 /**
- * <BrowserFrame> — minimal stone browser chrome around arbitrary children
+ * <BrowserFrame>, minimal stone browser chrome around arbitrary children
  * (VISUALS §1B/§4.3, BLUEPRINT §1.3).
  *
  * The reusable desktop framing: a white card, 1px stone border, 10px radius (the
  * app's own card language), a three-dot traffic-light cluster where the leftmost
  * dot is PETROL (the brand accent, per VISUALS §1B), and a neutral URL slot
- * reading `jobtext.app/inbox` — quietly reinforcing "it's just the web, no
+ * reading `jobtext.app/inbox`, quietly reinforcing "it's just the web, no
  * download". Wraps screenshots AND live-DOM product renders alike.
  *
  * The soft ambient shadow is the marketing exception to the app's no-card-shadow
@@ -18,7 +18,7 @@
 
 import { cn } from "@/lib/utils";
 
-/** BLUEPRINT §1.3 ambient shadow — the one marketing exception, framed visuals only. */
+/** BLUEPRINT §1.3 ambient shadow, the one marketing exception, framed visuals only. */
 const AMBIENT_SHADOW = "shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]";
 
 export interface BrowserFrameProps {
@@ -48,7 +48,7 @@ export function BrowserFrame({
         className,
       )}
     >
-      {/* Chrome bar — three dots (leftmost petrol) + a neutral URL slot. */}
+      {/* Chrome bar, three dots (leftmost petrol) + a neutral URL slot. */}
       <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
         <div className="flex gap-1.5" aria-hidden>
           {/* Leftmost dot is the brand petrol (VISUALS §1B); the rest are stone. */}

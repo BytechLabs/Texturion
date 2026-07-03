@@ -4,17 +4,22 @@ import { businessIdentityLine } from "@/lib/marketing/business";
 
 import { Container } from "./ui/container";
 import { FOOTER_COLUMNS } from "./footer-links";
-import { ThemeToggle } from "./theme-toggle";
 import { Wordmark } from "./wordmark";
 
 /**
  * Marketing footer (BLUEPRINT §12, COPY §F, VISUALS §5b): a designed, branded
- * footer — not a raw sitemap. A brand block (wordmark mark + one-line statement +
+ * footer, not a raw sitemap. A brand block (wordmark mark + one-line statement +
  * a "Made in Canada 🇨🇦" badge), five tidy grouped columns with adequate spacing
  * (Product / For trades / Compare / Company / Legal), then an identity row with
  * the honest sign-off, the legal-identity line (honest "pending" placeholder
- * until ops supplies it), copyright, and the theme toggle. Every link resolves
- * this iteration (footer-links.ts). No phone, no chat widget (§12).
+ * until ops supplies it), and copyright. Every link resolves this iteration
+ * (footer-links.ts). No phone, no chat widget (§12).
+ *
+ * No theme toggle: the marketing surface is a LIGHT painted-panel identity
+ * (DESIGN-DIRECTION §3) with no dark mode, so a System/Light/Dark control here
+ * would set `<html>.dark` without changing the (force-light) marketing pages, a
+ * control that doesn't do what it says. Theme lives in the signed-in app's
+ * Profile settings (DESIGN G8), where it applies.
  */
 export function Footer() {
   const year = new Date().getFullYear();
@@ -27,7 +32,7 @@ export function Footer() {
           <div className="max-w-xs md:col-span-2 lg:col-span-1">
             <Wordmark />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              The shared text inbox for your crew — one local number, one inbox
+              The shared text inbox for your crew, one local number, one inbox
               everyone can see, one flat price.
             </p>
             <p className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-[13px] font-medium text-foreground/90">
@@ -36,7 +41,7 @@ export function Footer() {
               <span className="sr-only">(Canada)</span>
             </p>
             <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-              Your data is processed in the United States — we say where plainly
+              Your data is processed in the United States, we say where plainly
               on our{" "}
               <Link
                 href="/legal/privacy"
@@ -79,7 +84,6 @@ export function Footer() {
             <p>{businessIdentityLine()}</p>
             <p>© {year} JobText. All rights reserved.</p>
           </div>
-          <ThemeToggle />
         </div>
       </Container>
     </footer>

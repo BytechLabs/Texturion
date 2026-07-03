@@ -1,15 +1,15 @@
 /**
- * Tags + done-mark visual (features track) — /features/templates-and-tags.
+ * Tags + done-mark visual (features track), /features/templates-and-tags.
  *
  * Two live-DOM proofs in one card:
  *  1. The pre-seeded sell pipeline tags (Quote sent → Scheduled → Won / Lost,
  *     COPY §H6) rendered as the app's tag chips, editable to fit how you sell.
  *  2. The D14 "mark a text done" behavior: tap any message to check it off,
- *     right in the thread — rendered as a strikethrough message + a petrol
+ *     right in the thread, rendered as a strikethrough message + a petrol
  *     check, described accurately as a per-MESSAGE done-mark (NOT a job or a
  *     separate to-do app, per BLUEPRINT §4 templates-and-tags honesty rule).
  *
- * Server component — static DOM, matches the tag-chip + message tokens.
+ * Server component, static DOM, matches the tag-chip + message tokens.
  */
 
 import { Check } from "lucide-react";
@@ -47,7 +47,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
           ))}
         </div>
         <p className="mt-2 text-[12px] text-muted-foreground">
-          Scheduled is applied. The rest are one tap — rename them to match how
+          Scheduled is applied. The rest are one tap, rename them to match how
           you sell.
         </p>
       </div>
@@ -78,7 +78,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
           </p>
         </div>
         <p className="mt-2 text-[12px] text-muted-foreground">
-          Checked off right in the thread — the whole crew sees it&apos;s
+          Checked off right in the thread, the whole crew sees it&apos;s
           handled. No separate to-do app.
         </p>
       </div>

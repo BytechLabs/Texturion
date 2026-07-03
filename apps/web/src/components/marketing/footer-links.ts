@@ -15,7 +15,7 @@ import type { NavItem } from "./nav-links";
  *
  * The "SMS messaging policy" and "30-day guarantee" pages ship in later
  * iterations (BLUEPRINT §2 inventory), so they are intentionally NOT in the
- * footer yet — linking to a 404 would break the honesty guard. They return the
+ * footer yet, linking to a 404 would break the honesty guard. They return the
  * moment their pages land. ZERO dead links.
  */
 

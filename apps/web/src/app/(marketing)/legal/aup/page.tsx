@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Acceptable use policy",
   description:
-    "The rules for texting on JobText: consent required, no purchased or harvested lists, no SHAFT content, immediate opt-out. At least as strict as our carrier's — because those rules flow down to you.",
+    "The rules for texting on JobText: consent required, no purchased or harvested lists, no SHAFT content, immediate opt-out. At least as strict as our carrier's, because those rules flow down to you.",
   path: PATH,
 });
 
@@ -34,7 +34,7 @@ export default function AupPage() {
   return (
     <LegalPage
       title="Acceptable use policy"
-      intro="JobText anti-sells blast marketing on purpose. These rules keep message delivery healthy for every business on the network — and they are at least as strict as the carrier obligations that flow down to us."
+      intro="JobText anti-sells blast marketing on purpose. These rules keep message delivery healthy for every business on the network, and they are at least as strict as the carrier obligations that flow down to us."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Acceptable use"
       path={PATH}
@@ -52,7 +52,7 @@ export default function AupPage() {
 
       <LegalSectionBlock id="consent" heading="2. Consent is required">
         <p>
-          Only text people who have agreed to hear from you — because they texted
+          Only text people who have agreed to hear from you, because they texted
           you first, or asked you in person or by phone to text them. Consent
           cannot be bought, sold, rented, or transferred from one business to
           another. If you didn&apos;t get the consent yourself, you don&apos;t
@@ -75,8 +75,8 @@ export default function AupPage() {
       >
         <p>
           You may not use JobText to send content related to{" "}
-          <strong>SHAFT</strong> — sex, hate, alcohol, firearms, or tobacco
-          (including cannabis and vaping) — or any of the following:
+          <strong>SHAFT</strong>, sex, hate, alcohol, firearms, or tobacco
+          (including cannabis and vaping), or any of the following:
         </p>
         <ul className="list-disc space-y-2 pl-6">
           <li>High-risk financial offers, payday or short-term loans, debt relief</li>
@@ -98,7 +98,7 @@ export default function AupPage() {
           Every recipient can opt out at any time by replying STOP (or a similar
           keyword). JobText records the opt-out and blocks any further sends to
           that number until the person opts back in. You may not try to evade
-          opt-outs — no texting from a second number, no &quot;are you sure&quot;
+          opt-outs, no texting from a second number, no &quot;are you sure&quot;
           follow-ups, no re-adding an opted-out contact.
         </p>
       </LegalSectionBlock>
@@ -126,7 +126,7 @@ export default function AupPage() {
       <LegalSectionBlock id="enforcement" heading="8. Enforcement">
         <p>
           We may investigate suspected violations and may suspend or terminate an
-          account — with or without notice, depending on the severity — to protect
+          account, with or without notice, depending on the severity, to protect
           recipients, the network, and our carrier standing. Serious or repeated
           violations end in termination without a refund of usage already
           incurred.
@@ -135,7 +135,7 @@ export default function AupPage() {
 
       <LegalSectionBlock id="contact" heading="9. Contact">
         <p>
-          Not sure whether something is allowed? Ask first —{" "}
+          Not sure whether something is allowed? Ask first ,{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.
           To report abuse of a JobText number, email the same address.
         </p>

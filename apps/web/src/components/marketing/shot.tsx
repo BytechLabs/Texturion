@@ -1,11 +1,11 @@
 /**
- * <FramedShot> — a real product screenshot (shots/manifest.ts) rendered inside a
+ * <FramedShot>, a real product screenshot (shots/manifest.ts) rendered inside a
  * device frame, theme-correct, zero-CLS, AVIF-first (VISUALS §1A/§5, §4.3).
  *
  * The bridge between the captured-shot manifest and the frame primitives: it
  * takes a surface id (e.g. "inbox-list"), resolves the light+dark pair from the
- * manifest, and renders BOTH — the light shot visible in light mode, the dark
- * shot visible under the `.dark` class — with no JS, no hydration flash (pure
+ * manifest, and renders BOTH, the light shot visible in light mode, the dark
+ * shot visible under the `.dark` class, with no JS, no hydration flash (pure
  * CSS `dark:` visibility). Each theme layer is a `<picture>` offering the AVIF
  * with a WebP fallback.
  *
@@ -14,7 +14,7 @@
  * for below-the-fold shots (the default; pass `priority` for an above-fold one),
  * and the tiny blurred `placeholder` data-URI sits behind as a blur-up so there
  * is no pop-in. `images.unoptimized` is on (Cloudflare), so a plain `<img>` is
- * correct — we sized the files ourselves at capture time.
+ * correct, we sized the files ourselves at capture time.
  *
  * Server component. Wrap in <GlowFrame> at the call site for the hero/feature
  * depth moment; most inline shots sit flat and calm (VISUALS §1A).
@@ -71,7 +71,7 @@ export interface FramedShotProps {
   url?: string;
   /** Drop the ambient shadow for a flat, calm inline shot. */
   flat?: boolean;
-  /** Above-the-fold? Eager-load instead of lazy (rare — most shots are below). */
+  /** Above-the-fold? Eager-load instead of lazy (rare, most shots are below). */
   priority?: boolean;
   /** A web-push banner over a phone shot (the dark-band PWA moment, §3.8). */
   pushBanner?: { title: string; body: string };
@@ -95,7 +95,7 @@ export function FramedShot({
   const light = pair.light;
   const dark = pair.dark;
 
-  // Nothing to render if the manifest has no such shot — fail loud in dev,
+  // Nothing to render if the manifest has no such shot, fail loud in dev,
   // render nothing in prod (callers must guard with a live-DOM fallback per the
   // task; every id used on the home page is verified present).
   if (!light && !dark) {
@@ -108,7 +108,7 @@ export function FramedShot({
   const device = frame ?? light?.frame ?? dark?.frame ?? "browser";
 
   // Render both theme layers; CSS `dark:` visibility swaps them with no JS. If
-  // only one theme was captured, it shows in both (still honest — same screen).
+  // only one theme was captured, it shows in both (still honest, same screen).
   const inner = (
     <>
       {light && (

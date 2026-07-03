@@ -1,7 +1,7 @@
 /**
- * Number-cards visual (features track) — the /features/business-number multi-
+ * Number-cards visual (features track), the /features/business-number multi-
  * number story rendered as live DOM. Pro includes two separate local numbers
- * (SPEC §2: Pro = 2 phone numbers), each with its own inbox thread — two
+ * (SPEC §2: Pro = 2 phone numbers), each with its own inbox thread, two
  * locations, or an office line and a field line (COPY §H6 callout). This draws
  * both number cards the way the app's /settings/numbers surface does (G8): the
  * E.164-formatted number, an area-code/city hint, an "active" state, and a
@@ -25,13 +25,13 @@ const CARDS: NumberCard[] = [
   {
     label: "Office line",
     number: "(416) 555-0119",
-    hint: "(416) — Toronto",
+    hint: "(416). Toronto",
     unread: 3,
   },
   {
     label: "Field line",
     number: "(647) 555-0188",
-    hint: "(647) — Toronto",
+    hint: "(647). Toronto",
     unread: 1,
   },
 ];

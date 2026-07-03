@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Crew-size slider (Track B) — §3.9 / COPY §H9. THE converting interaction
+ * Crew-size slider (Track B), §3.9 / COPY §H9. THE converting interaction
  * (BLUEPRINT §0 weapon #1, panel resolution: this replaces the missed-text
  * calculator as the home page's flagship interactive).
  *
@@ -11,9 +11,9 @@
  * (docs/marketing/competitor-site-teardowns.md line 129–130); Quo also bills
  * texting separately ($0.01/segment) and charges $5/mo per extra number, so the
  * comparison is conservative in JobText's favor. Links /compare/quo for the
- * sourced math (§13.7 — no bare unverified competitor number).
+ * sourced math (§13.7, no bare unverified competitor number).
  *
- * JobText plan follows SPEC §2: ≤3 people = Starter $29, 4–10 = Pro $79 — both
+ * JobText plan follows SPEC §2: ≤3 people = Starter $29, 4–10 = Pro $79, both
  * flat, whatever the crew size. Keyboard-accessible, tabular numerals, aria-live.
  */
 
@@ -75,7 +75,7 @@ export function CrewSizeSlider() {
       </div>
 
       <div className="mt-6 space-y-4" aria-live="polite">
-        {/* JobText — flat line */}
+        {/* JobText, flat line */}
         <div>
           <div className="flex items-baseline justify-between text-[14px]">
             <span className="font-medium text-foreground">
@@ -85,7 +85,7 @@ export function CrewSizeSlider() {
               <span className="font-semibold text-primary">
                 {usd(jobtext.price)}
               </span>
-              <span className="text-muted-foreground">/mo — flat</span>
+              <span className="text-muted-foreground">/mo, flat</span>
             </span>
           </div>
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-secondary">
@@ -96,7 +96,7 @@ export function CrewSizeSlider() {
           </div>
         </div>
 
-        {/* Per-user — climbing line */}
+        {/* Per-user, climbing line */}
         <div>
           <div className="flex items-baseline justify-between text-[14px]">
             <span className="font-medium text-foreground">
@@ -107,7 +107,7 @@ export function CrewSizeSlider() {
                 {usd(perUser)}
               </span>
               <span className="text-muted-foreground">
-                /mo{seats > 1 ? " — and climbing" : ""}
+                /mo{seats > 1 ? ", and climbing" : ""}
               </span>
             </span>
           </div>
@@ -126,7 +126,7 @@ export function CrewSizeSlider() {
           <span className="font-semibold tabular-nums text-primary">
             {usd(savings)} less a month
           </span>{" "}
-          with JobText — {usd(jobtext.price)} flat instead of {seats} ×{" "}
+          with JobText, {usd(jobtext.price)} flat instead of {seats} ×{" "}
           {usd(PER_USER_MONTHLY)}.
         </p>
       )}
@@ -141,7 +141,7 @@ export function CrewSizeSlider() {
 
       <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
         Per-user figure is a leading tool&apos;s published monthly seat price
-        (${PER_USER_MONTHLY}/user/mo) as of July 2026 — and that tool bills
+        (${PER_USER_MONTHLY}/user/mo) as of July 2026, and that tool bills
         texting separately, so real totals run higher.{" "}
         {/* The dated per-user figure is sourced in full on the Quo comparison. */}
         <a

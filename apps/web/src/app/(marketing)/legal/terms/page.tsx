@@ -35,7 +35,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of service"
-      intro="These terms cover your use of JobText, the shared text inbox for service crews. We keep them short and plain — the way we keep everything about JobText."
+      intro="These terms cover your use of JobText, the shared text inbox for service crews. We keep them short and plain, the way we keep everything about JobText."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Terms of service"
       path={PATH}
@@ -57,7 +57,7 @@ export default function TermsPage() {
           text their own customers. You must be able to enter into a contract,
           run a real business, and give accurate business information when you
           register your number with the phone companies. You must have the
-          consent of the people you text — see our{" "}
+          consent of the people you text, see our{" "}
           <LegalLink href="/legal/aup">acceptable use policy</LegalLink>.
         </p>
       </LegalSectionBlock>
@@ -65,7 +65,7 @@ export default function TermsPage() {
       <LegalSectionBlock id="subscription" heading="3. Subscription & billing">
         <p>
           JobText is a paid, month-to-month subscription. There is no annual
-          contract and nothing auto-converts from a trial — there is no trial
+          contract and nothing auto-converts from a trial, there is no trial
           that provisions a number. You pick Starter ($29/mo) or Pro ($79/mo),
           pay through Stripe, and your number is created only after your payment
           succeeds.
@@ -73,7 +73,7 @@ export default function TermsPage() {
         <p>
           US businesses (and Canadian businesses that turn on US texting) also
           pay a one-time $29 fee to register with the phone companies. It is
-          charged once, ever — cancel and come back later and you won&apos;t pay
+          charged once, ever, cancel and come back later and you won&apos;t pay
           it again.
         </p>
         <p>
@@ -96,7 +96,7 @@ export default function TermsPage() {
         </p>
         <p>
           You can bring your existing US or Canadian number to JobText instead
-          of getting a new one — the transfer is free. Your number keeps working
+          of getting a new one, the transfer is free. Your number keeps working
           on your current carrier the whole time and switches to JobText on the
           transfer date, which typically takes about 1–7 business days. Texting
           through JobText turns on once the transfer completes. We show you where
@@ -118,7 +118,7 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="cancellation" heading="6. Cancellation & number hold">
         <p>
-          You can cancel anytime from your billing settings — no phone call, no
+          You can cancel anytime from your billing settings, no phone call, no
           retention chat. Cancellation stops the next renewal; you keep access
           through the period you&apos;ve already paid for. We do not add
           cancellation friction and there are no early-termination fees.
@@ -133,7 +133,7 @@ export default function TermsPage() {
       <LegalSectionBlock id="guarantee" heading="7. 30-day money-back guarantee">
         <p>
           If JobText isn&apos;t right for your crew, email us within 30 days of
-          signing up and we&apos;ll refund your first invoice in full — the
+          signing up and we&apos;ll refund your first invoice in full, the
           subscription and the one-time registration fee included. No
           &quot;minus credits used,&quot; no forms, no retention call.
         </p>
@@ -142,7 +142,7 @@ export default function TermsPage() {
       <LegalSectionBlock id="availability" heading="8. Availability & changes">
         <p>
           We work to keep JobText available, but we don&apos;t guarantee
-          uninterrupted service — text delivery depends on the phone companies
+          uninterrupted service, text delivery depends on the phone companies
           and carriers, which we don&apos;t control. Current service status is
           on our <LegalLink href="/status">status page</LegalLink>. We may
           update the product and these terms; when we make a material change to

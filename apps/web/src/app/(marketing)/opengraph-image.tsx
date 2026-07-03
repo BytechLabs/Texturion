@@ -6,18 +6,18 @@ import { ImageResponse } from "next/og";
  * wordmark bottom-left, and one truth chip ("$29/mo flat") bottom-right.
  *
  * Built with next/og's ImageResponse (Satori: inline flexbox only). We do NOT
- * set `runtime = 'edge'` — OpenNext forbids the Edge runtime (SPEC §3), so this
+ * set `runtime = 'edge'`. OpenNext forbids the Edge runtime (SPEC §3), so this
  * renders on the Node runtime. It uses Satori's built-in font (the self-hosted
  * Inter is only shipped as woff2, which Satori can't parse); the layout, petrol
  * accent, and mark carry the brand.
  *
  * Individual pages may add their own opengraph-image to override this default.
  */
-export const alt = "JobText — the shared text inbox for your crew";
+export const alt = "JobText, the shared text inbox for your crew";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Brand colors (hex — Satori doesn't evaluate CSS variables or oklch).
+// Brand colors (hex. Satori doesn't evaluate CSS variables or oklch).
 const STONE_50 = "#FAFAF9";
 const STONE_900 = "#1C1917";
 const PETROL = "#0F766E";

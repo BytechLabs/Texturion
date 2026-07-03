@@ -1,21 +1,21 @@
 /**
- * /compare/podium — JobText vs Podium (BLUEPRINT §5–6).
+ * /compare/podium. JobText vs Podium (BLUEPRINT §5–6).
  *
  * The honest anti-Podium page: transparent self-serve pricing vs demo-only
  * sales gate, month-to-month vs annual lock-in, a focused SMS inbox vs an
  * all-in-one AI/reviews/payments platform. Podium is a real, capable platform
- * for a different buyer — we concede that outright (§6), which is the
+ * for a different buyer, we concede that outright (§6), which is the
  * conversion device.
  *
  * Every Podium claim is dated "as of July 2026" and traces to
  * docs/marketing/competitor-site-teardowns.md (§6) or a live fetch of
  * podium.com/pricing (re-verified 2026-07-02). Podium publishes NO prices, so
  * the only dollar figure used (~$399/mo Core) is stamped "reported by
- * third-party reviewers, not published by Podium" — never presented as a
+ * third-party reviewers, not published by Podium", never presented as a
  * Podium-published fact. No fabricated head-to-head stats, no aggregateRating.
  *
- * JSON-LD: buildMetadata + BreadcrumbList only (no SoftwareApplication here —
- * that lives on home + pricing per §11.2; no FAQPage — dead rich result).
+ * JSON-LD: buildMetadata + BreadcrumbList only (no SoftwareApplication here,
+ * that lives on home + pricing per §11.2; no FAQPage, dead rich result).
  * Fully static (§11.4). Zero sentences shared with the Heymarket/Quo pages (§6).
  */
 
@@ -23,6 +23,7 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Section } from "@/components/marketing/ui/section";
+import { Display } from "@/components/marketing/display";
 import {
   Advantages,
   AtAGlanceChart,
@@ -53,7 +54,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 /* -------------------------------------------------------------------------- */
-/* Comparison table — every cell dated + sourced (§6, §13.7).                  */
+/* Comparison table, every cell dated + sourced (§6, §13.7).                  */
 /* -------------------------------------------------------------------------- */
 
 const ROWS: ComparisonRow[] = [
@@ -78,7 +79,7 @@ const ROWS: ComparisonRow[] = [
     },
     competitor: {
       value: "None published",
-      note: 'Pricing page shows no dollar amounts. Third-party reviewers report Core starts ~$399/mo — not published by Podium.',
+      note: 'Pricing page shows no dollar amounts. Third-party reviewers report Core starts ~$399/mo, not published by Podium.',
     },
   },
   {
@@ -97,7 +98,7 @@ const ROWS: ComparisonRow[] = [
     label: "What it is",
     jobtext: {
       value: "A shared SMS inbox, and that's it",
-      note: "Reply, assign, tag, note, search, close — from any phone.",
+      note: "Reply, assign, tag, note, search, close, from any phone.",
     },
     competitor: {
       value: 'All-in-one "AI Employee" platform',
@@ -107,7 +108,7 @@ const ROWS: ComparisonRow[] = [
   {
     label: "Team pricing",
     jobtext: {
-      value: "Flat — 3 people on $29, 10 on $79",
+      value: "Flat, 3 people on $29, 10 on $79",
       emphasis: true,
       note: "No per-seat charge (SPEC §2).",
     },
@@ -130,7 +131,7 @@ const ROWS: ComparisonRow[] = [
   {
     label: "Voice, reviews, payments",
     jobtext: {
-      value: "Not included — texting only",
+      value: "Not included, texting only",
       note: "We're a shared text inbox. No calls, no review management, no payments.",
     },
     competitor: {
@@ -142,7 +143,7 @@ const ROWS: ComparisonRow[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* "What you'll actually pay" — first-year, honest and dated.                  */
+/* "What you'll actually pay", first-year, honest and dated.                  */
 /* -------------------------------------------------------------------------- */
 
 function PodiumCostStack() {
@@ -150,7 +151,7 @@ function PodiumCostStack() {
     {
       label: "First month, out the door",
       jobtext: "$58 ($29 plan + one-time $29 US registration)",
-      podium: "Not published — quote required",
+      podium: "Not published, quote required",
     },
     {
       label: "Every month after",
@@ -169,32 +170,32 @@ function PodiumCostStack() {
     },
   ];
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border">
+    <div className="overflow-x-auto rounded-2xl border border-[color:var(--hairline)]">
       <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
         <thead>
-          <tr className="border-b border-border">
-            <th className="p-4 text-[13px] font-medium text-muted-foreground" />
-            <th className="border-l border-border bg-primary/5 p-4 font-semibold text-primary">
+          <tr className="border-b border-[color:var(--hairline)]">
+            <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
+            <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
               JobText
             </th>
-            <th className="border-l border-border p-4 font-semibold text-foreground">
+            <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
               Podium
             </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.label} className="border-b border-border last:border-b-0">
+            <tr key={r.label} className="border-b border-[color:var(--hairline)] last:border-b-0">
               <th
                 scope="row"
-                className="p-4 text-left align-top text-[13px] font-medium text-muted-foreground"
+                className="p-4 text-left align-top text-[13px] font-medium text-[color:var(--graphite)]"
               >
                 {r.label}
               </th>
-              <td className="border-l border-border bg-primary/5 p-4 align-top font-medium tabular-nums text-foreground">
+              <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-medium tabular-nums text-[color:var(--ink)]">
                 {r.jobtext}
               </td>
-              <td className="border-l border-border p-4 align-top tabular-nums text-muted-foreground">
+              <td className="border-l border-[color:var(--hairline)] p-4 align-top tabular-nums text-[color:var(--ink-70)]">
                 {r.podium}
               </td>
             </tr>
@@ -210,27 +211,27 @@ function PodiumCostStack() {
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
     q: "Why can't I find Podium's price to compare it here?",
-    a: "Because Podium doesn't publish one. Its pricing page routes you to a sales call, so the only Podium dollar figure on this page — around $399 a month to start — comes from third-party reviewers, not from Podium, and we label it that way every time. JobText's price is $29 a month, printed on our pricing page, no call required.",
+    a: "Because Podium doesn't publish one. Its pricing page routes you to a sales call, so the only Podium dollar figure on this page, around $399 a month to start, comes from third-party reviewers, not from Podium, and we label it that way every time. JobText's price is $29 a month, printed on our pricing page, no call required.",
   },
   {
     q: "I use Podium for reviews and payments. Can JobText replace all of that?",
-    a: "No, and we won't pretend it can. Podium manages reviews, runs webchat, and takes payments; JobText does one thing — a shared text inbox your crew answers from any phone. If reviews and payments are load-bearing for you, keep Podium. If the part you actually live in is the texting, that's the part we do for a flat $29.",
+    a: "No, and we won't pretend it can. Podium manages reviews, runs webchat, and takes payments; JobText does one thing, a shared text inbox your crew answers from any phone. If reviews and payments are load-bearing for you, keep Podium. If the part you actually live in is the texting, that's the part we do for a flat $29.",
   },
   {
     q: "Am I locked into a contract if I switch?",
-    a: "Not with us. JobText is month to month — cancel in your billing settings any month, no phone call, no retention gauntlet. Reviewers report Podium runs on annual terms with notice required before renewal, so check your renewal date before you move.",
+    a: "Not with us. JobText is month to month, cancel in your billing settings any month, no phone call, no retention gauntlet. Reviewers report Podium runs on annual terms with notice required before renewal, so check your renewal date before you move.",
   },
   {
     q: "Can I keep my current business number?",
-    a: "Yes — transfer it to JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers cover US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date — texting on it turns on once the transfer completes. Need to text before it lands? Get a new local number now and transfer your old one alongside it.",
+    a: "Yes, transfer it to JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers cover US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date, texting on it turns on once the transfer completes. Need to text before it lands? Get a new local number now and transfer your old one alongside it.",
   },
   {
     q: "How long until I can text US customers?",
-    a: "About a week. US carriers require every business that texts to register first — that's an industry rule, not a Podium-or-JobText rule. We file yours the minute you pay, it usually clears in 3–7 business days, and receiving texts works immediately. In Canada you can text customers the same day.",
+    a: "About a week. US carriers require every business that texts to register first, that's an industry rule, not a Podium-or-JobText rule. We file yours the minute you pay, it usually clears in 3–7 business days, and receiving texts works immediately. In Canada you can text customers the same day.",
   },
   {
     q: "What if JobText turns out to be too simple for us?",
-    a: "Then it wasn't the right fit, and you get your money back — full refund of your first invoice, registration fee included, within 30 days, no forms. We'd rather you leave square than stay unhappy. If you find you need calling and reviews in one platform, Podium is a reasonable place to land.",
+    a: "Then it wasn't the right fit, and you get your money back, full refund of your first invoice, registration fee included, within 30 days, no forms. We'd rather you leave square than stay unhappy. If you find you need calling and reviews in one platform, Podium is a reasonable place to land.",
   },
 ];
 
@@ -247,25 +248,30 @@ export default function ComparePodiumPage() {
 
       <CompareHero
         eyebrow="JobText vs Podium"
-        title="JobText vs Podium: the price is on the page."
-        lead="Podium is a capable all-in-one platform for local businesses — AI answering, reviews, payments, webchat. But you can't see what it costs without a sales call, it's sold on an annual term, and reported entry pricing starts around $399 a month. JobText is the opposite bet: a shared text inbox, $29 a month flat, month to month, buy it yourself in minutes. Here's the honest side-by-side, dated July 2026."
+        title={
+          <>
+            The price is right on the page, no{" "}
+            <Display.Mark>sales call</Display.Mark>.
+          </>
+        }
+        lead="Podium is a capable all-in-one platform for local businesses. AI answering, reviews, payments, webchat. But you can't see what it costs without a sales call, it's sold on an annual term, and reported entry pricing starts around $399 a month. JobText is the opposite bet: a shared text inbox, $29 a month flat, month to month, buy it yourself in minutes. Here's the honest side-by-side, dated July 2026."
         visual={
           <CompareHeroPhoto
             photoId="owner-apron-phone"
-            caption="See the price, pay it yourself, and text customers back today — no demo, no annual term, no sales call in the way."
+            caption="See the price, pay it yourself, and text customers back today, no demo, no annual term, no sales call in the way."
           />
         }
       />
 
-      {/* Comparison table — the sourced, dated grid. */}
+      {/* Comparison table, the sourced, dated grid. */}
       <Section>
         <div className="mx-auto max-w-4xl">
-          <h2 className="display-h2 text-foreground">
+          <Display as="h2" size="h2">
             Side by side, with every source shown.
-          </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          </Display>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
             JobText facts come from our own product and pricing page. Podium
-            facts are dated July 2026 — from its public pricing page where a
+            facts are dated July 2026, from its public pricing page where a
             number exists, and clearly marked as third-party-reported where
             Podium publishes nothing.
           </p>
@@ -275,13 +281,13 @@ export default function ComparePodiumPage() {
         </div>
       </Section>
 
-      {/* At-a-glance visual — flat vs per-seat (VISUALS §3 compare-page rule). */}
+      {/* At-a-glance visual, flat vs per-seat (VISUALS §3 compare-page rule). */}
       <AtAGlanceChart
         heading="Flat, whatever your crew size."
-        lead="Podium doesn't publish a seat price, but the pattern is the one to watch with any per-user tool: the bill climbs as you hire. JobText stays flat — $29 up to three people, $79 up to ten. Here's that flat line against a typical per-user tool as a crew grows."
+        lead="Podium doesn't publish a seat price, but the pattern is the one to watch with any per-user tool: the bill climbs as you hire. JobText stays flat, $29 up to three people, $79 up to ten. Here's that flat line against a typical per-user tool as a crew grows."
       />
 
-      {/* Who each is for — the honest concession. */}
+      {/* Who each is for, the honest concession. */}
       <WhoEachIsFor
         heading="Who each one is really for."
         jobtextTitle="Reach for JobText if…"
@@ -293,7 +299,7 @@ export default function ComparePodiumPage() {
               and nothing falls through the cracks on one person&apos;s phone.
             </p>
             <p>
-              You want to see the price, pay it, and start today — without a
+              You want to see the price, pay it, and start today, without a
               demo, a quote, or a year-long commitment. A flat $29 covers the
               whole crew.
             </p>
@@ -304,7 +310,7 @@ export default function ComparePodiumPage() {
           <>
             <p>
               You want reviews, webchat, and payments living in the same place as
-              your messaging, and an AI that answers calls after hours — and
+              your messaging, and an AI that answers calls after hours, and
               you&apos;re comfortable running that through a sales relationship.
             </p>
             <p>
@@ -315,18 +321,18 @@ export default function ComparePodiumPage() {
         }
       />
 
-      {/* Where Podium may be the better pick — explicit concession. */}
+      {/* Where Podium may be the better pick, explicit concession. */}
       <BetterPickCallout
         heading="Where Podium may be the better pick."
         intro="We'd rather point you to the right tool than win you and disappoint you. Podium genuinely beats JobText in real ways, and if these are what you need, buy Podium:"
         points={[
           {
             title: "Reviews, payments, and webchat in one platform.",
-            body: "JobText doesn't manage Google reviews, run a website chat widget, or take card payments. Podium does all three as core features. If you want one login for messaging, reviews, and getting paid, that's Podium's whole pitch — not ours.",
+            body: "JobText doesn't manage Google reviews, run a website chat widget, or take card payments. Podium does all three as core features. If you want one login for messaging, reviews, and getting paid, that's Podium's whole pitch, not ours.",
           },
           {
             title: "An AI that answers calls, not just texts.",
-            body: "Podium's AI can pick up the phone and route calls after hours. JobText is texting only — it can't answer your phone. If missed calls are your bigger leak, Podium's calling features are built for exactly that.",
+            body: "Podium's AI can pick up the phone and route calls after hours. JobText is texting only, it can't answer your phone. If missed calls are your bigger leak, Podium's calling features are built for exactly that.",
           },
           {
             title: "Deep field-service tooling.",
@@ -336,7 +342,7 @@ export default function ComparePodiumPage() {
         recommendation={
           <>
             Put plainly: if you want calling, review management, and payments in
-            one platform, buy Podium — it does more than we do, and it does those
+            one platform, buy Podium, it does more than we do, and it does those
             things well. If the piece you live in every day is the texting, and
             you&apos;d rather see the price and pay it yourself, that&apos;s the
             trade JobText is built to win.
@@ -344,10 +350,10 @@ export default function ComparePodiumPage() {
         }
       />
 
-      {/* JobText advantages — factual. */}
+      {/* JobText advantages, factual. */}
       <Advantages
         heading="Where JobText wins for a small crew."
-        lead="These aren't slogans — they're the concrete differences a two-to-ten-person shop feels in the first week."
+        lead="These aren't slogans, they're the concrete differences a two-to-ten-person shop feels in the first week."
         items={[
           {
             title: "The price is on the page.",
@@ -363,7 +369,7 @@ export default function ComparePodiumPage() {
           },
           {
             title: "Live in minutes, not after onboarding.",
-            body: "Pick a number, invite the crew, start texting. There's no implementation call — the product is simple enough that there's nothing to implement.",
+            body: "Pick a number, invite the crew, start texting. There's no implementation call, the product is simple enough that there's nothing to implement.",
           },
           {
             title: "Honest about the wait.",
@@ -371,15 +377,15 @@ export default function ComparePodiumPage() {
           },
           {
             title: "A refund if it's not for you.",
-            body: "Full refund of your first invoice — registration fee included — within 30 days, no forms, no retention call. We'd rather have your trust than your $29.",
+            body: "Full refund of your first invoice, registration fee included, within 30 days, no forms, no retention call. We'd rather have your trust than your $29.",
           },
         ]}
       />
 
-      {/* What you'll actually pay — dated, sourced. */}
+      {/* What you'll actually pay, dated, sourced. */}
       <PayMathBlock
         heading="What you'll actually pay."
-        lead="A same-shape comparison is impossible here, because Podium doesn't publish a price — so this is JobText's real, printed cost next to the best public information about Podium's, dated July 2026."
+        lead="A same-shape comparison is impossible here, because Podium doesn't publish a price, so this is JobText's real, printed cost next to the best public information about Podium's, dated July 2026."
         footnote={
           <>
             JobText figures are from our pricing page (SPEC §1–2). Podium
@@ -393,28 +399,28 @@ export default function ComparePodiumPage() {
         <PodiumCostStack />
       </PayMathBlock>
 
-      {/* Switching is easy — honest bring-your-number. */}
+      {/* Switching is easy, honest bring-your-number. */}
       <SwitchingNote
         heading="Switching from Podium is low-drama."
         body={
           <>
             <p>
               You don&apos;t have to rip anything out on day one. Sign up for
-              JobText, pick your local number, and invite the crew — that part
+              JobText, pick your local number, and invite the crew, that part
               takes minutes. Keep Podium running while you move your texting over,
               and cancel it when you&apos;re ready (mind its renewal date, since
               reviewers report an annual term).
             </p>
             <p>
-              <strong className="font-semibold text-foreground">
+              <strong className="font-semibold text-[color:var(--ink)]">
                 About your number:
               </strong>{" "}
               you can transfer your existing US or Canadian number into JobText
-              for free — choose &ldquo;Bring my number&rdquo; at signup, share
+              for free, choose &ldquo;Bring my number&rdquo; at signup, share
               your current carrier details, and upload a recent bill; we handle
               the paperwork. A transfer typically takes about 1 to 7 business
               days, and your number keeps working on your current carrier the
-              whole time — it switches to JobText on the transfer date, and
+              whole time, it switches to JobText on the transfer date, and
               texting on it turns on once the transfer completes. Prefer to start
               texting today? Get a new local number now and transfer your old one
               alongside it.
@@ -423,21 +429,21 @@ export default function ComparePodiumPage() {
         }
       />
 
-      {/* Internal links — feature + trade pages (SEO: compare pages were flagged
+      {/* Internal links, feature + trade pages (SEO: compare pages were flagged
           for thin internal linking). */}
       <CompareRelatedLinks
         heading="Not sure Podium's breadth is what you need?"
-        intro="If the part you actually live in is the texting, here's what JobText does with it — and a couple of trades where a shared inbox earns its keep."
+        intro="If the part you actually live in is the texting, here's what JobText does with it, and a couple of trades where a shared inbox earns its keep."
         links={[
           {
             label: "The shared inbox",
             href: "/features/shared-inbox",
-            hint: "Assign, status, note, tag, search, and mark texts done — one inbox the whole crew sees.",
+            hint: "Assign, status, note, tag, search, and mark texts done, one inbox the whole crew sees.",
           },
           {
             label: "Compliance built in",
             href: "/features/compliance",
-            hint: "Registration, opt-outs, and consent handled — without a sales call or annual contract.",
+            hint: "Registration, opt-outs, and consent handled, without a sales call or annual contract.",
           },
           {
             label: "Texting for plumbers",

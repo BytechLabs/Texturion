@@ -1,13 +1,13 @@
 /**
- * Thread-demo primitives (Track B) — a marketing-owned reimplementation of the
+ * Thread-demo primitives (Track B), a marketing-owned reimplementation of the
  * app's thread visual language (DESIGN.md G5) with zero app runtime.
  *
  * The app's real MessageBubble / SystemLine / StatusPill depend on TanStack
  * Query, member hooks, and signed-URL fetches; they cannot render on a static
- * marketing route. These primitives reproduce the exact tokens — inbound white
+ * marketing route. These primitives reproduce the exact tokens, inbound white
  * card + stone border, outbound teal-50/teal-900, amber dashed internal note
  * with a lock, centered 12px system lines, delivery states with Check /
- * CheckCheck — so the two visual sets are identical (BLUEPRINT §1.3), while
+ * CheckCheck, so the two visual sets are identical (BLUEPRINT §1.3), while
  * staying self-contained enough to hydrate as a sub-15KB island.
  */
 
@@ -23,7 +23,7 @@ import type {
   OutboundBeat,
 } from "./script";
 
-/** Initials from a display name — same rule as the app's member-avatar. */
+/** Initials from a display name, same rule as the app's member-avatar. */
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";
@@ -31,7 +31,7 @@ export function initials(name: string): string {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
-/** Assignee/sender avatar — petrol-tinted circle with initials (G4). */
+/** Assignee/sender avatar, petrol-tinted circle with initials (G4). */
 export function DemoAvatar({
   name,
   className,
@@ -52,7 +52,7 @@ export function DemoAvatar({
   );
 }
 
-/** Status pill — the G4 tints, matched to components/inbox/status-pill.tsx. */
+/** Status pill, the G4 tints, matched to components/inbox/status-pill.tsx. */
 const PILL_STYLES = {
   new: "bg-primary/10 text-teal-800 dark:bg-primary/15 dark:text-primary",
   open: "bg-info/10 text-sky-700 dark:bg-info/15 dark:text-info",
@@ -87,7 +87,7 @@ export function DemoStatusPill({
   );
 }
 
-/** A neutral MMS thumbnail placeholder — no raster, drawn in DOM (BLUEPRINT §1.3). */
+/** A neutral MMS thumbnail placeholder, no raster, drawn in DOM (BLUEPRINT §1.3). */
 function PhotoThumb({ label, outbound }: { label: string; outbound?: boolean }) {
   return (
     <div
@@ -128,7 +128,7 @@ function DeliveryLine({ time, state }: { time: string; state: DeliveryState }) {
   );
 }
 
-/** Inbound customer bubble — white card, 1px stone border, left. */
+/** Inbound customer bubble, white card, 1px stone border, left. */
 export function InboundBubble({ beat }: { beat: InboundBeat }) {
   return (
     <div className="flex w-full flex-col items-start gap-1">
@@ -141,7 +141,7 @@ export function InboundBubble({ beat }: { beat: InboundBeat }) {
   );
 }
 
-/** Outbound business bubble — teal-50/teal-900, right, with a delivery state. */
+/** Outbound business bubble, teal-50/teal-900, right, with a delivery state. */
 export function OutboundBubble({
   beat,
   state,
@@ -161,7 +161,7 @@ export function OutboundBubble({
   );
 }
 
-/** Internal note — amber-50 dashed card, lock + "Internal note" (G5). */
+/** Internal note, amber-50 dashed card, lock + "Internal note" (G5). */
 export function NoteBubble({ beat }: { beat: NoteBeat }) {
   return (
     <div className="flex w-full flex-col items-end gap-1">
@@ -180,8 +180,8 @@ export function NoteBubble({ beat }: { beat: NoteBeat }) {
 /** Centered system/event line (G5): "Priya assigned this to Dale". */
 export function EventLine({ beat }: { beat: EventBeat }) {
   return (
-    <p className="py-1 text-center text-xs text-muted-foreground/80">
-      {beat.text}
-    </p>
+    // Full muted-foreground (stone-500, 4.79:1 on the white card), NOT /80: the
+    // opacity dilution dropped it to 3.28:1 and failed the color-contrast audit.
+    <p className="py-1 text-center text-xs text-muted-foreground">{beat.text}</p>
   );
 }
