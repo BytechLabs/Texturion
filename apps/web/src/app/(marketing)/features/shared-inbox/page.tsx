@@ -33,7 +33,7 @@ import {
   RelatedLinks,
 } from "@/components/marketing/features/feature-page";
 import { FramedShot } from "@/components/marketing/shot";
-import { TextBecomesTask } from "@/components/marketing/art";
+import { Illustration } from "@/components/marketing/illustration";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
 import { Section } from "@/components/marketing/ui/section";
 import { Container } from "@/components/marketing/ui/container";
@@ -162,9 +162,9 @@ export default function SharedInboxPage() {
         heading="When Dale replies, everyone's phone shows it answered."
         visual={
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <TextBecomesTask
-              className="w-full"
-              title="An inbound text becomes a handled, checked-off task in the shared inbox."
+            <Illustration
+              id="shared-inbox"
+              alt="An inbound text becomes a handled, checked-off task in the shared inbox."
             />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               A text lands, the crew handles it, and one tap marks it done —

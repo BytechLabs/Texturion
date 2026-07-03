@@ -34,7 +34,7 @@ import {
 import { SavedRepliesVisual } from "@/components/marketing/features/saved-replies-visual";
 import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual";
 import { FramedShot } from "@/components/marketing/shot";
-import { TextBecomesTask } from "@/components/marketing/art";
+import { Illustration } from "@/components/marketing/illustration";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/templates-and-tags";
@@ -125,9 +125,9 @@ export default function TemplatesAndTagsPage() {
         heading="Mark a text done, right in the thread."
         visual={
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <TextBecomesTask
-              className="w-full"
-              title="A message in a thread, checked off with a strikethrough and a petrol done-mark."
+            <Illustration
+              id="compliance-handled"
+              alt="A message in a thread, checked off — the work handled and marked done."
             />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               A single message, checked off in place — struck through with a

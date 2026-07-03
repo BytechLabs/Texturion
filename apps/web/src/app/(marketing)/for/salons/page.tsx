@@ -21,8 +21,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
-import { OneNumberManyPeople } from "@/components/marketing/art";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
+import { Photo } from "@/components/marketing/photo";
 import { SALONS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -51,6 +51,12 @@ const CONTENT: TradeContent = {
     "At a busy salon, the front desk is one person — and that person can't be answering the phone, checking someone out, and confirming tomorrow's column all at once. So confirmations slip, a client forgets, and at 2pm a stylist is standing at an empty chair that was booked solid a week ago. That gap is pure lost revenue, and it happens on the days you can least afford it.",
     "Cancellations aren't the problem; unfilled cancellations are. When a 3pm color cancels, there's almost always someone on a waitlist who'd take it — if you can reach them in the next ten minutes. JobText puts the whole floor on one inbox: confirm the day's appointments with a couple of taps, text the waitlist the moment a slot opens, and rebook a client before they've left the chair.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="salon-stylist"
+      caption="A stylist can't work the chair and chase confirmations at once. The whole floor shares one inbox, so the schedule stays full."
+    />
+  ),
 
   threadH2: "A color appointment, confirmed and leveled-up.",
   threadLede:
@@ -60,9 +66,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="One number for the whole floor — the front desk and every stylist see the same conversations, so a confirmation never depends on who's at the desk."
     >
-      <OneNumberManyPeople
-        className="w-full"
-        title="One salon number feeding a shared inbox the front desk and every stylist can see."
+      <Photo
+        id="salon-cut"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

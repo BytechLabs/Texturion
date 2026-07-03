@@ -26,9 +26,9 @@ import { Section } from "@/components/marketing/ui/section";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
 import { TradeThread } from "@/components/marketing/trades/trade-thread";
-import { OneNumberManyPeople } from "@/components/marketing/art";
+import { Photo } from "@/components/marketing/photo";
 import {
   CONTRACTORS_DONE_IDS,
   CONTRACTORS_DONE_LABELS,
@@ -108,6 +108,12 @@ const CONTENT: TradeContent = {
     "On a job site, everything runs through the person whose number is on the estimate. The builder texts the address and the paint spec, the electrician texts a question about the panel location, the client texts a change they want, and the supplier texts that the tile's in — all to one personal cell, in between the kid's soccer schedule and the group chat. Miss one and you're repainting a room the wrong color or holding up a sub for a day.",
     "The stakes are higher than a missed reply, too. When the job lives in one person's texts, nobody else can cover — take a day off and the whole job stalls. And when it's time to reconcile a change order, the “proof” is a text thread on a phone that walks out the door if that person does. JobText makes the number the business's, the conversation the crew's, and every message a task the team can see, hand off, and mark done.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="owner-apron-phone"
+      caption="The GC, the subs, the client, the supplier — all texting one phone. JobText makes that number the business's, so the whole crew can cover it."
+    />
+  ),
 
   threadH2: "A paint spec from the builder, worked like a punch list.",
   threadLede:
@@ -117,9 +123,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="The number on the estimate is the business's, and every site text — the GC, the subs, the client — lands in one inbox the crew shares, off your personal cell."
     >
-      <OneNumberManyPeople
-        className="w-full"
-        title="One business number feeding a shared inbox the whole crew works from."
+      <Photo
+        id="tools-wall"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

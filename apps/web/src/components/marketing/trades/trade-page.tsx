@@ -78,6 +78,13 @@ export interface TradeContent {
   painH2: string;
   /** Paragraphs of pain copy (rendered as <p>s). */
   painBody: string[];
+  /**
+   * A trade-relevant real photo for the pain section, so "sound familiar?" opens
+   * on a tradesperson like the reader instead of text-on-white (VISUALS-V2 §2,
+   * REFERENCES anti-bland rule #2 & #9 — every section carries a real visual
+   * object). Each page supplies its own <Photo> of its trade.
+   */
+  painVisual: React.ReactNode;
 
   /** How JobText fits — the live thread demo. */
   threadH2: string;
@@ -196,19 +203,23 @@ export function TradePage({ content }: { content: TradeContent }) {
         </Container>
       </section>
 
-      {/* "Sound familiar?" — the pain in the trade's own words. */}
+      {/* "Sound familiar?" — the pain in the trade's own words, beside a real
+          photo of the trade (asymmetric split; copy leads, photo anchors). */}
       <Section>
-        <div className="mx-auto max-w-3xl">
-          <h2 className="display-h2 text-foreground">{content.painH2}</h2>
-          <div className="mt-6 space-y-5">
-            {content.painBody.map((para, i) => (
-              <Reveal key={i} delay={Math.min(i, 3) * 60}>
-                <p className="text-lg leading-relaxed text-muted-foreground">
-                  {para}
-                </p>
-              </Reveal>
-            ))}
+        <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
+          <div>
+            <h2 className="display-h2 text-foreground">{content.painH2}</h2>
+            <div className="mt-6 space-y-5">
+              {content.painBody.map((para, i) => (
+                <Reveal key={i} delay={Math.min(i, 3) * 60}>
+                  <p className="text-lg leading-relaxed text-muted-foreground">
+                    {para}
+                  </p>
+                </Reveal>
+              ))}
+            </div>
           </div>
+          <Reveal className="relative">{content.painVisual}</Reveal>
         </div>
       </Section>
 

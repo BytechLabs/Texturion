@@ -22,7 +22,8 @@ import { GlowBackdrop } from "@/components/marketing/ui/glow-backdrop";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { ArtReveal, FlatVsPerSeatChart } from "@/components/marketing/art";
+import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
+import { Photo } from "@/components/marketing/photo";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/compare";
@@ -77,35 +78,53 @@ export default function CompareIndexPage() {
         ])}
       />
 
-      {/* Hero — the one petrol/amber atmosphere behind the LCP text. */}
+      {/* Hero — the one petrol/amber atmosphere behind the LCP text, a warm real
+          photo alongside so the comparison hub opens on a human, not text-on-white
+          (VISUALS-V2 §2). */}
       <section className="relative overflow-hidden pb-8 pt-24 sm:pt-28">
         <GlowBackdrop />
         <Container>
-          <div className="mx-auto max-w-3xl text-center">
-            <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-primary">
-              <Scale className="size-4" strokeWidth={1.75} aria-hidden />
-              Honest comparisons
-            </p>
-            <h1 className="display-hero mt-4 text-balance text-foreground">
-              How JobText compares — with the price on the page.
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              We put JobText next to the tools you&apos;re weighing it against and
-              tell the truth about both — every competitor number dated and
-              sourced, every place they beat us named outright. JobText is a
-              shared text inbox at one flat price: $29 a month for the whole crew,
-              month to month, no sales call in the way.
-            </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg">
-                <Link href="/signup">
-                  Start for $29
-                  <ArrowRight strokeWidth={1.75} aria-hidden />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/pricing">See pricing</Link>
-              </Button>
+          <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16">
+            <div>
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+                <Scale className="size-4" strokeWidth={1.75} aria-hidden />
+                Honest comparisons
+              </p>
+              <h1 className="display-hero mt-4 text-balance text-foreground">
+                How JobText compares — with the price on the page.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
+                We put JobText next to the tools you&apos;re weighing it against
+                and tell the truth about both — every competitor number dated and
+                sourced, every place they beat us named outright. JobText is a
+                shared text inbox at one flat price: $29 a month for the whole
+                crew, month to month, no sales call in the way.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button asChild size="lg">
+                  <Link href="/signup">
+                    Start for $29
+                    <ArrowRight strokeWidth={1.75} aria-hidden />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="/pricing">See pricing</Link>
+                </Button>
+              </div>
+            </div>
+            <div className="relative">
+              <figure className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+                <Photo
+                  id="texting-hands"
+                  priority
+                  sizes="(min-width: 1024px) 30rem, 100vw"
+                  imgClassName="aspect-[4/3] object-cover"
+                />
+                <figcaption className="border-t border-border px-5 py-4 text-[13px] leading-relaxed text-muted-foreground">
+                  The tool your customers already reach for. We just make the
+                  business side of it shared, simple, and flat-priced.
+                </figcaption>
+              </figure>
             </div>
           </div>
         </Container>
@@ -174,9 +193,9 @@ export default function CompareIndexPage() {
                 the team scales.
               </p>
             </div>
-            <ArtReveal className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8">
-              <FlatVsPerSeatChart className="mx-auto max-w-2xl" />
-            </ArtReveal>
+            <Reveal className="mx-auto mt-10 max-w-xl">
+              <CrewSizeSliderStatic />
+            </Reveal>
             <p className="mx-auto mt-4 max-w-2xl text-center text-[13px] leading-relaxed text-muted-foreground">
               Per-user line: $19/user/mo, a published seat price as of July 2026;
               the exact, sourced math is on the{" "}

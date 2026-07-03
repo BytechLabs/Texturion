@@ -20,8 +20,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
-import { OneNumberManyPeople } from "@/components/marketing/art";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
+import { Photo } from "@/components/marketing/photo";
 import { LANDSCAPERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -50,6 +50,12 @@ const CONTENT: TradeContent = {
     "Landscaping runs in waves. The first warm week, everyone wants a spring cleanup, a mulch estimate, a mowing quote — all at once, all by text, all to the number printed on the truck. If that number is the owner's cell, the owner spends the busiest month of the year as a full-time receptionist instead of running crews.",
     "And the work is spread out. One crew's at the Alvarez place, another's across town, and the addresses, gate notes, and “which corner did they want re-mulched” live in a hundred separate text threads on separate phones. JobText puts every property conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same address, the same notes.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="landscaper-shovel"
+      caption="Crews spread across properties, one number on the truck. Every quote request and gate note lands in the same shared inbox."
+    />
+  ),
 
   threadH2: "A spring cleanup, quoted from a photo.",
   threadLede:
@@ -59,9 +65,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="One business number, one shared inbox — so the office quoting the job and the crews out on sites all see the same conversation."
     >
-      <OneNumberManyPeople
-        className="w-full"
-        title="One business number feeding a shared inbox every crew across every site can see."
+      <Photo
+        id="landscaper-mower"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

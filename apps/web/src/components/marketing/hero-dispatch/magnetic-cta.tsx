@@ -50,7 +50,12 @@ export function MagneticCta() {
       onPointerLeave={reset}
       className="inline-block transition-transform duration-150 ease-out will-change-transform"
     >
-      <Button asChild size="lg">
+      {/* The lg button is a 40px-tall visual; on mobile we size the visual box
+          itself to ≥44px (min-h-11) so the primary CTA meets the touch-target
+          bar without relying only on the tap-target pseudo-element, and revert to
+          the 40px lg height from md up (mouse pointers). components/ui/button is
+          NOT edited — this is a consumer className only. */}
+      <Button asChild size="lg" className="min-h-11 w-full sm:w-auto md:min-h-0">
         <Link href="/signup">
           Start for $29
           <ArrowRight strokeWidth={1.75} aria-hidden />

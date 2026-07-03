@@ -28,11 +28,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import {
-  CarrierPaperworkShield,
-  CoverageMapNA,
-  OneNumberManyPeople,
-} from "@/components/marketing/art";
+import { Illustration } from "@/components/marketing/illustration";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
@@ -97,9 +93,9 @@ export default function BusinessNumberPage() {
         heading="Get the business off your personal cell."
         visual={
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <OneNumberManyPeople
-              className="w-full"
-              title="One business number feeding a shared inbox the whole crew can see."
+            <Illustration
+              id="shared-inbox"
+              alt="One business number feeding a shared inbox the whole crew can see."
             />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               One number, owned by the company — shared by the whole crew, on
@@ -131,9 +127,9 @@ export default function BusinessNumberPage() {
         heading="Keep the number on your trucks — transfer it to JobText, free."
         visual={
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <CarrierPaperworkShield
-              className="w-full"
-              title="We handle the transfer paperwork with the phone companies for you."
+            <Illustration
+              id="bring-your-number"
+              alt="Transferring your existing business number to JobText — we handle the paperwork."
             />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               You upload a recent bill; we handle the carrier paperwork and keep
@@ -200,7 +196,11 @@ export default function BusinessNumberPage() {
         heading="A Canadian number that texts the same day."
         visual={
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
-            <CoverageMapNA className="w-full" />
+            <Illustration
+              id="canada"
+              alt="Local numbers across the US and Canada, found on a map."
+              className="mx-auto max-w-xs"
+            />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               Local numbers across the US and Canada — and Canadian numbers text
               the same day you sign up.

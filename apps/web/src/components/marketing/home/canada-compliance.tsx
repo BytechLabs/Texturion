@@ -16,7 +16,7 @@ import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { LazyCityAreaCodeWidget } from "@/components/marketing/lazy/lazy-city-area-code-widget";
 import { CityAreaCodeWidgetStatic } from "@/components/marketing/interactive/city-area-code-widget-static";
-import { CoverageMapNA, CarrierPaperworkShield } from "@/components/marketing/art";
+import { PhotoFrame } from "@/components/marketing/photo-frame";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 const PROOF_POINTS = [
@@ -70,10 +70,15 @@ export function CanadaCompliance() {
             How JobText works in Canada
           </ArrowLink>
 
-          {/* Coverage drawn (VISUALS §3): local numbers in the US AND Canada,
-              as a simple two-country motif — the honest ICP (SPEC §1). */}
-          <Reveal className="mt-8">
-            <CoverageMapNA className="max-w-sm" />
+          {/* Real photo (VISUALS-V2 §2): a working Canadian crew — texting
+              customers the same day they sign up. Warm, on-brand, framed once. */}
+          <Reveal className="mt-8 max-w-xs">
+            <PhotoFrame
+              id="crew-rooftop"
+              aspect="5 / 4"
+              sizes="(min-width: 1024px) 30vw, 80vw"
+              caption={{ pill: "Live", label: "Texting day one · Toronto" }}
+            />
           </Reveal>
         </div>
 
@@ -85,10 +90,24 @@ export function CanadaCompliance() {
         </Reveal>
       </div>
 
-      {/* Compliance beat — the "and here's how the rules are handled" follow-on. */}
+      {/* Compliance beat — the "and here's how the rules are handled" follow-on.
+          Composition is FLIPPED vs the Canada beat above (photo LEFT, copy RIGHT)
+          so two adjacent beats never share a silhouette (anti-bland). */}
       <div className="mt-20">
-        <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
-          <div className="max-w-2xl">
+        <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.4fr] lg:gap-12">
+          {/* Real photo (VISUALS-V2 §2): a tradesperson focused on the job while
+              JobText handles the paperwork — the done-for-you reframe (CONVERSION
+              §3), on-brand and warm rather than a lone abstract illustration. */}
+          <Reveal className="order-2 w-full lg:order-1">
+            <PhotoFrame
+              id="plumber-heater"
+              className="mx-auto max-w-sm lg:mx-0"
+              sizes="(min-width: 1024px) 34vw, 86vw"
+              caption={{ pill: "Filed", label: "Registration · in review" }}
+            />
+          </Reveal>
+
+          <div className="order-1 max-w-2xl lg:order-2">
             <p className="jt-meta text-primary">The carrier stuff, handled</p>
             <h2 className="display-h2 mt-3 text-foreground">
               Texting rules are real. We deal with them so you don&apos;t have
@@ -101,12 +120,6 @@ export function CanadaCompliance() {
               homework packet. JobText just does it.
             </p>
           </div>
-
-          {/* "We handle the carrier paperwork" reframed as done-for-you
-              (CONVERSION §3) — a spot illustration, not a screenshot. */}
-          <Reveal className="mx-auto w-full max-w-xs lg:mx-0">
-            <CarrierPaperworkShield />
-          </Reveal>
         </div>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2">

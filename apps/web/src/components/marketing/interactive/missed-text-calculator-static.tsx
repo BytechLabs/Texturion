@@ -11,8 +11,6 @@
  * multiplication the island computes, so the swap is seamless.
  */
 
-import { MissedTextMoney } from "@/components/marketing/art";
-
 const MISSED = 5;
 const RATE_PCT = 25;
 const JOB_VALUE = 250;
@@ -66,7 +64,6 @@ export function MissedTextCalculatorStatic() {
         <p className="mt-2 font-mono text-[13px] tabular-nums text-muted-foreground">
           {MISSED} × {RATE_PCT}% × {usd(JOB_VALUE)} × 4.33 weeks
         </p>
-        <MissedTextMoney monthly={MONTHLY} className="mx-auto mt-4 max-w-[240px]" />
       </div>
 
       <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">

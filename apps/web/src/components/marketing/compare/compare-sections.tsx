@@ -13,9 +13,10 @@ import Link from "next/link";
 import { ArrowRight, Check, Scale } from "lucide-react";
 
 import { Container } from "@/components/marketing/ui/container";
+import { Photo } from "@/components/marketing/photo";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
-import { ArtReveal, FlatVsPerSeatChart } from "@/components/marketing/art";
+import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { Button } from "@/components/ui/button";
 
 /* -------------------------------------------------------------------------- */
@@ -26,11 +27,49 @@ export function CompareHero({
   eyebrow,
   title,
   lead,
+  visual,
 }: {
   eyebrow: string;
   title: string;
   lead: string;
+  /**
+   * The hero's real image — a warm, on-brand tradesperson/owner photo (VISUALS-V2
+   * §2). Every compare page opens on a real photo, not text-on-white: the buyer
+   * sees a human like them before the sourced table. When present the hero is a
+   * two-column split; when omitted it falls back to the centered layout.
+   */
+  visual?: React.ReactNode;
 }) {
+  if (visual) {
+    return (
+      <Container className="pt-16 sm:pt-24">
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-16">
+          <div>
+            <p className="text-sm font-semibold text-primary">{eyebrow}</p>
+            <h1 className="display-hero mt-2 text-balance text-foreground">
+              {title}
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              {lead}
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button asChild size="lg">
+                <Link href="/signup">
+                  Start for $29
+                  <ArrowRight strokeWidth={1.75} aria-hidden />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/pricing">See pricing</Link>
+              </Button>
+            </div>
+          </div>
+          <div className="relative">{visual}</div>
+        </div>
+      </Container>
+    );
+  }
+
   return (
     <Container className="pt-16 sm:pt-24">
       <div className="mx-auto max-w-3xl text-center">
@@ -52,6 +91,36 @@ export function CompareHero({
         </div>
       </div>
     </Container>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* <CompareHeroPhoto> — the framed real photo the compare heroes pass into the  */
+/* CompareHero visual slot. One shared shell so all three head-to-heads frame   */
+/* their hero image identically (VISUALS-V2 §2 pipeline + the ticket frame:     */
+/* 10px radius, 1px border, ambient product shadow). Each page picks its own    */
+/* warm photo id + honest caption.                                             */
+/* -------------------------------------------------------------------------- */
+
+export function CompareHeroPhoto({
+  photoId,
+  caption,
+}: {
+  photoId: string;
+  caption: string;
+}) {
+  return (
+    <figure className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+      <Photo
+        id={photoId}
+        priority
+        sizes="(min-width: 1024px) 34rem, 100vw"
+        imgClassName="aspect-[4/3] object-cover"
+      />
+      <figcaption className="border-t border-border px-5 py-4 text-[13px] leading-relaxed text-muted-foreground">
+        {caption}
+      </figcaption>
+    </figure>
   );
 }
 
@@ -330,9 +399,9 @@ export function AtAGlanceChart({
               {lead}
             </p>
           </div>
-          <ArtReveal className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <FlatVsPerSeatChart className="mx-auto max-w-2xl" />
-          </ArtReveal>
+          <Reveal className="mt-10">
+            <CrewSizeSliderStatic />
+          </Reveal>
         </div>
       </Container>
     </Section>

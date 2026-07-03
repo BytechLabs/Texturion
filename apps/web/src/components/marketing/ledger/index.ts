@@ -7,7 +7,7 @@
 
 export { LedgerStyles } from "./ledger-css";
 export { LedgerSection } from "./ledger-section";
-export { SectionEyebrow, SpineTick, pad2 } from "./section-number";
+export { SectionEyebrow, pad2 } from "./section-number";
 export { StatusSpine, TicketMeta, LedgerRow } from "./ticket";
 export { FiledStamp } from "./filed-stamp";
 export { SignalCheck } from "./signal-check";

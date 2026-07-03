@@ -30,6 +30,7 @@ import {
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareHeroPhoto,
   CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
@@ -248,6 +249,12 @@ export default function ComparePodiumPage() {
         eyebrow="JobText vs Podium"
         title="JobText vs Podium: the price is on the page."
         lead="Podium is a capable all-in-one platform for local businesses — AI answering, reviews, payments, webchat. But you can't see what it costs without a sales call, it's sold on an annual term, and reported entry pricing starts around $399 a month. JobText is the opposite bet: a shared text inbox, $29 a month flat, month to month, buy it yourself in minutes. Here's the honest side-by-side, dated July 2026."
+        visual={
+          <CompareHeroPhoto
+            photoId="owner-apron-phone"
+            caption="See the price, pay it yourself, and text customers back today — no demo, no annual term, no sales call in the way."
+          />
+        }
       />
 
       {/* Comparison table — the sourced, dated grid. */}

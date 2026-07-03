@@ -20,8 +20,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
-import { OneNumberManyPeople } from "@/components/marketing/art";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
+import { Photo } from "@/components/marketing/photo";
 import { CLEANERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -50,6 +50,12 @@ const CONTENT: TradeContent = {
     "Cleaning is a relationship business built on trust and repetition. The same homes, the same offices, week after week — and every one of them has a way in: a door code, a lockbox, a “side gate's unlocked, key's under the mat.” When that lives in one owner's text history, the cleaner sent to cover a shift is locked out on the porch, texting “what's the code again?” to a phone that's busy.",
     "Then there are the reschedules. A client pushes Friday to Monday, someone on the team says yes, and now two cleaners think they're covering it — or nobody does. JobText gives the whole team one inbox: the access notes sit on the client, the reschedule is visible to everyone, and the person who shows up already knows the code, the dog, and what the client asked for last time.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="phone-in-hand"
+      caption="“What's the gate code again?” shouldn't go to one busy phone. Access notes live on the client, where whoever covers the shift can see them."
+    />
+  ),
 
   threadH2: "A biweekly clean, handled by the team.",
   threadLede:
@@ -59,9 +65,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="Access notes live on the client in one shared inbox — so whichever cleaner covers the visit already has the code, not a locked door and a busy phone."
     >
-      <OneNumberManyPeople
-        className="w-full"
-        title="One business number and a shared inbox every cleaner on the team can see."
+      <Photo
+        id="owner-counter-phone"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

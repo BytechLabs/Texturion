@@ -31,7 +31,8 @@ import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
-import { CoverageMapNA } from "@/components/marketing/art";
+import { Illustration } from "@/components/marketing/illustration";
+import { Photo } from "@/components/marketing/photo";
 import {
   FeatureCta,
   FeatureFaq,
@@ -113,7 +114,11 @@ export default function CanadaPage() {
 
             <div className="relative">
               <div className="rounded-2xl border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)] sm:p-8">
-                <CoverageMapNA className="w-full" />
+                <Illustration
+                  id="canada"
+                  alt="Local numbers across the US and Canada, found on a map."
+                  className="mx-auto max-w-xs"
+                />
                 <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
                   Local numbers across the US and Canada — Canadian crews text
                   the same day they sign up.
@@ -174,6 +179,18 @@ export default function CanadaPage() {
       <FeatureSection
         eyebrow="CASL-aware"
         heading="Built to help you follow CASL — not to promise you're covered."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <Illustration
+              id="compliance-handled"
+              alt="Consent recorded, sender identified, and opt-outs enforced — the CASL mechanics handled for you."
+            />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              Consent recorded, your business named on the first text, STOP
+              honored instantly — the mechanics CASL cares about, handled.
+            </p>
+          </div>
+        }
         wash
       >
         <p>
@@ -261,6 +278,19 @@ export default function CanadaPage() {
       <FeatureSection
         eyebrow="Texting the US later"
         heading="Want to text US customers too? Turn it on any time."
+        visual={
+          <figure className="mx-auto max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+            <Photo
+              id="owner-counter-phone"
+              sizes="(min-width: 1024px) 28rem, 100vw"
+              imgClassName="aspect-[4/3] object-cover"
+            />
+            <figcaption className="border-t border-border px-5 py-4 text-center text-[13px] leading-relaxed text-muted-foreground">
+              Cross-border customers or a second location stateside? Flip on US
+              texting when you&apos;re ready — everything you built stays put.
+            </figcaption>
+          </figure>
+        }
         flip
       >
         <p>

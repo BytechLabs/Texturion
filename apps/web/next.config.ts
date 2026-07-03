@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
   // its parse/eval cost, the TBT driver) to only what's actually referenced.
   experimental: {
     optimizePackageImports: ["lucide-react", "radix-ui"],
+    // Inline each route's CSS into the HTML instead of a render-blocking
+    // <link rel="stylesheet"> (VISUALS-V2 §7, the mobile Lighthouse >=90 gate).
+    // On simulated Slow-4G the global stylesheet was a render-blocking resource
+    // gating first paint; inlining removes that round-trip so the hero H1 (the
+    // LCP element) paints from the HTML alone — measured ~+2 mobile perf points
+    // and ~150 ms FCP vs. the linked stylesheet. Pure delivery optimization: no
+    // styling/token/app-surface change.
+    inlineCss: true,
   },
   async redirects() {
     return [

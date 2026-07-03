@@ -1,10 +1,12 @@
 /**
  * The problem (Track B) — §3.3 / COPY §H3.
- * Ledger identity (iteration 5): section `03` on the spine. The iter-4 risk
- * (REFERENCES §4: "three equal icon cards is the most generic shape on the
- * page") is fixed — the three pains are now stacked LEDGER ENTRIES divided by
- * petrol hairlines with tabular indices, not three bootstrap cards, in an
- * asymmetric split (craft #6, anti-bland #1/#2). Copy verbatim. Server component.
+ *
+ * The "that's my chaos" recognition beat. VISUALS-V2 §2: the human/emotional
+ * moment is carried by a REAL warm photo of a shop owner buried in his phone —
+ * far more on-brand for a tradesperson than a generic illustration — framed in
+ * the one cohesive <PhotoFrame> treatment with a ledger caption chip. The three
+ * pains stay as ruled ledger entries (not a 1/1/1 card grid). Copy verbatim.
+ * Server component.
  */
 
 import { PhoneOff, Smartphone, UserX } from "lucide-react";
@@ -12,7 +14,7 @@ import { PhoneOff, Smartphone, UserX } from "lucide-react";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { LedgerSection } from "@/components/marketing/ledger/ledger-section";
 import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
-import { OneNumberManyPeople } from "@/components/marketing/art";
+import { PhotoFrame } from "@/components/marketing/photo-frame";
 
 const ROWS = [
   {
@@ -40,11 +42,12 @@ export function Problem() {
     <LedgerSection n={3} defer intrinsic={560}>
       {/* Asymmetric editorial split: copy + illustration up top, then the three
           pains as ruled ledger entries below (not a 1/1/1 card grid). */}
-      <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
+      <div className="grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
         <div className="max-w-2xl">
           <SectionEyebrow n={3} label="The problem" />
           <h2 className="display-h2 mt-4 text-foreground">
-            Your business runs on texts. Your texts run on one phone.
+            Your business runs on texts. Your texts run on{" "}
+            <span className="jt-swipe text-foreground">one phone.</span>
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
             Customers would rather text than call — so they text whoever&apos;s
@@ -52,8 +55,15 @@ export function Problem() {
           </p>
         </div>
 
-        <Reveal className="mx-auto w-full max-w-xs lg:mx-0 lg:justify-self-end">
-          <OneNumberManyPeople />
+        {/* The recognition photo — a real owner reading a customer text at the
+            counter, framed once with a ledger caption chip. */}
+        <Reveal className="w-full lg:justify-self-end">
+          <PhotoFrame
+            id="owner-apron-phone"
+            className="mx-auto w-full max-w-md lg:mx-0"
+            sizes="(min-width: 1024px) 40vw, 92vw"
+            caption={{ pill: "New", label: "Customer text · just now" }}
+          />
         </Reveal>
       </div>
 

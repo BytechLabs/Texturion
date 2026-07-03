@@ -30,6 +30,7 @@ import {
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareHeroPhoto,
   CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
@@ -267,6 +268,12 @@ export default function CompareHeymarketPage() {
         eyebrow="JobText vs Heymarket"
         title="JobText vs Heymarket: one flat price vs per-seat plus extras."
         lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations — genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. JobText is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
+        visual={
+          <CompareHeroPhoto
+            photoId="crew-rooftop"
+            caption="The whole crew on one shared number for a single flat price — no per-seat bill that climbs with every hire."
+          />
+        }
       />
 
       <Section>

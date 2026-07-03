@@ -1,13 +1,11 @@
 /**
- * SectionNumber (iteration 5, ART-DIRECTION §2.2 / REFERENCES anti-bland #4).
+ * SectionNumber — the tabular section number (`01`…`12`) that opens every home
+ * band as its inline eyebrow: a petrol index + a short rule + a plain label,
+ * above the H2. It's the page's numbered rhythm — the one device that makes
+ * twelve sections read as a single sequence — rendered identically on mobile and
+ * desktop, once per section (VISUALS-V2 §1: no duplicated gutter tick).
  *
- * The tabular section number (`01`…`12`) that rides the ledger spine at every
- * section boundary — the single most-repeated brand element and the primary
- * anti-bland device. On desktop it sits on a short descending petrol-ticked
- * stone rule in the left margin; on mobile it collapses to the inline
- * `01`-style eyebrow above the H2 (same fingerprint, no margin cost).
- *
- * Server component. Pure DOM/CSS, `aria-hidden` on the decorative rule.
+ * Server component. Pure DOM/CSS.
  */
 
 import { cn } from "@/lib/utils";
@@ -37,25 +35,5 @@ export function SectionEyebrow({
       <span aria-hidden className="h-px w-6 bg-primary/40" />
       {label && <span className="text-muted-foreground">{label}</span>}
     </p>
-  );
-}
-
-/**
- * The desktop margin spine tick — a short descending ruled rule with the number
- * seated on it. Absolutely positioned into the section's left gutter; rendered
- * only at lg+ where there is margin room (§2.2: "desktop richness, never a
- * mobile layout cost"). Decorative.
- */
-export function SpineTick({ n }: { n: number }) {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute left-0 top-0 hidden select-none lg:block"
-    >
-      <div className="flex flex-col items-center gap-3">
-        <span className="jt-meta tabular-nums text-primary">{pad2(n)}</span>
-        <span className="jt-spine-rule h-24 w-px" />
-      </div>
-    </div>
   );
 }

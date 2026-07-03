@@ -45,8 +45,11 @@ export function LegalPage({
       <div className="lg:grid lg:grid-cols-[1fr_16rem] lg:gap-12">
         <article className="mx-auto w-full max-w-[68ch]">
           <header className="mb-10 border-b border-border pb-8">
-            <p className="text-sm text-muted-foreground">Legal</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            <p className="text-sm font-semibold text-primary">Legal</p>
+            {/* Fraunces display face on the legal H1 (VISUALS-V2 §5, §8: the
+                legal page headers are in the personality scope). Kept at a calm,
+                readable scale — legal stays quiet, but wears the brand voice. */}
+            <h1 className="font-display mt-2 text-[32px] font-semibold leading-tight tracking-tight text-foreground sm:text-[40px]">
               {title}
             </h1>
             {intro && (

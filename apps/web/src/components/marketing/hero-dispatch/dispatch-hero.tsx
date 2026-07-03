@@ -24,7 +24,7 @@
 
 import { GlowBackdrop } from "@/components/marketing/ui/glow-backdrop";
 import { Container } from "@/components/marketing/ui/container";
-import { SectionEyebrow, SpineTick } from "@/components/marketing/ledger/section-number";
+import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 
 import { DispatchDeskStatic } from "./dispatch-desk-static";
@@ -40,17 +40,21 @@ export function DispatchHero() {
       <GlowBackdrop />
 
       <Container className="relative">
-        {/* The `01` ledger spine tick in the left margin (§2.2 / HERO §1). */}
-        <SpineTick n={1} />
-
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
           {/* LEFT — the pitch. The LCP lives here (H1 text). */}
           <div>
             <SectionEyebrow n={1} label="Shared text inbox for your crew" />
 
             {/* The LCP: H1 text, ledger-ruled baseline, one highlight-swipe on
-                "job". clamp(44px,5.5vw,72px) via the marketing-scoped jt-hero-h1
-                (globals.css untouched). fetchpriority is implicit for text. */}
+                "job". clamp(44px,5.5vw,72px) via the marketing-scoped jt-hero-h1,
+                which sets the display family from --font-display (Fraunces, mounted
+                on the (marketing) subtree). Fraunces is display:"optional" +
+                preload:false, so the H1 is NEVER on the font's critical path — it
+                paints immediately from the HTML/CSS in the fallback and, on fast
+                connections / warm cache, in Fraunces. The min-height reservation in
+                .jt-hero-h1 keeps the box height fixed so the (optional) font can
+                never reflow the sections below (CLS ~ 0). fetchpriority is implicit
+                for text; no font is preloaded for this LCP. */}
             <h1 className="jt-hero-h1 mt-4 text-balance border-b border-primary/25 pb-4 text-foreground">
               Every customer text becomes a{" "}
               <span className="jt-swipe text-foreground">job</span> your whole

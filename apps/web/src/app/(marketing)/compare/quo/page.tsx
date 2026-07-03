@@ -32,6 +32,7 @@ import {
   CompareCta,
   CompareFaq,
   CompareHero,
+  CompareHeroPhoto,
   CompareRelatedLinks,
   PayMathBlock,
   SwitchingNote,
@@ -282,6 +283,12 @@ export default function CompareQuoPage() {
         eyebrow="JobText vs Quo"
         title="JobText vs Quo: a text inbox vs a full phone system."
         lead="Quo (formerly OpenPhone) is a mature per-user business phone system — calling included, broad audience, genuinely polished. JobText is narrower on purpose: a shared SMS inbox, Canada-first, flat $29 a month for service crews. The biggest honest difference up top — JobText can't make calls, and Quo can. Here's the fair, dated side-by-side, July 2026."
+        visual={
+          <CompareHeroPhoto
+            photoId="owner-counter-phone"
+            caption="For a crew whose customers text more than they call, a shared text inbox does the whole job — no per-seat phone system required."
+          />
+        }
       />
 
       <Section>

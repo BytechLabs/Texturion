@@ -10,7 +10,48 @@
  * caption carries the one-line, trade-specific meaning.
  */
 
+import { Photo } from "@/components/marketing/photo";
 import { cn } from "@/lib/utils";
+
+/**
+ * <TradePhoto> — a framed real photograph for a trade page's body (the "sound
+ * familiar?" pain beat and any secondary photo slot). Same ticket frame as the
+ * product visuals (10px+ radius, 1px border, ambient shadow) with an honest
+ * caption, so every trade page carries at least TWO real trade photos in one
+ * consistent frame (VISUALS-V2 §2). Server component.
+ */
+export function TradePhoto({
+  photoId,
+  caption,
+  className,
+  priority = false,
+}: {
+  /** Photography-set manifest id, e.g. "plumber-heater", "salon-stylist". */
+  photoId: string;
+  /** One-line, trade-specific honest caption. */
+  caption: string;
+  className?: string;
+  priority?: boolean;
+}) {
+  return (
+    <figure
+      className={cn(
+        "mx-auto max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
+        className,
+      )}
+    >
+      <Photo
+        id={photoId}
+        priority={priority}
+        sizes="(min-width: 1024px) 28rem, 100vw"
+        imgClassName="aspect-[4/3] object-cover"
+      />
+      <figcaption className="border-t border-border px-5 py-4 text-[13px] leading-relaxed text-muted-foreground">
+        {caption}
+      </figcaption>
+    </figure>
+  );
+}
 
 export function TradeGraphic({
   children,

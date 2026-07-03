@@ -21,8 +21,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
-import { FieldWorkerTruck } from "@/components/marketing/art";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
+import { Photo } from "@/components/marketing/photo";
 import { HVAC_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -51,6 +51,12 @@ const CONTENT: TradeContent = {
     "HVAC demand doesn't trickle in; it spikes. The morning a cold front lands, a dozen no-heat calls hit before 8am, and the same thing happens in reverse the first 30-degree week of summer. Route all of that through one owner's cell and you get a full voicemail box, a stressed dispatcher, and customers calling the next company because nobody picked up.",
     "The rest of the year is a different problem: the slow bleed. An install quote you sent three weeks ago that never got a follow-up. A maintenance-plan customer whose tune-up you meant to remind them about. Those are real dollars, and they slip because the follow-up lives on a sticky note. JobText keeps the surge triaged and the follow-ups visible — the whole team working one inbox instead of one phone.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="crew-rooftop"
+      caption="Techs on the roof, the dispatcher on the phone — the whole crew reads the same triaged queue, so no-heat never sits in voicemail."
+    />
+  ),
 
   threadH2: "A no-heat call in a cold snap.",
   threadLede:
@@ -60,9 +66,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="The number goes on the vans, and every no-heat text lands in one shared inbox the whole team can triage — not a full voicemail box on one phone."
     >
-      <FieldWorkerTruck
-        className="w-full"
-        title="A service van with the business number on its side, texting into the shared inbox."
+      <Photo
+        id="hvac-tech"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

@@ -23,8 +23,8 @@ import {
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic } from "@/components/marketing/trades/trade-graphic";
-import { FieldWorkerTruck } from "@/components/marketing/art";
+import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
+import { Photo } from "@/components/marketing/photo";
 import { PLUMBERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -53,6 +53,12 @@ const CONTENT: TradeContent = {
     "Every plumber knows the cycle: you're mid-job, the phone buzzes, and it's either a new customer you can't answer or a scheduled one asking where you are. Voicemail fills up. Callbacks slip. And every quote, address, and “yes please book me” lives on one personal phone that goes home with one person.",
     "Texting fixes half of that on its own — customers would rather text than call anyway. JobText fixes the other half: the texts stop belonging to one phone and start belonging to the business, so the tech in the crawlspace and the one at the supply house are looking at the same conversation.",
   ],
+  painVisual: (
+    <TradePhoto
+      photoId="plumber-heater"
+      caption="Hands full on a water-heater call — nobody's free to grab a ringing phone. A shared text inbox catches the customer instead of voicemail."
+    />
+  ),
 
   threadH2: "A Tuesday, in texts.",
   threadLede:
@@ -62,9 +68,11 @@ const CONTENT: TradeContent = {
     <TradeGraphic
       caption="The number lives on the truck, not on a tech's personal cell — so every customer text lands in the shared inbox."
     >
-      <FieldWorkerTruck
-        className="w-full"
-        title="A service van with the business number on its side, texting into the shared inbox."
+      <Photo
+        id="plumber-pipe"
+        className="overflow-hidden rounded-xl"
+        imgClassName="aspect-[4/3] object-cover"
+        sizes="(min-width: 1024px) 28rem, 100vw"
       />
     </TradeGraphic>
   ),

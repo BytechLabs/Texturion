@@ -39,7 +39,7 @@ import { RegistrationStepperVisual } from "@/components/marketing/features/regis
 import { ConsentFooterVisual } from "@/components/marketing/features/consent-footer-visual";
 import { OptOutVisual } from "@/components/marketing/features/opt-out-visual";
 import { QuietHoursVisual } from "@/components/marketing/features/quiet-hours-visual";
-import { FirstWeekTimeline } from "@/components/marketing/art";
+import { FirstWeekTimeline } from "@/components/marketing/home/first-week-timeline";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/compliance";
@@ -78,8 +78,10 @@ export default function CompliancePage() {
         eyebrow="Registration, filed for you"
         heading="The 10DLC registration, without the 10DLC headache."
         visual={
-          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <FirstWeekTimeline className="w-full" />
+          <div className="mx-auto max-w-md">
+            {/* The first-week timeline renders its own card (border/bg/padding);
+                the caption sits below it. */}
+            <FirstWeekTimeline />
             <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
               Live on day zero. US texting turns on after a roughly one-week
               carrier review — we file it the minute you pay.

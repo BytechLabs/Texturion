@@ -10,7 +10,7 @@ import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { Texture } from "@/components/marketing/frame/texture";
 import { LazyMissedTextCalculator } from "@/components/marketing/lazy/lazy-missed-text-calculator";
-import { MissedCallToText } from "@/components/marketing/art";
+import { PhotoFrame } from "@/components/marketing/photo-frame";
 import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/missed-text-calculator-static";
 
 export function MissedTextMath() {
@@ -31,10 +31,16 @@ export function MissedTextMath() {
             quote industry stats we can&apos;t stand behind.
           </p>
 
-          {/* Spot illustration (VISUALS §3): the missed call that becomes an
-              answered text — the section's idea, drawn. */}
-          <Reveal className="mt-8 max-w-[260px]">
-            <MissedCallToText />
+          {/* Real photo (VISUALS-V2 §2): a customer texting a business — the
+              lead in the inbox, not lost to voicemail. Warm and on-brand for the
+              ICP (hands on a phone), framed once with a ledger caption. */}
+          <Reveal className="mt-8 max-w-xs">
+            <PhotoFrame
+              id="texting-hands"
+              aspect="5 / 4"
+              sizes="(min-width: 1024px) 30vw, 80vw"
+              caption={{ label: "“can someone come today?”" }}
+            />
           </Reveal>
 
           <p className="mt-8 text-[15px] leading-relaxed text-muted-foreground">

@@ -395,32 +395,55 @@
   /* The one weight/scale escalation the marketing site earns (§1.1): a true
      display-scale tabular petrol numeral, used exactly twice per home page —
      the $29 in the truth bar and the day counts in the first-week timeline.
-     Never for prose. */
+     Never for prose. Now set in the Fraunces display face (VISUALS-V2 §5 — the
+     "numeral moments" are called out as a personality slot): Fraunces has
+     tabular lining figures, so the price reads characterful AND aligned. */
+  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
+    serif;
+  /* The display face is now the pinned Fraunces master (no opsz/SOFT/WONK axes —
+     dropped for payload + CLS, VISUALS-V2 §7); its tabular lining figures still
+     read characterful and stay aligned. */
   font-size: clamp(88px, 12vw, 132px);
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings:
-    "cv11" 1,
-    "ss01" 1,
-    "tnum" 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+@utility font-display {
+  /* The MARKETING display face (VISUALS-V2 §5): Fraunces, loaded in the
+     (marketing) layout and exposed as --font-display, scoped to marketing DOM.
+     Use on HEADLINES and the expressive numeral moments only — never body/UI
+     (those stay --font-inter). If --font-display is unresolved (any surface
+     outside marketing, e.g. the app), this falls back to the serif stack, so
+     the utility is inert where the variable isn't set. */
+  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
+    serif;
+  /* Fraunces' own old-style-serif character carries the warmth at headline sizes;
+     the SOFT/WONK/opsz axes were dropped for payload + CLS (VISUALS-V2 §7). */
 }
 
 @utility display-hero {
-  /* Hero H1 scale (§1.1). Sentence case, weight 600, tight tracking. */
+  /* Hero H1 scale (§1.1) — now in the Fraunces display face (VISUALS-V2 §5).
+     Sentence case; Fraunces at its display optical size reads confident and
+     warm at this scale. Slightly lighter tracking than Inter wanted (the serif
+     doesn't need the same negative kern). */
+  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
+    serif;
   font-size: clamp(40px, 5vw, 64px);
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
 }
 
 @utility display-h2 {
-  /* Section H2 scale (§1.1). */
+  /* Section H2 scale (§1.1) — Fraunces display face (VISUALS-V2 §5). */
+  font-family: var(--font-display), ui-serif, Georgia, Cambria, "Times New Roman",
+    serif;
   font-size: clamp(30px, 3.5vw, 40px);
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
 }
 
 @utility marketing-glow {
