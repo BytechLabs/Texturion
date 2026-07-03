@@ -13,15 +13,32 @@ like a shop owner's notes, over warm duotone imagery in our own petrol/cream pal
 
 ## 1. Typography — an EXPRESSIVE editorial system (not just a font)
 
-**Faces:** Fraunces (display — a warm, characterful serif with a *gorgeous italic axis*) + Inter
-(body/UI). Fraunces is beautiful; the personality comes from how it's USED. If design-QA finds
-Fraunces isn't landing on a given surface, Newsreader or Instrument Serif are sanctioned
-alternates — but ONE display face across the site.
+**Faces:** the display face must be TRULY DISTINCTIVE and *uncommon* — explicitly NOT the
+overused ones (no Fraunces, Playfair, Poppins, Montserrat, Space Grotesk, Clash Display, Satoshi,
+DM Serif, Instrument Serif, Cormorant). Body/UI stays Inter (a clean workhorse — fine).
+
+- **Primary: Redaction** (Jeremy Mickel + Titus Kaphar). A genuinely singular open-source (SIL
+  OFL) serif built around ink/halftone degradation — it ships as a grain series (Redaction 10 →
+  100, from heavily halftoned to clean) with Regular / *Italic* / **Bold**. It is beautiful,
+  editorial, rarely seen, and a perfect match for our grain/duotone identity — use a cleaner cut
+  (Redaction 50/70) for readable headlines and a grainier cut (10/20) for one or two signature
+  hero moments. Self-host via `next/font/local`.
+- **Sanctioned distinctive alternates** (design-QA renders the shortlist in real headline
+  treatments and picks the most beautiful in-situ; bias to Redaction): **Basteleur** (Velvetyne — a
+  warm, quirky bracketed serif with a lovely italic), **Gambetta** (a high-contrast display serif
+  with italic), **Le Murmure** (Velvetyne — a striking condensed display, single style so it leans
+  on scale/case not italic). All uncommon, free, self-hostable. If ALL fail QA, choose another
+  clearly-distinctive OFL face — never fall back to a popular one.
+
+ONE display face across the whole site. Do a quick font-selection render pass FIRST (Redaction +
+the alternates in 3-4 real headline compositions, screenshotted) and lock the winner before the
+full rebuild.
 
 **Headlines are composed, not typed.** Every hero/section headline mixes emphasis for rhythm and
 voice. The concrete devices (use 2-3 per headline, never all):
-- **Italic emphasis** — set the emotional/key word in Fraunces *italic* (its italic is the whole
-  point): "Never *miss* a customer text again."
+- **Italic emphasis** — set the emotional/key word in the display face's *italic* (its italic is a
+  main event): "Never *miss* a customer text again." (If the chosen face has no italic, lean on
+  scale/case/marker instead.)
 - **Highlighter swipe** — a hand-drawn petrol/amber highlighter mark behind a key word: a slightly
   rotated, soft-edged CSS/inline-SVG swipe (imperfect, marker-like), sitting *behind* the glyphs.
 - **Marker underline / circle** — a rough hand-drawn petrol underline or lasso-circle on one word
@@ -76,7 +93,8 @@ it reads as our identity, never as stock:
 
 - Duotone/grain baked into pre-sized WebP/AVIF at build (width/height, lazy, blur-up) — no runtime
   filter cost on the image itself; CSS/SVG filters only where cheap and above-the-fold-safe.
-- Marker SVGs are tiny inline strokes (weightless). Fraunces subset + `font-display: swap`.
+- Marker SVGs are tiny inline strokes (weightless). Display face subset to the glyphs used +
+  `font-display: swap`; self-hosted (no external font host — CSP-safe).
 - Hero LCP stays the H1 text (now expressively styled) or a pre-sized priority duotone image.
 
 ## 5. Scope
