@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
+import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { app, CRON_JOBS } from "./index";
 import { reportUnreportedUsage, sweepWebhookEvents } from "./messaging/crons";
 import { composeRoutes } from "./routes/compose";
@@ -288,19 +289,32 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["POST", "/v1/conversations/:id/read"],
     ["POST", "/v1/conversations/:id/tags"],
     ["DELETE", "/v1/conversations/:id/tags/:tag_id"],
+    // tasks (D17) — the checklist read shares the /conversations/:id space
+    ["GET", "/v1/conversations/:id/tasks"],
+    ["POST", "/v1/tasks"],
+    ["GET", "/v1/tasks"],
+    ["GET", "/v1/tasks/:id"],
+    ["PATCH", "/v1/tasks/:id"],
+    ["DELETE", "/v1/tasks/:id"],
+    // attachments gallery (D21) — the union read shares /conversations/:id space
+    ["GET", "/v1/conversations/:id/attachments"],
     // messages
     ["GET", "/v1/conversations/:id/messages"],
     ["POST", "/v1/messages/send"],
     ["POST", "/v1/messages/:id/retry"],
-    // attachments
+    // attachments (MMS signed-url + generic note/task upload/list/sign, D19)
     ["GET", "/v1/attachments/:id/url"],
+    ["POST", "/v1/attachments"],
+    ["GET", "/v1/attachments"],
     // contacts
     ["GET", "/v1/contacts"],
+    ["GET", "/v1/contacts/export"],
     ["POST", "/v1/contacts"],
     ["GET", "/v1/contacts/:id"],
     ["PATCH", "/v1/contacts/:id"],
     ["DELETE", "/v1/contacts/:id"],
     ["POST", "/v1/contacts/import"],
+    ["POST", "/v1/contacts/import-vcard"],
     ["POST", "/v1/contacts/:id/opt-out"],
     ["POST", "/v1/contacts/:id/opt-out/revoke"],
     // tags / templates / search
@@ -325,6 +339,12 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["PUT", "/v1/notification-prefs"],
     ["POST", "/v1/push-subscriptions"],
     ["DELETE", "/v1/push-subscriptions/:id"],
+    // notifications read-model (D24) + for-you home (D23)
+    ["GET", "/v1/notifications"],
+    ["GET", "/v1/notifications/unread-count"],
+    ["POST", "/v1/notifications/mark-all-read"],
+    ["POST", "/v1/notifications/mark-read"],
+    ["GET", "/v1/for-you"],
     // webhooks (unversioned, outside the /v1 chain)
     ["POST", "/webhooks/telnyx"],
     ["POST", "/webhooks/stripe"],
@@ -374,6 +394,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "*/15 * * * *", // provisioning retry & reconcile
         "0 * * * *", // usage re-reporter (+ 80%/100% usage alerts)
         "30 * * * *", // sole-prop OTP nudge
+        "20 * * * *", // contact geocoding backfill (D25)
         "0 13 * * *", // registration poller
         "10 13 * * *", // port reconcile & resume (PORTING.md §5.2)
         "0 14 * * *", // grace & release
@@ -393,6 +414,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runUsageAlertsJob,
     ]);
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
+    expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);
     expect(CRON_JOBS["0 13 * * *"]).toEqual([pollRegistrations]);
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);

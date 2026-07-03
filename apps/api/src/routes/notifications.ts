@@ -1,6 +1,7 @@
 /**
- * Notification preference + Web Push subscription routes (SPEC §7, §8) — any
- * active member. Mounted by the integration layer at /v1:
+ * Notification preference + Web Push subscription routes (SPEC §7, §8) AND the
+ * derived notifications read-model (D24, HOME-AND-VIEWS.md) — any active member.
+ * Mounted by the integration layer at /v1:
  *
  *   GET    /v1/notification-prefs        { email_enabled, push_enabled,
  *          vapid_public_key } for the caller in the active company. Rows are
@@ -18,6 +19,18 @@
  *          per-user (§6: no company column) — the audience/prefs split
  *          happens at send time (§8).
  *   DELETE /v1/push-subscriptions/:id    caller's own subscription only.
+ *
+ *   --- D24 notifications read-model (lowest-upkeep: DERIVED, no feed table) ---
+ *   GET    /v1/notifications             cursor list of recent notifications,
+ *          (created_at, id) DESC. A UNION over existing sources (inbound in a
+ *          thread assigned to me, assigned-to-me, task-assigned-to-me), each
+ *          carrying an `unread` dot derived from the caller's last-seen
+ *          watermark (notification_reads). Popover feed.
+ *   GET    /v1/notifications/unread-count { count } — the bell badge.
+ *   POST   /v1/notifications/mark-all-read  advance the watermark to now →
+ *          { last_seen_at }; every current item reads as read.
+ *   POST   /v1/notifications/mark-read   { before } — advance the watermark to
+ *          a notification's timestamp (marks it and everything older read).
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -27,8 +40,15 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { buildPage } from "../http/pagination";
 import { decodeAuthSecret, decodeSubscriberKey } from "../notifications/webpush";
-import { parseJsonBody, pathUuid, unwrap } from "./core/http";
+import {
+  parseCursor,
+  parseJsonBody,
+  parseLimit,
+  pathUuid,
+  unwrap,
+} from "./core/http";
 
 const prefsSchema = z.object({
   email_enabled: z.boolean(),
@@ -162,5 +182,107 @@ notificationsRoutes.delete(
       return errorResponse(c, "not_found", "No such push subscription.");
     }
     return c.body(null, 204);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// D24 notifications read-model — DERIVED (no feed table). Recent notifications
+// are a UNION over existing sources; the `unread` dot + "mark read" ride a
+// per-user last-seen watermark (notification_reads). All company-scoped (§10).
+// ---------------------------------------------------------------------------
+
+/** One derived notification item (api_notifications RPC row shape). */
+interface NotificationRow {
+  id: string;
+  created_at: string;
+  type: string;
+  conversation_id: string | null;
+  message_id: string | null;
+  task_id: string | null;
+  contact: { id: string; name: string | null; phone_e164: string } | null;
+  unread: boolean;
+}
+
+const markReadSchema = z.object({
+  // A notification's created_at: advance the watermark to it, marking that
+  // item and everything older read. ISO 8601 with offset (matches cursor ts).
+  before: z.iso.datetime({ offset: true }),
+});
+
+notificationsRoutes.get(
+  "/notifications",
+  requireRole("member"),
+  async (c) => {
+    const limit = parseLimit(c, 25, 100);
+    const cursor = parseCursor(c);
+    const db = getDb(getEnv(c.env));
+
+    const rows = unwrap<NotificationRow[]>(
+      await db.rpc("api_notifications", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_limit: limit + 1,
+        p_before_ts: cursor?.ts ?? null,
+        p_before_id: cursor?.id ?? null,
+      }),
+      "notifications list",
+    );
+    return c.json(buildPage(rows, limit, "created_at"));
+  },
+);
+
+notificationsRoutes.get(
+  "/notifications/unread-count",
+  requireRole("member"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const count = Number(
+      unwrap<number | string>(
+        await db.rpc("api_notifications_unread_count", {
+          p_company_id: c.get("companyId"),
+          p_user_id: c.get("userId"),
+        }),
+        "notifications unread count",
+      ),
+    );
+    return c.json({ count });
+  },
+);
+
+notificationsRoutes.post(
+  "/notifications/mark-all-read",
+  requireRole("member"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const lastSeen = unwrap<string>(
+      await db.rpc("api_mark_notifications_read", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_now: new Date().toISOString(),
+      }),
+      "notifications mark-all-read",
+    );
+    return c.json({ last_seen_at: lastSeen });
+  },
+);
+
+notificationsRoutes.post(
+  "/notifications/mark-read",
+  requireRole("member"),
+  async (c) => {
+    const body = await parseJsonBody(c, markReadSchema);
+    const db = getDb(getEnv(c.env));
+    // Watermark model: marking a single notification read advances the
+    // per-user last-seen to that notification's timestamp (the RPC keeps the
+    // greatest, so this never moves the watermark backwards).
+    const lastSeen = unwrap<string>(
+      await db.rpc("api_mark_notifications_read", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_now: body.before,
+      }),
+      "notifications mark-read",
+    );
+    return c.json({ last_seen_at: lastSeen });
   },
 );

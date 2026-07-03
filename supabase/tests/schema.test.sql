@@ -119,7 +119,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- T5. Expected triggers exist: 13 moddatetime, auth sync, 4 broadcast.
+-- T5. Expected triggers exist: 16 moddatetime, auth sync, 6 broadcast.
 --     Plus the realtime.messages topic-authorization policy.
 -- ===========================================================================
 do $$
@@ -131,9 +131,13 @@ begin
   join pg_class c on c.oid = tg.tgrelid
   join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'public' and tg.tgname = 'set_updated_at' and not tg.tgisinternal;
-  -- 13 base tables + port_requests (D16, 20260702030000_number_porting.sql).
-  if n <> 14 then
-    raise exception 'T5 FAILED: expected 14 set_updated_at triggers, found %', n;
+  -- 13 base tables + port_requests (D16, 20260702030000_number_porting.sql)
+  -- + tasks (D17/TASKS.md T1.1, 20260702060000)
+  -- + notification_reads (D24 read-model, 20260702070000_appv2_for_you_notifications.sql).
+  -- The generic attachments table (D19) is append-only and deliberately has NO
+  -- moddatetime trigger.
+  if n <> 16 then
+    raise exception 'T5 FAILED: expected 16 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -152,10 +156,10 @@ begin
   where ns.nspname = 'public' and not tg.tgisinternal
     and tg.tgname in ('messages_broadcast','conversations_broadcast',
                       'phone_numbers_broadcast','registrations_broadcast',
-                      'port_requests_broadcast');
-  -- 4 base broadcast triggers + port.updated (D16).
-  if n <> 5 then
-    raise exception 'T5 FAILED: expected 5 broadcast triggers, found %', n;
+                      'port_requests_broadcast','tasks_broadcast');
+  -- 4 base broadcast triggers + port.updated (D16) + task.changed (D17/T1.3).
+  if n <> 6 then
+    raise exception 'T5 FAILED: expected 6 broadcast triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -165,7 +169,7 @@ begin
   if n <> 1 then
     raise exception 'T5 FAILED: company_topic_read policy missing on realtime.messages';
   end if;
-  raise notice 'T5 PASSED: 14 moddatetime + auth-sync + 5 broadcast triggers, realtime policy present';
+  raise notice 'T5 PASSED: 16 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
 end $$;
 
 -- ===========================================================================

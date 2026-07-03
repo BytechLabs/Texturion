@@ -20,7 +20,27 @@ export type ConversationEventType =
   | "consent_attested"
   | "quiet_hours_confirmed"
   | "spam_marked"
-  | "spam_unmarked";
+  | "spam_unmarked"
+  // D22 / TASKS.md T8 — done-audit + task lifecycle. `message_done` /
+  // `message_undone` are written by the D14 PATCH /v1/messages/:id handler on
+  // real done↔undone transitions; the `task_*` types by the D17 tasks routes.
+  // The canonical enum-literal list lives in TASKS.md T8; the schema-track
+  // migration ADDs these values to conversation_event_type. Every one always
+  // carries a non-null conversation_id (a message/task belongs to a thread),
+  // so the shipped conversation_events_conv_required CHECK is satisfied as-is.
+  | "message_done"
+  | "message_undone"
+  | "task_created"
+  | "task_assigned"
+  | "task_due_set"
+  | "task_deleted"
+  // D19/D22 — attachment lifecycle, written by the storage track
+  // (routes/attachments.ts) on the owner note/task's conversation. Both always
+  // carry a non-null conversation_id, so the shipped conv-required CHECK holds.
+  | "note_attachment_added"
+  | "note_attachment_removed"
+  | "task_attachment_added"
+  | "task_attachment_removed";
 
 export interface ConversationEventRow {
   company_id: string;

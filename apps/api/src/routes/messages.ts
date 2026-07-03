@@ -18,7 +18,12 @@
  *        no-op returning the row). done=true stamps done_at +
  *        done_by_user_id, done=false clears both; the DB broadcast trigger
  *        emits `message.status` so all open clients update. Applies to
- *        inbound, outbound, and notes alike.
+ *        inbound, outbound, and notes alike. On a REAL done↔undone transition
+ *        it additionally appends one `conversation_events` audit row
+ *        (`message_done`/`message_undone`, actor-stamped, payload {message_id})
+ *        per D22 — the no-op path writes none. This is also the ONE completion
+ *        path for a promoted task (D17/TASKS.md T2): the handler has no
+ *        task-awareness; a task's done state derives from this same done_at.
  *   GET  /v1/conversations/:id/messages   cursor list, newest-first,
  *        (created_at, id) DESC, default 50 max 100; message objects carry
  *        `attachments: [{ id, content_type, size_bytes }]`.
@@ -34,6 +39,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
+import { insertConversationEvents } from "./core/events";
 import {
   decodeOutboundMedia,
   MMS_SEGMENTS,
@@ -391,8 +397,9 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   }
 
   // done=true stamps who/when; done=false clears both (messages_done_consistency).
+  const userId = c.get("userId");
   const patch = body.done
-    ? { done_at: new Date().toISOString(), done_by_user_id: c.get("userId") }
+    ? { done_at: new Date().toISOString(), done_by_user_id: userId }
     : { done_at: null, done_by_user_id: null };
   const updated = unwrap<MessageRow[]>(
     await db
@@ -404,6 +411,25 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
     "message done update",
   )[0];
   if (!updated) throw new Error(`message ${message.id} vanished during update`);
+
+  // D22 audit: a REAL done↔undone transition appends exactly one
+  // conversation_events row (the idempotent no-op above returned early, so a
+  // redundant mark-done writes no event — only real transitions are audited,
+  // no timeline spam). The message body is NOT copied into the payload; the
+  // timeline joins the live message by message_id (D8 PII posture, D22). For a
+  // promoted message this is the ONE completion audit — tasks never re-audit
+  // done (TASKS.md T2.1), so there is no task_completed/task_reopened event.
+  // conversation_id is always non-null (a message belongs to a thread), so the
+  // shipped conversation_events_conv_required CHECK holds unchanged.
+  await insertConversationEvents(db, [
+    {
+      company_id: companyId,
+      conversation_id: updated.conversation_id,
+      actor_user_id: userId,
+      type: body.done ? "message_done" : "message_undone",
+      payload: { message_id: updated.id },
+    },
+  ]);
 
   const attachments = await loadAttachments(db, companyId, [updated.id]);
   return c.json(messageJson(updated, attachments.get(updated.id) ?? []));

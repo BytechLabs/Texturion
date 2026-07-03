@@ -61,3 +61,25 @@ export function parseCsv(text: string): string[][] {
   // Drop rows that are entirely empty (trailing newline, blank lines).
   return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
 }
+
+/**
+ * Quote one CSV field per RFC 4180: wrap in double quotes and double any
+ * embedded quote when the value contains a comma, quote, CR, or LF; otherwise
+ * emit it bare. A null/undefined value is the empty string.
+ */
+export function csvField(value: string | null | undefined): string {
+  const text = value ?? "";
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+/**
+ * Serialize rows (a header row + data rows, each a string array) into an
+ * RFC-4180 CSV string with CRLF line endings. Used by `GET /v1/contacts/export`
+ * (D20 §3.1). The caller prepends a UTF-8 BOM for Excel.
+ */
+export function serializeCsv(rows: (string | null | undefined)[][]): string {
+  return rows.map((row) => row.map(csvField).join(",")).join("\r\n");
+}

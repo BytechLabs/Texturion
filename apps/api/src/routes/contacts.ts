@@ -35,7 +35,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { parseCsv } from "./core/csv";
+import { parseCsv, serializeCsv } from "./core/csv";
 import {
   insertConversationEvents,
   latestConversationId,
@@ -51,6 +51,7 @@ import {
   unwrap,
 } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
+import { parseVCards } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
@@ -85,6 +86,23 @@ const patchSchema = z
 const IMPORT_MAX_ROWS = 2000;
 /** Chunk size for batched PostgREST calls during import. */
 const IMPORT_CHUNK = 200;
+
+/**
+ * Reset the geocode cache (D25) when a contact's address is written, so the
+ * geocode-contacts cron re-geocodes the row (the cron never diffs addresses —
+ * it re-picks up any row with geocode_status='pending'). Uses the committed
+ * geocode_status vocabulary (migration 20260702060000): an address present →
+ * 'pending' (queue for geocoding); an address cleared to null → 'no_address'
+ * (terminal, no map pin). lat/lng/geocoded_at are cleared either way.
+ */
+function geocodeReset(address: string | null): Record<string, unknown> {
+  return {
+    lat: null,
+    lng: null,
+    geocoded_at: null,
+    geocode_status: address === null ? "no_address" : "pending",
+  };
+}
 
 const TRUTHY_CSV = new Set(["true", "1", "yes", "y"]);
 
@@ -196,6 +214,118 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
   });
 });
 
+/** Max contacts a single export streams (bounds Worker memory/CPU). */
+const EXPORT_MAX_ROWS = 50_000;
+
+/** Export column order — round-trips with the CSV importer (D20 §3.1). */
+const EXPORT_HEADER = [
+  "name",
+  "phone",
+  "tags",
+  "consent_source",
+  "consent_at",
+  "created_at",
+] as const;
+
+/**
+ * GET /v1/contacts/export (D20 §3.1) — stream a UTF-8 CSV (BOM for Excel) of
+ * the company's contacts respecting the current `q` filter ("export what I'm
+ * looking at"), excluding soft-deleted. Any member (read-only visibility). The
+ * `tags` column carries the contact's conversation tags, ';'-joined, so the
+ * export round-trips with the importer's columns.
+ *
+ * Registered before `/contacts/:id` so the literal path is never captured by
+ * the param route.
+ */
+contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
+  const companyId = c.get("companyId");
+  const rawQ = c.req.query("q")?.trim();
+  const db = getDb(getEnv(c.env));
+
+  let query = db
+    .from("contacts")
+    .select("id,name,phone_e164,consent_source,consent_at,created_at")
+    .eq("company_id", companyId)
+    .is("deleted_at", null);
+  if (rawQ !== undefined && rawQ !== "") {
+    if (rawQ.length > 200) {
+      throw new ApiError("validation_failed", "q: too long (max 200).");
+    }
+    const q = orIlikeValue(rawQ);
+    query = query.or(`name.ilike.*${q}*,phone_e164.ilike.*${q}*`);
+  }
+  interface ExportRow {
+    id: string;
+    name: string | null;
+    phone_e164: string;
+    consent_source: string | null;
+    consent_at: string | null;
+    created_at: string;
+  }
+  const rows = unwrap<ExportRow[]>(
+    await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(EXPORT_MAX_ROWS),
+    "contacts export",
+  );
+
+  // Tags live per-CONVERSATION (there is no contact_tags table); a contact's
+  // tags = the union of tags across its conversations. One batched lookup per
+  // export keeps this a single round-trip regardless of contact count.
+  const tagsByContact = new Map<string, Set<string>>();
+  if (rows.length > 0) {
+    interface TagJoinRow {
+      contact_id: string;
+      conversation_tags: { tags: { name: string } | null }[];
+    }
+    const joins = unwrap<TagJoinRow[]>(
+      await db
+        .from("conversations")
+        .select("contact_id,conversation_tags(tags(name))")
+        .eq("company_id", companyId)
+        .in(
+          "contact_id",
+          rows.map((row) => row.id),
+        ),
+      "contacts export tags",
+    );
+    for (const join of joins) {
+      const set = tagsByContact.get(join.contact_id) ?? new Set<string>();
+      for (const entry of join.conversation_tags ?? []) {
+        if (entry.tags?.name) set.add(entry.tags.name);
+      }
+      tagsByContact.set(join.contact_id, set);
+    }
+  }
+
+  const table: (string | null)[][] = [
+    [...EXPORT_HEADER],
+    ...rows.map((row) => [
+      row.name,
+      row.phone_e164,
+      [...(tagsByContact.get(row.id) ?? [])].join(";"),
+      row.consent_source,
+      row.consent_at,
+      row.created_at,
+    ]),
+  ];
+  // UTF-8 BOM (D20 §3.1) so Excel reads the encoding correctly. Emit the body
+  // as bytes with a literal EF BB BF prefix: `new Response(string)` would strip
+  // a leading U+FEFF, so the BOM must be raw bytes, not a string char.
+  const csvBytes = new TextEncoder().encode(serializeCsv(table));
+  const body = new Uint8Array(csvBytes.length + 3);
+  body.set([0xef, 0xbb, 0xbf], 0);
+  body.set(csvBytes, 3);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="contacts.csv"',
+    },
+  });
+});
+
 contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
   const phone = normalizeNanpPhone(body.phone_e164);
@@ -215,8 +345,13 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
     deleted_at: null,
   };
   if (body.name !== undefined) row.name = body.name;
-  if (body.address !== undefined) row.address = body.address;
   if (body.notes !== undefined) row.notes = body.notes;
+  if (body.address !== undefined) {
+    row.address = body.address;
+    // A new/resurrected contact with an address needs geocoding (D25). The
+    // create schema requires a non-empty address, so this always queues.
+    Object.assign(row, geocodeReset(body.address));
+  }
 
   const rows = unwrap<Record<string, unknown>[]>(
     await db
@@ -264,7 +399,12 @@ contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
 
   const patch: Record<string, unknown> = {};
   if ("name" in body) patch.name = body.name ?? null;
-  if ("address" in body) patch.address = body.address ?? null;
+  if ("address" in body) {
+    const nextAddress = body.address ?? null;
+    patch.address = nextAddress;
+    // Address write → re-geocode (a null address becomes 'no_address') (D25).
+    Object.assign(patch, geocodeReset(nextAddress));
+  }
   if ("notes" in body) patch.notes = body.notes ?? null;
   if (body.consent_attested === true) {
     patch.consent_source = "attested";
@@ -435,7 +575,18 @@ contactsRoutes.post(
         deleted_at: null,
       };
       if (nameCol !== -1) row.name = cell(cells, nameCol);
-      if (addressCol !== -1) row.address = cell(cells, addressCol);
+      if (addressCol !== -1) {
+        const address = cell(cells, addressCol);
+        row.address = address;
+        // Writing an address must re-queue geocoding (D25), exactly as
+        // POST/PATCH /contacts do — the cron only re-scans rows with
+        // geocode_status IN ('pending','failed'), so without this a re-import
+        // that CHANGES an already-'ok' contact's address would keep the stale
+        // cached lat/lng and never re-geocode. `geocodeReset` always writes the
+        // same 4 keys, so a batch's rows keep identical key sets (the importer's
+        // batching invariant) whether the address is present or cleared.
+        Object.assign(row, geocodeReset(address));
+      }
       if (notesCol !== -1) row.notes = cell(cells, notesCol);
       return row;
     });
@@ -533,6 +684,150 @@ contactsRoutes.post(
         });
         await insertConversationEvents(db, events);
       }
+    }
+
+    const imported = phones.filter((p) => !existingPhones.has(p)).length;
+    return c.json({
+      imported,
+      updated: phones.length - imported,
+      skipped: errors.length,
+      errors,
+    });
+  },
+);
+
+/** Max cards a single .vcf may carry — same CPU bound as the CSV importer. */
+const VCARD_MAX_CARDS = IMPORT_MAX_ROWS;
+
+/**
+ * POST /v1/contacts/import-vcard (D20 §3.2) — owner/admin (the §10 matrix,
+ * matching the CSV importer). Accepts one .vcf with one-or-many VCARD blocks
+ * (phone/Google/Apple export). Parses vCard 3.0 + 4.0 (FN/N → name, TEL →
+ * phone), normalizes every TEL to E.164 against the company default country
+ * (US/CA), drops un-normalizable numbers with a per-row reason. A card with
+ * multiple valid TELs yields one contact per DISTINCT valid number (contacts
+ * are phone-keyed). Reuses the exact idempotent upsert + dedupe the CSV
+ * importer enforces (clears deleted_at; consent_source is not in the shipped
+ * enum's import value, so — like the CSV path — it is left untouched). Same
+ * { imported, updated, skipped, errors } shape as CSV.
+ */
+contactsRoutes.post(
+  "/contacts/import-vcard",
+  requireRole("admin"),
+  async (c) => {
+    let form: FormData;
+    try {
+      form = await c.req.raw.formData();
+    } catch {
+      throw new ApiError(
+        "validation_failed",
+        "Request must be multipart/form-data with a `file` field.",
+      );
+    }
+    const file = form.get("file") as unknown as
+      | string
+      | { text(): Promise<string> }
+      | null;
+    if (file === null) {
+      throw new ApiError("validation_failed", "file: missing .vcf file field.");
+    }
+    const text = typeof file === "string" ? file : await file.text();
+    if (text.length > 5 * 1024 * 1024) {
+      throw new ApiError("validation_failed", "file: too large (max 5 MB).");
+    }
+
+    const cards = parseVCards(text);
+    if (cards.length === 0) {
+      throw new ApiError(
+        "validation_failed",
+        "file: no VCARD blocks found.",
+      );
+    }
+    if (cards.length > VCARD_MAX_CARDS) {
+      throw new ApiError(
+        "validation_failed",
+        `file: too many cards (max ${VCARD_MAX_CARDS}).`,
+      );
+    }
+
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const errors: { row: number; reason: string }[] = [];
+    // One entry per DISTINCT valid E.164 across the whole file; first name wins.
+    const byPhone = new Map<string, { name: string | null }>();
+
+    cards.forEach((card, index) => {
+      const cardNumber = index + 1; // 1-based card position
+      const valid = new Set<string>();
+      for (const rawTel of card.tels) {
+        const phone = normalizeNanpPhone(rawTel);
+        if (!phone) {
+          errors.push({
+            row: cardNumber,
+            reason: `invalid phone: ${rawTel === "" ? "(empty)" : rawTel}`,
+          });
+          continue;
+        }
+        valid.add(phone);
+      }
+      if (valid.size === 0 && card.tels.length === 0) {
+        // A card with no TEL at all is a skip with a clear reason.
+        errors.push({ row: cardNumber, reason: "no phone number" });
+        return;
+      }
+      for (const phone of valid) {
+        if (byPhone.has(phone)) {
+          errors.push({
+            row: cardNumber,
+            reason: `duplicate phone in file: ${phone}`,
+          });
+          continue;
+        }
+        byPhone.set(phone, { name: card.name });
+      }
+    });
+
+    const entries = [...byPhone.entries()];
+    const phones = entries.map(([phone]) => phone);
+
+    // Pre-existing contacts → imported-vs-updated counting (mirrors CSV).
+    const existingPhones = new Set<string>();
+    for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+      const chunk = phones.slice(i, i + IMPORT_CHUNK);
+      const found = unwrap<{ phone_e164: string }[]>(
+        await db
+          .from("contacts")
+          .select("phone_e164")
+          .eq("company_id", companyId)
+          .in("phone_e164", chunk),
+        "vcard pre-check",
+      );
+      for (const row of found) existingPhones.add(row.phone_e164);
+    }
+
+    // Idempotent upsert on (company_id, phone_e164), clearing deleted_at — the
+    // exact CSV path. A name is written only when the card carried one, so a
+    // re-import of a card without a name never nulls an existing name.
+    const upsertRows = entries.map(([phone, { name }]) => {
+      const row: Record<string, unknown> = {
+        company_id: companyId,
+        phone_e164: phone,
+        deleted_at: null,
+      };
+      if (name !== null) row.name = name;
+      return row;
+    });
+    for (let i = 0; i < upsertRows.length; i += IMPORT_CHUNK) {
+      unwrap(
+        await db
+          .from("contacts")
+          .upsert(upsertRows.slice(i, i + IMPORT_CHUNK), {
+            onConflict: "company_id,phone_e164",
+          })
+          .select("id"),
+        "vcard upsert",
+      );
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;

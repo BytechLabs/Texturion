@@ -10,6 +10,7 @@ import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
+import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { ApiError, errorResponse } from "./http/errors";
 import {
   reportUnreportedUsage,
@@ -22,6 +23,7 @@ import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
 import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
+import { forYouRoutes } from "./routes/for-you";
 import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
@@ -30,6 +32,7 @@ import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { tagsRoutes } from "./routes/tags";
+import { tasksRoutes } from "./routes/tasks";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { usageRoutes } from "./routes/usage";
@@ -99,6 +102,7 @@ app.route("/v1/port-requests", portingRoutes);
 app.route("/v1/registration", registrationRoutes);
 app.route("/v1", composeRoutes); // POST /v1/conversations — before conversationsRoutes
 app.route("/v1", conversationsRoutes);
+app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);
 app.route("/v1", attachmentsRoutes);
 app.route("/v1", contactsRoutes);
@@ -107,6 +111,7 @@ app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
 app.route("/v1", notificationsRoutes);
+app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model
 
 /**
  * Webhooks (SPEC §7): unversioned, outside the JWT/CORS chain — the provider
@@ -154,6 +159,10 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   "0 * * * *": [reportUnreportedUsage, runUsageAlertsJob],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [nudgeSoleProprietorOtp],
+  // Contact geocoding backfill (D25): geocode addressed contacts via Nominatim,
+  // rate-limited (1 req/s) and cached to contacts.lat/lng; skips already-
+  // geocoded and not-found rows. Off-peak from the other hourly jobs.
+  "20 * * * *": [geocodeContactsJob],
   // Registration poller (webhooks are primary; this is the D2 fallback).
   "0 13 * * *": [pollRegistrations],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,

@@ -782,10 +782,16 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       restMatch(env, "GET", "message_attachments"),
       () => [],
     );
+    // D22: a real done↔undone transition appends one conversation_events row.
+    const events = stubRoute(
+      restMatch(env, "POST", "conversation_events"),
+      () => [],
+    );
     return {
       lookup,
       update,
       attachmentsLookup,
+      events,
       all: [
         jwksRoute(auth),
         companyMembersRoute(env, [
@@ -794,6 +800,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
         lookup.route,
         update.route,
         attachmentsLookup.route,
+        events.route,
       ],
     };
   }

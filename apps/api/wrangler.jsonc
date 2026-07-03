@@ -13,6 +13,7 @@
       "*/15 * * * *", // provisioning retry & reconcile (+ §4.4 R3 assignment retry)
       "0 * * * *", // usage re-reporter + 80%/100% usage alerts (hourly)
       "30 * * * *", // sole-prop OTP nudge (hourly)
+      "20 * * * *", // contact geocoding backfill (hourly; D25 Nominatim, rate-limited)
       "0 13 * * *", // registration poller (daily)
       "10 13 * * *", // port reconcile & resume (daily; PORTING.md §5.2)
       "0 14 * * *", // grace & release (daily)

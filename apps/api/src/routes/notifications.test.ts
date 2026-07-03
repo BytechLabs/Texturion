@@ -294,3 +294,254 @@ describe("DELETE /v1/push-subscriptions/:id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ---------------------------------------------------------------------------
+// D24 notifications read-model (DERIVED, no feed table). The union + unread
+// watermark live in the api_notifications* RPCs (exercised by the DB suite);
+// these stub the RPC network edge and assert the route wiring: caller/company
+// scoping, cursor pagination, the unread dot passthrough, the bell count, and
+// the mark-read watermark advance.
+// ---------------------------------------------------------------------------
+
+const NOTIF_A = {
+  id: "e1000000-0000-4000-8000-000000000001",
+  type: "inbound_message",
+  conversation_id: "c1000000-0000-4000-8000-000000000001",
+  message_id: "b1000000-0000-4000-8000-000000000001",
+  task_id: null,
+  contact: { id: "d1", name: "Jane", phone_e164: "+16135550100" },
+  created_at: "2026-07-02T12:00:00+00:00",
+  unread: true,
+};
+const NOTIF_B = {
+  id: "e1000000-0000-4000-8000-000000000002",
+  type: "task_assigned",
+  conversation_id: "c1000000-0000-4000-8000-000000000002",
+  message_id: null,
+  task_id: "a1000000-0000-4000-8000-000000000002",
+  contact: { id: "d2", name: null, phone_e164: "+16135550200" },
+  created_at: "2026-07-02T11:00:00+00:00",
+  unread: false,
+};
+
+describe("GET /v1/notifications", () => {
+  it("lists derived notifications, scoped to caller + company, no next page", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_notifications", () => [NOTIF_A, NOTIF_B]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      data: [NOTIF_A, NOTIF_B],
+      next_cursor: null,
+    });
+
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[0];
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_limit: 26, // default 25 + 1 (the has-next-page probe row)
+      p_before_ts: null,
+      p_before_id: null,
+    });
+  });
+
+  it("emits a next_cursor when the page is full (limit+1 rows returned)", async () => {
+    const sb = memberStub();
+    // limit=1 → route fetches 2; the extra row signals a next page and is
+    // trimmed. next_cursor encodes the last KEPT row's (created_at, id).
+    sb.on("POST", "/rest/v1/rpc/api_notifications", () => [NOTIF_A, NOTIF_B]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications?limit=1",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as {
+      data: unknown[];
+      next_cursor: string | null;
+    };
+    expect(body.data).toEqual([NOTIF_A]);
+    expect(body.next_cursor).not.toBeNull();
+
+    // Following the cursor forwards (created_at, id) into p_before_ts/id.
+    const follow = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/notifications?limit=1&cursor=${body.next_cursor}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(follow.status).toBe(200);
+    const followRpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[1];
+    expect(followRpc.body).toMatchObject({
+      p_before_ts: NOTIF_A.created_at,
+      p_before_id: NOTIF_A.id,
+      p_limit: 2,
+    });
+  });
+
+  it("preserves the per-item unread dot from the RPC", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_notifications", () => [NOTIF_A, NOTIF_B]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { data: { unread: boolean }[] };
+    expect(body.data.map((n) => n.unread)).toEqual([true, false]);
+  });
+
+  it("422s a garbage cursor", async () => {
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications?cursor=not-a-cursor",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/api_notifications")).toHaveLength(0);
+  });
+});
+
+describe("GET /v1/notifications/unread-count", () => {
+  it("returns the bell badge count from the RPC", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => 4);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/unread-count",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ count: 4 });
+
+    const rpc = sb.find(
+      "POST",
+      "/rest/v1/rpc/api_notifications_unread_count",
+    )[0];
+    expect(rpc.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+    });
+  });
+
+  it("a PostgREST bigint-as-string count is coerced to a number", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => "7");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/unread-count",
+      { companyId: COMPANY_ID },
+    );
+    expect(await res.json()).toEqual({ count: 7 });
+  });
+});
+
+describe("POST /v1/notifications/mark-all-read", () => {
+  it("advances the watermark to now and echoes it", async () => {
+    const sb = memberStub();
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_mark_notifications_read",
+      () => "2026-07-02T13:00:00+00:00",
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/mark-all-read",
+      { method: "POST", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      last_seen_at: "2026-07-02T13:00:00+00:00",
+    });
+
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+    });
+    // p_now is the server clock, a real ISO string (never client-supplied).
+    expect(typeof (rpc.body as Record<string, unknown>).p_now).toBe("string");
+  });
+});
+
+describe("POST /v1/notifications/mark-read", () => {
+  it("advances the watermark to a specific notification's timestamp", async () => {
+    const sb = memberStub();
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_mark_notifications_read",
+      () => NOTIF_A.created_at,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/mark-read",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { before: NOTIF_A.created_at },
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ last_seen_at: NOTIF_A.created_at });
+
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_now: NOTIF_A.created_at, // the route passes `before` through as p_now
+    });
+  });
+
+  it("422s a missing or non-ISO `before`", async () => {
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const body of [{}, { before: "yesterday" }, { before: 12345 }]) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/notifications/mark-read",
+        { method: "POST", companyId: COMPANY_ID, body },
+      );
+      expect(res.status, JSON.stringify(body)).toBe(422);
+    }
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read"),
+    ).toHaveLength(0);
+  });
+});
