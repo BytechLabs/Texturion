@@ -96,4 +96,15 @@ export const keys = {
   search: (companyId: string, q: string) => [companyId, "search", q] as const,
   attachmentUrl: (companyId: string, attachmentId: string) =>
     [companyId, "attachments", attachmentId, "url"] as const,
+  /**
+   * The generic (note/task) attachment list for one owner (D19 —
+   * GET /v1/attachments?owner_type=&owner_id=). Keyed by owner so a note's and
+   * a task's attachments never share a cache entry; the upload mutation
+   * invalidates exactly this key.
+   */
+  ownerAttachments: (
+    companyId: string,
+    ownerType: string,
+    ownerId: string,
+  ) => [companyId, "attachments", "owner", ownerType, ownerId] as const,
 } as const;

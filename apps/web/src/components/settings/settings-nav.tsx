@@ -7,6 +7,7 @@ import {
   CreditCard,
   Gauge,
   Phone,
+  ShieldCheck,
   UserRound,
   Users,
   type LucideIcon,
@@ -66,6 +67,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Profile",
     description: "Your name, theme, and sign out",
     icon: UserRound,
+  },
+  {
+    // D18 / APP-FEATURES-V2 §1.8 — email, password, and linked sign-in methods.
+    slug: "account",
+    label: "Account",
+    description: "Email, password, and sign-in methods",
+    icon: ShieldCheck,
   },
 ];
 

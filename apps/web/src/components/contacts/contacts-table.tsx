@@ -40,9 +40,15 @@ function SkeletonRows() {
  */
 export function ContactsTable({
   emptyAction,
+  onQueryChange,
 }: {
   /** Rendered inside the brand-new empty state (e.g. the import button). */
   emptyAction?: React.ReactNode;
+  /**
+   * Lifts the debounced search query so the toolbar's CSV export can mirror
+   * "what I'm looking at" (D20 §3.1) — the table stays the owner of the input.
+   */
+  onQueryChange?: (query: string) => void;
 }) {
   const router = useRouter();
   const [input, setInput] = useState("");
@@ -52,6 +58,10 @@ export function ContactsTable({
     const handle = setTimeout(() => setQuery(input), 250);
     return () => clearTimeout(handle);
   }, [input]);
+
+  useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
 
   const contacts = useContacts(query);
   const rows = flattenPages(contacts.data);

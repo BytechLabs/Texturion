@@ -746,6 +746,27 @@ export interface AttachmentUrl {
   expires_at: string;
 }
 
+/** The generic note/task attachment owner discriminator (D19 / routes/attachments.ts). */
+export type AttachmentOwnerType = "note" | "task";
+
+/**
+ * A generic (note/task) attachment row — the shape POST /v1/attachments returns
+ * (201) and every GET /v1/attachments row carries (routes/attachments.ts
+ * ATTACHMENT_COLUMNS; never `storage_path`). Distinct from the MMS-shaped
+ * `AttachmentSummary` embedded on messages: this is the D19 user-upload table
+ * (any file type, un-metered), keyed by `owner_type`/`owner_id`.
+ */
+export interface Attachment {
+  id: string;
+  owner_type: AttachmentOwnerType;
+  owner_id: string;
+  conversation_id: string | null;
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+}
+
 /**
  * Canonical gallery `source` enum (APP-FEATURES-V2 §4.2 / TASKS.md T7.3):
  * where an attachment came from. Mapped to the display tags Message / Note /

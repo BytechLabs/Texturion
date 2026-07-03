@@ -14,6 +14,8 @@ import type { Message } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
+import { NoteAttachments } from "@/components/attachments/note-attachments";
+
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
 import { MessageActions } from "./message-actions";
@@ -225,6 +227,11 @@ export function MessageBubble({
             </span>
           </div>
         )}
+        {/* D19: internal-note attachment area — a quiet "Files" disclosure
+            under the note bubble (any file type, 25 MB). Notes are the only
+            generic-attachment owner shown in-thread; MMS media on real messages
+            still renders via AttachmentImage above. */}
+        {note && <NoteAttachments noteId={message.id} />}
         {(isLastOfCluster || failed || done) && (
           <span className="flex items-center gap-1.5">
             {done && <DoneBadge message={message} />}

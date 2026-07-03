@@ -1,9 +1,11 @@
 "use client";
 
 import { format, isSameYear } from "date-fns";
+import { ChevronDown, Paperclip } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AttachmentsSection } from "@/components/attachments/attachments-section";
 import { useMemberNames, MemberAvatar } from "@/components/inbox/member-avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,6 +120,11 @@ function TaskRow({
   const [optimisticDone, setOptimisticDone] = useState<boolean | null>(null);
   const done = optimisticDone ?? task.done;
 
+  // D19: task attachments (owner_type='task') — a quiet per-row disclosure. The
+  // checklist row carries `attachment_count`, so the toggle can show the count
+  // without fetching; the list only fetches when the row is expanded.
+  const [filesOpen, setFilesOpen] = useState(false);
+
   const assigneeName = task.assigned_user_id
     ? memberNames.get(task.assigned_user_id) ?? null
     : null;
@@ -189,6 +196,36 @@ function TaskRow({
                 {due.text}
               </span>
             )}
+          </div>
+        )}
+        {/* D19: attach-a-file affordance + existing task attachments. The
+            "Files (N)" toggle recedes to stone; opening it mounts the shared
+            AttachmentsSection which fetches this task's attachments and offers
+            the attach button (25 MB, any allowed type). */}
+        <button
+          type="button"
+          onClick={() => setFilesOpen((value) => !value)}
+          aria-expanded={filesOpen}
+          className="tap-target mt-1 flex items-center gap-1 rounded-md px-0.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
+        >
+          <Paperclip className="size-3" strokeWidth={1.75} aria-hidden />
+          {task.attachment_count > 0 ? `Files (${task.attachment_count})` : "Files"}
+          <ChevronDown
+            className={cn(
+              "size-3 transition-transform duration-150 ease-out",
+              filesOpen && "rotate-180",
+            )}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        </button>
+        {filesOpen && (
+          <div className="mt-1.5">
+            <AttachmentsSection
+              ownerType="task"
+              ownerId={task.id}
+              compact
+            />
           </div>
         )}
       </div>

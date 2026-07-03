@@ -3,10 +3,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -32,6 +33,16 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Surface a failed OAuth sign-in (the /auth/callback route redirects here with
+  // ?error=oauth) as a calm inline message instead of a blank login page.
+  useEffect(() => {
+    if (searchParams.get("error") === "oauth") {
+      setServerError(
+        "We couldn't finish signing you in with that provider. Try again, or use your email and password below.",
+      );
+    }
+  }, [searchParams]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -60,6 +71,10 @@ function LoginForm() {
           Your team&apos;s texts are waiting.
         </p>
       </div>
+      {/* SSO stacked above the email form (§1.7): the petrol "Log in" button
+          below stays the one accent element on the screen. `next` carries the
+          protected path a signed-out visitor was bounced from. */}
+      <OAuthButtons next={searchParams.get("next")} />
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}

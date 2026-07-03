@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -106,6 +107,12 @@ export default function SignupPage() {
           A business number for your whole crew — set up in minutes.
         </p>
       </div>
+      {/* SSO stacked above the email form (§1.7). A first-time OAuth user with
+          no company goes through the SAME company-first onboarding as a
+          password signup (D18) — no `next` here means the callback lands on
+          /inbox, and CompanyProvider forwards a zero-membership user to
+          /onboarding (where the AUP is accepted). */}
+      <OAuthButtons />
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
