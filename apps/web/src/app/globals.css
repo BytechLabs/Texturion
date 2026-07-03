@@ -455,10 +455,14 @@
    ========================================================================== */
 .app-scope {
   /* Golos Text is the app's primary sans (replaces Inter here only). Mounted via
-     the (app) layout's golosText.variable; this points --font-sans at it so every
-     `font-sans` utility resolves to Golos inside the app. Marketing keeps its own
-     faces; the app never resolves Inter. tabular-nums stays available via the
-     existing @utility. */
+     the (app) layout's golosText.variable. The `font-sans` utility is compiled
+     from `@theme inline { --font-sans: var(--font-inter) }`, so it resolves
+     var(--font-inter) literally; repointing --font-inter to Golos inside the app
+     scope is what actually swaps the face (overriding --font-sans alone is inert
+     under @theme inline). Marketing keeps its own faces; the app never resolves
+     Inter. tabular-nums stays available via the existing @utility. */
+  --font-inter: var(--font-golos), system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
   --font-sans: var(--font-golos), system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
 
