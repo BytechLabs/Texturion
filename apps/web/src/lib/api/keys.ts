@@ -36,6 +36,9 @@ export const keys = {
       [companyId, "conversations", "detail", conversationId] as const,
     events: (companyId: string, conversationId: string) =>
       [companyId, "conversations", "events", conversationId] as const,
+    /** The attachments gallery — union of message + note + task media (§5.2). */
+    attachments: (companyId: string, conversationId: string) =>
+      [companyId, "conversations", "attachments", conversationId] as const,
   },
 
   /** Root for every message thread in the company. */

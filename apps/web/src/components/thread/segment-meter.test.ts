@@ -8,18 +8,18 @@ describe("segmentMeter", () => {
     expect(segmentMeter("a".repeat(120)).visible).toBe(false);
   });
 
-  it("appears past 120 characters with the segment label", () => {
+  it("appears past 120 characters with the parts label", () => {
     const state = segmentMeter("a".repeat(121));
     expect(state.visible).toBe(true);
     expect(state.segments).toBe(1);
-    expect(state.label).toBe("1 segment");
+    expect(state.label).toBe("Sent in 1 part");
     expect(state.warn).toBe(false);
   });
 
   it("counts GSM-7 concatenation at 153 per segment", () => {
-    // 161 chars → 2 segments (single-segment limit is 160).
+    // 161 chars → 2 parts (single-part limit is 160).
     expect(segmentMeter("a".repeat(161)).segments).toBe(2);
-    expect(segmentMeter("a".repeat(161)).label).toBe("2 segments");
+    expect(segmentMeter("a".repeat(161)).label).toBe("Sent in 2 parts");
     // 306 = 2×153 → still 2; 307 → 3.
     expect(segmentMeter("a".repeat(306)).segments).toBe(2);
     expect(segmentMeter("a".repeat(307)).segments).toBe(3);

@@ -2,19 +2,24 @@ import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationStatus } from "@/lib/api/types";
 
 /**
- * URL is the state for inbox filters (G3: `/inbox?status=&assignee=&tag=&q=`).
- * These pure functions translate between the URL search params, the segmented
- * control (G4: "Open | Mine | All | Closed"), and the GET /v1/conversations
- * filter object. Unit-tested directly.
+ * URL is the state for inbox filters (APP-LAYOUT-V2 §2: `/inbox?status=&assignee=
+ * &tag=&unread=&spam=&q=`). These pure functions translate between the URL search
+ * params, the persistent segmented control ("Open | Mine | All | Closed"), the
+ * removable secondary chips, and the GET /v1/conversations filter object.
+ *
+ * There is no filter drawer anymore (§2): the segment owns `status`+the-me
+ * assignee, and every secondary dimension (assignee / tag / unread / spam) is a
+ * visible chip that round-trips through the URL, added via the `+ Filter` cmdk
+ * popover. Unit-tested directly.
  */
 
 export interface InboxUrlFilters {
   status?: ConversationStatus;
-  /** `"me"` (the Mine segment) or a member user id from the filter sheet. */
+  /** `"me"` (the Mine segment) or a member user id from the `+ Filter` popover. */
   assignee?: string;
   tag?: string;
   unread?: boolean;
-  /** Spam never shows in the default list — this chip reveals it (G4). */
+  /** Spam never shows in the default list — this chip reveals it (§2.2). */
   spam?: boolean;
   q?: string;
 }
@@ -41,8 +46,11 @@ export function parseInboxSearchParams(
   if (assignee) filters.assignee = assignee;
   const tag = params.get("tag");
   if (tag) filters.tag = tag;
-  if (params.get("unread") === "true") filters.unread = true;
-  if (params.get("spam") === "true") filters.spam = true;
+  // Accept both "true" (what the app writes) and "1" (the documented shorthand)
+  // so hand-typed / shared URLs in either form apply correctly.
+  const isTruthy = (v: string | null) => v === "true" || v === "1";
+  if (isTruthy(params.get("unread"))) filters.unread = true;
+  if (isTruthy(params.get("spam"))) filters.spam = true;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") filters.q = q;
   return filters;
@@ -84,8 +92,9 @@ export function segmentOf(filters: InboxUrlFilters): InboxSegment {
 }
 
 /**
- * Apply a segment tap: segments own `status` + the "me" assignee; sheet
- * filters (tag, unread, spam) and the search query survive the switch.
+ * Apply a segment tap: segments own `status` + the "me" assignee; the secondary
+ * chips (tag, unread, spam), a specific-member assignee, and the search query
+ * all survive the switch.
  */
 export function applySegment(
   filters: InboxUrlFilters,
@@ -102,7 +111,7 @@ export function applySegment(
 
 /**
  * The GET /v1/conversations filter object for the current URL. `q` drives
- * the /v1/search view instead of the list (G4), so it is never forwarded.
+ * the /v1/search view instead of the list (§2.4), so it is never forwarded.
  */
 export function toConversationFilters(
   filters: InboxUrlFilters,
@@ -129,4 +138,71 @@ export function hasActiveFilters(filters: InboxUrlFilters): boolean {
       filters.spam ||
       (filters.q !== undefined && filters.q.trim() !== ""),
   );
+}
+
+// ---------------------------------------------------------------------------
+// §2.1 Open-only count
+// ---------------------------------------------------------------------------
+
+/**
+ * §2.1: a single quiet count on the **Open** segment only ("what needs
+ * handling"), never on Mine/All/Closed. This is the list filter that count is
+ * measured against — the bare Open queue (secondary chips deliberately excluded
+ * so the number is stable and means "open conversations," not "open matching my
+ * current chips"). Reuses the real GET /v1/conversations endpoint; the cap
+ * (§2.1: `9+`) means the first page always suffices.
+ */
+export const OPEN_COUNT_FILTERS: ConversationFilters = { status: "open" };
+
+/** §2.1: counts cap at `9+` so the tab bar never becomes a KPI strip. */
+export const OPEN_COUNT_CAP = 9;
+
+/** Render the capped count ("" when 0 — the count only shows when `> 0`). */
+export function formatOpenCount(count: number): string {
+  if (count <= 0) return "";
+  return count > OPEN_COUNT_CAP ? `${OPEN_COUNT_CAP}+` : String(count);
+}
+
+// ---------------------------------------------------------------------------
+// §2.2 Secondary chip descriptors (shared by the bar + the `+ Filter` popover)
+// ---------------------------------------------------------------------------
+
+/** The URL params a secondary chip / the `+ Filter` popover can toggle. */
+export type SecondaryFilterKey = "assignee" | "tag" | "unread" | "spam";
+
+/**
+ * The secondary filters that are currently active, in a stable render order,
+ * each carrying the URL key to clear. Labels are resolved by the caller (they
+ * need the tags/members lookups) — this stays pure and testable.
+ */
+export interface ActiveChip {
+  key: SecondaryFilterKey;
+  /** For assignee/tag, the raw id/value; for unread/spam, undefined. */
+  value?: string;
+}
+
+/**
+ * The active secondary chips for a filter set. The `me` assignee is owned by
+ * the Mine segment (§2.1), so it is never rendered as a removable chip — only a
+ * specific-member assignee is.
+ */
+export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
+  const chips: ActiveChip[] = [];
+  if (filters.assignee && filters.assignee !== "me") {
+    chips.push({ key: "assignee", value: filters.assignee });
+  }
+  if (filters.tag) chips.push({ key: "tag", value: filters.tag });
+  if (filters.unread) chips.push({ key: "unread" });
+  if (filters.spam) chips.push({ key: "spam" });
+  return chips;
+}
+
+/** Clear one secondary dimension, returning the next filter set. */
+export function clearSecondary(
+  filters: InboxUrlFilters,
+  key: SecondaryFilterKey,
+): InboxUrlFilters {
+  const next = { ...filters };
+  delete next[key];
+  return next;
 }

@@ -171,6 +171,16 @@ export function useSetMessageDone(conversationId: string) {
         keys.conversations.detail(companyId, conversationId),
         (detail) => detailPatchMessage(detail, message.id, message),
       );
+      // AUDITABLE (APP-LAYOUT-V2 §4.2/§4.3): the done PATCH wrote a
+      // message_done / message_undone row into conversation_events. Pull it
+      // into the open timeline now — the events infinite query won't refetch
+      // on its own (staleTime 30s, refetchOnWindowFocus off), so without this
+      // the "X marked '…' done" line wouldn't appear until thread re-entry.
+      // Mirrors the status/assign/tag mutations, which invalidate here too.
+      queryClient.invalidateQueries({
+        queryKey: keys.conversations.events(companyId, conversationId),
+        refetchType: "active",
+      });
     },
   });
 }

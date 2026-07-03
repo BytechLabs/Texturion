@@ -45,6 +45,23 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     expect(decideAuthRedirect("/onboarding/plan", true)).toBeNull();
   });
 
+  it("guards the new nav routes (/for-you, /tasks) like the rest of the app", () => {
+    // Zero dead links (APP-LAYOUT-V2 §1.3): unauthenticated visits redirect to
+    // login instead of 404ing; authenticated visits render in-shell.
+    expect(decideAuthRedirect("/for-you", false)).toEqual({
+      pathname: "/login",
+      search: `?next=${encodeURIComponent("/for-you")}`,
+    });
+    expect(decideAuthRedirect("/tasks", false)).toEqual({
+      pathname: "/login",
+      search: `?next=${encodeURIComponent("/tasks")}`,
+    });
+    expect(decideAuthRedirect("/for-you", true)).toBeNull();
+    expect(decideAuthRedirect("/tasks", true)).toBeNull();
+    expect(isProtectedPath("/for-you")).toBe(true);
+    expect(isProtectedPath("/tasks")).toBe(true);
+  });
+
   it("lets signed-out users reach public and dual-state pages", () => {
     expect(decideAuthRedirect("/", false)).toBeNull();
     expect(decideAuthRedirect("/login", false)).toBeNull();

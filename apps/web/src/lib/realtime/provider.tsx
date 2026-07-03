@@ -272,6 +272,30 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           return { ...detail, messages: { ...detail.messages, data } };
         },
       );
+      // AUDITABLE (§4.2/§4.3): a done toggle writes a message_done /
+      // message_undone row into conversation_events and broadcasts THIS same
+      // event (the payload carries done fields; a plain delivery-status tick
+      // does not). The payload is ID-only — no conversation_id — so locate the
+      // owning conversation from the thread cache that holds this message and
+      // invalidate its events query so the timeline line lands live for other
+      // viewers, mirroring the conversation.updated status/assign/tag path.
+      if ("done_at" in event || "done_by_user_id" in event) {
+        for (const query of queryClient
+          .getQueryCache()
+          .findAll({ queryKey: keys.threads(companyId) })) {
+          const data = query.state.data as ThreadData | undefined;
+          const hasMessage = data?.pages.some((page) =>
+            page.data.some((m) => m.id === event.message_id),
+          );
+          if (!hasMessage) continue;
+          // keys.thread(companyId, id) === [companyId, "messages", id]
+          const conversationId = query.queryKey[2] as string;
+          queryClient.invalidateQueries({
+            queryKey: keys.conversations.events(companyId, conversationId),
+            refetchType: "active",
+          });
+        }
+      }
     }
 
     function handleProvisioningUpdate() {

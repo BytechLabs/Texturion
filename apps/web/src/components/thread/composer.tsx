@@ -1,10 +1,16 @@
 "use client";
 
-import { ImagePlus, Send, X } from "lucide-react";
+import { ArrowUp, FileText, ImagePlus, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -15,7 +21,7 @@ import { ApiError } from "@/lib/api/error";
 import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
 import { cn } from "@/lib/utils";
 
-import { SEGMENT_TOOLTIP, segmentMeter } from "./segment-meter";
+import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { TemplatePicker } from "./template-picker";
 
 /** SPEC §7 outbound media limits — validated here AND by the API. */
@@ -41,7 +47,7 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/** Removable chip previews for attached images (G5). */
+/** Removable chip previews for attached images (§3.1). */
 export function AttachmentChips({
   attachments,
   onRemove,
@@ -51,7 +57,7 @@ export function AttachmentChips({
 }) {
   if (attachments.length === 0) return null;
   return (
-    <div className="flex gap-2 px-1 pb-2">
+    <div className="mx-auto flex max-w-[42rem] gap-2 px-1 pb-2">
       {attachments.map((attachment) => (
         <span key={attachment.id} className="relative">
           {/* Local object URL preview — never uploaded until send. */}
@@ -104,9 +110,9 @@ export function admitFiles(
 }
 
 /**
- * Segment meter (G5): >120 chars, amber ≥4 segments, plain tooltip.
- * Warn text is amber-700 in light — --warning (amber-600) is tint-only
- * there; it misses the G11 4.5:1 bar as text on white.
+ * §3.2 passive segment hint: a quiet `stone-400` line that appears only past
+ * 120 chars, reads "Sent in N parts", turns amber only at ≥4 parts. It is TEXT,
+ * not a control — there is no stepper, no +/−. Tabular numerals.
  */
 export function SegmentMeterLabel({ text }: { text: string }) {
   const meter = segmentMeter(text);
@@ -117,6 +123,8 @@ export function SegmentMeterLabel({ text }: { text: string }) {
         <span
           className={cn(
             "cursor-default text-xs tabular-nums",
+            // amber-700 clears the G11 4.5:1 text bar on white (--warning
+            // amber-600 does not); stone-500 otherwise.
             meter.warn
               ? "text-amber-700 dark:text-warning"
               : "text-muted-foreground",
@@ -125,12 +133,14 @@ export function SegmentMeterLabel({ text }: { text: string }) {
           {meter.label}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-64">{SEGMENT_TOOLTIP}</TooltipContent>
+      <TooltipContent className="max-w-64">
+        {segmentTooltip(meter.segments)}
+      </TooltipContent>
     </Tooltip>
   );
 }
 
-/** Auto-grow: 1 → 6 rows (G5), then internal scroll. */
+/** Auto-grow: 1 → 6 rows (§3.1), then internal scroll. */
 export function useAutoGrow(value: string) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -138,22 +148,27 @@ export function useAutoGrow(value: string) {
     if (!el) return;
     el.style.height = "auto";
     const lineHeight = 24;
-    const max = lineHeight * 6 + 16;
+    const max = lineHeight * 6;
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, [value]);
   return ref;
 }
 
 /**
- * The G5 thread composer: auto-growing textarea, template picker (`/` or
- * toolbar), up to 3 image attachments with chip previews, segment meter,
- * petrol Send. Cmd/Ctrl+Enter sends; Enter is a newline (SMS is deliberate,
- * not chat-instant). The API's queued insert is the optimistic UI — the row
- * lands in the thread via the mutation and realtime.
+ * The APP-LAYOUT-V2 §3 composer: a Google-Messages pill. Left → right, a single
+ * fully-rounded pill (1px stone-200): a far-left `+` overflow (attach / template
+ * — inline toolbar on desktop, action sheet on mobile), an auto-grow field
+ * (1→6 rows), and ONE petrol send affordance derived from "field non-empty"
+ * (attachment-only also enables send). There are NO up/down stepper buttons —
+ * rows auto-grow from content and the segment count is a PASSIVE "Sent in N
+ * parts" hint (§3.2), never a control. Cmd/Ctrl+Enter sends; Enter = newline
+ * (SMS is deliberate, not chat-instant). The queued insert is the optimistic UI.
  *
  * A Text/Note toggle writes internal notes (amber, POST /:id/notes). When a
- * banner replaces the text composer (`noteOnly`), notes stay available —
- * they're free and gated by nothing (SPEC §2).
+ * banner replaces the text composer (`noteOnly`), notes stay available.
+ *
+ * The pill is constrained to the same 42rem reading track as the message column
+ * (§3.1) so the send affordance sits under the messages it belongs to.
  */
 export function Composer({
   conversationId,
@@ -191,11 +206,23 @@ export function Composer({
   };
 
   const pending = send.isPending || createNote.isPending;
+  // §3.1 derive-send-from-content: send enables purely on "field non-empty"
+  // (or, for a text, an attachment). No manual send state.
   const canSend =
     !pending &&
     (isNote
       ? text.trim() !== ""
       : text.trim() !== "" || attachments.length > 0);
+
+  const openFilePicker = () => fileRef.current?.click();
+  const insertTemplate = (body: string) => {
+    setText((current) =>
+      current === ""
+        ? body
+        : `${current}${current.endsWith(" ") ? "" : " "}${body}`,
+    );
+    textareaRef.current?.focus();
+  };
 
   const doSend = useCallback(async () => {
     if (!canSend) return;
@@ -262,7 +289,7 @@ export function Composer({
       void doSend();
       return;
     }
-    // "/" in an empty draft opens the saved-replies picker inline (G5) —
+    // "/" in an empty draft opens the saved-replies picker inline (§3.1) —
     // texts only; notes have no templates.
     if (event.key === "/" && text === "" && !isNote) {
       event.preventDefault();
@@ -270,10 +297,23 @@ export function Composer({
     }
   };
 
+  const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setAttachments((cur) => admitFiles(cur, event.target.files!));
+    }
+    event.target.value = "";
+  };
+
+  const attachDisabled = attachments.length >= MAX_ATTACHMENTS;
+
   return (
-    <div className="border-t border-border bg-background p-3">
+    <div className="border-t border-border bg-background px-3 pb-3 pt-2">
       {!noteOnly && (
-        <div className="mb-2 flex gap-1" role="group" aria-label="Composer mode">
+        <div
+          className="mx-auto mb-2 flex max-w-[42rem] gap-1"
+          role="group"
+          aria-label="Composer mode"
+        >
           {(["sms", "note"] as const).map((m) => (
             <button
               key={m}
@@ -282,8 +322,6 @@ export function Composer({
               onClick={() => setMode(m)}
               className={cn(
                 // tap-target + roomier mobile padding: G11 ≥44px hit area.
-                // Active tints use the darker G11-verified shades in light
-                // mode (amber-800 / teal-800 — see status-pill.tsx).
                 "tap-target rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:px-2.5 md:py-0.5 md:text-[11px]",
                 mode === m
                   ? m === "note"
@@ -300,66 +338,117 @@ export function Composer({
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}
-      <div className="flex items-end gap-2">
+
+      {/* §3.1 the pill, constrained to the 42rem reading track. */}
+      <div
+        className={cn(
+          "mx-auto flex max-w-[42rem] items-end gap-1 rounded-3xl border px-1.5 py-1 transition-colors",
+          "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
+          isNote
+            ? "border-dashed border-amber-300 bg-amber-50/60 dark:border-amber-700/60 dark:bg-amber-950/20"
+            : "border-input bg-background",
+        )}
+      >
+        {/* Far-left `+` overflow (§3.1) — texts only (notes have no attach/
+            template). Desktop: expands inline to Attach + Template. Mobile:
+            everything collapses behind the `+` action menu. */}
         {!isNote && (
-          <div className="flex items-center">
-            <TemplatePicker
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-              onInsert={(body) => {
-                setText((current) =>
-                  current === "" ? body : `${current}${current.endsWith(" ") ? "" : " "}${body}`,
-                );
-                textareaRef.current?.focus();
-              }}
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Attach a photo"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={attachments.length >= MAX_ATTACHMENTS}
-                >
-                  <ImagePlus className="size-4" strokeWidth={1.75} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Attach up to 3 photos</TooltipContent>
-            </Tooltip>
+          <>
+            {/* Desktop inline toolbar. */}
+            <div className="hidden items-center self-end pb-0.5 md:flex">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Attach a photo"
+                    onClick={openFilePicker}
+                    disabled={attachDisabled}
+                    className="rounded-full text-muted-foreground"
+                  >
+                    <ImagePlus className="size-5" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Attach up to 3 photos</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Insert a saved reply"
+                    onClick={() => setPickerOpen(true)}
+                    className="rounded-full text-muted-foreground"
+                  >
+                    <FileText className="size-5" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Saved replies — or type “/”</TooltipContent>
+              </Tooltip>
+            </div>
+
+            {/* Mobile `+` action menu — Attach · Template. */}
+            <div className="self-end pb-0.5 md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Add to message"
+                    className="rounded-full text-muted-foreground"
+                  >
+                    <Plus className="size-5" strokeWidth={1.75} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-44">
+                  <DropdownMenuItem
+                    onSelect={openFilePicker}
+                    disabled={attachDisabled}
+                  >
+                    <ImagePlus className="size-4" strokeWidth={1.75} aria-hidden />
+                    Attach a photo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setPickerOpen(true)}>
+                    <FileText className="size-4" strokeWidth={1.75} aria-hidden />
+                    Saved reply
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
             <input
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/gif"
               multiple
               hidden
-              onChange={(event) => {
-                if (event.target.files) {
-                  setAttachments((cur) => admitFiles(cur, event.target.files!));
-                }
-                event.target.value = "";
-              }}
+              onChange={onFileChange}
             />
-          </div>
+          </>
         )}
+
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           rows={1}
-          placeholder={isNote ? "Write an internal note…" : "Write a text…"}
+          placeholder={isNote ? "Write an internal note…" : "Text message"}
           aria-label={isNote ? "Internal note" : "Message"}
           className={cn(
-            "min-h-10 flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-[15px]",
-            isNote
-              ? "border-dashed border-amber-300 bg-amber-50/60 dark:border-amber-700/60 dark:bg-amber-950/20"
-              : "border-input",
+            // 16px on mobile (iOS zoom lock, §3.1); generous vertical padding.
+            "min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-[16px] leading-6 outline-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px]",
           )}
         />
-        <div className="flex items-center gap-2 self-end pb-1">
+
+        <div className="flex items-center gap-2 self-end pb-1 pr-0.5">
           {!isNote && <SegmentMeterLabel text={text} />}
+          {/* §3.1 the single petrol control in this region — active only when
+              the field is non-empty (derive-from-content). Notes reuse the amber
+              accent (a note is not an SMS send). */}
           <Button
             type="button"
             size="icon-sm"
@@ -368,14 +457,30 @@ export function Composer({
             aria-label={isNote ? "Save note" : "Send message"}
             aria-keyshortcuts="Control+Enter Meta+Enter"
             className={cn(
+              "rounded-full",
               isNote &&
                 "bg-warning text-white hover:bg-warning/90 dark:text-stone-950",
             )}
           >
-            <Send className="size-4" strokeWidth={1.75} />
+            <ArrowUp className="size-4" strokeWidth={2} />
           </Button>
         </div>
       </div>
+
+      {/* §3.1: the template picker is anchored to the pill and opens from `/`,
+          the desktop toolbar button, or the mobile `+` menu. */}
+      {!isNote && (
+        <TemplatePicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onInsert={insertTemplate}
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none mx-auto block h-0 max-w-[42rem]"
+          />
+        </TemplatePicker>
+      )}
     </div>
   );
 }

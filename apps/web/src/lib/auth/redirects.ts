@@ -11,7 +11,9 @@
 
 /** URL prefixes of the (app) route group + onboarding (route groups don't appear in URLs). */
 const PROTECTED_PREFIXES = [
+  "/for-you",
   "/inbox",
+  "/tasks",
   "/contacts",
   "/templates",
   "/settings",

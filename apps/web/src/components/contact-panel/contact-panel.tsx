@@ -1,13 +1,14 @@
 "use client";
 
 import { format } from "date-fns";
-import { Ban, Check, Copy, Plus, Undo2, X } from "lucide-react";
+import { Ban, Check, Copy, ListChecks, Plus, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
+import { AttachmentsPreviewRow } from "@/components/thread/attachments-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +52,23 @@ function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
 }
 
-/** Consent status line (G6): who consented, how, when. */
+/** A calm section wrapper: a quiet stone-500 label over its content (§1.5). */
+function PanelSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-1.5">
+      <h3 className="px-2 text-xs font-medium text-muted-foreground">{label}</h3>
+      {children}
+    </section>
+  );
+}
+
+/** Consent status line (D3/D4): who consented, how, when — plain language. */
 function consentLine(
   contact: ContactDetail,
   memberName: (id: string | null) => string | null,
@@ -71,18 +88,28 @@ function consentLine(
 }
 
 /**
- * G6 contact panel: inline-editable name, number + copy, consent line,
- * opt-out badge/action, address, auto-saving notes, conversation tags,
- * prior conversations, and a quiet danger zone.
+ * The context panel (APP-LAYOUT-V2 §1.5 — Missive-style Details, trimmed to the
+ * calm core): Contact (name inline-edit, number+copy, address, notes) · Consent
+ * history · Tags · a Tasks-checklist mount point (filled by the later tasks
+ * wave) · a quiet "View all attachments (N)" row that opens the single gallery
+ * surface (§5.2 — NOT a panel section) · prior conversations · a quiet opt-out
+ * danger zone. Default-closed and toggled from the thread header; the gallery
+ * has one entry point so this row only links to it, never duplicates it.
  */
 export function ContactPanel({
   conversation,
   contact,
   contactPending,
+  onOpenGallery,
+  active = true,
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
   contactPending: boolean;
+  /** Open the attachments gallery (§5.2 single entry point). */
+  onOpenGallery: () => void;
+  /** The panel is actually visible — gates the lazy attachments preview fetch. */
+  active?: boolean;
 }) {
   const memberNames = useMemberNames();
   const [copied, setCopied] = useState(false);
@@ -92,7 +119,7 @@ export function ContactPanel({
 
   if (contactPending) {
     return (
-      <div className="space-y-4 p-4" aria-hidden>
+      <div className="space-y-4 p-5" aria-hidden>
         <Skeleton className="h-5 w-32" />
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-3 w-48" />
@@ -103,7 +130,7 @@ export function ContactPanel({
 
   if (!contact) {
     return (
-      <div className="p-4">
+      <div className="p-5">
         <p className="text-sm text-muted-foreground">
           Couldn&apos;t load this contact.
         </p>
@@ -126,11 +153,12 @@ export function ContactPanel({
   };
 
   return (
-    // §3.3: the contact panel is a CALM surface — roomy 20px padding, 32px
-    // between groups, quiet auto-saving fields. Progressive disclosure: the
-    // thread stays the hero; this detail lives in the toggled panel.
+    // §1.5: a CALM surface — 20px padding, 32px between sections, labels
+    // stone-500, auto-saving fields. Progressive disclosure: the thread stays
+    // the hero; this detail lives in the toggled panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="space-y-8 p-5">
+        {/* Contact — name, number + copy, address, notes. */}
         <section className="space-y-1">
           <InlineTextField
             contactId={contact.id}
@@ -156,6 +184,22 @@ export function ContactPanel({
               )}
             </Button>
           </div>
+          <div className="pt-2">
+            <InlineTextField
+              contactId={contact.id}
+              field="address"
+              value={contact.address}
+              label="Contact address"
+              placeholder="Add an address"
+            />
+          </div>
+          <div className="px-2 pt-2">
+            <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+          </div>
+        </section>
+
+        {/* Consent history (D3/D4) — plain language, with the opt-out state. */}
+        <PanelSection label="Consent">
           <p className="px-2 text-[13px] text-muted-foreground">
             {consentLine(contact, memberName)}
           </p>
@@ -178,46 +222,36 @@ export function ContactPanel({
               </button>
             </div>
           )}
-        </section>
+        </PanelSection>
 
-        <section className="space-y-1">
-          <h3 className="px-2 text-xs font-medium text-muted-foreground">
-            Address
-          </h3>
-          <InlineTextField
-            contactId={contact.id}
-            field="address"
-            value={contact.address}
-            label="Contact address"
-            placeholder="Add an address"
-          />
-        </section>
-
-        <section className="space-y-1">
-          <h3 className="px-2 text-xs font-medium text-muted-foreground">
-            Notes
-          </h3>
-          <div className="px-2">
-            <AutoSaveNotes contactId={contact.id} value={contact.notes} />
-          </div>
-        </section>
-
-        <section className="space-y-1.5">
-          <h3 className="px-2 text-xs font-medium text-muted-foreground">
-            Tags on this conversation
-          </h3>
+        {/* Tags on this conversation. */}
+        <PanelSection label="Tags">
           <ConversationTags conversation={conversation} />
-        </section>
+        </PanelSection>
 
-        <section className="space-y-1.5">
-          <h3 className="px-2 text-xs font-medium text-muted-foreground">
-            Conversations
-          </h3>
+        {/* Tasks checklist for this conversation (D17/TASKS.md). A clean mount
+            point the later tasks wave fills — checking a task will call the
+            source message's PATCH /v1/messages/:id {done}. Rendered as a quiet
+            placeholder now so the panel's shape is final. */}
+        <PanelSection label="Tasks">
+          <TasksChecklistSlot />
+        </PanelSection>
+
+        {/* §1.5: the attachments gallery is NOT a panel section — just a quiet
+            row (recent thumbnails + count) that opens the single gallery. */}
+        <AttachmentsPreviewRow
+          conversationId={conversation.id}
+          onOpenGallery={onOpenGallery}
+          enabled={active}
+        />
+
+        {/* Prior conversations with this contact. */}
+        <PanelSection label="Conversations">
           <PriorConversations
             phoneE164={contact.phone_e164}
             currentConversationId={conversation.id}
           />
-        </section>
+        </PanelSection>
       </div>
 
       {/* §3.3 quiet danger zone: opting out is routine and reversible, so it
@@ -267,6 +301,31 @@ export function ContactPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * The tasks-checklist mount point (§1.5 / D17). The later tasks wave replaces
+ * this placeholder with the real per-conversation checklist (each item's
+ * checkbox calls the source message's PATCH /v1/messages/:id {done}). Kept as a
+ * quiet, calm empty state so the panel's structure is final and no dead space
+ * or dangling accent appears before the feature lands.
+ */
+function TasksChecklistSlot() {
+  return (
+    <div
+      data-slot="tasks-checklist-mount"
+      className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5"
+    >
+      <ListChecks
+        className="size-4 shrink-0 text-muted-foreground"
+        strokeWidth={1.75}
+        aria-hidden
+      />
+      <p className="text-[13px] text-muted-foreground">
+        Tasks from this conversation will show here.
+      </p>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  Home,
   Inbox,
+  ListChecks,
   MessageSquareText,
   PenSquare,
   Settings,
@@ -28,7 +30,9 @@ function plainSnippet(snippet: string): string {
 }
 
 const NAV_ACTIONS = [
+  { label: "For You", href: "/for-you", icon: Home },
   { label: "Inbox", href: "/inbox", icon: Inbox },
+  { label: "Tasks", href: "/tasks", icon: ListChecks },
   { label: "Contacts", href: "/contacts", icon: Users },
   { label: "Templates", href: "/templates", icon: MessageSquareText },
   { label: "Settings", href: "/settings", icon: Settings },

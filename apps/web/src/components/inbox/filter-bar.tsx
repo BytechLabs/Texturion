@@ -1,47 +1,53 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, ListFilter, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useConversations } from "@/lib/api/conversations";
+import { flattenPages } from "@/lib/api/pagination";
 import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import {
+  activeChips,
   applySegment,
-  hasActiveFilters,
+  clearSecondary,
+  formatOpenCount,
   INBOX_SEGMENTS,
+  OPEN_COUNT_CAP,
+  OPEN_COUNT_FILTERS,
   segmentOf,
   type InboxUrlFilters,
+  type SecondaryFilterKey,
 } from "./filter-url";
 
-const NONE = "__none__";
-
 /**
- * G4 filter bar: search (debounced 250ms → URL `q`), segmented
- * "Open | Mine | All | Closed", overflow sheet (status, assignee, tag,
- * unread, spam chip). URL is the state (G3/G12) — this component only calls
- * `onChange` with the next filter object.
+ * The §2 filter bar. There is **no fly-out drawer** — filtering is one-glance:
+ *
+ *  1. a debounced search field (→ URL `q`, drives the /v1/search view);
+ *  2. persistent segmented status tabs (Open | Mine | All | Closed) with a
+ *     single quiet stone count on **Open** only (§2.1);
+ *  3. always-visible removable chips for the secondary dimensions (§2.2); and
+ *  4. a compact `+ Filter` cmdk popover that adds a chip + URL param (§2.3).
+ *
+ * URL is the state (§2) — this component only calls `onChange` with the next
+ * filter object; the parent writes it to the URL.
  */
 export function FilterBar({
   filters,
@@ -51,6 +57,82 @@ export function FilterBar({
   onChange: (next: InboxUrlFilters) => void;
 }) {
   const segment = segmentOf(filters);
+  const openCount = useOpenCount();
+
+  return (
+    <div className="space-y-2 border-b border-border p-3">
+      <SearchField filters={filters} onChange={onChange} />
+      <div
+        role="tablist"
+        aria-label="Conversation status"
+        className="flex rounded-lg bg-muted p-0.5"
+      >
+        {INBOX_SEGMENTS.map(({ id, label }) => {
+          const selected = segment === id;
+          const countLabel =
+            id === "open" ? formatOpenCount(openCount) : "";
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => onChange(applySegment(filters, id))}
+              className={cn(
+                // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
+                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
+                // §2.1: active segment is a QUIET stone pill (white lift +
+                // near-black text), never petrol — petrol is spent on the one
+                // compose action in this region, not on the filter control.
+                selected
+                  ? "bg-card text-foreground shadow-none"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+              {countLabel !== "" && (
+                // §2.1: one quiet stone-500 tabular numeral on Open only, shown
+                // only when > 0, capped at 9+ — never a KPI strip.
+                <span
+                  className="tabular-nums text-xs font-normal text-muted-foreground"
+                  aria-label={`${openCount > OPEN_COUNT_CAP ? `over ${OPEN_COUNT_CAP}` : openCount} open`}
+                >
+                  {countLabel}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <ChipRow filters={filters} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * §2.1 Open count: the bare open queue, counted from the real
+ * GET /v1/conversations endpoint. The `9+` cap means the first page is always
+ * enough, so we never page for a number — we count the loaded rows and, if the
+ * first page is full and there's more, the cap swallows the difference.
+ */
+function useOpenCount(): number {
+  const query = useConversations(OPEN_COUNT_FILTERS);
+  const rows = flattenPages(query.data);
+  // Once past the cap the exact number is irrelevant (it renders "9+"), so a
+  // full first page + a next cursor is already "> cap".
+  if (rows.length > OPEN_COUNT_CAP) return OPEN_COUNT_CAP + 1;
+  if (query.hasNextPage) return OPEN_COUNT_CAP + 1;
+  return rows.length;
+}
+
+/** Debounced search (§2.4): 250ms → URL `q`; ≥2 chars swaps the list for /v1/search. */
+function SearchField({
+  filters,
+  onChange,
+}: {
+  filters: InboxUrlFilters;
+  onChange: (next: InboxUrlFilters) => void;
+}) {
   const [searchText, setSearchText] = useState(filters.q ?? "");
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filtersRef = useRef(filters);
@@ -84,96 +166,93 @@ export function FilterBar({
     [],
   );
 
-  const sheetFilterCount = [
-    filters.tag,
-    filters.unread,
-    filters.spam,
-    filters.assignee && filters.assignee !== "me" ? filters.assignee : undefined,
-    filters.status && filters.status !== "open" && filters.status !== "closed"
-      ? filters.status
-      : undefined,
-  ].filter(Boolean).length;
-
   return (
-    <div className="space-y-2 border-b border-border p-3">
-      <div className="flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            strokeWidth={1.75}
-          />
-          <Input
-            type="search"
-            value={searchText}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations"
-            aria-label="Search conversations and contacts"
-            className="h-9 pl-8"
-          />
-          {searchText !== "" && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-              className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-3.5" strokeWidth={1.75} />
-            </button>
-          )}
-        </div>
-        <FilterSheet filters={filters} onChange={onChange} count={sheetFilterCount} />
-      </div>
-      <div
-        role="group"
-        aria-label="Conversation filters"
-        className="flex rounded-lg bg-muted p-0.5"
-      >
-        {INBOX_SEGMENTS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={segment === id}
-            onClick={() => onChange(applySegment(filters, id))}
-            className={cn(
-              // min-h-11 below md: the G11 ≥44px mobile hit-target bar.
-              "min-h-11 flex-1 rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
-              // §3.1: active segment is a QUIET stone pill (white lift + near-
-              // black text), never petrol — petrol is spent on the one compose
-              // action in this region, not on the filter control.
-              segment === id
-                ? "bg-card text-foreground shadow-none"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {hasActiveFilters(filters) && sheetFilterCount > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <ActiveChips filters={filters} onChange={onChange} />
-        </div>
+    <div className="relative">
+      <Search
+        aria-hidden
+        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        strokeWidth={1.75}
+      />
+      <Input
+        type="search"
+        value={searchText}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search conversations"
+        aria-label="Search conversations and contacts"
+        className="h-9 pl-8"
+      />
+      {searchText !== "" && (
+        <button
+          type="button"
+          onClick={() => setSearch("")}
+          aria-label="Clear search"
+          className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-3.5" strokeWidth={1.75} />
+        </button>
       )}
     </div>
   );
 }
 
-function Chip({
-  label,
-  onRemove,
+/**
+ * §2.2 + §2.3: the always-visible removable chips followed by the `+ Filter`
+ * button. The chips are the state made visible; the button opens the popover
+ * that adds more. The whole row is one wrapping flex so a long chip list wraps
+ * (or, on mobile, the chip row scrolls with the container) rather than pushing
+ * the list down unpredictably.
+ */
+function ChipRow({
+  filters,
+  onChange,
 }: {
-  label: string;
-  onRemove: () => void;
+  filters: InboxUrlFilters;
+  onChange: (next: InboxUrlFilters) => void;
 }) {
+  const chips = activeChips(filters);
+  const tags = useTags();
+  const members = useMembers();
+
+  const labelFor = (key: SecondaryFilterKey, value?: string): string => {
+    switch (key) {
+      case "assignee":
+        return (
+          members.data?.data.find((m) => m.user_id === value)?.display_name ||
+          "Assignee"
+        );
+      case "tag":
+        return tags.data?.data.find((t) => t.id === value)?.name ?? "Tag";
+      case "unread":
+        return "Unread";
+      case "spam":
+        return "Spam";
+    }
+  };
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
+    <div className="flex flex-wrap items-center gap-1.5">
+      {chips.map((chip) => (
+        <Chip
+          key={chip.key}
+          label={labelFor(chip.key, chip.value)}
+          onRemove={() => onChange(clearSecondary(filters, chip.key))}
+        />
+      ))}
+      <FilterPopover filters={filters} onChange={onChange} />
+    </div>
+  );
+}
+
+/** §2.2 removable stone-tinted chip — same tokens as the status pills, not petrol. */
+function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
       {label}
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove filter ${label}`}
-        className="tap-target rounded-full p-0.5 hover:bg-background"
+        aria-label={`Remove ${label} filter`}
+        className="tap-target rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
       >
         <X className="size-3" strokeWidth={1.75} />
       </button>
@@ -181,209 +260,151 @@ function Chip({
   );
 }
 
-function ActiveChips({
+/**
+ * §2.3 the `+ Filter` command popover. It reuses the cmdk surface (the same one
+ * that backs Cmd-K — no second menu is invented) inside a Popover: type to
+ * filter properties, arrow-key to a value, Enter adds the chip + URL param and
+ * closes. It is the one place a `shadow-lg` overlay is allowed in this region;
+ * it closes on select / ESC / outside-click and leaves the applied filter
+ * visible as a chip.
+ */
+function FilterPopover({
   filters,
   onChange,
 }: {
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
 }) {
-  const tags = useTags();
-  const members = useMembers();
-  const drop = (key: keyof InboxUrlFilters) => {
-    const next = { ...filters };
-    delete next[key];
-    onChange(next);
-  };
-
-  return (
-    <>
-      {filters.status && filters.status !== "open" && filters.status !== "closed" && (
-        <Chip
-          label={filters.status === "new" ? "New" : "Waiting"}
-          onRemove={() => drop("status")}
-        />
-      )}
-      {filters.assignee && filters.assignee !== "me" && (
-        <Chip
-          label={
-            members.data?.data.find((m) => m.user_id === filters.assignee)
-              ?.display_name || "Assignee"
-          }
-          onRemove={() => drop("assignee")}
-        />
-      )}
-      {filters.tag && (
-        <Chip
-          label={
-            tags.data?.data.find((t) => t.id === filters.tag)?.name ?? "Tag"
-          }
-          onRemove={() => drop("tag")}
-        />
-      )}
-      {filters.unread && <Chip label="Unread" onRemove={() => drop("unread")} />}
-      {filters.spam && <Chip label="Spam" onRemove={() => drop("spam")} />}
-    </>
-  );
-}
-
-/** Overflow filter sheet (G4): status, assignee, tag, unread + the spam chip. */
-function FilterSheet({
-  filters,
-  onChange,
-  count,
-}: {
-  filters: InboxUrlFilters;
-  onChange: (next: InboxUrlFilters) => void;
-  count: number;
-}) {
+  const [open, setOpen] = useState(false);
   const tags = useTags();
   const members = useMembers();
   const { userId } = useActiveCompany();
-  const [open, setOpen] = useState(false);
 
   const set = <K extends keyof InboxUrlFilters>(
     key: K,
-    value: InboxUrlFilters[K] | undefined,
+    value: InboxUrlFilters[K],
   ) => {
-    const next = { ...filters };
-    if (value === undefined) delete next[key];
-    else next[key] = value;
-    onChange(next);
+    onChange({ ...filters, [key]: value });
+    setOpen(false);
   };
 
-  const activeMembers = (members.data?.data ?? []).filter(
-    (m) => m.deactivated_at === null,
+  const assignableMembers = useMemo(
+    () =>
+      (members.data?.data ?? []).filter((m) => m.deactivated_at === null),
+    [members.data],
   );
+  const availableTags = tags.data?.data ?? [];
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label={`Filters${count > 0 ? ` (${count} active)` : ""}`}
-          className="relative shrink-0"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Add filter"
+          className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
         >
-          <SlidersHorizontal className="size-4" strokeWidth={1.75} />
-          {count > 0 && (
-            // §3.1: reserve petrol for the one compose action in this region.
-            // The active-filter count reads as a quiet near-black chip, not a
-            // second petrol accent (the active chips below carry the detail).
-            <span
-              aria-hidden
-              className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-foreground text-[9px] font-semibold text-background"
-            >
-              {count}
-            </span>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[300px] sm:max-w-[300px]">
-        <SheetHeader>
-          <SheetTitle>Filters</SheetTitle>
-          <SheetDescription>Narrow the conversation list.</SheetDescription>
-        </SheetHeader>
-        <div className="space-y-5 px-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="filter-status">Status</Label>
-            <Select
-              value={filters.status ?? NONE}
-              onValueChange={(v) =>
-                set(
-                  "status",
-                  v === NONE ? undefined : (v as InboxUrlFilters["status"]),
-                )
-              }
-            >
-              <SelectTrigger id="filter-status" className="w-full">
-                <SelectValue placeholder="Any status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Any status</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="filter-assignee">Assignee</Label>
-            <Select
-              value={filters.assignee ?? NONE}
-              onValueChange={(v) => set("assignee", v === NONE ? undefined : v)}
-            >
-              <SelectTrigger id="filter-assignee" className="w-full">
-                <SelectValue placeholder="Anyone" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Anyone</SelectItem>
-                {activeMembers.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.display_name || "Teammate"}
-                    {m.user_id === userId ? " (you)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="filter-tag">Tag</Label>
-            <Select
-              value={filters.tag ?? NONE}
-              onValueChange={(v) => set("tag", v === NONE ? undefined : v)}
-            >
-              <SelectTrigger id="filter-tag" className="w-full">
-                <SelectValue placeholder="Any tag" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Any tag</SelectItem>
-                {(tags.data?.data ?? []).map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="filter-unread"
-              checked={filters.unread === true}
-              onCheckedChange={(checked) =>
-                set("unread", checked === true ? true : undefined)
-              }
-            />
-            <Label htmlFor="filter-unread" className="font-normal">
-              Unread only
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="filter-spam"
-              checked={filters.spam === true}
-              onCheckedChange={(checked) =>
-                set("spam", checked === true ? true : undefined)
-              }
-            />
-            <Label htmlFor="filter-spam" className="font-normal">
-              Show spam
-            </Label>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              onChange({});
-              setOpen(false);
-            }}
-          >
-            Clear all filters
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+          <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
+          Filter
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        className="w-64 p-0 shadow-lg"
+      >
+        <Command
+          // Match on the human keywords (member/tag names, "unread", "spam")
+          // rather than the opaque `assignee-<uuid>` item values.
+          filter={(_value, search, keywords) => {
+            const haystack = (keywords ?? []).join(" ").toLowerCase();
+            return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
+          }}
+        >
+          <CommandInput placeholder="Filter by…" />
+          <CommandList>
+            <CommandEmpty>No filters.</CommandEmpty>
+            <CommandGroup heading="Assignee">
+              {assignableMembers.map((m) => {
+                const active = filters.assignee === m.user_id;
+                return (
+                  <CommandItem
+                    key={m.user_id}
+                    value={`assignee-${m.user_id}`}
+                    keywords={[m.display_name || "teammate"]}
+                    onSelect={() =>
+                      set("assignee", active ? undefined : m.user_id)
+                    }
+                  >
+                    <span className="truncate">
+                      {m.display_name || "Teammate"}
+                      {m.user_id === userId ? " (you)" : ""}
+                    </span>
+                    {active && (
+                      <Check
+                        className="ml-auto size-4 text-primary"
+                        strokeWidth={1.75}
+                      />
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            {availableTags.length > 0 && (
+              <CommandGroup heading="Tag">
+                {availableTags.map((tag) => {
+                  const active = filters.tag === tag.id;
+                  return (
+                    <CommandItem
+                      key={tag.id}
+                      value={`tag-${tag.id}`}
+                      keywords={[tag.name]}
+                      onSelect={() => set("tag", active ? undefined : tag.id)}
+                    >
+                      <span className="truncate">{tag.name}</span>
+                      {active && (
+                        <Check
+                          className="ml-auto size-4 text-primary"
+                          strokeWidth={1.75}
+                        />
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+            <CommandGroup heading="More">
+              <CommandItem
+                value="unread"
+                keywords={["unread"]}
+                onSelect={() =>
+                  set("unread", filters.unread ? undefined : true)
+                }
+              >
+                <span>Unread</span>
+                {filters.unread && (
+                  <Check
+                    className="ml-auto size-4 text-primary"
+                    strokeWidth={1.75}
+                  />
+                )}
+              </CommandItem>
+              <CommandItem
+                value="spam"
+                keywords={["spam"]}
+                onSelect={() => set("spam", filters.spam ? undefined : true)}
+              >
+                <span>Spam</span>
+                {filters.spam && (
+                  <Check
+                    className="ml-auto size-4 text-primary"
+                    strokeWidth={1.75}
+                  />
+                )}
+              </CommandItem>
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

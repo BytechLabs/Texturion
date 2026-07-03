@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Ban,
   ChevronDown,
+  Images,
   Info,
   MoreHorizontal,
   OctagonAlert,
@@ -64,11 +65,14 @@ export function ThreadHeader({
   contact,
   onToggleContactPanel,
   panelOpen,
+  onOpenGallery,
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
   onToggleContactPanel: () => void;
   panelOpen: boolean;
+  /** Open the attachments gallery — §5.2 single entry point. */
+  onOpenGallery: () => void;
 }) {
   const update = useUpdateConversation(conversation.id);
   const optOut = useOptOutContact();
@@ -297,6 +301,11 @@ export function ThreadHeader({
             <DropdownMenuItem onSelect={onToggleContactPanel}>
               <UserRound className="size-4" strokeWidth={1.75} />
               View contact
+            </DropdownMenuItem>
+            {/* §5.2: the gallery's single entry point. */}
+            <DropdownMenuItem onSelect={onOpenGallery}>
+              <Images className="size-4" strokeWidth={1.75} />
+              View attachments
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {contact?.opted_out ? (

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeChips,
   applySegment,
+  clearSecondary,
+  formatOpenCount,
   hasActiveFilters,
   parseInboxSearchParams,
   segmentOf,
@@ -26,9 +29,18 @@ describe("parseInboxSearchParams", () => {
 
   it("drops unknown/empty values instead of throwing", () => {
     const params = new URLSearchParams(
-      "status=bogus&assignee=&unread=1&spam=false&q=%20%20",
+      "status=bogus&assignee=&unread=nope&spam=false&q=%20%20",
     );
     expect(parseInboxSearchParams(params)).toEqual({});
+  });
+
+  it("accepts both true and 1 for unread/spam", () => {
+    expect(parseInboxSearchParams(new URLSearchParams("unread=1&spam=1"))).toEqual(
+      { unread: true, spam: true },
+    );
+    expect(
+      parseInboxSearchParams(new URLSearchParams("unread=true&spam=true")),
+    ).toEqual({ unread: true, spam: true });
   });
 
   it("round-trips through serialize", () => {
@@ -109,5 +121,56 @@ describe("hasActiveFilters", () => {
     expect(hasActiveFilters({ status: "open" })).toBe(true);
     expect(hasActiveFilters({ unread: true })).toBe(true);
     expect(hasActiveFilters({ q: "hi" })).toBe(true);
+  });
+});
+
+describe("formatOpenCount", () => {
+  it("hides zero and caps at 9+ (§2.1)", () => {
+    expect(formatOpenCount(0)).toBe("");
+    expect(formatOpenCount(-3)).toBe("");
+    expect(formatOpenCount(1)).toBe("1");
+    expect(formatOpenCount(9)).toBe("9");
+    expect(formatOpenCount(10)).toBe("9+");
+    expect(formatOpenCount(240)).toBe("9+");
+  });
+});
+
+describe("activeChips", () => {
+  it("lists only removable secondary filters, in a stable order", () => {
+    expect(activeChips({})).toEqual([]);
+    // The Mine segment owns the `me` assignee — it is never a chip.
+    expect(activeChips({ assignee: "me" })).toEqual([]);
+    // status is a segment, not a chip; q is search, not a chip.
+    expect(activeChips({ status: "open", q: "leak" })).toEqual([]);
+    expect(
+      activeChips({
+        assignee: "user-9",
+        tag: "t-1",
+        unread: true,
+        spam: true,
+      }),
+    ).toEqual([
+      { key: "assignee", value: "user-9" },
+      { key: "tag", value: "t-1" },
+      { key: "unread" },
+      { key: "spam" },
+    ]);
+  });
+});
+
+describe("clearSecondary", () => {
+  it("drops one dimension without touching the rest", () => {
+    const base = { status: "open" as const, tag: "t-1", unread: true as const };
+    expect(clearSecondary(base, "tag")).toEqual({
+      status: "open",
+      unread: true,
+    });
+    expect(clearSecondary(base, "unread")).toEqual({
+      status: "open",
+      tag: "t-1",
+    });
+    // Untouched dimensions are a no-op; the original is not mutated.
+    expect(clearSecondary(base, "spam")).toEqual(base);
+    expect(base.tag).toBe("t-1");
   });
 });

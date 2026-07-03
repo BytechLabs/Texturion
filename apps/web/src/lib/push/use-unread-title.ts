@@ -5,28 +5,20 @@
  * with the unread conversation count (`(3) Inbox — JobText`) and swaps the
  * SVG favicon to the dotted variant while anything is unread.
  *
- * Driven by the conversations unread data (G12: one source of truth): it
- * mounts the default inbox list query — the exact same key the inbox screen
- * uses, so they share one cache entry that realtime keeps patched — and
- * recomputes from EVERY cached conversation list on any cache change,
- * deduplicating by conversation id.
+ * Driven by the conversations unread data (G12: one source of truth): the
+ * shared useUnreadConversationCount hook mounts the default inbox list query
+ * — the exact same key the inbox screen uses, so they share one cache entry
+ * that realtime keeps patched — and recomputes from EVERY cached conversation
+ * list on any cache change, deduplicating by conversation id. This hook layers
+ * the title-prefix + favicon side effects on top of that count.
  *
  * Mounted app-wide (inside the company shell) by
  * components/notifications/unread-title-manager.tsx.
  */
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { useConversations } from "@/lib/api/conversations";
-import { keys } from "@/lib/api/keys";
-import { useCompanyId } from "@/lib/company/provider";
-
-import {
-  countUnreadConversations,
-  createTitleController,
-  faviconHref,
-  type UnreadCountableList,
-} from "./title";
+import { createTitleController, faviconHref } from "./title";
+import { useUnreadConversationCount } from "./use-unread-count";
 
 /** The <link rel="icon"> the manager owns (the SVG one from app metadata). */
 function svgFaviconLink(): HTMLLinkElement {
@@ -43,61 +35,12 @@ function svgFaviconLink(): HTMLLinkElement {
 }
 
 export function useUnreadTitle(): number {
-  const companyId = useCompanyId();
-  const queryClient = useQueryClient();
   // Remembers exactly what it wrote, so page-authored titles (including ones
   // that legitimately start with parentheses) are never mis-stripped.
   const [controller] = useState(createTitleController);
 
-  // Keep the default inbox list alive everywhere in the shell so the count
-  // exists on /settings, /contacts, … — same query key as the inbox screen's
-  // unfiltered list (normalizeFilters({}) === {}), so no extra traffic when
-  // the inbox is open, and realtime patches reach it either way.
-  useConversations({});
-
-  const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    const cache = queryClient.getQueryCache();
-    let disposed = false;
-    let scheduled = false;
-    const compute = () => {
-      const lists = cache
-        .findAll({ queryKey: keys.conversations.lists(companyId) })
-        .map((query) => query.state.data as UnreadCountableList | undefined);
-      setUnread(countUnreadConversations(lists));
-    };
-    // Cache events fire synchronously — including from inside ANOTHER
-    // component's render (list components seed queries while rendering).
-    // setState there is a React error ("Cannot update a component while
-    // rendering a different component"), so recomputes are deferred to a
-    // microtask, which also coalesces event bursts into one recompute.
-    const scheduleCompute = () => {
-      if (scheduled) return;
-      scheduled = true;
-      queueMicrotask(() => {
-        scheduled = false;
-        if (!disposed) compute();
-      });
-    };
-    compute();
-    // QueryCache events fire for every setQueryData/refetch — filter down to
-    // this company's conversation lists before recomputing.
-    const unsubscribe = cache.subscribe((event) => {
-      const key = event.query.queryKey as readonly unknown[];
-      if (
-        key[0] === companyId &&
-        key[1] === "conversations" &&
-        key[2] === "list"
-      ) {
-        scheduleCompute();
-      }
-    });
-    return () => {
-      disposed = true;
-      unsubscribe();
-    };
-  }, [companyId, queryClient]);
+  // The single derived unread count (shared with the nav-rail numeral).
+  const unread = useUnreadConversationCount();
 
   // Title prefix. The observer re-applies it when a route change rewrites
   // <title>; apply() is a no-op when the title already matches, so the

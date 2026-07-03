@@ -9,13 +9,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
+import { useRetryMessage } from "@/lib/api/messages";
 import type { Message } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { AttachmentImage } from "./attachment-image";
-import { doneBadgeLabel, doneToggleLabel, isDone } from "./done";
+import { doneBadgeLabel, isDone } from "./done";
+import { MessageActions } from "./message-actions";
 
 /** Telnyx error for a send blocked by the profile-level opt-out list (§5). */
 const OPTED_OUT_ERROR_CODE = "40300";
@@ -108,45 +109,6 @@ export function DeliveryState({
 }
 
 /**
- * The D14 done toggle: a quiet circle-check at the bubble's edge. Desktop —
- * appears on message hover (and keyboard focus), `stone-400` → petrol on
- * hover; mobile — always visible. aria-pressed with "Mark done"/"Mark not
- * done" labels; 150ms ease-out transition.
- */
-function DoneToggle({
-  message,
-  conversationId,
-}: {
-  message: Message;
-  conversationId: string;
-}) {
-  const setDone = useSetMessageDone(conversationId);
-  const done = isDone(message);
-
-  return (
-    <button
-      type="button"
-      aria-pressed={done}
-      aria-label={doneToggleLabel(done)}
-      onClick={() => setDone.mutate({ messageId: message.id, done: !done })}
-      className={cn(
-        // tap-target: the 16px icon + p-1 is 24px; extend the hit area to
-        // ≥44px on mobile (G11), where this is the always-visible D14 action.
-        "tap-target shrink-0 rounded-full p-1 transition-[color,opacity] duration-150 ease-out",
-        "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        done ? "text-primary" : "text-foreground-tertiary",
-        // Mobile: always visible on the bubble's action row; desktop: revealed
-        // on hover/focus of the message group.
-        !done &&
-          "md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
-      )}
-    >
-      <CircleCheck aria-hidden className="size-4" strokeWidth={1.75} />
-    </button>
-  );
-}
-
-/**
  * The small petrol check badge a done message carries, with the D14 tooltip
  * "Done · Sam · 2:14 PM" (and the same text for screen readers).
  */
@@ -208,7 +170,11 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "flex min-w-0 max-w-[85%] flex-col gap-1 md:max-w-[65%]",
+          // §1.2: an ABSOLUTE measure cap — min(90%, 34rem) inside the 42rem
+          // reading track — so the bubble holds ~66ch regardless of monitor
+          // width (replaces the old pane-relative max-w-65% that blew past
+          // 100ch on wide screens). 85% on mobile.
+          "flex min-w-0 max-w-[85%] flex-col gap-1 md:max-w-[min(90%,34rem)]",
           outbound || note ? "items-end" : "items-start",
         )}
       >
@@ -279,7 +245,9 @@ export function MessageBubble({
           </span>
         )}
       </div>
-      <DoneToggle message={message} conversationId={conversationId} />
+      {/* §4.1: done + overflow, vertically CENTERED beside the bubble (the row
+          is items-center; the cluster is self-center). */}
+      <MessageActions message={message} conversationId={conversationId} />
     </div>
   );
 }

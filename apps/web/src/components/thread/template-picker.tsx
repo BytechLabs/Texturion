@@ -1,7 +1,5 @@
 "use client";
 
-import { FileText } from "lucide-react";
-
 import {
   Command,
   CommandEmpty,
@@ -10,53 +8,41 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Button } from "@/components/ui/button";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useTemplates } from "@/lib/api/templates";
 
 /**
- * Saved-replies picker (G5): toolbar button, and `/` in an empty composer
- * opens it inline. Selecting inserts the template BODY into the draft — the
- * §5 footer/attestation rules still apply server-side untouched.
+ * Saved-replies picker (APP-LAYOUT-V2 §3.1): a controlled, anchor-based popover
+ * so it can open from the composer's `+` overflow (desktop toolbar / mobile
+ * sheet) AND from `/` typed in an empty draft (G5 lock). Selecting inserts the
+ * template BODY into the draft — the §5 footer/attestation rules still apply
+ * server-side untouched.
+ *
+ * The picker renders no trigger of its own; the composer owns the `+`/toolbar
+ * affordance and anchors this popover to the field via `children`.
  */
 export function TemplatePicker({
   open,
   onOpenChange,
   onInsert,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInsert: (body: string) => void;
+  /** Anchor element the popover positions against (the composer pill). */
+  children?: React.ReactNode;
 }) {
   const templates = useTemplates();
   const rows = templates.data?.data ?? [];
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Insert a saved reply"
-            >
-              <FileText className="size-4" strokeWidth={1.75} />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Saved replies — or type “/”</TooltipContent>
-      </Tooltip>
+      {children ? <PopoverAnchor asChild>{children}</PopoverAnchor> : null}
       <PopoverContent align="start" side="top" className="w-80 p-0">
         <Command>
           <CommandInput placeholder="Search saved replies…" autoFocus />

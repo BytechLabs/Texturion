@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import type { ConversationDetail } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { contactDisplayName } from "@/lib/format/phone";
 
+import { AttachmentsGallery } from "./attachments-gallery";
 import {
   destinationCountry,
   selectComposerBanner,
@@ -33,6 +35,7 @@ import {
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
 import { MessageList } from "./message-list";
+import { parseThreadFilter, type ThreadFilter } from "./thread-filter";
 import { ThreadHeader } from "./thread-header";
 
 const PANEL_PREF_KEY = "jobtext:contact-panel-open";
@@ -114,9 +117,33 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const messages = useMessages(conversationId);
   const markRead = useMarkConversationRead();
 
+  // §5.1 in-thread filter — All | Messages | Notes | Events. URL is the state
+  // (`?thread=`) for shareability; it defaults to All and does not persist.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const threadFilter = parseThreadFilter(searchParams.get("thread"));
+  const setThreadFilter = useCallback(
+    (next: ThreadFilter) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "all") params.delete("thread");
+      else params.set("thread", next);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [router, pathname, searchParams],
+  );
+
   // Desktop panel preference persists (G3); mobile uses a bottom sheet.
   const [panelOpen, setPanelOpen] = useState(readPanelPref);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  // §5.2: the attachments gallery has ONE entry point (the thread-header
+  // overflow); the context panel's "View all attachments" row opens this same
+  // surface. State lives here so both entry points share it.
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const openGallery = () => setGalleryOpen(true);
   const togglePanel = () => {
     const isDesktop =
       typeof window !== "undefined" &&
@@ -169,11 +196,14 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           contact={contact.data}
           onToggleContactPanel={togglePanel}
           panelOpen={panelOpen}
+          onOpenGallery={openGallery}
         />
         <MessageList
           key={conversationId}
           conversationId={conversationId}
           contact={conversation.contact}
+          filter={threadFilter}
+          onFilterChange={setThreadFilter}
         />
         {banner ? (
           <>
@@ -195,6 +225,8 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             conversation={conversation}
             contact={contact.data}
             contactPending={contact.isPending}
+            onOpenGallery={openGallery}
+            active={panelOpen}
           />
         </aside>
       )}
@@ -214,9 +246,20 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             conversation={conversation}
             contact={contact.data}
             contactPending={contact.isPending}
+            onOpenGallery={openGallery}
+            active={mobilePanelOpen}
           />
         </SheetContent>
       </Sheet>
+
+      {/* The attachments gallery (§5.2) — one surface, opened from the
+          thread-header overflow or the panel's "View all attachments" row. */}
+      <AttachmentsGallery
+        conversationId={conversationId}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        contactName={contactDisplayName(conversation.contact)}
+      />
     </div>
   );
 }

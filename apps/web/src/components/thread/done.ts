@@ -1,12 +1,42 @@
 import { format } from "date-fns";
 
-import type { Message } from "@/lib/api/types";
+import type { ConversationEvent, Message } from "@/lib/api/types";
 
 /**
  * Pure D14 done-state selectors (unit-tested directly): the strikethrough
- * flag, the aria labels for the toggle, and the badge tooltip
- * ("Done · Sam · 2:14 PM").
+ * flag, the aria labels for the toggle, the badge tooltip
+ * ("Done · Sam · 2:14 PM"), and the APP-LAYOUT-V2 §4.3 auditable timeline
+ * sentence for the message_done / message_undone events.
  */
+
+/** §4.3: quote + truncate a message body for the done timeline line. */
+const DONE_EXCERPT_MAX = 48;
+export function doneEventExcerpt(body: string): string {
+  const clean = body.replace(/\s+/g, " ").trim();
+  if (clean === "") return "a photo";
+  if (clean.length <= DONE_EXCERPT_MAX) return `"${clean}"`;
+  return `"${clean.slice(0, DONE_EXCERPT_MAX).trimEnd()}…"`;
+}
+
+/**
+ * §4.2/§4.3: the audited done/undone timeline sentence. The body is joined
+ * LIVE from the message the event points at (`payload.message_id`) — never a
+ * stored excerpt (D8 PII posture). A cache-miss (the message isn't loaded, or
+ * was pruned) degrades to "a message" rather than inventing text.
+ *
+ *   Sam marked "Can you come Thursday?" done
+ *   Sam marked "Can you come Thursday?" not done
+ */
+export function doneEventSentence(
+  event: Pick<ConversationEvent, "type" | "payload">,
+  actorName: string,
+  messageBody: string | undefined,
+): string {
+  const excerpt =
+    messageBody !== undefined ? doneEventExcerpt(messageBody) : "a message";
+  const verb = event.type === "message_undone" ? "not done" : "done";
+  return `${actorName} marked ${excerpt} ${verb}`;
+}
 
 /** A message is done exactly when done_at is set. */
 export function isDone(message: Pick<Message, "done_at">): boolean {

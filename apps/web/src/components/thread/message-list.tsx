@@ -23,6 +23,12 @@ import { cn } from "@/lib/utils";
 import { buildThreadItems, type ThreadItem } from "./clusters";
 import { MessageBubble } from "./message-bubble";
 import { DayDivider, SystemLine } from "./system-line";
+import { ThreadFilterBar } from "./thread-filter-bar";
+import {
+  filterThreadItems,
+  threadFilterEmptyCopy,
+  type ThreadFilter,
+} from "./thread-filter";
 
 const NEAR_BOTTOM_PX = 96;
 const PREPEND_TRIGGER_PX = 320;
@@ -43,9 +49,14 @@ function byChronology(a: { created_at: string; id: string }, b: { created_at: st
 export function MessageList({
   conversationId,
   contact,
+  filter,
+  onFilterChange,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
+  /** §5.1 in-thread filter — All | Messages | Notes | Events (URL-state). */
+  filter: ThreadFilter;
+  onFilterChange: (next: ThreadFilter) => void;
 }) {
   const messagesQuery = useMessages(conversationId);
   const eventsQuery = useConversationEvents(conversationId);
@@ -54,6 +65,19 @@ export function MessageList({
   const messages = useMemo(
     () => flattenPages(messagesQuery.data).slice().sort(byChronology),
     [messagesQuery.data],
+  );
+
+  // §4.3: the done/undone timeline lines join the LIVE message body by id.
+  // Built from the loaded message set — a cache-miss degrades to "a message"
+  // in doneEventSentence rather than inventing text.
+  const messageBodyById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of messages) map.set(m.id, m.body);
+    return map;
+  }, [messages]);
+  const messageBody = useCallback(
+    (messageId: string) => messageBodyById.get(messageId),
+    [messageBodyById],
   );
   const oldestLoadedMessageAt = messages[0]?.created_at ?? null;
   const allMessagesLoaded = messagesQuery.hasNextPage === false;
@@ -83,9 +107,15 @@ export function MessageList({
     return events.filter((e) => e.created_at >= oldestLoadedMessageAt);
   }, [events, allMessagesLoaded, oldestLoadedMessageAt]);
 
-  const items: ThreadItem[] = useMemo(
+  const allItems: ThreadItem[] = useMemo(
     () => buildThreadItems(messages, visibleEvents),
     [messages, visibleEvents],
+  );
+  // §5.1: the filter is a cheap client-side view over already-built items —
+  // no refetch. All is the full stream; the others narrow it.
+  const items: ThreadItem[] = useMemo(
+    () => filterThreadItems(allItems, filter),
+    [allItems, filter],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -238,6 +268,13 @@ export function MessageList({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* §5.1: in-thread filter, pinned above the scroll region, inside the
+          same 42rem reading track (§1.2) as the messages and composer. */}
+      <div className="shrink-0 px-4 pb-1 pt-2 md:px-6">
+        <div className="mx-auto flex max-w-[42rem] justify-center md:justify-start">
+          <ThreadFilterBar value={filter} onChange={onFilterChange} />
+        </div>
+      </div>
       <div
         ref={scrollRef}
         onScroll={onScroll}
@@ -252,12 +289,15 @@ export function MessageList({
         {items.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-muted-foreground">
-              No messages yet — say hello below.
+              {threadFilterEmptyCopy(filter)}
             </p>
           </div>
         ) : (
+          // §1.2: the message column is a centered 42rem reading track (≈66ch)
+          // inside the wide 1fr thread pane — dividers, event lines, and
+          // bubbles all live in this one measure.
           <div
-            className="relative w-full"
+            className="relative mx-auto w-full max-w-[42rem]"
             style={{ height: virtualizer.getTotalSize() }}
           >
             {virtualItems.map((virtualItem) => {
@@ -274,7 +314,11 @@ export function MessageList({
                   {item.kind === "divider" ? (
                     <DayDivider label={item.label} />
                   ) : item.kind === "event" ? (
-                    <SystemLine event={item.event} memberName={memberName} />
+                    <SystemLine
+                      event={item.event}
+                      memberName={memberName}
+                      messageBody={messageBody}
+                    />
                   ) : (
                     <div className="flex flex-col gap-0.5 py-1.5">
                       {item.messages.map((message, index) => (

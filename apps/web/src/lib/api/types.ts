@@ -45,7 +45,13 @@ export type ConversationEventType =
   | "consent_attested"
   | "quiet_hours_confirmed"
   | "spam_marked"
-  | "spam_unmarked";
+  | "spam_unmarked"
+  // D22 / APP-LAYOUT-V2 §4.2 — done audit. Written by the D14 PATCH
+  // /v1/messages/:id handler on a REAL done↔undone transition (the idempotent
+  // no-op writes none). payload is `{ message_id }` only; the timeline joins
+  // the live message body at render time (§4.3 — never a stored excerpt).
+  | "message_done"
+  | "message_undone";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {
@@ -543,4 +549,31 @@ export interface PushSubscriptionRow {
 export interface AttachmentUrl {
   url: string;
   expires_at: string;
+}
+
+/**
+ * Canonical gallery `source` enum (APP-FEATURES-V2 §4.2 / TASKS.md T7.3):
+ * where an attachment came from. Mapped to the display tags Message / Note /
+ * Task in the UI layer only.
+ */
+export type GallerySource = "mms" | "note" | "task";
+
+/**
+ * One item from GET /v1/conversations/:id/attachments (APP-LAYOUT-V2 §5.2 /
+ * conversations-gallery route). The union of the MMS `message_attachments`
+ * arm (joined through messages) and the generic D19 `attachments` table
+ * (note + task), merged/sorted (created_at, id) DESC in the API. `url` is a
+ * freshly-minted short-lived signed URL — the endpoint is the single
+ * authorize+sign point, so the gallery never calls /v1/attachments/:id/url.
+ * `kind` drives the Images | Files tabs.
+ */
+export interface GalleryItem {
+  id: string;
+  source: GallerySource;
+  kind: "image" | "file";
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+  url: string;
 }
