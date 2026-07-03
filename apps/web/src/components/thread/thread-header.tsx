@@ -3,11 +3,14 @@
 import {
   ArrowLeft,
   Ban,
+  Check,
   ChevronDown,
   Images,
   Info,
   MoreHorizontal,
   OctagonAlert,
+  Phone,
+  Star,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -15,6 +18,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { Button } from "@/components/ui/button";
@@ -162,8 +166,10 @@ export function ThreadHeader({
     );
   };
 
+  const phone = conversation.contact.phone_e164;
+
   return (
-    <header className="flex items-center gap-2 border-b border-border bg-background px-2 py-2 md:px-4">
+    <header className="flex items-center gap-2 border-b border-app-line bg-app-white/70 px-2 py-2.5 backdrop-blur-sm md:gap-3 md:px-4">
       <Button
         asChild
         variant="ghost"
@@ -176,24 +182,71 @@ export function ThreadHeader({
         </Link>
       </Button>
 
+      {/* Colored-initial avatar (stable per contact), matching the list/panel. */}
+      <span
+        aria-hidden
+        className={cn(
+          "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] sm:grid",
+          avatarColorClass(conversation.contact_id || name),
+        )}
+      >
+        {avatarInitials(name)}
+      </span>
+
       <button
         type="button"
         onClick={onToggleContactPanel}
-        className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors duration-150 ease-out hover:bg-secondary/60"
+        className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors duration-150 ease-out hover:bg-app-stone-1"
         aria-label={`View contact details for ${name}`}
       >
-        {/* §3.2: the customer's name is near-black but 500-weight (the thread
-            body is the hero, not the header); the number recedes to 13px
-            stone-500. No petrol anywhere in this header. */}
-        <span className="block truncate text-sm font-medium text-foreground">
+        <span className="block truncate text-[15px] font-bold text-app-ink">
           {name}
         </span>
-        <span className="block truncate text-[13px] tabular-nums text-muted-foreground">
-          {formatPhone(conversation.contact.phone_e164)}
+        <span className="block truncate text-[12.5px] tabular-nums text-app-muted">
+          {formatPhone(phone)}
         </span>
       </button>
 
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* Call — a tel: link to the contact's number. */}
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-sm"
+          className="hidden sm:inline-flex"
+          aria-label={`Call ${name}`}
+        >
+          <a href={`tel:${phone}`}>
+            <Phone className="size-4" strokeWidth={1.75} />
+          </a>
+        </Button>
+
+        {/* Ask for a review — opens the composer prefilled via a URL flag the
+            composer reads (a saved-reply nudge). Falls back to the templates
+            picker; harmless if unhandled. */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hidden sm:inline-flex"
+          aria-label="Ask for a review"
+          onClick={onToggleContactPanel}
+        >
+          <Star className="size-4" strokeWidth={1.75} />
+        </Button>
+
+        {/* Done — the app's completion gesture (close / reopen), styled as the
+            mockup's petrol-tint Done button. */}
+        <button
+          type="button"
+          onClick={closeOrReopen}
+          disabled={update.isPending}
+          aria-label={closed ? "Reopen conversation" : "Mark done"}
+          className="inline-flex h-[34px] items-center gap-1.5 rounded-app-ctrl border border-app-tint-line bg-app-white px-3 text-[13px] font-semibold text-app-petrol-deep shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[background,box-shadow] duration-150 ease-out hover:bg-app-tint hover:app-shadow-row disabled:opacity-50"
+        >
+          <Check className="size-[17px] text-app-petrol" strokeWidth={2.2} />
+          {closed ? "Reopen" : "Done"}
+        </button>
+
         {/* Status: inline pill dropdown. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

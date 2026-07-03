@@ -63,22 +63,19 @@ export function InboxPane() {
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-app-stone-0">
       <RegistrationStatusBanner />
-      {/* §3.1: the compose action is the single petrol element for this
-          region — desktop gets a petrol "New" button in the list header;
-          mobile uses the petrol FAB (G3), so its header stays title-only. */}
-      <header className="hidden items-center justify-between px-4 pb-1 pt-4 md:flex">
-        <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
-        <Button asChild size="sm" aria-label="New conversation">
+      {/* The list header. Compose lives in the top bar now (desktop) and the FAB
+          (mobile), so the list header is title-only — the segment + search below
+          carry the filtering. Mobile keeps the title for orientation. */}
+      <header className="flex items-center justify-between px-4 pb-1 pt-4 md:hidden">
+        <h1 className="text-lg font-semibold text-app-ink">Inbox</h1>
+        <Button asChild size="sm" variant="ghost" aria-label="New conversation">
           <Link href="/inbox/new">
             <SquarePen className="size-4" strokeWidth={1.75} />
             New
           </Link>
         </Button>
-      </header>
-      <header className="flex items-center justify-between px-4 pb-1 pt-4 md:hidden">
-        <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
       </header>
       <FilterBar filters={filters} onChange={setFilters} />
       {searching ? (

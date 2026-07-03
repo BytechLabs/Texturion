@@ -60,12 +60,15 @@ export function FilterBar({
   const openCount = useOpenCount();
 
   return (
-    <div className="space-y-2 border-b border-border p-3">
+    <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
       <SearchField filters={filters} onChange={onChange} />
+      {/* Elevated segment (mockup .segment): a pill track with the selected tab
+          lifted to a white pill. Behavior unchanged — these are the real inbox
+          segments (Open/Mine/All/Closed), just crafted. */}
       <div
         role="tablist"
         aria-label="Conversation status"
-        className="flex rounded-lg bg-muted p-0.5"
+        className="flex gap-0.5 rounded-full bg-[rgba(20,32,30,0.04)] p-[3px] dark:bg-white/5"
       >
         {INBOX_SEGMENTS.map(({ id, label }) => {
           const selected = segment === id;
@@ -80,21 +83,17 @@ export function FilterBar({
               onClick={() => onChange(applySegment(filters, id))}
               className={cn(
                 // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
-                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
-                // §2.1: active segment is a QUIET stone pill (white lift +
-                // near-black text), never petrol — petrol is spent on the one
-                // compose action in this region, not on the filter control.
+                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background,box-shadow] duration-150 ease-out md:min-h-[28px]",
                 selected
-                  ? "bg-card text-foreground shadow-none"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-app-white font-semibold text-app-ink shadow-[0_1px_2px_rgba(20,32,30,0.08)]"
+                  : "font-medium text-app-muted hover:text-app-ink",
               )}
             >
               {label}
               {countLabel !== "" && (
-                // §2.1: one quiet stone-500 tabular numeral on Open only, shown
-                // only when > 0, capped at 9+ — never a KPI strip.
+                // One quiet petrol count on Open only, shown when > 0, capped 9+.
                 <span
-                  className="tabular-nums text-xs font-normal text-muted-foreground"
+                  className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10.5px] font-bold tabular-nums text-white"
                   aria-label={`${openCount > OPEN_COUNT_CAP ? `over ${OPEN_COUNT_CAP}` : openCount} open`}
                 >
                   {countLabel}

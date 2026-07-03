@@ -9,14 +9,17 @@ import type { ConversationFilters } from "@/lib/api/filters";
 import { flattenPages } from "@/lib/api/pagination";
 import { prefersReducedMotion } from "@/lib/motion";
 
-import { ConversationRow } from "./conversation-row";
+import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
 import {
   ActivationEmptyState,
   FilteredEmptyState,
   ListSkeleton,
 } from "./empty-states";
 
-const ROW_HEIGHT = 68;
+/** Vertical gap between elevated rows (mockup .rows gap). The virtualizer slot
+ * is the row box + this gap so absolute offsets leave air between cards. */
+const ROW_GAP = 4;
+const ROW_SLOT = ROW_HEIGHT + ROW_GAP;
 
 /**
  * FLIP the rows that moved (G4: realtime re-sort animated, subtle). Runs
@@ -79,7 +82,7 @@ export function ConversationList({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => ROW_SLOT,
     overscan: 8,
     getItemKey: (index) => rows[index]?.id ?? index,
   });
@@ -131,7 +134,7 @@ export function ConversationList({
   return (
     <div
       ref={scrollRef}
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-3 pt-1.5"
     >
       <div
         role="list"

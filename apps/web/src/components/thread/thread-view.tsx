@@ -190,7 +190,9 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      {/* The thread column carries a whisper of petrol wash over the raised stone
+          (mockup .thread) so the timeline reads as a surface, not flat paper. */}
+      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-stone-1 [background-image:radial-gradient(700px_320px_at_60%_-10%,rgba(15,118,110,0.04),transparent_60%)]">
         <ThreadHeader
           conversation={conversation}
           contact={contact.data}
@@ -219,7 +221,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       {panelOpen && (
         <aside
           aria-label={`Contact details for ${contactDisplayName(conversation.contact)}`}
-          className="hidden w-80 shrink-0 border-l border-border bg-background md:block"
+          className="hidden w-80 shrink-0 border-l border-app-line bg-app-stone-0 md:block"
         >
           <ContactPanel
             conversation={conversation}

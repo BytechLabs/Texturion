@@ -56,8 +56,17 @@ export function CommandPalette() {
         setOpen((current) => !current);
       }
     }
+    // The top-bar search field opens the same palette on click (a prominent,
+    // inviting search that shares the Cmd-K flow, APP-SHELL-REDESIGN §3).
+    function onOpenRequest() {
+      setOpen(true);
+    }
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("jobtext:open-command", onOpenRequest);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("jobtext:open-command", onOpenRequest);
+    };
   }, []);
 
   // Debounce the search query (250 ms — G4) so the API sees settled input.

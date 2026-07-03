@@ -126,7 +126,16 @@ function NotificationRow({
  * model). Opening the popover marks everything read (the natural "I've seen my
  * notifications" gesture), matching the derived last-seen semantics.
  */
-export function NotificationBell() {
+export function NotificationBell({
+  appVariant = false,
+}: {
+  /**
+   * APP-SHELL-REDESIGN top-bar styling: render the trigger as the mockup
+   * .icon-btn (bordered white square with a soft petrol shadow + the has-dot
+   * unread indicator) instead of the ghost header button. Behavior is identical.
+   */
+  appVariant?: boolean;
+} = {}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -161,24 +170,44 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="relative"
-          aria-label={
-            count > 0 ? `Notifications, ${count} unread` : "Notifications"
-          }
-        >
-          <Bell className="size-[18px]" strokeWidth={1.75} aria-hidden />
-          {count > 0 && (
-            <span
-              aria-hidden
-              className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground tabular-nums"
-            >
-              {badgeCount(count)}
-            </span>
-          )}
-        </Button>
+        {appVariant ? (
+          // Mockup .icon-btn.has-dot: a bordered white square with a soft petrol
+          // shadow and a single unread DOT (not a numeral) top-right.
+          <button
+            type="button"
+            aria-label={
+              count > 0 ? `Notifications, ${count} unread` : "Notifications"
+            }
+            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-white text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-stone-1 hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Bell className="size-[18px]" strokeWidth={1.7} aria-hidden />
+            {count > 0 && (
+              <span
+                aria-hidden
+                className="absolute right-[9px] top-2 size-[7px] rounded-full border-2 border-app-white bg-primary"
+              />
+            )}
+          </button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="relative"
+            aria-label={
+              count > 0 ? `Notifications, ${count} unread` : "Notifications"
+            }
+          >
+            <Bell className="size-[18px]" strokeWidth={1.75} aria-hidden />
+            {count > 0 && (
+              <span
+                aria-hidden
+                className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground tabular-nums"
+              >
+                {badgeCount(count)}
+              </span>
+            )}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"

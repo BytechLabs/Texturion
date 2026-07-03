@@ -132,20 +132,24 @@ export function ActivationEmptyState() {
 /** Pulsing skeleton rows — first load only, never on realtime updates (G4). */
 export function ListSkeleton() {
   return (
-    <div aria-hidden className="flex-1 overflow-hidden">
-      {Array.from({ length: 8 }, (_, i) => (
+    <div
+      aria-hidden
+      className="flex-1 space-y-1 overflow-hidden px-2.5 pb-3 pt-1.5"
+    >
+      {Array.from({ length: 7 }, (_, i) => (
         <div
           key={i}
-          className="flex h-[68px] items-center gap-3 border-b border-border-subtle px-4"
+          className="flex h-24 items-start gap-[11px] rounded-app-card border border-transparent p-[11px]"
         >
-          <Skeleton className="size-2 rounded-full" />
+          <Skeleton className="size-[38px] shrink-0 rounded-xl" />
           <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-3.5 w-32" />
-            <Skeleton className="h-3 w-48" />
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <Skeleton className="h-3 w-8" />
-            <Skeleton className="h-4 w-12 rounded-full" />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-4 w-20 rounded-full" />
           </div>
         </div>
       ))}

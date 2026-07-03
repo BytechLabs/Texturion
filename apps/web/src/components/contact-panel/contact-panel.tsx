@@ -53,7 +53,8 @@ function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
 }
 
-/** A calm section wrapper: a quiet stone-500 label over its content (§1.5). */
+/** An elevated section card (mockup .panel): a white card with the panel shadow
+ * and a bold section head, holding the section's content. */
 function PanelSection({
   label,
   children,
@@ -62,8 +63,8 @@ function PanelSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-1.5">
-      <h3 className="px-2 text-xs font-medium text-muted-foreground">{label}</h3>
+    <section className="rounded-app-card border border-app-line bg-app-white p-3.5 app-shadow-panel">
+      <h3 className="mb-2.5 text-[13px] font-bold text-app-ink">{label}</h3>
       {children}
     </section>
   );
@@ -158,9 +159,9 @@ export function ContactPanel({
     // stone-500, auto-saving fields. Progressive disclosure: the thread stays
     // the hero; this detail lives in the toggled panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="space-y-8 p-5">
-        {/* Contact — name, number + copy, address, notes. */}
-        <section className="space-y-1">
+      <div className="space-y-3 p-3.5">
+        {/* Contact — name, number + copy, address, notes. Elevated card. */}
+        <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5 app-shadow-panel">
           <InlineTextField
             contactId={contact.id}
             field="name"

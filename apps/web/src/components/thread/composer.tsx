@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, ImagePlus, Plus, X } from "lucide-react";
+import { FileText, ImagePlus, Plus, Send as SendIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -307,7 +307,7 @@ export function Composer({
   const attachDisabled = attachments.length >= MAX_ATTACHMENTS;
 
   return (
-    <div className="border-t border-border bg-background px-3 pb-3 pt-2">
+    <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4">
       {!noteOnly && (
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"
@@ -325,9 +325,9 @@ export function Composer({
                 "tap-target rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:px-2.5 md:py-0.5 md:text-[11px]",
                 mode === m
                   ? m === "note"
-                    ? "bg-warning/15 text-amber-800 dark:text-warning"
-                    : "bg-primary/10 text-teal-800 dark:text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                    ? "bg-app-amber-bg text-app-amber-ink"
+                    : "bg-app-tint text-app-petrol-deep"
+                  : "text-app-muted hover:text-app-ink",
               )}
             >
               {m === "sms" ? "Text" : "Note"}
@@ -339,14 +339,15 @@ export function Composer({
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}
 
-      {/* §3.1 the pill, constrained to the 42rem reading track. */}
+      {/* The elevated composer CARD (mockup .composer): a white card with the
+          panel shadow + hairline, constrained to the 42rem reading track. */}
       <div
         className={cn(
-          "mx-auto flex max-w-[42rem] items-end gap-1 rounded-3xl border px-1.5 py-1 transition-colors",
-          "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
+          "mx-auto flex max-w-[42rem] items-end gap-1 rounded-app-card border px-2 py-1.5 transition-[border-color,box-shadow] app-shadow-panel",
+          "focus-within:border-app-petrol focus-within:ring-[3px] focus-within:ring-primary/15",
           isNote
-            ? "border-dashed border-amber-300 bg-amber-50/60 dark:border-amber-700/60 dark:bg-amber-950/20"
-            : "border-input bg-background",
+            ? "border-app-amber-line bg-app-amber-bg"
+            : "border-app-line bg-app-white",
         )}
       >
         {/* Far-left `+` overflow (§3.1) — texts only (notes have no attach/
@@ -446,24 +447,27 @@ export function Composer({
 
         <div className="flex items-center gap-2 self-end pb-1 pr-0.5">
           {!isNote && <SegmentMeterLabel text={text} />}
-          {/* §3.1 the single petrol control in this region — active only when
-              the field is non-empty (derive-from-content). Notes reuse the amber
-              accent (a note is not an SMS send). */}
-          <Button
+          {/* The single petrol control in this region (mockup .btn-primary.send)
+              — a petrol pill with the send glyph and a soft petrol shadow. Active
+              only when the field is non-empty. Notes reuse the amber accent. */}
+          <button
             type="button"
-            size="icon-sm"
             onClick={() => void doSend()}
             disabled={!canSend}
             aria-label={isNote ? "Save note" : "Send message"}
             aria-keyshortcuts="Control+Enter Meta+Enter"
             className={cn(
-              "rounded-full",
-              isNote &&
-                "bg-warning text-white hover:bg-warning/90 dark:text-stone-950",
+              "inline-flex h-9 items-center gap-1.5 rounded-app-ctrl px-3 text-[13px] font-semibold text-white transition-[background,transform,box-shadow] duration-150 ease-out active:translate-y-px disabled:opacity-45 disabled:shadow-none",
+              isNote
+                ? "bg-app-amber hover:brightness-105"
+                : "bg-primary shadow-[0_1px_2px_rgba(11,79,73,0.3),0_8px_18px_-10px_rgba(15,118,110,0.7)] hover:bg-[#0d6a63]",
             )}
           >
-            <ArrowUp className="size-4" strokeWidth={2} />
-          </Button>
+            <span className="hidden sm:inline">
+              {isNote ? "Save" : "Send"}
+            </span>
+            <SendIcon className="size-[15px]" />
+          </button>
         </div>
       </div>
 

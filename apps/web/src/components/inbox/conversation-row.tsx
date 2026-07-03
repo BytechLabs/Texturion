@@ -11,14 +11,19 @@ import type {
   ConversationListItem,
   ConversationSnippet,
   MessageDirection,
+  Tag,
 } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
-import { MemberAvatar, useMemberNames } from "./member-avatar";
-import { SpamPill, StatusPill } from "./status-pill";
+import { avatarColorClass, avatarInitials } from "../shell/avatar-color";
+import { useMemberNames } from "./member-avatar";
+
+/** The fixed row height the virtualizer estimates (avatar + name + 2-line
+ * preview + a tag row). Keep in sync with the row's box in ConversationRow. */
+export const ROW_HEIGHT = 96;
 
 interface Snippet {
   direction: MessageDirection;
@@ -78,7 +83,30 @@ function snippetText(snippet: Snippet): string {
   return body;
 }
 
-/** G4 row anatomy, 68px: dot → name + snippet → time / avatar / pill. */
+/** A tag chip (mockup .chip): a small rounded pill. The first tag reads as the
+ * petrol "emphasis" chip; the rest are quiet stone chips. */
+function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-[2.5px] text-[11px] font-semibold leading-none",
+        emphasis
+          ? "border-app-tint-line bg-app-tint text-app-petrol-deep"
+          : "border-app-line bg-app-stone-0 text-[#5A635F] dark:text-app-muted",
+      )}
+    >
+      {tag.name}
+    </span>
+  );
+}
+
+/**
+ * The APP-SHELL-REDESIGN inbox row (mockup .row): a colored-initial avatar, the
+ * contact name + a 2-line preview + a tabular time, an unread petrol dot, and up
+ * to two tag chips. Hover lifts the row (fill + soft shadow); the SELECTED row is
+ * a lifted white card with a petrol-tint ring + shadow (NOT a left accent bar).
+ * All behavior (the /inbox/:id link, active state, spam view) is preserved.
+ */
 export function ConversationRow({
   conversation,
   active,
@@ -96,71 +124,100 @@ export function ConversationRow({
     : undefined;
 
   const name = contactDisplayName(conversation.contact);
+  const tags = conversation.tags.slice(0, 2);
+
+  const previewText = snippet
+    ? `${snippet.direction === "outbound" ? "You: " : ""}${snippetText(snippet)}`
+    : conversation.contact.name
+      ? formatPhone(conversation.contact.phone_e164)
+      : "";
 
   return (
     <Link
       href={`/inbox/${conversation.id}`}
       aria-current={active ? "page" : undefined}
       aria-label={`Conversation with ${name}${unread ? ", unread" : ""}`}
+      style={{ height: ROW_HEIGHT }}
       className={cn(
-        // §3.1: 12px vertical rhythm, subtle stone-100 interior hairline so
-        // the list reads as one calm column, not a stack of boxes. Hover is a
-        // fill change only (stone-50→stone-100), no border/shadow shift.
-        "flex h-[68px] items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out",
-        active ? "bg-secondary" : "hover:bg-secondary/60",
+        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out",
+        active
+          ? "border-app-tint-line bg-app-white app-shadow-row"
+          : "border-transparent hover:border-app-line-soft hover:bg-app-stone-1",
       )}
     >
+      {/* Colored-initial avatar (stable per contact). */}
       <span
         aria-hidden
         className={cn(
-          "size-2 shrink-0 rounded-full",
-          unread ? "bg-primary" : "bg-transparent",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
+          avatarColorClass(conversation.contact_id || name),
         )}
-      />
+      >
+        {avatarInitials(name)}
+      </span>
+
       <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span
+            className={cn(
+              "truncate text-[14px] text-app-ink",
+              unread ? "font-bold" : "font-semibold",
+            )}
+          >
+            {name}
+          </span>
+          <span
+            className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2"
+            title={formatAbsoluteDateTime(conversation.last_message_at)}
+          >
+            {formatRelativeTime(conversation.last_message_at)}
+          </span>
+        </span>
+
         <span
           className={cn(
-            "block truncate text-sm text-foreground",
-            unread ? "font-semibold" : "font-medium",
+            "mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45]",
+            active ? "text-[#4A544F] dark:text-app-muted" : "text-app-muted",
           )}
         >
-          {name}
-        </span>
-        <span className="flex items-center gap-1 text-sm text-muted-foreground">
           {snippet?.direction === "note" && (
             <Lock
-              className="size-3 shrink-0 text-amber-700 dark:text-warning"
+              className="mt-0.5 size-3 shrink-0 text-app-amber"
               strokeWidth={1.75}
               aria-label="Note"
             />
           )}
-          <span className="truncate">
-            {snippet
-              ? `${snippet.direction === "outbound" ? "You: " : ""}${snippetText(snippet)}`
-              : conversation.contact.name
-                ? formatPhone(conversation.contact.phone_e164)
-                : " "}
+          <span className="line-clamp-2 min-w-0 break-words">
+            {previewText}
           </span>
         </span>
+
+        {(tags.length > 0 || spamView || assigneeName) && (
+          <span className="mt-[7px] flex flex-wrap items-center gap-[5px]">
+            {spamView && (
+              <span className="inline-flex items-center rounded-full border border-app-line px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-clay">
+                Spam
+              </span>
+            )}
+            {tags.map((tag, i) => (
+              <TagChip key={tag.id} tag={tag} emphasis={i === 0 && !spamView} />
+            ))}
+            {assigneeName && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted">
+                {avatarInitials(assigneeName)}
+              </span>
+            )}
+          </span>
+        )}
       </span>
-      <span className="flex shrink-0 flex-col items-end gap-1">
-        {/* §3.1: time drops to tertiary stone-400 (dark stone-500) — chrome,
-            not content. The unread petrol dot is the row's only accent. */}
+
+      {/* Unread petrol dot, top-right (mockup .unread). */}
+      {unread && (
         <span
-          className="text-xs tabular-nums text-foreground-tertiary"
-          title={formatAbsoluteDateTime(conversation.last_message_at)}
-        >
-          {formatRelativeTime(conversation.last_message_at)}
-        </span>
-        <span className="flex items-center gap-1.5">
-          {assigneeName && <MemberAvatar name={assigneeName} />}
-          {spamView ? (
-            <SpamPill />
-          ) : (
-            <StatusPill status={conversation.status} />
-          )}
-        </span>
-      </span>
+          aria-hidden
+          className="absolute right-3 top-[14px] size-2 rounded-full bg-primary shadow-[0_0_0_3px_rgba(15,118,110,0.14)]"
+        />
+      )}
     </Link>
   );
 }

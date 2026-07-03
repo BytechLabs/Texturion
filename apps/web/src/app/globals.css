@@ -208,6 +208,34 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* APP-SHELL-REDESIGN mockup colors, exposed as utilities (bg-app-tint,
+     text-app-petrol-deep, border-app-tint-line, bg-app-amber-bg, …). Resolve to
+     the .app-scope tokens; inert (unset) outside the app scope, so marketing is
+     untouched. Additive — no existing utility changes. */
+  --color-app-ink: var(--app-ink);
+  --color-app-petrol: var(--app-petrol);
+  --color-app-petrol-deep: var(--app-petrol-deep);
+  --color-app-stone-0: var(--app-stone-0);
+  --color-app-stone-1: var(--app-stone-1);
+  --color-app-white: var(--app-white);
+  --color-app-line: var(--app-line);
+  --color-app-line-soft: var(--app-line-soft);
+  --color-app-muted: var(--app-muted);
+  --color-app-muted-2: var(--app-muted-2);
+  --color-app-tint: var(--app-tint);
+  --color-app-tint-line: var(--app-tint-line);
+  --color-app-amber: var(--app-amber);
+  --color-app-amber-bg: var(--app-amber-bg);
+  --color-app-amber-line: var(--app-amber-line);
+  --color-app-amber-ink: var(--app-amber-ink);
+  --color-app-clay: var(--app-clay);
+  --color-app-slate: var(--app-slate);
+
+  /* Radii utilities: rounded-app-card / rounded-app-ctrl / rounded-app-bub. */
+  --radius-app-card: var(--app-r-card);
+  --radius-app-ctrl: var(--app-r-ctrl);
+  --radius-app-bub: var(--app-r-bub);
 }
 
 @layer base {
@@ -407,6 +435,282 @@
     animation: app-check-cascade var(--motion-panel, 200ms) var(--ease-out)
       var(--cascade-delay, 0ms) both;
   }
+}
+
+/* ==========================================================================
+   APP-SHELL-REDESIGN token layer (APP-SHELL-REDESIGN.md §2) — the ELEVATED,
+   crafted look for the AUTHENTICATED app. Scoped to `.app-scope` (the (app)
+   route-group root), the same way marketing scopes itself to `.mkt-scope`, so
+   the app gets Golos Text + the warm-stone/petrol palette with real depth while
+   MARKETING is untouched. Every value here is the pixel-exact mockup token
+   (shell-mockup.html): warm green-black ink (never pure black), a soft
+   petrol-tinted shadow scale, generous radii, avatar gradients, colored chips.
+
+   Overriding the shadcn `--*` base tokens on the scope root means every existing
+   utility (bg-background, bg-card, text-primary, border-border,
+   text-muted-foreground, …) re-renders in the new palette with ZERO component
+   churn — behavior is preserved, only the look changes. New mockup-only tokens
+   (--sh-row/panel/bar, --tint, avatar gradients, radii) are additive and read by
+   the elevated shell/inbox components.
+   ========================================================================== */
+.app-scope {
+  /* Golos Text is the app's primary sans (replaces Inter here only). Mounted via
+     the (app) layout's golosText.variable; this points --font-sans at it so every
+     `font-sans` utility resolves to Golos inside the app. Marketing keeps its own
+     faces; the app never resolves Inter. tabular-nums stays available via the
+     existing @utility. */
+  --font-sans: var(--font-golos), system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  /* --- Mockup palette, mapped onto the shadcn token names (light) --- */
+  /* Grounds: warm stone. --stone-0 #F4F2EC is the app ground; raised surfaces
+     step up to #FBFAF6; true white is the card/elevated surface. */
+  --background: #f4f2ec; /* --stone-0 ground */
+  --foreground: #14201e; /* --ink, warm green-black (never pure black) */
+  --card: #ffffff; /* elevated white card */
+  --card-foreground: #14201e;
+  --popover: #ffffff;
+  --popover-foreground: #14201e;
+
+  /* Petrol brand: #0F766E primary, deep #0B4F49 for text-on-tint accents. */
+  --primary: #0f766e; /* petrol */
+  --primary-foreground: #ffffff;
+
+  /* Raised secondary surface + tinted accent. --secondary is the raised stone
+     (#FBFAF6); --accent is the petrol tint used for selected/hover moments. */
+  --secondary: #fbfaf6; /* --stone-1 raised */
+  --secondary-foreground: #14201e;
+  --muted: #fbfaf6;
+  --muted-foreground: #6b7572; /* --muted */
+  --foreground-tertiary: #8a928e; /* --muted-2, quiet meta */
+  --accent: #e3f0ec; /* --tint, petrol-tinted fill */
+  --accent-foreground: #0b4f49; /* --petrol-deep on tint */
+
+  --destructive: #b4623f; /* warm clay, not a jarring red */
+  --border: #e6e3da; /* --hairline / line */
+  --border-subtle: #efede6; /* --line-soft, interior hairlines */
+  --input: #e6e3da;
+  --ring: #0f766e; /* petrol focus rings */
+
+  /* Semantic accents in the mockup's warm palette. */
+  --success: #0f766e;
+  --warning: #c98a2b; /* --amber */
+  --info: #0f766e;
+
+  --chart-1: #0f766e;
+  --chart-2: #2a9e93;
+  --chart-3: #cfe4de;
+  --chart-4: #c98a2b;
+  --chart-5: #8a928e;
+
+  /* Sidebar tokens still resolve (some primitives reference them) but the app no
+     longer renders a sidebar; keep them coherent with the palette. */
+  --sidebar: #f4f2ec;
+  --sidebar-foreground: #14201e;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #0b4f49;
+  --sidebar-border: #e6e3da;
+  --sidebar-ring: #0f766e;
+
+  /* --- Mockup-only tokens (additive; read by elevated components) --- */
+  --app-ink: #14201e;
+  --app-petrol: #0f766e;
+  --app-petrol-deep: #0b4f49;
+  --app-stone-0: #f4f2ec;
+  --app-stone-1: #fbfaf6;
+  --app-white: #ffffff;
+  --app-line: #e6e3da;
+  --app-line-soft: #efede6;
+  --app-muted: #6b7572;
+  --app-muted-2: #8a928e;
+  --app-tint: #e3f0ec;
+  --app-tint-line: #cfe4de;
+  --app-amber: #c98a2b;
+  --app-amber-bg: #f7eedc;
+  --app-amber-line: #ebd9b4;
+  --app-amber-ink: #6e521c;
+  --app-clay: #b4623f;
+  --app-slate: #5b7a73;
+
+  /* Soft petrol-tinted shadow scale (exactly the mockup's --sh-*). */
+  --app-sh-row: 0 1px 2px rgba(20, 32, 30, 0.05),
+    0 10px 22px -14px rgba(15, 118, 110, 0.22);
+  --app-sh-panel: 0 1px 2px rgba(20, 32, 30, 0.04),
+    0 14px 30px -18px rgba(20, 32, 30, 0.18);
+  --app-sh-bar: 0 1px 0 var(--app-line),
+    0 10px 24px -20px rgba(20, 32, 30, 0.5);
+
+  /* Radii: card 14px, control 10px, bubble 16px. */
+  --app-r-card: 14px;
+  --app-r-ctrl: 10px;
+  --app-r-bub: 16px;
+
+  /* The petrol/amber wash on the app ground (whisper of warmth, not flat stone),
+     matching the mockup .canvas gradient. Applied to the (app) frame. */
+  --app-ground-wash:
+    radial-gradient(
+      1100px 520px at 78% -8%,
+      rgba(15, 118, 110, 0.07),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 480px at 5% 110%,
+      rgba(201, 138, 43, 0.05),
+      transparent 55%
+    );
+
+  /* Avatar / thumbnail gradients (colored-initial avatars, mockup .a-*). */
+  --app-ava-amber: linear-gradient(150deg, #d79a3c, #b26f1e);
+  --app-ava-petrol: linear-gradient(150deg, #1c8e83, #0c534c);
+  --app-ava-clay: linear-gradient(150deg, #c4744f, #8f4527);
+  --app-ava-slate: linear-gradient(150deg, #6e8c85, #48645d);
+  --app-avatar-self: linear-gradient(145deg, #1b8c82, #0b4f49);
+
+  /* Outbound message bubble gradient (petrol, with depth). */
+  --app-bubble-out: linear-gradient(160deg, #127a71, #0d685f);
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Dark mode with REAL depth: dark surfaces that still feel layered, not inverted
+   flatness (APP-SHELL-REDESIGN.md §2). The ground is a warm green-black; cards
+   and panels step UP in lightness (not down), and the shadow scale keeps a soft
+   petrol glow so surfaces read as surfaces. Fires when a `.dark` ancestor sits
+   inside `.app-scope`, or the scope root itself is `.dark`. */
+.app-scope.dark,
+.app-scope .dark {
+  --background: #0c1512; /* warm green-black ground */
+  --foreground: #eaf1ee; /* near-paper ink on dark */
+  --card: #14201d; /* raised card, a step up from ground */
+  --card-foreground: #eaf1ee;
+  --popover: #17241f;
+  --popover-foreground: #eaf1ee;
+
+  --primary: #2fb3a5; /* lifted petrol, AA on dark surfaces */
+  --primary-foreground: #04110e;
+
+  --secondary: #17241f; /* raised stone-equivalent on dark */
+  --secondary-foreground: #eaf1ee;
+  --muted: #17241f;
+  --muted-foreground: #9aa8a3; /* quiet on dark, ≥AA */
+  --foreground-tertiary: #7d8a85;
+  --accent: #143a34; /* petrol tint on dark */
+  --accent-foreground: #a9e6dc;
+
+  --destructive: #d98466;
+  --border: #24332e; /* visible-but-soft hairline on dark */
+  --border-subtle: #1c2a25;
+  --input: #24332e;
+  --ring: #2fb3a5;
+
+  --success: #2fb3a5;
+  --warning: #e0a94a;
+  --info: #2fb3a5;
+
+  --chart-1: #2fb3a5;
+  --chart-2: #1c8e83;
+  --chart-3: #143a34;
+  --chart-4: #e0a94a;
+  --chart-5: #7d8a85;
+
+  --sidebar: #0c1512;
+  --sidebar-foreground: #eaf1ee;
+  --sidebar-primary: #2fb3a5;
+  --sidebar-primary-foreground: #04110e;
+  --sidebar-accent: #14201d;
+  --sidebar-accent-foreground: #a9e6dc;
+  --sidebar-border: #24332e;
+  --sidebar-ring: #2fb3a5;
+
+  --app-ink: #eaf1ee;
+  --app-petrol: #2fb3a5;
+  --app-petrol-deep: #a9e6dc;
+  --app-stone-0: #0c1512;
+  --app-stone-1: #14201d;
+  --app-white: #17241f; /* the "white" card equivalent on dark */
+  --app-line: #24332e;
+  --app-line-soft: #1c2a25;
+  --app-muted: #9aa8a3;
+  --app-muted-2: #7d8a85;
+  --app-tint: #143a34;
+  --app-tint-line: #1f4d45;
+  --app-amber: #e0a94a;
+  --app-amber-bg: #2a2213;
+  --app-amber-line: #4a3d1c;
+  --app-amber-ink: #e8cf95;
+  --app-clay: #d98466;
+  --app-slate: #7fa199;
+
+  /* Dark shadows: deeper spread + a soft petrol glow so cards lift off the
+     ground instead of disappearing into it. */
+  --app-sh-row: 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 12px 26px -16px rgba(0, 0, 0, 0.7);
+  --app-sh-panel: 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 16px 34px -18px rgba(0, 0, 0, 0.7);
+  --app-sh-bar: 0 1px 0 rgba(0, 0, 0, 0.5),
+    0 12px 28px -20px rgba(0, 0, 0, 0.8);
+
+  --app-ground-wash:
+    radial-gradient(
+      1100px 520px at 78% -8%,
+      rgba(47, 179, 165, 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 480px at 5% 110%,
+      rgba(201, 138, 43, 0.05),
+      transparent 55%
+    );
+
+  --app-avatar-self: linear-gradient(145deg, #1b8c82, #0b4f49);
+  --app-bubble-out: linear-gradient(160deg, #12897e, #0e6e64);
+
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
+   APP-SHELL elevation utilities — thin helpers so the shell/inbox components
+   consume the mockup shadow scale, radii, tints, and avatar gradients without
+   hand-inlining rgba() everywhere. All resolve to the app-scope tokens above;
+   inert outside .app-scope (the tokens are unset there).
+   -------------------------------------------------------------------------- */
+@utility app-shadow-row {
+  box-shadow: var(--app-sh-row);
+}
+@utility app-shadow-panel {
+  box-shadow: var(--app-sh-panel);
+}
+@utility app-shadow-bar {
+  box-shadow: var(--app-sh-bar);
+}
+@utility app-ground {
+  /* The (app) frame ground: warm stone with the petrol/amber wash. */
+  background-color: var(--app-stone-0);
+  background-image: var(--app-ground-wash);
+}
+
+/* Colored-initial avatar fills (mockup .ava .a-*). The consuming component picks
+   a class by a stable hash of the name so the same contact keeps its color. */
+@utility app-ava-amber {
+  background-image: var(--app-ava-amber);
+}
+@utility app-ava-petrol {
+  background-image: var(--app-ava-petrol);
+}
+@utility app-ava-clay {
+  background-image: var(--app-ava-clay);
+}
+@utility app-ava-slate {
+  background-image: var(--app-ava-slate);
+}
+@utility app-ava-self {
+  background-image: var(--app-avatar-self);
+}
+@utility app-bubble-out {
+  background-image: var(--app-bubble-out);
 }
 
 /* ==========================================================================

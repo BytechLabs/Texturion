@@ -228,18 +228,19 @@ export function MessageBubble({
         {message.body.trim() !== "" && (
           <div
             className={cn(
-              "max-w-full whitespace-pre-wrap break-words rounded-[10px] px-3 py-2 text-[16px] leading-normal md:text-[15px]",
+              // APP-SHELL-REDESIGN bubbles (mockup): 16px radius with the inner
+              // corner squared to 5px; real depth (soft shadow + hairline).
+              "max-w-full whitespace-pre-wrap break-words rounded-app-bub px-3.5 py-2.5 text-[16px] leading-[1.5] md:text-[13.5px]",
               note
-                ? "border border-dashed border-amber-300 bg-amber-50 text-stone-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100"
+                ? "border border-app-amber-line bg-app-amber-bg text-app-amber-ink [border-bottom-right-radius:5px]"
                 : outbound
-                  ? "bg-teal-50 text-teal-900 dark:bg-teal-950 dark:text-teal-100"
-                  : "border border-border bg-card text-card-foreground",
+                  ? "app-bubble-out text-[#F3FAF8] [border-bottom-right-radius:5px] shadow-[0_2px_4px_rgba(11,79,73,0.28),0_14px_26px_-14px_rgba(15,118,110,0.6)]"
+                  : "border border-app-line bg-app-white text-app-ink [border-bottom-left-radius:5px] shadow-[0_1px_2px_rgba(20,32,30,0.05),0_8px_20px_-16px_rgba(20,32,30,0.4)]",
             )}
           >
-            {/* Label is amber-800 on the amber-50 card for the G11 4.5:1 text
-                bar (--warning amber-600 only hits ~2:1 there). */}
+            {/* Amber internal-note label on the amber-tint card. */}
             {note && (
-              <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-amber-800 dark:text-warning">
+              <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-app-amber">
                 <Lock className="size-3" strokeWidth={1.75} aria-hidden />
                 Internal note
               </span>
