@@ -257,6 +257,102 @@ export interface ComposeResult {
 }
 
 // ---------------------------------------------------------------------------
+// tasks (D17 / TASKS.md — a task is metadata over a real message; completion
+// is DERIVED from the joined messages.done_at, never a task column)
+// ---------------------------------------------------------------------------
+
+/**
+ * The derived task status label (TASKS.md T1.1): `open` when the joined
+ * `messages.done_at IS NULL`, `done` otherwise. There is NO stored status —
+ * the API computes it per row from the source message and returns it alongside
+ * the `done` boolean.
+ */
+export type TaskStatus = "open" | "done";
+
+/**
+ * A task row as returned by every /v1/tasks read (routes/tasks.ts TASK_COLUMNS).
+ * `done` + `status` are DERIVED server-side from the source message's
+ * `done_at` — the task carries no completion column (TASKS.md T2). Toggling a
+ * task's done is `PATCH /v1/messages/:id {done}` on `message_id`, never a task
+ * route.
+ */
+export interface Task {
+  id: string;
+  company_id: string;
+  /** The promoted message — completion derives from ITS done_at (NOT NULL). */
+  message_id: string;
+  conversation_id: string;
+  title: string;
+  description: string;
+  assigned_user_id: string | null;
+  due_at: string | null;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+  /** Derived: true when the source message is done (joined done_at set). */
+  done: boolean;
+  /** Derived label: "done" iff `done`, else "open". */
+  status: TaskStatus;
+  /**
+   * The source conversation's contact with its cached geocode, for the Map view
+   * (D25). OPTIONAL and forward-compatible: the frozen /v1/tasks contract
+   * (routes/tasks.ts) uses the contact's lat/lng only to FILTER `has_location`
+   * and does not currently return coordinates in the body, so this is absent
+   * today — the Map reads it defensively (`taskCoords`) and shows a task as
+   * "without a location" when it's missing, never fabricating a pin. If a later
+   * backend wave projects the located contact onto the row, pins light up with
+   * no client change.
+   */
+  contact?: TaskContactLocation | null;
+}
+
+/** The located-contact embed a `has_location=true` task row MAY carry (Map view, D25). */
+export interface TaskContactLocation {
+  id: string;
+  name: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+/**
+ * One row of the conversation checklist (GET /v1/conversations/:id/tasks,
+ * TASKS.md T5.2). A `Task` plus the generic-attachment count (D19).
+ */
+export interface ChecklistTask extends Task {
+  attachment_count: number;
+}
+
+/** A resolved profile embedded in the task detail (routes/tasks.ts). */
+export interface TaskProfile {
+  user_id: string;
+  display_name: string | null;
+}
+
+/** The source message embed on GET /v1/tasks/:id (live body + done_at). */
+export interface TaskSourceMessage {
+  id: string;
+  body: string;
+  done_at: string | null;
+  done_by_user_id: string | null;
+  created_at: string;
+  direction: MessageDirection;
+}
+
+/** GET /v1/tasks/:id — the full detail (row + resolved profiles + source). */
+export interface TaskDetail extends Task {
+  assignee: TaskProfile | null;
+  created_by: TaskProfile | null;
+  source_message: TaskSourceMessage | null;
+  attachments: {
+    id: string;
+    file_name: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+    created_at: string;
+  }[];
+}
+
+// ---------------------------------------------------------------------------
 // contacts
 // ---------------------------------------------------------------------------
 
@@ -536,6 +632,105 @@ export type UpdatePortRequestInput = Partial<
 export interface NotificationPrefs {
   email_enabled: boolean;
   push_enabled: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// for-you home (D23) + notifications read-model (D24)
+// Shapes read from the api_for_you / api_notifications RPCs
+// (supabase/migrations/20260702070000_appv2_for_you_notifications.sql) and the
+// route handlers (apps/api/src/routes/{for-you,notifications}.ts) — never
+// guessed.
+// ---------------------------------------------------------------------------
+
+/** One conversation card in the /for-you "Waiting on you" section. */
+export interface ForYouWaiting {
+  conversation_id: string;
+  status: ConversationStatus;
+  contact: ContactSummary | null;
+  assigned_user_id: string | null;
+  last_message_at: string;
+  unread: boolean;
+  has_overdue_task: boolean;
+  /** 0 overdue-task · 1 waiting · 2 unread · 3 new (lower = more urgent). */
+  urgency: number;
+}
+
+/** One task card in the /for-you "Your tasks" section. */
+export interface ForYouTask {
+  task_id: string;
+  title: string;
+  conversation_id: string;
+  message_id: string;
+  assigned_user_id: string | null;
+  due_at: string | null;
+  overdue: boolean;
+}
+
+/** One conversation card in the /for-you "Unread" section. */
+export interface ForYouUnread {
+  conversation_id: string;
+  status: ConversationStatus;
+  contact: ContactSummary | null;
+  assigned_user_id: string | null;
+  last_message_at: string;
+}
+
+/** One unassigned conversation in the owner/admin "Needs an owner" strip. */
+export interface ForYouTriageConversation {
+  conversation_id: string;
+  status: ConversationStatus;
+  contact: ContactSummary | null;
+  last_message_at: string;
+  unread: boolean;
+}
+
+/** One unassigned task in the owner/admin "Needs an owner" strip. */
+export interface ForYouTriageTask {
+  task_id: string;
+  title: string;
+  conversation_id: string;
+  message_id: string;
+  due_at: string | null;
+  overdue: boolean;
+}
+
+/** The owner/admin-only triage strip; the whole field is null for a member. */
+export interface ForYouTriage {
+  conversations: ForYouTriageConversation[];
+  tasks: ForYouTriageTask[];
+}
+
+/** GET /v1/for-you — the four-section focus queue (api_for_you RPC). */
+export interface ForYou {
+  waiting_on_you: ForYouWaiting[];
+  my_tasks: ForYouTask[];
+  unread: ForYouUnread[];
+  /** null for a plain member (never leaked); the strip for owner/admin. */
+  triage: ForYouTriage | null;
+}
+
+/** One derived notification (api_notifications RPC row). */
+export type NotificationType = "inbound_message" | "assigned" | "task_assigned";
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  conversation_id: string | null;
+  message_id: string | null;
+  task_id: string | null;
+  contact: ContactSummary | null;
+  created_at: string;
+  unread: boolean;
+}
+
+/** GET /v1/notifications/unread-count. */
+export interface UnreadCount {
+  count: number;
+}
+
+/** POST /v1/notifications/mark-read | mark-all-read. */
+export interface MarkReadResult {
+  last_seen_at: string;
 }
 
 /** POST /v1/push-subscriptions response. */

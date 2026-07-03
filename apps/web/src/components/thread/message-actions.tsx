@@ -10,13 +10,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { apiFetch } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/error";
-import { keys } from "@/lib/api/keys";
 import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
+import { useCreateTaskFromMessage } from "@/lib/api/tasks";
 import type { Message } from "@/lib/api/types";
-import { useCompanyId } from "@/lib/company/provider";
-import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 import { doneToggleLabel, isDone } from "./done";
@@ -88,11 +85,9 @@ function MessageOverflow({
   message: Message;
   conversationId: string;
 }) {
-  const companyId = useCompanyId();
-  const queryClient = useQueryClient();
   const retry = useRetryMessage(conversationId);
+  const createTask = useCreateTaskFromMessage(conversationId);
   const [open, setOpen] = useState(false);
-  const [promoting, setPromoting] = useState(false);
   const retryable = isRetryable(message);
   const hasBody = message.body.trim() !== "";
 
@@ -105,22 +100,14 @@ function MessageOverflow({
     }
   };
 
-  // §4.1: promote a message to a task via the real /v1 write. The task list/
-  // detail surfaces land in a later wave; the write itself is live and appends
-  // the `task_created` audit event, so this is not a dead link. Omitting the
-  // title lets the RPC seed it from the message body (T5.1 default).
+  // §4.1 / T5.1: promote a message to a task via the real /v1 write. The hook
+  // refetches the conversation checklist (so the new task appears in the context
+  // panel at once) + the /tasks lists + the `task_created` audit line. Omitting
+  // the title lets the RPC seed it from the message body (T5.1 default). A
+  // re-promote is blocked server-side (409 conflict → "already a task").
   const makeTask = async () => {
-    setPromoting(true);
     try {
-      await apiFetch(`/v1/tasks`, {
-        method: "POST",
-        companyId,
-        body: { message_id: message.id },
-      });
-      // Surface the new `task_created` line in the timeline (§4.3).
-      void queryClient.invalidateQueries({
-        queryKey: keys.conversations.events(companyId, conversationId),
-      });
+      await createTask.mutateAsync({ message_id: message.id });
       toast.success("Made a task from this message.");
     } catch (error) {
       toast.error(
@@ -129,7 +116,6 @@ function MessageOverflow({
           : "Couldn't make a task. Try again.",
       );
     } finally {
-      setPromoting(false);
       setOpen(false);
     }
   };
@@ -151,7 +137,10 @@ function MessageOverflow({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onSelect={() => void makeTask()} disabled={promoting}>
+        <DropdownMenuItem
+          onSelect={() => void makeTask()}
+          disabled={createTask.isPending}
+        >
           <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
           Make a task
         </DropdownMenuItem>

@@ -353,7 +353,7 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const select =
     `${TASK_COLUMNS},messages!inner(id,done_at)` +
     (hasLocation
-      ? ",conversations!inner(id,contacts!inner(id,lat,lng))"
+      ? ",conversations!inner(id,contacts!inner(id,name,lat,lng))"
       : "");
 
   let query = db
@@ -408,11 +408,21 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
     if (createdCursor) query = query.or(keysetFilter("created_at", createdCursor));
   }
 
+  interface TaskListContactEmbed {
+    id: string;
+    name: string | null;
+    lat: number | null;
+    lng: number | null;
+  }
   interface TaskListRow {
     id: string;
     created_at: string;
     due_at: string | null;
     messages: { done_at: string | null } | null;
+    // Only present when has_location narrowed the set (the conversations!inner
+    // → contacts!inner embed): the source contact's cached geocode. A single
+    // conversation resolves to one contact object (not an array).
+    conversations?: { id: string; contacts: TaskListContactEmbed | null } | null;
     [key: string]: unknown;
   }
   const rows = unwrap<TaskListRow[]>(
@@ -430,7 +440,28 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
     delete rest.messages;
     delete rest.conversations;
     const done = (row.messages?.done_at ?? null) !== null;
-    return { ...rest, done, status: done ? "done" : "open" };
+    // Map view (D25): when has_location narrowed the set, project the already-
+    // joined contact geocode onto the row as `contact` (the TaskContactLocation
+    // shape the web client's `taskCoords` reads). Without this the coordinates
+    // that the join used to FILTER would never reach the client and no pin
+    // could render. Non-located reads never carry the join, so `contact` is
+    // simply absent there — the frozen non-map contract is unchanged.
+    const base = { ...rest, done, status: done ? "done" : "open" };
+    if (hasLocation) {
+      const contact = row.conversations?.contacts ?? null;
+      return {
+        ...base,
+        contact: contact
+          ? {
+              id: contact.id,
+              name: contact.name,
+              lat: contact.lat,
+              lng: contact.lng,
+            }
+          : null,
+      };
+    }
+    return base;
   });
 
   // next_cursor matches the view's ordering: due-sorted pages advance on the

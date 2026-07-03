@@ -49,6 +49,19 @@ export interface ConversationUpdatedEvent {
   conversation_id: string;
 }
 
+/**
+ * TASKS.md T1.3 — the ID-only `task.changed` broadcast fired by the DB
+ * `tasks_broadcast` trigger on task create / metadata update / soft-delete
+ * (NOT done — done rides `message.status`). Payload carries ONLY the source
+ * `conversation_id` (D9 minimal), so the client refetches the affected
+ * conversation's checklist + the /tasks lists through the API. This is the
+ * cross-client signal: a task another crew member creates / assigns /
+ * reschedules / deletes lands live on every viewer's checklist and task views.
+ */
+export interface TaskChangedEvent {
+  conversation_id: string;
+}
+
 export interface NumberUpdatedEvent {
   number_id: string;
   status: NumberStatus;
@@ -63,6 +76,7 @@ export const REALTIME_EVENTS = [
   "message.created",
   "message.status",
   "conversation.updated",
+  "task.changed",
   "number.updated",
   "registration.updated",
 ] as const;

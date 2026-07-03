@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Ban, Check, Copy, ListChecks, Plus, Undo2, X } from "lucide-react";
+import { Ban, Check, Copy, Plus, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +47,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
+import { TasksChecklist } from "./tasks-checklist";
 
 function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
@@ -229,12 +230,13 @@ export function ContactPanel({
           <ConversationTags conversation={conversation} />
         </PanelSection>
 
-        {/* Tasks checklist for this conversation (D17/TASKS.md). A clean mount
-            point the later tasks wave fills — checking a task will call the
-            source message's PATCH /v1/messages/:id {done}. Rendered as a quiet
-            placeholder now so the panel's shape is final. */}
+        {/* Tasks checklist for this conversation (D17/TASKS.md T5.2). Checking a
+            row calls the source message's PATCH /v1/messages/:id {done} — the
+            derived-completion path (T2) — striking the message through in the
+            thread via the one message.status broadcast. `active` gates the
+            fetch to when the panel is open. */}
         <PanelSection label="Tasks">
-          <TasksChecklistSlot />
+          <TasksChecklist conversationId={conversation.id} active={active} />
         </PanelSection>
 
         {/* §1.5: the attachments gallery is NOT a panel section — just a quiet
@@ -301,31 +303,6 @@ export function ContactPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-/**
- * The tasks-checklist mount point (§1.5 / D17). The later tasks wave replaces
- * this placeholder with the real per-conversation checklist (each item's
- * checkbox calls the source message's PATCH /v1/messages/:id {done}). Kept as a
- * quiet, calm empty state so the panel's structure is final and no dead space
- * or dangling accent appears before the feature lands.
- */
-function TasksChecklistSlot() {
-  return (
-    <div
-      data-slot="tasks-checklist-mount"
-      className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5"
-    >
-      <ListChecks
-        className="size-4 shrink-0 text-muted-foreground"
-        strokeWidth={1.75}
-        aria-hidden
-      />
-      <p className="text-[13px] text-muted-foreground">
-        Tasks from this conversation will show here.
-      </p>
     </div>
   );
 }

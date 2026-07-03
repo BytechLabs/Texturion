@@ -4,6 +4,7 @@ import { PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   Tooltip,
   TooltipContent,
@@ -115,8 +116,11 @@ function ExpandedRail({
 }) {
   return (
     <>
-      <div className="flex h-14 items-center px-5">
+      <div className="flex h-14 items-center justify-between px-5">
         <Wordmark />
+        {/* D24 notifications: the persistent "top bar" bell for the app-v2 rail —
+            reachable on every signed-in page, not just /for-you. */}
+        <NotificationBell />
       </div>
       <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3">
         {PRIMARY_NAV.map((item) => (
@@ -171,6 +175,10 @@ function IconRail({
       >
         Jt
       </Link>
+      {/* D24 notifications: the persistent bell in the collapsed/tablet rail. */}
+      <div className="flex justify-center pb-1">
+        <NotificationBell />
+      </div>
       <nav
         aria-label="Primary"
         className="flex flex-1 flex-col items-center gap-1 py-2"

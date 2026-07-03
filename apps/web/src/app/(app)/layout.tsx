@@ -1,3 +1,4 @@
+import { LandingGate } from "@/components/for-you/landing-gate";
 import { AppShell } from "@/components/shell/app-shell";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
@@ -19,6 +20,8 @@ export default function AppLayout({
     <AppProviders>
       <CompanyProvider>
         <RealtimeProvider>
+          {/* D23: send members to /for-you on their first app screen. */}
+          <LandingGate />
           <AppShell>{children}</AppShell>
         </RealtimeProvider>
       </CompanyProvider>

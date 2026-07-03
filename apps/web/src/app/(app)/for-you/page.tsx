@@ -1,23 +1,16 @@
-import { Home } from "lucide-react";
-
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { ForYouView } from "@/components/for-you/for-you-view";
 
 export const metadata = {
   title: "For You",
 };
 
 /**
- * /for-you — the member focus queue (D23, provisional; docs/HOME-AND-VIEWS.md).
- * Wired into the nav now for shell placement (APP-LAYOUT-V2 §1.3); the full
- * focus-queue surface lands in the later features wave. Placeholder keeps the
- * nav link live (zero dead links).
+ * /for-you — the member focus queue (D23; docs/HOME-AND-VIEWS.md). The default
+ * member landing (App-v2). A working queue, not a notification log: four
+ * urgency-sorted sections (Waiting on you / Your tasks / Unread / owner-admin
+ * Triage) derived from GET /v1/for-you, each linking straight to its thread or
+ * task. The whole surface is the client view; this file is the route + title.
  */
 export default function ForYouPage() {
-  return (
-    <ComingSoon
-      icon={Home}
-      title="For You"
-      description="Your focus queue — the conversations and tasks assigned to you — is coming soon. For now, your shared inbox has everything."
-    />
-  );
+  return <ForYouView />;
 }

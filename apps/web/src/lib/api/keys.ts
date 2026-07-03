@@ -1,4 +1,5 @@
 import type { ConversationFilters } from "./filters";
+import type { TaskListFilters } from "./task-filters";
 
 /**
  * Query-key factory. Every company-scoped key starts with the company id
@@ -52,6 +53,44 @@ export const keys = {
       [companyId, "contacts", "list", q] as const,
     detail: (companyId: string, contactId: string) =>
       [companyId, "contacts", "detail", contactId] as const,
+  },
+
+  /**
+   * Tasks (D17). `checklist` is the per-conversation checklist (T5.2); `lists`
+   * / `list` cover the /tasks page's filtered views (T6.1); `detail` is one
+   * task (T6.2). Both the checklist and the /tasks list refetch on the
+   * `task.changed` broadcast, which carries only `conversation_id` — so the
+   * checklist key is conversation-scoped and the lists key is the invalidation
+   * root for every filter combination.
+   */
+  tasks: {
+    /** Root for every /tasks page list (all filter combinations). */
+    lists: (companyId: string) => [companyId, "tasks", "list"] as const,
+    list: (companyId: string, filters: TaskListFilters) =>
+      [companyId, "tasks", "list", filters] as const,
+    detail: (companyId: string, taskId: string) =>
+      [companyId, "tasks", "detail", taskId] as const,
+    /** The conversation checklist (T5.2) — one thread's live tasks. */
+    checklist: (companyId: string, conversationId: string) =>
+      [companyId, "tasks", "checklist", conversationId] as const,
+  },
+
+  /**
+   * The /for-you focus queue (D23) — one derived four-section object per
+   * company+user. Company-scoped like everything else; the user is implicit in
+   * the caller's token, so no user segment is needed in the key.
+   */
+  forYou: (companyId: string) => [companyId, "for-you"] as const,
+
+  /**
+   * Notifications read-model (D24). `feed` is the popover's cursor list;
+   * `unreadCount` is the bell badge. Both derive from the same union server-side
+   * and are invalidated together whenever the watermark moves or realtime fires.
+   */
+  notifications: {
+    feed: (companyId: string) => [companyId, "notifications", "feed"] as const,
+    unreadCount: (companyId: string) =>
+      [companyId, "notifications", "unread-count"] as const,
   },
 
   search: (companyId: string, q: string) => [companyId, "search", q] as const,

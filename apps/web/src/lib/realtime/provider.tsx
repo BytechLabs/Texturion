@@ -35,6 +35,7 @@ import {
   type ConversationUpdatedEvent,
   type MessageCreatedEvent,
   type MessageStatusEvent,
+  type TaskChangedEvent,
 } from "./events";
 import { activeConversationFromPath } from "./path";
 
@@ -90,9 +91,11 @@ function toastSnippet(message: Message | undefined): string {
 /**
  * One Supabase Realtime private Broadcast channel per company (SPEC §8,
  * G12): `company:{id}`, authorized by RLS on realtime.messages via
- * `realtime.setAuth(session token)`. The five §8 events patch the Query
- * cache by ID; reconnect refetches page 1 of active queries; inbound
- * messages in conversations you are NOT viewing raise a quiet toast (G9).
+ * `realtime.setAuth(session token)`. The §8 events patch/invalidate the Query
+ * cache by ID (including `task.changed`, TASKS.md T1.3 — the cross-client task
+ * signal that refetches the affected conversation's checklist + the /tasks
+ * lists); reconnect refetches page 1 of active queries; inbound messages in
+ * conversations you are NOT viewing raise a quiet toast (G9).
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
@@ -298,6 +301,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    function handleTaskChanged(event: TaskChangedEvent) {
+      // TASKS.md T1.3: a task metadata change (create / assign / due / delete)
+      // by ANY crew member — the ID-only payload carries just the source
+      // conversation_id (D9). Refetch the two derived task reads through the
+      // API so authorization stays server-side: the affected conversation's
+      // checklist (the context-panel Tasks list) and the /tasks page lists root
+      // (every filter combination — List/Board/Calendar/Map). This is the exact
+      // invalidation the acting client's own mutation hooks run (lib/api/tasks.ts
+      // invalidateTasks), now driven cross-client off the broadcast. The
+      // for-you queue + notifications bell ride the resulting tasks-cache change
+      // via useForYouNotificationsRealtime, so they refresh too — no extra work
+      // here. Done toggles are NOT this event (they ride message.status), so the
+      // derived done-state on the checklist already updates via that path.
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.checklist(companyId, event.conversation_id),
+        refetchType: "active",
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.lists(companyId),
+        refetchType: "active",
+      });
+    }
+
     function handleProvisioningUpdate() {
       // number.updated / registration.updated (§8): onboarding + settings
       // states re-read their sources of truth.
@@ -365,6 +391,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       )
       .on("broadcast", { event: "message.status" }, ({ payload }) =>
         handleMessageStatus(payload as MessageStatusEvent),
+      )
+      .on("broadcast", { event: "task.changed" }, ({ payload }) =>
+        handleTaskChanged(payload as TaskChangedEvent),
       )
       .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
       .on(

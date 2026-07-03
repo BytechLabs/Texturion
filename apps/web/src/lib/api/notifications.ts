@@ -1,14 +1,23 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { NotificationPrefs } from "./types";
+import { nextCursorParam } from "./pagination";
+import type {
+  MarkReadResult,
+  NotificationItem,
+  NotificationPrefs,
+  Page,
+  UnreadCount,
+} from "./types";
 
 /*
  * Push subscribe/unsubscribe (POST/DELETE /v1/push-subscriptions) is NOT a
@@ -63,3 +72,111 @@ export function useUpdateNotificationPrefs() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// D24 notifications read-model — the bell badge + popover feed. Everything is
+// DERIVED server-side (no feed table); the read/unread dot rides a per-user
+// last-seen watermark, so "mark read" is a watermark advance, not a per-row
+// write. The client mirrors that: it stamps the watermark forward and clears
+// its own `unread` dots optimistically, then re-reads.
+// ---------------------------------------------------------------------------
+
+/** How often the bell badge polls when idle — realtime also invalidates it. */
+const UNREAD_POLL_MS = 60_000;
+
+/**
+ * GET /v1/notifications/unread-count — the bell badge count. Kept live by both
+ * the realtime provider (invalidated on inbound/assign broadcasts) and a slow
+ * background poll as a belt-and-suspenders for anything not broadcast.
+ */
+export function useNotificationsUnreadCount() {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.notifications.unreadCount(companyId),
+    queryFn: () =>
+      apiFetch<UnreadCount>("/v1/notifications/unread-count", { companyId }),
+    staleTime: 15_000,
+    refetchInterval: UNREAD_POLL_MS,
+  });
+}
+
+/**
+ * GET /v1/notifications — the popover feed, cursor-paginated (created_at, id)
+ * DESC (SPEC §7). Fetched lazily by the popover (the caller passes
+ * `enabled: open`) so a closed bell costs nothing.
+ */
+export function useNotificationsFeed(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useInfiniteQuery({
+    queryKey: keys.notifications.feed(companyId),
+    queryFn: ({ pageParam }) =>
+      apiFetch<Page<NotificationItem>>("/v1/notifications", {
+        companyId,
+        searchParams: { cursor: pageParam, limit: 25 },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursorParam,
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+/** Flip every cached feed item's `unread` dot to false (watermark advanced). */
+function clearFeedUnread(companyId: string, queryClient: QueryClient) {
+  queryClient.setQueryData<{ pages: Page<NotificationItem>[]; pageParams: unknown[] }>(
+    keys.notifications.feed(companyId),
+    (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              data: page.data.map((item) => ({ ...item, unread: false })),
+            })),
+          }
+        : data,
+  );
+}
+
+/**
+ * POST /v1/notifications/mark-all-read — advance the watermark to now, so every
+ * current item reads as read. Optimistic: the badge zeroes and every feed dot
+ * clears at click; the server confirms the stamped watermark.
+ */
+export function useMarkAllNotificationsRead() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<MarkReadResult>("/v1/notifications/mark-all-read", {
+        method: "POST",
+        companyId,
+      }),
+    onMutate: async () => {
+      const countKey = keys.notifications.unreadCount(companyId);
+      await queryClient.cancelQueries({ queryKey: countKey });
+      const previousCount = queryClient.getQueryData<UnreadCount>(countKey);
+      queryClient.setQueryData<UnreadCount>(countKey, { count: 0 });
+      clearFeedUnread(companyId, queryClient);
+      return { previousCount };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previousCount) {
+        queryClient.setQueryData(
+          keys.notifications.unreadCount(companyId),
+          context.previousCount,
+        );
+      }
+      // Re-read the feed so the dots we optimistically cleared come back right.
+      queryClient.invalidateQueries({
+        queryKey: keys.notifications.feed(companyId),
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: keys.notifications.unreadCount(companyId),
+      });
+    },
+  });
+}
+

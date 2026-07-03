@@ -24,10 +24,9 @@ export interface NavItem {
  * Primary navigation, in the APP-LAYOUT-V2 §1.3 order:
  * For You · Inbox · Tasks · Contacts · Templates.
  *
- * /for-you and /tasks are shell mount points wired for nav placement now
- * (D23/D25 provisional — HOME-AND-VIEWS.md); their full surfaces land in the
- * later features wave. Both routes resolve to a real calm page, so there are
- * zero dead links.
+ * /for-you (D23 focus queue) and /tasks (D25 four-view switcher) are the shipped
+ * feature surfaces — HOME-AND-VIEWS.md. Every item resolves to a real page, so
+ * there are zero dead links.
  */
 export const PRIMARY_NAV: NavItem[] = [
   { label: "For You", href: "/for-you", icon: Home },
