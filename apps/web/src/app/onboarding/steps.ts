@@ -22,6 +22,41 @@ export type OnboardingLocation =
   | { kind: "setting-up" }
   | { kind: "inbox" };
 
+/**
+ * How the company gets its business number (PORTING.md §8.1 / D16 fork). New
+ * = the existing area-code flow; port = bring an existing number. `undefined`
+ * = not yet chosen (treated as the new-number default everywhere the machine
+ * decides). The port sub-wizard lives outside the WizardStep machine, so this
+ * field only records the choice and the collected port intake for resume.
+ */
+export type NumberMode = "new" | "port";
+
+/**
+ * Port intake collected pre-company by the port sub-wizard (PORTING.md §8.1
+ * steps 1–6). Kept in the local draft so the sub-wizard is resumable; on its
+ * final step the company + the `POST /v1/port-requests` draft are created and
+ * these fields are cleared alongside the rest of the draft.
+ */
+export interface PortDraft {
+  phoneE164?: string;
+  isWireless?: boolean;
+  entityName?: string;
+  authPersonName?: string;
+  accountNumber?: string;
+  pinPasscode?: string;
+  billingPhoneNumber?: string;
+  /** Wireless only — the last 4 of the account holder's SSN/SIN. */
+  ssnSinLast4?: string;
+  serviceStreet?: string;
+  serviceExtended?: string;
+  serviceLocality?: string;
+  serviceAdminArea?: string;
+  servicePostalCode?: string;
+  /** Optional requested cutover (ISO 8601 with offset). */
+  focDatetimeRequested?: string;
+  wantsBridgeNumber?: boolean;
+}
+
 /** Local (pre-company) wizard draft — persisted by local-draft.ts. */
 export interface OnboardingDraft {
   name?: string;
@@ -29,6 +64,10 @@ export interface OnboardingDraft {
   areaCode?: string;
   /** CA only — "Do you also text US customers?"; undefined = default yes. */
   usTexting?: boolean;
+  /** New-number vs. bring-my-number fork (D16). Defaults to "new". */
+  mode?: NumberMode;
+  /** Port intake, present only while `mode === "port"`. */
+  port?: PortDraft;
 }
 
 /** The slice of server + local state the step machine decides on. */

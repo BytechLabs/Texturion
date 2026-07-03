@@ -14,7 +14,7 @@ import { SectionEyebrow } from "@/components/marketing/ledger/section-number";
 const FAQS = [
   {
     q: "What's my number — and can I keep the one that's on my trucks and my Google listing?",
-    a: "JobText gives you a new local number in the area code you choose, and today it can't take over your existing number — number porting is on our list, and we won't pretend it's here before it is. Here's what to do in the meantime so you don't lose the number you've built up: forward your existing number to your new JobText number (your phone carrier does this for calls in a couple of minutes), and start putting your JobText number on new signs, quotes, and your listing. Your old number keeps ringing and forwarding; new texts come to JobText, where the whole crew can see them. When porting ships, moving the number over will be one step.",
+    a: "Yes — bring the number your customers already know. When you sign up, choose “Bring my number,” tell us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers, and they typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date — nothing goes dark. Texting through JobText turns on once the transfer completes, and we show you exactly where it is at each step. In a hurry to start texting today? Grab a new local number now and transfer your old one alongside it.",
   },
   {
     q: "Do we need to download an app?",

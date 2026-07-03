@@ -95,9 +95,12 @@ export default function TermsPage() {
           days). Receiving texts works right away.
         </p>
         <p>
-          Today JobText cannot take over (port) an existing number. You can
-          forward your existing number to your JobText number in the meantime.
-          Number porting is planned; we won&apos;t claim it before it ships.
+          You can bring your existing US or Canadian number to JobText instead
+          of getting a new one — the transfer is free. Your number keeps working
+          on your current carrier the whole time and switches to JobText on the
+          transfer date, which typically takes about 1–7 business days. Texting
+          through JobText turns on once the transfer completes. We show you where
+          the transfer is at every step.
         </p>
       </LegalSectionBlock>
 

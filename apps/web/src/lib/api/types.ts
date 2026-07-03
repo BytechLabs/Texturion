@@ -423,6 +423,110 @@ export interface EnableUsResult {
   action: string;
 }
 
+// ---------------------------------------------------------------------------
+// port-requests (PORTING.md §6/§7 — bring your existing number)
+// ---------------------------------------------------------------------------
+
+/**
+ * Telnyx porting-order status mirror (PORTING.md §1). The voice/order track;
+ * `ported` means calls route to Telnyx (SMS may still lag — see
+ * `messaging_port_status`).
+ */
+export type PortStatus =
+  | "draft"
+  | "in-process"
+  | "submitted"
+  | "exception"
+  | "foc-date-confirmed"
+  | "activation-in-progress"
+  | "ported"
+  | "cancel-pending"
+  | "cancelled";
+
+/** Messaging (SMS) sub-track (PORTING.md §1). `ported` unlocks JobText texting. */
+export type PortMessagingStatus =
+  | "not_applicable"
+  | "pending"
+  | "activating"
+  | "ported"
+  | "exception";
+
+/**
+ * POST /v1/port-requests/check response (portability check, pre-payment
+ * allowed). `reason` is present only when `portable` is false.
+ */
+export interface PortabilityCheck {
+  portable: boolean;
+  country: Country;
+  is_wireless: boolean;
+  fast_portable: boolean;
+  messaging_capable: boolean;
+  reason: string | null;
+}
+
+/**
+ * A port request, as serialized by routes/porting.ts `sanitizePort`. The PII
+ * columns (`pin_passcode`, `account_number`, `ssn_sin_last4`) NEVER leave the
+ * server — only the `has_*` on-file booleans and the document booleans do
+ * (PORTING.md §2.2 / §7).
+ */
+export interface PortRequest {
+  id: string;
+  phone_e164: string;
+  country: Country;
+  status: PortStatus;
+  messaging_port_status: PortMessagingStatus;
+  foc_date: string | null;
+  foc_datetime_requested: string | null;
+  rejection_reason: string | null;
+  submission_count: number;
+  entity_name: string;
+  auth_person_name: string;
+  billing_phone_number: string | null;
+  service_street: string;
+  service_extended: string | null;
+  service_locality: string;
+  service_admin_area: string;
+  service_postal_code: string;
+  is_wireless: boolean;
+  wants_bridge_number: boolean;
+  bridge_number_id: string | null;
+  has_pin: boolean;
+  has_account_number: boolean;
+  has_ssn_sin_last4: boolean;
+  has_loa: boolean;
+  has_invoice: boolean;
+  submitted_at: string | null;
+  ported_at: string | null;
+  cancelled_at: string | null;
+  created_at: string | null;
+}
+
+/** POST /v1/port-requests body (the `port_requests` intake, PORTING.md §6). */
+export interface CreatePortRequestInput {
+  phone_e164: string;
+  entity_name: string;
+  auth_person_name: string;
+  billing_phone_number?: string;
+  account_number: string;
+  pin_passcode?: string;
+  /** Wireless only — the last 4 of the account holder's SSN/SIN (stored last-4 only). */
+  ssn_sin_last4?: string;
+  service_street: string;
+  service_extended?: string;
+  service_locality: string;
+  service_admin_area: string;
+  service_postal_code: string;
+  /** Optional requested cutover (ISO 8601 with offset). */
+  foc_datetime_requested?: string;
+  wants_bridge_number?: boolean;
+}
+
+/** PUT /v1/port-requests/:id body — the editable fix-and-resubmit fields. */
+export type UpdatePortRequestInput = Partial<
+  Omit<CreatePortRequestInput, "phone_e164" | "wants_bridge_number">
+>;
+
 export interface NotificationPrefs {
   email_enabled: boolean;
   push_enabled: boolean;

@@ -20,7 +20,11 @@ import { cn } from "@/lib/utils";
 import { areaCodeHint, searchAreaCodes } from "../area-codes";
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { draftOwesUsRegistration, stepProgress } from "../steps";
+import {
+  draftOwesUsRegistration,
+  stepProgress,
+  type NumberMode,
+} from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
 /**
@@ -36,6 +40,7 @@ export default function NumberStepPage() {
   const queryClient = useQueryClient();
   const createCompany = useCreateCompany();
 
+  const [mode, setMode] = useState<NumberMode>("new");
   const [country, setCountry] = useState<"US" | "CA">("US");
   const [query, setQuery] = useState("");
   const [areaCode, setAreaCode] = useState<string | null>(null);
@@ -49,6 +54,7 @@ export default function NumberStepPage() {
   useEffect(() => {
     if (!ready || seeded) return;
     setSeeded(true);
+    if (draft.mode) setMode(draft.mode);
     if (draft.country) setCountry(draft.country);
     if (draft.usTexting !== undefined) setUsTexting(draft.usTexting);
     if (
@@ -87,6 +93,23 @@ export default function NumberStepPage() {
 
   async function onContinue() {
     setFormError(null);
+
+    // D16 fork: bringing an existing number hands off to the port sub-wizard
+    // (PORTING.md §8.1). We don't pick an area code here — the ported number's
+    // own area code defaults `requested_area_code` at company creation
+    // (PORTING.md correction 2). Country + US-texting choice are still needed
+    // (they drive the registration branch), so keep them in the draft.
+    if (mode === "port") {
+      writeOnboardingDraft({
+        name: draft.name,
+        country,
+        usTexting: country === "CA" ? usTexting : true,
+        mode: "port",
+      });
+      router.push("/onboarding/port");
+      return;
+    }
+
     if (!selected) {
       setFormError("Pick an area code for your number first.");
       return;
@@ -96,6 +119,7 @@ export default function NumberStepPage() {
       country,
       areaCode: selected.code,
       usTexting: country === "CA" ? usTexting : true,
+      mode: "new",
     });
 
     if (!skipsRegistration) {
@@ -140,10 +164,60 @@ export default function NumberStepPage() {
       backHref="/onboarding/name"
       index={progress.index}
       total={progress.total}
-      title="Where do your customers text you?"
-      subtitle="Pick the area code for your new business number — local numbers get answered."
+      title="How do you want your business number?"
+      subtitle={
+        mode === "port"
+          ? "Bring the number your customers already know — it keeps working until the switch completes."
+          : "Get a fresh local number, or bring the one that's on your trucks and your listing."
+      }
     >
       <div className="space-y-6">
+        {/* D16 fork (PORTING.md §8.1): new number vs. bring my number. */}
+        <fieldset className="space-y-2">
+          <legend className="sr-only">Number type</legend>
+          <RadioGroup
+            value={mode}
+            onValueChange={(v) => {
+              setMode(v as NumberMode);
+              setFormError(null);
+            }}
+            className="grid gap-3"
+          >
+            {(
+              [
+                [
+                  "new",
+                  "Get a new number",
+                  "We set up a fresh local number for your area.",
+                ],
+                [
+                  "port",
+                  "Bring my existing number",
+                  "Transfer the number you already use — it's free.",
+                ],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <Label
+                key={value}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 text-sm transition-colors duration-150 ease-out",
+                  mode === value
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-card hover:bg-accent",
+                )}
+              >
+                <RadioGroupItem value={value} className="mt-0.5" />
+                <span className="space-y-0.5">
+                  <span className="block font-medium">{label}</span>
+                  <span className="block text-[13px] text-muted-foreground">
+                    {hint}
+                  </span>
+                </span>
+              </Label>
+            ))}
+          </RadioGroup>
+        </fieldset>
+
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">Country</legend>
           <RadioGroup
@@ -173,7 +247,7 @@ export default function NumberStepPage() {
           </RadioGroup>
         </fieldset>
 
-        <div className="space-y-2">
+        <div className={cn("space-y-2", mode === "port" && "hidden")}>
           <Label htmlFor="area-code-search">
             {country === "US"
               ? "City, state, or area code"
@@ -287,7 +361,10 @@ export default function NumberStepPage() {
           </fieldset>
         ) : null}
 
-        {skipsRegistration ? (
+        {/* CA-no-US new-number path creates the company HERE, so the AUP is
+            collected here. The port path defers company creation to its timing
+            sub-step, where it collects the AUP instead. */}
+        {mode === "new" && skipsRegistration ? (
           <label className="flex items-start gap-2 text-sm text-muted-foreground">
             <Checkbox
               checked={aupAccepted}
@@ -319,6 +396,8 @@ export default function NumberStepPage() {
         >
           {createCompany.isPending ? (
             "Setting up your workspace…"
+          ) : mode === "port" ? (
+            "Continue"
           ) : (
             <>
               Continue

@@ -1,4 +1,4 @@
-import type { OnboardingDraft } from "./steps";
+import type { OnboardingDraft, PortDraft } from "./steps";
 
 /**
  * Pre-company wizard draft (steps "name" and "number"). POST /v1/companies
@@ -24,10 +24,46 @@ export function parseDraft(raw: string | null): OnboardingDraft {
       draft.areaCode = obj.areaCode;
     }
     if (typeof obj.usTexting === "boolean") draft.usTexting = obj.usTexting;
+    if (obj.mode === "new" || obj.mode === "port") draft.mode = obj.mode;
+    if (typeof obj.port === "object" && obj.port !== null) {
+      draft.port = parsePortDraft(obj.port as Record<string, unknown>);
+    }
     return draft;
   } catch {
     return {};
   }
+}
+
+const PORT_STRING_KEYS = [
+  "phoneE164",
+  "entityName",
+  "authPersonName",
+  "accountNumber",
+  "pinPasscode",
+  "billingPhoneNumber",
+  "ssnSinLast4",
+  "serviceStreet",
+  "serviceExtended",
+  "serviceLocality",
+  "serviceAdminArea",
+  "servicePostalCode",
+  "focDatetimeRequested",
+] as const satisfies readonly (keyof PortDraft)[];
+
+/** Tolerant parser for the port sub-wizard intake (never throws). */
+function parsePortDraft(obj: Record<string, unknown>): PortDraft {
+  const port: PortDraft = {};
+  for (const key of PORT_STRING_KEYS) {
+    const value = obj[key];
+    if (typeof value === "string" && value.length > 0) {
+      port[key] = value;
+    }
+  }
+  if (typeof obj.isWireless === "boolean") port.isWireless = obj.isWireless;
+  if (typeof obj.wantsBridgeNumber === "boolean") {
+    port.wantsBridgeNumber = obj.wantsBridgeNumber;
+  }
+  return port;
 }
 
 export function readOnboardingDraft(): OnboardingDraft {
@@ -43,6 +79,26 @@ export function writeOnboardingDraft(patch: Partial<OnboardingDraft>): void {
   if (typeof window === "undefined") return;
   try {
     const next = { ...readOnboardingDraft(), ...patch };
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+/**
+ * Merge into the nested `port` sub-draft without clobbering fields collected on
+ * earlier port sub-steps (a shallow `writeOnboardingDraft({ port })` would). The
+ * port sub-wizard (PORTING.md §8.1) uses this on every step so resume works.
+ */
+export function writeOnboardingPortDraft(patch: Partial<PortDraft>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = readOnboardingDraft();
+    const next: OnboardingDraft = {
+      ...current,
+      mode: "port",
+      port: { ...current.port, ...patch },
+    };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
   } catch {
     // Best-effort persistence only.

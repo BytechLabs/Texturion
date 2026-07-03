@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
+import { PORT_CHECKOUT_TIMELINE } from "@/components/porting/copy";
 import {
   HONEST_TIMELINE,
   HONEST_TIMELINE_CA_ONLY,
@@ -19,6 +20,7 @@ import {
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
+import { usePortRequestsForCompany } from "@/lib/api/porting";
 import type { PlanId } from "@/lib/api/types";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -72,6 +74,7 @@ function PlanStep() {
   const searchParams = useSearchParams();
   const checkout = useOnboardingCheckout();
   const queryClient = useQueryClient();
+  const ports = usePortRequestsForCompany(state.companyId);
   const [choosing, setChoosing] = useState<PlanId | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -87,7 +90,16 @@ function PlanStep() {
   const owesFee = owes && company.registration_fee_paid_at === null;
   const soleProp = state.registration?.brand?.sole_proprietor === true;
   const canceledReturn = searchParams.get("checkout") === "canceled";
-  const timeline = owes ? HONEST_TIMELINE : HONEST_TIMELINE_CA_ONLY;
+  // A pending (non-cancelled) port swaps the checkout copy to the porting
+  // window (PORTING.md §8.1) — honest that a transfer takes days.
+  const porting = (ports.data?.data ?? []).some(
+    (p) => p.status !== "cancelled",
+  );
+  const timeline = porting
+    ? PORT_CHECKOUT_TIMELINE
+    : owes
+      ? HONEST_TIMELINE
+      : HONEST_TIMELINE_CA_ONLY;
 
   async function choose(plan: PlanId) {
     setFormError(null);
@@ -211,7 +223,9 @@ function PlanStep() {
             the §3.4 emotional peak: one warm section, calm padding, plain
             language, no wall of compliance text. */}
         <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-[15px] font-medium">What happens after you pay</h2>
+          <h2 className="text-[15px] font-medium">
+            {porting ? "Bringing your number over" : "What happens after you pay"}
+          </h2>
           <ul className="mt-3 space-y-2">
             {timeline.map((line) => (
               <li

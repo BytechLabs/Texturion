@@ -121,6 +121,18 @@ const ROWS: ComparisonRow[] = [
     },
   },
   {
+    label: "Bring your existing number",
+    jobtext: {
+      value: "Free number transfer (US/CA), ~1–7 business days",
+      note: "Choose “Bring my number” at signup; we handle the carrier paperwork. Your number keeps working until it switches over (docs/PORTING.md).",
+    },
+    competitor: {
+      value: "Free number porting",
+      emphasis: true,
+      note: "Pricing/support pages: Quo ports existing US/Canada numbers in at no charge. A wash between us.",
+    },
+  },
+  {
     label: "Carrier registration fee",
     jobtext: {
       value: "$29 one time, ever",
@@ -251,7 +263,7 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I bring my number over from Quo?",
-    a: "Not by porting into JobText yet — porting is on our roadmap and we won't claim it early (Quo, for its part, offers free porting, which is a point in Quo's favor if that's what you need today). The workaround that works now: forward your existing number to your new JobText number via your carrier's call-forwarding, and move customers to the JobText number on new signs and quotes. Old number keeps working; new texts land in JobText for the whole crew.",
+    a: "Yes — you can transfer your existing US or Canadian number into JobText for free. At signup choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier until it switches over to JobText — texting on it turns on once the transfer completes. Quo offers free porting too, so number transfer is a wash between the two; the real deciders here are calling (Quo has it, we don't) and price (flat vs per user).",
   },
 ];
 
@@ -339,20 +351,21 @@ export default function CompareQuoPage() {
           },
           {
             title: "It's more mature, with a bigger ecosystem.",
-            body: "Quo (as OpenPhone) has years of shipping behind it, a large integration catalog, an AI voice agent, free number porting, and calling analytics. JobText is young and deliberately small. If you want breadth and a proven track record, Quo has more of both.",
+            body: "Quo (as OpenPhone) has years of shipping behind it, a large integration catalog, an AI voice agent, and calling analytics. JobText is young and deliberately small. If you want breadth and a proven track record, Quo has more of both.",
           },
           {
-            title: "Best-in-class fee transparency and free porting.",
-            body: "Quo lists its registration and carrier fees plainly and ports your existing number in for free — something JobText can't do yet. If keeping your current number today, by porting, is non-negotiable, that alone can decide it in Quo's favor.",
+            title: "Best-in-class fee transparency.",
+            body: "Quo lists its registration and carrier fees plainly, right on the pricing page, and even reminds you before a trial ends. We aim to match that, but Quo sets the bar for putting every dollar in writing up front. (Free number porting isn't a difference here — both of us transfer your existing number in for free.)",
           },
         ]}
         recommendation={
           <>
-            Said plainly: if you need to call customers, want a mature all-round
-            phone platform, or need to port your number in today, buy Quo — it
-            genuinely does more than we do. JobText is the better pick when
-            texting is the whole job, you want it included at a flat price, and
-            especially if you&apos;re a Canadian crew that wants to start today.
+            Said plainly: if you need to call customers or want a mature
+            all-round phone platform, buy Quo — it genuinely does more than we
+            do. JobText is the better pick when texting is the whole job, you
+            want it included at a flat price, and especially if you&apos;re a
+            Canadian crew that wants to start today. Bringing your existing
+            number over is free either way, so let calling and price decide it.
           </>
         }
       />
@@ -421,16 +434,16 @@ export default function CompareQuoPage() {
             </p>
             <p>
               <strong className="font-semibold text-foreground">
-                One honest caveat on numbers:
+                On keeping your number:
               </strong>{" "}
-              Quo offers free porting; JobText can&apos;t port a number in yet
-              (it&apos;s on our roadmap, and we won&apos;t claim it early). Today
-              you forward your existing number to your new JobText number with
-              your carrier&apos;s call-forwarding — a couple of minutes to set up —
-              and advertise the JobText number going forward. Your old number
-              keeps working; new texts arrive in JobText for the whole crew. If
-              porting-in today is essential, that&apos;s a reason to stay on Quo
-              for now.
+              you can transfer your existing US or Canadian number into JobText
+              for free — choose &ldquo;Bring my number&rdquo; at signup, share
+              your current carrier details, and upload a recent bill; we handle
+              the paperwork. A transfer typically takes about 1 to 7 business
+              days, and your number keeps working on your current carrier until
+              it switches over — texting on it turns on once the transfer
+              completes. Quo ports for free too, so number transfer isn&apos;t
+              the deciding factor between us; calling and price are.
             </p>
           </>
         }

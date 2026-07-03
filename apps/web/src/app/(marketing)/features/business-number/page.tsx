@@ -28,7 +28,11 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import { CoverageMapNA, OneNumberManyPeople } from "@/components/marketing/art";
+import {
+  CarrierPaperworkShield,
+  CoverageMapNA,
+  OneNumberManyPeople,
+} from "@/components/marketing/art";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
@@ -121,12 +125,58 @@ export default function BusinessNumberPage() {
         </p>
       </FeatureSection>
 
-      {/* Section 3 — multi-number (the under-sold weapon). */}
+      {/* Section 3 — bring your existing number (real porting). */}
+      <FeatureSection
+        eyebrow="Bring your number"
+        heading="Keep the number on your trucks — transfer it to JobText, free."
+        visual={
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-8">
+            <CarrierPaperworkShield
+              className="w-full"
+              title="We handle the transfer paperwork with the phone companies for you."
+            />
+            <p className="mt-6 text-center text-[13px] leading-relaxed text-muted-foreground">
+              You upload a recent bill; we handle the carrier paperwork and keep
+              you posted at every step.
+            </p>
+          </div>
+        }
+        wash
+      >
+        <p>
+          Already have a number your customers know — the one on your trucks,
+          your yard signs, and your Google listing? Bring it with you.{" "}
+          <strong>
+            You can transfer your existing US or Canadian number to JobText for
+            free
+          </strong>
+          , and keep every customer who has it saved. At signup, choose
+          &ldquo;Bring my number,&rdquo; tell us your current carrier details,
+          and upload a recent bill — from there we handle the paperwork with the
+          phone companies for you.
+        </p>
+        <p>
+          A transfer typically takes about 1 to 7 business days. The important
+          part: your number keeps working on your current carrier the whole
+          time, so nothing goes dark — it switches over to JobText on the
+          transfer date, and texting through JobText turns on once the transfer
+          finishes. We show you exactly where the transfer is the entire way and
+          email you at each step. In a hurry? Get a new local number now and
+          transfer your existing one alongside it.{" "}
+          <a
+            href="/signup"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Bring your number when you sign up →
+          </a>
+        </p>
+      </FeatureSection>
+
+      {/* Section 4 — multi-number (the under-sold weapon). */}
       <FeatureSection
         eyebrow="Multi-number, for real"
         heading="Two numbers on Pro — two front doors, one crew."
         visual={<NumberCardsVisual />}
-        wash
       >
         <p>
           This is the part most tools either don&apos;t do or quietly upcharge
@@ -144,7 +194,7 @@ export default function BusinessNumberPage() {
         </p>
       </FeatureSection>
 
-      {/* Section 4 — Canada instant path. */}
+      {/* Section 5 — Canada instant path. */}
       <FeatureSection
         eyebrow="Canadian numbers"
         heading="A Canadian number that texts the same day."
@@ -213,9 +263,9 @@ export default function BusinessNumberPage() {
         lead="A phone number is a serious thing to hand your customers, so here's exactly how JobText numbers work — including what isn't possible yet."
         items={[
           {
-            term: "We can't port your existing number yet.",
+            term: "A transfer takes days, not minutes — and we set the timeline honestly.",
             detail:
-              "JobText gives you a new local number; it can't take over the number already on your trucks today. Number porting is on the roadmap and we won't pretend it's here before it is. In the meantime, forward your existing number to your JobText number (your carrier does this for calls in a couple of minutes) and move customers to the new number over time.",
+              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time — it only switches to JobText on the transfer date, and texting through JobText turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
           },
           {
             term: "Numbers are US and Canada only.",
@@ -292,7 +342,7 @@ export default function BusinessNumberPage() {
           },
           {
             q: "Can I keep the number already on my trucks and my Google listing?",
-            a: "Not by porting it in yet — that feature is on the roadmap. The workaround that loses you nothing: forward your existing number to your new JobText number (your phone carrier sets up call forwarding in a couple of minutes) and start putting the JobText number on new signs and quotes. Your old number keeps ringing and forwarding; new texts come to JobText.",
+            a: "Yes — transfer it to JobText. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date — texting through JobText turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
           },
           {
             q: "What do the two numbers on Pro actually get me?",

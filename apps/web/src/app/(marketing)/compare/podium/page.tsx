@@ -221,7 +221,7 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I keep my current business number?",
-    a: "Not by porting yet — that's on our roadmap and we won't say it's here before it is. Today you forward your existing number to your new JobText number (your phone carrier sets that up for calls in a couple of minutes), and start putting the JobText number on new signs and quotes. Nothing breaks in the meantime.",
+    a: "Yes — transfer it to JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers cover US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date — texting on it turns on once the transfer completes. Need to text before it lands? Get a new local number now and transfer your old one alongside it.",
   },
   {
     q: "How long until I can text US customers?",
@@ -402,13 +402,15 @@ export default function ComparePodiumPage() {
               <strong className="font-semibold text-foreground">
                 About your number:
               </strong>{" "}
-              we can&apos;t port your existing number into JobText yet — porting
-              is on our roadmap and we won&apos;t claim it early. What works today:
-              forward your current number to your new JobText number (your phone
-              carrier sets call-forwarding up in a couple of minutes) and put the
-              JobText number on new signs, quotes, and your listing. Your old
-              number keeps ringing and forwarding; new texts land in JobText,
-              where the whole crew can see them.
+              you can transfer your existing US or Canadian number into JobText
+              for free — choose &ldquo;Bring my number&rdquo; at signup, share
+              your current carrier details, and upload a recent bill; we handle
+              the paperwork. A transfer typically takes about 1 to 7 business
+              days, and your number keeps working on your current carrier the
+              whole time — it switches to JobText on the transfer date, and
+              texting on it turns on once the transfer completes. Prefer to start
+              texting today? Get a new local number now and transfer your old one
+              alongside it.
             </p>
           </>
         }

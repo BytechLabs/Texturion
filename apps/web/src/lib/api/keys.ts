@@ -13,6 +13,13 @@ export const keys = {
   usage: (companyId: string) => [companyId, "usage"] as const,
   numbers: (companyId: string) => [companyId, "numbers"] as const,
   registration: (companyId: string) => [companyId, "registration"] as const,
+  portRequests: {
+    /** Root for the company's port list + every port detail. */
+    all: (companyId: string) => [companyId, "port-requests"] as const,
+    list: (companyId: string) => [companyId, "port-requests", "list"] as const,
+    detail: (companyId: string, portId: string) =>
+      [companyId, "port-requests", "detail", portId] as const,
+  },
   tags: (companyId: string) => [companyId, "tags"] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   members: (companyId: string) => [companyId, "members"] as const,
