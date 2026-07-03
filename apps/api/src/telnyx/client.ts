@@ -116,3 +116,77 @@ export async function telnyxRequest<T = unknown>(
     throw new Error(`Telnyx returned unparseable JSON on ${label}`);
   }
 }
+
+export interface TelnyxUploadOptions {
+  /** Path under the API base, e.g. "/v2/documents". */
+  path: string;
+  /** File bytes. */
+  file: ArrayBuffer | Uint8Array | Blob;
+  /** Filename part of the multipart body. */
+  filename: string;
+  /** MIME type of the file (e.g. "application/pdf"). */
+  contentType: string;
+  /** Extra text form fields (e.g. { document_type: 'loa' }). */
+  fields?: Record<string, string>;
+}
+
+/**
+ * Multipart sibling of {@link telnyxRequest} for `POST /v2/documents`
+ * (PORTING.md §3.2) — the one Telnyx shape the JSON client doesn't cover.
+ * Uses Workers-native `FormData`/`Blob`; deliberately sets NO `Content-Type`
+ * header so `fetch` writes the multipart boundary itself. Same bearer auth and
+ * {@link TelnyxApiError} contract as the JSON client.
+ */
+export async function telnyxUpload<T = unknown>(
+  env: Env,
+  options: TelnyxUploadOptions,
+): Promise<T> {
+  const url = new URL(options.path, TELNYX_API_BASE);
+  const form = new FormData();
+  const blob =
+    options.file instanceof Blob
+      ? options.file
+      : new Blob([options.file as ArrayBuffer | Uint8Array], {
+          type: options.contentType,
+        });
+  form.append("file", blob, options.filename);
+  for (const [key, value] of Object.entries(options.fields ?? {})) {
+    form.append(key, value);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+      Accept: "application/json",
+      // No Content-Type: fetch sets multipart/form-data + boundary.
+    },
+    body: form,
+  });
+
+  const label = `POST ${options.path}`;
+  if (!response.ok) {
+    let errors: TelnyxErrorItem[] = [];
+    try {
+      const parsed = (await response.json()) as { errors?: unknown };
+      if (Array.isArray(parsed.errors)) {
+        errors = parsed.errors.filter(
+          (item): item is TelnyxErrorItem =>
+            item !== null && typeof item === "object",
+        );
+      }
+    } catch {
+      // Non-JSON error body — status alone still identifies the failure.
+    }
+    throw new TelnyxApiError(response.status, errors, label);
+  }
+
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  if (text.length === 0) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Telnyx returned unparseable JSON on ${label}`);
+  }
+}

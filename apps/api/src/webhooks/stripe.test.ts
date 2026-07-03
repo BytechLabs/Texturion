@@ -154,6 +154,10 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
     }),
     endpoint("GET", /\/rest\/v1\/webhook_events/, () => [{ attempts: 0 }]),
     endpoint("PATCH", /\/rest\/v1\/webhook_events/, () => new Response(null, { status: 204 })),
+    // PORTING.md §4: the paid-checkout handler queries port_requests for any
+    // pending port to drive (startPendingPorts). No pending ports in the
+    // billing suites — the port saga has its own dedicated suite.
+    endpoint("GET", /\/rest\/v1\/port_requests/, () => []),
   ];
 }
 

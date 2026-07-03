@@ -26,12 +26,14 @@ import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { numbersRoutes } from "./routes/numbers";
+import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { tagsRoutes } from "./routes/tags";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { usageRoutes } from "./routes/usage";
+import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers } from "./telnyx/provisioning";
 import {
   nudgeSoleProprietorOtp,
@@ -93,6 +95,7 @@ app.route("/v1", companiesRoutes);
 app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
 app.route("/v1/numbers", numbersRoutes);
+app.route("/v1/port-requests", portingRoutes);
 app.route("/v1/registration", registrationRoutes);
 app.route("/v1", composeRoutes); // POST /v1/conversations — before conversationsRoutes
 app.route("/v1", conversationsRoutes);
@@ -153,6 +156,10 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   "30 * * * *": [nudgeSoleProprietorOtp],
   // Registration poller (webhooks are primary; this is the D2 fallback).
   "0 13 * * *": [pollRegistrations],
+  // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
+  // apply missed status/messaging transitions, resume stalled sagas, and
+  // recover messaging exceptions (webhooks primary, this is the fallback).
+  "10 13 * * *": [pollPortRequests],
   // Grace & release: day-1/15/27 warnings, day-30 release + campaign
   // deactivation.
   "0 14 * * *": [runGraceJob],

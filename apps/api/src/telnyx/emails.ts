@@ -70,3 +70,70 @@ export function otpNudgeCopy(companyName: string, env: Env): EmailCopy {
       `the dashboard.\n\nFinish up: ${env.APP_ORIGIN}/registration\n\n— JobText`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Number porting (PORTING.md §9 email triggers) — owner + admins, operational.
+// ---------------------------------------------------------------------------
+
+/** PORTING.md §9: submitted to the losing carrier. */
+export function portSubmittedCopy(number: string, env: Env): EmailCopy {
+  return copy(
+    "Your number transfer is underway",
+    `Hi,\n\nTransfer in progress. We've sent the request to move ${number} to ` +
+      `JobText to your current carrier — they usually respond within a couple ` +
+      `of business days. Your number still works on your old carrier for now; ` +
+      `nothing changes for your customers until the switch-over date.\n\n` +
+      `Track it: ${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
+  );
+}
+
+/** PORTING.md §9: FOC date confirmed. */
+export function portFocConfirmedCopy(
+  number: string,
+  focDate: string | null,
+  env: Env,
+): EmailCopy {
+  const when = focDate ? `on ${focDate}` : "soon (date confirmed by your carrier)";
+  return copy(
+    "Your number transfer date is locked in",
+    `Hi,\n\nLocked in. ${number} switches to JobText ${when}. Nothing works ` +
+      `differently until then — we'll email you the moment it switches.\n\n` +
+      `Details: ${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
+  );
+}
+
+/** PORTING.md §9: needs-a-fix (carrier rejection / exception). */
+export function portExceptionCopy(
+  number: string,
+  reason: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "Your number transfer needs a quick fix",
+    `Hi,\n\nYour carrier flagged something on the transfer of ${number}:\n\n` +
+      `${reason}\n\nFix it and resubmit — it usually takes a couple of ` +
+      `minutes, and there's no fee to try again:\n` +
+      `${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
+  );
+}
+
+/** PORTING.md §9: messaging exception (no customer action needed). */
+export function portMessagingExceptionCopy(number: string): EmailCopy {
+  return copy(
+    "Your number moved — texting is taking a little longer",
+    `Hi,\n\n${number} moved over to JobText, but texting is taking a bit ` +
+      `longer — your old provider hasn't released the texting routing yet. ` +
+      `We're escalating with the carrier on your behalf; this usually clears ` +
+      `within a business day or two and there's nothing you need to do.\n\n— JobText`,
+  );
+}
+
+/** PORTING.md §9 / §4 P6d: texting live — the port completed. */
+export function portCompletedCopy(number: string, env: Env): EmailCopy {
+  return copy(
+    "🎉 Your number is live on JobText",
+    `Hi,\n\nGreat news — ${number} is now live on JobText. You can text your ` +
+      `customers straight from your inbox.\n\nOpen your inbox: ${env.APP_ORIGIN}\n\n` +
+      `— JobText`,
+  );
+}

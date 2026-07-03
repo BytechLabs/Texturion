@@ -15,7 +15,11 @@ research left a shape uncertain it is flagged **(verify in build)** inline. Date
 
 Paid-first is unchanged: **pay → `checkout.session.completed` (paid) webhook → provisioning branch**.
 For a port, that same webhook starts a **port saga** (parallel to the new-number saga) instead of
-buying a number. The number stays **live on the old carrier** until the **FOC (Firm Order Commitment)
+buying a number. The saga **creates the Telnyx porting order as a `draft`** (reusing the per-company
+messaging profile + the collected port data) but does **NOT** confirm it — confirmation is a distinct
+post-payment step that is **hard-gated on the LOA + invoice being attached** (§3.5 / §4 P5 / §6). The
+customer uploads those documents (only possible post-payment, §3.2) and then triggers `POST /:id/submit`,
+which confirms the order. The number stays **live on the old carrier** until the **FOC (Firm Order Commitment)
 cutover date**; JobText texting on it works only after **messaging** finishes porting (a step separate
 from voice). We create the per-company messaging profile up front, submit 10DLC brand+campaign at
 payment time (so the campaign is **approved before** cutover — the load-bearing sequencing rule), and
@@ -342,16 +346,18 @@ body: {
 After the PATCH validates, submit the order to move `draft → in-process`.
 
 ```
-POST /v2/porting_orders/{id}/actions/confirm          -- moves the draft into processing (verify in build:
-                                                         the research names a "Submit/Confirm" step but not
-                                                         the exact action path; confirm against the API ref)
+POST /v2/porting_orders/{id}/actions/confirm          -- moves the draft into processing
 ```
 
-**(verify in build)** — the research states the lifecycle "draft → in-process → submitted → …" and names
-a Submit/Confirm step, but does not pin the exact submit endpoint path. Confirm the action route
-(likely `.../actions/confirm` or an `activate`/`submit` action) at build time. Until submitted, a draft
-auto-deletes after **30 days** (verified) — our reconciliation cron re-drives stuck drafts well before
-then.
+**Confirm is HARD-GATED on documents (§4 P5, §6).** We NEVER call this action unless BOTH the LOA and the
+invoice are attached to the row (`telnyx_loa_document_id` **AND** `telnyx_invoice_document_id`) — an order
+confirmed with no documents is rejected by the carrier, so `POST /:id/submit` and `POST /:id/resubmit`
+(and `submitPortRequest` itself) reject with the §7 `conflict` code when either document is missing.
+`startPortSaga` deliberately stops at `draft` and never confirms; confirmation is the distinct post-payment
+step the customer triggers after uploading the LOA + invoice. Until submitted, a draft auto-deletes after
+**30 days** (verified) — our reconciliation cron re-drives stuck drafts (creating the order, and confirming
+once documents are present) well before then; a draft still missing documents is left at rest for the
+customer, not force-confirmed.
 
 ### 3.6 Poll / get one order (reconciliation + on-demand)
 
@@ -417,6 +423,16 @@ subscription):
 startPortSaga(env, { companyId, portRequestId, provisioningKey })
 ```
 
+**Create-draft-then-complete (the load-bearing gating rule).** `startPortSaga` runs **P1–P4 only** and
+**STOPS at a Telnyx `draft`** — it does **NOT** auto-confirm. Confirmation is a **distinct post-payment
+completion step** (`submitPortRequest`, P5) that is **hard-gated on both the LOA and the invoice being
+attached** to the row (`telnyx_loa_document_id` **AND** `telnyx_invoice_document_id` present). A
+draft-without-documents is therefore a **valid resting state awaiting the customer**, not an error — the
+customer (now on an active subscription) uploads the LOA + invoice via `PUT /:id/documents`, then
+`POST /:id/submit` confirms. This is what stops the order from ever being confirmed with no documents (the
+carrier would reject that). The LOA/invoice can only be uploaded post-payment (§3.2 / D16), so confirmation
+is inherently a post-payment step — honest paid-first, and honest that a port takes days.
+
 Steps:
 
 ```
@@ -424,22 +440,30 @@ P1. Ensure messaging profile  — reuse ensureMessagingProfile() from provisioni
     per company; created here if the company doesn't have one yet (a port-only signup still needs it).
 
 P2. Create porting order      — POST /v2/porting_orders { phone_numbers:[phone_e164] };
-    persist telnyx_porting_order_id IMMEDIATELY (crash-after-create protection). status→'draft'.
+    persist telnyx_porting_order_id IMMEDIATELY (crash-after-create protection). status stays 'draft'.
     Idempotent: if the row already has telnyx_porting_order_id, skip to P4.
 
 P3. Upload documents          — POST /v2/documents (loa), POST /v2/documents (invoice); persist the
-    two returned UUIDs. Idempotent: skip a doc whose UUID is already stored.
+    two returned UUIDs. Done via PUT /:id/documents (post-payment, §3.2) — NOT inside startPortSaga.
+    Idempotent: skip a doc whose UUID is already stored.
 
 P4. PATCH the order           — end_user.admin + end_user.location + activation_settings.foc_datetime_
     requested + phone_number_configuration.messaging_profile_id + messaging.enable_messaging=true +
-    documents.loa/invoice  (§3.4). Idempotent (PATCH is declarative — re-applying is safe). The SAME
-    PATCH is re-issued by the fix-and-resubmit path (§6 resubmit, §5.1 exception): it MUST re-send
+    documents.loa/invoice  (§3.4). Idempotent (PATCH is declarative — re-applying is safe). The
+    documents object carries whatever UUIDs are on the row so far (possibly none, during onboarding
+    before the customer uploads them); P5's confirm-time re-PATCH re-attaches them once present. The
+    SAME PATCH is re-issued by the fix-and-resubmit path (§6 resubmit, §5.1 exception): it MUST re-send
     messaging.enable_messaging=true + messaging_profile_id every time (a rejection can drop the messaging
     sub-order; exception is in-window), so messaging enablement is idempotently re-applied on every
     submit, not only the initial draft PATCH.
 
-P5. Submit/confirm            — POST /v2/porting_orders/{id}/actions/confirm (§3.5).
-    status→'in-process'; submitted_at=now; submission_count++ .
+    *** startPortSaga stops here, at a Telnyx `draft`. It NEVER confirms. ***
+
+P5. Submit/confirm            — the DISTINCT post-payment completion step (submitPortRequest), driven by
+    POST /:id/submit (draft) or POST /:id/resubmit (exception). HARD-GATED: reject (§7 `conflict`) unless
+    BOTH telnyx_loa_document_id AND telnyx_invoice_document_id are on the row. When gated open: re-PATCH
+    (P4, docs now attached) then POST /v2/porting_orders/{id}/actions/confirm (§3.5). status→'in-process';
+    submitted_at=now; submission_count++; messaging_port_status not_applicable→pending; §9 "submitted" email.
     From here the port is with Telnyx/carriers; webhooks + the daily cron drive the rest.
 
 --- asynchronous, days–weeks later, driven by webhooks (§5.1) / cron (§5.2) ---
@@ -556,7 +580,7 @@ Mirrors the **registration poller** exactly (webhooks primary, cron authoritativ
 
 | Cron | Schedule | Work | Idempotency |
 |---|---|---|---|
-| **Port reconcile & resume** | `0 13 * * *` (daily; can share the 13:00 slot with the registration poller or run `10 13 * * *`) | Work-set is **every `port_requests` row not fully done** — i.e. `status NOT IN ('ported','cancelled')` **OR** `messaging_port_status NOT IN ('ported','not_applicable')` (a voice-`ported` row whose messaging is still `pending`/`activating`/`exception` is NOT terminal and must stay in the set). For each: (1) if the saga stalled before submit (no `telnyx_porting_order_id`, or in `draft`/`exception` past a resume threshold) → resume `startPortSaga` from the first incomplete step; (2) else `GET /v2/porting_orders/{id}` and apply any missed `status` transition via the guarded transition applier (also refreshing `activation_settings.foc_datetime_actual` → `foc_date`); (3) reconcile `messaging_port_status` from the same GET — **including rows stuck at `exception`**: on the reconciled transition `exception`/`activating` → `ported`, run **P6** (the webhook-missed path; P6 is idempotent), so a messaging exception is recovered by the cron even if no `messaging_changed` webhook arrives; (4) re-run `assignNumbersToCampaign()` for ported numbers whose campaign assignment ledger shows `failed`. Note assignment (P6b) only runs at/after messaging `ported`, so a row stuck at messaging `exception` cannot be unblocked by step (4) alone — step (3) is what drives it to `ported` and fires P6. | Guarded transitions (one-way); saga steps skip completed work (persisted order/doc ids); P6 no-ops on already-`active` rows; emails keyed to transitions |
+| **Port reconcile & resume** | `0 13 * * *` (daily; can share the 13:00 slot with the registration poller or run `10 13 * * *`) | Work-set is **every `port_requests` row not fully done** — i.e. `status NOT IN ('ported','cancelled')` **OR** `messaging_port_status NOT IN ('ported','not_applicable')` (a voice-`ported` row whose messaging is still `pending`/`activating`/`exception` is NOT terminal and must stay in the set). For each: (1a) if the row is a `draft` with **no** `telnyx_porting_order_id` past a resume threshold → resume `startPortSaga` to create the draft (it does NOT confirm); (1b) if the row is a `draft` **with** an order id **and both documents attached** but never confirmed (missed confirm / crash after upload) → drive the documents-gated `submitPortRequest` — a `draft` still missing a document is a **valid resting state** (awaiting the customer's LOA + invoice) and is left untouched, never force-confirmed; (2) else `GET /v2/porting_orders/{id}` and apply any missed `status` transition via the guarded transition applier (also refreshing `activation_settings.foc_datetime_actual` → `foc_date`); (3) reconcile `messaging_port_status` from the same GET — **including rows stuck at `exception`**: on the reconciled transition `exception`/`activating` → `ported`, run **P6** (the webhook-missed path; P6 is idempotent), so a messaging exception is recovered by the cron even if no `messaging_changed` webhook arrives; (4) re-run `assignNumbersToCampaign()` for ported numbers whose campaign assignment ledger shows `failed`. Note assignment (P6b) only runs at/after messaging `ported`, so a row stuck at messaging `exception` cannot be unblocked by step (4) alone — step (3) is what drives it to `ported` and fires P6. | Guarded transitions (one-way); saga steps skip completed work (persisted order/doc ids); P6 no-ops on already-`active` rows; emails keyed to transitions |
 
 **Orphan-scan exclusion (required edit to `reconcileNumbers` in `provisioning.ts`).** The orphan scan in
 `reconcileNumbers` builds `knownE164`/`knownIds` from `phone_numbers` rows and pages ALL
@@ -590,17 +614,21 @@ document returns `validation_failed`).
 | Method & path | Role | Purpose / shape |
 |---|---|---|
 | `POST /v1/port-requests/check` | O/A | Portability check (pre-payment allowed). `{ phone_e164 }` → `{ portable: boolean, country, is_wireless, reason? }`. Rejects toll-free / non-US/CA with `validation_failed`. Wraps §3.1. No commitment, no DB write. |
-| `POST /v1/port-requests` | O/A | Create a port request (collect data). Body: the `port_requests` intake fields (§2.2) + `wants_bridge_number?`, `foc_datetime_requested?`, and `loa`/`invoice` as multipart file parts (or a two-step: create JSON row → `PUT /:id/documents` upload). Requires `Idempotency-Key`. **Onboarding path:** allowed while `subscription_status='incomplete'` — writes the `port_requests` row (`status='draft'`) + the `phone_numbers` row (`source='ported'`, `status='provisioning'`) and **defers the Telnyx order to the paid webhook** (paid-first, D16). **Post-signup path:** requires `active` subscription (else `subscription_inactive`); starts `startPortSaga` immediately in `waitUntil`. 409 `conflict` if a non-cancelled port already exists for the number, or if a sole-prop company already has a non-released number. |
-| `GET /v1/port-requests` | M | List the company's ports with status + messaging_port_status + foc_date (cursor list per §10). Serializer **omits `pin_passcode`/`account_number`** (returns `has_pin`, `has_account_number` booleans). |
+| `POST /v1/port-requests` | O/A | Create a port request (collect data). Body: the `port_requests` intake fields (§2.2) + `wants_bridge_number?`, `foc_datetime_requested?`, `ssn_sin_last4?` (wireless only — see below). Requires `Idempotency-Key`. **Runs the §3.1 portability check as part of create:** rejects a Telnyx-reported non-portable number with `validation_failed` + the `not_portable_reason`, and sets `is_wireless` from the check's `phone_number_type`. **Wireless numbers require `ssn_sin_last4` (last-4 of the account holder's SSN/SIN) AND `pin_passcode`** (`validation_failed` if either is missing); we store ONLY the last-4 (§2.2 / SPEC §10) — never for a landline. **Onboarding path:** allowed while `subscription_status='incomplete'` — writes the `port_requests` row (`status='draft'`) + the `phone_numbers` row (`source='ported'`, `status='provisioning'`) and **defers the Telnyx order to the paid webhook** (paid-first, D16). **Post-signup path:** requires `active` subscription (else `subscription_inactive`); starts `startPortSaga` immediately in `waitUntil` (which CREATES the draft order but does NOT confirm). 409 `conflict` if a non-cancelled port already exists for the number, or if a sole-prop company already has a non-released number. |
+| `GET /v1/port-requests` | M | List the company's ports with status + messaging_port_status + foc_date (cursor list per §10). Serializer **omits `pin_passcode`/`account_number`/`ssn_sin_last4`** (returns `has_pin`, `has_account_number`, `has_ssn_sin_last4` booleans). |
 | `GET /v1/port-requests/:id` | M | One port: full state machine position, foc_date, rejection_reason, submission_count, bridge linkage, document-on-file booleans. Refreshes from `GET /v2/porting_orders/{id}` opportunistically. |
 | `PUT /v1/port-requests/:id` | O/A | Edit port data while `draft` or `exception` (the fix-and-resubmit form). Re-upload LOA/invoice. `validation_failed` if the port is past the editable window (submitted/foc-confirmed/ported). |
-| `POST /v1/port-requests/:id/resubmit` | O/A | Fix-and-resubmit after an `exception`: re-run the PATCH (§3.4) with corrected data + docs, **including `messaging.enable_messaging=true` + `phone_number_configuration.messaging_profile_id` re-sent every time** (the order is in `exception`, which is in-window; a carrier rejection can reset the messaging sub-order, so the resubmit PATCH is the last chance to re-enable it — never assume enablement carried over from the draft PATCH), then re-confirm (§3.5). `status: exception → submitted`, `submission_count++`. Port-in is **free** so there is no charge. 409 `conflict` if status is not `exception`. |
+| `PUT /v1/port-requests/:id/documents` | O/A | Upload LOA + invoice (multipart) to Telnyx `POST /v2/documents`, storing the returned UUIDs on the row. **Blocked until the subscription is `active`** (`subscription_inactive`) — documents are a post-payment, Telnyx-committing action (§3.2 / D16). Editable window only (draft/exception). |
+| `POST /v1/port-requests/:id/submit` | O/A | **The post-payment completion step (§3.5 / §4 P5).** Confirms a `draft` port whose order the saga already created, once the customer has uploaded the LOA + invoice. **HARD-GATED: 409 `conflict` if either document is missing** (never confirm an order with no documents). 409 `conflict` if the port is not `draft`. Re-PATCHes (docs now attached) then confirms; `status: draft → in-process`, `submission_count++`. |
+| `POST /v1/port-requests/:id/resubmit` | O/A | Fix-and-resubmit after an `exception`: re-run the PATCH (§3.4) with corrected data + docs, **including `messaging.enable_messaging=true` + `phone_number_configuration.messaging_profile_id` re-sent every time** (the order is in `exception`, which is in-window; a carrier rejection can reset the messaging sub-order, so the resubmit PATCH is the last chance to re-enable it — never assume enablement carried over from the draft PATCH), then re-confirm (§3.5). **Documents-gated like submit: 409 `conflict` if the LOA or invoice is missing.** `status: exception → in-process`, `submission_count++`. Port-in is **free** so there is no charge. 409 `conflict` if status is not `exception`. |
 | `POST /v1/port-requests/:id/cancel` | O | Abandon a pre-completion port (§3.8). `→ cancel-pending`; releases the linked `phone_numbers` row on completion. 409 `conflict` if already `ported`/`cancelled`. |
 
 **Gate order for `POST /v1/port-requests` (post-signup path)** mirrors the send/provision gate style:
-membership (O/A) → subscription `active` → number is US/CA local & portable (portability check) → no
+membership (O/A) → subscription `active` → number is US/CA local & portable (portability check runs here,
+setting `is_wireless`; a wireless number additionally requires `ssn_sin_last4` + `pin_passcode`) → no
 existing non-cancelled port for the number → sole-prop cap → insert `port_requests` + `phone_numbers`
-rows (idempotent on `provisioning_key`) → `waitUntil(startPortSaga)`.
+rows (idempotent on `provisioning_key`) → `waitUntil(startPortSaga)` (creates the draft order; the
+customer later uploads documents and calls `POST /:id/submit` to confirm).
 
 **Composer/inbox:** a `source='ported'` number that is still `provisioning` is simply **not a sendable
 number** — the send path already rejects non-`active` numbers with `conflict` ("not ready to send yet"),
@@ -671,8 +699,11 @@ After `POST /v1/companies`, the wizard presents **"How do you want your business
      campaign draft — because a ported US number needs 10DLC just like a new one.
 
 Then checkout (§4.1 step 4) — **paid-first, unchanged**. The `checkout.session.completed` webhook starts
-the **port saga** (§4) instead of the provisioning saga (and additionally provisions the bridge number
-via the normal saga if `wants_bridge_number`). Registration (§4.4) is submitted at the same webhook, as
+the **port saga** (§4) instead of the provisioning saga — which **creates the Telnyx porting order as a
+`draft`** but does NOT confirm it. After payment the customer uploads the LOA + invoice (step 4 above,
+now unblocked via `PUT /:id/documents`) and confirms via `POST /:id/submit` (documents-gated). The webhook
+additionally provisions the bridge number via the normal saga if `wants_bridge_number`. Registration
+(§4.4) is submitted at the same webhook, as
 today — guaranteeing the campaign is approved before the FOC cutover.
 
 **Checkout page copy for a port (shown before payment, replaces the §4.1 new-number checkout copy):**
@@ -768,10 +799,12 @@ Replace the current call-forwarding-workaround answer with the honest porting st
    broadcast trigger. ✅ migration applies; RLS + constraint tests pass.
 2. **`telnyxUpload()` + portability check** — multipart documents client; `POST /v1/port-requests/check`.
    ✅ a real number returns portable; toll-free/non-US-CA rejected.
-3. **Port saga `porting.ts`** — P1–P5, reusing `ensureMessagingProfile`; wired into the paid
-   `checkout.session.completed` handler parallel to `provisionCompanyNumber`, and into `POST
-   /v1/port-requests`. ✅ paid webhook creates the order once under duplicate delivery (provisioning_key
-   idempotency); crash between create and PATCH is healed by the cron.
+3. **Port saga `porting.ts`** — P1–P4 (`startPortSaga`, create draft, do NOT confirm) + P5
+   (`submitPortRequest`, the documents-gated confirm), reusing `ensureMessagingProfile`; wired into the
+   paid `checkout.session.completed` handler parallel to `provisionCompanyNumber`, and into `POST
+   /v1/port-requests`. ✅ paid webhook creates the DRAFT order once under duplicate delivery
+   (provisioning_key idempotency) and never confirms without documents; crash between create and PATCH is
+   healed by the cron; confirm rejects (§7 `conflict`) unless BOTH LOA + invoice are attached.
 4. **Port webhooks + reconciliation cron** — wire `handlePortingEvent` into the shared dispatcher, NOT
    the route: add `if (eventType.startsWith('porting_order.')) return handlePortingEvent(env, event);`
    (import from `../telnyx/porting`) to `dispatchTelnyxEvent` in `apps/api/src/messaging/dispatch.ts`,
@@ -781,8 +814,12 @@ Replace the current call-forwarding-workaround answer with the honest porting st
    ✅ simulated status/messaging transitions drive the tracker + P6 flips the number to active and assigns
    the campaign; ✅ a `porting_order.*` row left unprocessed replays through the sweeper and reaches
    `handlePortingEvent`.
-5. **Port API routes** — create/get/list/edit/resubmit/cancel with roles + existing error codes;
-   pin/account serializer omission. ✅ fix-and-resubmit moves exception→submitted; sole-prop cap enforced.
+5. **Port API routes** — create/get/list/edit/documents/submit/resubmit/cancel with roles + existing error
+   codes; pin/account/ssn_sin_last4 serializer omission. Create runs the §3.1 portability check (sets
+   `is_wireless`, requires `ssn_sin_last4` + PIN when wireless, rejects non-portable). `POST /:id/submit`
+   and `/:id/resubmit` are documents-gated (409 `conflict` if LOA/invoice missing). ✅ wireless number
+   flagged + last-4 required; non-portable rejected; landline path unchanged; confirm rejects without
+   documents and succeeds with both; sole-prop cap enforced.
 6. **Onboarding fork + Settings port UI** — the wizard branch, checkout port copy, the 4-step tracker
    (Realtime-live), bridge-number opt-in + release action. ✅ full port path from signup→pay→submitted→
    (simulated) foc→ported→texting-live renders without refresh on a 375px viewport.
@@ -804,8 +841,13 @@ Replace the current call-forwarding-workaround answer with the honest porting st
 - **§3.6** whether `GET /v2/porting_orders/{id}` returns a messaging status field (poll) or the messaging
   track is webhook-only + a sub-resource GET. (The messaging-porting docs indicate `messaging_port_status`
   IS present on the GET porting-order body, so the cron can poll it; confirm the exact key at build.)
-- **§2.2** wireless-port extra requirements (PIN + last-4 SSN) — only if the portability check flags a
-  number as wireless; store last-4 only, never full SSN/SIN (SPEC §10).
+- **§2.2** wireless-port extra requirements (PIN + last-4 SSN) — **RESOLVED / implemented.** The `POST
+  /v1/port-requests` create route runs the §3.1 portability check, sets `is_wireless` from
+  `phone_number_type` (`mobile`/`wireless`), and — when wireless — requires `ssn_sin_last4` **and**
+  `pin_passcode` (`validation_failed` otherwise). Only the last-4 is stored (the DB `ssn_sin_last4` CHECK
+  enforces exactly 4 digits); the full SSN/SIN is never collected, and the serializer returns only the
+  `has_ssn_sin_last4` boolean (SPEC §10). Landline ports collect neither. **(verify in build — response
+  schema only:** confirm the exact `phone_number_type` token Telnyx returns for wireless numbers.)
 
 Everything else in this spec is pinned to the verified Telnyx Porting API research: create body requires
 only `phone_numbers`; `end_user.admin`/`end_user.location` field names; `activation_settings.foc_datetime_

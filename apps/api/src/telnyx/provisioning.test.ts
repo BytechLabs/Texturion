@@ -41,6 +41,9 @@ function setup(companyOverrides: Record<string, unknown> = {}) {
   rest.table("phone_numbers", NUMBER_DEFAULTS);
   rest.table("company_members");
   rest.table("messaging_registrations");
+  // reconcileNumbers now excludes in-flight ports from the orphan scan
+  // (PORTING.md §5.2) — the table must exist for the query even when empty.
+  rest.table("port_requests");
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
     id: COMPANY_ID,

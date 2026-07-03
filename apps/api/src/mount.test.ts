@@ -17,6 +17,7 @@ import { app, CRON_JOBS } from "./index";
 import { reportUnreportedUsage, sweepWebhookEvents } from "./messaging/crons";
 import { composeRoutes } from "./routes/compose";
 import { conversationsRoutes } from "./routes/conversations";
+import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers } from "./telnyx/provisioning";
 import {
   nudgeSoleProprietorOtp,
@@ -268,6 +269,15 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["POST", "/v1/registration/otp"],
     ["POST", "/v1/registration/otp/resend"],
     ["POST", "/v1/registration/enable-us"],
+    // porting (port-in)
+    ["POST", "/v1/port-requests/check"],
+    ["POST", "/v1/port-requests"],
+    ["GET", "/v1/port-requests"],
+    ["GET", "/v1/port-requests/:id"],
+    ["PUT", "/v1/port-requests/:id"],
+    ["PUT", "/v1/port-requests/:id/documents"],
+    ["POST", "/v1/port-requests/:id/resubmit"],
+    ["POST", "/v1/port-requests/:id/cancel"],
     // conversations (compose owns the POST)
     ["POST", "/v1/conversations"],
     ["GET", "/v1/conversations"],
@@ -357,7 +367,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(Object.keys(CRON_JOBS).sort()).toEqual(wranglerCrons().sort());
   });
 
-  it("wrangler.jsonc carries exactly the seven §11 schedules", () => {
+  it("wrangler.jsonc carries exactly the §11 + porting schedules", () => {
     expect(wranglerCrons().sort()).toEqual(
       [
         "*/5 * * * *", // webhook sweeper
@@ -365,6 +375,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 * * * *", // usage re-reporter (+ 80%/100% usage alerts)
         "30 * * * *", // sole-prop OTP nudge
         "0 13 * * *", // registration poller
+        "10 13 * * *", // port reconcile & resume (PORTING.md §5.2)
         "0 14 * * *", // grace & release
         "0 15 * * *", // subscription reconcile
       ].sort(),
@@ -383,6 +394,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     ]);
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
     expect(CRON_JOBS["0 13 * * *"]).toEqual([pollRegistrations]);
+    expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
     expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
   });

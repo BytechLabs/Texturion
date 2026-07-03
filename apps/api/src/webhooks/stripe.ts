@@ -13,6 +13,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { sendEmail } from "../email/resend";
+import { startPortSaga } from "../telnyx/porting";
 import {
   provisionCompanyNumber,
   suspendCompanyNumbers,
@@ -260,6 +261,16 @@ async function handleCheckoutCompleted(
     if (unsuspendError) {
       throw new Error(`number un-suspend failed: ${unsuspendError.message}`);
     }
+
+    // PORTING.md §0/§4/D16: a port is a PARALLEL branch of this same paid
+    // trigger — pay first, then port. If the company has a pending port
+    // (row inserted with source='ported', status='provisioning' at
+    // POST /v1/port-requests), the paid webhook starts the port saga instead
+    // of buying that number. provisionCompanyNumber below then skips it (a
+    // non-released ported number already exists), so the ported number is
+    // never double-provisioned; only an opted-in bridge number is bought.
+    await startPendingPorts(env, db, companyId, session.id);
+
     await provisionCompanyNumber(env, {
       companyId,
       checkoutSessionId: session.id,
@@ -269,6 +280,52 @@ async function handleCheckoutCompleted(
     // cron are harmless; a Telnyx failure propagates to the webhook ledger
     // (attempts + last_error) and the sweeper retries the submission.
     await submitRegistration(env, companyId);
+  }
+}
+
+/**
+ * PORTING.md §4/§8.1: drive every `draft` port for the company from the paid
+ * checkout webhook (parallel to provisioning). This CREATES the Telnyx porting
+ * order (draft) but does NOT confirm it — confirmation is the documents-gated
+ * post-payment step (POST /:id/submit) the customer triggers after uploading
+ * the LOA + invoice, since those can only be attached once the subscription is
+ * active. Idempotent — startPortSaga skips completed steps on persisted order
+ * ids, and a duplicate delivery re-runs a still-draft row harmlessly. A bridge
+ * number (wants_bridge_number) is a normal provisioned number bought via the
+ * existing saga under its own provisioning key (the port's own row is
+ * source='ported' and never bought here).
+ */
+async function startPendingPorts(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  checkoutSessionId: string,
+): Promise<void> {
+  const { data, error } = await db
+    .from("port_requests")
+    .select("id,wants_bridge_number,bridge_number_id")
+    .eq("company_id", companyId)
+    .eq("status", "draft");
+  if (error) throw new Error(`port_requests lookup failed: ${error.message}`);
+  const ports = (data ?? []) as {
+    id: string;
+    wants_bridge_number: boolean;
+    bridge_number_id: string | null;
+  }[];
+
+  for (const port of ports) {
+    // Opt-in tide-me-over number: a normal provisioned number via the existing
+    // saga, keyed distinctly so it never collides with the port row or the
+    // initial provisioning key. provisionCompanyNumber records saga-step
+    // failures on the phone_numbers row (never throws for those); only infra
+    // failures propagate, and those belong on the webhook ledger to retry.
+    if (port.wants_bridge_number && !port.bridge_number_id) {
+      await provisionCompanyNumber(env, {
+        companyId,
+        checkoutSessionId: `${checkoutSessionId}:bridge:${port.id}`,
+      });
+    }
+    await startPortSaga(env, { companyId, portRequestId: port.id });
   }
 }
 

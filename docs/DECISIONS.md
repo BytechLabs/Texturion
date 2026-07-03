@@ -342,7 +342,14 @@ not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the bindi
   `source='ported'`, `status='provisioning'`, and its own porting sub-status. The portability
   **check** (read-only, free, no commitment) is the one Telnyx call allowed pre-payment, so the
   wizard can tell the customer "yes this number can move" before they pay — but the actual port
-  order is post-payment only.
+  order is post-payment only. **Create-draft-then-complete:** the paid webhook's saga **creates the
+  Telnyx porting order as a `draft`** (reusing the messaging profile + collected data) but does **NOT
+  auto-confirm** it. Confirmation is a **distinct post-payment step hard-gated on the LOA + invoice
+  being attached** (`telnyx_loa_document_id` AND `telnyx_invoice_document_id`) — the customer (now on
+  an active subscription) uploads both via `PUT /:id/documents`, then `POST /:id/submit` confirms; the
+  submit/resubmit path returns the existing `conflict` code if either document is missing. This is
+  honest paid-first AND honest that a port inherently takes days: we never confirm an order the carrier
+  would reject for having no documents.
 
 - **The port window is handled honestly, and we DO NOT auto-provision a bridge number.**
   A port takes days to weeks; the number stays live on the **old carrier** until the FOC

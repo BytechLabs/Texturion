@@ -27,6 +27,7 @@ const REAL_TELNYX_TESTS = [
   "src/telnyx/**/*.test.ts",
   "src/routes/registration.test.ts",
   "src/routes/numbers.test.ts",
+  "src/routes/porting.test.ts",
   // The integration suite asserts the real exported app + §11 cron map.
   "src/mount.test.ts",
 ];
@@ -46,6 +47,7 @@ export default defineConfig({
           alias: [
             { find: /^.*\/telnyx\/provisioning$/, replacement: telnyxDouble("provisioning") },
             { find: /^.*\/telnyx\/registration$/, replacement: telnyxDouble("registration") },
+            { find: /^.*\/telnyx\/porting$/, replacement: telnyxDouble("porting") },
             // verify double implements the REAL Ed25519 contract algorithm so the
             // messaging webhook suites verify genuine signatures (D13).
             { find: /^.*\/telnyx\/verify$/, replacement: telnyxDouble("verify") },

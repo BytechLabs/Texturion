@@ -47,7 +47,7 @@ export interface PhoneNumberRow {
   updated_at?: string;
 }
 
-interface ProvisioningCompany {
+export interface ProvisioningCompany {
   id: string;
   name: string;
   country: string;
@@ -67,7 +67,13 @@ const NUMBER_COLUMNS =
 /** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
 
-async function fetchCompany(
+/**
+ * Fetch the provisioning-shaped company row. Exported for the port saga
+ * (PORTING.md §4 P1), which builds the same `ProvisioningCompany` to hand to
+ * {@link ensureMessagingProfile} — reusing the profile machinery, not forking
+ * it.
+ */
+export async function fetchProvisioningCompany(
   db: SupabaseClient,
   companyId: string,
 ): Promise<ProvisioningCompany> {
@@ -80,6 +86,13 @@ async function fetchCompany(
   const company = (data?.[0] ?? null) as unknown as ProvisioningCompany | null;
   if (!company) throw new Error(`provisioning: company ${companyId} not found`);
   return company;
+}
+
+async function fetchCompany(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<ProvisioningCompany> {
+  return fetchProvisioningCompany(db, companyId);
 }
 
 async function updateNumberRow(
@@ -131,8 +144,15 @@ interface PhoneNumbersListResponse {
 // Saga steps
 // ---------------------------------------------------------------------------
 
-/** S1 — one Telnyx messaging profile per company (D2), created once. */
-async function ensureMessagingProfile(
+/**
+ * S1 — one Telnyx messaging profile per company (D2), created once.
+ *
+ * Exported for the port saga (PORTING.md §4 P1 / Verification correction 1):
+ * a port creates the same per-company profile up front and reuses this exact
+ * helper — never a parallel one. The port saga passes its own fetched company
+ * row (same `ProvisioningCompany` shape).
+ */
+export async function ensureMessagingProfile(
   env: Env,
   db: SupabaseClient,
   company: ProvisioningCompany,
@@ -215,8 +235,12 @@ async function searchAvailableNumber(
  * used by `DELETE /v2/phone_numbers/{id}` on release. Listed (not taken from
  * the order response) because the list is the documented authority for owned
  * numbers.
+ *
+ * Exported for the port saga (PORTING.md §4 P6a / Verification correction 1):
+ * once voice ports, the ported number becomes Telnyx-owned and the saga
+ * resolves its `telnyx_phone_number_id` through this same listing.
  */
-async function lookupOwnedNumber(
+export async function lookupOwnedNumber(
   env: Env,
   e164: string,
 ): Promise<{ id: string; phone_number: string } | null> {
@@ -676,6 +700,26 @@ export async function reconcileNumbers(
       .filter(Boolean),
   );
 
+  // PORTING.md §5.2 orphan-scan exclusion (required edit): an open port row is
+  // `status='provisioning'` with number_e164/telnyx_phone_number_id both NULL
+  // until P6a adopts the number, so it contributes nothing to knownE164/knownIds
+  // — yet the instant voice ports the number becomes Telnyx-owned and appears in
+  // the listing, which would falsely page the operator on every port for the
+  // whole voice-ported-but-messaging-pending window. Skip any owned number whose
+  // E.164 matches a non-cancelled port_requests row (the per-number check).
+  const { data: portRows, error: portError } = await db
+    .from("port_requests")
+    .select("phone_e164")
+    .neq("status", "cancelled");
+  if (portError) {
+    throw new Error(`port_requests lookup failed: ${portError.message}`);
+  }
+  const portingE164 = new Set(
+    (portRows ?? [])
+      .map((item) => (item as { phone_e164: string | null }).phone_e164)
+      .filter(Boolean),
+  );
+
   let page = 1;
   let totalPages = 1;
   while (page <= totalPages) {
@@ -689,6 +733,8 @@ export async function reconcileNumbers(
       if (!owned.id) continue;
       if (knownIds.has(owned.id)) continue;
       if (owned.phone_number && knownE164.has(owned.phone_number)) continue;
+      // An in-flight port owns this number even before P6a adopts the row.
+      if (owned.phone_number && portingE164.has(owned.phone_number)) continue;
       summary.orphansFlagged += 1;
       // IDs only — never the number itself (SPEC §10 telemetry policy).
       Sentry.captureMessage(

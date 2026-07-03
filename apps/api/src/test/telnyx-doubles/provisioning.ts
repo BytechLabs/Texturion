@@ -12,7 +12,41 @@
  */
 import { vi } from "vitest";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type { Env } from "../../env";
+
+/** Shape mirror for the port saga's reuse of the provisioning company row. */
+export interface ProvisioningCompany {
+  id: string;
+  name: string;
+  country: string;
+  requested_area_code: string;
+  telnyx_messaging_profile_id: string | null;
+  subscription_status: string;
+}
+
+export const ensureMessagingProfile = vi.fn<
+  (env: Env, db: SupabaseClient, company: ProvisioningCompany) => Promise<string>
+>(async () => "profile-double");
+
+export const lookupOwnedNumber = vi.fn<
+  (
+    env: Env,
+    e164: string,
+  ) => Promise<{ id: string; phone_number: string } | null>
+>(async (_env, e164) => ({ id: `pn-${e164}`, phone_number: e164 }));
+
+export const fetchProvisioningCompany = vi.fn<
+  (db: SupabaseClient, companyId: string) => Promise<ProvisioningCompany>
+>(async (_db, companyId) => ({
+  id: companyId,
+  name: "Double Co",
+  country: "US",
+  requested_area_code: "212",
+  telnyx_messaging_profile_id: "profile-double",
+  subscription_status: "active",
+}));
 
 export const provisionCompanyNumber = vi.fn<
   (

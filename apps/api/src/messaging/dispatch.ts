@@ -4,6 +4,7 @@
  * sweeper (ledger replay path), so both run the exact same logic.
  */
 import type { Env } from "../env";
+import { handlePortingEvent } from "../telnyx/porting";
 import { handle10dlcEvent } from "../telnyx/registration";
 import { handleInboundMessage } from "./inbound";
 import { handleStatusEvent } from "./status";
@@ -25,6 +26,12 @@ export async function dispatchTelnyxEvent(
   if (eventType.startsWith("10dlc.")) {
     // Cross-track contract: the registration state machine (telnyx track).
     return handle10dlcEvent(env, event);
+  }
+  if (eventType.startsWith("porting_order.")) {
+    // PORTING.md §5.1: the port-in state machine. This single branch also
+    // covers the §11 webhook sweeper, which re-drives ledgered rows through
+    // this exact dispatcher.
+    return handlePortingEvent(env, event);
   }
   // Unknown event_type → acked no-op (§7).
 }

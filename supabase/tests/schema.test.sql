@@ -10,7 +10,8 @@
 begin;
 
 -- ===========================================================================
--- T1. Structure: all 22 tables exist, RLS enabled on every public table.
+-- T1. Structure: all 23 tables exist, RLS enabled on every public table.
+--     (port_requests added by 20260702030000_number_porting.sql — D16.)
 -- ===========================================================================
 do $$
 declare
@@ -19,7 +20,8 @@ declare
     'messaging_registrations','contacts','conversations','conversation_reads',
     'messages','message_attachments','conversation_events','tags',
     'conversation_tags','opt_outs','usage_events','webhook_events','templates',
-    'push_subscriptions','notification_prefs','usage_alerts','grace_notices'];
+    'push_subscriptions','notification_prefs','usage_alerts','grace_notices',
+    'port_requests'];
   missing text;
   no_rls  text;
 begin
@@ -35,11 +37,12 @@ begin
   if no_rls is not null then
     raise exception 'T1 FAILED: RLS not enabled on: %', no_rls;
   end if;
-  raise notice 'T1 PASSED: 22 tables present, RLS enabled on every public table';
+  raise notice 'T1 PASSED: 23 tables present, RLS enabled on every public table';
 end $$;
 
 -- ===========================================================================
--- T2. All 13 enums exist.
+-- T2. All 16 enums exist (13 base + port_status/port_messaging_status/
+--     number_source from 20260702030000_number_porting.sql — D16).
 -- ===========================================================================
 do $$
 declare
@@ -47,7 +50,8 @@ declare
     'member_role','subscription_status','plan_id','number_status',
     'registration_kind','registration_status','conversation_status',
     'message_direction','message_status','opt_out_source','consent_source_t',
-    'usage_event_type','conversation_event_type'];
+    'usage_event_type','conversation_event_type',
+    'port_status','port_messaging_status','number_source'];
   missing text;
 begin
   select string_agg(e, ', ') into missing
@@ -58,7 +62,7 @@ begin
   if missing is not null then
     raise exception 'T2 FAILED: missing enums: %', missing;
   end if;
-  raise notice 'T2 PASSED: all 13 enums exist';
+  raise notice 'T2 PASSED: all 16 enums exist';
 end $$;
 
 -- ===========================================================================
@@ -127,8 +131,9 @@ begin
   join pg_class c on c.oid = tg.tgrelid
   join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'public' and tg.tgname = 'set_updated_at' and not tg.tgisinternal;
-  if n <> 13 then
-    raise exception 'T5 FAILED: expected 13 set_updated_at triggers, found %', n;
+  -- 13 base tables + port_requests (D16, 20260702030000_number_porting.sql).
+  if n <> 14 then
+    raise exception 'T5 FAILED: expected 14 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -146,9 +151,11 @@ begin
   join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'public' and not tg.tgisinternal
     and tg.tgname in ('messages_broadcast','conversations_broadcast',
-                      'phone_numbers_broadcast','registrations_broadcast');
-  if n <> 4 then
-    raise exception 'T5 FAILED: expected 4 broadcast triggers, found %', n;
+                      'phone_numbers_broadcast','registrations_broadcast',
+                      'port_requests_broadcast');
+  -- 4 base broadcast triggers + port.updated (D16).
+  if n <> 5 then
+    raise exception 'T5 FAILED: expected 5 broadcast triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -158,7 +165,7 @@ begin
   if n <> 1 then
     raise exception 'T5 FAILED: company_topic_read policy missing on realtime.messages';
   end if;
-  raise notice 'T5 PASSED: 13 moddatetime + auth-sync + 4 broadcast triggers, realtime policy present';
+  raise notice 'T5 PASSED: 14 moddatetime + auth-sync + 5 broadcast triggers, realtime policy present';
 end $$;
 
 -- ===========================================================================
