@@ -46,6 +46,7 @@ import {
   signedMediaUrls,
   uploadOutboundMedia,
 } from "../messaging/media";
+import { applySendMergeFields } from "../messaging/merge";
 import {
   appendIdentificationFooter,
   conversationHasInbound,
@@ -108,10 +109,11 @@ interface ConversationSendView {
   contacts: {
     id: string;
     phone_e164: string;
+    name: string | null;
     first_identification_sent_at: string | null;
   };
   phone_numbers: { id: string; number_e164: string | null; status: string };
-  companies: { id: string; name: string };
+  companies: { id: string; name: string; google_review_link: string | null };
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -127,9 +129,9 @@ async function loadSendView(
       .from("conversations")
       .select(
         "id,contact_id,phone_number_id," +
-          "contacts(id,phone_e164,first_identification_sent_at)," +
+          "contacts(id,phone_e164,name,first_identification_sent_at)," +
           "phone_numbers(id,number_e164,status)," +
-          "companies(id,name)",
+          "companies(id,name,google_review_link)",
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)
@@ -204,14 +206,25 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   // §7 gate order: subscription → destination US/CA → registration.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
 
+  // Step 0a merge-fields: applied server-side at SEND time to the composed body
+  // (and to any saved-reply text the composer pasted in), reusing the contact +
+  // company already loaded here — no extra query. Unknown/empty tokens degrade
+  // cleanly. Runs BEFORE the §5 footer + the segment estimate so both see the
+  // substituted text.
+  const merged = applySendMergeFields(body.body, {
+    contactName: view.contacts.name,
+    businessName: view.companies.name,
+    reviewLink: view.companies.google_review_link,
+  });
+
   // §5 first-message identification: only the first OUTBOUND-FIRST message
   // ever sent to the contact; replies to inbound threads are never decorated.
   const footerNeeded =
     view.contacts.first_identification_sent_at === null &&
     !(await conversationHasInbound(db, companyId, view.id));
   const text = footerNeeded
-    ? appendIdentificationFooter(body.body, view.companies.name)
-    : body.body;
+    ? appendIdentificationFooter(merged, view.companies.name)
+    : merged;
 
   // §9/§10 estimate: MMS meters (and pre-checks) as 3 segments.
   const segmentsEstimate =

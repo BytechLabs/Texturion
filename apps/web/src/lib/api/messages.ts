@@ -100,6 +100,52 @@ export function useSendMessage(conversationId: string) {
 }
 
 /**
+ * POST /v1/conversations/:id/review-request — the manual one-tap "Ask for a
+ * review" action (FEATURE-GAPS Step 2). MANUAL only, one per job: the server
+ * suppresses a repeat (409 conflict) and honors the opt-out mirror (403). On
+ * success the returned outbound message lands in the thread cache and bumps the
+ * conversation list, exactly like a normal send. The caller surfaces the
+ * server's error message (e.g. "already requested", "add your review link").
+ */
+export function useRequestReview(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<Message>(`/v1/conversations/${conversationId}/review-request`, {
+        method: "POST",
+        companyId,
+        body: {},
+      }),
+    onSuccess: (message) => {
+      queryClient.setQueryData<ThreadData>(
+        keys.thread(companyId, conversationId),
+        (thread) =>
+          threadUpsertMessages(thread, [
+            { ...message, attachments: message.attachments ?? [] },
+          ]),
+      );
+      patchConversationLists(queryClient, companyId, (list, filters) => {
+        const row = list.pages
+          .flatMap((page) => page.data)
+          .find((r) => r.id === conversationId);
+        if (!row) return list;
+        return listApplyConversation(
+          list,
+          { ...row, last_message_at: message.created_at },
+          filters,
+        );
+      });
+      // Surface the review_requested audit line in the open timeline.
+      queryClient.invalidateQueries({
+        queryKey: keys.conversations.events(companyId, conversationId),
+        refetchType: "active",
+      });
+    },
+  });
+}
+
+/**
  * PATCH /v1/messages/:id { done } — the D14 toggle. Optimistic: the thread
  * and detail caches flip immediately (strikethrough appears at click), roll
  * back on error, and are replaced by the server row on success. Other clients

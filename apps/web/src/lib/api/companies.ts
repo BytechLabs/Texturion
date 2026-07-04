@@ -8,7 +8,7 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { CompanyView, Country } from "./types";
+import type { BusinessHours, CompanyView, Country } from "./types";
 
 /** GET /v1/company — company + plan/subscription/period/cap + numbers + registration. */
 export function useCompany() {
@@ -53,6 +53,12 @@ export interface CompanyPatch {
   timezone?: string;
   /** Owner-only: number, or null to remove the cap (SPEC §2). */
   overage_cap_multiplier?: number | null;
+  /** FEATURE-GAPS Step 1 — after-hours away reply (O/A). */
+  business_hours?: BusinessHours;
+  away_enabled?: boolean;
+  away_message?: string | null;
+  /** FEATURE-GAPS Step 2 — Google review deep-link (O/A). null clears it. */
+  google_review_link?: string | null;
 }
 
 /** PATCH /v1/company — workspace name (O/A) + overage cap (owner). */

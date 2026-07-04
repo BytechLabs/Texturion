@@ -39,9 +39,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCompany } from "@/lib/api/companies";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import { useUpdateConversation } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
+import { useRequestReview } from "@/lib/api/messages";
 import { useMembers } from "@/lib/api/team";
 import type {
   ConversationDetail,
@@ -84,7 +86,32 @@ export function ThreadHeader({
   const members = useMembers();
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
+  const company = useCompany();
+  const requestReview = useRequestReview(conversation.id);
   const [confirmOptOut, setConfirmOptOut] = useState(false);
+
+  // FEATURE-GAPS Step 2 — the one-tap "Ask for a review" action. Cheap client
+  // suppressions (disabled with a reason): no review link on file, or the
+  // contact is opted out. The one-per-job "already asked / replied since"
+  // suppression is the server's atomic decision (409) — surfaced as a toast.
+  const reviewLink = company.data?.google_review_link ?? null;
+  const reviewDisabledReason = !reviewLink
+    ? "Add your Google review link in Settings → Reviews first."
+    : contact?.opted_out
+      ? "This contact has opted out of texts."
+      : null;
+
+  const askForReview = () => {
+    if (reviewDisabledReason) {
+      toast.error(reviewDisabledReason);
+      return;
+    }
+    requestReview.mutate(undefined, {
+      onSuccess: () => toast.success("Review request sent."),
+      onError: (e) =>
+        onApiError(e, "Couldn't send the review request. Try again."),
+    });
+  };
 
   const name = contactDisplayName(conversation.contact);
   const assigneeName = conversation.assigned_user_id
@@ -221,15 +248,18 @@ export function ThreadHeader({
           </a>
         </Button>
 
-        {/* Ask for a review — opens the composer prefilled via a URL flag the
-            composer reads (a saved-reply nudge). Falls back to the templates
-            picker; harmless if unhandled. */}
+        {/* Ask for a review (FEATURE-GAPS Step 2) — MANUAL one-tap only. Sends
+            the saved review ask with {review_link} merged. Disabled with a
+            reason (title) when there is no review link or the contact opted
+            out; the one-per-job suppression is enforced server-side. */}
         <Button
           variant="ghost"
           size="icon-sm"
           className="hidden sm:inline-flex"
           aria-label="Ask for a review"
-          onClick={onToggleContactPanel}
+          title={reviewDisabledReason ?? "Ask for a review"}
+          disabled={requestReview.isPending || reviewDisabledReason !== null}
+          onClick={askForReview}
         >
           <Star className="size-4" strokeWidth={1.75} />
         </Button>
@@ -354,6 +384,15 @@ export function ThreadHeader({
             <DropdownMenuItem onSelect={onToggleContactPanel}>
               <UserRound className="size-4" strokeWidth={1.75} />
               View contact
+            </DropdownMenuItem>
+            {/* FEATURE-GAPS Step 2 — one-tap review ask, also in the overflow
+                (the header Star is hidden below sm). */}
+            <DropdownMenuItem
+              disabled={requestReview.isPending || reviewDisabledReason !== null}
+              onSelect={askForReview}
+            >
+              <Star className="size-4" strokeWidth={1.75} />
+              Ask for a review
             </DropdownMenuItem>
             {/* §5.2: the gallery's single entry point. */}
             <DropdownMenuItem onSelect={onOpenGallery}>

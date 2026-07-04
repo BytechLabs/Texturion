@@ -31,6 +31,7 @@ import { notificationsRoutes } from "./routes/notifications";
 import { numbersRoutes } from "./routes/numbers";
 import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
+import { reviewRoutes } from "./routes/review";
 import { searchRoutes } from "./routes/search";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
@@ -105,6 +106,7 @@ app.route("/v1", composeRoutes); // POST /v1/conversations — before conversati
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);
+app.route("/v1", reviewRoutes); // POST /v1/conversations/:id/review-request
 app.route("/v1", attachmentsRoutes);
 app.route("/v1", contactsRoutes);
 app.route("/v1", tagsRoutes);

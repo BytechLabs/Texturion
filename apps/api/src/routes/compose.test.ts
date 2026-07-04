@@ -80,10 +80,12 @@ afterEach(() => {
 function contactRow(overrides: Partial<{
   consent_source: string | null;
   first_identification_sent_at: string | null;
+  name: string | null;
 }> = {}) {
   return {
     id: CONTACT_ID,
     phone_e164: "+16135551000",
+    name: overrides.name ?? null,
     consent_source: overrides.consent_source ?? null,
     first_identification_sent_at:
       overrides.first_identification_sent_at ?? null,
@@ -130,6 +132,7 @@ function composeStubs(options: {
   existingContact?: ReturnType<typeof contactRow> | null;
   conversationConflict?: boolean;
   hasInbound?: boolean;
+  reviewLink?: string | null;
 } = {}): ComposeStubs {
   const replayLookup = stubRoute(
     restMatch(env, "GET", "messages", (url) =>
@@ -141,7 +144,11 @@ function composeStubs(options: {
     { id: NUMBER_ID, number_e164: "+16135550100", status: "active" },
   ]);
   const companyLookup = stubRoute(restMatch(env, "GET", "companies"), () => [
-    { id: COMPANY_ID, name: "Acme Plumbing" },
+    {
+      id: COMPANY_ID,
+      name: "Acme Plumbing",
+      google_review_link: options.reviewLink ?? null,
+    },
   ]);
   const contactLookup = stubRoute(
     restMatch(env, "GET", "contacts"),
@@ -406,6 +413,31 @@ describe("POST /v1/conversations — quiet hours (§5)", () => {
     expect(response.status).toBe(201);
     const events = stubs.events.calls[0].body as Record<string, unknown>[];
     expect(events).toHaveLength(1); // consent only
+  });
+});
+
+describe("POST /v1/conversations — merge-fields (Step 0a)", () => {
+  it("applies {first_name}/{business_name}/{review_link} server-side at send", async () => {
+    const stubs = composeStubs({
+      // Already-identified contact so no §5 footer masks the merge output.
+      existingContact: contactRow({
+        name: "Dana Whitfield",
+        consent_source: "attested",
+        first_identification_sent_at: "2026-06-01T00:00:00Z",
+      }),
+      reviewLink: "https://g.page/r/acme",
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose({
+      ...VALID_BODY,
+      contact_id: undefined,
+      body: "Hi {first_name}, from {business_name}. Review: {review_link}",
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_body: "Hi Dana, from Acme Plumbing. Review: https://g.page/r/acme",
+    });
   });
 });
 

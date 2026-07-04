@@ -50,6 +50,34 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * Away-settings lookup (FEATURE-GAPS Step 1). The inbound pipeline reads
+ * companies away-settings on every first-delivery inbound; a company with
+ * away_enabled=false short-circuits the away branch (no send), which is the
+ * default for these threading/opt-out/MMS suites. A dedicated away-reply suite
+ * exercises the enabled path.
+ */
+function awayDisabledStub() {
+  return stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "companies",
+      (url) => url.searchParams.get("select")?.includes("away_enabled") ?? false,
+    ),
+    () => [
+      {
+        timezone: "America/Toronto",
+        business_hours: {},
+        away_enabled: false,
+        away_message: null,
+        name: "Test Co",
+        google_review_link: null,
+      },
+    ],
+  );
+}
+
 /** Ledger stubs: insert-once then conflict-empty on repeats. */
 function ledgerStubs() {
   const seen = new Set<string>();
@@ -119,7 +147,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       created: true,
       opted_out: false,
     }));
-    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc);
+    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc, awayDisabledStub());
 
     const event = messageReceivedEvent({
       eventId: "e1e1e1e1-0000-4000-8000-000000000001",
@@ -174,7 +202,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       created: true,
       opted_out: false,
     }));
-    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc);
+    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc, awayDisabledStub());
 
     const event = messageReceivedEvent();
     const first = await deliver(event);
@@ -240,7 +268,14 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       restMatch(env, "GET", "webhook_events"),
       () => [{ attempts: 0 }],
     );
-    serve(ledger.insert, ledger.stamp, numberLookup, threadRpc, attemptsLookup);
+    serve(
+      ledger.insert,
+      ledger.stamp,
+      numberLookup,
+      threadRpc,
+      attemptsLookup,
+      awayDisabledStub(),
+    );
 
     const { response, flush } = await deliver(messageReceivedEvent());
     expect(response.status).toBe(200); // still acked — sweeper owns retries
@@ -289,6 +324,7 @@ describe("inbound pipeline — opt-out keywords (§5)", () => {
       optOutUpsert,
       optOutRevoke,
       events,
+      awayDisabledStub(),
       ...extraStubs,
     );
     const { response, flush } = await deliver(
@@ -420,6 +456,7 @@ describe("inbound pipeline — notification pipeline (§8)", () => {
         ledger.stamp,
         numberLookup,
         threadRpc,
+        awayDisabledStub(),
         conversationLookup,
         membersLookup,
         prefsLookup,
@@ -506,6 +543,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       ledger,
       numberLookup,
       threadRpc,
+      away: awayDisabledStub(),
       attachmentLookup,
       mediaDownload,
       upload,
@@ -520,6 +558,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.ledger.stamp,
       stubs.numberLookup,
       stubs.threadRpc,
+      stubs.away,
       stubs.attachmentLookup,
       stubs.mediaDownload,
       stubs.upload,
@@ -558,6 +597,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.ledger.stamp,
       stubs.numberLookup,
       stubs.threadRpc,
+      stubs.away,
       stubs.attachmentLookup,
       stubs.mediaDownload,
       stubs.upload,
@@ -591,6 +631,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.ledger.stamp,
       stubs.numberLookup,
       stubs.threadRpc,
+      stubs.away,
       stubs.attachmentLookup,
       videoDownload,
       stubs.upload,
@@ -620,6 +661,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.ledger.stamp,
       stubs.numberLookup,
       stubs.threadRpc,
+      stubs.away,
       stubs.attachmentLookup,
       stubs.mediaDownload,
       stubs.upload,

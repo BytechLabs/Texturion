@@ -26,6 +26,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
+import { applySendMergeFields } from "../messaging/merge";
 import {
   appendIdentificationFooter,
   conversationHasInbound,
@@ -67,6 +68,7 @@ const CONVERSATION_COLUMNS =
 interface ContactRow {
   id: string;
   phone_e164: string;
+  name: string | null;
   consent_source: string | null;
   first_identification_sent_at: string | null;
 }
@@ -94,7 +96,7 @@ async function resolveAttestedContact(
     consent_attested_by: args.userId,
   };
   const columns =
-    "id,phone_e164,consent_source,first_identification_sent_at";
+    "id,phone_e164,name,consent_source,first_identification_sent_at";
 
   if (args.contactId) {
     const rows = unwrap<ContactRow[]>(
@@ -275,11 +277,13 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     throw new ApiError("conflict", "This number is not ready to send yet.");
   }
 
-  // Company (footer business name — §5).
-  const company = unwrap<{ id: string; name: string }[]>(
+  // Company (footer business name — §5; google_review_link for {review_link}).
+  const company = unwrap<
+    { id: string; name: string; google_review_link: string | null }[]
+  >(
     await db
       .from("companies")
-      .select("id,name")
+      .select("id,name,google_review_link")
       .eq("id", companyId)
       .limit(1),
     "company lookup",
@@ -361,6 +365,15 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     phoneNumberId: number.id,
   });
 
+  // Step 0a merge-fields: applied server-side at SEND time, reusing the contact
+  // + company already loaded here (no extra query). Unknown/empty tokens degrade
+  // cleanly. Runs BEFORE the §5 footer + the estimate.
+  const merged = applySendMergeFields(body.body, {
+    contactName: contact.name,
+    businessName: company.name,
+    reviewLink: company.google_review_link,
+  });
+
   // §5 footer: first outbound-first message ever sent to this contact —
   // an appended-to thread that contains inbound traffic is a reply, never
   // decorated.
@@ -369,8 +382,8 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     (created ||
       !(await conversationHasInbound(db, companyId, conversation.id as string)));
   const text = footerNeeded
-    ? appendIdentificationFooter(body.body, company.name)
-    : body.body;
+    ? appendIdentificationFooter(merged, company.name)
+    : merged;
 
   const { message, existing } = await gateOutboundSend(db, {
     companyId,

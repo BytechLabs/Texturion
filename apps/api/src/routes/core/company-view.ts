@@ -12,7 +12,10 @@ export const COMPANY_COLUMNS =
   "id,name,country,us_texting_enabled,requested_area_code,timezone,plan," +
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
-  "cancel_at_period_end,created_at,updated_at";
+  "cancel_at_period_end," +
+  // FEATURE-GAPS Step 1 & 2: after-hours away settings + review link.
+  "business_hours,away_enabled,away_message,google_review_link," +
+  "created_at,updated_at";
 
 const NUMBER_COLUMNS =
   "id,status,country,number_e164,requested_area_code,created_at";

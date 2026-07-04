@@ -15,7 +15,7 @@
  *         D15); { overage_cap_multiplier? } is owner-only (number or null —
  *         SPEC §2 cap, §10 matrix).
  */
-import { NANP_AREA_CODES } from "@jobtext/shared";
+import { isValidBusinessHours, NANP_AREA_CODES } from "@jobtext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -40,6 +40,12 @@ const createSchema = z.object({
   aup_accepted: z.literal(true),
 });
 
+/** A weekday open/close window; both HH:MM. Full shape checked below. */
+const dayHoursSchema = z.object({
+  open: z.string(),
+  close: z.string(),
+});
+
 const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
@@ -50,14 +56,49 @@ const patchSchema = z
       .max(9999.99)
       .nullable()
       .optional(),
+    // FEATURE-GAPS Step 1 — after-hours away reply (O/A). business_hours is a
+    // weekday→window map (company-local per timezone); structural validity is
+    // checked with isValidBusinessHours below.
+    business_hours: z
+      .record(z.string(), dayHoursSchema.nullable())
+      .optional(),
+    away_enabled: z.boolean().optional(),
+    // Owner-authored away text; null clears it. Max 1000 for a comfortable
+    // multi-line emergency-aware message.
+    away_message: z.string().trim().max(1000).nullable().optional(),
+    // FEATURE-GAPS Step 2 — Google review deep-link; null clears it.
+    google_review_link: z.string().trim().max(2000).nullable().optional(),
   })
   .refine(
     (body) =>
       body.name !== undefined ||
       body.timezone !== undefined ||
-      "overage_cap_multiplier" in body,
+      "overage_cap_multiplier" in body ||
+      body.business_hours !== undefined ||
+      body.away_enabled !== undefined ||
+      "away_message" in body ||
+      "google_review_link" in body,
     { message: "Provide at least one field to update." },
   );
+
+/** A stored review link must be an absolute http(s) URL (Gate-2 hygiene). */
+function assertValidReviewLink(link: string): void {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    throw new ApiError(
+      "validation_failed",
+      "google_review_link must be a valid URL.",
+    );
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new ApiError(
+      "validation_failed",
+      "google_review_link must be an http(s) URL.",
+    );
+  }
+}
 
 /** D15: reject anything the runtime's IANA database does not know. */
 function assertValidTimezone(timezone: string): void {
@@ -139,6 +180,33 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       body.overage_cap_multiplier === null
         ? null
         : Math.round(body.overage_cap_multiplier! * 100) / 100;
+  }
+  // FEATURE-GAPS Step 1: after-hours away settings.
+  if (body.business_hours !== undefined) {
+    if (!isValidBusinessHours(body.business_hours)) {
+      throw new ApiError(
+        "validation_failed",
+        "business_hours must map weekdays (mon..sun) to { open, close } HH:MM windows.",
+      );
+    }
+    patch.business_hours = body.business_hours;
+  }
+  if (body.away_enabled !== undefined) patch.away_enabled = body.away_enabled;
+  if ("away_message" in body) {
+    // Empty string clears to null (an unauthored message never fires).
+    patch.away_message =
+      body.away_message && body.away_message.length > 0
+        ? body.away_message
+        : null;
+  }
+  // FEATURE-GAPS Step 2: Google review link.
+  if ("google_review_link" in body) {
+    if (body.google_review_link && body.google_review_link.length > 0) {
+      assertValidReviewLink(body.google_review_link);
+      patch.google_review_link = body.google_review_link;
+    } else {
+      patch.google_review_link = null;
+    }
   }
 
   const db = getDb(getEnv(c.env));

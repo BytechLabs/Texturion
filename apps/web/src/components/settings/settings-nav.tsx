@@ -4,10 +4,12 @@ import {
   Bell,
   Building2,
   ChevronRight,
+  Clock,
   CreditCard,
   Gauge,
   Phone,
   ShieldCheck,
+  Star,
   UserRound,
   Users,
   type LucideIcon,
@@ -43,6 +45,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Numbers",
     description: "Your business numbers and US registration",
     icon: Phone,
+  },
+  {
+    // FEATURE-GAPS Step 1 — after-hours away reply.
+    slug: "away-reply",
+    label: "Business hours & away reply",
+    description: "Auto-reply after hours in your own words",
+    icon: Clock,
+  },
+  {
+    // FEATURE-GAPS Step 2 — Google review link.
+    slug: "reviews",
+    label: "Reviews",
+    description: "Your Google review link for one-tap asks",
+    icon: Star,
   },
   {
     slug: "usage",

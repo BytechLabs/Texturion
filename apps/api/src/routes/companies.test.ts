@@ -383,3 +383,113 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     }
   });
 });
+
+describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2)", () => {
+  it("admin saves business_hours, away_enabled and away_message (Step 1)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: {
+        business_hours: { mon: { open: "08:00", close: "17:00" }, sun: null },
+        away_enabled: true,
+        away_message:
+          "Thanks — we reply by 8am. For a no-heat emergency reply URGENT.",
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      business_hours: { mon: { open: "08:00", close: "17:00" }, sun: null },
+      away_enabled: true,
+      away_message:
+        "Thanks — we reply by 8am. For a no-heat emergency reply URGENT.",
+    });
+  });
+
+  it("422s malformed business_hours (bad weekday / bad HH:MM)", async () => {
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const business_hours of [
+      { funday: { open: "08:00", close: "17:00" } },
+      { mon: { open: "8", close: "17:00" } },
+      { mon: { open: "08:00", close: "25:00" } },
+    ]) {
+      const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { business_hours },
+      });
+      expect(res.status, JSON.stringify(business_hours)).toBe(422);
+    }
+  });
+
+  it("clears away_message with an empty/null value", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { away_message: null },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      away_message: null,
+    });
+  });
+
+  it("stores a valid google_review_link and rejects a non-URL (Step 2)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const ok = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { google_review_link: "https://g.page/r/ace/review" },
+    });
+    expect(ok.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      google_review_link: "https://g.page/r/ace/review",
+    });
+
+    const bad = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { google_review_link: "not a url" },
+    });
+    expect(bad.status).toBe(422);
+    expect(await errorCodeOf(bad)).toBe("validation_failed");
+  });
+
+  it("clears google_review_link with null", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { google_review_link: null },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      google_review_link: null,
+    });
+  });
+
+  it("403s a plain member trying to change away settings", async () => {
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { away_enabled: true },
+    });
+    expect(res.status).toBe(403);
+  });
+});

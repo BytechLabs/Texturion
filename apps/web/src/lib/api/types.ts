@@ -140,6 +140,12 @@ export interface CompanyView {
   canceled_at: string | null;
   /** SPEC §9: Stripe's pending period-end cancellation, mirrored by webhook. */
   cancel_at_period_end: boolean;
+  /** FEATURE-GAPS Step 1 — after-hours away reply (company-local clock). */
+  business_hours: BusinessHours;
+  away_enabled: boolean;
+  away_message: string | null;
+  /** FEATURE-GAPS Step 2 — Google review deep-link (null until set). */
+  google_review_link: string | null;
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];
@@ -148,6 +154,20 @@ export interface CompanyView {
     campaign: RegistrationSummary | null;
   };
 }
+
+/** A weekday open/close window in 24h "HH:MM" company-local time. */
+export interface DayHours {
+  open: string;
+  close: string;
+}
+
+/** weekday (mon..sun) -> window; a missing/null weekday = closed all day. */
+export type BusinessHours = Partial<
+  Record<
+    "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun",
+    DayHours | null
+  >
+>;
 
 // ---------------------------------------------------------------------------
 // conversations / messages

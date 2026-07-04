@@ -1,0 +1,31 @@
+-- FEATURE-GAPS BUILD-NOW — conversation_event_type additions for the
+-- send-features cluster (Step 0b guard + Step 2 review link).
+--
+-- In their OWN migration (like 20260702050000_appv2_event_types.sql) because a
+-- new enum value cannot be USED in the same transaction that adds it (Postgres
+-- restriction). Each migration file runs in its own transaction, so isolating
+-- the ADD VALUEs from any function that references them is the safe shape — the
+-- values are first USED by 20260703040000_send_features_functions.sql, the
+-- application code (apps/api), and the SQL tests, never inside this file.
+--
+-- Two additions:
+--   'auto_reply_sent'   — Step 0b: every guard-mediated auto/assisted send
+--     (the after-hours away-reply, and any future auto-send routed through the
+--     shared guard) logs this on the conversation so the crew sees the machine
+--     spoke in the thread. Actor is NULL (system-authored).
+--   'review_requested'  — Step 2: the manual one-tap "Ask for a review" action
+--     logs this, actor = the member who tapped it. Used to auto-suppress a
+--     second ask on the same conversation (one per job).
+--
+-- The conversation_events_conv_required CHECK (20260701000200_tables.sql) is
+-- NOT altered: both new types always carry a non-null conversation_id (an
+-- auto-reply and a review ask each belong to a conversation), so the shipped
+-- constraint — which only PERMITS a null conversation_id for
+-- ('opted_out','opt_out_revoked','consent_attested') — is satisfied as-is.
+-- Editing a shipped constraint is forbidden (D7/D14).
+--
+-- IF NOT EXISTS makes each ADD VALUE idempotent (re-runnable on a partially
+-- applied enum without error).
+
+alter type public.conversation_event_type add value if not exists 'auto_reply_sent';
+alter type public.conversation_event_type add value if not exists 'review_requested';

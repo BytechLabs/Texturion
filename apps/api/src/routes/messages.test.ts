@@ -77,6 +77,8 @@ function sendView(overrides: Partial<{
   first_identification_sent_at: string | null;
   phone_e164: string;
   number_status: string;
+  contact_name: string | null;
+  google_review_link: string | null;
 }> = {}) {
   return {
     id: CONVERSATION_ID,
@@ -85,6 +87,7 @@ function sendView(overrides: Partial<{
     contacts: {
       id: CONTACT_ID,
       phone_e164: overrides.phone_e164 ?? "+16135551000",
+      name: overrides.contact_name ?? null,
       first_identification_sent_at:
         overrides.first_identification_sent_at ?? null,
     },
@@ -93,7 +96,11 @@ function sendView(overrides: Partial<{
       number_e164: "+16135550100",
       status: overrides.number_status ?? "active",
     },
-    companies: { id: COMPANY_ID, name: "Acme Plumbing" },
+    companies: {
+      id: COMPANY_ID,
+      name: "Acme Plumbing",
+      google_review_link: overrides.google_review_link ?? null,
+    },
   };
 }
 
@@ -549,6 +556,60 @@ describe("POST /v1/messages/send — §5 footer exactly-once", () => {
     await postSend({ conversation_id: CONVERSATION_ID, body: "Reply" });
     expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: "Reply" });
     expect(stubs.footerStamp.calls).toHaveLength(0);
+  });
+});
+
+describe("POST /v1/messages/send — merge-fields (Step 0a)", () => {
+  it("substitutes {first_name}/{business_name} server-side at send time", async () => {
+    // Reply thread (hasInbound) so the footer never masks the merge output.
+    const stubs = sendStubs({
+      view: sendView({ contact_name: "Dana Whitfield" }),
+      hasInbound: true,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "Hi {first_name}, thanks for choosing {business_name}!",
+    });
+    expect(response.status).toBe(201);
+    const expected = "Hi Dana, thanks for choosing Acme Plumbing!";
+    // The MERGED text is what the gate stores and what Telnyx sends.
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: expected });
+    expect(stubs.telnyx.calls[0].body).toMatchObject({ text: expected });
+  });
+
+  it("substitutes {review_link} from the company link", async () => {
+    const stubs = sendStubs({
+      view: sendView({
+        contact_name: "Sam",
+        google_review_link: "https://g.page/r/xyz",
+      }),
+      hasInbound: true,
+    });
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "Review us: {review_link}",
+    });
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_body: "Review us: https://g.page/r/xyz",
+    });
+  });
+
+  it("drops an unknown/empty token cleanly (no literal braces on the wire)", async () => {
+    // No contact name → {first_name} degrades gracefully.
+    const stubs = sendStubs({ view: sendView({ contact_name: null }), hasInbound: true });
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "Hi {first_name}, on our way.",
+    });
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_body: "Hi, on our way.",
+    });
   });
 });
 

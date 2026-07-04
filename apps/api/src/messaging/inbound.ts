@@ -17,6 +17,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { maybeSendAwayReply } from "./away-reply";
+import { START_KEYWORDS, STOP_KEYWORDS } from "./keywords";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
@@ -24,20 +26,6 @@ import {
   mediaStoragePath,
 } from "./media";
 import type { TelnyxEvent, ThreadResult } from "./types";
-
-/**
- * The §5 standalone keyword lists: case-insensitive exact match of the
- * trimmed body — no Telnyx payload flag is relied on.
- */
-const STOP_KEYWORDS = new Set([
-  "STOP",
-  "STOPALL",
-  "UNSUBSCRIBE",
-  "CANCEL",
-  "END",
-  "QUIT",
-]);
-const START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
 
 /** message.received entry point (dispatched from /webhooks/telnyx, §7). */
 export async function handleInboundMessage(
@@ -100,6 +88,28 @@ export async function handleInboundMessage(
       fromE164,
       body: payload.text ?? "",
     });
+  }
+
+  // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
+  // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must
+  // NOT wedge the already-durable inbound message in a retry loop, and the
+  // guard's per-conversation throttle makes a sweeper replay a no-op anyway.
+  // Reply-exempt (D4); opt-out + STOP/HELP honored inside the guard.
+  if (threaded.created) {
+    try {
+      await maybeSendAwayReply(env, db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        fromE164,
+        triggerBody: payload.text ?? "",
+        atUtc: new Date(),
+      });
+    } catch (cause) {
+      console.error(
+        `away-reply for conversation ${threaded.conversation_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
   }
 
   // MMS media — always attempted (idempotent: existing attachment rows are
