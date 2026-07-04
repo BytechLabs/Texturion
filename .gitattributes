@@ -1,0 +1,17 @@
+# Normalize line endings: store LF in the repo, check out native in the working
+# tree. Keeps diffs clean across Windows / macOS / Linux and CI.
+* text=auto eol=lf
+
+# Binary assets — never normalize or diff as text.
+*.woff2 binary
+*.woff  binary
+*.ttf   binary
+*.otf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.svg   text
+*.pdf   binary
