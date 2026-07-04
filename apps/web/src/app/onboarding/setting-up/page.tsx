@@ -1,11 +1,12 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, Circle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { PORT_STATE_COPY } from "@/components/porting/copy";
 import { REGISTRATION_COPY } from "@/components/registration/copy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,12 +17,18 @@ import {
   useOnboardingResendOtp,
   useOnboardingVerifyOtp,
 } from "@/lib/api/onboarding";
+import { usePortRequestsForCompany } from "@/lib/api/porting";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading } from "../step-shell";
 import { hasPaid, owesUsRegistration } from "../steps";
 import { useOnboardingState } from "../use-onboarding-state";
+import {
+  PORT_CHECKLIST_COPY,
+  resolvePortChecklistItem,
+  type PortChecklistItem,
+} from "./port-item";
 import { useProvisioningEvents } from "./use-provisioning-events";
 
 /**
@@ -31,9 +38,16 @@ import { useProvisioningEvents } from "./use-provisioning-events";
  * tabular type with a copy button; the US registration row stays honestly
  * pending with the SPEC §4.4 sentence; the sole-prop OTP input appears here
  * while the code is outstanding; CA-only goes straight to done.
+ *
+ * A port-in signup (PORTING.md §8.1) swaps the "Creating your number" row for
+ * an honest transfer item: the Telnyx order rests at `draft` until the LOA +
+ * a recent bill are uploaded and submitted (§3.5/§4 P5), so the required
+ * document step is surfaced LOUDLY here — nothing advances by itself until
+ * the owner acts. Once submitted, the row carries the honest multi-week
+ * window and a link to the Settings → Numbers tracker.
  */
 
-type RowStatus = "done" | "working" | "waiting";
+type RowStatus = "done" | "working" | "waiting" | "action";
 
 function RowIcon({ status, order = 0 }: { status: RowStatus; order?: number }) {
   if (status === "done") {
@@ -55,6 +69,15 @@ function RowIcon({ status, order = 0 }: { status: RowStatus; order?: number }) {
     return (
       <span className="flex size-6 items-center justify-center text-primary">
         <Loader2 className="size-5 animate-spin" strokeWidth={1.75} aria-hidden />
+      </span>
+    );
+  }
+  if (status === "action") {
+    // Needs the user, not time — a spinner here would promise progress that
+    // isn't happening. Amber matches the port card's exception treatment.
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-warning/15 text-amber-800 dark:text-warning">
+        <AlertTriangle className="size-4" strokeWidth={2} aria-hidden />
       </span>
     );
   }
@@ -89,7 +112,11 @@ function ChecklistRow({
         >
           {title}
           <span className="sr-only">
-            {status === "done" ? " — done" : " — in progress"}
+            {status === "done"
+              ? " — done"
+              : status === "action"
+                ? " — needs your attention"
+                : " — in progress"}
           </span>
         </p>
         {children}
@@ -213,6 +240,95 @@ function OtpRow({
   );
 }
 
+/** Human date for the confirmed switch-over (mirrors the Settings port card). */
+function switchDate(iso: string | null): string {
+  if (!iso) return "your switch-over date";
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/**
+ * The port item body (PORTING.md §8.1/§9). The user-gated phases get a loud
+ * petrol CTA into Settings → Numbers (where the documents form and submit
+ * live); the carrier-side phases reuse the §9 banner copy plus a quiet
+ * tracking link. Members see who acts instead of a button they can't use.
+ */
+function PortRow({
+  item,
+  canAct,
+}: {
+  item: PortChecklistItem;
+  canAct: boolean;
+}) {
+  const { port, phase } = item;
+
+  if (phase === "needs_documents" || phase === "needs_submit") {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          {canAct
+            ? phase === "needs_documents"
+              ? PORT_CHECKLIST_COPY.needsDocuments
+              : PORT_CHECKLIST_COPY.needsSubmit
+            : PORT_CHECKLIST_COPY.memberDocuments}
+        </p>
+        {canAct ? (
+          <Button asChild>
+            <Link href="/settings/numbers">
+              {phase === "needs_documents"
+                ? PORT_CHECKLIST_COPY.needsDocumentsCta
+                : PORT_CHECKLIST_COPY.needsSubmitCta}
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (phase === "needs_fix") {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          {PORT_STATE_COPY.voiceException(port.rejection_reason)}
+        </p>
+        {canAct ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href="/settings/numbers">Fix and resubmit</Link>
+          </Button>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">
+            Ask an owner or admin to fix the flagged details and resubmit.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Carrier-side phases — honest §9 copy, nothing for the user to do here.
+  const body =
+    phase === "date_confirmed"
+      ? PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date))
+      : phase === "texting_activating"
+        ? PORT_STATE_COPY.numberSwitched
+        : phase === "texting_delayed"
+          ? PORT_STATE_COPY.messagingException
+          : `${PORT_STATE_COPY.submitted} ${PORT_CHECKLIST_COPY.inReviewWindow}`;
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">{body}</p>
+      <Link
+        href="/settings/numbers"
+        className="inline-block text-[13px] font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {PORT_CHECKLIST_COPY.trackLink}
+      </Link>
+    </div>
+  );
+}
+
 function SettingUp() {
   const state = useOnboardingState();
   const router = useRouter();
@@ -221,6 +337,10 @@ function SettingUp() {
   const checkoutSuccess = searchParams.get("checkout") === "success";
 
   useProvisioningEvents(state.companyId);
+  // A port-in signup replaces the provisioning row (PORTING.md §8.1) — the
+  // list rides the same cache the Settings tracker uses, refreshed by the
+  // `port.updated` broadcast wired in useProvisioningEvents.
+  const ports = usePortRequestsForCompany(state.companyId);
 
   const company = state.company;
   // Redirect guard: this screen is the post-payment surface only. A
@@ -265,13 +385,28 @@ function SettingUp() {
   }, [needsNudge, companyId, queryClient]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
-  if (state.status !== "ready" || !company || !companyId || redirectTo) {
+  if (
+    state.status !== "ready" ||
+    !company ||
+    !companyId ||
+    redirectTo ||
+    // Wait for the port list too — rendering "Creating your number — under a
+    // minute" and then swapping to the transfer item would flash a lie. On a
+    // ports error we fall back to the plain row rather than blocking setup.
+    ports.isPending
+  ) {
     return <StepLoading />;
   }
 
   const activeNumber = company.numbers.find((n) => n.status === "active");
   const provisionFailed =
     !activeNumber && company.numbers.some((n) => n.status === "provision_failed");
+  // Non-cancelled port + no active number → the honest transfer item replaces
+  // the provisioning row. Everyone else keeps today's behavior.
+  const portItem = resolvePortChecklistItem(
+    company.numbers,
+    ports.data?.data ?? [],
+  );
 
   const owes = owesUsRegistration(company);
   const brand = state.registration?.brand ?? null;
@@ -293,7 +428,11 @@ function SettingUp() {
       : "your mobile";
   const canActOnRegistration = state.role === "owner" || state.role === "admin";
 
-  const numberStatus: RowStatus = activeNumber ? "done" : "working";
+  const numberStatus: RowStatus = activeNumber
+    ? "done"
+    : portItem?.actionNeeded
+      ? "action"
+      : "working";
   const registrationStatus: RowStatus =
     !owes || campaignApproved ? "done" : confirming ? "waiting" : "working";
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
@@ -314,7 +453,11 @@ function SettingUp() {
         <p className="text-sm text-muted-foreground">
           {numberReady
             ? "Everything below is live — text your new number to see it land."
-            : "This screen updates itself — no refreshing needed."}
+            : portItem?.actionNeeded
+              ? // "Updates itself" would be a lie while the transfer waits on
+                // the user — say so instead.
+                "One step below needs you — the rest updates itself."
+              : "This screen updates itself — no refreshing needed."}
         </p>
       </div>
 
@@ -322,25 +465,42 @@ function SettingUp() {
         className="divide-y divide-border-subtle rounded-lg border border-border bg-card px-6 py-5"
         aria-live="polite"
       >
-        <ChecklistRow status={numberStatus} order={0} title="Creating your number">
-          {activeNumber?.number_e164 ? (
-            // §3.4 number reveal via the tokens-track primitive: the
-            // emotional-number scale + fade-rise + copy button.
-            <NumberReveal
-              value={formatPhone(activeNumber.number_e164)}
-              copyValue={formatPhone(activeNumber.number_e164)}
-              copyable
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {confirming
-                ? "Confirming your payment — a few seconds."
-                : provisionFailed
-                  ? REGISTRATION_COPY.numberDelayed
-                  : REGISTRATION_COPY.numberProvisioning}
-            </p>
-          )}
-        </ChecklistRow>
+        {portItem ? (
+          // Port-in: the honest transfer item (PORTING.md §8.1) — never the
+          // "under a minute" provisioning copy, which would flatly contradict
+          // the multi-week transfer window.
+          <ChecklistRow
+            status={numberStatus}
+            order={0}
+            title={PORT_CHECKLIST_COPY.title}
+          >
+            <PortRow item={portItem} canAct={canActOnRegistration} />
+          </ChecklistRow>
+        ) : (
+          <ChecklistRow
+            status={numberStatus}
+            order={0}
+            title="Creating your number"
+          >
+            {activeNumber?.number_e164 ? (
+              // §3.4 number reveal via the tokens-track primitive: the
+              // emotional-number scale + fade-rise + copy button.
+              <NumberReveal
+                value={formatPhone(activeNumber.number_e164)}
+                copyValue={formatPhone(activeNumber.number_e164)}
+                copyable
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {confirming
+                  ? "Confirming your payment — a few seconds."
+                  : provisionFailed
+                    ? REGISTRATION_COPY.numberDelayed
+                    : REGISTRATION_COPY.numberProvisioning}
+              </p>
+            )}
+          </ChecklistRow>
+        )}
 
         <ChecklistRow
           status={registrationStatus}

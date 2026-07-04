@@ -43,9 +43,10 @@ export default function MessagingPolicyPage() {
       <LegalSectionBlock id="program" heading="1. What this program is">
         <p>
           JobText is a shared text inbox that local service businesses in the
-          United States and Canada use to text <strong>their own customers</strong>
-          , appointment questions, quotes, photos of the job, on-my-way
-          updates, and replies to messages those customers sent. Every message
+          United States and Canada use to text{" "}
+          <strong>their own customers</strong> — appointment questions, quotes,
+          photos of the job, on-my-way updates, and replies to messages those
+          customers sent. Every message
           relayed through JobText is a conversation between one business and a
           customer of that business. JobText is not a bulk-marketing platform
           and does not offer blast tools, see our{" "}

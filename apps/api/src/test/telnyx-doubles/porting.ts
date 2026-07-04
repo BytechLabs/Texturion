@@ -35,6 +35,15 @@ export const pollPortRequests = vi.fn<
   (env: Env, now?: Date) => Promise<void>
 >(async () => {});
 
+export const sendPortEmail = vi.fn<
+  (
+    env: Env,
+    db: unknown,
+    companyId: string,
+    copy: { subject: string; text: string; html: string },
+  ) => Promise<void>
+>(async () => {});
+
 export const uploadPortDocument = vi.fn<
   (
     env: Env,

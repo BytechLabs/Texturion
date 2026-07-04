@@ -248,7 +248,10 @@ export function PortCard({
               strokeWidth={1.75}
               aria-hidden
             />
-            <span>{PORT_STATE_COPY.voiceException(port.rejection_reason)}</span>
+            {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
+            <span className="min-w-0 break-words">
+              {PORT_STATE_COPY.voiceException(port.rejection_reason)}
+            </span>
           </div>
         ) : ui.exception === "messaging" ? (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
@@ -271,6 +274,31 @@ export function PortCard({
           <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
             {PORT_STATE_COPY.documentsPending}
           </p>
+        ) : null}
+
+        {/* D16: the opt-in temporary number is live — quiet good news
+            alongside the state banner, so "you can text today" never gets
+            lost while the real number is still transferring. */}
+        {ui.bridge ? (
+          <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+            {PORT_STATE_COPY.bridgeAvailable(formatPhone(ui.bridge))}
+          </p>
+        ) : null}
+
+        {/* §8.2/§9: post-port 10DLC assignment blocked by the old provider's
+            campaign — the one customer-actionable messaging holdup. Quiet
+            amber (it's a to-do, not an alarm), alongside the state banner. */}
+        {ui.assignmentBlocked ? (
+          <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <span className="min-w-0 break-words">
+              {PORT_STATE_COPY.assignmentBlocked(display)}
+            </span>
+          </div>
         ) : null}
 
         {/* Draft: upload documents, then submit (documents-gated, §8.2). */}

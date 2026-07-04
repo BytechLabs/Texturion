@@ -14,13 +14,19 @@
  *     - body defaults to an owner-friendly review ask; a custom body is allowed
  *       (must contain no consent burden — it is reply-exempt when the thread is
  *       warm; the send gates still run).
+ *     - quiet hours + thread recency (FEATURE-GAPS Step 0b / §3): quiet hours
+ *       (destination-local 20:00–08:00) apply to EVERY review send, and a COLD
+ *       thread — no inbound within the 72h reply window — makes the ask a new
+ *       outbound. Either case 409s with compose's stable
+ *       `quiet_hours_confirmation_required` code until the caller retries with
+ *       quiet_hours_confirmed=true, so the web reuses one confirm dialog.
  *
  * Compliance basis: honors the opt-out mirror (in the RPC) and runs the §7 send
  * gates. The review URL is new emitted content (Gate 2 / 10DLC) — the company's
  * campaign must cover it (Step 0c, an onboarding/registration concern, not this
  * route). The one-tap-only, one-per-job shape is the anti-spam non-goal (§3).
  */
-import { estimateSegments } from "@jobtext/shared";
+import { destinationLocalHour, estimateSegments } from "@jobtext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -32,6 +38,7 @@ import { ApiError } from "../http/errors";
 import { applySendMergeFields } from "../messaging/merge";
 import { dispatchOutbound, runPreSendGates } from "../messaging/send";
 import type { MessageRow } from "../messaging/types";
+import { insertConversationEvents } from "./core/events";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 /**
@@ -40,6 +47,16 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
  * comfortably spans a job's lifetime — "one per job" in practice.
  */
 export const REVIEW_SUPPRESS_SECONDS = 30 * 24 * 60 * 60;
+
+/**
+ * Thread-recency reply window (FEATURE-GAPS Step 0b): a review ask counts as a
+ * reply only while the conversation's last inbound is at most this old. Past
+ * it — or with no inbound at all — the thread is COLD and the ask is a NEW
+ * outbound, so it takes the explicit confirm path exactly like compose. 72h is
+ * the top of the doc's 24–72h product range (a finished job's review ask often
+ * lands days later; 72h keeps the warm path useful without stretching "reply").
+ */
+export const REVIEW_REPLY_WINDOW_SECONDS = 72 * 60 * 60;
 
 /**
  * The default owner-friendly review ask. Emitted only when the caller does not
@@ -51,6 +68,9 @@ export const DEFAULT_REVIEW_MESSAGE =
 
 const reviewSchema = z.object({
   body: z.string().trim().min(1).max(2000).optional(),
+  // Same explicit confirm as compose (§5): acknowledges the quiet-hours 409
+  // (which also covers the cold-thread case) and retries the send.
+  quiet_hours_confirmed: z.boolean().optional(),
 });
 
 interface ReviewSendView {
@@ -117,6 +137,44 @@ reviewRoutes.post(
     // §7 send gates: subscription active → US/CA destination → registration.
     await runPreSendGates(env, companyId, view.contacts.phone_e164);
 
+    // Quiet hours + thread recency (FEATURE-GAPS Step 0b / §3), BEFORE the
+    // claim so a refused ask never burns the one-per-job suppression:
+    //   • quiet hours apply to review sends REGARDLESS of thread warmth —
+    //     destination-local 20:00–08:00 needs the explicit confirm (the same
+    //     soft gate compose runs; unknown local time skips the clock check);
+    //   • a COLD thread — no inbound yet, or the last inbound older than the
+    //     72h reply window — makes this ask a NEW outbound, not a reply, so
+    //     it takes the same confirm path even in-hours.
+    // One stable 409 code covers both, so the web reuses compose's dialog.
+    const lastInbound = unwrap<{ created_at: string }[]>(
+      await db
+        .from("messages")
+        .select("created_at")
+        .eq("company_id", companyId)
+        .eq("conversation_id", conversationId)
+        .eq("direction", "inbound")
+        .order("created_at", { ascending: false })
+        .limit(1),
+      "last inbound lookup",
+    )[0];
+    const lastInboundMs = lastInbound
+      ? Date.parse(lastInbound.created_at)
+      : Number.NaN;
+    const coldThread =
+      !Number.isFinite(lastInboundMs) ||
+      Date.now() - lastInboundMs > REVIEW_REPLY_WINDOW_SECONDS * 1000;
+
+    const hour = destinationLocalHour(view.contacts.phone_e164, new Date());
+    const quietHours = hour !== null && (hour >= 20 || hour < 8);
+    if ((quietHours || coldThread) && body.quiet_hours_confirmed !== true) {
+      throw new ApiError(
+        "quiet_hours_confirmation_required",
+        quietHours
+          ? `It's ${String(hour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to send anyway.`
+          : "This customer hasn't texted in a few days, so a review ask starts a new conversation. Confirm with quiet_hours_confirmed to send anyway.",
+      );
+    }
+
     // Merge {review_link}/{business_name}/{first_name} at send time.
     const merged = applySendMergeFields(body.body ?? DEFAULT_REVIEW_MESSAGE, {
       contactName: view.contacts.name,
@@ -160,6 +218,21 @@ reviewRoutes.post(
     }
     if (!result.message?.id) {
       throw new Error("claim_review_request returned no message row");
+    }
+
+    // Audit trail mirrors compose (§5): the quiet-hours confirmation is
+    // recorded when it actually gated the send. (The review_requested event
+    // itself is written inside the claim RPC.)
+    if (quietHours) {
+      await insertConversationEvents(db, [
+        {
+          company_id: companyId,
+          conversation_id: conversationId,
+          actor_user_id: userId,
+          type: "quiet_hours_confirmed",
+          payload: { destination_local_hour: hour },
+        },
+      ]);
     }
 
     const sent = await dispatchOutbound(env, db, result.message, {

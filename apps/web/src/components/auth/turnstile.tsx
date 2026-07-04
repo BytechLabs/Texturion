@@ -130,8 +130,14 @@ export function Turnstile({
   return (
     <div data-slot="turnstile" className="space-y-2">
       {/* min-height matches the normal-size widget (65px) to avoid the form
-          jumping when the challenge iframe appears. */}
-      <div ref={containerRef} className="min-h-[65px]" />
+          jumping when the challenge iframe appears. Named as a group so the
+          injected challenge iframe has context in the accessibility tree. */}
+      <div
+        ref={containerRef}
+        role="group"
+        aria-label="Security check"
+        className="min-h-[65px]"
+      />
       {failed && (
         <p role="alert" className="text-sm text-destructive">
           We couldn&apos;t load the security check. Refresh the page and try

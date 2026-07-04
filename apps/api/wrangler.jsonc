@@ -35,6 +35,20 @@
         // Account-unique id for this limiter's namespace.
         "namespace_id": "1001",
         "simple": { "limit": 10, "period": 10 }
+      },
+      {
+        // SPEC §10 DoS posture: the keep-your-number ownership-verification
+        // endpoints (routes/text-enablement.ts). Requesting a code makes
+        // Telnyx SMS/CALL the target number — one the company has NOT yet
+        // proven it owns — and the verify endpoint accepts code guesses, so
+        // both are bounded per TARGET NUMBER (the would-be victim): 3 per
+        // minute caps the call/SMS-bombing and code-brute-force rate while
+        // leaving a legitimate request-then-resend flow untouched. Local
+        // dev/tests run without the binding (optional in src/env.ts).
+        "name": "VERIFY_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1002",
+        "simple": { "limit": 3, "period": 60 }
       }
     ]
   },

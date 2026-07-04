@@ -48,12 +48,20 @@ export const fetchProvisioningCompany = vi.fn<
   subscription_status: "active",
 }));
 
+/**
+ * Shape mirror of the contract's return (the caller-visible subset): stripe.ts
+ * links `port_requests.bridge_number_id` from the returned row's id, so the
+ * double answers bridge-keyed calls with a stable row and normal calls with
+ * null (the §9 skip shape — callers ignore the happy-path row otherwise).
+ */
 export const provisionCompanyNumber = vi.fn<
   (
     env: Env,
-    input: { companyId: string; checkoutSessionId: string },
-  ) => Promise<void>
->(async () => {});
+    input: { companyId: string; checkoutSessionId: string; bridge?: boolean },
+  ) => Promise<{ id: string } | null>
+>(async (_env, input) =>
+  input.bridge === true ? { id: "bridge-number-double" } : null,
+);
 
 export const suspendCompanyNumbers = vi.fn<
   (env: Env, companyId: string) => Promise<void>

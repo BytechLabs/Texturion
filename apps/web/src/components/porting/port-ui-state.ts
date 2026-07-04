@@ -56,6 +56,21 @@ export interface PortUiState {
   canSubmit: boolean;
   /** Whether the fix-and-resubmit action applies (voice exception, docs ok). */
   canResubmit: boolean;
+  /**
+   * Post-port 10DLC assignment FAILED (§8.2/§9): render the quiet amber "ask
+   * your previous texting provider to remove this number from their carrier
+   * campaign" guidance. Orthogonal to the tracker — it can coexist with any
+   * post-cutover step (and even with `live`, since the messaging port and the
+   * campaign linkage are separate tracks).
+   */
+  assignmentBlocked: boolean;
+  /**
+   * The live temporary (bridge) number to show while the transfer is still in
+   * flight (PORTING.md D16 opt-in "text today" number), or null. Goes quiet
+   * once texting is live on the real number (releasing the bridge takes over
+   * as the story) or the port is abandoned.
+   */
+  bridge: string | null;
 }
 
 /**
@@ -183,5 +198,8 @@ export function derivePortUiState(port: PortRequest): PortUiState {
     documentsPending: !hasDocuments,
     canSubmit: status === "draft" && hasDocuments,
     canResubmit: status === "exception" && hasDocuments,
+    assignmentBlocked: port.assignment_blocked === true && !cancelled,
+    // `?? null` tolerates pre-bridge cached shapes that lack the field.
+    bridge: !live && !cancelled ? (port.bridge_number_e164 ?? null) : null,
   };
 }

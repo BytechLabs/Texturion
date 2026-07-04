@@ -46,6 +46,26 @@ function summarizeIssues(error: z.ZodError): string {
 }
 
 /**
+ * Cheap DoS guard for multipart routes (SPEC §10): reject an oversized upload
+ * from its declared Content-Length BEFORE `formData()` buffers the whole body
+ * into Worker memory. Best-effort by design — a chunked request carries no
+ * Content-Length and falls through to the per-file size checks that run after
+ * parsing — but a declared length over the cap is refused without reading a
+ * single body byte.
+ */
+export function assertBodyWithinLimit(c: Context, maxBytes: number): void {
+  const header = c.req.header("Content-Length");
+  if (header === undefined) return;
+  const declared = Number(header);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new ApiError(
+      "validation_failed",
+      `Request body exceeds the ${Math.ceil(maxBytes / (1024 * 1024))} MB upload limit.`,
+    );
+  }
+}
+
+/**
  * `limit` query param: positive integer, capped at `max`, `fallback` when
  * absent (SPEC §7: conversations default 25; messages default 50, max 100).
  */

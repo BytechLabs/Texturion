@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, telnyxUpload, TelnyxApiError } from "./client";
 import {
+  portBridgeReleaseNudgeCopy,
   portCompletedCopy,
   portExceptionCopy,
   portFocConfirmedCopy,
@@ -491,7 +492,11 @@ export async function cancelPortingOrder(
 // Emails + reason flattening
 // ---------------------------------------------------------------------------
 
-async function sendPortEmail(
+/**
+ * Exported for the paid-checkout tail (webhooks/stripe.ts), which sends the
+ * "upload your documents" nudge the moment a port-carrying signup pays.
+ */
+export async function sendPortEmail(
   env: Env,
   db: SupabaseClient,
   companyId: string,
@@ -832,6 +837,30 @@ async function runP6Completion(
     updated.company_id,
     portCompletedCopy(updated.phone_e164, env),
   );
+
+  // P6e — bridge nudge: the opt-in tide-me-over number has done its job; nudge
+  // the owner to release it (their call — never automatic). Rides P6's
+  // idempotency guard, so it fires once with P6d. Best-effort: a nudge failure
+  // must not wedge the completed port (P6c already stamped ported_at).
+  if (updated.bridge_number_id) {
+    try {
+      const bridge = await fetchPhoneRow(db, updated.bridge_number_id);
+      if (bridge?.status === "active" && bridge.number_e164) {
+        await sendPortEmail(
+          env,
+          db,
+          updated.company_id,
+          portBridgeReleaseNudgeCopy(
+            updated.phone_e164,
+            bridge.number_e164,
+            env,
+          ),
+        );
+      }
+    } catch (cause) {
+      Sentry.captureException(cause);
+    }
+  }
   return updated;
 }
 

@@ -46,10 +46,16 @@ import {
   type ConversationEventRow,
   type ConversationEventType,
 } from "./core/events";
-import { pathUuid, unwrap } from "./core/http";
+import { assertBodyWithinLimit, pathUuid, unwrap } from "./core/http";
 
 const MMS_BUCKET = "mms-media";
 const MMS_TTL_SECONDS = 3600;
+
+// Whole-request ceiling for the upload route: one 25 MB file + generous
+// multipart overhead. Checked from Content-Length BEFORE formData() buffers
+// the body (SPEC §10 DoS posture); the per-file byte check below remains the
+// authoritative gate.
+const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_BYTES + 1024 * 1024;
 
 /** Columns the generic attachment row API returns (never storage_path). */
 const ATTACHMENT_COLUMNS =
@@ -108,6 +114,9 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
+
+  // Declared-size gate BEFORE formData() buffers the whole body (§10).
+  assertBodyWithinLimit(c, MAX_UPLOAD_BODY_BYTES);
 
   let form: FormData;
   try {

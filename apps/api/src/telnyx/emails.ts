@@ -128,6 +128,26 @@ export function portMessagingExceptionCopy(number: string): EmailCopy {
   );
 }
 
+/**
+ * PORTING.md §9: 10DLC campaign assignment FAILED post-port — the one
+ * customer-actionable messaging failure (contrast the messaging exception,
+ * where Telnyx escalates and the customer does nothing). Typically the LOSING
+ * provider still holds the number in their carrier campaign; only the
+ * customer can ask them to release it. Sent ONCE per stuck number — the
+ * `assignmentFailureNotified` stamp in registration.ts guards it across the
+ * §4.4 retry cron's re-runs.
+ */
+export function portAssignmentBlockedCopy(number: string, env: Env): EmailCopy {
+  return copy(
+    "Action needed to finish activating texting",
+    `Hi,\n\n${number} moved over to JobText — one more step finishes ` +
+      `activating texting: ask your previous texting provider to remove ` +
+      `${number} from their carrier campaign, then we'll finish connecting ` +
+      `it. We'll retry automatically once they do.\n\n` +
+      `Details: ${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
+  );
+}
+
 /** PORTING.md §9 / §4 P6d: texting live — the port completed. */
 export function portCompletedCopy(number: string, env: Env): EmailCopy {
   return copy(
@@ -135,5 +155,44 @@ export function portCompletedCopy(number: string, env: Env): EmailCopy {
     `Hi,\n\nGreat news — ${number} is now live on JobText. You can text your ` +
       `customers straight from your inbox.\n\nOpen your inbox: ${env.APP_ORIGIN}\n\n` +
       `— JobText`,
+  );
+}
+
+/**
+ * PORTING.md §9 / paid-checkout tail: the transfer can't start until the
+ * customer uploads the signed LOA + a recent bill (the §3.5 documents gate),
+ * an upload only possible AFTER payment — so the moment they've paid is the
+ * moment to tell them. Sent once from the checkout webhook (the webhook
+ * ledger dedupes redelivery); skipped when the documents are already on file.
+ */
+export function portDocumentsNeededCopy(number: string, env: Env): EmailCopy {
+  return copy(
+    "Next step: two documents start your number transfer",
+    `Hi,\n\nYou're in — one step starts the transfer of ${number}: upload a ` +
+      `signed authorization (LOA) and a recent bill from your current ` +
+      `carrier. The transfer can't move until we have both; it takes about ` +
+      `two minutes, and your number keeps working the whole time.\n\n` +
+      `Upload them here: ${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
+  );
+}
+
+/**
+ * PORTING.md §4 P6e: the port completed and a tide-me-over bridge number is
+ * still active — nudge the owner to release it so it stops holding a plan
+ * slot (releasing is their call; nothing is released automatically). Fires
+ * with P6d under the same P6 idempotency guard, so it sends once.
+ */
+export function portBridgeReleaseNudgeCopy(
+  portedNumber: string,
+  bridgeNumber: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "Your real number is live — you can release the temporary one",
+    `Hi,\n\n${portedNumber} is live on JobText, so the temporary number we ` +
+      `set up (${bridgeNumber}) has done its job. Conversations stay right ` +
+      `where they are — releasing it just frees the number slot on your ` +
+      `plan. Keep it if you're still using it; release it whenever you're ` +
+      `ready:\n\n${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
   );
 }

@@ -9,7 +9,12 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { parseJsonBody, parseWith, pathUuid } from "./core/http";
+import {
+  assertBodyWithinLimit,
+  parseJsonBody,
+  parseWith,
+  pathUuid,
+} from "./core/http";
 import {
   cancelPortRequest,
   checkPortability,
@@ -21,6 +26,7 @@ import {
   type PortabilityResult,
   type PortRequestRow,
 } from "../telnyx/porting";
+import { fetchRegistrationRows } from "../telnyx/registration";
 
 /**
  * Port-in routes (PORTING.md §6/§7; SPEC §7 conventions: /v1, JWT +
@@ -68,10 +74,75 @@ const PORT_COLUMNS =
   "created_at,updated_at";
 
 /**
+ * PORTING.md §8.2/§9: which of the company's numbers have a FAILED post-port
+ * 10DLC campaign assignment (typically the LOSING provider still holds the
+ * number in THEIR carrier campaign — only the customer can ask them to release
+ * it). The state lives on the campaign row's `data.numberAssignments` ledger
+ * (telnyx/registration.ts); the port card renders the §9 "ask your previous
+ * texting provider…" guidance from the per-port flag. Assignment first runs at
+ * P6b (after voice cutover), so callers only consult this once a port has
+ * reached `ported`.
+ */
+async function assignmentBlockedNumbers(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<ReadonlySet<string>> {
+  const { campaign } = await fetchRegistrationRows(db, companyId);
+  const blocked = new Set<string>();
+  const raw = campaign?.data.numberAssignments;
+  if (raw !== null && raw !== undefined && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [e164, state] of Object.entries(raw as Record<string, unknown>)) {
+      if (state === "failed") blocked.add(e164);
+    }
+  }
+  return blocked;
+}
+
+const NO_BLOCKED_NUMBERS: ReadonlySet<string> = new Set();
+
+/**
+ * PORTING.md D16: resolve each port's LIVE bridge number for the serializer.
+ * The opt-in tide-me-over number is a normal `phone_numbers` row linked via
+ * `bridge_number_id` (written by the paid-checkout webhook); the card shows
+ * it only while it is genuinely usable (`status='active'`), so a
+ * provisioning/failed/released bridge never renders a number the composer
+ * can't send from. Keyed by phone-number row id.
+ */
+async function bridgeNumbers(
+  db: SupabaseClient,
+  rows: readonly PortRequestRow[],
+): Promise<ReadonlyMap<string, string>> {
+  const ids = rows
+    .map((row) => row.bridge_number_id)
+    .filter((id): id is string => id !== null);
+  if (ids.length === 0) return NO_BRIDGE_NUMBERS;
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select("id,number_e164,status")
+    .in("id", ids)
+    .eq("status", "active");
+  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+  const live = new Map<string, string>();
+  for (const phone of (data ?? []) as {
+    id: string;
+    number_e164: string | null;
+  }[]) {
+    if (phone.number_e164) live.set(phone.id, phone.number_e164);
+  }
+  return live;
+}
+
+const NO_BRIDGE_NUMBERS: ReadonlyMap<string, string> = new Map();
+
+/**
  * §2.2 PII policy: pin_passcode + account_number NEVER leave the server —
  * serialize them as on-file booleans only.
  */
-function sanitizePort(row: PortRequestRow & { created_at?: string | null }) {
+function sanitizePort(
+  row: PortRequestRow & { created_at?: string | null },
+  assignmentBlocked: ReadonlySet<string> = NO_BLOCKED_NUMBERS,
+  bridge: ReadonlyMap<string, string> = NO_BRIDGE_NUMBERS,
+) {
   return {
     id: row.id,
     phone_e164: row.phone_e164,
@@ -93,6 +164,12 @@ function sanitizePort(row: PortRequestRow & { created_at?: string | null }) {
     is_wireless: row.is_wireless,
     wants_bridge_number: row.wants_bridge_number,
     bridge_number_id: row.bridge_number_id,
+    // D16: the live tide-me-over number, resolved by the GET routes via
+    // bridgeNumbers (null while it is still provisioning, or released).
+    // Mutation routes serialize with the default; the card re-reads the list.
+    bridge_number_e164: row.bridge_number_id
+      ? (bridge.get(row.bridge_number_id) ?? null)
+      : null,
     has_pin: row.pin_passcode !== null && row.pin_passcode !== undefined,
     has_account_number:
       row.account_number !== null && row.account_number !== undefined,
@@ -102,6 +179,10 @@ function sanitizePort(row: PortRequestRow & { created_at?: string | null }) {
       row.ssn_sin_last4 !== null && row.ssn_sin_last4 !== undefined,
     has_loa: row.telnyx_loa_document_id !== null,
     has_invoice: row.telnyx_invoice_document_id !== null,
+    // §8.2/§9: post-port 10DLC assignment FAILED — the card's "ask your
+    // previous texting provider…" guidance keys off this. Definitionally
+    // false pre-cutover, so mutation routes serialize with the default.
+    assignment_blocked: assignmentBlocked.has(row.phone_e164),
     submitted_at: row.submitted_at,
     ported_at: row.ported_at,
     cancelled_at: row.cancelled_at,
@@ -508,24 +589,40 @@ function executionCtxOf(
 /** GET /v1/port-requests — any member: list the company's ports. */
 portingRoutes.get("/", async (c) => {
   const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
   const { data, error } = await db
     .from("port_requests")
     .select(PORT_COLUMNS)
-    .eq("company_id", c.get("companyId"))
+    .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`port_requests lookup failed: ${error.message}`);
   const rows = (data ?? []) as unknown as (PortRequestRow &
     Record<string, unknown>)[];
-  return c.json({ data: rows.map(sanitizePort), next_cursor: null });
+  // Assignment runs post-cutover (P6b), so skip the campaign read entirely
+  // unless a port has actually reached `ported`.
+  const blocked = rows.some((row) => row.status === "ported")
+    ? await assignmentBlockedNumbers(db, companyId)
+    : NO_BLOCKED_NUMBERS;
+  const bridge = await bridgeNumbers(db, rows);
+  return c.json({
+    data: rows.map((row) => sanitizePort(row, blocked, bridge)),
+    next_cursor: null,
+  });
 });
 
 /** GET /v1/port-requests/:id — any member: one port's full state. */
 portingRoutes.get("/:id", async (c) => {
   const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
   const id = pathUuid(c, "id");
-  const port = await loadPort(db, c.get("companyId"), id);
+  const port = await loadPort(db, companyId, id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  return c.json(sanitizePort(port));
+  const blocked =
+    port.status === "ported"
+      ? await assignmentBlockedNumbers(db, companyId)
+      : NO_BLOCKED_NUMBERS;
+  const bridge = await bridgeNumbers(db, [port]);
+  return c.json(sanitizePort(port, blocked, bridge));
 });
 
 // ---------------------------------------------------------------------------
@@ -582,6 +679,10 @@ portingRoutes.put("/:id", requireRole("admin"), async (c) => {
 });
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024; // 10 MB
+// Whole-request ceiling for the documents route: two 10 MB files + generous
+// multipart overhead. Checked from Content-Length BEFORE formData() buffers
+// the body (SPEC §10 DoS posture).
+const MAX_DOCUMENTS_BODY_BYTES = 2 * MAX_DOCUMENT_BYTES + 1024 * 1024;
 const DOC_CONTENT_TYPES = new Set([
   "application/pdf",
   "image/png",
@@ -617,6 +718,9 @@ portingRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
       "Documents can be uploaded once your subscription is active — you'll finish payment first, then upload the LOA and bill.",
     );
   }
+
+  // Declared-size gate BEFORE formData() buffers the whole body (§10).
+  assertBodyWithinLimit(c, MAX_DOCUMENTS_BODY_BYTES);
 
   let form: FormData;
   try {

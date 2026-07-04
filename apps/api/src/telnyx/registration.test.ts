@@ -6,6 +6,7 @@ import {
   handle10dlcEvent,
   nudgeSoleProprietorOtp,
   pollRegistrations,
+  retryCampaignAssignments,
   submitRegistration,
   updateCampaignContent,
   type RegistrationRow,
@@ -89,6 +90,8 @@ function setup(companyOverrides: Record<string, unknown> = {}) {
     number_e164: null,
     telnyx_phone_number_id: null,
   });
+  // Read by the assignment-FAILED branch (§9: is the stuck number a port?).
+  rest.table("port_requests", { status: "ported" });
   rest.table("company_members");
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
@@ -455,7 +458,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
   });
 
   it("10dlc.phone_number.update ADDED / FAILED updates the assignment ledger", async () => {
-    const { env, rest } = setup();
+    const { env, rest, emails } = setup();
     seedRows(
       rest,
       {},
@@ -498,6 +501,111 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
       numberAssignments: Record<string, string>;
     }).numberAssignments;
     expect(ledger["+12125550123"]).toBe("failed");
+    // Not a ported number (no port_requests row) → the §9 port guidance email
+    // does not apply; the failure still lands in Sentry + the ledger.
+    expect(emails).toHaveLength(0);
+  });
+
+  // PORTING.md §8.2/§9: the assignment-FAILED guidance must actually reach the
+  // customer — one email at the transition into FAILED, never per retry.
+  describe("assignment FAILED for a ported number — one-shot §9 email", () => {
+    const FAILED_EVENT = {
+      data: {
+        event_type: "10dlc.phone_number.update",
+        payload: {
+          campaignId: "camp-1",
+          phoneNumber: "+12125550123",
+          status: "FAILED",
+          reasons: ["number is registered to another campaign"],
+        },
+      },
+    };
+    const ADDED_EVENT = {
+      data: {
+        event_type: "10dlc.phone_number.update",
+        payload: {
+          campaignId: "camp-1",
+          phoneNumber: "+12125550123",
+          status: "ADDED",
+        },
+      },
+    };
+
+    function seedPortedNumber(rest: FakeRest) {
+      seedRows(
+        rest,
+        { status: "approved", telnyx_id: "brand-1" },
+        {
+          status: "approved",
+          telnyx_id: "camp-1",
+          data: {
+            ...CAMPAIGN_DATA,
+            numberAssignments: { "+12125550123": "pending" },
+          },
+        },
+      );
+      rest.insert("port_requests", {
+        company_id: COMPANY_ID,
+        phone_e164: "+12125550123",
+        status: "ported",
+      });
+      rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "active",
+        provisioning_key: "cs_1",
+        country: "US",
+        number_e164: "+12125550123",
+      });
+    }
+
+    it("emails the §9 guidance exactly once across redelivery AND the retry cycle", async () => {
+      const { env, rest, telnyx, emails } = setup();
+      seedPortedNumber(rest);
+      telnyx.on("POST", /^\/v2\/10dlc\/phoneNumberCampaign$/, () => ({}));
+
+      await handle10dlcEvent(env, FAILED_EVENT);
+      expect(emails).toHaveLength(1);
+      expect(emails[0].subject).toBe(
+        "Action needed to finish activating texting",
+      );
+      expect(emails[0].text).toContain(
+        "ask your previous texting provider to remove +12125550123 from their carrier campaign",
+      );
+      expect(emails[0].text).toContain("retry automatically");
+      expect(emails[0].to).toContain("owner@acme.example");
+
+      // Duplicate webhook delivery → no second email.
+      await handle10dlcEvent(env, FAILED_EVENT);
+      expect(emails).toHaveLength(1);
+
+      // Full §4.4 retry cycle: the cron clears `failed`, re-assigns (ledger →
+      // pending), the carrier FAILs it again. The persistent stamp — not the
+      // cycling ledger — gates the email.
+      await retryCampaignAssignments(env);
+      expect(
+        (campaignRowOf(rest).data as {
+          numberAssignments: Record<string, string>;
+        }).numberAssignments["+12125550123"],
+      ).toBe("pending");
+      await handle10dlcEvent(env, FAILED_EVENT);
+      expect(emails).toHaveLength(1);
+      expect(
+        (campaignRowOf(rest).data as {
+          numberAssignments: Record<string, string>;
+        }).numberAssignments["+12125550123"],
+      ).toBe("failed");
+    });
+
+    it("a later success (ADDED) clears the stamp — a NEW failure incident notifies again", async () => {
+      const { env, rest, emails } = setup();
+      seedPortedNumber(rest);
+
+      await handle10dlcEvent(env, FAILED_EVENT);
+      expect(emails).toHaveLength(1);
+      await handle10dlcEvent(env, ADDED_EVENT);
+      await handle10dlcEvent(env, FAILED_EVENT);
+      expect(emails).toHaveLength(2);
+    });
   });
 
   it("ignores unknown event types and unknown brand/campaign ids", async () => {

@@ -102,7 +102,11 @@ export function useSendMessage(conversationId: string) {
 /**
  * POST /v1/conversations/:id/review-request — the manual one-tap "Ask for a
  * review" action (FEATURE-GAPS Step 2). MANUAL only, one per job: the server
- * suppresses a repeat (409 conflict) and honors the opt-out mirror (403). On
+ * suppresses a repeat (409 conflict) and honors the opt-out mirror (403). It
+ * also runs the Step 0b quiet-hours + thread-recency gate: quiet hours at the
+ * destination OR a cold thread (>72h since the last inbound) answer 409
+ * `quiet_hours_confirmation_required` — the caller shows the same confirm
+ * dialog the composer uses and retries with `quiet_hours_confirmed: true`. On
  * success the returned outbound message lands in the thread cache and bumps the
  * conversation list, exactly like a normal send. The caller surfaces the
  * server's error message (e.g. "already requested", "add your review link").
@@ -111,11 +115,13 @@ export function useRequestReview(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (input?: { quiet_hours_confirmed?: boolean }) =>
       apiFetch<Message>(`/v1/conversations/${conversationId}/review-request`, {
         method: "POST",
         companyId,
-        body: {},
+        body: input?.quiet_hours_confirmed
+          ? { quiet_hours_confirmed: true }
+          : {},
       }),
     onSuccess: (message) => {
       queryClient.setQueryData<ThreadData>(

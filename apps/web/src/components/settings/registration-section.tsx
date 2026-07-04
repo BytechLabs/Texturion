@@ -373,7 +373,8 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {rejectedRow && (
           <div className="space-y-3">
-            <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
+            {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
+            <p className="rounded-md bg-warning/10 px-3 py-2 text-sm break-words">
               US registration needs a fix:{" "}
               {rejectedRow.rejection_reason ??
                 "the carrier didn't say why — check your details below"}

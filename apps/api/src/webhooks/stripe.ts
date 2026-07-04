@@ -14,7 +14,8 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { sendEmail } from "../email/resend";
-import { startPortSaga } from "../telnyx/porting";
+import { portDocumentsNeededCopy } from "../telnyx/emails";
+import { sendPortEmail, startPortSaga } from "../telnyx/porting";
 import {
   provisionCompanyNumber,
   suspendCompanyNumbers,
@@ -309,31 +310,72 @@ async function startPendingPorts(
   companyId: string,
   checkoutSessionId: string,
 ): Promise<void> {
+  // Widened to `string` on purpose: supabase-js's literal column parser trips
+  // on this list; the row shape is asserted by the cast below.
+  const portColumns: string =
+    "id,phone_e164,wants_bridge_number,bridge_number_id," +
+    "telnyx_loa_document_id,telnyx_invoice_document_id";
   const { data, error } = await db
     .from("port_requests")
-    .select("id,wants_bridge_number,bridge_number_id")
+    .select(portColumns)
     .eq("company_id", companyId)
     .eq("status", "draft");
   if (error) throw new Error(`port_requests lookup failed: ${error.message}`);
-  const ports = (data ?? []) as {
+  const ports = (data ?? []) as unknown as {
     id: string;
+    phone_e164: string;
     wants_bridge_number: boolean;
     bridge_number_id: string | null;
+    telnyx_loa_document_id: string | null;
+    telnyx_invoice_document_id: string | null;
   }[];
 
   for (const port of ports) {
     // Opt-in tide-me-over number: a normal provisioned number via the existing
     // saga, keyed distinctly so it never collides with the port row or the
-    // initial provisioning key. provisionCompanyNumber records saga-step
-    // failures on the phone_numbers row (never throws for those); only infra
-    // failures propagate, and those belong on the webhook ledger to retry.
+    // initial provisioning key. `bridge: true` tells the saga's foreign-row
+    // guard to ignore the port's own source='ported' row (which always exists
+    // here) while keeping the provisioning_key idempotency — duplicate
+    // deliveries converge on ONE bridge row. provisionCompanyNumber records
+    // saga-step failures on the phone_numbers row (never throws for those);
+    // only infra failures propagate, and those belong on the webhook ledger
+    // to retry.
     if (port.wants_bridge_number && !port.bridge_number_id) {
-      await provisionCompanyNumber(env, {
+      const bridge = await provisionCompanyNumber(env, {
         companyId,
         checkoutSessionId: `${checkoutSessionId}:bridge:${port.id}`,
+        bridge: true,
       });
+      // Persist the port ↔ bridge link (SET NULL FK) the moment the row
+      // exists — a provision_failed bridge is retried by the §11 cron under
+      // this SAME row, so linking early never dangles. The is-null guard
+      // keeps a sweeper/waitUntil overlap from re-linking.
+      if (bridge) {
+        const { error: linkError } = await db
+          .from("port_requests")
+          .update({ bridge_number_id: bridge.id })
+          .eq("id", port.id)
+          .is("bridge_number_id", null);
+        if (linkError) {
+          throw new Error(`bridge number link failed: ${linkError.message}`);
+        }
+      }
     }
     await startPortSaga(env, { companyId, portRequestId: port.id });
+
+    // The transfer is documents-gated (§3.5) and the LOA + bill can only be
+    // uploaded now that the subscription is active — tell the customer their
+    // ONE next step, or a port-only signup sits waiting on documents nobody
+    // asked for. The webhook ledger dedupes redelivery, so this sends once;
+    // skipped when both documents are already on file.
+    if (!port.telnyx_loa_document_id || !port.telnyx_invoice_document_id) {
+      await sendPortEmail(
+        env,
+        db,
+        companyId,
+        portDocumentsNeededCopy(port.phone_e164, env),
+      );
+    }
   }
 }
 

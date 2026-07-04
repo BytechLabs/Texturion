@@ -107,6 +107,15 @@ export interface TextEnablementOrderRow {
     | "cancelled";
   last_error: string | null;
   attempts: number;
+  /**
+   * Lifetime count of ownership-verification code SENDS for this order — the
+   * durable security cap behind POST /:id/verification-codes (the per-number
+   * VERIFY_RATE_LIMITER bounds the rate; this bounds the lifetime). Distinct
+   * from `attempts` (the saga's poll budget, reset by resubmit).
+   */
+  verification_requests: number;
+  /** Lifetime count of resubmits for this order (route-capped, never reset). */
+  resubmit_count: number;
   completed_at: string | null;
   cancelled_at: string | null;
   created_at: string;
@@ -116,8 +125,8 @@ export interface TextEnablementOrderRow {
 export const ORDER_COLUMNS =
   "id,company_id,phone_number_id,phone_e164,country,provisioning_key," +
   "telnyx_hosted_order_id,telnyx_hosted_number_id,telnyx_loa_document_id," +
-  "telnyx_bill_document_id,status,last_error,attempts,completed_at," +
-  "cancelled_at,created_at,updated_at";
+  "telnyx_bill_document_id,status,last_error,attempts,verification_requests," +
+  "resubmit_count,completed_at,cancelled_at,created_at,updated_at";
 
 // Telnyx hosted-order response shapes (only fields we read).
 interface HostedOrderResponse {

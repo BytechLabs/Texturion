@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { telnyxRequest, TelnyxApiError } from "./client";
 import {
   otpNudgeCopy,
+  portAssignmentBlockedCopy,
   registrationRejectedCopy,
   usTextingLiveCopy,
 } from "./emails";
@@ -690,6 +691,45 @@ function assignmentLedger(row: RegistrationRow): Record<string, AssignmentState>
 }
 
 /**
+ * One-shot guard for the §9 "10DLC assignment failed post-port" email:
+ * `data.assignmentFailureNotified[e164]` stamps when we told the customer the
+ * number is stuck. The §4.4 retry cron cycles the LEDGER failed → pending →
+ * failed on every re-attempt, so the ledger alone cannot gate the email — this
+ * stamp persists across retries (mirroring how the first-failure provision
+ * email guards on attempts===0) and is cleared only when the assignment
+ * finally lands (ADDED), so a genuinely new incident can notify again.
+ */
+function assignmentFailureNotified(row: RegistrationRow): Record<string, string> {
+  const raw = row.data.assignmentFailureNotified;
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    return { ...(raw as Record<string, string>) };
+  }
+  return {};
+}
+
+/**
+ * PORTING.md §9 scope: the "ask your previous texting provider to remove
+ * {number} from their campaign" guidance applies to PORTED numbers (the
+ * losing provider's carrier campaign is what blocks the assignment). A live
+ * (non-cancelled) port_requests row for the E.164 is the discriminator.
+ */
+async function isPortedNumber(
+  db: SupabaseClient,
+  companyId: string,
+  e164: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("port_requests")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("phone_e164", e164)
+    .neq("status", "cancelled")
+    .limit(1);
+  if (error) throw new Error(`port_requests lookup failed: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
  * R3 — `POST /v2/10dlc/phoneNumberCampaign { phoneNumber, campaignId }` for
  * every active company number not yet assigned. Assignment outcomes land in
  * the campaign row's `data.numberAssignments` ledger: the
@@ -925,21 +965,47 @@ export async function handle10dlcEvent(
     if (!row) return;
 
     const ledger = assignmentLedger(row);
+    const notified = assignmentFailureNotified(row);
+    let sendBlockedEmail = false;
     if (status === "ADDED") {
       if (ledger[phoneNumber] === "added") return; // duplicate delivery
       ledger[phoneNumber] = "added";
+      // Resolved — clear the one-shot stamp so a future re-failure (a new
+      // incident, e.g. the old provider re-claims the number) notifies again.
+      delete notified[phoneNumber];
     } else if (status === "FAILED") {
       ledger[phoneNumber] = "failed";
       Sentry.captureMessage(
         `10DLC number assignment FAILED for campaign ${campaignId} (company ${row.company_id}): ${formatReasons(payload.reasons) ?? "no reason given"}`,
         "error",
       );
+      // §9 "10DLC assignment failed post-port": customer-actionable, so it
+      // must reach them — once per stuck number, not per retry-cron cycle.
+      sendBlockedEmail =
+        !notified[phoneNumber] &&
+        (await isPortedNumber(db, row.company_id, phoneNumber));
+      if (sendBlockedEmail) notified[phoneNumber] = new Date().toISOString();
     } else {
       return; // DELETED / other — nothing to track
     }
     await updateRow(db, row.id, {
-      data: { ...row.data, numberAssignments: ledger },
+      data: {
+        ...row.data,
+        numberAssignments: ledger,
+        assignmentFailureNotified: notified,
+      },
     });
+    if (sendBlockedEmail) {
+      // After the stamp is persisted (like every transition email here): a
+      // failed row update must not leave an emailed-but-unstamped state that
+      // re-emails on redelivery.
+      await sendOperationalEmail(
+        env,
+        db,
+        row.company_id,
+        portAssignmentBlockedCopy(phoneNumber, env),
+      );
+    }
     return;
   }
 

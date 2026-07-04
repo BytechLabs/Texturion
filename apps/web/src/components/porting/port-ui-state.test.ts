@@ -6,6 +6,7 @@ import type {
   PortStatus,
 } from "@/lib/api/types";
 
+import { PORT_STATE_COPY } from "./copy";
 import { derivePortUiState, type PortStepKey } from "./port-ui-state";
 
 /** Minimal port row factory — only the fields the deriver reads matter. */
@@ -31,11 +32,13 @@ function port(overrides: Partial<PortRequest> = {}): PortRequest {
     is_wireless: false,
     wants_bridge_number: false,
     bridge_number_id: null,
+    bridge_number_e164: null,
     has_pin: false,
     has_account_number: true,
     has_ssn_sin_last4: false,
     has_loa: false,
     has_invoice: false,
+    assignment_blocked: false,
     submitted_at: null,
     ported_at: null,
     cancelled_at: null,
@@ -135,9 +138,92 @@ describe("derivePortUiState — the §8.2 4-step tracker", () => {
     expect(ui.exception).toBeNull();
   });
 
+  // §8.2/§9: the post-port 10DLC assignment FAILED guidance ("ask your
+  // previous texting provider to remove this number from their campaign").
+  it("assignment_blocked surfaces the §9 guidance flag post-cutover", () => {
+    const ui = derivePortUiState(
+      port({
+        status: "ported",
+        messaging_port_status: "activating",
+        assignment_blocked: true,
+      }),
+    );
+    expect(ui.assignmentBlocked).toBe(true);
+    // The card renders exactly the §9 table row for this flag.
+    expect(PORT_STATE_COPY.assignmentBlocked("(303) 555-0000")).toBe(
+      "One more step: ask your previous texting provider to remove (303) 555-0000 from their carrier campaign, then we'll finish connecting it. We'll retry automatically once they do.",
+    );
+  });
+
+  it("assignment_blocked coexists with live (separate track from the messaging port)", () => {
+    const ui = derivePortUiState(
+      port({
+        status: "ported",
+        messaging_port_status: "ported",
+        assignment_blocked: true,
+      }),
+    );
+    expect(ui.live).toBe(true);
+    expect(ui.assignmentBlocked).toBe(true);
+  });
+
+  it("assignment_blocked defaults off and is suppressed on a cancelled port", () => {
+    expect(derivePortUiState(port({ status: "ported" })).assignmentBlocked).toBe(
+      false,
+    );
+    expect(
+      derivePortUiState(
+        port({ status: "cancelled", assignment_blocked: true }),
+      ).assignmentBlocked,
+    ).toBe(false);
+  });
+
   it("cancel-pending is treated as cancelled for the tracker", () => {
     const ui = derivePortUiState(port({ status: "cancel-pending" }));
     expect(ui.cancelled).toBe(true);
+  });
+
+  // PORTING.md D16: the opt-in temporary (bridge) number line.
+  it("bridge surfaces the live temporary number while the transfer is in flight", () => {
+    const ui = derivePortUiState(
+      port({
+        status: "submitted",
+        messaging_port_status: "pending",
+        bridge_number_e164: "+13035550777",
+      }),
+    );
+    expect(ui.bridge).toBe("+13035550777");
+    // The card renders exactly the §9 line for it.
+    expect(PORT_STATE_COPY.bridgeAvailable("(303) 555-0777")).toBe(
+      "Your temporary number (303) 555-0777 is ready so you can text today. Once your real number finishes transferring, you can release the temporary one.",
+    );
+  });
+
+  it("bridge goes quiet once texting is live and on abandoned ports", () => {
+    expect(
+      derivePortUiState(
+        port({
+          status: "ported",
+          messaging_port_status: "ported",
+          bridge_number_e164: "+13035550777",
+        }),
+      ).bridge,
+    ).toBeNull();
+    for (const status of ["cancelled", "cancel-pending"] as const) {
+      expect(
+        derivePortUiState(
+          port({ status, bridge_number_e164: "+13035550777" }),
+        ).bridge,
+      ).toBeNull();
+    }
+  });
+
+  it("bridge is null without a live bridge number — including pre-bridge cached shapes", () => {
+    expect(derivePortUiState(port()).bridge).toBeNull();
+    // Cached rows serialized before the field existed lack it entirely.
+    const legacy = port();
+    delete (legacy as { bridge_number_e164?: string | null }).bridge_number_e164;
+    expect(derivePortUiState(legacy).bridge).toBeNull();
   });
 
   // Every non-terminal, non-exception state has exactly one active step so the

@@ -74,6 +74,8 @@ export const PORT_STATE_COPY = {
     }. Fix it and resubmit — it usually takes a couple of minutes, and there's no fee to try again.`,
   messagingException:
     "Your number moved over, but texting is taking a bit longer — your old provider hasn't released the texting routing yet. We're escalating with the carrier on your behalf; this usually clears within a business day or two and there's nothing you need to do.",
+  assignmentBlocked: (number: string) =>
+    `One more step: ask your previous texting provider to remove ${number} from their carrier campaign, then we'll finish connecting it. We'll retry automatically once they do.`,
   documentsPending:
     "Almost there — upload your signed authorization (LOA) and a recent bill, then submit the transfer to your carrier.",
   bridgeAvailable: (bridge: string) =>

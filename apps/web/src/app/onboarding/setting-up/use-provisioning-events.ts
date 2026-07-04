@@ -10,7 +10,8 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * Realtime for the setting-up checklist (SPEC §8, G7 step 6). The app-shell
  * RealtimeProvider only mounts inside the (app) group, so this screen opens
  * its own private `company:{id}` Broadcast channel and re-reads the sources
- * of truth on `number.updated` / `registration.updated` — ID-only payloads,
+ * of truth on `number.updated` / `registration.updated` / `port.updated`
+ * (PORTING.md §8.2 — the port-in item advances live too) — ID-only payloads,
  * state always refetched through the API.
  */
 export function useProvisioningEvents(companyId: string | null): void {
@@ -35,6 +36,10 @@ export function useProvisioningEvents(companyId: string | null): void {
         queryKey: keys.numbers(companyId),
         refetchType: "active",
       });
+      queryClient.invalidateQueries({
+        queryKey: keys.portRequests.all(companyId),
+        refetchType: "active",
+      });
     };
 
     // Private-topic auth rides the Supabase session token (SPEC §8).
@@ -51,7 +56,8 @@ export function useProvisioningEvents(companyId: string | null): void {
     });
     channel
       .on("broadcast", { event: "number.updated" }, invalidate)
-      .on("broadcast", { event: "registration.updated" }, invalidate);
+      .on("broadcast", { event: "registration.updated" }, invalidate)
+      .on("broadcast", { event: "port.updated" }, invalidate);
 
     void (async () => {
       const { data } = await supabase.auth.getSession();

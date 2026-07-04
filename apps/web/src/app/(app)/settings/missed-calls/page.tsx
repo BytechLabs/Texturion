@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { previewAwayMessage } from "@/lib/settings/away-preview";
+import { previewMissedCallText } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -58,7 +58,11 @@ function TextBackCard({
     enabled !== company.mctb_enabled ||
     message.trim() !== (company.mctb_message ?? "").trim();
 
-  const preview = previewAwayMessage(
+  // previewMissedCallText, not previewAwayMessage: the server sends this with
+  // no contact name (a missed call is usually a brand-new caller), so the
+  // preview must drop {first_name} exactly as the wire does — never show a
+  // sample name that won't ship.
+  const preview = previewMissedCallText(
     message.trim().length > 0 ? message : DEFAULT_MCTB_MESSAGE,
     company.name,
   );
@@ -90,7 +94,7 @@ function TextBackCard({
   return (
     <SettingsCard
       title="Text back a missed call"
-      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply — instead of calling the next plumber."
+      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply — instead of calling the next number on their list."
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
@@ -209,7 +213,7 @@ function ForwardCard({
   return (
     <SettingsCard
       title="Ring your cell first (optional)"
-      description="If you set a cell number, an incoming call rings it first. Only if you don't pick up in time do we count the call as missed and text the caller."
+      description="If you set a cell number, an incoming call rings it first. Only if you don't pick up within about 20 seconds does the call count as missed."
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
@@ -235,9 +239,10 @@ function ForwardCard({
           className="max-w-xs"
         />
         <p className="text-xs text-muted-foreground">
-          Leave blank to skip forwarding — every unanswered call is then texted
-          right away. We use answering-machine detection so a call that hits your
-          voicemail still counts as missed.
+          Leave blank to skip forwarding — a call no one picks up rings out and
+          counts as missed. If your voicemail answers instead of you, the call
+          still counts as missed. Forwarded calls don&apos;t cost extra —
+          they&apos;re included in your plan.
         </p>
         {error && (
           <p role="alert" className="text-sm text-destructive">

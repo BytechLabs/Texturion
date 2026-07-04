@@ -54,6 +54,8 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
+import { reviewConfirmCopy, type ReviewConfirmCopy } from "./review-confirm";
+
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
 
 function onApiError(error: unknown, fallback: string) {
@@ -89,11 +91,18 @@ export function ThreadHeader({
   const company = useCompany();
   const requestReview = useRequestReview(conversation.id);
   const [confirmOptOut, setConfirmOptOut] = useState(false);
+  const [reviewConfirm, setReviewConfirm] = useState<ReviewConfirmCopy | null>(
+    null,
+  );
 
   // FEATURE-GAPS Step 2 — the one-tap "Ask for a review" action. Cheap client
   // suppressions (disabled with a reason): no review link on file, or the
   // contact is opted out. The one-per-job "already asked / replied since"
   // suppression is the server's atomic decision (409) — surfaced as a toast.
+  // The Step 0b quiet-hours + cold-thread gate answers the composer's stable
+  // `quiet_hours_confirmation_required` code (409, matched structurally) —
+  // that one opens the confirm dialog instead, and confirming retries the
+  // send with quiet_hours_confirmed, exactly like the composer.
   const reviewLink = company.data?.google_review_link ?? null;
   const reviewDisabledReason = !reviewLink
     ? "Add your Google review link in Settings → Reviews first."
@@ -101,17 +110,29 @@ export function ThreadHeader({
       ? "This contact has opted out of texts."
       : null;
 
-  const askForReview = () => {
+  const sendReview = (quietConfirmed: boolean) => {
     if (reviewDisabledReason) {
       toast.error(reviewDisabledReason);
       return;
     }
-    requestReview.mutate(undefined, {
-      onSuccess: () => toast.success("Review request sent."),
-      onError: (e) =>
-        onApiError(e, "Couldn't send the review request. Try again."),
-    });
+    requestReview.mutate(
+      quietConfirmed ? { quiet_hours_confirmed: true } : undefined,
+      {
+        onSuccess: () => toast.success("Review request sent."),
+        onError: (e) => {
+          if (
+            e instanceof ApiError &&
+            e.code === "quiet_hours_confirmation_required"
+          ) {
+            setReviewConfirm(reviewConfirmCopy(conversation.contact.phone_e164));
+            return;
+          }
+          onApiError(e, "Couldn't send the review request. Try again.");
+        },
+      },
+    );
   };
+  const askForReview = () => sendReview(false);
 
   const name = contactDisplayName(conversation.contact);
   const assigneeName = conversation.assigned_user_id
@@ -452,6 +473,36 @@ export function ThreadHeader({
               }
             >
               {optOut.isPending ? "Opting out…" : "Opt out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review-ask confirm (FEATURE-GAPS Step 0b / SPEC §5): driven by the
+          API's stable 409 `quiet_hours_confirmation_required` code — the same
+          contract as the composer's quiet-hours dialog. Covers both quiet
+          hours and a cold thread; confirming retries with the flag set. */}
+      <Dialog
+        open={reviewConfirm !== null}
+        onOpenChange={(open) => !open && setReviewConfirm(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{reviewConfirm?.title}</DialogTitle>
+            <DialogDescription>{reviewConfirm?.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewConfirm(null)}>
+              Wait
+            </Button>
+            <Button
+              onClick={() => {
+                setReviewConfirm(null);
+                sendReview(true);
+              }}
+              disabled={requestReview.isPending}
+            >
+              Send
             </Button>
           </DialogFooter>
         </DialogContent>

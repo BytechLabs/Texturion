@@ -225,6 +225,11 @@ export function resolveOnboardingLocation(
   }
 
   if (hasPaid(company.subscription_status)) {
+    // Covers port-in signups too: setting-up renders the honest transfer item
+    // (upload LOA + bill → submit → carrier window, PORTING.md §8.1) until the
+    // ported/bridge number goes active. This routing only governs /onboarding
+    // pages — a user following the item's CTA into /settings/numbers is never
+    // pulled back here.
     return setupComplete(snapshot) ? { kind: "inbox" } : { kind: "setting-up" };
   }
 

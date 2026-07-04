@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { textEnablementRoutes } from "./text-enablement";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings } from "../env";
+import type { Bindings, RateLimiter } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest, resendRoute, TelnyxMock } from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
@@ -40,6 +40,8 @@ const ORDER_DEFAULTS = {
   status: "pending",
   last_error: null,
   attempts: 0,
+  verification_requests: 0,
+  resubmit_count: 0,
   completed_at: null,
   cancelled_at: null,
 };
@@ -106,6 +108,25 @@ function installSlotRpc(rest: FakeRest) {
   });
 }
 
+/** Faithful double of bump_text_enablement_counter (SQL covered by VW-18). */
+function installBumpRpc(rest: FakeRest) {
+  rest.rpc("bump_text_enablement_counter", (args) => {
+    const counter = String(args.p_counter) as
+      | "verification_requests"
+      | "resubmit_count";
+    const order = rest
+      .rows("text_enablement_orders")
+      .find(
+        (o) => o.id === args.p_order_id && o.company_id === args.p_company_id,
+      );
+    if (!order || Number(order[counter]) >= Number(args.p_cap)) {
+      return { allowed: false };
+    }
+    order[counter] = Number(order[counter]) + 1;
+    return { allowed: true, count: order[counter] };
+  });
+}
+
 function buildHarness(companyOverrides: Record<string, unknown> = {}) {
   const env = completeEnv();
   const rest = new FakeRest(env);
@@ -133,6 +154,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     deactivated_at: null,
   });
   installSlotRpc(rest);
+  installBumpRpc(rest);
 
   const telnyx = new TelnyxMock();
   const state = {
@@ -436,6 +458,21 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
     expect(h.telnyx.callsTo("POST", /\/actions\/file_upload$/)).toHaveLength(1);
   });
 
+  it("rejects an oversized declared Content-Length before buffering the body (§10)", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    const res = await h.request(`/v1/text-enablements/${order.id}/documents`, {
+      method: "PUT",
+      // The body is never parsed: the declared length alone is refused.
+      body: "irrelevant",
+      headers: { "Content-Length": String(64 * 1024 * 1024) },
+    });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("upload limit");
+    expect(h.telnyx.calls).toHaveLength(0);
+  });
+
   it("rejects a non-PDF file (the hosted file_upload action is PDF-only)", async () => {
     const h = buildHarness();
     const order = seedOrder(h);
@@ -522,6 +559,9 @@ describe("POST /v1/text-enablements/:id/resubmit", () => {
     expect(row.attempts).toBe(0);
     expect(row.last_error).toBeNull();
     expect(row.telnyx_hosted_order_id).toBe("hosted-order-1");
+    // The resubmit consumed one unit of the durable lifetime budget — the
+    // attempts reset above never touches it.
+    expect(row.resubmit_count).toBe(1);
   });
 
   it("is allowed from 'action-required' and KEEPS the existing Telnyx order", async () => {
@@ -692,5 +732,214 @@ describe("verification codes (number-ownership check)", () => {
       jsonInit("POST", { code: "123456" }),
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe("verification rate limit (VERIFY_RATE_LIMITER, per target number)", () => {
+  function fakeLimiter(success: boolean): RateLimiter & {
+    limit: ReturnType<typeof vi.fn>;
+  } {
+    return { limit: vi.fn(async (_options: { key: string }) => ({ success })) };
+  }
+
+  it("429s a denied code request — the SMS/call-bomb path never reaches Telnyx", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    const limiter = fakeLimiter(false);
+    h.env.VERIFY_RATE_LIMITER = limiter;
+
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "call" }),
+    );
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("rate_limited");
+    // Keyed on the TARGET number (the would-be victim), not the order id — a
+    // cancel-and-recreate cycle can never reset the budget.
+    expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
+      key: `te-verify-send:${NUMBER_E164}`,
+    });
+    expect(h.telnyx.calls).toHaveLength(0);
+  });
+
+  it("passes an allowed code request through to Telnyx", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    h.env.VERIFY_RATE_LIMITER = fakeLimiter(true);
+    h.telnyx.on("POST", /\/verification_codes$/, () => ({
+      data: [{ phone_number: NUMBER_E164, verification_code_id: "vc-1" }],
+    }));
+
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(res.status).toBe(200);
+    expect(h.telnyx.callsTo("POST", /\/verification_codes$/)).toHaveLength(1);
+  });
+
+  it("429s a denied code check — the brute-force path never reaches Telnyx", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    const limiter = fakeLimiter(false);
+    h.env.VERIFY_RATE_LIMITER = limiter;
+
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes/verify`,
+      jsonInit("POST", { code: "123456" }),
+    );
+    expect(res.status).toBe(429);
+    // A separate key from the send path: requesting codes never burns the
+    // check budget (and vice versa).
+    expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
+      key: `te-verify-check:${NUMBER_E164}`,
+    });
+    expect(h.telnyx.calls).toHaveLength(0);
+  });
+
+  it("is skipped when the binding is absent (local dev/tests)", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    h.telnyx.on("POST", /\/verification_codes$/, () => ({
+      data: [{ phone_number: NUMBER_E164, verification_code_id: "vc-1" }],
+    }));
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("lifetime caps (durable per-order budgets, §10)", () => {
+  it("counts each verification-code send against the order's budget", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    h.telnyx.on("POST", /\/verification_codes$/, () => ({
+      data: [{ phone_number: NUMBER_E164, verification_code_id: "vc-1" }],
+    }));
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(res.status).toBe(200);
+    expect(
+      h.rest.rows("text_enablement_orders")[0].verification_requests,
+    ).toBe(1);
+  });
+
+  it("409s the send once the lifetime cap is spent — Telnyx is never called", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h, { verification_requests: 10 });
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toContain(
+      "Too many verification attempts for this order",
+    );
+    expect(h.telnyx.calls).toHaveLength(0);
+    // A capped bump never increments past the cap.
+    expect(
+      h.rest.rows("text_enablement_orders")[0].verification_requests,
+    ).toBe(10);
+  });
+
+  it("a rate-limited send never burns the lifetime budget (429 first)", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    h.env.VERIFY_RATE_LIMITER = {
+      limit: vi.fn(async (_options: { key: string }) => ({ success: false })),
+    };
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(res.status).toBe(429);
+    expect(
+      h.rest.rows("text_enablement_orders")[0].verification_requests,
+    ).toBe(0);
+  });
+
+  it("409s the resubmit once its lifetime cap is spent — order left untouched", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h, {
+      status: "failed",
+      attempts: 5,
+      resubmit_count: 5,
+    });
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/resubmit`,
+      jsonInit("POST", undefined),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toContain("resubmitted too many times");
+    // No Telnyx side effects, no reset: the dead order stays exactly as it was.
+    expect(h.telnyx.calls).toHaveLength(0);
+    const row = h.rest.rows("text_enablement_orders")[0];
+    expect(row.status).toBe("failed");
+    expect(row.attempts).toBe(5);
+    expect(row.resubmit_count).toBe(5);
+  });
+
+  it("caps are per ORDER row: cancel/recreate mints a fresh budget while the per-NUMBER rate limiter spans orders", async () => {
+    const h = buildHarness();
+    const capped = seedOrder(h, { verification_requests: 10 });
+    const limiter = {
+      limit: vi.fn(async (_options: { key: string }) => ({ success: true })),
+    };
+    h.env.VERIFY_RATE_LIMITER = limiter;
+    h.telnyx.on("POST", /\/verification_codes$/, () => ({
+      data: [{ phone_number: NUMBER_E164, verification_code_id: "vc-1" }],
+    }));
+    h.state.role = "owner"; // owner ⊃ admin: covers cancel + create + verify
+
+    // The capped order 409s even though the rate limiter allows the request.
+    const denied = await h.request(
+      `/v1/text-enablements/${capped.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(denied.status).toBe(409);
+
+    // Cancel, then text-enable the same number again → a NEW order row.
+    const cancelled = await h.request(
+      `/v1/text-enablements/${capped.id}/cancel`,
+      jsonInit("POST", undefined),
+    );
+    expect(cancelled.status).toBe(200);
+    const created = await h.request(
+      "/v1/text-enablements",
+      jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
+    );
+    expect(created.status).toBe(201);
+    const { id: freshId } = (await created.json()) as { id: string };
+
+    // The fresh order's budget starts at 0 (by design — per order row) and
+    // this send consumes its first unit; the old row stays at its cap.
+    const allowed = await h.request(
+      `/v1/text-enablements/${freshId}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+    expect(allowed.status).toBe(200);
+    const rows = h.rest.rows("text_enablement_orders");
+    expect(rows.find((o) => o.id === capped.id)?.verification_requests).toBe(10);
+    expect(rows.find((o) => o.id === freshId)?.verification_requests).toBe(1);
+
+    // The cross-order guard is the per-NUMBER rate-limit key: both orders'
+    // sends hit the SAME key, so recreation never resets the RATE budget.
+    expect(limiter.limit).toHaveBeenCalledTimes(2);
+    for (const call of limiter.limit.mock.calls) {
+      expect(call[0]).toEqual({ key: `te-verify-send:${NUMBER_E164}` });
+    }
   });
 });

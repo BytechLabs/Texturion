@@ -211,6 +211,114 @@ describe("provisionCompanyNumber — idempotency (§4.3, §9)", () => {
     expect(rest.rows("phone_numbers")).toHaveLength(1);
     expect(telnyx.calls).toHaveLength(0);
   });
+
+  it("still skips a NORMAL call when the company's pending port row exists (webhook regression)", async () => {
+    // The paid-checkout webhook relies on exactly this: a port-only signup has
+    // a source='ported' row at webhook time, and the plain (non-bridge) call
+    // must NOT buy a number over it.
+    const { env, rest, telnyx } = setup();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "ported",
+      provisioning_key: "port-idempotency-key",
+      country: "US",
+    });
+
+    const result = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: "cs_paid",
+    });
+    expect(result).toBeNull();
+    expect(rest.rows("phone_numbers")).toHaveLength(1);
+    expect(telnyx.calls).toHaveLength(0);
+  });
+});
+
+describe("provisionCompanyNumber — bridge number (PORTING.md D16 opt-in)", () => {
+  const PORT_KEY = "port-idempotency-key";
+  const BRIDGE_KEY = "cs_paid:bridge:port-1";
+
+  function seedPortRow(rest: ReturnType<typeof setup>["rest"]) {
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "ported",
+      provisioning_key: PORT_KEY,
+      country: "US",
+    });
+  }
+
+  it("provisions the bridge even though the port's own ported row exists", async () => {
+    const { env, rest, telnyx } = setup();
+    seedPortRow(rest);
+    happyPathTelnyx(telnyx);
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: BRIDGE_KEY,
+      bridge: true,
+    });
+
+    expect(row).not.toBeNull();
+    expect(row?.status).toBe("active");
+    expect(row?.number_e164).toBe("+12125550123");
+    expect(row?.provisioning_key).toBe(BRIDGE_KEY);
+    expect(row?.source).toBe("provisioned"); // a bridge is a NORMAL bought number
+
+    // The port row is untouched — its saga still owns it.
+    const rows = rest.rows("phone_numbers");
+    expect(rows).toHaveLength(2);
+    const ported = rows.find((r) => r.source === "ported");
+    expect(ported?.status).toBe("provisioning");
+    expect(ported?.number_e164 ?? null).toBeNull();
+  });
+
+  it("duplicate bridge deliveries converge on ONE bridge row (provisioning_key idempotency)", async () => {
+    const { env, rest, telnyx } = setup();
+    seedPortRow(rest);
+    happyPathTelnyx(telnyx);
+
+    const first = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: BRIDGE_KEY,
+      bridge: true,
+    });
+    const second = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: BRIDGE_KEY,
+      bridge: true,
+    });
+
+    expect(second?.id).toBe(first?.id);
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
+    expect(rest.rows("phone_numbers")).toHaveLength(2); // ported + ONE bridge
+  });
+
+  it("a bridge call still skips when a foreign PROVISIONED number exists (§9 guard kept)", async () => {
+    // Resubscribe-within-grace shape: the company already holds a live bought
+    // number under a previous key — it can already text, so buying a bridge
+    // would be a silent cost leak.
+    const { env, rest, telnyx } = setup();
+    seedPortRow(rest);
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_previous",
+      country: "US",
+      number_e164: "+12125550999",
+      telnyx_phone_number_id: "pn-old",
+    });
+
+    const result = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: BRIDGE_KEY,
+      bridge: true,
+    });
+    expect(result).toBeNull();
+    expect(rest.rows("phone_numbers")).toHaveLength(2); // nothing new inserted
+    expect(telnyx.calls).toHaveLength(0);
+  });
 });
 
 describe("S2 region fallback (§4.3)", () => {

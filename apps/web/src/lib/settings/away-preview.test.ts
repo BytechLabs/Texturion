@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_REVIEW_MESSAGE,
   previewAwayMessage,
+  previewMissedCallText,
   previewReviewAsk,
   SAMPLE_FIRST_NAME,
 } from "./away-preview";
@@ -27,6 +28,25 @@ describe("previewAwayMessage", () => {
 
   it("degrades an empty message to empty", () => {
     expect(previewAwayMessage("", "Ace")).toBe("");
+  });
+});
+
+describe("previewMissedCallText", () => {
+  it("resolves {business_name}", () => {
+    expect(
+      previewMissedCallText(
+        "Sorry we missed your call! This is {business_name}.",
+        "Ace HVAC",
+      ),
+    ).toBe("Sorry we missed your call! This is Ace HVAC.");
+  });
+
+  it("drops {first_name} — the server sends with no contact name", () => {
+    // Mirrors apps/api missed-call.ts (contactName: null): a missed call is
+    // usually a brand-new caller, so the sample name must never appear.
+    expect(
+      previewMissedCallText("Hi {first_name}, we missed your call.", "Ace"),
+    ).toBe("Hi, we missed your call.");
   });
 });
 

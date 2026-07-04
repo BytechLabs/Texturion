@@ -14,6 +14,15 @@
  * exposed as POST /:id/verification-codes (request) and
  * POST /:id/verification-codes/verify (check). No verification state is stored
  * locally — the Telnyx order is the source of truth.
+ *
+ * Abuse budgets (SPEC §10), two layers on the Telnyx-committing actions:
+ *   - RATE: VERIFY_RATE_LIMITER, 3/min keyed on the TARGET number — the
+ *     cross-order guard (a cancel-and-recreate cycle never resets it).
+ *   - LIFETIME: durable per-ORDER caps consumed by an atomic guarded
+ *     increment (bump_text_enablement_counter): 10 verification-code sends
+ *     and 5 resubmits per order, 409 conflict once exhausted. Per order row
+ *     by design — a fresh order starts a fresh budget, and the per-number
+ *     rate limiter covers the cross-order angle.
  */
 import { lookupAreaCode } from "@jobtext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -24,7 +33,7 @@ import { requireRole } from "../auth/company";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { uploadPortDocument } from "../telnyx/porting";
 import {
@@ -37,7 +46,12 @@ import {
   type TextEnablementOrderRow,
   ORDER_COLUMNS,
 } from "../telnyx/text-enablement";
-import { parseJsonBody, parseWith, pathUuid } from "./core/http";
+import {
+  assertBodyWithinLimit,
+  parseJsonBody,
+  parseWith,
+  pathUuid,
+} from "./core/http";
 
 export const textEnablementRoutes = new Hono<AppEnv>();
 
@@ -311,6 +325,11 @@ textEnablementRoutes.get("/:id", async (c) => {
 // before any Telnyx call).
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
+// Whole-request ceiling for the documents route: two 5 MB files + generous
+// multipart overhead. Checked from Content-Length BEFORE formData() buffers
+// the body (SPEC §10 DoS posture).
+const MAX_DOCUMENTS_BODY_BYTES = 2 * MAX_DOCUMENT_BYTES + 1024 * 1024;
+
 /** The upload window: before the carrier review starts, or after it rejects. */
 function documentsUploadable(order: TextEnablementOrderRow): boolean {
   return (
@@ -357,6 +376,9 @@ textEnablementRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
       "Documents can be uploaded once your subscription is active.",
     );
   }
+
+  // Declared-size gate BEFORE formData() buffers the whole body (§10).
+  assertBodyWithinLimit(c, MAX_DOCUMENTS_BODY_BYTES);
 
   let form: FormData;
   try {
@@ -467,6 +489,11 @@ textEnablementRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
  * already-uploaded LOA/bill. Paid-first: resubmit is a Telnyx-committing
  * action → 402 while the subscription is not active. 409 conflict from any
  * status other than failed/action-required.
+ * Lifetime budget (§10): each resubmit consumes one unit of the order's
+ * durable resubmit_count (MAX_RESUBMITS; 409 conflict once spent). The cap is
+ * intentionally NOT `attempts` — that is the saga's poll budget, which
+ * resubmit resets; reusing it would let every resubmit refill the cap.
+ * Consumed BEFORE any Telnyx side effect (fail-closed).
  */
 textEnablementRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);
@@ -488,6 +515,19 @@ textEnablementRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
       c,
       "subscription_inactive",
       "An active subscription is required to resubmit a text-enablement.",
+    );
+  }
+  const withinCap = await consumeOrderBudget(
+    db,
+    order,
+    "resubmit_count",
+    MAX_RESUBMITS,
+  );
+  if (!withinCap) {
+    return errorResponse(
+      c,
+      "conflict",
+      "This order has been resubmitted too many times — cancel it and start again, or contact support.",
     );
   }
 
@@ -533,6 +573,71 @@ const verificationSubmitSchema = z.strictObject({
   code: z.string().trim().min(1).max(16),
 });
 
+/** Lifetime cap on ownership-verification code sends per order (§10). */
+export const MAX_VERIFICATION_REQUESTS = 10;
+/** Lifetime cap on resubmits per order (§10). */
+export const MAX_RESUBMITS = 5;
+
+/**
+ * Atomically consume one unit of a per-order lifetime budget
+ * (bump_text_enablement_counter: a single guarded
+ * `UPDATE ... SET counter = counter + 1 WHERE ... AND counter < cap RETURNING`
+ * — a read-check-increment here would race two concurrent requests past the
+ * cap). Returns false when the budget is exhausted (0 rows updated). The caps
+ * are PER ORDER ROW: a cancel/recreate mints a fresh budget on purpose, and
+ * the per-NUMBER rate limiter is the cross-order guard.
+ */
+async function consumeOrderBudget(
+  db: SupabaseClient,
+  order: TextEnablementOrderRow,
+  counter: "verification_requests" | "resubmit_count",
+  cap: number,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("bump_text_enablement_counter", {
+    p_order_id: order.id,
+    p_company_id: order.company_id,
+    p_counter: counter,
+    p_cap: cap,
+  });
+  if (error) {
+    throw new Error(`bump_text_enablement_counter failed: ${error.message}`);
+  }
+  return parseWith(z.object({ allowed: z.boolean() }), data).allowed;
+}
+
+/**
+ * Per-number bound on the ownership-verification endpoints (SPEC §10 DoS
+ * posture). Requesting a code makes Telnyx SMS or CALL the order's number — a
+ * number the company has NOT yet proven it owns — and the verify endpoint
+ * accepts code guesses, so without a bound these are a call/SMS-bombing and
+ * code-brute-force primitive against an arbitrary victim landline. The limiter
+ * (VERIFY_RATE_LIMITER, 3/min) is keyed on the TARGET number with a
+ * per-endpoint prefix, never the order id, so a cancel-and-recreate cycle can
+ * never reset the budget. Absent binding (local dev/tests) → gate skipped,
+ * exactly like SEND_RATE_LIMITER at the dispatch choke point. The limiter
+ * bounds the RATE only; the durable per-order lifetime cap
+ * (consumeOrderBudget + MAX_VERIFICATION_REQUESTS) bounds the total.
+ */
+async function verificationRateLimit(
+  c: Context<AppEnv>,
+  env: Env,
+  action: "send" | "check",
+  phoneE164: string,
+): Promise<Response | null> {
+  if (!env.VERIFY_RATE_LIMITER) return null;
+  const { success } = await env.VERIFY_RATE_LIMITER.limit({
+    key: `te-verify-${action}:${phoneE164}`,
+  });
+  if (success) return null;
+  return errorResponse(
+    c,
+    "rate_limited",
+    action === "send"
+      ? "Too many verification codes requested for this number. Wait a minute and try again."
+      : "Too many code attempts. Wait a minute and try again.",
+  );
+}
+
 /** Verification needs a live Telnyx order that is still under review. */
 function verificationGate(
   c: Context<AppEnv>,
@@ -564,8 +669,12 @@ function verificationGate(
  * to send a number-ownership verification code to the number (by 'sms' or a
  * voice 'call' — the owner still controls the line on their current carrier).
  * Spec-verified vendor endpoint:
- * POST /v2/messaging_hosted_number_orders/{id}/verification_codes. Nothing is
- * stored locally — the Telnyx order is the source of truth for verification.
+ * POST /v2/messaging_hosted_number_orders/{id}/verification_codes. Nothing
+ * verification-side is stored locally — the Telnyx order is the source of
+ * truth — but each send consumes one unit of the order's durable lifetime
+ * budget (MAX_VERIFICATION_REQUESTS; 409 conflict once spent). The budget is
+ * consumed AFTER the rate limiter (a rate-limited request never burns it) and
+ * BEFORE the Telnyx call (fail-closed: a Telnyx failure still counts).
  */
 textEnablementRoutes.post(
   "/:id/verification-codes",
@@ -579,6 +688,21 @@ textEnablementRoutes.post(
     if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
     const gate = verificationGate(c, order);
     if (gate) return gate;
+    const limited = await verificationRateLimit(c, env, "send", order.phone_e164);
+    if (limited) return limited;
+    const withinCap = await consumeOrderBudget(
+      db,
+      order,
+      "verification_requests",
+      MAX_VERIFICATION_REQUESTS,
+    );
+    if (!withinCap) {
+      return errorResponse(
+        c,
+        "conflict",
+        "Too many verification attempts for this order — cancel it and start again, or contact support.",
+      );
+    }
 
     const { error } = await requestHostedVerificationCodes(
       env,
@@ -619,6 +743,13 @@ textEnablementRoutes.post(
     if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
     const gate = verificationGate(c, order);
     if (gate) return gate;
+    const limited = await verificationRateLimit(
+      c,
+      env,
+      "check",
+      order.phone_e164,
+    );
+    if (limited) return limited;
 
     const outcome = await submitHostedVerificationCode(env, order, body.code);
     if (outcome === "rejected") {

@@ -702,11 +702,24 @@ export interface PortRequest {
   is_wireless: boolean;
   wants_bridge_number: boolean;
   bridge_number_id: string | null;
+  /**
+   * PORTING.md D16: the opt-in temporary (bridge) number, present only while
+   * it is live (`phone_numbers.status='active'`) — the GET routes resolve it;
+   * mutation responses carry null and the card re-reads the list.
+   */
+  bridge_number_e164: string | null;
   has_pin: boolean;
   has_account_number: boolean;
   has_ssn_sin_last4: boolean;
   has_loa: boolean;
   has_invoice: boolean;
+  /**
+   * PORTING.md §8.2/§9: the post-port 10DLC campaign assignment FAILED —
+   * typically the previous texting provider still holds the number in their
+   * carrier campaign. Customer-actionable (ask them to release it); the port
+   * card renders the §9 guidance from this flag.
+   */
+  assignment_blocked: boolean;
   submitted_at: string | null;
   ported_at: string | null;
   cancelled_at: string | null;

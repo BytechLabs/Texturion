@@ -524,16 +524,29 @@ export async function resumeProvisioning(
  * Never throws for saga-step failures — those land on the row as
  * `provision_failed` for the §11 cron; only infrastructure failures
  * (database unreachable) propagate, so the webhook ledger retries them.
+ *
+ * `bridge: true` (PORTING.md D16: the opt-in tide-me-over number bought
+ * alongside a port, keyed `${sessionId}:bridge:${portId}`) narrows the
+ * foreign-row guard to `source='provisioned'` rows only — the port's own
+ * `source='ported'` row ALWAYS exists by webhook time and would otherwise
+ * silently veto the very bridge the wizard promised. The `provisioning_key`
+ * idempotency is unchanged, so duplicate deliveries still converge on ONE
+ * bridge row, and a foreign provisioned number (the company can already
+ * text) still skips the purchase.
  */
 export async function provisionCompanyNumber(
   env: Env,
-  input: { companyId: string; checkoutSessionId: string },
+  input: { companyId: string; checkoutSessionId: string; bridge?: boolean },
 ): Promise<PhoneNumberRow | null> {
   const db = getDb(env);
   const company = await fetchCompany(db, input.companyId);
 
   // §9: resubscribe-within-grace — a non-released number (from a previous
-  // checkout / provision request) means nothing to provision here.
+  // checkout / provision request) means nothing to provision here. A bridge
+  // call ignores ported/hosted rows in this decision (they are fulfilled by
+  // their own sagas and say nothing about whether the company can text
+  // today); a normal call must NOT — the ported row is exactly what stops
+  // the paid webhook double-provisioning a port-only signup.
   const { data: existing, error: existingError } = await db
     .from("phone_numbers")
     .select(NUMBER_COLUMNS)
@@ -544,7 +557,9 @@ export async function provisionCompanyNumber(
   }
   const rows = (existing ?? []) as unknown as PhoneNumberRow[];
   const foreign = rows.find(
-    (row) => row.provisioning_key !== input.checkoutSessionId,
+    (row) =>
+      row.provisioning_key !== input.checkoutSessionId &&
+      (input.bridge !== true || row.source === "provisioned"),
   );
   if (foreign) return null;
 

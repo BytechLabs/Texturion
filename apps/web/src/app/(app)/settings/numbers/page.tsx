@@ -88,7 +88,11 @@ export default function NumbersSettingsPage() {
                 ))
               )}
 
+              {/* Post-payment action (same gate as the port/text-enable start
+                  affordances): never offer a second number the server would
+                  refuse while the subscription isn't active. */}
               {(role === "owner" || role === "admin") &&
+                company.data.subscription_status === "active" &&
                 company.data.plan === "pro" &&
                 usedSlots < PLAN_NUMBER_LIMIT.pro && (
                   <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">

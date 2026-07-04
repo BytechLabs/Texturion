@@ -29,7 +29,7 @@ export default function RefundsPage() {
   return (
     <LegalPage
       title="30-day money-back guarantee"
-      intro="Three paragraphs, no asterisks. If JobText isn't right for your crew in the first 30 days, you get all your money back."
+      intro="No asterisks, no fine print. If JobText isn't right for your crew in the first 30 days, you get all your money back."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-03"
       breadcrumbLabel="30-day guarantee"
@@ -41,7 +41,7 @@ export default function RefundsPage() {
           If JobText isn&apos;t right for your crew, tell us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
           subscription and, if you paid it, the one-time $29 registration fee.
-          No &quot;minus credits used,&quot; the texts you sent during those 30
+          No &quot;minus credits used&quot; — the texts you sent during those 30
           days are on us. No forms, no retention call. The guarantee covers the
           first 30 days of your first JobText subscription; it doesn&apos;t
           reset if you cancel and come back later. It is also part of our{" "}

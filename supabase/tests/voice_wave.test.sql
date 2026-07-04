@@ -442,4 +442,153 @@ begin
   raise notice 'VW-14 PASSED: rate-limited review ask does not burn the one-per-job claim';
 end $$;
 
+-- ===========================================================================
+-- VW-15. claim_text_enablement_slot — TENANT ISOLATION on the Idempotency-Key
+--        replay path (§10): a provisioning key already claimed by company A
+--        must RAISE for company B, never return (or adopt) A's rows.
+-- ===========================================================================
+do $$
+declare res jsonb; ok boolean := false;
+begin
+  insert into auth.users (id, email) values
+    ('facade00-0000-4000-8000-000000000021', 'other@vw.test');
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+     subscription_status, plan)
+  values ('facade00-0000-4000-8000-000000000022', 'VW Rival',
+          'facade00-0000-4000-8000-000000000021', 'CA', '416', now(),
+          'active', 'pro');
+
+  begin
+    -- 'te-key-1' belongs to the VW-11 company; the rival replays it.
+    res := public.claim_text_enablement_slot(
+      'facade00-0000-4000-8000-000000000022', 'te-key-1',
+      '+14165558000', 'CA', 5);
+    raise exception 'VW-15 FAILED: cross-company key replay returned % instead of raising', res;
+  exception when others then
+    if sqlerrm not like '%belongs to another company%' then raise; end if;
+    ok := true;
+  end;
+  if not ok then raise exception 'VW-15 FAILED: expected the cross-company guard to raise'; end if;
+  raise notice 'VW-15 PASSED: a cross-company provisioning-key replay raises, never leaks';
+end $$;
+
+-- ===========================================================================
+-- VW-16. claim_missed_call_text — company scoping backstop: a phone_number_id
+--        that does NOT belong to the company is refused (skipped=not_found),
+--        so a mismatched (company, number) pair from a webhook handler bug can
+--        never thread or text under the wrong tenant.
+-- ===========================================================================
+do $$
+declare res jsonb;
+begin
+  insert into public.phone_numbers (id, company_id, status, provisioning_key, country, number_e164)
+  values ('facade00-0000-4000-8000-000000000023', 'facade00-0000-4000-8000-000000000022',
+          'active', 'cs_vw_rival', 'CA', '+14165550199');
+
+  res := public.claim_missed_call_text(
+    'facade00-0000-4000-8000-000000000002',        -- VW company…
+    'facade00-0000-4000-8000-000000000023',        -- …the RIVAL's number
+    '+14165559333', 'call-sess-xt', 'wrong pair', 1, 10800);
+  if res->>'skipped' <> 'not_found' then
+    raise exception 'VW-16 FAILED: mismatched (company, number) expected not_found, got %', res;
+  end if;
+  raise notice 'VW-16 PASSED: a mismatched company/number pair is refused';
+end $$;
+
+-- ===========================================================================
+-- VW-17. Lifetime-cap columns (SECURITY follow-up, 20260704010000):
+--        text_enablement_orders gains verification_requests + resubmit_count
+--        (int NOT NULL default 0), and bump_text_enablement_counter is
+--        service-role-only like the other claim_* RPCs.
+-- ===========================================================================
+do $$
+declare col text; c_type text; c_null boolean; c_default text; leaked text;
+begin
+  foreach col in array array['verification_requests','resubmit_count'] loop
+    select data_type, is_nullable='YES', column_default into c_type, c_null, c_default
+    from information_schema.columns
+    where table_schema='public' and table_name='text_enablement_orders' and column_name=col;
+    if c_type is null then raise exception 'VW-17 FAILED: text_enablement_orders.% missing', col; end if;
+    if c_type <> 'integer' then raise exception 'VW-17 FAILED: % is % (want integer)', col, c_type; end if;
+    if c_null then raise exception 'VW-17 FAILED: % must be NOT NULL', col; end if;
+    if c_default <> '0' then raise exception 'VW-17 FAILED: % default is % (want 0)', col, c_default; end if;
+  end loop;
+
+  select string_agg(distinct r.rolname, ',') into leaked
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  cross join lateral aclexplode(p.proacl) a
+  join pg_roles r on r.oid=a.grantee
+  where n.nspname='public' and p.proname='bump_text_enablement_counter'
+    and a.privilege_type='EXECUTE'
+    and r.rolname in ('public','anon','authenticated');
+  if leaked is not null then
+    raise exception 'VW-17 FAILED: bump_text_enablement_counter leaked EXECUTE to %', leaked;
+  end if;
+  perform 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where n.nspname='public' and p.proname='bump_text_enablement_counter';
+  if not found then raise exception 'VW-17 FAILED: bump_text_enablement_counter missing'; end if;
+
+  raise notice 'VW-17 PASSED: lifetime-cap columns + service-role-only bump RPC present';
+end $$;
+
+-- ===========================================================================
+-- VW-18. bump_text_enablement_counter — the atomic guarded increment: counts
+--        up to the cap, returns allowed=false at the cap WITHOUT incrementing,
+--        never touches a mismatched (order, company) pair, and each counter is
+--        independent. Uses the VW-11 order (provisioning_key 'te-key-1').
+-- ===========================================================================
+do $$
+declare ord_id uuid; res jsonb; vr int; rc int; ok boolean := false;
+begin
+  select id into ord_id from public.text_enablement_orders where provisioning_key='te-key-1';
+  if ord_id is null then raise exception 'VW-18 FAILED: fixture order missing'; end if;
+
+  -- Two units of a cap-2 budget count 1, 2 …
+  res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'verification_requests', 2);
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+    raise exception 'VW-18 FAILED: first bump expected allowed/count=1, got %', res;
+  end if;
+  res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'verification_requests', 2);
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 2 then
+    raise exception 'VW-18 FAILED: second bump expected allowed/count=2, got %', res;
+  end if;
+  -- … and the third is refused, leaving the counter AT the cap.
+  res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'verification_requests', 2);
+  if (res->>'allowed')::boolean is not false then
+    raise exception 'VW-18 FAILED: capped bump expected allowed=false, got %', res;
+  end if;
+  select verification_requests, resubmit_count into vr, rc
+    from public.text_enablement_orders where id=ord_id;
+  if vr <> 2 then raise exception 'VW-18 FAILED: capped bump incremented past the cap (%)', vr; end if;
+  if rc <> 0 then raise exception 'VW-18 FAILED: verification bumps leaked into resubmit_count (%)', rc; end if;
+
+  -- resubmit_count is its own budget.
+  res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'resubmit_count', 5);
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+    raise exception 'VW-18 FAILED: resubmit bump expected allowed/count=1, got %', res;
+  end if;
+
+  -- A mismatched company (the VW-15 rival) never increments — backstop for a
+  -- caller that skipped the company-scoped load.
+  res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000022', 'verification_requests', 100);
+  if (res->>'allowed')::boolean is not false then
+    raise exception 'VW-18 FAILED: cross-company bump expected allowed=false, got %', res;
+  end if;
+  select verification_requests into vr from public.text_enablement_orders where id=ord_id;
+  if vr <> 2 then raise exception 'VW-18 FAILED: cross-company bump incremented (%)', vr; end if;
+
+  -- An unknown counter name raises (never a silent no-op).
+  begin
+    res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'attempts', 10);
+    raise exception 'VW-18 FAILED: unknown counter was accepted';
+  exception when others then
+    if sqlerrm not like '%unknown counter%' then raise; end if;
+    ok := true;
+  end;
+  if not ok then raise exception 'VW-18 FAILED: expected unknown-counter to raise'; end if;
+
+  raise notice 'VW-18 PASSED: bump_text_enablement_counter increments atomically and stops at the cap';
+end $$;
+
 rollback;

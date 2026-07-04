@@ -28,6 +28,23 @@ export function previewAwayMessage(
 }
 
 /**
+ * Render the missed-call text-back as the caller would receive it. Unlike the
+ * away reply, the server sends this with NO contact name (a missed call is
+ * usually a brand-new caller — apps/api missed-call.ts passes contactName:
+ * null), so a typed {first_name} is dropped here exactly as it is on the wire.
+ */
+export function previewMissedCallText(
+  message: string,
+  businessName: string,
+): string {
+  return applyMergeFields(message, {
+    contactName: null,
+    businessName,
+    reviewLink: null,
+  });
+}
+
+/**
  * Render the default review ask preview from a stored review link. Mirrors the
  * API's DEFAULT_REVIEW_MESSAGE so the Reviews settings page can show the owner
  * exactly what a one-tap ask sends.

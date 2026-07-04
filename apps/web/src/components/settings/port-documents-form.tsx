@@ -77,6 +77,9 @@ export function FileField({
           type="button"
           variant="outline"
           size="sm"
+          // Name the field the button belongs to — a form has two otherwise
+          // identical "Choose"/"Replace" buttons (LOA + bill).
+          aria-label={`${filename || uploaded ? "Replace" : "Choose"} file — ${label}`}
           onClick={() => inputRef.current?.click()}
         >
           <Upload className="size-4" aria-hidden />

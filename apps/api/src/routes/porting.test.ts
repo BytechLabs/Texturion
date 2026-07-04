@@ -548,6 +548,112 @@ describe("GET /v1/port-requests(/:id)", () => {
     expect(body.data).toHaveLength(1);
     expect(body.data[0].pin_passcode).toBeUndefined();
     expect(body.data[0].has_pin).toBe(true);
+    // §8.2/§9: pre-cutover the assignment flag is definitionally false.
+    expect(body.data[0].assignment_blocked).toBe(false);
+  });
+
+  // PORTING.md §8.2/§9: the post-port 10DLC assignment-FAILED state (recorded
+  // on the campaign row's ledger by registration.ts) must reach the port card.
+  it("exposes assignment_blocked when the ported number's 10DLC assignment FAILED", async () => {
+    const harness = buildHarness();
+    const port = seedPort(harness.rest, {
+      status: "ported",
+      messaging_port_status: "ported",
+      ported_at: new Date().toISOString(),
+    });
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "campaign",
+      status: "approved",
+      telnyx_id: "camp-1",
+      data: {
+        numberAssignments: { [PORT_E164]: "failed", "+13035550999": "added" },
+      },
+    });
+
+    const list = await harness.request("/v1/port-requests");
+    expect(list.status).toBe(200);
+    const listBody = (await list.json()) as { data: Record<string, unknown>[] };
+    expect(listBody.data[0].assignment_blocked).toBe(true);
+
+    const detail = await harness.request(`/v1/port-requests/${port.id}`);
+    expect(detail.status).toBe(200);
+    const detailBody = (await detail.json()) as Record<string, unknown>;
+    expect(detailBody.assignment_blocked).toBe(true);
+  });
+
+  it("a ported number with a clean (added) assignment is NOT flagged", async () => {
+    const harness = buildHarness();
+    seedPort(harness.rest, {
+      status: "ported",
+      messaging_port_status: "ported",
+      ported_at: new Date().toISOString(),
+    });
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "campaign",
+      status: "approved",
+      telnyx_id: "camp-1",
+      data: { numberAssignments: { [PORT_E164]: "added" } },
+    });
+    const res = await harness.request("/v1/port-requests");
+    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    expect(body.data[0].assignment_blocked).toBe(false);
+  });
+
+  // PORTING.md D16: the opt-in bridge (tide-me-over) number reaches the card
+  // as bridge_number_e164 — resolved from the linked phone_numbers row.
+  it("exposes bridge_number_e164 while the linked bridge number is ACTIVE", async () => {
+    const harness = buildHarness();
+    const bridge = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      source: "provisioned",
+      provisioning_key: "cs_1:bridge:p1",
+      country: "US",
+      number_e164: "+13035550777",
+    });
+    const port = seedPort(harness.rest, {
+      wants_bridge_number: true,
+      bridge_number_id: bridge.id,
+    });
+
+    const list = await harness.request("/v1/port-requests");
+    expect(list.status).toBe(200);
+    const listBody = (await list.json()) as { data: Record<string, unknown>[] };
+    expect(listBody.data[0].bridge_number_e164).toBe("+13035550777");
+
+    const detail = await harness.request(`/v1/port-requests/${port.id}`);
+    expect(detail.status).toBe(200);
+    const detailBody = (await detail.json()) as Record<string, unknown>;
+    expect(detailBody.bridge_number_e164).toBe("+13035550777");
+  });
+
+  it("a still-provisioning bridge (and no bridge at all) serializes bridge_number_e164 null", async () => {
+    const harness = buildHarness();
+    const bridge = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "provisioned",
+      provisioning_key: "cs_1:bridge:p1",
+      country: "US",
+    });
+    seedPort(harness.rest, {
+      wants_bridge_number: true,
+      bridge_number_id: bridge.id,
+    });
+
+    const res = await harness.request("/v1/port-requests");
+    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    // Linked but not yet live → null (never promise a number that can't send).
+    expect(body.data[0].bridge_number_e164).toBeNull();
+
+    // And the plain no-bridge port carries the field as null, not undefined.
+    const noBridge = buildHarness();
+    seedPort(noBridge.rest);
+    const plain = await noBridge.request("/v1/port-requests");
+    const plainBody = (await plain.json()) as { data: Record<string, unknown>[] };
+    expect(plainBody.data[0]).toHaveProperty("bridge_number_e164", null);
   });
 
   it("404s an unknown id and a foreign-company id", async () => {

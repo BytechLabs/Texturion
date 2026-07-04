@@ -25,6 +25,7 @@ import {
   type StubEndpoint,
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
+import { startPortSaga } from "../test/telnyx-doubles/porting";
 import {
   provisionCompanyNumber,
   suspendCompanyNumbers,
@@ -726,5 +727,167 @@ describe("§9 event → state table", () => {
       attempts: 1,
       last_error: expect.any(String),
     });
+  });
+});
+
+describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", () => {
+  const PORT_ID = "5f2b8f0a-7425-40de-944b-e07fc1f90ae8";
+
+  /**
+   * Registered BEFORE ledgerEndpoints so this port_requests GET wins over the
+   * default empty one (makeHarness dispatches to the first matching endpoint).
+   */
+  function portEndpoints(port: Record<string, unknown>): StubEndpoint[] {
+    return [
+      endpoint("GET", /\/rest\/v1\/port_requests/, () => [port]),
+      endpoint(
+        "PATCH",
+        /\/rest\/v1\/port_requests/,
+        () => new Response(null, { status: 204 }),
+      ),
+    ];
+  }
+
+  /** The paid-checkout happy-path far side (no fee line, no suspended rows). */
+  function checkoutEndpoints(): StubEndpoint[] {
+    return [
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+    ];
+  }
+
+  it("provisions the opted-in bridge under its own key and links bridge_number_id", async () => {
+    const harness = makeHarness([
+      ...portEndpoints({
+        id: PORT_ID,
+        wants_bridge_number: true,
+        bridge_number_id: null,
+      }),
+      ...ledgerEndpoints(),
+      ...checkoutEndpoints(),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    // Bridge first (its own deterministic key + the bridge flag that ignores
+    // the port's own source='ported' row), then the plain provisioning call
+    // (which skips — a non-released number now exists under another key).
+    expect(provisionCompanyNumber).toHaveBeenCalledTimes(2);
+    expect(provisionCompanyNumber).toHaveBeenNthCalledWith(1, env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: `cs_1:bridge:${PORT_ID}`,
+      bridge: true,
+    });
+    expect(provisionCompanyNumber).toHaveBeenNthCalledWith(2, env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: "cs_1",
+    });
+    expect(startPortSaga).toHaveBeenCalledExactlyOnceWith(env, {
+      companyId: COMPANY_ID,
+      portRequestId: PORT_ID,
+    });
+
+    // The durable port ↔ bridge link, guarded on bridge_number_id IS NULL so
+    // overlapping runs never re-link.
+    const links = harness.callsTo("PATCH", /port_requests/);
+    expect(links).toHaveLength(1);
+    expect(links[0].url.searchParams.get("id")).toBe(`eq.${PORT_ID}`);
+    expect(links[0].url.searchParams.get("bridge_number_id")).toBe("is.null");
+    expect(links[0].json()).toEqual({
+      bridge_number_id: "bridge-number-double",
+    });
+  });
+
+  it("redelivery converges: the duplicate event provisions NO second bridge", async () => {
+    const seen = new Set<string>();
+    const buildHarness = () =>
+      makeHarness([
+        ...portEndpoints({
+          id: PORT_ID,
+          wants_bridge_number: true,
+          bridge_number_id: null,
+        }),
+        ...ledgerEndpoints(seen),
+        ...checkoutEndpoints(),
+      ]);
+    const event = eventOf("checkout.session.completed", checkoutSessionFixture(), {
+      id: "evt_bridge_replay",
+    });
+
+    const first = buildHarness();
+    await deliver(event, first);
+    const second = buildHarness();
+    const response = await deliver(event, second);
+    expect(await response.json()).toEqual({ received: true, duplicate: true });
+
+    // Exactly ONE bridge-keyed provisioning call across both deliveries (the
+    // provisioning_key backstop covers the sweeper/waitUntil overlap case —
+    // provisioning.test.ts proves the same key converges on one row).
+    const bridgeCalls = provisionCompanyNumber.mock.calls.filter(
+      ([, input]) => input.bridge === true,
+    );
+    expect(bridgeCalls).toHaveLength(1);
+    expect(first.callsTo("PATCH", /port_requests/)).toHaveLength(1);
+    expect(second.callsTo("PATCH", /port_requests/)).toHaveLength(0);
+  });
+
+  it("a port whose bridge is already linked is not re-provisioned (sweeper re-run)", async () => {
+    const harness = makeHarness([
+      ...portEndpoints({
+        id: PORT_ID,
+        wants_bridge_number: true,
+        bridge_number_id: "pn-bridge-existing",
+      }),
+      ...ledgerEndpoints(),
+      ...checkoutEndpoints(),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    // Only the plain provisioning call — no second bridge, no re-link.
+    expect(provisionCompanyNumber).toHaveBeenCalledExactlyOnceWith(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: "cs_1",
+    });
+    expect(harness.callsTo("PATCH", /port_requests/)).toHaveLength(0);
+    expect(startPortSaga).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pending port WITHOUT the bridge opt-in starts the saga and buys nothing extra", async () => {
+    const harness = makeHarness([
+      ...portEndpoints({
+        id: PORT_ID,
+        wants_bridge_number: false,
+        bridge_number_id: null,
+      }),
+      ...ledgerEndpoints(),
+      ...checkoutEndpoints(),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    expect(startPortSaga).toHaveBeenCalledExactlyOnceWith(env, {
+      companyId: COMPANY_ID,
+      portRequestId: PORT_ID,
+    });
+    expect(provisionCompanyNumber).toHaveBeenCalledExactlyOnceWith(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: "cs_1",
+    });
+    expect(harness.callsTo("PATCH", /port_requests/)).toHaveLength(0);
   });
 });

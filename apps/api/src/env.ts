@@ -71,6 +71,16 @@ const envSchema = z.object({
    * OPTIONAL: absent in local dev/tests → the dispatch-time gate is skipped.
    */
   SEND_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * Per-number limiter for the keep-your-number ownership-verification
+   * endpoints (SPEC §10 DoS posture), declared in wrangler.jsonc like
+   * SEND_RATE_LIMITER. POST /v1/text-enablements/:id/verification-codes makes
+   * Telnyx SMS or CALL the target number — a number the company has NOT yet
+   * proven it owns — and .../verify accepts code guesses, so both are bounded
+   * per target number (limit=3 per 60s). OPTIONAL: absent in local dev/tests
+   * → the gate is skipped.
+   */
+  VERIFY_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

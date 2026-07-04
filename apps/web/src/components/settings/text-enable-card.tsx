@@ -526,7 +526,8 @@ export function TextEnableCard({
               strokeWidth={1.75}
               aria-hidden
             />
-            <span>{ui.statusLine}</span>
+            {/* last_error is carrier-authored — break long tokens at 375px. */}
+            <span className="min-w-0 break-words">{ui.statusLine}</span>
           </div>
         ) : (
           <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
