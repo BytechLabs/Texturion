@@ -5,12 +5,12 @@ import {
   Ban,
   Check,
   ChevronDown,
+  Copy,
   Images,
   Info,
   MoreHorizontal,
   OctagonAlert,
   Phone,
-  Star,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -39,11 +39,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCompany } from "@/lib/api/companies";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import { useUpdateConversation } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
-import { useRequestReview } from "@/lib/api/messages";
 import { useMembers } from "@/lib/api/team";
 import type {
   ConversationDetail,
@@ -54,8 +52,6 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
-import { reviewConfirmCopy, type ReviewConfirmCopy } from "./review-confirm";
-
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
 
 function onApiError(error: unknown, fallback: string) {
@@ -63,10 +59,16 @@ function onApiError(error: unknown, fallback: string) {
 }
 
 /**
- * G5 thread header: back (mobile), contact name (tap → contact panel),
- * number below, status select (inline pill dropdown), assignee select
- * (avatar menu), overflow (Close/Reopen, Mark spam, Opt out contact, View
- * contact).
+ * G5 thread header (decluttered per issue #2): back (mobile), contact name
+ * (tap → contact panel) with a copy-number button beside the number, Call,
+ * Done (close/reopen), the status select, the assignee select, an Info toggle
+ * (desktop) for the contact panel, and a lean overflow (spam / attachments /
+ * opt-out).
+ *
+ * Removed: the redundant close/reopen + "View contact" overflow items (the Done
+ * button, the status dropdown, and the name/Info toggle already cover those),
+ * and the dedicated "Ask for a review" action — reviews are sent from a saved
+ * template now (the review link lives in Settings → Reviews).
  */
 export function ThreadHeader({
   conversation,
@@ -88,57 +90,23 @@ export function ThreadHeader({
   const members = useMembers();
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
-  const company = useCompany();
-  const requestReview = useRequestReview(conversation.id);
   const [confirmOptOut, setConfirmOptOut] = useState(false);
-  const [reviewConfirm, setReviewConfirm] = useState<ReviewConfirmCopy | null>(
-    null,
-  );
-
-  // FEATURE-GAPS Step 2 — the one-tap "Ask for a review" action. Cheap client
-  // suppressions (disabled with a reason): no review link on file, or the
-  // contact is opted out. The one-per-job "already asked / replied since"
-  // suppression is the server's atomic decision (409) — surfaced as a toast.
-  // The Step 0b quiet-hours + cold-thread gate answers the composer's stable
-  // `quiet_hours_confirmation_required` code (409, matched structurally) —
-  // that one opens the confirm dialog instead, and confirming retries the
-  // send with quiet_hours_confirmed, exactly like the composer.
-  const reviewLink = company.data?.google_review_link ?? null;
-  const reviewDisabledReason = !reviewLink
-    ? "Add your Google review link in Settings → Reviews first."
-    : contact?.opted_out
-      ? "This contact has opted out of texts."
-      : null;
-
-  const sendReview = (quietConfirmed: boolean) => {
-    if (reviewDisabledReason) {
-      toast.error(reviewDisabledReason);
-      return;
-    }
-    requestReview.mutate(
-      quietConfirmed ? { quiet_hours_confirmed: true } : undefined,
-      {
-        onSuccess: () => toast.success("Review request sent."),
-        onError: (e) => {
-          if (
-            e instanceof ApiError &&
-            e.code === "quiet_hours_confirmation_required"
-          ) {
-            setReviewConfirm(reviewConfirmCopy(conversation.contact.phone_e164));
-            return;
-          }
-          onApiError(e, "Couldn't send the review request. Try again.");
-        },
-      },
-    );
-  };
-  const askForReview = () => sendReview(false);
 
   const name = contactDisplayName(conversation.contact);
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id) ?? "Teammate"
     : null;
   const closed = conversation.status === "closed";
+  const phone = conversation.contact.phone_e164;
+
+  const copyPhone = async () => {
+    try {
+      await navigator.clipboard.writeText(phone);
+      toast.success("Number copied.");
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access.");
+    }
+  };
 
   const setStatus = (status: ConversationStatus) => {
     if (status === conversation.status) return;
@@ -150,7 +118,6 @@ export function ThreadHeader({
 
   // §4/§5: close / reopen / assign / mark-spam are routine and reversible —
   // do them instantly, then offer a 5s "Undo" toast (no confirm gauntlet).
-  // Each captures the prior value so Undo fires the exact inverse mutation.
   const closeOrReopen = () => {
     const wasClosed = conversation.status === "closed";
     const prev = conversation.status;
@@ -190,15 +157,15 @@ export function ThreadHeader({
     );
   };
 
-  const assignTo = (userId: string | null) => {
+  const assignTo = (assignId: string | null) => {
     const prev = conversation.assigned_user_id;
-    if (userId === prev) return;
+    if (assignId === prev) return;
     const label =
-      userId === null
+      assignId === null
         ? "Unassigned"
-        : `Assigned to ${memberNames.get(userId) ?? "teammate"}`;
+        : `Assigned to ${memberNames.get(assignId) ?? "teammate"}`;
     update.mutate(
-      { assigned_user_id: userId },
+      { assigned_user_id: assignId },
       {
         onError: (e) => onApiError(e, "Couldn't assign."),
         onSuccess: () =>
@@ -213,8 +180,6 @@ export function ThreadHeader({
       },
     );
   };
-
-  const phone = conversation.contact.phone_e164;
 
   return (
     <header className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-2.5 md:gap-3 md:px-4">
@@ -241,19 +206,31 @@ export function ThreadHeader({
         {avatarInitials(name)}
       </span>
 
-      <button
-        type="button"
-        onClick={onToggleContactPanel}
-        className="min-w-0 flex-1 rounded-md px-1 py-0.5 text-left transition-colors duration-150 ease-out hover:bg-app-stone-1"
-        aria-label={`View contact details for ${name}`}
-      >
-        <span className="block truncate text-[15px] font-bold text-app-ink">
+      {/* Name (tap → contact panel) + number with a copy button. */}
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={onToggleContactPanel}
+          aria-pressed={panelOpen}
+          aria-label={`View contact details for ${name}`}
+          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold text-app-ink transition-colors duration-150 ease-out hover:bg-app-stone-1"
+        >
           {name}
-        </span>
-        <span className="block truncate text-[12.5px] tabular-nums text-app-muted">
-          {formatPhone(phone)}
-        </span>
-      </button>
+        </button>
+        <div className="flex items-center gap-1 px-1">
+          <span className="truncate text-[12.5px] tabular-nums text-app-muted">
+            {formatPhone(phone)}
+          </span>
+          <button
+            type="button"
+            onClick={copyPhone}
+            aria-label="Copy phone number"
+            className="tap-target shrink-0 rounded p-0.5 text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
+          </button>
+        </div>
+      </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
         {/* Call — a tel: link to the contact's number. */}
@@ -269,24 +246,7 @@ export function ThreadHeader({
           </a>
         </Button>
 
-        {/* Ask for a review (FEATURE-GAPS Step 2) — MANUAL one-tap only. Sends
-            the saved review ask with {review_link} merged. Disabled with a
-            reason (title) when there is no review link or the contact opted
-            out; the one-per-job suppression is enforced server-side. */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hidden sm:inline-flex"
-          aria-label="Ask for a review"
-          title={reviewDisabledReason ?? "Ask for a review"}
-          disabled={requestReview.isPending || reviewDisabledReason !== null}
-          onClick={askForReview}
-        >
-          <Star className="size-4" strokeWidth={1.75} />
-        </Button>
-
-        {/* Done — the app's completion gesture (close / reopen), styled as the
-            mockup's petrol-tint Done button. */}
+        {/* Done — the app's completion gesture (close / reopen). */}
         <button
           type="button"
           onClick={closeOrReopen}
@@ -304,7 +264,6 @@ export function ThreadHeader({
             <button
               type="button"
               aria-label={`Status: ${conversation.status}. Change status`}
-              // min sizes below md: the G11 ≥44px mobile hit-target bar.
               className="flex min-h-11 items-center gap-0.5 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:min-h-0"
               disabled={update.isPending}
             >
@@ -321,9 +280,7 @@ export function ThreadHeader({
               <DropdownMenuItem
                 key={status}
                 onSelect={() => setStatus(status)}
-                className={cn(
-                  status === conversation.status && "bg-secondary",
-                )}
+                className={cn(status === conversation.status && "bg-secondary")}
               >
                 <StatusPill status={status} />
               </DropdownMenuItem>
@@ -386,7 +343,7 @@ export function ThreadHeader({
           <Info className="size-4" strokeWidth={1.75} />
         </Button>
 
-        {/* Overflow. */}
+        {/* Overflow — spam / attachments / opt-out. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label="More actions">
@@ -394,26 +351,9 @@ export function ThreadHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={closeOrReopen}>
-              <Undo2 className="size-4" strokeWidth={1.75} />
-              {closed ? "Reopen conversation" : "Close conversation"}
-            </DropdownMenuItem>
             <DropdownMenuItem onSelect={toggleSpam}>
               <OctagonAlert className="size-4" strokeWidth={1.75} />
               {conversation.is_spam ? "Not spam" : "Mark as spam"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onToggleContactPanel}>
-              <UserRound className="size-4" strokeWidth={1.75} />
-              View contact
-            </DropdownMenuItem>
-            {/* FEATURE-GAPS Step 2 — one-tap review ask, also in the overflow
-                (the header Star is hidden below sm). */}
-            <DropdownMenuItem
-              disabled={requestReview.isPending || reviewDisabledReason !== null}
-              onSelect={askForReview}
-            >
-              <Star className="size-4" strokeWidth={1.75} />
-              Ask for a review
             </DropdownMenuItem>
             {/* §5.2: the gallery's single entry point. */}
             <DropdownMenuItem onSelect={onOpenGallery}>
@@ -473,36 +413,6 @@ export function ThreadHeader({
               }
             >
               {optOut.isPending ? "Opting out…" : "Opt out"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Review-ask confirm (FEATURE-GAPS Step 0b / SPEC §5): driven by the
-          API's stable 409 `quiet_hours_confirmation_required` code — the same
-          contract as the composer's quiet-hours dialog. Covers both quiet
-          hours and a cold thread; confirming retries with the flag set. */}
-      <Dialog
-        open={reviewConfirm !== null}
-        onOpenChange={(open) => !open && setReviewConfirm(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{reviewConfirm?.title}</DialogTitle>
-            <DialogDescription>{reviewConfirm?.description}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewConfirm(null)}>
-              Wait
-            </Button>
-            <Button
-              onClick={() => {
-                setReviewConfirm(null);
-                sendReview(true);
-              }}
-              disabled={requestReview.isPending}
-            >
-              Send
             </Button>
           </DialogFooter>
         </DialogContent>
