@@ -68,7 +68,7 @@ export function FilterBar({
       <div
         role="tablist"
         aria-label="Conversation status"
-        className="flex gap-0.5 rounded-full bg-[rgba(20,32,30,0.04)] p-[3px] dark:bg-white/5"
+        className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
       >
         {INBOX_SEGMENTS.map(({ id, label }) => {
           const selected = segment === id;
@@ -83,9 +83,9 @@ export function FilterBar({
               onClick={() => onChange(applySegment(filters, id))}
               className={cn(
                 // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
-                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background,box-shadow] duration-150 ease-out md:min-h-[28px]",
+                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out md:min-h-[28px]",
                 selected
-                  ? "bg-app-white font-semibold text-app-ink shadow-[0_1px_2px_rgba(20,32,30,0.08)]"
+                  ? "bg-app-white font-semibold text-app-ink"
                   : "font-medium text-app-muted hover:text-app-ink",
               )}
             >

@@ -63,7 +63,7 @@ function PanelSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-app-card border border-app-line bg-app-white p-3.5 app-shadow-panel">
+    <section className="rounded-app-card border border-app-line bg-app-white p-3.5">
       <h3 className="mb-2.5 text-[13px] font-bold text-app-ink">{label}</h3>
       {children}
     </section>
@@ -160,8 +160,8 @@ export function ContactPanel({
     // the hero; this detail lives in the toggled panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="space-y-3 p-3.5">
-        {/* Contact — name, number + copy, address, notes. Elevated card. */}
-        <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5 app-shadow-panel">
+        {/* Contact — name, number + copy, address, notes. Calm hairline card. */}
+        <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5">
           <InlineTextField
             contactId={contact.id}
             field="name"

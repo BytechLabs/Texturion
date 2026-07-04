@@ -91,7 +91,7 @@ export default function UpdatePasswordPage() {
       return;
     }
     toast("Password updated.");
-    router.replace("/inbox");
+    router.replace("/for-you");
     router.refresh();
   }
 

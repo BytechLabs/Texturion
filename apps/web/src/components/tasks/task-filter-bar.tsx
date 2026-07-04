@@ -54,7 +54,7 @@ export function TaskFilterBar({
       <div
         role="tablist"
         aria-label="Task status"
-        className="flex max-w-md rounded-lg bg-muted p-0.5"
+        className="flex max-w-md rounded-lg bg-app-line-soft p-0.5"
       >
         {TASK_TABS.map(({ id, label }) => {
           const selected = state.tab === id;
@@ -70,7 +70,7 @@ export function TaskFilterBar({
                 // T6.1: active segment is a QUIET stone pill, never petrol —
                 // petrol is reserved for the page's primary action.
                 selected
-                  ? "bg-card text-foreground"
+                  ? "bg-app-white text-app-ink"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >

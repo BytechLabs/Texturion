@@ -3,6 +3,7 @@ import {
   Inbox,
   ListChecks,
   MessageSquareText,
+  MoreHorizontal,
   Settings,
   Users,
   type LucideIcon,
@@ -43,15 +44,16 @@ export const SETTINGS_NAV: NavItem = {
 };
 
 /**
- * Mobile bottom tabs (APP-LAYOUT-V2 §1.6): For You · Inbox · Tasks · Contacts ·
- * Settings — five 44px+ targets that fit a 375px bar.
+ * Mobile bottom tabs (PORTAL-UX §5): For you · Inbox · Tasks · Contacts · More —
+ * five 44px+ LABELED targets that fit a 375px bar (labels stay visible, never
+ * bare icons). "More" opens Settings and the account/library sections.
  */
 export const MOBILE_NAV: NavItem[] = [
   PRIMARY_NAV[0], // For You
   PRIMARY_NAV[1], // Inbox
   PRIMARY_NAV[2], // Tasks
   PRIMARY_NAV[3], // Contacts
-  SETTINGS_NAV,
+  { label: "More", href: "/settings", icon: MoreHorizontal },
 ];
 
 /** Active when the path is the item or nested under it. */

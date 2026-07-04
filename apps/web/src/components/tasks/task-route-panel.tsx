@@ -20,7 +20,7 @@ export function TaskRoutePanel({ taskId }: { taskId: string }) {
         <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden />
         Back to tasks
       </Link>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white app-shadow-panel">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
         <div className="h-[calc(100svh-11rem)] min-h-[420px]">
           <TaskDetailPanelHost taskId={taskId} />
         </div>

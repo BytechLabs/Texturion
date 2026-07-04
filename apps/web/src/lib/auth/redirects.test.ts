@@ -23,17 +23,17 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     });
   });
 
-  it("omits the redundant next param for the default landing (/inbox)", () => {
-    expect(decideAuthRedirect("/inbox", false)).toEqual({
+  it("omits the redundant next param for the default landing (/for-you)", () => {
+    expect(decideAuthRedirect("/for-you", false)).toEqual({
       pathname: "/login",
       search: "",
     });
   });
 
-  it("bounces signed-in users off the auth pages to /inbox", () => {
+  it("bounces signed-in users off the auth pages to /for-you", () => {
     for (const path of ["/login", "/signup", "/reset-password"]) {
       expect(decideAuthRedirect(path, true)).toEqual({
-        pathname: "/inbox",
+        pathname: "/for-you",
         search: "",
       });
     }
@@ -46,11 +46,12 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
   });
 
   it("guards the new nav routes (/for-you, /tasks) like the rest of the app", () => {
-    // Zero dead links (APP-LAYOUT-V2 §1.3): unauthenticated visits redirect to
-    // login instead of 404ing; authenticated visits render in-shell.
+    // Zero dead links (PORTAL-UX §2): unauthenticated visits redirect to login
+    // instead of 404ing; authenticated visits render in-shell. /for-you is the
+    // default landing, so it omits the redundant next param.
     expect(decideAuthRedirect("/for-you", false)).toEqual({
       pathname: "/login",
-      search: `?next=${encodeURIComponent("/for-you")}`,
+      search: "",
     });
     expect(decideAuthRedirect("/tasks", false)).toEqual({
       pathname: "/login",
@@ -86,19 +87,19 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     expect(safeNextPath("/inbox/abc")).toBe("/inbox/abc");
     expect(safeNextPath("/settings/billing")).toBe("/settings/billing");
     expect(safeNextPath("/inbox/abc-123")).toBe("/inbox/abc-123");
-    expect(safeNextPath("https://evil.example")).toBe("/inbox");
-    expect(safeNextPath("//evil.example")).toBe("/inbox");
-    expect(safeNextPath(null)).toBe("/inbox");
-    expect(safeNextPath("")).toBe("/inbox");
+    expect(safeNextPath("https://evil.example")).toBe("/for-you");
+    expect(safeNextPath("//evil.example")).toBe("/for-you");
+    expect(safeNextPath(null)).toBe("/for-you");
+    expect(safeNextPath("")).toBe("/for-you");
   });
 
   it("safeNextPath rejects backslash/control-char open-redirect bypasses", () => {
     // The URL parser folds `\` -> `/`, so `/\evil` would resolve to `//evil`
     // (protocol-relative → off-site) when the callback does new URL(next, origin).
-    expect(safeNextPath("/\\evil.example")).toBe("/inbox");
-    expect(safeNextPath("/\\/evil.example")).toBe("/inbox");
-    expect(safeNextPath("/\tevil.example")).toBe("/inbox");
-    expect(safeNextPath("/\nevil.example")).toBe("/inbox");
-    expect(safeNextPath("/ evil.example")).toBe("/inbox");
+    expect(safeNextPath("/\\evil.example")).toBe("/for-you");
+    expect(safeNextPath("/\\/evil.example")).toBe("/for-you");
+    expect(safeNextPath("/\tevil.example")).toBe("/for-you");
+    expect(safeNextPath("/\nevil.example")).toBe("/for-you");
+    expect(safeNextPath("/ evil.example")).toBe("/for-you");
   });
 });

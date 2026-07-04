@@ -103,7 +103,7 @@ export default function InviteAcceptPage() {
       onSuccess: (membership) => {
         // The new team becomes the active workspace immediately.
         writeCompanyCookie(membership.company_id);
-        router.replace("/inbox");
+        router.replace("/for-you");
         router.refresh();
       },
     });

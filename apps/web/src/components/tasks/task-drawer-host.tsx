@@ -45,9 +45,10 @@ function TaskDrawerHostInner() {
     >
       <SheetContent
         side="right"
-        // Elevated app sheet: wider than the default, app surface + panel
-        // shadow, no default padding (the panel owns its own spacing).
-        className="app-scope w-full gap-0 border-app-line bg-app-white p-0 app-shadow-panel sm:max-w-md"
+        // The slide-in task drawer is a true floating layer (PORTAL-UX §4), so
+        // it carries the single permitted barely-there shadow; wider than the
+        // default, calm app surface, no default padding (the panel owns spacing).
+        className="app-scope w-full gap-0 border-app-line bg-app-white p-0 app-shadow-float sm:max-w-md"
       >
         {/* Accessible title/description for the dialog; the visible header lives
             inside the panel, so keep these screen-reader-only. */}

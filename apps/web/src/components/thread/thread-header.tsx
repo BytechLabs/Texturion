@@ -169,7 +169,7 @@ export function ThreadHeader({
   const phone = conversation.contact.phone_e164;
 
   return (
-    <header className="flex items-center gap-2 border-b border-app-line bg-app-white/70 px-2 py-2.5 backdrop-blur-sm md:gap-3 md:px-4">
+    <header className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-2.5 md:gap-3 md:px-4">
       <Button
         asChild
         variant="ghost"
@@ -186,7 +186,7 @@ export function ThreadHeader({
       <span
         aria-hidden
         className={cn(
-          "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] sm:grid",
+          "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-app-petrol-deep sm:grid",
           avatarColorClass(conversation.contact_id || name),
         )}
       >
@@ -241,9 +241,9 @@ export function ThreadHeader({
           onClick={closeOrReopen}
           disabled={update.isPending}
           aria-label={closed ? "Reopen conversation" : "Mark done"}
-          className="inline-flex h-[34px] items-center gap-1.5 rounded-app-ctrl border border-app-tint-line bg-app-white px-3 text-[13px] font-semibold text-app-petrol-deep shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[background,box-shadow] duration-150 ease-out hover:bg-app-tint hover:app-shadow-row disabled:opacity-50"
+          className="inline-flex h-[34px] items-center gap-1.5 rounded-app-ctrl border border-app-petrol bg-app-petrol px-3 text-[13px] font-semibold text-white transition-[background,border-color] duration-150 ease-out hover:border-app-petrol-deep hover:bg-app-petrol-deep disabled:opacity-50"
         >
-          <Check className="size-[17px] text-app-petrol" strokeWidth={2.2} />
+          <Check className="size-[17px] text-white" strokeWidth={2.2} />
           {closed ? "Reopen" : "Done"}
         </button>
 

@@ -71,7 +71,7 @@ export function AttachmentChips({
             type="button"
             onClick={() => onRemove(attachment.id)}
             aria-label={`Remove ${attachment.file.name}`}
-            className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm hover:bg-secondary"
+            className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-secondary"
           >
             <X className="size-3" strokeWidth={1.75} />
           </button>
@@ -343,8 +343,8 @@ export function Composer({
           panel shadow + hairline, constrained to the 42rem reading track. */}
       <div
         className={cn(
-          "mx-auto flex max-w-[42rem] items-end gap-1 rounded-app-card border px-2 py-1.5 transition-[border-color,box-shadow] app-shadow-panel",
-          "focus-within:border-app-petrol focus-within:ring-[3px] focus-within:ring-primary/15",
+          "mx-auto flex max-w-[42rem] items-end gap-1 rounded-app-card border px-2 py-1.5 transition-[border-color,box-shadow]",
+          "focus-within:border-app-petrol focus-within:ring-[3px] focus-within:ring-app-tint",
           isNote
             ? "border-app-amber-line bg-app-amber-bg"
             : "border-app-line bg-app-white",
@@ -457,10 +457,10 @@ export function Composer({
             aria-label={isNote ? "Save note" : "Send message"}
             aria-keyshortcuts="Control+Enter Meta+Enter"
             className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-app-ctrl px-3 text-[13px] font-semibold text-white transition-[background,transform,box-shadow] duration-150 ease-out active:translate-y-px disabled:opacity-45 disabled:shadow-none",
+              "inline-flex h-9 items-center gap-1.5 rounded-app-ctrl px-3 text-[13px] font-semibold text-white transition-[background,transform] duration-150 ease-out active:translate-y-px disabled:opacity-45",
               isNote
                 ? "bg-app-amber hover:brightness-105"
-                : "bg-primary shadow-[0_1px_2px_rgba(11,79,73,0.3),0_8px_18px_-10px_rgba(15,118,110,0.7)] hover:bg-[#0d6a63]",
+                : "bg-primary hover:bg-app-petrol-deep",
             )}
           >
             <span className="hidden sm:inline">

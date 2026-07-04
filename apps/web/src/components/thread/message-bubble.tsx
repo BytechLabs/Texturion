@@ -255,8 +255,8 @@ export function MessageBubble({
               note
                 ? "border border-app-amber-line bg-app-amber-bg text-app-amber-ink [border-bottom-right-radius:5px]"
                 : outbound
-                  ? "app-bubble-out text-[#F3FAF8] [border-bottom-right-radius:5px] shadow-[0_2px_4px_rgba(11,79,73,0.28),0_14px_26px_-14px_rgba(15,118,110,0.6)]"
-                  : "border border-app-line bg-app-white text-app-ink [border-bottom-left-radius:5px] shadow-[0_1px_2px_rgba(20,32,30,0.05),0_8px_20px_-16px_rgba(20,32,30,0.4)]",
+                  ? "app-bubble-out text-white [border-top-right-radius:5px]"
+                  : "border border-app-line bg-app-white text-app-ink [border-top-left-radius:5px]",
             )}
           >
             {/* Amber internal-note label on the amber-tint card. */}

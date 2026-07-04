@@ -24,7 +24,7 @@ export function ThreadFilterBar({
     <div
       role="tablist"
       aria-label="Filter conversation"
-      className="inline-flex items-center gap-0.5 rounded-full bg-stone-100 p-0.5 dark:bg-stone-800/60"
+      className="inline-flex items-center gap-0.5 rounded-full bg-app-line-soft p-0.5 dark:bg-stone-800/60"
     >
       {THREAD_FILTERS.map((filter) => {
         const active = value === filter;
@@ -39,7 +39,7 @@ export function ThreadFilterBar({
               // tap-target keeps the ≥44px mobile hit area (globals.css).
               "tap-target rounded-full px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out " +
               (active
-                ? "bg-background text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100"
+                ? "bg-app-white text-app-ink dark:bg-stone-700 dark:text-stone-100"
                 : "text-muted-foreground hover:text-foreground")
             }
           >

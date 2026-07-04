@@ -438,20 +438,25 @@
 }
 
 /* ==========================================================================
-   APP-SHELL-REDESIGN token layer (APP-SHELL-REDESIGN.md §2) — the ELEVATED,
-   crafted look for the AUTHENTICATED app. Scoped to `.app-scope` (the (app)
-   route-group root), the same way marketing scopes itself to `.mkt-scope`, so
-   the app gets Golos Text + the warm-stone/petrol palette with real depth while
-   MARKETING is untouched. Every value here is the pixel-exact mockup token
-   (shell-mockup.html): warm green-black ink (never pure black), a soft
-   petrol-tinted shadow scale, generous radii, avatar gradients, colored chips.
+   PORTAL-UX CALM token layer (docs/PORTAL-UX.md §4) — the Wealthsimple-quiet
+   look for the AUTHENTICATED app. Scoped to `.app-scope` (the (app) route-group
+   root), the same way marketing scopes itself to `.mkt-scope`, so the app gets
+   Golos Text + the calm petrol palette while MARKETING is untouched.
+
+   The prior ELEVATED treatment (warm-stone, petrol-tinted shadow scale, avatar
+   gradients) was REJECTED as cluttered. This layer replaces it with the calm
+   system: structure carried by HAIRLINES (--line) and FILLS (--paper / --white /
+   --petrol-tint) and whitespace, NOT shadows. Exactly one rationed petrol accent.
+   Flat single-tone avatars (petrol-tint bg, petrol-deep initials), never
+   gradients. Soft radii. A single barely-there shadow is permitted ONLY on true
+   floating layers (the ⌘K palette, menu popovers, the slide-in drawer) —
+   everything else neutralizes to none.
 
    Overriding the shadcn `--*` base tokens on the scope root means every existing
    utility (bg-background, bg-card, text-primary, border-border,
-   text-muted-foreground, …) re-renders in the new palette with ZERO component
-   churn — behavior is preserved, only the look changes. New mockup-only tokens
-   (--sh-row/panel/bar, --tint, avatar gradients, radii) are additive and read by
-   the elevated shell/inbox components.
+   text-muted-foreground, …) re-renders in the calm palette with ZERO component
+   churn — behavior is preserved, only the look changes. The additive --app-*
+   tokens are kept (many components read them) but repointed to the calm palette.
    ========================================================================== */
 .app-scope {
   /* Golos Text is the app's primary sans (replaces Inter here only). Mounted via
@@ -466,211 +471,198 @@
   --font-sans: var(--font-golos), system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
 
-  /* --- Mockup palette, mapped onto the shadcn token names (light) --- */
-  /* Grounds: warm stone. --stone-0 #F4F2EC is the app ground; raised surfaces
-     step up to #FBFAF6; true white is the card/elevated surface. */
-  --background: #f4f2ec; /* --stone-0 ground */
-  --foreground: #14201e; /* --ink, warm green-black (never pure black) */
-  --card: #ffffff; /* elevated white card */
-  --card-foreground: #14201e;
+  /* --- Calm palette (PORTAL-UX §4 exact tokens), on the shadcn names (light) --- */
+  /* Grounds: paper #FBFBF9 is the app ground; white is the card/elevated
+     surface. Ink #1A2420 is the warm green-black text (never pure black). */
+  --background: #fbfbf9; /* --paper ground */
+  --foreground: #1a2420; /* --ink */
+  --card: #ffffff; /* --white card */
+  --card-foreground: #1a2420;
   --popover: #ffffff;
-  --popover-foreground: #14201e;
+  --popover-foreground: #1a2420;
 
   /* Petrol brand: #0F766E primary, deep #0B4F49 for text-on-tint accents. */
-  --primary: #0f766e; /* petrol */
+  --primary: #0f766e; /* --petrol */
   --primary-foreground: #ffffff;
 
-  /* Raised secondary surface + tinted accent. --secondary is the raised stone
-     (#FBFAF6); --accent is the petrol tint used for selected/hover moments. */
-  --secondary: #fbfaf6; /* --stone-1 raised */
-  --secondary-foreground: #14201e;
-  --muted: #fbfaf6;
-  --muted-foreground: #6b7572; /* --muted */
-  --foreground-tertiary: #8a928e; /* --muted-2, quiet meta */
-  --accent: #e3f0ec; /* --tint, petrol-tinted fill */
+  /* Secondary surface + tinted accent. --secondary is the soft hairline fill
+     (--line-soft #F3F2EE) used for hover/segments; --accent is the petrol tint
+     used for selected/active moments. */
+  --secondary: #f3f2ee; /* --line-soft */
+  --secondary-foreground: #1a2420;
+  --muted: #f3f2ee;
+  --muted-foreground: #79837d; /* --muted */
+  --foreground-tertiary: #a6ada7; /* --faint, quiet meta */
+  --accent: #edf3f1; /* --petrol-tint, petrol-tinted fill */
   --accent-foreground: #0b4f49; /* --petrol-deep on tint */
 
   --destructive: #b4623f; /* warm clay, not a jarring red */
-  --border: #e6e3da; /* --hairline / line */
-  --border-subtle: #efede6; /* --line-soft, interior hairlines */
-  --input: #e6e3da;
+  --border: #ecebe5; /* --line hairline */
+  --border-subtle: #f3f2ee; /* --line-soft, interior hairlines */
+  --input: #ecebe5;
   --ring: #0f766e; /* petrol focus rings */
 
-  /* Semantic accents in the mockup's warm palette. */
+  /* Semantic accents in the calm palette. */
   --success: #0f766e;
-  --warning: #c98a2b; /* --amber */
+  --warning: #8a6d2f; /* calm amber ink (waiting chip) */
   --info: #0f766e;
 
   --chart-1: #0f766e;
   --chart-2: #2a9e93;
   --chart-3: #cfe4de;
-  --chart-4: #c98a2b;
-  --chart-5: #8a928e;
+  --chart-4: #8a6d2f;
+  --chart-5: #a6ada7;
 
-  /* Sidebar tokens still resolve (some primitives reference them) but the app no
-     longer renders a sidebar; keep them coherent with the palette. */
-  --sidebar: #f4f2ec;
-  --sidebar-foreground: #14201e;
+  /* Sidebar tokens: the calm left sidebar is white with a hairline right border,
+     active = petrol-tint fill + petrol-deep text (no shadow, no heavy pill). */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a2420;
   --sidebar-primary: #0f766e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ffffff;
+  --sidebar-accent: #edf3f1; /* petrol-tint active fill */
   --sidebar-accent-foreground: #0b4f49;
-  --sidebar-border: #e6e3da;
+  --sidebar-border: #ecebe5;
   --sidebar-ring: #0f766e;
 
-  /* --- Mockup-only tokens (additive; read by elevated components) --- */
-  --app-ink: #14201e;
+  /* --- Additive --app-* tokens (read by components), repointed to calm --- */
+  --app-ink: #1a2420;
+  --app-ink-soft: #3c4742;
   --app-petrol: #0f766e;
   --app-petrol-deep: #0b4f49;
-  --app-stone-0: #f4f2ec;
-  --app-stone-1: #fbfaf6;
+  --app-stone-0: #fbfbf9; /* == --paper (kept name; components read it) */
+  --app-stone-1: #f3f2ee; /* == --line-soft (hover fill) */
   --app-white: #ffffff;
-  --app-line: #e6e3da;
-  --app-line-soft: #efede6;
-  --app-muted: #6b7572;
-  --app-muted-2: #8a928e;
-  --app-tint: #e3f0ec;
+  --app-line: #ecebe5;
+  --app-line-soft: #f3f2ee;
+  --app-muted: #79837d;
+  --app-muted-2: #a6ada7; /* --faint */
+  --app-tint: #edf3f1; /* --petrol-tint */
   --app-tint-line: #cfe4de;
-  --app-amber: #c98a2b;
-  --app-amber-bg: #f7eedc;
-  --app-amber-line: #ebd9b4;
-  --app-amber-ink: #6e521c;
+  --app-amber: #b79447; /* calm amber mark (note icon) */
+  --app-amber-bg: #fbf6ec; /* calm note card fill */
+  --app-amber-line: #f0e6d2;
+  --app-amber-ink: #7a6535;
   --app-clay: #b4623f;
   --app-slate: #5b7a73;
 
-  /* Soft petrol-tinted shadow scale (exactly the mockup's --sh-*). */
-  --app-sh-row: 0 1px 2px rgba(20, 32, 30, 0.05),
-    0 10px 22px -14px rgba(15, 118, 110, 0.22);
-  --app-sh-panel: 0 1px 2px rgba(20, 32, 30, 0.04),
-    0 14px 30px -18px rgba(20, 32, 30, 0.18);
-  --app-sh-bar: 0 1px 0 var(--app-line),
-    0 10px 24px -20px rgba(20, 32, 30, 0.5);
+  /* NO SHADOWS on structural surfaces (PORTAL-UX §4). The row/panel/bar shadow
+     scale is neutralized to `none`; structure is carried by hairlines + fills.
+     The single permitted barely-there shadow lives on --app-sh-float, used ONLY
+     by the ⌘K palette, menu popovers, and the slide-in drawer. */
+  --app-sh-row: none;
+  --app-sh-panel: none;
+  --app-sh-bar: none;
+  --app-sh-float: 0 1px 2px rgba(26, 36, 32, 0.04),
+    0 12px 32px -12px rgba(26, 36, 32, 0.16);
 
-  /* Radii: card 14px, control 10px, bubble 16px. */
-  --app-r-card: 14px;
-  --app-r-ctrl: 10px;
-  --app-r-bub: 16px;
+  /* Radii soft (PORTAL-UX §4): 9-12px controls/rows, 15-16px bubbles/frame. */
+  --app-r-card: 11px;
+  --app-r-ctrl: 9px;
+  --app-r-bub: 15px;
 
-  /* The petrol/amber wash on the app ground (whisper of warmth, not flat stone),
-     matching the mockup .canvas gradient. Applied to the (app) frame. */
-  --app-ground-wash:
-    radial-gradient(
-      1100px 520px at 78% -8%,
-      rgba(15, 118, 110, 0.07),
-      transparent 60%
-    ),
-    radial-gradient(
-      900px 480px at 5% 110%,
-      rgba(201, 138, 43, 0.05),
-      transparent 55%
-    );
+  /* No ground wash — the calm surface is flat paper. */
+  --app-ground-wash: none;
 
-  /* Avatar / thumbnail gradients (colored-initial avatars, mockup .a-*). */
-  --app-ava-amber: linear-gradient(150deg, #d79a3c, #b26f1e);
-  --app-ava-petrol: linear-gradient(150deg, #1c8e83, #0c534c);
-  --app-ava-clay: linear-gradient(150deg, #c4744f, #8f4527);
-  --app-ava-slate: linear-gradient(150deg, #6e8c85, #48645d);
-  --app-avatar-self: linear-gradient(145deg, #1b8c82, #0b4f49);
+  /* Flat single-tone avatars (PORTAL-UX §4): petrol-tint bg, petrol-deep
+     initials. Never gradients. All four "color" slots resolve to the same flat
+     tint so avatarColorClass stays a no-op re-skin. */
+  --app-ava-amber: var(--app-tint);
+  --app-ava-petrol: var(--app-tint);
+  --app-ava-clay: var(--app-tint);
+  --app-ava-slate: var(--app-tint);
+  --app-avatar-self: var(--app-tint);
 
-  /* Outbound message bubble gradient (petrol, with depth). */
-  --app-bubble-out: linear-gradient(160deg, #127a71, #0d685f);
+  /* Outbound message bubble: flat petrol (no gradient). */
+  --app-bubble-out: var(--app-petrol);
 
   background-color: var(--background);
   color: var(--foreground);
 }
 
-/* Dark mode with REAL depth: dark surfaces that still feel layered, not inverted
-   flatness (APP-SHELL-REDESIGN.md §2). The ground is a warm green-black; cards
-   and panels step UP in lightness (not down), and the shadow scale keeps a soft
-   petrol glow so surfaces read as surfaces. Fires when a `.dark` ancestor sits
-   inside `.app-scope`, or the scope root itself is `.dark`. */
+/* Calm DARK equivalent (PORTAL-UX §4: "calm dark equivalent, hairlines, no
+   glow"). The ground is a warm green-black; cards step up a hair; structure is
+   still hairlines, not shadows. No petrol glow. Fires when a `.dark` ancestor
+   sits inside `.app-scope`, or the scope root itself is `.dark`. */
 .app-scope.dark,
 .app-scope .dark {
-  --background: #0c1512; /* warm green-black ground */
-  --foreground: #eaf1ee; /* near-paper ink on dark */
-  --card: #14201d; /* raised card, a step up from ground */
-  --card-foreground: #eaf1ee;
-  --popover: #17241f;
-  --popover-foreground: #eaf1ee;
+  --background: #0e1512; /* warm green-black ground */
+  --foreground: #e8efeb; /* near-paper ink on dark */
+  --card: #151d1a; /* card, a hair up from ground */
+  --card-foreground: #e8efeb;
+  --popover: #172019;
+  --popover-foreground: #e8efeb;
 
   --primary: #2fb3a5; /* lifted petrol, AA on dark surfaces */
   --primary-foreground: #04110e;
 
-  --secondary: #17241f; /* raised stone-equivalent on dark */
-  --secondary-foreground: #eaf1ee;
-  --muted: #17241f;
-  --muted-foreground: #9aa8a3; /* quiet on dark, ≥AA */
-  --foreground-tertiary: #7d8a85;
-  --accent: #143a34; /* petrol tint on dark */
-  --accent-foreground: #a9e6dc;
+  --secondary: #172019; /* raised fill on dark */
+  --secondary-foreground: #e8efeb;
+  --muted: #172019;
+  --muted-foreground: #96a29d; /* quiet on dark, ≥AA */
+  --foreground-tertiary: #74807b;
+  --accent: #14322d; /* petrol tint on dark */
+  --accent-foreground: #a5e2d8;
 
   --destructive: #d98466;
-  --border: #24332e; /* visible-but-soft hairline on dark */
-  --border-subtle: #1c2a25;
-  --input: #24332e;
+  --border: #232e29; /* visible-but-soft hairline on dark */
+  --border-subtle: #1b2521;
+  --input: #232e29;
   --ring: #2fb3a5;
 
   --success: #2fb3a5;
-  --warning: #e0a94a;
+  --warning: #d9b878;
   --info: #2fb3a5;
 
   --chart-1: #2fb3a5;
   --chart-2: #1c8e83;
-  --chart-3: #143a34;
-  --chart-4: #e0a94a;
-  --chart-5: #7d8a85;
+  --chart-3: #14322d;
+  --chart-4: #d9b878;
+  --chart-5: #74807b;
 
-  --sidebar: #0c1512;
-  --sidebar-foreground: #eaf1ee;
+  --sidebar: #111a16;
+  --sidebar-foreground: #e8efeb;
   --sidebar-primary: #2fb3a5;
   --sidebar-primary-foreground: #04110e;
-  --sidebar-accent: #14201d;
-  --sidebar-accent-foreground: #a9e6dc;
-  --sidebar-border: #24332e;
+  --sidebar-accent: #14322d;
+  --sidebar-accent-foreground: #a5e2d8;
+  --sidebar-border: #232e29;
   --sidebar-ring: #2fb3a5;
 
-  --app-ink: #eaf1ee;
+  --app-ink: #e8efeb;
+  --app-ink-soft: #c3cdc8;
   --app-petrol: #2fb3a5;
-  --app-petrol-deep: #a9e6dc;
-  --app-stone-0: #0c1512;
-  --app-stone-1: #14201d;
-  --app-white: #17241f; /* the "white" card equivalent on dark */
-  --app-line: #24332e;
-  --app-line-soft: #1c2a25;
-  --app-muted: #9aa8a3;
-  --app-muted-2: #7d8a85;
-  --app-tint: #143a34;
-  --app-tint-line: #1f4d45;
-  --app-amber: #e0a94a;
-  --app-amber-bg: #2a2213;
-  --app-amber-line: #4a3d1c;
-  --app-amber-ink: #e8cf95;
+  --app-petrol-deep: #a5e2d8;
+  --app-stone-0: #0e1512;
+  --app-stone-1: #172019;
+  --app-white: #151d1a; /* the "white" card equivalent on dark */
+  --app-line: #232e29;
+  --app-line-soft: #1b2521;
+  --app-muted: #96a29d;
+  --app-muted-2: #74807b;
+  --app-tint: #14322d;
+  --app-tint-line: #1f4a43;
+  --app-amber: #d9b878;
+  --app-amber-bg: #21201a;
+  --app-amber-line: #3a3626;
+  --app-amber-ink: #d8c79b;
   --app-clay: #d98466;
   --app-slate: #7fa199;
 
-  /* Dark shadows: deeper spread + a soft petrol glow so cards lift off the
-     ground instead of disappearing into it. */
-  --app-sh-row: 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 12px 26px -16px rgba(0, 0, 0, 0.7);
-  --app-sh-panel: 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 16px 34px -18px rgba(0, 0, 0, 0.7);
-  --app-sh-bar: 0 1px 0 rgba(0, 0, 0, 0.5),
-    0 12px 28px -20px rgba(0, 0, 0, 0.8);
+  /* Still no structural shadows on dark; only the floating-layer whisper. */
+  --app-sh-row: none;
+  --app-sh-panel: none;
+  --app-sh-bar: none;
+  --app-sh-float: 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 14px 34px -12px rgba(0, 0, 0, 0.8);
 
-  --app-ground-wash:
-    radial-gradient(
-      1100px 520px at 78% -8%,
-      rgba(47, 179, 165, 0.08),
-      transparent 60%
-    ),
-    radial-gradient(
-      900px 480px at 5% 110%,
-      rgba(201, 138, 43, 0.05),
-      transparent 55%
-    );
+  --app-ground-wash: none;
 
-  --app-avatar-self: linear-gradient(145deg, #1b8c82, #0b4f49);
-  --app-bubble-out: linear-gradient(160deg, #12897e, #0e6e64);
+  --app-ava-amber: var(--app-tint);
+  --app-ava-petrol: var(--app-tint);
+  --app-ava-clay: var(--app-tint);
+  --app-ava-slate: var(--app-tint);
+  --app-avatar-self: var(--app-tint);
+  --app-bubble-out: var(--app-petrol);
 
   color-scheme: dark;
 }
@@ -681,6 +673,8 @@
    hand-inlining rgba() everywhere. All resolve to the app-scope tokens above;
    inert outside .app-scope (the tokens are unset there).
    -------------------------------------------------------------------------- */
+/* Structural shadows neutralized to none (PORTAL-UX §4). Kept as utilities so
+   the ~14 call sites need no churn; they simply resolve to `none` now. */
 @utility app-shadow-row {
   box-shadow: var(--app-sh-row);
 }
@@ -690,31 +684,44 @@
 @utility app-shadow-bar {
   box-shadow: var(--app-sh-bar);
 }
+/* The ONE permitted barely-there shadow, for true floating layers only (the ⌘K
+   palette, menu popovers, the slide-in drawer). */
+@utility app-shadow-float {
+  box-shadow: var(--app-sh-float);
+}
 @utility app-ground {
-  /* The (app) frame ground: warm stone with the petrol/amber wash. */
+  /* The (app) frame ground: flat calm paper (no wash). */
   background-color: var(--app-stone-0);
   background-image: var(--app-ground-wash);
 }
 
-/* Colored-initial avatar fills (mockup .ava .a-*). The consuming component picks
-   a class by a stable hash of the name so the same contact keeps its color. */
+/* Flat single-tone avatars (PORTAL-UX §4): petrol-tint background + petrol-deep
+   initials, never gradients. All four "color" slots resolve to the same calm
+   tint so avatarColorClass is a harmless no-op re-skin. The `!important` on the
+   color overrides the components' inline `text-white` without any component
+   churn — flat avatars everywhere the utility is applied. */
 @utility app-ava-amber {
-  background-image: var(--app-ava-amber);
+  background: var(--app-ava-amber);
+  color: var(--app-petrol-deep) !important;
 }
 @utility app-ava-petrol {
-  background-image: var(--app-ava-petrol);
+  background: var(--app-ava-petrol);
+  color: var(--app-petrol-deep) !important;
 }
 @utility app-ava-clay {
-  background-image: var(--app-ava-clay);
+  background: var(--app-ava-clay);
+  color: var(--app-petrol-deep) !important;
 }
 @utility app-ava-slate {
-  background-image: var(--app-ava-slate);
+  background: var(--app-ava-slate);
+  color: var(--app-petrol-deep) !important;
 }
 @utility app-ava-self {
-  background-image: var(--app-avatar-self);
+  background: var(--app-avatar-self);
+  color: var(--app-petrol-deep) !important;
 }
 @utility app-bubble-out {
-  background-image: var(--app-bubble-out);
+  background: var(--app-bubble-out);
 }
 
 /* ==========================================================================

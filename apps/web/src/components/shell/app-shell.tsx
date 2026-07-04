@@ -10,40 +10,37 @@ import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
 import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
-import { TopBar } from "./top-bar";
+import { Sidebar } from "./sidebar";
 
 /**
- * The APP-SHELL-REDESIGN app frame: a sticky TOP BAR is the sole global nav (the
- * left sidebar is gone), with content owning the FULL WIDTH beneath it. A fixed
- * full-viewport-height column (`h-svh overflow-hidden`) so the browser page never
- * scrolls — only the top bar stays pinned and inner panes scroll.
+ * The PORTAL-UX app frame (§1): a calm LEFT SIDEBAR (retiring the old top bar),
+ * then the destination content owning the rest of the width. A fixed
+ * full-viewport-height row (`h-svh overflow-hidden`) so the browser page never
+ * scrolls — the sidebar is pinned and the inner panes/documents scroll.
  *
- * - Top bar: mark + company chip, segmented primary tabs, search (command-K),
- *   compose, notifications, avatar menu (top-bar.tsx). On mobile it collapses to
- *   mark + search + avatar and the bottom tab bar owns primary nav.
- * - Content region (`main`): for the inbox it is a fixed, NON-scrolling region
- *   whose child panes (list / thread message area / context panel) each scroll
- *   independently. For the calm surfaces (settings, contacts, templates,
- *   for-you, tasks) it scrolls as a normal document — reading pages, not the
- *   3-pane frame.
+ * - Sidebar (232px, lg+): company tile, FOCUS + LIBRARY nav, footer member tile.
+ *   The single hairline right border, no shadow (sidebar.tsx). Hidden <1000px,
+ *   where the labeled bottom tab bar owns primary nav.
+ * - Content region (`main`): the destination fills it — the inbox is the fixed
+ *   3-pane frame (sidebar | list | thread | drawer); the calm surfaces (for-you,
+ *   tasks, contacts, settings, templates) scroll as documents. Each destination
+ *   owns its own scroll containers, so `main` is the flex track, not a scroller.
  *
- * The app ground carries the warm-stone + petrol/amber wash (app-ground) so the
- * surface reads layered, not flat paper.
+ * The ground is flat calm paper (app-ground; no wash).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // The inbox is the fixed 3-pane frame; everything else is a scrolling doc.
+  // The inbox is the fixed 3-pane frame (inner panes own the scroll); every
+  // other destination is a calm scrolling document.
   const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden app-ground">
-      <TopBar />
+    <div className="flex h-svh overflow-hidden app-ground">
+      <Sidebar />
       <main
         className={cn(
-          "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0",
-          fixedFrame
-            ? "overflow-hidden" // inner panes own the scroll
-            : "overflow-y-auto", // calm surfaces scroll as a document
+          "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
+          fixedFrame ? "overflow-hidden" : "overflow-y-auto",
         )}
       >
         {children}

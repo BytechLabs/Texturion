@@ -92,7 +92,7 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
         "inline-flex items-center rounded-full border px-2 py-[2.5px] text-[11px] font-semibold leading-none",
         emphasis
           ? "border-app-tint-line bg-app-tint text-app-petrol-deep"
-          : "border-app-line bg-app-stone-0 text-[#5A635F] dark:text-app-muted",
+          : "border-transparent bg-app-line-soft text-app-muted",
       )}
     >
       {tag.name}
@@ -141,7 +141,7 @@ export function ConversationRow({
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out",
         active
-          ? "border-app-tint-line bg-app-white app-shadow-row"
+          ? "border-app-line bg-app-white"
           : "border-transparent hover:border-app-line-soft hover:bg-app-stone-1",
       )}
     >
@@ -149,7 +149,7 @@ export function ConversationRow({
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-bold text-app-petrol-deep",
           avatarColorClass(conversation.contact_id || name),
         )}
       >
@@ -215,7 +215,7 @@ export function ConversationRow({
       {unread && (
         <span
           aria-hidden
-          className="absolute right-3 top-[14px] size-2 rounded-full bg-primary shadow-[0_0_0_3px_rgba(15,118,110,0.14)]"
+          className="absolute right-3 top-[14px] size-2 rounded-full bg-primary"
         />
       )}
     </Link>

@@ -351,7 +351,7 @@ export function MessageList({
           type="button"
           onClick={() => scrollToBottom("smooth")}
           className={cn(
-            "absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-lg transition-transform duration-150 ease-out hover:bg-primary/90",
+            "absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-transform duration-150 ease-out hover:bg-primary/90",
           )}
         >
           New message <ArrowDown className="size-3.5" strokeWidth={1.75} />

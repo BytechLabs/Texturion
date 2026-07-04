@@ -3,7 +3,8 @@
  * is unit-testable without Next request machinery.
  *
  * - App + onboarding routes require a session → bounce to /login?next=…
- * - Auth pages bounce signed-in users to /inbox.
+ * - Auth pages bounce signed-in users to /for-you (the default landing,
+ *   PORTAL-UX §3.1).
  * - /update-password and /invite/[token] are reachable in BOTH states: the
  *   recovery/invite links establish the session client-side after load, so
  *   the middleware must not bounce them.
@@ -50,11 +51,11 @@ export function decideAuthRedirect(
 ): AuthRedirect | null {
   if (!isAuthenticated && isProtectedPath(pathname)) {
     const search =
-      pathname === "/inbox" ? "" : `?next=${encodeURIComponent(pathname)}`;
+      pathname === "/for-you" ? "" : `?next=${encodeURIComponent(pathname)}`;
     return { pathname: "/login", search };
   }
   if (isAuthenticated && isAuthPage(pathname)) {
-    return { pathname: "/inbox", search: "" };
+    return { pathname: "/for-you", search: "" };
   }
   return null;
 }
@@ -72,12 +73,12 @@ export function decideAuthRedirect(
  * (`/inbox/abc-123`, `/settings/billing`) has none of these and passes intact.
  */
 export function safeNextPath(next: string | null | undefined): string {
-  if (!next) return "/inbox";
+  if (!next) return "/for-you";
   // A single leading slash, but not `//` (protocol-relative).
-  if (!next.startsWith("/") || next.startsWith("//")) return "/inbox";
+  if (!next.startsWith("/") || next.startsWith("//")) return "/for-you";
   for (let i = 0; i < next.length; i++) {
     const code = next.charCodeAt(i);
-    if (code <= 0x20 || code === 0x5c /* backslash */) return "/inbox";
+    if (code <= 0x20 || code === 0x5c /* backslash */) return "/for-you";
   }
   return next;
 }

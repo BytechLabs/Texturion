@@ -293,7 +293,7 @@ export function NewConversation() {
                 aria-label="Recipient — search contacts or type a phone number"
               />
               {searchOpen && input.trim() !== "" && (
-                <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+                <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover">
                   {contactRows.map((contact) => (
                     <button
                       key={contact.id}

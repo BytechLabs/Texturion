@@ -145,9 +145,11 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const openGallery = () => setGalleryOpen(true);
   const togglePanel = () => {
+    // The context drawer shows at xl (1280px+); below that it collapses to the
+    // header toggle and opens as the mobile sheet (PORTAL-UX §3.2 / §5).
     const isDesktop =
       typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 768px)").matches;
+      window.matchMedia("(min-width: 1280px)").matches;
     if (isDesktop) {
       setPanelOpen((open) => {
         try {
@@ -190,9 +192,8 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
 
   return (
     <div className="flex h-full min-h-0">
-      {/* The thread column carries a whisper of petrol wash over the raised stone
-          (mockup .thread) so the timeline reads as a surface, not flat paper. */}
-      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-stone-1 [background-image:radial-gradient(700px_320px_at_60%_-10%,rgba(15,118,110,0.04),transparent_60%)]">
+      {/* The thread column: calm paper, structure by hairlines not wash. */}
+      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-stone-0">
         <ThreadHeader
           conversation={conversation}
           contact={contact.data}
@@ -217,11 +218,13 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         )}
       </div>
 
-      {/* Desktop contact panel (G3: 320px, toggled, persisted). */}
+      {/* Desktop context drawer (PORTAL-UX §3.2: ~300px slide-in, hairline
+          left border, no shadow; the calm floating layer). Auto-collapses below
+          ~1100px to the header toggle so the thread keeps a comfortable measure. */}
       {panelOpen && (
         <aside
           aria-label={`Contact details for ${contactDisplayName(conversation.contact)}`}
-          className="hidden w-80 shrink-0 border-l border-app-line bg-app-stone-0 md:block"
+          className="hidden w-[300px] shrink-0 border-l border-app-line bg-app-white xl:block"
         >
           <ContactPanel
             conversation={conversation}

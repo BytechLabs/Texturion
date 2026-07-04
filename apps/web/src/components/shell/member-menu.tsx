@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { LogOut, Monitor, Moon, Settings, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -19,16 +19,13 @@ import {
 import { useActiveCompany } from "@/lib/company/provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-import { avatarInitials } from "./avatar-color";
-
 /**
- * The top-bar avatar menu (APP-SHELL-REDESIGN §3, mockup .avatar): a petrol
- * gradient circle showing the user's initials, opening the account menu —
- * Settings, the theme toggle (System/Light/Dark), and Sign out. Every
- * destination the old sidebar UserMenu carried is preserved; Settings moves here
- * from the sidebar nav so it stays reachable on every app screen.
+ * The sidebar member-tile menu (PORTAL-UX §1.1): opens from the footer member
+ * tile with profile, team, the theme toggle (System / Light / Dark), and Sign
+ * out. Every destination the retired top-bar avatar menu carried is preserved;
+ * the trigger is supplied by the caller (the member tile button) via `children`.
  */
-export function AvatarMenu() {
+export function MemberMenu({ children }: { children: React.ReactNode }) {
   const { displayName, membership } = useActiveCompany();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -42,13 +39,8 @@ export function AvatarMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Your account"
-        className="grid size-[38px] shrink-0 place-items-center rounded-full text-[12.5px] font-bold text-white shadow-[0_1px_2px_rgba(11,79,73,0.4),inset_0_1px_0_rgba(255,255,255,0.18)] outline-none app-ava-self transition-transform duration-150 ease-out hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        {avatarInitials(displayName || membership.name)}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-56">
         <DropdownMenuLabel>
           <span className="block truncate text-sm font-medium">
             {displayName || "You"}
@@ -59,17 +51,20 @@ export function AvatarMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/settings">
+          <Link href="/settings/profile">
             <Settings className="size-4" strokeWidth={1.75} />
-            Settings
+            Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings/team">
+            <Users className="size-4" strokeWidth={1.75} />
+            Team
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={theme ?? "system"}
-          onValueChange={setTheme}
-        >
+        <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
           <DropdownMenuRadioItem value="system">
             <Monitor className="size-4" strokeWidth={1.75} />
             System

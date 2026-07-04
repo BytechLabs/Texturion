@@ -17,10 +17,10 @@ describe("resolveCallbackRedirect (D18 OAuth callback routing)", () => {
     ).toBe("/tasks");
   });
 
-  it("defaults a successful exchange to /inbox when next is absent", () => {
+  it("defaults a successful exchange to /for-you when next is absent", () => {
     expect(
       resolveCallbackRedirect({ code: "pkce-code", next: null, exchangeOk: true }),
-    ).toBe("/inbox");
+    ).toBe("/for-you");
   });
 
   it("routes to the error page when the provider returned an error", () => {
@@ -57,14 +57,14 @@ describe("resolveCallbackRedirect (D18 OAuth callback routing)", () => {
         next: "https://evil.example.com/steal",
         exchangeOk: true,
       }),
-    ).toBe("/inbox");
+    ).toBe("/for-you");
     expect(
       resolveCallbackRedirect({
         code: "pkce-code",
         next: "//evil.example.com",
         exchangeOk: true,
       }),
-    ).toBe("/inbox");
+    ).toBe("/for-you");
   });
 
   it("keeps a relative next but not a protocol-relative one", () => {
@@ -87,16 +87,16 @@ describe("oauthRedirectTo (signInWithOAuth redirectTo builder)", () => {
     expect(parsed.searchParams.get("next")).toBe("/tasks");
   });
 
-  it("falls back to /inbox for a missing or unsafe next", () => {
+  it("falls back to /for-you for a missing or unsafe next", () => {
     expect(
       new URL(oauthRedirectTo("https://app.jobtext.com", null)).searchParams.get(
         "next",
       ),
-    ).toBe("/inbox");
+    ).toBe("/for-you");
     expect(
       new URL(
         oauthRedirectTo("https://app.jobtext.com", "https://evil.com"),
       ).searchParams.get("next"),
-    ).toBe("/inbox");
+    ).toBe("/for-you");
   });
 });
