@@ -26,3 +26,24 @@ apps/web/public/marketing-font-preloads.json
 
 # Supabase
 supabase/.temp/
+
+# Monorepo task cache
+.turbo/
+
+# Logs & debug output
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS cruft
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE
+.idea/
+*.swp
+*~
