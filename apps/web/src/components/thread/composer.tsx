@@ -1,9 +1,19 @@
 "use client";
 
-import { FileText, ImagePlus, Plus, Send as SendIcon, X } from "lucide-react";
+import {
+  FileText,
+  ImagePlus,
+  Paperclip,
+  Plus,
+  Send as SendIcon,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { StagedFileChips } from "@/components/attachments/staged-file-chips";
+import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
+import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,9 +26,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCreateNote } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
+import { isFilePaste } from "@/lib/attachments/clipboard";
+import {
+  ATTACHMENT_ACCEPT,
+  MAX_ATTACHMENTS_PER_OWNER,
+} from "@/lib/attachments/validate";
 import { cn } from "@/lib/utils";
 
 import { segmentMeter, segmentTooltip } from "./segment-meter";
@@ -167,6 +183,12 @@ export function useAutoGrow(value: string) {
  * A Text/Note toggle writes internal notes (amber, POST /:id/notes). When a
  * banner replaces the text composer (`noteOnly`), notes stay available.
  *
+ * D28 — files enter through messages and notes: note mode has its own attach
+ * affordance (staged chips above the pill; on save the note is created first,
+ * then each staged file uploads with the note id), and BOTH modes accept
+ * dropped files (a quiet dashed overlay) and pasted images, validated against
+ * the active mode's limits (text: 3 photos ≤1 MB; note: D19 — 10 files ≤25 MB).
+ *
  * The pill is constrained to the same 42rem reading track as the message column
  * (§3.1) so the send affordance sits under the messages it belongs to.
  */
@@ -179,13 +201,16 @@ export function Composer({
 }) {
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
+  const uploadNoteFiles = useUploadNoteFiles();
   const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const noteStage = useStagedFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
+  const noteFileRef = useRef<HTMLInputElement>(null);
 
   // Object URLs are revoked when chips are removed or the composer unmounts.
   const attachmentsRef = useRef(attachments);
@@ -230,18 +255,47 @@ export function Composer({
     const draftAttachments = attachments;
 
     if (isNote) {
+      // Clear immediately (fast by feel, G1); restore text + staged files on
+      // failure. D28 staged-note-upload chain: the note is created first, then
+      // each staged file POSTs with the returned note id.
+      const draftFiles = noteStage.files;
       setText("");
-      createNote.mutate(draftText, {
-        onSuccess: () => textareaRef.current?.focus(),
-        onError: (error) => {
-          setText(draftText);
-          toast.error(
-            error instanceof ApiError
-              ? error.message
-              : "That note didn't save. Try again.",
-          );
-        },
+      noteStage.clear();
+
+      let note: Awaited<ReturnType<typeof createNote.mutateAsync>>;
+      try {
+        // mutateAsync resolves from the MutationCache even if the composer
+        // unmounts before the response, so the upload chain below still runs
+        // and staged files aren't silently dropped (D28 / finding #6).
+        note = await createNote.mutateAsync(draftText);
+      } catch (error) {
+        setText(draftText);
+        noteStage.restore(draftFiles);
+        toast.error(
+          error instanceof ApiError
+            ? error.message
+            : "That note didn't save. Try again.",
+        );
+        return;
+      }
+
+      // Pure-UI bit — safe to skip after unmount (ref is null then).
+      textareaRef.current?.focus();
+
+      if (draftFiles.length === 0) return;
+      const { failed } = await uploadNoteFiles.mutateAsync({
+        noteId: note.id,
+        files: draftFiles.map((staged) => staged.file),
       });
+      if (failed.length === 0) return;
+      // Partial failure: the note saved — the bubble's Files section is the
+      // retry surface (re-attach there), so keep it plain. The global sonner
+      // toaster fires this even if the composer already unmounted.
+      toast.error(
+        failed.length === draftFiles.length
+          ? "The note saved, but its files didn't upload — re-attach them from the note's Files section."
+          : `The note saved, but ${failed.length} of ${draftFiles.length} files didn't upload — re-attach them from the note's Files section.`,
+      );
       return;
     }
     // Clear immediately (fast by feel, G1); restore on failure.
@@ -281,7 +335,17 @@ export function Composer({
         },
       },
     );
-  }, [canSend, text, attachments, send, textareaRef, isNote, createNote]);
+  }, [
+    canSend,
+    text,
+    attachments,
+    send,
+    textareaRef,
+    isNote,
+    createNote,
+    noteStage,
+    uploadNoteFiles,
+  ]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -304,10 +368,40 @@ export function Composer({
     event.target.value = "";
   };
 
+  const onNoteFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      noteStage.admit(event.target.files);
+    }
+    event.target.value = "";
+  };
+
+  // D28 file intake for drops + pastes — validated per the ACTIVE mode's
+  // rules (text: MMS 3×1 MB images; note: D19 10×25 MB allow-list).
+  const admitIncoming = (files: FileList) => {
+    if (isNote) noteStage.admit(files);
+    else setAttachments((cur) => admitFiles(cur, files));
+  };
+
+  const drop = useFileDrop(admitIncoming);
+
+  const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Only intercept a genuine file paste. An Office/rich-text copy carries
+    // text/html alongside a synthesized image — leave its text paste alone
+    // (finding #10); plain text pastes never reach preventDefault either.
+    if (!isFilePaste(event.clipboardData)) return;
+    event.preventDefault();
+    admitIncoming(event.clipboardData.files);
+  };
+
   const attachDisabled = attachments.length >= MAX_ATTACHMENTS;
+  const noteAttachDisabled = noteStage.files.length >= MAX_ATTACHMENTS_PER_OWNER;
 
   return (
-    <div className="px-3 pb-3 pt-2 md:px-4 md:pb-4">
+    <div
+      className="relative px-3 pb-3 pt-2 md:px-4 md:pb-4"
+      {...drop.handlers}
+    >
+      <DropOverlay active={drop.active} />
       {!noteOnly && (
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"
@@ -338,6 +432,20 @@ export function Composer({
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}
+      {isNote && (
+        <StagedFileChips
+          files={noteStage.files}
+          onRemove={noteStage.remove}
+          className="mx-auto max-w-[42rem] px-1 pb-2"
+        />
+      )}
+      {/* A note needs a line of text to save (the files ride the note). Say so
+          quietly when files are staged but the body is still empty (#8). */}
+      {isNote && noteStage.files.length > 0 && text.trim() === "" && (
+        <p className="mx-auto max-w-[42rem] px-1 pb-2 text-xs text-app-muted">
+          Add a line of text to save these files
+        </p>
+      )}
 
       {/* The elevated composer CARD (mockup .composer): a white card with the
           panel shadow + hairline, constrained to the 42rem reading track. */}
@@ -350,9 +458,9 @@ export function Composer({
             : "border-app-line bg-app-white",
         )}
       >
-        {/* Far-left `+` overflow (§3.1) — texts only (notes have no attach/
-            template). Desktop: expands inline to Attach + Template. Mobile:
-            everything collapses behind the `+` action menu. */}
+        {/* Far-left `+` overflow (§3.1) — texts get Attach + Template
+            (desktop: inline toolbar; mobile: the `+` action menu); notes get
+            their own attach affordance below (D28 — notes have no templates). */}
         {!isNote && (
           <>
             {/* Desktop inline toolbar. */}
@@ -431,11 +539,47 @@ export function Composer({
           </>
         )}
 
+        {/* Note-mode attach (D28): files ride the note — staged here, uploaded
+            with the note id on save. One quiet paperclip, all breakpoints. */}
+        {isNote && (
+          <>
+            <div className="flex items-center self-end pb-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Attach files to this note"
+                    onClick={() => noteFileRef.current?.click()}
+                    disabled={noteAttachDisabled}
+                    className="rounded-full text-muted-foreground"
+                  >
+                    <Paperclip className="size-5" strokeWidth={1.75} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Attach up to {MAX_ATTACHMENTS_PER_OWNER} files — 25 MB each
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <input
+              ref={noteFileRef}
+              type="file"
+              accept={ATTACHMENT_ACCEPT}
+              multiple
+              hidden
+              onChange={onNoteFileChange}
+            />
+          </>
+        )}
+
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           rows={1}
           placeholder={isNote ? "Write an internal note…" : "Text message"}
           aria-label={isNote ? "Internal note" : "Message"}

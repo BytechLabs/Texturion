@@ -1,10 +1,14 @@
 /**
- * Generic note/task attachment storage helpers (D19 / APP-FEATURES-V2 §2).
+ * Generic attachment storage helpers (D19 / D28 / APP-FEATURES-V2 §2).
  *
  * The generic `attachments` table + private `attachments` bucket are the
- * SINGLE storage machinery for note (`owner_type='note'`) and task
- * (`owner_type='task'`) attachments — deliberately parallel to, and separate
- * from, the MMS `message_attachments` / `mms-media` path (which stays intact).
+ * SINGLE storage machinery for note-borne files — deliberately parallel to,
+ * and separate from, the MMS `message_attachments` / `mms-media` path (which
+ * stays intact). The table still CARRIES `owner_type='task'` rows (legacy,
+ * pre-D28) and they keep reading/serving/deleting, but UPLOAD is notes-only:
+ * D28 removed the standalone task ingress — a task's attachments are a
+ * derived read view (source-message MMS + linked-note files + legacy rows),
+ * never a third upload door.
  *
  * Constants here MUST match the schema-track bucket row (25 MB limit, MIME
  * allow-list) — the bucket is the hard ceiling, this is the API-layer gate
@@ -24,9 +28,22 @@ export const MAX_ATTACHMENTS_PER_OWNER = 10;
 /** Signed download-URL TTL (D19 §2.5: 60–300s). */
 export const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 300;
 
-/** The two owner discriminators the generic table carries (D19). */
+/**
+ * The two owner discriminators the generic table CARRIES (D19). Read paths
+ * (list / signed URL / delete / gallery union) accept both — existing
+ * `owner_type='task'` rows keep working forever.
+ */
 export const OWNER_TYPES = ["note", "task"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
+
+/**
+ * The owner types UPLOAD accepts (D28): files enter through messages and
+ * notes ONLY. `'task'` was removed from the ingress — a task shows a derived
+ * union of its message's MMS media and its notes' files instead, so the
+ * upload route 422s `owner_type='task'` with plain copy pointing at notes.
+ */
+export const UPLOAD_OWNER_TYPES = ["note"] as const;
+export type UploadOwnerType = (typeof UPLOAD_OWNER_TYPES)[number];
 
 /**
  * D19 §2.4 MIME allow-list: the realistic tradesperson set — a photo of a part,

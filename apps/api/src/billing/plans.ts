@@ -33,6 +33,23 @@ export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
   pro: 2.5,
 };
 
+/**
+ * D30: per-company budget for the generic `attachments` bucket (note-borne
+ * files), enforced at POST /v1/attachments as a company-wide sum(size_bytes)
+ * over LIVE rows. Starter 5 GB, Pro 25 GB. MMS media is deliberately NOT
+ * gated on this budget (inbound customer content is never blocked; outbound
+ * MMS is already metered/capped) — it only counts toward the usage display.
+ */
+export const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
+  starter: 5 * 1024 * 1024 * 1024,
+  pro: 25 * 1024 * 1024 * 1024,
+};
+
+/** Human figure for the D30 budget copy ("5 GB", "25 GB"). */
+export function storageBudgetLabel(plan: PlanId): string {
+  return `${STORAGE_BUDGET_BYTES[plan] / (1024 * 1024 * 1024)} GB`;
+}
+
 export interface PlanPrices {
   licensed: string;
   metered: string;

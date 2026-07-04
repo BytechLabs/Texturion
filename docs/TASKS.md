@@ -269,9 +269,12 @@ and send-gating — the Worker calls them with `sb_secret_`; `search_path=''`). 
 
 - `create_task(company, message, title?, description?, assignee?, due_at?, actor)` → resolves
   `conversation_id` from the source message, inserts the `tasks` row (the partial-unique index rejects
-  a second live promotion of the same message with `conflict`), writes a `task_created` event, fires
-  `task.changed`. **Does not** touch `messages.done_at` — a freshly promoted message keeps its current
-  done state and the task simply renders it by join (promotion never flips completion).
+  a second live promotion of the same message with `conflict`), **links the source note back when the
+  promoted message is a note** (`messages.task_id = <new task>` where `direction='note'` and `task_id`
+  is null — so the note's own files reach the task's derived attachments union, D28 arm (b); an
+  inbound/outbound source is left unlinked), writes a `task_created` event, fires `task.changed`.
+  **Does not** touch `messages.done_at` — a freshly promoted message keeps its current done state and
+  the task simply renders it by join (promotion never flips completion).
 - `assign_task(id, assignee, actor)` → sets `assigned_user_id`, writes `task_assigned`. `SET NULL`-safe.
 - `update_task(id, {title?, description?, due_at?}, actor)` → field updates; a `due_at` change writes
   `task_due_set`.

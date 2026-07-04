@@ -1,13 +1,20 @@
 /**
- * GET /v1/usage (SPEC §7, §9; DESIGN G8) — current-period outbound segment
- * usage from usage_events (the app-side source of truth; never Stripe):
+ * GET /v1/usage (SPEC §7, §9; DESIGN G8; D30) — current-period outbound
+ * segment usage from usage_events (the app-side source of truth; never
+ * Stripe), plus the D30 storage accounting:
  *   { period_start, period_end, included_segments, used_segments,
  *     overage_segments, cap_segments, projected_overage_cents,
- *     history: [{ month: 'YYYY-MM', segments }] }
+ *     history: [{ month: 'YYYY-MM', segments }],
+ *     storage: { attachments_bytes, mms_bytes } }
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
  * SPEC §2). `history` is the last 6 calendar months (oldest first, zero-
- * filled) for the G8 "6-month history bars". A company that has never checked
- * out (plan null / no period) reads as zero usage with an empty history.
+ * filled) for the G8 "6-month history bars". `storage` (D30) is the
+ * company's stored bytes — attachments_bytes = LIVE generic (note-borne)
+ * attachments, the arm the plan budget gates on upload; mms_bytes =
+ * message_attachments media, display-only (inbound MMS is never blocked on a
+ * budget). Both from the exact-sum api_storage_usage RPC. A company that has
+ * never checked out (plan null / no period) reads as zero usage with an
+ * empty history and zero storage — it cannot own files or media yet.
  */
 import { Hono } from "hono";
 
@@ -56,6 +63,9 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
   }
 
   if (company.plan === null || company.current_period_start === null) {
+    // Pre-checkout: no numbers → no conversations → no notes/media, so the
+    // storage arm is truthfully zero without querying (same posture as the
+    // segment fields).
     return c.json({
       period_start: null,
       period_end: null,
@@ -65,6 +75,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       cap_segments: null,
       projected_overage_cents: 0,
       history: [],
+      storage: { attachments_bytes: 0, mms_bytes: 0 },
     });
   }
 
@@ -86,6 +97,16 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     "usage history",
   );
 
+  // D30: per-company stored bytes, both arms, via the exact-sum RPC (a plain
+  // PostgREST read would truncate at the row cap — same reason as segments).
+  const storage = unwrap<{
+    attachments_bytes: number | string;
+    mms_bytes: number | string;
+  }>(
+    await db.rpc("api_storage_usage", { p_company_id: companyId }),
+    "storage usage",
+  );
+
   const included = PLAN_INCLUDED_SEGMENTS[company.plan];
   const overage = Math.max(0, used - included);
   const multiplier =
@@ -104,5 +125,9 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan],
     ),
     history,
+    storage: {
+      attachments_bytes: Number(storage.attachments_bytes),
+      mms_bytes: Number(storage.mms_bytes),
+    },
   });
 });

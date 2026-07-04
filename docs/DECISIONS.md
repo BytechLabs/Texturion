@@ -829,3 +829,86 @@ first gate (`lib/hosts.ts`, a pure tested function).
 - **Consistency:** D1 (still exactly two Workers), SPEC §10 (auth middleware unchanged, the host gate
   runs before any session read), BLUEPRINT §11 (canonical marketing origin; www→apex is now enforced
   in code rather than assumed at the DNS layer).
+
+## D28. Attachment ingress — files enter through messages and notes ONLY (amends D17/D19's task arm)
+
+**Decision (product owner, 2026-07-04):** attachments enter the system through exactly two doors —
+**a text (MMS media)** and **a note (D19 generic attachments)** — everywhere a file can be added.
+The standalone "add attachment to a task" ingress is **removed**: a task's attachments are a
+**derived read view**, never a third upload path. Drag-and-drop and paste-to-attach ship on every
+composer.
+
+- **The two ingress doors:**
+  - *Text mode:* the existing MMS path (≤3 images, ≤1 MB each, jpeg/png/gif — carrier limits).
+  - *Note mode:* the composer's note mode gains the attach affordance (previously hidden). Files are
+    STAGED client-side and, on save, the note is created first and each staged file uploads to
+    `POST /v1/attachments {owner_type:'note', owner_id:<note id>}` — no API shape change; a partial
+    upload failure surfaces on the note's existing Files section (retry = re-attach there). Full D19
+    limits apply (≤25 MB/file, ≤10/note, allow-list).
+  - The task drawer's discussion composer is a note composer and gets the same affordance — that is
+    how a file is "attached to a task": on a note in its discussion.
+- **Tasks: derived, not owned.** `owner_type='task'` is removed from the upload route's accepted
+  owner types (read/serve/delete of any existing rows keeps working — additive removal, no data
+  migration; pre-launch there are none in production). The task detail's Attachments section becomes
+  a read view unioning: the source message's MMS attachments + attachments of notes linked to the
+  task (`messages.task_id`) + any legacy task-owned rows. The checklist "Files (N)" count follows
+  the same union. One mental model: *a file always lives on the thing that was said* — the task
+  points at it, exactly like task completion derives from the message (D17).
+- **Drag-and-drop + paste:** the thread composer (both modes) and the task discussion composer
+  accept dropped files and pasted images (staged, multi-file, validated client-side against the
+  active mode's limits with plain-language rejects); the note-bubble Files section accepts drops and
+  multiple selection. No new dependency — native DataTransfer/clipboard events.
+- **Not shipped, on purpose:** D19's two-step `createSignedUploadUrl` path stays unbuilt — 25 MB
+  multipart is comfortably inside Workers request limits; one upload path is the low-upkeep choice.
+- **Consistency:** D17 (derive-over-own, now applied to files too), D19 (storage machinery
+  unchanged — same table, bucket, routes, sweep), D21/APP-FEATURES-V2 §4.2 (the gallery union is
+  unchanged; task-owned rows simply stop being created).
+
+## D29. Global search — one palette over messages, notes, conversations, contacts, tasks, attachments, templates
+
+**Decision:** `GET /v1/search` grows from two arms (message FTS + contact trigram) to the full
+entity set, all Postgres, no external service (D7 unchanged):
+
+- **Arms:** conversations (message-body FTS incl. notes — hits now expose `direction` so notes are
+  labeled), contacts (trigram, unchanged), **tasks** (trigram over title + description, live rows),
+  **attachments** (fuzzy trigram over `file_name` on the generic table, live rows),
+  **templates** (trigram over name + body — closing PORTAL-UX §2's promised palette scope).
+- **A new migration** adds the trigram GIN indexes (tasks title/description, attachments file_name,
+  templates name/body — partial on the live-row predicates) and a new `api_search_v2` function with
+  the same security posture (SECURITY DEFINER, service-role-only); the shipped `api_search` is not
+  edited (D7/D14 rule).
+- **MMS media is NOT filename-searchable** — carrier media has no filename (message_attachments has
+  no such column, correctly). Attachment search covers note-borne files; MMS images are reachable
+  through the conversation/gallery. Stated so nobody "fixes" it later.
+- **Ranking/pagination:** per-arm limits, palette-first design (first page per arm; the existing
+  conversations keyset cursor remains the only paginated arm). Relevance = similarity/recency per
+  arm; no cross-arm interleaving (sections, not a blended list).
+- **Deep links:** tasks → `/tasks?task=<id>` (the existing drawer param), attachments → the owning
+  conversation thread, templates → `/templates`.
+- **Consistency:** SPEC §Search/D7 (Postgres FTS + pg_trgm only), PORTAL-UX §2 (palette scope now
+  fully honored), §10 (member-level route, company-scoped arms).
+
+## D30. Attachment storage — priced, capped, and accounted
+
+**Decision:** storage stops being implicitly free/unbounded. The cost model, the caps, and the
+accounting:
+
+- **The marginal cost is real but small:** Supabase Pro includes 100 GB (then ~$0.021/GB-month).
+  The plans now carry an explicit per-company budget for the generic attachments bucket:
+  **Starter 5 GB, Pro 25 GB** — worst case ~$0.11/~$0.53 per month per maxed tenant, comfortably
+  inside plan margin. Enforced at `POST /v1/attachments` as a company-wide `sum(size_bytes)` gate
+  over live rows (409 `conflict` with plain copy when exceeded; freeing space = deleting files).
+  The existing per-file (25 MB) and per-owner (10) caps stand.
+- **MMS media is bounded differently, on purpose:** outbound MMS is already metered (3 segments)
+  and rate/overage-capped — priced. Inbound MMS is customer content and is NEVER blocked on a
+  budget; it is bounded per message (first 10 media items processed, ≤5 MB each — the item cap is
+  new) and economically by the sender paying carriage. Inbound media counts toward the usage
+  *display*, not the enforcement gate.
+- **Accounting:** the usage surface (API + settings page) now reports per-company stored bytes for
+  both arms, so an owner can see storage the way they see segments.
+- **Retention stands as promised:** conversation history (including media) is kept while the
+  account exists and through grace/release ("sign back in and it's there") — that promise is now a
+  priced line item, not an accident. The generic-bucket sweep (soft-delete → 15-min hard-delete
+  cron) is the only reclamation path, unchanged.
+- **Consistency:** SPEC §2/§9 (metering stays SMS-segments-only; storage is a budgeted allowance,
+  not a meter), D19 (machinery unchanged), §7 (stable `conflict` code for the budget gate).

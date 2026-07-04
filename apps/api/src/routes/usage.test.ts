@@ -1,6 +1,7 @@
 /**
- * GET /v1/usage (SPEC §2, §7, §9): included/used/overage/cap/projection from
- * usage_events + plan.
+ * GET /v1/usage (SPEC §2, §7, §9; D30): included/used/overage/cap/projection
+ * from usage_events + plan, plus the D30 `storage` arm (per-company stored
+ * bytes for generic attachments and MMS media, via api_storage_usage).
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -44,9 +45,13 @@ const HISTORY = [
   { month: "2026-07", segments: 90 },
 ];
 
+/** D30 storage arm the api_storage_usage RPC stub reports. */
+const STORAGE = { attachments_bytes: 123_456, mms_bytes: 78_900 };
+
 function usageStub(
   company: Record<string, unknown>,
   used: number,
+  storage: Record<string, unknown> = STORAGE,
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -57,6 +62,7 @@ function usageStub(
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
+  sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   return sb;
 }
 
@@ -85,6 +91,7 @@ describe("GET /v1/usage", () => {
       cap_segments: 1500,
       projected_overage_cents: 360,
       history: HISTORY,
+      storage: { attachments_bytes: 123_456, mms_bytes: 78_900 },
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
@@ -97,6 +104,23 @@ describe("GET /v1/usage", () => {
     expect(historyRpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_months: 6,
+    });
+    // D30: the storage arm rides along too, from the exact-sum RPC.
+    const storageRpc = sb.find("POST", "/rest/v1/rpc/api_storage_usage")[0];
+    expect(storageRpc.body).toEqual({ p_company_id: COMPANY_ID });
+  });
+
+  it("coerces bigint-as-string sums from the storage RPC to numbers (D30)", async () => {
+    const sb = usageStub(starterCompany, 0, {
+      attachments_bytes: "5368709120",
+      mms_bytes: "42",
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    expect(await res.json()).toMatchObject({
+      storage: { attachments_bytes: 5_368_709_120, mms_bytes: 42 },
     });
   });
 
@@ -156,8 +180,11 @@ describe("GET /v1/usage", () => {
       cap_segments: null,
       projected_overage_cents: 0,
       history: [],
+      storage: { attachments_bytes: 0, mms_bytes: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/rpc/api_usage_history")).toHaveLength(0);
+    // Pre-checkout companies can't own files/media — zeros without querying.
+    expect(sb.find("POST", "/rest/v1/rpc/api_storage_usage")).toHaveLength(0);
   });
 });

@@ -31,6 +31,15 @@ export const INBOUND_MEDIA_TYPES = [
 ] as const;
 export const MAX_INBOUND_MEDIA_BYTES = 5 * 1024 * 1024;
 
+/**
+ * D30 per-message item cap: at most the first 10 media items of an inbound
+ * message are downloaded/stored; the rest are skipped with a warning (the
+ * §7 skip idiom — a permanent condition, never retried). Inbound MMS is
+ * customer content and is NEVER blocked on a storage budget — this per-message
+ * bound (plus the ≤5 MB per item above) is its only limit.
+ */
+export const MAX_INBOUND_MEDIA_ITEMS = 10;
+
 /** Outbound MMS meters as 3 segments (SPEC §2) — also the send-gate estimate. */
 export const MMS_SEGMENTS = 3;
 

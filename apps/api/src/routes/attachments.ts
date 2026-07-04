@@ -1,31 +1,46 @@
 /**
- * Attachment routes (SPEC §7; D19 / APP-FEATURES-V2 §2; TASKS.md T1.2/T4).
+ * Attachment routes (SPEC §7; D19 / D28 / D30; APP-FEATURES-V2 §2).
  *
- *   POST /v1/attachments        M — GENERIC note/task upload (D19). Multipart:
- *        `owner_type` ('note'|'task'), `owner_id`, `file`. Verifies membership
- *        (middleware) + that the owner note/task belongs to the caller's
- *        company; enforces the 25 MB ceiling, the MIME allow-list, and re-checks
- *        content-type FROM THE BYTES (never trusts the client); enforces the
- *        soft per-owner cap of 10. Streams the bytes to the private `attachments`
- *        bucket with the sb_secret_ key, inserts the row, writes a
- *        note_/task_attachment_added event, returns the row (201). This is the
- *        ONLY attachment-upload route — task attachments are `owner_type='task'`
- *        rows here, NOT a task-specific table/route.
+ *   POST /v1/attachments        M — GENERIC upload, NOTES-ONLY (D28: files
+ *        enter through messages and notes only — the standalone task ingress
+ *        is removed; `owner_type='task'` is a 422 with plain copy pointing at
+ *        the task's notes). Multipart: `owner_type` ('note'), `owner_id`,
+ *        `file`. Verifies membership (middleware) + that the owner note
+ *        belongs to the caller's company; enforces the 25 MB ceiling, the
+ *        MIME allow-list, and re-checks content-type FROM THE BYTES (never
+ *        trusts the client); enforces the soft per-owner cap of 10. Streams the
+ *        bytes to the private `attachments` bucket with the sb_secret_ key,
+ *        THEN atomically claims the D30 company-wide storage budget
+ *        (claim_attachment_storage: a per-company advisory-lock re-sum + insert
+ *        vs the plan's 5/25 GB) — the claim is the sole budget authority (no
+ *        check-then-write TOCTOU). Over budget → 409 `conflict` and the
+ *        just-uploaded object is orphaned for the D19 sweep. On success writes a
+ *        note_attachment_added event and returns the row (201).
  *   GET  /v1/attachments        M — list a single owner's live attachments
- *        (`?owner_type=&owner_id=`), company-scoped, newest-first { data }.
+ *        (`?owner_type=&owner_id=`, note OR task — legacy task rows keep
+ *        reading), company-scoped { data }.
  *   GET  /v1/attachments/:id/url M — mint a short-lived signed Storage URL.
- *        Serves GENERIC (note/task) attachments AND the existing MMS
+ *        Serves GENERIC (note/legacy-task) attachments AND the existing MMS
  *        `message_attachments` (the MMS path is kept intact): the id is looked
  *        up in the generic `attachments` table first, then falls back to
  *        `message_attachments` — one route, three sources (D19: "there is no
  *        /v1/task-attachments/:id/url").
+ *   DELETE /v1/attachments/:id  M — soft-delete a live generic row (note or
+ *        legacy task — D28 keeps the delete door open so space can be freed).
  *
  * The MMS send/ingest path (messaging/media.ts, message_attachments, mms-media
- * bucket) is untouched.
+ * bucket) is untouched. Inbound MMS is NEVER blocked on the D30 budget — it is
+ * bounded per message instead (messaging/media.ts MAX_INBOUND_MEDIA_ITEMS).
  */
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import {
+  STORAGE_BUDGET_BYTES,
+  storageBudgetLabel,
+  type PlanId,
+} from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -39,6 +54,7 @@ import {
   MAX_ATTACHMENTS_PER_OWNER,
   MAX_ATTACHMENT_BYTES,
   OWNER_TYPES,
+  UPLOAD_OWNER_TYPES,
   type OwnerType,
 } from "./core/attachments";
 import {
@@ -68,44 +84,75 @@ const uuidPattern =
 type Db = ReturnType<typeof getDb>;
 
 /**
- * Resolve the owning note/task and its conversation for company-scoped
+ * Resolve the owning note and its conversation for company-scoped
  * authorization + the denormalized `conversation_id` (D19 §2.1). A note owner
- * is a `messages` row with direction='note'; a task owner is a `tasks` row.
- * Returns null when the owner is missing or outside the company (→ the route
- * 404s, hiding cross-tenant existence).
+ * is a `messages` row with direction='note' — the only upload owner left
+ * after D28. Returns null when the owner is missing or outside the company
+ * (→ the route 404s, hiding cross-tenant existence).
  */
-async function resolveOwner(
+async function resolveNoteOwner(
   db: Db,
   companyId: string,
-  ownerType: OwnerType,
-  ownerId: string,
+  noteId: string,
 ): Promise<{ conversationId: string } | null> {
-  if (ownerType === "note") {
-    const rows = unwrap<{ conversation_id: string; direction: string }[]>(
-      await db
-        .from("messages")
-        .select("conversation_id,direction")
-        .eq("company_id", companyId)
-        .eq("id", ownerId)
-        .limit(1),
-      "note owner lookup",
-    );
-    const note = rows[0];
-    if (!note || note.direction !== "note") return null;
-    return { conversationId: note.conversation_id };
-  }
-  const rows = unwrap<{ conversation_id: string; deleted_at: string | null }[]>(
+  const rows = unwrap<{ conversation_id: string; direction: string }[]>(
     await db
-      .from("tasks")
-      .select("conversation_id,deleted_at")
+      .from("messages")
+      .select("conversation_id,direction")
       .eq("company_id", companyId)
-      .eq("id", ownerId)
+      .eq("id", noteId)
       .limit(1),
-    "task owner lookup",
+    "note owner lookup",
   );
-  const task = rows[0];
-  if (!task || task.deleted_at !== null) return null;
-  return { conversationId: task.conversation_id };
+  const note = rows[0];
+  if (!note || note.direction !== "note") return null;
+  return { conversationId: note.conversation_id };
+}
+
+/**
+ * The company's D30 storage budget in bytes (Starter 5 GB, Pro 25 GB). A
+ * plan-null (pre-checkout) company cannot reach the budget gate in practice —
+ * it has no numbers, so no conversations, no notes, and the owner lookup
+ * already 404'd — but if it ever does, it gets the Starter allowance (the same
+ * posture as seatLimit in core/plans.ts). The plain-language 409 copy needs the
+ * plan too, so this returns both.
+ */
+async function companyStorageBudget(
+  db: Db,
+  companyId: string,
+): Promise<{ plan: PlanId; budgetBytes: number }> {
+  const companies = unwrap<{ plan: PlanId | null }[]>(
+    await db
+      .from("companies")
+      .select("plan")
+      .eq("id", companyId)
+      .is("deleted_at", null)
+      .limit(1),
+    "company plan lookup",
+  );
+  const plan: PlanId = companies[0]?.plan ?? "starter";
+  return { plan, budgetBytes: STORAGE_BUDGET_BYTES[plan] };
+}
+
+/**
+ * Shape of the claim_attachment_storage RPC result (the D30 atomic budget
+ * claim, 20260704030000_attach_fixes.sql): `allowed` plus the inserted row when
+ * it fit. The route maps allowed=false to the §7 409 conflict.
+ */
+const storageClaimSchema = z.object({
+  allowed: z.boolean(),
+  attachment: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+/** Parse a claim_attachment_storage jsonb result (garbage → 500). */
+function parseStorageClaim(data: unknown): z.infer<typeof storageClaimSchema> {
+  const result = storageClaimSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(
+      `claim_attachment_storage returned an unexpected shape: ${result.error}`,
+    );
+  }
+  return result.data;
 }
 
 export const attachmentsRoutes = new Hono<AppEnv>();
@@ -129,11 +176,19 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   }
 
   const ownerTypeRaw = form.get("owner_type");
-  const ownerType = OWNER_TYPES.find((value) => value === ownerTypeRaw);
+  const ownerType = UPLOAD_OWNER_TYPES.find((value) => value === ownerTypeRaw);
   if (!ownerType) {
+    // D28: the standalone task ingress is gone — plain copy points at the two
+    // remaining doors. Existing task-owned rows still read/serve/delete.
+    if (ownerTypeRaw === "task") {
+      throw new ApiError(
+        "validation_failed",
+        "owner_type: files can't be uploaded to a task anymore — attach them to a note in the task's discussion instead.",
+      );
+    }
     throw new ApiError(
       "validation_failed",
-      `owner_type: must be one of ${OWNER_TYPES.join(", ")}.`,
+      `owner_type: must be ${UPLOAD_OWNER_TYPES.join(", ")}.`,
     );
   }
   const ownerId = form.get("owner_id");
@@ -153,9 +208,9 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   assertAllowedType(declaredType);
 
   // Owner must exist in the caller's company (D19 §2.3). 404 hides cross-tenant.
-  const owner = await resolveOwner(db, companyId, ownerType, ownerId);
+  const owner = await resolveNoteOwner(db, companyId, ownerId);
   if (!owner) {
-    return errorResponse(c, "not_found", "No such note or task.");
+    return errorResponse(c, "not_found", "No such note.");
   }
 
   // Soft per-owner cap of 10 (D19 §2.4) — count live rows first.
@@ -195,6 +250,10 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     );
   }
 
+  // D30 budget is resolved from the plan; the atomic CLAIM below is the
+  // authority (fix for the TOCTOU race — see claim_attachment_storage).
+  const { plan, budgetBytes } = await companyStorageBudget(db, companyId);
+
   const objectPath = attachmentStoragePath({
     companyId,
     ownerType,
@@ -203,6 +262,13 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     fileName,
   });
 
+  // Upload to Storage FIRST, then claim-or-reject. Reordering makes the atomic
+  // claim the sole budget authority: the old check-then-write summed live bytes
+  // and inserted separately, so N concurrent uploads all read the same pre-insert
+  // sum and overshot by up to N×25 MB. Now claim_attachment_storage re-sums AND
+  // inserts under a per-company advisory xact lock — the (N+1)th upload at the
+  // budget gets allowed=false with no overshoot. On reject the just-uploaded
+  // object is orphaned and falls to the existing D19 sweep (never blocks the user).
   const upload = await db.storage
     .from(ATTACHMENTS_BUCKET)
     .upload(objectPath, bytes.slice().buffer, {
@@ -213,34 +279,55 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     throw new Error(`attachment upload failed (${objectPath}): ${upload.error.message}`);
   }
 
-  const inserted = unwrap<Record<string, unknown>[]>(
-    await db
-      .from("attachments")
-      .insert({
-        company_id: companyId,
-        owner_type: ownerType,
-        owner_id: ownerId,
-        conversation_id: owner.conversationId,
-        storage_path: objectPath,
-        file_name: fileName,
-        content_type: declaredType,
-        size_bytes: bytes.byteLength,
-        uploaded_by_user_id: userId,
-      })
-      .select(ATTACHMENT_COLUMNS),
-    "attachment insert",
+  const { data: claimData, error: claimError } = await db.rpc(
+    "claim_attachment_storage",
+    {
+      p_company_id: companyId,
+      p_owner_type: ownerType,
+      p_owner_id: ownerId,
+      p_conversation_id: owner.conversationId,
+      p_storage_path: objectPath,
+      p_file_name: fileName,
+      p_content_type: declaredType,
+      p_size_bytes: bytes.byteLength,
+      p_uploaded_by: userId,
+      p_budget_bytes: budgetBytes,
+    },
   );
-  const row = inserted[0];
-  if (!row) throw new Error("attachment insert returned no row");
+  if (claimError) {
+    throw new Error(`claim_attachment_storage failed: ${claimError.message}`);
+  }
+  const claim = parseStorageClaim(claimData);
+  if (!claim.allowed) {
+    // Over budget — the uploaded object is orphaned; the D19 sweep reclaims it.
+    throw new ApiError(
+      "conflict",
+      `Your plan's ${storageBudgetLabel(plan)} attachment storage is full — delete some files to free space.`,
+    );
+  }
+  if (!claim.attachment) throw new Error("claim_attachment_storage returned no row");
+  // The RPC returns the FULL row (to_jsonb) — project to the API shape so
+  // storage_path (and other internal columns) never leak in the response.
+  const full = claim.attachment;
+  const row = {
+    id: full.id,
+    owner_type: full.owner_type,
+    owner_id: full.owner_id,
+    conversation_id: full.conversation_id,
+    file_name: full.file_name,
+    content_type: full.content_type,
+    size_bytes: full.size_bytes,
+    created_at: full.created_at,
+  } as Record<string, unknown>;
 
-  // D22: attachment lifecycle audited on the owner's conversation.
-  const addedType: ConversationEventType =
-    ownerType === "note" ? "note_attachment_added" : "task_attachment_added";
+  // D22: attachment lifecycle audited on the owner's conversation. Upload is
+  // notes-only (D28), so the added event is always the note flavor;
+  // task_attachment_added survives only in old rows' history.
   const event: ConversationEventRow = {
     company_id: companyId,
     conversation_id: owner.conversationId,
     actor_user_id: userId,
-    type: addedType,
+    type: "note_attachment_added",
     payload: { attachment_id: row.id, file_name: fileName },
   };
   await insertConversationEvents(db, [event]);
@@ -264,8 +351,16 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
   const db = getDb(getEnv(c.env));
 
   // Soft-delete only a still-live row we own; RETURNING tells us it existed.
+  // owner_id is selected so a legacy task-owned removal can carry task_id in the
+  // event payload (the task drawer's activity feed keys on payload->>task_id).
   const deleted = unwrap<
-    { id: string; owner_type: OwnerType; conversation_id: string; file_name: string }[]
+    {
+      id: string;
+      owner_type: OwnerType;
+      owner_id: string;
+      conversation_id: string;
+      file_name: string;
+    }[]
   >(
     await db
       .from("attachments")
@@ -273,7 +368,7 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
       .eq("company_id", companyId)
       .eq("id", id)
       .is("deleted_at", null)
-      .select("id,owner_type,conversation_id,file_name"),
+      .select("id,owner_type,owner_id,conversation_id,file_name"),
     "attachment soft-delete",
   );
   const row = deleted[0];
@@ -283,12 +378,21 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
     row.owner_type === "note"
       ? "note_attachment_removed"
       : "task_attachment_removed";
+  // A task-owned removal (legacy rows — D28 stopped creating them but kept the
+  // delete door open) carries task_id so loadTaskActivity's task_attachment_removed
+  // arm — which filters on payload->>task_id — surfaces the deletion in the task
+  // drawer's activity feed. For a note, owner_id is a message id (no task_id key).
+  const payload: Record<string, unknown> = {
+    attachment_id: row.id,
+    file_name: row.file_name,
+  };
+  if (row.owner_type === "task") payload.task_id = row.owner_id;
   const event: ConversationEventRow = {
     company_id: companyId,
     conversation_id: row.conversation_id,
     actor_user_id: userId,
     type: removedType,
-    payload: { attachment_id: row.id, file_name: row.file_name },
+    payload,
   };
   await insertConversationEvents(db, [event]);
 

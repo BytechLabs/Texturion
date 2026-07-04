@@ -650,6 +650,54 @@ describe("inbound pipeline — MMS media (§7)", () => {
     expect(stubs.ledger.stamp.calls).toHaveLength(1); // still processed
   });
 
+  it("processes at most the first 10 media items per message, skipping the tail (D30)", async () => {
+    const stubs = mediaStubs();
+    // 13 distinct media URLs — the sender attached more than the D30 cap.
+    const manyDownloads = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () =>
+        new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+          headers: { "content-type": "image/jpeg" },
+        }),
+    );
+    serve(
+      stubs.ledger.insert,
+      stubs.ledger.stamp,
+      stubs.numberLookup,
+      stubs.threadRpc,
+      stubs.away,
+      stubs.attachmentLookup,
+      manyDownloads,
+      stubs.upload,
+      stubs.attachmentInsert,
+    );
+
+    const { response, flush } = await deliver(
+      messageReceivedEvent({
+        media: Array.from({ length: 13 }, (_, i) => ({
+          url: `${MEDIA_URL}-${i}`,
+          content_type: "image/jpeg",
+          size: 4,
+        })),
+      }),
+    );
+    expect(response.status).toBe(200);
+    await flush();
+
+    // Only the FIRST 10 items were fetched, stored, and recorded; the tail was
+    // skipped with a warning (never a failure — the ledger row is processed).
+    expect(manyDownloads.calls).toHaveLength(10);
+    expect(stubs.upload.calls).toHaveLength(10);
+    expect(stubs.attachmentInsert.calls).toHaveLength(10);
+    expect(
+      stubs.attachmentInsert.calls.map(
+        (call) => (call.body as { source_url: string }).source_url,
+      ),
+    ).toEqual(Array.from({ length: 10 }, (_, i) => `${MEDIA_URL}-${i}`));
+    expect(stubs.ledger.stamp.calls).toHaveLength(1); // processed
+  });
+
   it("insert conflicts on (message_id, source_url) are benign (concurrent replay)", async () => {
     const stubs = mediaStubs();
     const conflictInsert = stubRoute(

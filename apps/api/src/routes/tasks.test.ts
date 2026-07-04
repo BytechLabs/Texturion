@@ -36,6 +36,10 @@ const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 const MESSAGE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
 const TASK_ID = "77777777-0000-4000-8000-000000000077";
 const OTHER_USER = "22222222-0000-4000-8000-000000000022";
+const NOTE_ID = "dddddddd-0000-4000-8000-0000000000d1";
+const MMS_ATT_ID = "eeeeeeee-1111-4000-8000-0000000000a1";
+const NOTE_ATT_ID = "eeeeeeee-2222-4000-8000-0000000000a2";
+const LEGACY_ATT_ID = "eeeeeeee-3333-4000-8000-0000000000a3";
 
 let auth: TestAuth;
 const env: Env = completeEnv();
@@ -481,24 +485,86 @@ describe("GET /v1/tasks — list filters + derived status", () => {
 // --------------------------------------------------------------------------
 // GET /v1/conversations/:id/tasks — the checklist (T5.2)
 // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// The D28 derived-attachments union stubs, shared by the checklist and detail
+// suites. Three arms: source-message MMS, linked-note generic files, legacy
+// owner_type='task' rows.
+// --------------------------------------------------------------------------
+function unionStubs() {
+  const mms = stubRoute(restMatch(env, "GET", "message_attachments"), () => [
+    {
+      id: MMS_ATT_ID,
+      message_id: MESSAGE_ID,
+      content_type: "image/jpeg",
+      size_bytes: 4,
+      created_at: "2026-07-02T12:05:00.000Z",
+    },
+  ]);
+  // The note-LINK lookup (task_id=in.(...)) — distinct from the activity
+  // notes arm (task_id=eq.<id>), so match on the `in.` filter shape.
+  const noteLinks = stubRoute(
+    restMatch(env, "GET", "messages", (url) =>
+      (url.searchParams.get("task_id") ?? "").startsWith("in."),
+    ),
+    () => [{ id: NOTE_ID, task_id: TASK_ID }],
+  );
+  const noteAttach = stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "attachments",
+      (url) => url.searchParams.get("owner_type") === "eq.note",
+    ),
+    () => [
+      {
+        id: NOTE_ATT_ID,
+        owner_id: NOTE_ID,
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        created_at: "2026-07-02T14:00:00.000Z",
+      },
+    ],
+  );
+  const legacyAttach = stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "attachments",
+      (url) => url.searchParams.get("owner_type") === "eq.task",
+    ),
+    () => [
+      {
+        id: LEGACY_ATT_ID,
+        owner_id: TASK_ID,
+        file_name: "site.png",
+        content_type: "image/png",
+        size_bytes: 512,
+        created_at: "2026-07-02T13:00:00.000Z",
+      },
+    ],
+  );
+  return { mms, noteLinks, noteAttach, legacyAttach };
+}
+
 describe("GET /v1/conversations/:id/tasks — checklist", () => {
-  it("lists live tasks with derived done + attachment_count, no cursor", async () => {
+  it("lists live tasks with derived done + the D28 union attachment_count, no cursor", async () => {
     const convCheck = stubRoute(restMatch(env, "GET", "conversations"), () => [
       { id: CONVERSATION_ID },
     ]);
     const list = stubRoute(restMatch(env, "GET", "tasks"), () => [
       taskRow({ id: TASK_ID, messages: { id: MESSAGE_ID, done_at: null } }),
     ]);
-    const attach = stubRoute(restMatch(env, "GET", "attachments"), () => [
-      { owner_id: TASK_ID },
-      { owner_id: TASK_ID },
-    ]);
+    const union = unionStubs();
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
       convCheck.route,
       list.route,
-      attach.route,
+      union.mms.route,
+      union.noteLinks.route,
+      union.noteAttach.route,
+      union.legacyAttach.route,
     );
 
     const response = await request(
@@ -511,17 +577,26 @@ describe("GET /v1/conversations/:id/tasks — checklist", () => {
       next_cursor?: string;
     };
     expect(body).not.toHaveProperty("next_cursor");
+    // attachment_count = the DERIVED union (1 MMS + 1 note file + 1 legacy
+    // task row = 3), NOT just owner_type='task' rows (D28).
     expect(body.data[0]).toMatchObject({
       id: TASK_ID,
       done: false,
       status: "open",
-      attachment_count: 2,
+      attachment_count: 3,
     });
     // Checklist read is company-scoped + live-only, ordered created_at asc.
     const q = list.calls[0].url.searchParams;
     expect(q.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
     expect(q.get("deleted_at")).toBe("is.null");
     expect(q.get("order")).toContain("created_at.asc");
+    // Both generic arms count LIVE rows only.
+    expect(union.noteAttach.calls[0].url.searchParams.get("deleted_at")).toBe(
+      "is.null",
+    );
+    expect(union.legacyAttach.calls[0].url.searchParams.get("deleted_at")).toBe(
+      "is.null",
+    );
   });
 
   it("404s an unknown conversation", async () => {
@@ -560,6 +635,17 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       restMatch(env, "GET", "attachments"),
       () => [],
     );
+    // D28 union arms, empty here (the union has its own dedicated test).
+    const mmsAttach = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const noteLinks = stubRoute(
+      restMatch(env, "GET", "messages", (url) =>
+        (url.searchParams.get("task_id") ?? "").startsWith("in."),
+      ),
+      () => [],
+    );
     // Activity arm 1: task_* conversation_events for this task.
     const events = stubRoute(
       restMatch(env, "GET", "conversation_events"),
@@ -588,6 +674,8 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       detail.route,
       profiles.route,
       attachments.route,
+      mmsAttach.route,
+      noteLinks.route, // BEFORE notes: the `in.` link lookup must not hit the activity stub
       events.route,
       notes.route,
     );
@@ -606,10 +694,210 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     const evq = events.calls[0].url.searchParams;
     expect(evq.get("payload->>task_id")).toBe(`eq.${TASK_ID}`);
     expect(evq.get("type")).toContain("task_created");
+    // task_attachment_removed IS filtered (the DELETE route now stamps task_id
+    // on it); the never-written-post-D28 task_attachment_added is NOT.
+    expect(evq.get("type")).toContain("task_attachment_removed");
+    expect(evq.get("type")).not.toContain("task_attachment_added");
     // The note arm filtered on messages.task_id + direction note.
     const nq = notes.calls[0].url.searchParams;
     expect(nq.get("task_id")).toBe(`eq.${TASK_ID}`);
     expect(nq.get("direction")).toBe("eq.note");
+  });
+
+  it("attachments is the D28 DERIVED union (source MMS + linked-note files + legacy rows), gallery-shaped, sorted, no urls", async () => {
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        messages: {
+          id: MESSAGE_ID,
+          body: "fix the sink",
+          done_at: null,
+          done_by_user_id: null,
+          created_at: "2026-07-02T12:00:00.000Z",
+          direction: "inbound",
+        },
+      }),
+    ]);
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => [
+      { user_id: auth.subject, display_name: "Sam" },
+    ]);
+    const union = unionStubs();
+    const events = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    const activityNotes = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      detail.route,
+      profiles.route,
+      union.mms.route,
+      union.noteLinks.route, // BEFORE activityNotes (the `in.` link lookup)
+      union.noteAttach.route,
+      union.legacyAttach.route,
+      events.route,
+      activityNotes.route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      attachments: Record<string, unknown>[];
+    };
+    // Three arms merged, (created_at, id) ASC: MMS 12:05 → legacy 13:00 →
+    // note file 14:00. Gallery item shape, file_name null for carrier media,
+    // and NO pre-signed url (the web mints one per item via /attachments/:id/url).
+    expect(body.attachments).toEqual([
+      {
+        id: MMS_ATT_ID,
+        source: "mms",
+        kind: "image",
+        file_name: null,
+        content_type: "image/jpeg",
+        size_bytes: 4,
+        created_at: "2026-07-02T12:05:00.000Z",
+      },
+      {
+        id: LEGACY_ATT_ID,
+        source: "task",
+        kind: "image",
+        file_name: "site.png",
+        content_type: "image/png",
+        size_bytes: 512,
+        created_at: "2026-07-02T13:00:00.000Z",
+      },
+      {
+        id: NOTE_ATT_ID,
+        source: "note",
+        kind: "file",
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        created_at: "2026-07-02T14:00:00.000Z",
+      },
+    ]);
+
+    // Arm scoping: MMS by the SOURCE message, company-scoped; note files by
+    // the linked notes' ids; legacy rows by the task id — all company-scoped.
+    const mq = union.mms.calls[0].url.searchParams;
+    expect(mq.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(mq.get("message_id")).toBe(`in.(${MESSAGE_ID})`);
+    const lq = union.noteLinks.calls[0].url.searchParams;
+    expect(lq.get("task_id")).toBe(`in.(${TASK_ID})`);
+    expect(lq.get("direction")).toBe("eq.note");
+    const naq = union.noteAttach.calls[0].url.searchParams;
+    expect(naq.get("owner_id")).toBe(`in.(${NOTE_ID})`);
+    const laq = union.legacyAttach.calls[0].url.searchParams;
+    expect(laq.get("owner_id")).toBe(`in.(${TASK_ID})`);
+  });
+
+  it("#2: a note promoted to a task surfaces the source note's OWN files in the union", async () => {
+    // Regression: promoting a note used to LOSE the note's files — create_task
+    // set tasks.message_id but not the source note's messages.task_id, so
+    // arm (b) (notes WHERE task_id = task) missed the promoted note itself. The
+    // fixed create_task links it back, so the source note (here MESSAGE_ID, a
+    // direction='note' row) appears in the note-link lookup and its file lands
+    // in the derived union. Model exactly that: source note has one PDF; no MMS,
+    // no legacy task rows.
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        messages: {
+          id: MESSAGE_ID,
+          body: "need to order the part",
+          done_at: null,
+          done_by_user_id: null,
+          created_at: "2026-07-02T12:00:00.000Z",
+          direction: "note",
+        },
+      }),
+    ]);
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => [
+      { user_id: auth.subject, display_name: "Sam" },
+    ]);
+    // Arm (a) MMS: none.
+    const mms = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    // Arm (b) link lookup: the promoted note is linked back to the task.
+    const noteLinks = stubRoute(
+      restMatch(env, "GET", "messages", (url) =>
+        (url.searchParams.get("task_id") ?? "").startsWith("in."),
+      ),
+      () => [{ id: MESSAGE_ID, task_id: TASK_ID }],
+    );
+    // Arm (b) files: the source note's own generic attachment (the PDF).
+    const noteAttach = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "attachments",
+        (url) => url.searchParams.get("owner_type") === "eq.note",
+      ),
+      () => [
+        {
+          id: NOTE_ATT_ID,
+          owner_id: MESSAGE_ID,
+          file_name: "quote.pdf",
+          content_type: "application/pdf",
+          size_bytes: 2048,
+          created_at: "2026-07-02T12:10:00.000Z",
+        },
+      ],
+    );
+    // Arm (c) legacy: none.
+    const legacyAttach = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "attachments",
+        (url) => url.searchParams.get("owner_type") === "eq.task",
+      ),
+      () => [],
+    );
+    const events = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    const activityNotes = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      detail.route,
+      profiles.route,
+      mms.route,
+      noteLinks.route,
+      noteAttach.route,
+      legacyAttach.route,
+      events.route,
+      activityNotes.route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      attachments: { id: string; source: string; file_name: string }[];
+    };
+    // The promoted note's own file is present (source 'note').
+    expect(body.attachments).toEqual([
+      {
+        id: NOTE_ATT_ID,
+        source: "note",
+        kind: "file",
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        created_at: "2026-07-02T12:10:00.000Z",
+      },
+    ]);
+    // The link lookup ran with the task id, and note files were fetched for the
+    // linked (source) note.
+    expect(noteLinks.calls[0].url.searchParams.get("task_id")).toBe(
+      `in.(${TASK_ID})`,
+    );
+    expect(noteAttach.calls[0].url.searchParams.get("owner_id")).toBe(
+      `in.(${MESSAGE_ID})`,
+    );
   });
 
   it("404s an unknown task", async () => {

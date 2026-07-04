@@ -1,50 +1,90 @@
 "use client";
 
-import { Download, FileText, ImageOff } from "lucide-react";
+import { Download, FileText, ImageOff, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useAttachmentUrl } from "@/lib/api/attachments";
-import type { Attachment } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { formatBytes } from "@/components/thread/gallery-grouping";
 
-/** True when the row is an image — drives preview vs. file-chip (D19). */
-export function isImageAttachment(attachment: Attachment): boolean {
-  return (attachment.content_type ?? "").toLowerCase().startsWith("image/");
-}
+import {
+  attachmentLabel,
+  isImageAttachment,
+  type AttachmentLike,
+} from "./derived-attachments";
 
-/** A readable name for a row: the stored name, else a type-derived fallback. */
-function attachmentLabel(attachment: Attachment): string {
-  if (attachment.file_name && attachment.file_name.trim() !== "") {
-    return attachment.file_name;
-  }
-  const subtype = attachment.content_type?.split("/")[1]?.toUpperCase();
-  return subtype ? `${subtype} file` : "File";
-}
+// Re-exported for existing importers; the pure logic lives in
+// derived-attachments.ts so it unit-tests without React.
+export { attachmentLabel, isImageAttachment, type AttachmentLike };
 
 /**
- * One note/task attachment row (D19 / APP-FEATURES-V2 §2.5). Images render a
+ * One attachment row (D19 / D28 / APP-FEATURES-V2 §2.5). Images render a
  * small blur-up preview that opens a signed-URL lightbox; every other type
  * (PDF, doc, csv, zip…) is a calm file chip whose name links to a freshly
  * signed download URL. The signed URL is minted on demand from
- * `GET /v1/attachments/:id/url` (the same route the MMS thumbnails use).
+ * `GET /v1/attachments/:id/url` (one route, three sources — generic AND MMS
+ * ids), so this row renders generic note/task rows and the D28 derived task
+ * union alike; it only needs the `AttachmentLike` columns.
  *
- * `onRemove`, when supplied, renders a quiet trailing remove control — kept
- * out of MVP by default (soft-delete of a single attachment is a separate
- * backend action), so callers simply omit it.
+ * `meta`, when supplied, is a short origin tag appended to the sub-line
+ * (Message / Note / Legacy in the task drawer). `onRemove`, when supplied,
+ * renders a quiet trailing delete control (the D30 free-space path) — callers
+ * gate it to rows the API can actually delete (generic only, never MMS).
  */
-export function AttachmentItem({ attachment }: { attachment: Attachment }) {
-  return isImageAttachment(attachment) ? (
-    <ImageAttachmentRow attachment={attachment} />
+export function AttachmentItem({
+  attachment,
+  meta,
+  onRemove,
+  removing = false,
+}: {
+  attachment: AttachmentLike;
+  meta?: string;
+  onRemove?: () => void;
+  removing?: boolean;
+}) {
+  const row = isImageAttachment(attachment) ? (
+    <ImageAttachmentRow attachment={attachment} meta={meta} />
   ) : (
-    <FileAttachmentRow attachment={attachment} />
+    <FileAttachmentRow attachment={attachment} meta={meta} />
+  );
+
+  if (!onRemove) return row;
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="min-w-0 flex-1">{row}</div>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={removing}
+        aria-label={`Delete ${attachmentLabel(attachment)}`}
+        className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-destructive disabled:opacity-50"
+      >
+        {removing ? (
+          <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden />
+        ) : (
+          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+        )}
+      </button>
+    </div>
   );
 }
 
-function ImageAttachmentRow({ attachment }: { attachment: Attachment }) {
+/** The "Image · 24 KB · Note" sub-line, dropping absent parts. */
+function subLine(parts: (string | null | undefined)[]): string {
+  return parts.filter((part): part is string => !!part).join(" · ");
+}
+
+function ImageAttachmentRow({
+  attachment,
+  meta,
+}: {
+  attachment: AttachmentLike;
+  meta?: string;
+}) {
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -102,7 +142,7 @@ function ImageAttachmentRow({ attachment }: { attachment: Attachment }) {
             className="block text-[11px] tabular-nums text-muted-foreground"
             title={formatAbsoluteDateTime(attachment.created_at)}
           >
-            Image{size ? ` · ${size}` : ""}
+            {subLine(["Image", size, meta])}
           </span>
         </span>
       </button>
@@ -126,7 +166,13 @@ function ImageAttachmentRow({ attachment }: { attachment: Attachment }) {
   );
 }
 
-function FileAttachmentRow({ attachment }: { attachment: Attachment }) {
+function FileAttachmentRow({
+  attachment,
+  meta,
+}: {
+  attachment: AttachmentLike;
+  meta?: string;
+}) {
   const url = useAttachmentUrl(attachment.id);
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
@@ -165,8 +211,7 @@ function FileAttachmentRow({ attachment }: { attachment: Attachment }) {
           className="block text-[11px] tabular-nums text-muted-foreground"
           title={formatAbsoluteDateTime(attachment.created_at)}
         >
-          {typeLabel}
-          {size ? ` · ${size}` : ""}
+          {subLine([typeLabel, size, meta])}
         </span>
       </span>
       <Download

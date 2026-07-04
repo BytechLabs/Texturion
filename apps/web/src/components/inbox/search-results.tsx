@@ -1,5 +1,6 @@
 "use client";
 
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -80,8 +81,19 @@ export function SearchResults({ q }: { q: string }) {
                 <span className="block truncate text-sm font-medium text-foreground">
                   {contactDisplayName(hit.contact)}
                 </span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {renderSnippet(hit.snippet)}
+                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {/* The matched message is an internal note (D29 direction) —
+                      the same amber lock the conversation rows use. */}
+                  {hit.direction === "note" && (
+                    <Lock
+                      className="size-3 shrink-0 text-app-amber"
+                      strokeWidth={1.75}
+                      aria-label="Note"
+                    />
+                  )}
+                  <span className="min-w-0 truncate">
+                    {renderSnippet(hit.snippet)}
+                  </span>
                 </span>
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1">

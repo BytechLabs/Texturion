@@ -48,7 +48,7 @@ export function NoteAttachments({ noteId }: { noteId: string }) {
       </button>
       {open && (
         <div className="mt-1.5">
-          <AttachmentsSection ownerType="note" ownerId={noteId} compact />
+          <AttachmentsSection noteId={noteId} compact />
         </div>
       )}
     </div>

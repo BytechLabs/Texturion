@@ -399,7 +399,10 @@ export interface TaskContactLocation {
 
 /**
  * One row of the conversation checklist (GET /v1/conversations/:id/tasks,
- * TASKS.md T5.2). A `Task` plus the generic-attachment count (D19).
+ * TASKS.md T5.2). A `Task` plus `attachment_count` — the size of the D28
+ * DERIVED attachments union (source-message MMS + task-linked note files +
+ * legacy task rows), computed by the same loader as the detail's
+ * `attachments`, so the badge and the drawer can never disagree.
  */
 export interface ChecklistTask extends Task {
   attachment_count: number;
@@ -445,18 +448,33 @@ export type TaskActivityItem =
       created_at: string;
     };
 
+/**
+ * One item of a task's DERIVED attachments union (D28 — GET /v1/tasks/:id
+ * `attachments`, routes/tasks.ts loadTaskAttachments): the source message's
+ * MMS media (`source:'mms'`) + live files on task-linked notes (`'note'`) +
+ * legacy pre-D28 task-owned rows (`'task'`), gallery-shaped WITHOUT a
+ * pre-signed url — the web mints per-item urls via the existing
+ * GET /v1/attachments/:id/url (that route serves all three sources). Sorted
+ * (created_at, id) ASC. `file_name` is null for MMS items: carrier media has
+ * no filename (D29 records this as correct, not a gap).
+ */
+export interface TaskAttachmentItem {
+  id: string;
+  source: GallerySource;
+  kind: "image" | "file";
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+}
+
 /** GET /v1/tasks/:id — the full detail (row + resolved profiles + source). */
 export interface TaskDetail extends Task {
   assignee: TaskProfile | null;
   created_by: TaskProfile | null;
   source_message: TaskSourceMessage | null;
-  attachments: {
-    id: string;
-    file_name: string | null;
-    content_type: string | null;
-    size_bytes: number | null;
-    created_at: string;
-  }[];
+  /** The D28 derived union — a read view; tasks never own uploads. */
+  attachments: TaskAttachmentItem[];
   /** The merged activity+discussion timeline (D-C events + D-D notes). */
   activity: TaskActivityItem[];
 }
@@ -565,6 +583,14 @@ export interface UsageMonth {
   segments: number;
 }
 
+/** D30 storage accounting embedded in GET /v1/usage. */
+export interface UsageStorage {
+  /** Live note-borne attachments — the arm the plan budget gates on upload. */
+  attachments_bytes: number;
+  /** MMS media (both directions) — display-only, never budget-blocked. */
+  mms_bytes: number;
+}
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 export interface Usage {
   period_start: string | null;
@@ -576,9 +602,11 @@ export interface Usage {
   projected_overage_cents: number;
   /** Last 6 calendar months, oldest first (empty pre-subscription). */
   history: UsageMonth[];
+  /** D30: the company's stored bytes, both arms. */
+  storage: UsageStorage;
 }
 
-/** GET /v1/search conversation hit (api_search RPC). */
+/** GET /v1/search conversation hit (api_search_v2 RPC). */
 export interface SearchConversationHit {
   id: string;
   status: ConversationStatus;
@@ -587,13 +615,54 @@ export interface SearchConversationHit {
   contact: ContactSummary;
   matched_message_id: string;
   matched_at: string;
+  /** The matched message's direction — a 'note' hit gets a quiet label (D29). */
+  direction: MessageDirection;
   snippet: string;
 }
 
-/** GET /v1/search — contacts ride along on the first page only. */
+/**
+ * GET /v1/search task hit (D29). `done` derives from the source message's
+ * done_at (D17, same as /v1/tasks); `matched_at` is the task's created_at.
+ */
+export interface SearchTaskHit {
+  id: string;
+  title: string;
+  conversation_id: string;
+  done: boolean;
+  matched_at: string;
+}
+
+/**
+ * GET /v1/search attachment hit (D29) — generic note/task rows only (MMS media
+ * has no filename, on purpose). `file_name` is never null on a hit: the arm
+ * matches on it. The deep link target is the owning thread (`conversation_id`).
+ */
+export interface SearchAttachmentHit {
+  id: string;
+  file_name: string;
+  owner_type: AttachmentOwnerType;
+  conversation_id: string | null;
+  content_type: string | null;
+  created_at: string;
+}
+
+/** GET /v1/search template hit (D29) — `snippet` is left(body, 160). */
+export interface SearchTemplateHit {
+  id: string;
+  name: string;
+  snippet: string;
+}
+
+/**
+ * GET /v1/search (D29): conversations paginate on the cursor; every other arm
+ * rides along on the first page only (empty arrays on cursored pages).
+ */
 export interface SearchResult {
   conversations: SearchConversationHit[];
   contacts: ContactSummary[];
+  tasks: SearchTaskHit[];
+  attachments: SearchAttachmentHit[];
+  templates: SearchTemplateHit[];
   next_cursor: string | null;
 }
 
@@ -914,7 +983,11 @@ export interface AttachmentUrl {
   expires_at: string;
 }
 
-/** The generic note/task attachment owner discriminator (D19 / routes/attachments.ts). */
+/**
+ * The generic attachment owner discriminator the table CARRIES (D19 /
+ * routes/attachments.ts). Read paths accept both; the UPLOAD door is
+ * notes-only (D28) — `'task'` survives only on legacy pre-D28 rows.
+ */
 export type AttachmentOwnerType = "note" | "task";
 
 /**

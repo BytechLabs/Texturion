@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tertiary } from "@/components/ui/tertiary";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
-import type { Usage, UsageMonth } from "@/lib/api/types";
+import type { PlanId, Usage, UsageMonth, UsageStorage } from "@/lib/api/types";
 import {
   capLabel,
   capSegments,
@@ -118,6 +118,69 @@ function PeriodMeter({ usage }: { usage: Usage }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/** D30 per-plan attachment-storage budgets (mirrors the API's plan table). */
+const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
+  starter: 5 * 1024 ** 3,
+  pro: 25 * 1024 ** 3,
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 ** 2) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+/** D30: attachment storage vs the plan budget + the MMS display-only line. */
+function StorageMeter({
+  storage,
+  plan,
+}: {
+  storage: UsageStorage;
+  plan: PlanId | null;
+}) {
+  const budget = plan ? STORAGE_BUDGET_BYTES[plan] : null;
+  const ratio = budget ? storage.attachments_bytes / budget : 0;
+  const percent = Math.min(100, Math.round(ratio * 100));
+  const warning = ratio >= 0.8;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <span className="font-medium tabular-nums">
+          {formatBytes(storage.attachments_bytes)}
+        </span>
+        <span className="text-muted-foreground">
+          of {budget ? formatBytes(budget) : "—"} for files on notes
+        </span>
+      </div>
+      {budget !== null && (
+        <div
+          role="meter"
+          aria-valuemin={0}
+          aria-valuemax={budget}
+          aria-valuenow={Math.min(storage.attachments_bytes, budget)}
+          aria-label={`${formatBytes(storage.attachments_bytes)} of ${formatBytes(budget)} attachment storage used`}
+          className="h-2 w-full overflow-hidden rounded-full bg-secondary"
+        >
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-200 ease-out",
+              warning ? "bg-warning" : "bg-primary",
+            )}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
+      <p className="text-sm text-muted-foreground">
+        Files attached to notes count toward your plan&apos;s storage — when
+        it&apos;s full, delete files you no longer need. Picture messages
+        (currently {formatBytes(storage.mms_bytes)}) are part of your
+        conversation history and never count against it.
+      </p>
     </div>
   );
 }
@@ -225,6 +288,13 @@ export default function UsageSettingsPage() {
               <HistoryBars history={usage.data.history} />
             </SettingsCard>
           )}
+
+          <SettingsCard title="Storage">
+            <StorageMeter
+              storage={usage.data.storage}
+              plan={company.data.plan}
+            />
+          </SettingsCard>
 
           <SettingsCard
             title="Overage cap"

@@ -3,7 +3,9 @@
 import {
   Ban,
   CircleDot,
+  FileText,
   Home,
+  Image as ImageIcon,
   Inbox,
   ListChecks,
   MessageSquareText,
@@ -36,6 +38,20 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 /** ts_headline snippets carry <b> markers; the palette renders plain text. */
 function plainSnippet(snippet: string): string {
   return snippet.replace(/<\/?b>/g, "");
+}
+
+/** image/* files get the image glyph; everything else the document glyph. */
+function isImageType(contentType: string | null): boolean {
+  return (contentType ?? "").toLowerCase().startsWith("image/");
+}
+
+/** A quiet metadata chip at the end of a search row (Note / Task / Done). */
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="ml-auto shrink-0 rounded-[5px] border border-app-line bg-app-line-soft px-1.5 py-0.5 text-[10px] font-medium text-app-muted">
+      {children}
+    </span>
+  );
 }
 
 const NAV_ACTIONS = [
@@ -194,8 +210,10 @@ function ConversationActions({
  * The context-aware command palette (PORTAL-UX §1.2): the real navigator. Opens
  * over any screen (⌘K, or the search glyphs dispatching `jobtext:open-command`).
  * When a conversation is open it leads with "Actions on this conversation", then
- * global search (conversations, contacts) and Go-to navigation. A calm floating
- * layer (the one permitted subtle shadow, on the dialog surface).
+ * global search (D29: conversations, contacts, tasks, attachments, templates —
+ * sections, never a blended list; a section with no hits renders nothing) and
+ * Go-to navigation. A calm floating layer (the one permitted subtle shadow, on
+ * the dialog surface).
  */
 export function CommandPalette() {
   const router = useRouter();
@@ -233,6 +251,26 @@ export function CommandPalette() {
   const search = useSearch(open ? query : "");
   const searching = query.trim().length >= 2;
 
+  // cmdk's <CommandEmpty> is driven by its own filtered count, which is
+  // meaningless while `shouldFilter` is off (the API already ranked). So in
+  // search mode we render the empty/loading line ourselves: "Searching…" until
+  // the first arm lands, "No matches." once every arm is in and empty.
+  const results = search.data;
+  const noHits =
+    !!results &&
+    results.conversations.length === 0 &&
+    results.contacts.length === 0 &&
+    results.tasks.length === 0 &&
+    results.attachments.length === 0 &&
+    results.templates.length === 0;
+  const searchStatus: "searching" | "empty" | null = searching
+    ? search.isFetching && !results
+      ? "searching"
+      : noHits && !search.isFetching
+        ? "empty"
+        : null
+    : null;
+
   const reset = () => {
     setInput("");
     setQuery("");
@@ -254,19 +292,25 @@ export function CommandPalette() {
         if (!next) reset();
       }}
       title="Command palette"
-      description="Jump to a conversation, contact, or page — or act on the open conversation"
+      description="Jump to a conversation, contact, task, file, template, or page — or act on the open conversation"
       // The API search already ranked results; don't re-filter them away.
       commandProps={{ shouldFilter: !searching }}
     >
       <CommandInput
-        placeholder="Search conversations and contacts…"
+        placeholder="Search conversations, contacts, tasks, files…"
         value={input}
         onValueChange={setInput}
       />
       <CommandList>
-        <CommandEmpty>
-          {searching && search.isFetching ? "Searching…" : "No matches."}
-        </CommandEmpty>
+        {/* Local-filter mode (nav + actions): cmdk's own filtered count drives
+            this. In search mode shouldFilter is off, so it never fires — the
+            explicit row below owns that state instead. */}
+        {!searching && <CommandEmpty>No matches.</CommandEmpty>}
+        {searchStatus && (
+          <div className="py-6 text-center text-sm text-app-muted">
+            {searchStatus === "searching" ? "Searching…" : "No matches."}
+          </div>
+        )}
 
         {/* Context actions on the open conversation lead the palette (§1.2). */}
         {conversationId && !searching && (
@@ -294,6 +338,8 @@ export function CommandPalette() {
                     {plainSnippet(hit.snippet)}
                   </span>
                 </span>
+                {/* The matched message is an internal note, not the customer. */}
+                {hit.direction === "note" && <Chip>Note</Chip>}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -317,6 +363,72 @@ export function CommandPalette() {
                       {formatPhone(contact.phone_e164)}
                     </span>
                   )}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {searching && search.data && search.data.tasks.length > 0 && (
+          <CommandGroup heading="Tasks">
+            {search.data.tasks.map((task) => (
+              <CommandItem
+                key={task.id}
+                value={`task-${task.id}`}
+                // `?task=` opens the URL-driven drawer (TASKS-V2 D-A); the
+                // drawer itself carries the conversation context and link.
+                onSelect={() => go(`/tasks?task=${task.id}`)}
+              >
+                <ListChecks className="size-4" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {task.title}
+                </span>
+                {task.done && <Chip>Done</Chip>}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {searching && search.data && search.data.attachments.length > 0 && (
+          <CommandGroup heading="Attachments">
+            {search.data.attachments.map((hit) => (
+              <CommandItem
+                key={hit.id}
+                value={`attachment-${hit.id}`}
+                // A file lives on the thing that was said (D28) — the deep
+                // link lands on its thread.
+                onSelect={() =>
+                  go(hit.conversation_id ? `/inbox/${hit.conversation_id}` : "/inbox")
+                }
+              >
+                {isImageType(hit.content_type) ? (
+                  <ImageIcon className="size-4" strokeWidth={1.75} />
+                ) : (
+                  <FileText className="size-4" strokeWidth={1.75} />
+                )}
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {hit.file_name}
+                </span>
+                <Chip>{hit.owner_type === "note" ? "Note" : "Task"}</Chip>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {searching && search.data && search.data.templates.length > 0 && (
+          <CommandGroup heading="Templates">
+            {search.data.templates.map((template) => (
+              <CommandItem
+                key={template.id}
+                value={`template-${template.id}`}
+                onSelect={() => go("/templates")}
+              >
+                <MessageSquareText className="size-4" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{template.name}</span>
+                  <span className="ml-2 text-muted-foreground">
+                    {template.snippet}
+                  </span>
                 </span>
               </CommandItem>
             ))}

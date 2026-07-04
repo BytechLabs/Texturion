@@ -3,7 +3,8 @@
  *
  *   resolve the receiving number → thread_inbound_message RPC (the atomic §6
  *   threading transaction) → STOP/START standalone-keyword handling (§5) →
- *   MMS media download into Storage + message_attachments (idempotent) →
+ *   MMS media download into Storage + message_attachments (idempotent; at
+ *   most the first 10 items per message, D30) →
  *   notification pipeline (§8, only when the RPC won the debounce claim).
  *
  * Every step is idempotent, so the §11 sweeper can replay the event safely:
@@ -22,6 +23,7 @@ import { START_KEYWORDS, STOP_KEYWORDS } from "./keywords";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
+  MAX_INBOUND_MEDIA_ITEMS,
   MMS_BUCKET,
   mediaStoragePath,
 } from "./media";
@@ -215,11 +217,14 @@ async function handleOptOutKeywords(
 }
 
 /**
- * Inbound MMS media (SPEC §7): fetch each Telnyx media URL immediately (they
- * expire after ~30 days but we never wait), validate content-type and size
- * (≤5 MB, the bucket limit), store to mms-media/{company_id}/{message_id}/{n},
- * and insert message_attachments with source_url = the Telnyx URL — the
- * (message_id, source_url) unique makes redownloads idempotent.
+ * Inbound MMS media (SPEC §7, D30): fetch each Telnyx media URL immediately
+ * (they expire after ~30 days but we never wait), validate content-type and
+ * size (≤5 MB, the bucket limit), store to
+ * mms-media/{company_id}/{message_id}/{n}, and insert message_attachments
+ * with source_url = the Telnyx URL — the (message_id, source_url) unique
+ * makes redownloads idempotent. At most the first MAX_INBOUND_MEDIA_ITEMS
+ * (10) items are processed per message (D30); the tail is skipped with a
+ * warning, the same permanent-condition outcome as an unsupported type.
  */
 async function downloadInboundMedia(
   db: SupabaseClient,
@@ -229,6 +234,16 @@ async function downloadInboundMedia(
     media: { url: string; content_type?: string; size?: number }[];
   },
 ): Promise<void> {
+  // D30 per-message item cap: process the first 10, skip the rest. Skipping
+  // (not throwing) keeps the ledger row processable — retrying would never
+  // change how many items the sender attached.
+  if (args.media.length > MAX_INBOUND_MEDIA_ITEMS) {
+    console.warn(
+      `inbound message ${args.messageId} carries ${args.media.length} media items — processing the first ${MAX_INBOUND_MEDIA_ITEMS}, skipping the rest (D30)`,
+    );
+  }
+  const items = args.media.slice(0, MAX_INBOUND_MEDIA_ITEMS);
+
   // Skip items already stored (idempotent replay).
   const { data: existing, error: existingError } = await db
     .from("message_attachments")
@@ -244,7 +259,7 @@ async function downloadInboundMedia(
     ),
   );
 
-  for (const [index, item] of args.media.entries()) {
+  for (const [index, item] of items.entries()) {
     if (stored.has(item.url)) continue;
 
     const response = await fetch(item.url);

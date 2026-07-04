@@ -745,11 +745,12 @@ create trigger on_auth_user_created after insert or update on auth.users
 -- → realtime.send(...) with ID-only payloads into company:{id}).
 ```
 
-### Search (D7)
+### Search (D7, scope extended by D29)
 
-- **Messages:** generated `tsvector` column + GIN (`messages_body_tsv_idx`); queried with `websearch_to_tsquery('english', q)`.
+- **Messages (incl. notes):** generated `tsvector` column + GIN (`messages_body_tsv_idx`); queried with `websearch_to_tsquery('english', q)`; hits expose the matched message's `direction` so notes are labelable.
 - **Contacts:** pg_trgm GIN on `name` and `phone_e164` (partial-name and partial-number matches).
-- No external search service. `GET /v1/search` unions both, grouped by conversation.
+- **Tasks / attachments / templates (D29):** pg_trgm GIN on `tasks.title`+`description`, `attachments.file_name`, and `templates.name`+`body` (partial indexes on the live-row predicates); fuzzy similarity-ranked arms in the same function. MMS media is deliberately not filename-searchable (carrier media carries no filename).
+- No external search service. `GET /v1/search` (backed by `api_search_v2`) returns per-entity sections; conversations stay keyset-paginated, the palette arms are first-page-only.
 
 ---
 
@@ -1152,6 +1153,13 @@ Plus Stripe percentages on revenue (below) and per-tenant Telnyx COGS.
 | **Gross margin on $29** | | **≈ 53–63%** |
 
 MMS shifts the mix ($0.015/part out + $0.005–0.01 carrier; $0.005/part in) — outbound MMS metering at 3 segments preserves margin. Canadian tenants: no campaign fee unless US texting enabled; CA carrier passthrough ~CAD $0.006–0.011/msg.
+
+**Storage (D30):** attachment storage is a budgeted allowance, not a meter — Starter 5 GB / Pro
+25 GB of note-borne attachments per company, enforced at upload (409 when full). Marginal cost on
+Supabase Pro beyond the included 100 GB is ~$0.021/GB-month, so a maxed tenant costs ~$0.11
+(Starter) / ~$0.53 (Pro) per month — inside plan margin. MMS media is bounded by metering (outbound,
+3 segments) and per-message item caps (inbound, ≤10 items × ≤5 MB); it is never budget-blocked
+(customer content). Per-company stored bytes for both arms surface on the usage page.
 
 ### Per-tenant COGS — Pro, heavy month (2,500 outbound + 3,000 inbound)
 

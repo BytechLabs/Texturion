@@ -1,12 +1,16 @@
 /**
- * Attachment routes (SPEC §7; D19 / APP-FEATURES-V2 §2):
- *   - GET /v1/attachments/:id/url — signed URL for BOTH the generic (note/task)
- *     attachments table AND the MMS message_attachments table (the MMS path is
- *     kept intact), plus membership scoping / 404.
- *   - POST /v1/attachments — generic note/task upload: owner-ownership +
- *     company scoping, size/type/byte-sniff gates, per-owner soft cap, Storage
- *     upload, row insert, audit event.
- *   - GET /v1/attachments — list a single owner's live attachments.
+ * Attachment routes (SPEC §7; D19 / D28 / D30 / APP-FEATURES-V2 §2):
+ *   - GET /v1/attachments/:id/url — signed URL for BOTH the generic (note and
+ *     legacy task) attachments table AND the MMS message_attachments table
+ *     (the MMS path is kept intact), plus membership scoping / 404.
+ *   - POST /v1/attachments — NOTES-ONLY upload (D28: owner_type='task' is a
+ *     422 — task attachments are a derived read view now): owner-ownership +
+ *     company scoping, size/type/byte-sniff gates, per-owner soft cap, the
+ *     D30 company-wide storage budget (409 over budget), Storage upload, row
+ *     insert, audit event.
+ *   - GET /v1/attachments — list a single owner's live attachments (note OR
+ *     task — legacy task rows keep reading).
+ *   - DELETE /v1/attachments/:id — soft-delete, note or legacy task.
  * Only global fetch (JWKS + PostgREST + Storage) is stubbed.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -188,31 +192,134 @@ describe("GET /v1/attachments/:id/url", () => {
   });
 });
 
-describe("POST /v1/attachments (generic note/task upload, D19)", () => {
-  it("uploads a task attachment: owner check, storage upload, row insert, audit event", async () => {
-    const sb = stubWithRole("member");
-    // Owner task in the caller's company, not deleted.
-    sb.on("GET", "/rest/v1/tasks", () => [
-      { conversation_id: CONV_ID, deleted_at: null },
+describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", () => {
+  /**
+   * Stubs shared by every upload that gets past validation: the note owner, the
+   * per-owner cap count, and the D30 budget inputs — the company plan lookup
+   * (resolves the budget the Worker passes to the RPC) and the atomic
+   * claim_attachment_storage RPC. The claim is the sole budget authority now
+   * (no api_storage_usage read on the upload path); `storedBytes` models the
+   * live bytes it re-sums so the boundary math is exercised against the plan
+   * budget. `allowed=false` (over budget) writes NO row.
+   */
+  const STARTER_BUDGET_BYTES = 5 * 1024 * 1024 * 1024;
+
+  function uploadStubs(
+    sb: SupabaseStub,
+    options: { plan?: string | null; storedBytes?: number } = {},
+  ) {
+    const plan = options.plan === undefined ? "starter" : options.plan;
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONV_ID, direction: "note" },
     ]);
-    // No existing attachments (under the cap).
     sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan }]);
+    // The RPC decides allowed vs over-budget from the (stubbed) live sum + the
+    // incoming size vs the budget — mirroring the SQL claim_attachment_storage.
+    sb.on("POST", "/rest/v1/rpc/claim_attachment_storage", (call) => {
+      const p = call.body as { p_size_bytes: number; p_budget_bytes: number };
+      const used = options.storedBytes ?? 0;
+      if (used + p.p_size_bytes > p.p_budget_bytes) return { allowed: false };
+      return {
+        allowed: true,
+        attachment: {
+          id: ATTACHMENT_ID,
+          company_id: COMPANY_ID,
+          owner_type: "note",
+          owner_id: NOTE_ID,
+          conversation_id: CONV_ID,
+          storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
+          file_name: "photo.png",
+          content_type: "image/png",
+          size_bytes: p.p_size_bytes,
+          uploaded_by_user_id: MEMBER_ID,
+          created_at: "2026-07-02T10:00:00+00:00",
+          deleted_at: null,
+        },
+      };
+    });
+  }
+
+  it("uploads a note attachment: owner check, storage upload, atomic budget claim, audit event", async () => {
+    const sb = stubWithRole("member");
+    uploadStubs(sb, { storedBytes: 1024 });
     sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
       Key: "attachments/x",
     }));
-    sb.on("POST", "/rest/v1/attachments", (call) => [
-      {
-        id: ATTACHMENT_ID,
-        owner_type: "task",
-        owner_id: TASK_ID,
-        conversation_id: CONV_ID,
-        file_name: "photo.png",
-        content_type: "image/png",
-        size_bytes: (call.body as { size_bytes: number }).size_bytes,
-        created_at: "2026-07-02T10:00:00+00:00",
-      },
-    ]);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/attachments",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("note", NOTE_ID, {
+          name: "photo.png",
+          type: "image/png",
+          bytes: pngBytes(),
+        }),
+      },
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ owner_type: "note", owner_id: NOTE_ID });
+    // Never leaks storage_path (the RPC returns to_jsonb of the full row; the
+    // route projects to the API columns).
+    expect(body).not.toHaveProperty("storage_path");
+    expect(body).not.toHaveProperty("uploaded_by_user_id");
+
+    // Note ownership was company-scoped.
+    const ownerLookup = sb.find("GET", "/rest/v1/messages")[0];
+    expect(ownerLookup.url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    // Storage upload happened BEFORE the claim (upload-first ordering), keyed
+    // {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
+    const upload = sb.find("POST", /^\/storage\/v1\/object\/attachments\//)[0];
+    expect(upload.path).toMatch(
+      new RegExp(
+        `/storage/v1/object/attachments/${COMPANY_ID}/note/${NOTE_ID}/[0-9a-f-]+-photo\\.png$`,
+      ),
+    );
+    // The atomic claim carried the owner + the storage path + the plan budget;
+    // there is NO separate PostgREST insert (the RPC inserts under the lock).
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
+    const p = claim.body as Record<string, unknown>;
+    expect(p).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_owner_type: "note",
+      p_owner_id: NOTE_ID,
+      p_conversation_id: CONV_ID,
+      p_content_type: "image/png",
+      p_uploaded_by: auth.subject,
+      p_budget_bytes: STARTER_BUDGET_BYTES,
+    });
+    expect(p.p_storage_path).toMatch(
+      new RegExp(`^${COMPANY_ID}/note/${NOTE_ID}/[0-9a-f-]+-photo\\.png$`),
+    );
+    expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
+    // A note_attachment_added audit event on the owner's conversation (D22),
+    // referencing the claimed row id.
+    const event = (
+      sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
+        string,
+        unknown
+      >[]
+    )[0];
+    expect(event).toMatchObject({
+      type: "note_attachment_added",
+      conversation_id: CONV_ID,
+      actor_user_id: auth.subject,
+      payload: { attachment_id: ATTACHMENT_ID },
+    });
+  });
+
+  it("422s owner_type=task with plain copy — the task ingress is removed (D28)", async () => {
+    const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -230,72 +337,47 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
         }),
       },
     );
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toMatchObject({ owner_type: "task", owner_id: TASK_ID });
-    // Never leaks storage_path in the response.
-    expect(body).not.toHaveProperty("storage_path");
-
-    // Task ownership was company-scoped.
-    const ownerLookup = sb.find("GET", "/rest/v1/tasks")[0];
-    expect(ownerLookup.url.searchParams.get("company_id")).toBe(
-      `eq.${COMPANY_ID}`,
-    );
-    // Storage object key: {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
-    const upload = sb.find("POST", /^\/storage\/v1\/object\/attachments\//)[0];
-    expect(upload.path).toMatch(
-      new RegExp(
-        `/storage/v1/object/attachments/${COMPANY_ID}/task/${TASK_ID}/[0-9a-f-]+-photo\\.png$`,
-      ),
-    );
-    // Inserted row is company-scoped, denormalizes conversation_id, stamps uploader.
-    const insert = sb.find("POST", "/rest/v1/attachments")[0];
-    const inserted = insert.body as Record<string, unknown>;
-    expect(inserted).toMatchObject({
-      company_id: COMPANY_ID,
-      owner_type: "task",
-      owner_id: TASK_ID,
-      conversation_id: CONV_ID,
-      content_type: "image/png",
-      uploaded_by_user_id: auth.subject,
-    });
-    // A task_attachment_added audit event on the owner's conversation (D22).
-    const event = (
-      sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
-        string,
-        unknown
-      >[]
-    )[0];
-    expect(event).toMatchObject({
-      type: "task_attachment_added",
-      conversation_id: CONV_ID,
-      actor_user_id: auth.subject,
-    });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(body.error.code).toBe("validation_failed");
+    expect(body.error.message).toContain("attach them to a note");
+    // Rejected before any owner lookup, storage, or insert work.
+    expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
+    expect(
+      sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
+    ).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
   });
 
-  it("writes a note_attachment_added event for owner_type=note", async () => {
+  it("422s an unknown owner_type", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/messages", () => [
-      { conversation_id: CONV_ID, direction: "note" },
-    ]);
-    sb.on("GET", "/rest/v1/attachments", () => []);
-    sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({ Key: "x" }));
-    sb.on("POST", "/rest/v1/attachments", () => [
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/attachments",
       {
-        id: ATTACHMENT_ID,
-        owner_type: "note",
-        owner_id: NOTE_ID,
-        conversation_id: CONV_ID,
-        file_name: "spec.pdf",
-        content_type: "application/pdf",
-        size_bytes: 10,
-        created_at: "2026-07-02T10:00:00+00:00",
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("bogus", NOTE_ID, {
+          name: "photo.png",
+          type: "image/png",
+          bytes: pngBytes(),
+        }),
       },
-    ]);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("404s an owner outside the caller's company (RLS scoping) before uploading", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/messages", () => []); // not found in this company
     stubFetch(jwksRoute(auth), sb.route);
 
-    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // %PDF-1
     const res = await apiRequest(
       app,
       env,
@@ -305,36 +387,6 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
         method: "POST",
         companyId: COMPANY_ID,
         rawBody: uploadForm("note", NOTE_ID, {
-          name: "spec.pdf",
-          type: "application/pdf",
-          bytes: pdf,
-        }),
-      },
-    );
-    expect(res.status).toBe(201);
-    const event = (
-      sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
-        string,
-        unknown
-      >[]
-    )[0];
-    expect(event).toMatchObject({ type: "note_attachment_added" });
-  });
-
-  it("404s an owner outside the caller's company (RLS scoping) before uploading", async () => {
-    const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/tasks", () => []); // not found in this company
-    stubFetch(jwksRoute(auth), sb.route);
-
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      "/v1/attachments",
-      {
-        method: "POST",
-        companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
           name: "photo.png",
           type: "image/png",
           bytes: pngBytes(),
@@ -345,6 +397,31 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
     expect(
       sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
     ).toHaveLength(0);
+  });
+
+  it("404s a messages row that is not a note (direction inbound)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONV_ID, direction: "inbound" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/attachments",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("note", NOTE_ID, {
+          name: "photo.png",
+          type: "image/png",
+          bytes: pngBytes(),
+        }),
+      },
+    );
+    expect(res.status).toBe(404);
   });
 
   it("422s a disallowed declared type before any owner or storage work", async () => {
@@ -358,7 +435,7 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
       {
         method: "POST",
         companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
+        rawBody: uploadForm("note", NOTE_ID, {
           name: "run.exe",
           type: "application/x-msdownload",
           bytes: new Uint8Array([0x4d, 0x5a]),
@@ -366,15 +443,12 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
       },
     );
     expect(res.status).toBe(422);
-    expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
   });
 
   it("422s when the bytes contradict the declared type (declared png, bytes pdf)", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/tasks", () => [
-      { conversation_id: CONV_ID, deleted_at: null },
-    ]);
-    sb.on("GET", "/rest/v1/attachments", () => []);
+    uploadStubs(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // %PDF
@@ -386,7 +460,7 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
       {
         method: "POST",
         companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
+        rawBody: uploadForm("note", NOTE_ID, {
           name: "fake.png",
           type: "image/png",
           bytes: pdfBytes,
@@ -404,10 +478,7 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
     // The declared type is allow-listed, so it passes assertAllowedType and reaches
     // the byte re-check — the executable magic must be caught there, never trusted.
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/tasks", () => [
-      { conversation_id: CONV_ID, deleted_at: null },
-    ]);
-    sb.on("GET", "/rest/v1/attachments", () => []);
+    uploadStubs(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const mzBytes = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // Windows PE
@@ -419,7 +490,7 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
       {
         method: "POST",
         companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
+        rawBody: uploadForm("note", NOTE_ID, {
           name: "invoice.pdf",
           type: "application/pdf",
           bytes: mzBytes,
@@ -436,8 +507,8 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
 
   it("422s at the soft per-owner cap of 10", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/tasks", () => [
-      { conversation_id: CONV_ID, deleted_at: null },
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONV_ID, direction: "note" },
     ]);
     sb.on("GET", "/rest/v1/attachments", () =>
       Array.from({ length: 10 }, (_, i) => ({ id: `id-${i}` })),
@@ -452,7 +523,7 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
       {
         method: "POST",
         companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
+        rawBody: uploadForm("note", NOTE_ID, {
           name: "photo.png",
           type: "image/png",
           bytes: pngBytes(),
@@ -463,30 +534,138 @@ describe("POST /v1/attachments (generic note/task upload, D19)", () => {
     expect(
       sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
     ).toHaveLength(0);
+    // The per-owner cap fires BEFORE the budget claim — the RPC is never called.
+    expect(
+      sb.find("POST", "/rest/v1/rpc/claim_attachment_storage"),
+    ).toHaveLength(0);
   });
 
-  it("422s a soft-deleted task owner (deleted_at set)", async () => {
-    const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/tasks", () => [
-      { conversation_id: CONV_ID, deleted_at: "2026-07-02T00:00:00+00:00" },
-    ]);
+  // -------------------------------------------------------------------------
+  // D30: the company-wide storage budget (Starter 5 GB / Pro 25 GB over live
+  // generic rows), now enforced by the ATOMIC claim_attachment_storage RPC
+  // (fixes the check-then-write TOCTOU). Under and exactly-at fit; one byte
+  // over is a 409 conflict. The Worker uploads to Storage FIRST, then claims —
+  // so an over-budget upload leaves an orphaned object for the D19 sweep.
+  // -------------------------------------------------------------------------
+  const STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
+
+  async function uploadPng(sb: SupabaseStub): Promise<Response> {
     stubFetch(jwksRoute(auth), sb.route);
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      "/v1/attachments",
-      {
-        method: "POST",
-        companyId: COMPANY_ID,
-        rawBody: uploadForm("task", TASK_ID, {
-          name: "photo.png",
-          type: "image/png",
-          bytes: pngBytes(),
-        }),
-      },
+    return apiRequest(app, env, await auth.token(), "/v1/attachments", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      rawBody: uploadForm("note", NOTE_ID, {
+        name: "photo.png",
+        type: "image/png",
+        bytes: pngBytes(), // 64 bytes
+      }),
+    });
+  }
+
+  /** Storage upload + audit event responders (the claim RPC is in uploadStubs). */
+  function acceptUpload(sb: SupabaseStub) {
+    sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({ Key: "x" }));
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+  }
+
+  it("uploads under the budget (D30)", async () => {
+    const sb = stubWithRole("member");
+    uploadStubs(sb, { storedBytes: 1024 });
+    acceptUpload(sb);
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(201);
+  });
+
+  it("uploads exactly AT the budget boundary (stored + file = budget, D30)", async () => {
+    const sb = stubWithRole("member");
+    uploadStubs(sb, { storedBytes: STARTER_BUDGET - 64 }); // + 64-byte file = exactly 5 GB
+    acceptUpload(sb);
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(201);
+  });
+
+  it("409s one byte over the starter budget with the 5 GB copy (D30)", async () => {
+    const sb = stubWithRole("member");
+    // stored = budget - 63; + the 64-byte file = budget + 1 → the claim rejects.
+    uploadStubs(sb, { storedBytes: STARTER_BUDGET - 63 });
+    acceptUpload(sb);
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toBe(
+      "Your plan's 5 GB attachment storage is full — delete some files to free space.",
     );
-    expect(res.status).toBe(404);
+    // Upload-first ordering: the object WAS written (it's now an orphan the D19
+    // sweep reclaims), but the atomic claim rejected → no row, no audit event.
+    expect(
+      sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
+    ).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("the SECOND claim at the budget boundary is rejected — no overshoot (D30 TOCTOU)", async () => {
+    // Model two concurrent uploads that both passed the (old) pre-insert read.
+    // The atomic claim serializes them: the first sees stored = budget - 64 and
+    // fits exactly; the second re-sums under the lock, now sees budget (the
+    // first's bytes committed), and is rejected. No N×overshoot.
+    const sb = stubWithRole("member");
+    const plan = "starter";
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONV_ID, direction: "note" },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan }]);
+    sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({ Key: "x" }));
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    // The RPC is the serialization point: live bytes start at budget - 64 and
+    // grow by each allowed claim, exactly as the advisory-lock re-sum would.
+    let liveBytes = STARTER_BUDGET - 64;
+    sb.on("POST", "/rest/v1/rpc/claim_attachment_storage", (call) => {
+      const p = call.body as { p_size_bytes: number; p_budget_bytes: number };
+      if (liveBytes + p.p_size_bytes > p.p_budget_bytes) return { allowed: false };
+      liveBytes += p.p_size_bytes;
+      return {
+        allowed: true,
+        attachment: {
+          id: ATTACHMENT_ID,
+          owner_type: "note",
+          owner_id: NOTE_ID,
+          conversation_id: CONV_ID,
+          storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
+          file_name: "photo.png",
+          content_type: "image/png",
+          size_bytes: p.p_size_bytes,
+          created_at: "2026-07-02T10:00:00+00:00",
+        },
+      };
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const first = await uploadPng(sb); // fills the last 64 bytes exactly
+    expect(first.status).toBe(201);
+    const second = await uploadPng(sb); // budget already full → rejected
+    expect(second.status).toBe(409);
+    // Exactly one row was claimed; the boundary held (no overshoot).
+    expect(
+      sb.find("POST", "/rest/v1/rpc/claim_attachment_storage"),
+    ).toHaveLength(2);
+    expect(liveBytes).toBe(STARTER_BUDGET);
+  });
+
+  it("a pro company gets the 25 GB budget and copy (D30)", async () => {
+    const sb = stubWithRole("member");
+    acceptUpload(sb);
+    uploadStubs(sb, { plan: "pro", storedBytes: 25 * 1024 * 1024 * 1024 });
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      "Your plan's 25 GB attachment storage is full — delete some files to free space.",
+    );
   });
 });
 
@@ -544,13 +723,17 @@ describe("GET /v1/attachments (list one owner)", () => {
 });
 
 describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", () => {
-  it("soft-deletes a live task attachment, audits task_attachment_removed, returns 204", async () => {
+  it("soft-deletes a live task attachment, audits task_attachment_removed WITH task_id, returns 204", async () => {
     const sb = stubWithRole("member");
-    // The soft-delete is a PATCH ...RETURNING; return the row it matched.
+    // The soft-delete is a PATCH ...RETURNING; return the row it matched. The
+    // route selects owner_id so a legacy task removal can carry task_id (= the
+    // owning task id) in the event payload — the key the task drawer's activity
+    // feed (loadTaskActivity) filters task_attachment_removed on.
     sb.on("PATCH", "/rest/v1/attachments", () => [
       {
         id: ATTACHMENT_ID,
         owner_type: "task",
+        owner_id: TASK_ID,
         conversation_id: CONV_ID,
         file_name: "quote.pdf",
       },
@@ -574,6 +757,8 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
     expect(patch.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
     expect(patch.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(patch.body).toMatchObject({ deleted_at: expect.any(String) });
+    // owner_id is in the RETURNING projection (needed for the task_id payload).
+    expect(patch.url.searchParams.get("select")).toContain("owner_id");
     expect(sb.find("DELETE", "/rest/v1/attachments")).toHaveLength(0);
 
     const event = (
@@ -586,7 +771,11 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       type: "task_attachment_removed",
       conversation_id: CONV_ID,
       actor_user_id: auth.subject,
-      payload: { attachment_id: ATTACHMENT_ID, file_name: "quote.pdf" },
+      payload: {
+        attachment_id: ATTACHMENT_ID,
+        file_name: "quote.pdf",
+        task_id: TASK_ID,
+      },
     });
   });
 
@@ -596,6 +785,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       {
         id: ATTACHMENT_ID,
         owner_type: "note",
+        owner_id: NOTE_ID,
         conversation_id: CONV_ID,
         file_name: "spec.pdf",
       },
@@ -618,6 +808,8 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       >[]
     )[0];
     expect(event).toMatchObject({ type: "note_attachment_removed" });
+    // A note removal carries NO task_id (owner_id is a message id, not a task).
+    expect(event.payload).not.toHaveProperty("task_id");
   });
 
   it("404s an id outside the company / already deleted (no event written)", async () => {

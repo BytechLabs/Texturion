@@ -5,6 +5,7 @@ import {
   isAllowedAttachmentType,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS_PER_OWNER,
+  partitionAttachmentFiles,
   validateAttachment,
 } from "./validate";
 
@@ -18,6 +19,15 @@ describe("isAllowedAttachmentType (D19 §2.4 allow-list)", () => {
 
   it("rejects a bare 'image/' with no subtype", () => {
     expect(isAllowedAttachmentType("image/")).toBe(false);
+  });
+
+  it("denies image/svg+xml despite the image/ prefix (matches the API)", () => {
+    // An SVG is an active document (scripts/external refs) — the API denies it
+    // in assertAllowedType; the client gate must agree or a picked SVG would
+    // pass here and 422 on the wire.
+    expect(isAllowedAttachmentType("image/svg+xml")).toBe(false);
+    expect(isAllowedAttachmentType("IMAGE/SVG+XML")).toBe(false);
+    expect(isAllowedAttachmentType(" image/svg+xml ")).toBe(false);
   });
 
   it("accepts the exact document + archive types", () => {
@@ -78,6 +88,16 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
     if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
   });
 
+  it("rejects an SVG with the plain type sentence", () => {
+    const result = validateAttachment({
+      name: "logo.svg",
+      type: "image/svg+xml",
+      size: 1_000,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
+  });
+
   it("trusts an empty declared type (the API sniffs the bytes)", () => {
     // Some browsers report "" for known-but-unrecognized files; the server is
     // the authority, so a blank type must not block on the client.
@@ -103,20 +123,79 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
   });
 });
 
-describe("buildAttachmentForm (multipart shape POST /v1/attachments)", () => {
-  it("appends owner_type, owner_id, and file", () => {
+describe("partitionAttachmentFiles (multi-select / drop / paste batches)", () => {
+  const pdf = { name: "quote.pdf", type: "application/pdf", size: 2_000 };
+  const jpg = { name: "part.jpg", type: "image/jpeg", size: 5_000 };
+  const exe = { name: "run.exe", type: "application/x-msdownload", size: 100 };
+  const svg = { name: "logo.svg", type: "image/svg+xml", size: 100 };
+  const huge = { name: "video.zip", type: "application/zip", size: MAX_ATTACHMENT_BYTES + 1 };
+
+  it("admits every valid file and keeps the incoming order", () => {
+    const { accepted, rejected } = partitionAttachmentFiles([pdf, jpg]);
+    expect(accepted).toEqual([pdf, jpg]);
+    expect(rejected).toEqual([]);
+  });
+
+  it("splits a mixed batch, pairing each reject with its plain reason", () => {
+    const { accepted, rejected } = partitionAttachmentFiles([pdf, exe, svg, huge, jpg]);
+    expect(accepted).toEqual([pdf, jpg]);
+    expect(rejected.map((r) => r.file.name)).toEqual([
+      "run.exe",
+      "logo.svg",
+      "video.zip",
+    ]);
+    expect(rejected[0].reason).toMatch(/isn't allowed/i);
+    expect(rejected[1].reason).toMatch(/isn't allowed/i);
+    expect(rejected[2].reason).toMatch(/25 MB/);
+  });
+
+  it("counts admissions toward the per-owner cap as it goes", () => {
+    const batch = Array.from({ length: MAX_ATTACHMENTS_PER_OWNER + 2 }, (_, i) => ({
+      name: `f${i}.pdf`,
+      type: "application/pdf",
+      size: 100,
+    }));
+    const { accepted, rejected } = partitionAttachmentFiles(batch);
+    expect(accepted).toHaveLength(MAX_ATTACHMENTS_PER_OWNER);
+    expect(rejected).toHaveLength(2);
+    expect(rejected[0].reason).toMatch(
+      new RegExp(String(MAX_ATTACHMENTS_PER_OWNER)),
+    );
+  });
+
+  it("honors an existing count (already-staged or already-uploaded files)", () => {
+    const { accepted, rejected } = partitionAttachmentFiles(
+      [pdf, jpg],
+      MAX_ATTACHMENTS_PER_OWNER - 1,
+    );
+    expect(accepted).toEqual([pdf]);
+    expect(rejected.map((r) => r.file)).toEqual([jpg]);
+  });
+
+  it("rejected files don't consume cap headroom", () => {
+    // 1 slot left, first file invalid — the second valid file still fits.
+    const { accepted } = partitionAttachmentFiles(
+      [exe, pdf],
+      MAX_ATTACHMENTS_PER_OWNER - 1,
+    );
+    expect(accepted).toEqual([pdf]);
+  });
+});
+
+describe("buildAttachmentForm (multipart shape POST /v1/attachments — notes-only, D28)", () => {
+  it("appends owner_type='note', owner_id, and file", () => {
     const file = new File([new Uint8Array([1, 2, 3])], "quote.pdf", {
       type: "application/pdf",
     });
-    const form = buildAttachmentForm("task", "task-123", file);
-    expect(form.get("owner_type")).toBe("task");
-    expect(form.get("owner_id")).toBe("task-123");
+    const form = buildAttachmentForm("note", "note-123", file);
+    expect(form.get("owner_type")).toBe("note");
+    expect(form.get("owner_id")).toBe("note-123");
     const uploaded = form.get("file");
     expect(uploaded).toBeInstanceOf(File);
     expect((uploaded as File).name).toBe("quote.pdf");
   });
 
-  it("carries the note owner_type for a note attachment", () => {
+  it("accepts a bare Blob body", () => {
     const form = buildAttachmentForm(
       "note",
       "note-9",

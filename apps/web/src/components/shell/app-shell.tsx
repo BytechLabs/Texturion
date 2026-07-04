@@ -11,6 +11,7 @@ import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
+import { WindowDropGuard } from "./window-drop-guard";
 
 /**
  * The PORTAL-UX app frame (§1): a calm LEFT SIDEBAR (retiring the old top bar),
@@ -53,6 +54,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TaskDrawerHost />
       {/* G9 unread indicators: `(3) …` title prefix + favicon dot. */}
       <UnreadTitleManager />
+      {/* D28: cancel the browser's navigate-to-file on drops that miss a
+          dropzone, so a stray drop never blows away an unsent draft. */}
+      <WindowDropGuard />
     </div>
   );
 }

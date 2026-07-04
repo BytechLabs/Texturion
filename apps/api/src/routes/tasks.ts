@@ -23,10 +23,11 @@
  *          due-sorted views, else (created_at, id) DESC. Live rows only.
  *   GET    /v1/conversations/:id/tasks  M — the conversation checklist (T5.2):
  *          all live tasks for the thread, (created_at) order, { data } (no
- *          cursor). Each carries the derived `done` boolean + attachment_count.
+ *          cursor). Each carries the derived `done` boolean + attachment_count
+ *          (the size of the SAME D28 union the detail returns).
  *   GET    /v1/tasks/:id             M  — detail: row + resolved assignee +
  *          created_by + the joined source message (live body + done_at for the
- *          derived status) + attachments (generic D19 table).
+ *          derived status) + attachments (the D28 DERIVED union — see below).
  *   PATCH  /v1/tasks/:id             M  — metadata only { title?, description?,
  *          assigned_user_id?, due_at? }. NO `done` field (completion is the
  *          message route). An assignee change writes `task_assigned`; a due_at
@@ -35,9 +36,17 @@
  *          sets deleted_at, writes `task_deleted`. Does NOT touch
  *          messages.done_at (removing the promotion leaves D14 archetype A).
  *
- * Task attachments are rows in the generic `attachments` table (D19,
- * owner_type='task') served by the generic /v1/attachments routes — there is
- * no task-specific attachment route here (storage-contacts track owns those).
+ * Task attachments are DERIVED, never owned (D28 — the same derive-over-own
+ * model as completion): a task's `attachments` array unions (a) the source
+ * message's MMS media (message_attachments), (b) the generic attachments of
+ * notes linked to the task (messages.task_id + direction='note') — which, when
+ * a NOTE was promoted, INCLUDES the source note itself (create_task links the
+ * promoted note back via messages.task_id so its own files surface here) — and
+ * (c) any legacy owner_type='task' rows (pre-D28; upload of new ones is closed). Each
+ * item is gallery-shaped ({id, source, kind, file_name, content_type,
+ * size_bytes, created_at}) WITHOUT a pre-signed url — the web mints one per
+ * item via the existing GET /v1/attachments/:id/url (which serves all three
+ * sources). There is no task-specific attachment route here.
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -256,11 +265,13 @@ tasksRoutes.post("/tasks", requireRole("member"), async (c) => {
   // T3: the mutation is the `create_task` security-definer RPC — ONE atomic
   // transaction that resolves conversation_id from the source message
   // (company-scoped, §10), validates the assignee, inserts the tasks row (the
-  // partial-unique tasks_message_uq is the race-safe conflict arbiter) AND
-  // writes the `task_created` audit event together. The route only maps the
-  // outcome to the §7 error/HTTP surface; the DB tasks_broadcast trigger fires
-  // the ID-only `task.changed` for free (T1.3), so the route publishes no
-  // realtime (SPEC §8 broadcast-from-DB).
+  // partial-unique tasks_message_uq is the race-safe conflict arbiter), links
+  // the source note back (messages.task_id, when the source is a note — so its
+  // own files reach the derived attachments union, arm (b)) AND writes the
+  // `task_created` audit event together. The route only maps the outcome to the
+  // §7 error/HTTP surface; the DB tasks_broadcast trigger fires the ID-only
+  // `task.changed` for free (T1.3), so the route publishes no realtime
+  // (SPEC §8 broadcast-from-DB).
   const { data, error } = await db.rpc("create_task", {
     p_company_id: companyId,
     p_message_id: body.message_id,
@@ -510,6 +521,7 @@ tasksRoutes.get(
 
     interface ChecklistRow {
       id: string;
+      message_id: string;
       messages: { done_at: string | null } | null;
       [key: string]: unknown;
     }
@@ -525,11 +537,13 @@ tasksRoutes.get(
       "conversation tasks",
     );
 
-    // attachment_count: live generic attachments (D19) for these task ids.
-    const counts = await attachmentCounts(
+    // attachment_count: the size of the D28 derived union (source-message MMS
+    // + linked-note files + legacy task rows) — the SAME loader the detail's
+    // `attachments` array uses, so the badge and the drawer always agree.
+    const attachmentUnions = await loadTaskAttachments(
       db,
       companyId,
-      rows.map((row) => row.id),
+      rows.map((row) => ({ id: row.id, message_id: row.message_id })),
     );
 
     const data = rows.map((row) => {
@@ -539,41 +553,175 @@ tasksRoutes.get(
         ...rest,
         done,
         status: done ? "done" : "open",
-        attachment_count: counts.get(row.id) ?? 0,
+        attachment_count: attachmentUnions.get(row.id)?.length ?? 0,
       };
     });
     return c.json({ data });
   },
 );
 
-/** Live generic-attachment counts (D19) per task id, one batched lookup. */
-async function attachmentCounts(
+// --------------------------------------------------------------------------
+// Task attachments — the D28 DERIVED union. One loader feeds BOTH the detail's
+// `attachments` array and the checklist's `attachment_count`, so the two can
+// never disagree.
+// --------------------------------------------------------------------------
+
+/**
+ * One item of a task's derived attachments union — the gallery item shape
+ * (D21/T7.3) WITHOUT a pre-signed url; the web uses GET /v1/attachments/:id/url
+ * per item (that route serves generic AND MMS ids).
+ */
+interface TaskAttachmentItem {
+  id: string;
+  source: "mms" | "note" | "task";
+  kind: "image" | "file";
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+}
+
+/** `kind` mirrors the gallery's Images | Files split (T7.3). */
+function attachmentKind(contentType: string | null): "image" | "file" {
+  return contentType?.toLowerCase().startsWith("image/") ? "image" : "file";
+}
+
+/**
+ * Load the D28 union for a batch of tasks, three arms, all company-scoped:
+ *   (a) `mms`  — the source message's message_attachments;
+ *   (b) `note` — LIVE generic attachments of notes linked to the task
+ *                (messages.task_id = task, direction='note'). When a NOTE was
+ *                promoted, create_task links the source note back, so its own
+ *                files are picked up by this same arm — no special-casing here.
+ *   (c) `task` — LIVE legacy owner_type='task' rows (pre-D28; the upload door
+ *                is closed but existing rows keep reading — no data migration).
+ * Items are sorted (created_at, id) ASC per task (oldest-first, like the
+ * checklist and the old attachments list). Every input task gets an entry
+ * (possibly empty), so `.get(id)` is always safe for counts.
+ */
+async function loadTaskAttachments(
   db: Db,
   companyId: string,
-  taskIds: string[],
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (taskIds.length === 0) return counts;
-  const rows = unwrap<{ owner_id: string }[]>(
+  tasks: { id: string; message_id: string }[],
+): Promise<Map<string, TaskAttachmentItem[]>> {
+  const byTask = new Map<string, TaskAttachmentItem[]>();
+  if (tasks.length === 0) return byTask;
+  for (const task of tasks) byTask.set(task.id, []);
+  const taskIds = tasks.map((task) => task.id);
+
+  // Arm (a) — MMS media of the source messages, one batched lookup.
+  const taskByMessage = new Map(tasks.map((task) => [task.message_id, task.id]));
+  const mmsRows = unwrap<
+    {
+      id: string;
+      message_id: string;
+      content_type: string | null;
+      size_bytes: number | null;
+      created_at: string;
+    }[]
+  >(
+    await db
+      .from("message_attachments")
+      .select("id,message_id,content_type,size_bytes,created_at")
+      .eq("company_id", companyId)
+      .in("message_id", [...taskByMessage.keys()]),
+    "task mms attachments",
+  );
+  for (const row of mmsRows) {
+    const taskId = taskByMessage.get(row.message_id);
+    if (taskId === undefined) continue;
+    byTask.get(taskId)?.push({
+      id: row.id,
+      source: "mms",
+      kind: attachmentKind(row.content_type),
+      file_name: null, // carrier media has no filename (D29: correct, not a gap)
+      content_type: row.content_type,
+      size_bytes: row.size_bytes,
+      created_at: row.created_at,
+    });
+  }
+
+  // Arm (b) — notes linked to the tasks, then their live generic attachments.
+  const noteRows = unwrap<{ id: string; task_id: string }[]>(
+    await db
+      .from("messages")
+      .select("id,task_id")
+      .eq("company_id", companyId)
+      .eq("direction", "note")
+      .in("task_id", taskIds),
+    "task note links",
+  );
+  const taskByNote = new Map(noteRows.map((note) => [note.id, note.task_id]));
+
+  // Arms (b) + (c) share the generic table; each is a separate live-rows read
+  // because their owner scoping differs (note ids vs task ids).
+  const genericSelect = "id,owner_id,file_name,content_type,size_bytes,created_at";
+  interface GenericRow {
+    id: string;
+    owner_id: string;
+    file_name: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+    created_at: string;
+  }
+  const pushGeneric = (
+    row: GenericRow,
+    source: "note" | "task",
+    taskId: string | undefined,
+  ): void => {
+    if (taskId === undefined) return;
+    byTask.get(taskId)?.push({
+      id: row.id,
+      source,
+      kind: attachmentKind(row.content_type),
+      file_name: row.file_name,
+      content_type: row.content_type,
+      size_bytes: row.size_bytes,
+      created_at: row.created_at,
+    });
+  };
+
+  if (taskByNote.size > 0) {
+    const rows = unwrap<GenericRow[]>(
+      await db
+        .from("attachments")
+        .select(genericSelect)
+        .eq("company_id", companyId)
+        .eq("owner_type", "note")
+        .in("owner_id", [...taskByNote.keys()])
+        .is("deleted_at", null),
+      "task note attachments",
+    );
+    for (const row of rows) pushGeneric(row, "note", taskByNote.get(row.owner_id));
+  }
+
+  const legacyRows = unwrap<GenericRow[]>(
     await db
       .from("attachments")
-      .select("owner_id")
+      .select(genericSelect)
       .eq("company_id", companyId)
       .eq("owner_type", "task")
-      .is("deleted_at", null)
-      .in("owner_id", taskIds),
-    "attachment count lookup",
+      .in("owner_id", taskIds)
+      .is("deleted_at", null),
+    "task legacy attachments",
   );
-  for (const row of rows) {
-    counts.set(row.owner_id, (counts.get(row.owner_id) ?? 0) + 1);
+  for (const row of legacyRows) pushGeneric(row, "task", row.owner_id);
+
+  for (const items of byTask.values()) {
+    items.sort((a, b) => {
+      if (a.created_at !== b.created_at) {
+        return a.created_at < b.created_at ? -1 : 1;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
   }
-  return counts;
+  return byTask;
 }
 
 /**
  * GET /v1/tasks/:id — task detail (T6.2). Full row + resolved profiles + the
  * joined source message (live body + done_at for the derived status) + the
- * generic attachments (D19).
+ * D28 derived attachments union.
  */
 tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
   const id = pathUuid(c, "id");
@@ -623,17 +771,13 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
     for (const p of found) profiles.set(p.user_id, p);
   }
 
-  const attachments = unwrap<Record<string, unknown>[]>(
-    await db
-      .from("attachments")
-      .select("id,file_name,content_type,size_bytes,created_at")
-      .eq("company_id", companyId)
-      .eq("owner_type", "task")
-      .eq("owner_id", id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true }),
-    "task attachments",
-  );
+  // D28: the derived attachments union (source-message MMS + linked-note files
+  // + legacy task-owned rows), gallery-shaped, no pre-signed urls — the web
+  // calls GET /v1/attachments/:id/url per item.
+  const attachmentUnions = await loadTaskAttachments(db, companyId, [
+    { id, message_id: row.message_id },
+  ]);
+  const attachments = attachmentUnions.get(id) ?? [];
 
   // TASKS-V2 D-C + D-D: the merged activity-and-discussion timeline. Reuses
   // existing data — no new table. Two arms, both company + task scoped:
@@ -717,7 +861,11 @@ async function loadTaskActivity(
         "task_assigned",
         "task_due_set",
         "task_deleted",
-        "task_attachment_added",
+        // task_attachment_added is NOT filtered: D28 closed the task upload
+        // ingress, so no such event is ever written post-D28 — including it
+        // would only match dead pre-D28 rows. task_attachment_removed stays: the
+        // DELETE route now stamps task_id on it (legacy task-file deletions), so
+        // it surfaces here via the payload->>task_id filter below.
         "task_attachment_removed",
       ])
       .eq("payload->>task_id", taskId)
