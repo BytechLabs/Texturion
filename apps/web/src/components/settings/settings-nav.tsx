@@ -65,7 +65,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // FEATURE-GAPS Step 2 — Google review link.
     slug: "reviews",
     label: "Reviews",
-    description: "Your Google review link for one-tap asks",
+    description: "Your Google review link for texts and templates",
     icon: Star,
   },
   {

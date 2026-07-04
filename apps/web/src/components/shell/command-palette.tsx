@@ -11,7 +11,6 @@ import {
   MessageSquareText,
   PenSquare,
   Settings,
-  Star,
   UserRoundPlus,
   Users,
 } from "lucide-react";
@@ -90,7 +89,7 @@ function Key({ children }: { children: React.ReactNode }) {
  * The "Actions on this conversation" group (PORTAL-UX §1.2), rendered only when
  * a conversation is open. A context chip names the target; the rows run the same
  * mutations the thread header uses (assign / status / done) plus deep-links for
- * make-a-task / template / review. Accelerator letters are printed inline so the
+ * make-a-task / template. Accelerator letters are printed inline so the
  * keyboard model teaches itself. Kept in its own component so the
  * useUpdateConversation/useConversation hooks mount only with an id.
  */
@@ -152,13 +151,6 @@ function ConversationActions({
           <MessageSquareText className="size-4" strokeWidth={1.75} />
           Send template
           <Key>R</Key>
-        </CommandItem>
-        <CommandItem
-          value="send review request"
-          onSelect={() => onNavigate(`/inbox/${conversationId}`)}
-        >
-          <Star className="size-4" strokeWidth={1.75} />
-          Send review request
         </CommandItem>
         <CommandItem
           value="unassign conversation"

@@ -130,6 +130,11 @@ export function SystemLine({
   const { openTask } = useTaskDrawer();
   const sentence = eventSentence(event, memberName, messageBody);
 
+  // Forward/backward compatibility: event types this build doesn't narrate
+  // (e.g. historic `review_requested` rows from the removed one-tap review ask,
+  // or types added by a newer server) render nothing instead of a blank line.
+  if (!sentence) return null;
+
   // TASKS-V2 D-C: a task line links to open the task drawer (`?task=<id>`).
   // Every task_* event carries payload.task_id. A task_deleted line stays plain
   // text (the task no longer exists to open).

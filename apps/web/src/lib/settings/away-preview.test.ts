@@ -4,7 +4,6 @@ import {
   DEFAULT_REVIEW_MESSAGE,
   previewAwayMessage,
   previewMissedCallText,
-  previewReviewAsk,
   SAMPLE_FIRST_NAME,
 } from "./away-preview";
 
@@ -50,20 +49,8 @@ describe("previewMissedCallText", () => {
   });
 });
 
-describe("previewReviewAsk", () => {
-  it("fills the default template with the business name and link", () => {
-    expect(previewReviewAsk("Ace Plumbing", "https://g.page/r/xyz")).toBe(
-      "Thanks for choosing Ace Plumbing! A quick Google review means a lot: https://g.page/r/xyz",
-    );
-  });
-
-  it("degrades the link token cleanly when no link is stored", () => {
-    expect(previewReviewAsk("Ace Plumbing", null)).toBe(
-      "Thanks for choosing Ace Plumbing! A quick Google review means a lot:",
-    );
-  });
-
-  it("uses the same default template constant the API ships", () => {
+describe("DEFAULT_REVIEW_MESSAGE (suggested review template)", () => {
+  it("uses only supported merge fields", () => {
     expect(DEFAULT_REVIEW_MESSAGE).toContain("{business_name}");
     expect(DEFAULT_REVIEW_MESSAGE).toContain("{review_link}");
   });

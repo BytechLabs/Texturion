@@ -95,13 +95,13 @@ begin
 end $$;
 
 -- ===========================================================================
--- SF-4. claim_auto_reply / claim_review_request are service-role-only
+-- SF-4. claim_auto_reply is service-role-only
 --       (EXECUTE revoked from public/anon/authenticated).
 -- ===========================================================================
 do $$
 declare fn text; leaked text;
 begin
-  foreach fn in array array['claim_auto_reply','claim_review_request'] loop
+  foreach fn in array array['claim_auto_reply'] loop
     select string_agg(distinct r.rolname, ',') into leaked
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
@@ -222,73 +222,12 @@ begin
     raise exception 'SF-7 FAILED: expected recipient_opted_out, got %', res;
   end if;
 
-  -- Revoke for the review tests below.
-  update public.opt_outs set revoked_at = now()
-   where company_id='99999999-9999-4999-8999-999999999999' and phone_e164='+14165550111';
   raise notice 'SF-7 PASSED: claim_auto_reply honors the opt-out mirror';
 end $$;
 
--- ===========================================================================
--- SF-8. claim_review_request — happy path: inserts, logs review_requested
---       with actor = the member.
--- ===========================================================================
-do $$
-declare res jsonb; msg_id uuid; ev_count int;
-begin
-  res := public.claim_review_request(
-    '99999999-9999-4999-8999-999999999999',
-    '99999999-9999-4999-8999-999000000003',
-    '88888888-8888-4888-8888-888888888888',
-    'Thanks! Review us: https://g.page/r/x', 1, 2592000);
-  if res ? 'skipped' then raise exception 'SF-8 FAILED: unexpected skip %', res->>'skipped'; end if;
-  msg_id := (res->'message'->>'id')::uuid;
-  if msg_id is null then raise exception 'SF-8 FAILED: no message returned'; end if;
-
-  select count(*) into ev_count from public.conversation_events
-   where conversation_id='99999999-9999-4999-8999-999000000003'
-     and type='review_requested'
-     and actor_user_id='88888888-8888-4888-8888-888888888888';
-  if ev_count <> 1 then raise exception 'SF-8 FAILED: expected 1 review_requested event, got %', ev_count; end if;
-  raise notice 'SF-8 PASSED: claim_review_request inserts + logs review_requested (actor stamped)';
-end $$;
-
--- ===========================================================================
--- SF-9. claim_review_request — one-per-job suppression: a second ask within
---       the window skips (already_requested).
--- ===========================================================================
-do $$
-declare res jsonb;
-begin
-  res := public.claim_review_request(
-    '99999999-9999-4999-8999-999999999999',
-    '99999999-9999-4999-8999-999000000003',
-    '88888888-8888-4888-8888-888888888888',
-    'again', 1, 2592000);
-  if res->>'skipped' <> 'already_requested' then
-    raise exception 'SF-9 FAILED: expected already_requested, got %', res;
-  end if;
-  raise notice 'SF-9 PASSED: claim_review_request suppresses a repeat ask (one per job)';
-end $$;
-
--- ===========================================================================
--- SF-10. claim_review_request — opt-out is honored.
--- ===========================================================================
-do $$
-declare res jsonb;
-begin
-  insert into public.opt_outs (company_id, phone_e164, source)
-  values ('99999999-9999-4999-8999-999999999999', '+14165550111', 'manual')
-  on conflict (company_id, phone_e164) do update set revoked_at = null;
-
-  res := public.claim_review_request(
-    '99999999-9999-4999-8999-999999999999',
-    '99999999-9999-4999-8999-999000000003',
-    '88888888-8888-4888-8888-888888888888',
-    'blocked review', 1, 2592000);
-  if res->>'skipped' <> 'recipient_opted_out' then
-    raise exception 'SF-10 FAILED: expected recipient_opted_out, got %', res;
-  end if;
-  raise notice 'SF-10 PASSED: claim_review_request honors the opt-out mirror';
-end $$;
+-- (SF-8..SF-10 covered claim_review_request, removed with the one-tap review
+-- ask — 20260704060000_drop_claim_review_request.sql. The 'review_requested'
+-- enum value checked in SF-3 remains: enum values are irremovable and historic
+-- events stay readable.)
 
 rollback;

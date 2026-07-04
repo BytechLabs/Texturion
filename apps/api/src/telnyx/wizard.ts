@@ -203,9 +203,12 @@ export const TCR_UPDATE_SAMPLE_MAX_LENGTH = 255;
 
 /**
  * The registered review-ask sample message (sample3, Step 0c): brand name in
- * the body + the review deep-link domain visible. Mirrors DEFAULT_REVIEW_BODY
- * in routes/review.ts — keep the two textually parallel so the registered
- * sample stays representative of what the number actually emits.
+ * the body + the review deep-link domain visible. Owners send review asks from
+ * a saved template ({review_link} merges from the company's stored link), so
+ * the campaign must keep declaring review-URL content — keep this sample
+ * representative of the suggested template (web DEFAULT_REVIEW_MESSAGE in
+ * apps/web/src/lib/settings/away-preview.ts) so registration matches what the
+ * number actually emits.
  *
  * Guaranteed ≤ {@link TCR_UPDATE_SAMPLE_MAX_LENGTH} (255) chars total — the
  * business name is truncated so the fixed copy + link always fit — because

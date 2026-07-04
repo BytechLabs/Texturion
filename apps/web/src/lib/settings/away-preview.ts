@@ -45,20 +45,10 @@ export function previewMissedCallText(
 }
 
 /**
- * Render the default review ask preview from a stored review link. Mirrors the
- * API's DEFAULT_REVIEW_MESSAGE so the Reviews settings page can show the owner
- * exactly what a one-tap ask sends.
+ * The suggested review-ask TEMPLATE the Reviews settings page shows (raw, with
+ * its merge tokens visible) so owners can save it as a template. The one-tap
+ * review-ask endpoint was removed — {business_name}/{review_link} merge
+ * server-side on every ordinary send instead.
  */
 export const DEFAULT_REVIEW_MESSAGE =
   "Thanks for choosing {business_name}! A quick Google review means a lot: {review_link}";
-
-export function previewReviewAsk(
-  businessName: string,
-  reviewLink: string | null,
-): string {
-  return applyMergeFields(DEFAULT_REVIEW_MESSAGE, {
-    contactName: SAMPLE_FIRST_NAME,
-    businessName,
-    reviewLink: reviewLink ?? null,
-  });
-}

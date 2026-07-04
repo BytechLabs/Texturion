@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { previewReviewAsk } from "@/lib/settings/away-preview";
+import { DEFAULT_REVIEW_MESSAGE } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -54,11 +54,6 @@ function ReviewLinkCard({
   const dirty = trimmed !== (company.google_review_link ?? "");
   const invalid = trimmed.length > 0 && !isHttpUrl(trimmed);
 
-  const preview = previewReviewAsk(
-    company.name,
-    trimmed.length > 0 ? trimmed : null,
-  );
-
   function save() {
     setError(null);
     if (invalid) {
@@ -85,7 +80,7 @@ function ReviewLinkCard({
   return (
     <SettingsCard
       title="Google review link"
-      description="Paste the link customers use to leave you a Google review. With it saved, you can ask for a review in one tap from any conversation."
+      description="Paste the link customers use to leave you a Google review. With it saved, {review_link} fills in automatically wherever you use it in a text or template."
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
@@ -137,20 +132,25 @@ function ReviewLinkCard({
             choose &ldquo;Ask for reviews.&rdquo; Copy the short{" "}
             <code className="rounded bg-secondary px-1 py-0.5">g.page/r</code>{" "}
             link Google gives you and paste it here. We don&apos;t track or
-            manage reviews — this just stores your link for the one-tap ask.
+            manage reviews — this just stores the link that{" "}
+            <code className="rounded bg-secondary px-1 py-0.5">
+              {"{review_link}"}
+            </code>{" "}
+            fills in when you text it.
           </p>
         </div>
 
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground">
-            What a review ask sends
+            A review ask you can save as a template
           </p>
-          <div
-            aria-live="polite"
-            className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
-          >
-            {preview}
+          <div className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap">
+            {DEFAULT_REVIEW_MESSAGE}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Save it under Templates — {"{business_name}"} and {"{review_link}"}{" "}
+            fill in automatically when you send it.
+          </p>
         </div>
 
         {error && (
@@ -171,7 +171,7 @@ export default function ReviewsSettingsPage() {
   return (
     <SettingsPage
       title="Reviews"
-      description="Store your Google review link so you can ask in one tap."
+      description="Store your Google review link to use in your texts and templates."
     >
       {company.isPending ? (
         <ReviewsSkeleton />

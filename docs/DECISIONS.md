@@ -951,3 +951,23 @@ keys, deterministic in CI.
 - **Consistency:** SPEC §12 step 19 (the pass criterion, now met by the faithful-fake harness), §7
   (verify → ledger → ack → `waitUntil` exercised end to end), D13 (tests land with the step), and the
   minimal-upkeep rule (no new vendor, no live keys in CI, no browser-farm dependency).
+
+## D32. One-tap review ask removed — reviews ride templates (amends FEATURE-GAPS Step 2 / Step 3)
+
+- **Removed** (owner direction, issue #2): the thread-header Star, the ⌘K "Send review request"
+  action, `POST /v1/conversations/:id/review-request`, and the `claim_review_request` RPC
+  (dropped in `20260704060000_drop_claim_review_request.sql`). The dedicated one-tap ask was a
+  second send path with its own suppression/quiet-hours plumbing for something a saved template
+  already does.
+- **What replaces it:** owners save a review template (the Reviews settings page now shows the
+  suggested body) — `{review_link}` still merges server-side from `companies.google_review_link`
+  on every ordinary send (compose / reply / away-reply). The column, its Settings editor, the
+  merge field, and the 10DLC campaign's registered review-sample content (sample3,
+  `embeddedLink=true`) all **stay** — the number still emits review URLs, so the carrier
+  registration must keep declaring them.
+- **Kept as history:** the `review_requested` conversation_event enum value (Postgres enum values
+  are irremovable) and any historic rows; the web timeline renders unnarrated event types as
+  nothing (SystemLine returns null) instead of a blank line.
+- **Consequence:** one-per-job suppression and the review-specific quiet-hours interplay are gone
+  with the endpoint; a review ask is now an ordinary message subject to the ordinary compose
+  gates.
