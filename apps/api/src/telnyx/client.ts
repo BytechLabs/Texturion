@@ -7,6 +7,9 @@ import type { Env } from "../env";
  * codes surfaced, so callers can branch on carrier/vendor error codes
  * (e.g. 40300 opt-out blocks, 10DLC validation failures) without string
  * matching.
+ *
+ * The base URL is `api.telnyx.com` unless `env.TELNYX_API_BASE` overrides it
+ * (unset in production; the E2E launch-pass harness points it at a fake — D31).
  */
 
 export const TELNYX_API_BASE = "https://api.telnyx.com";
@@ -71,7 +74,7 @@ export async function telnyxRequest<T = unknown>(
   env: Env,
   options: TelnyxRequestOptions,
 ): Promise<T> {
-  const url = new URL(options.path, TELNYX_API_BASE);
+  const url = new URL(options.path, env.TELNYX_API_BASE ?? TELNYX_API_BASE);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     url.searchParams.set(key, value);
   }
@@ -141,7 +144,7 @@ export async function telnyxUpload<T = unknown>(
   env: Env,
   options: TelnyxUploadOptions,
 ): Promise<T> {
-  const url = new URL(options.path, TELNYX_API_BASE);
+  const url = new URL(options.path, env.TELNYX_API_BASE ?? TELNYX_API_BASE);
   const form = new FormData();
   const blob =
     options.file instanceof Blob

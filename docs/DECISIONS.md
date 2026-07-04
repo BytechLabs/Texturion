@@ -912,3 +912,42 @@ accounting:
   cron) is the only reclamation path, unchanged.
 - **Consistency:** SPEC §2/§9 (metering stays SMS-segments-only; storage is a budgeted allowance,
   not a meter), D19 (machinery unchanged), §7 (stable `conflict` code for the budget gate).
+
+## D31. Launch pass (SPEC §12 step 19) — a hermetic golden-path E2E, faked vendors, in CI
+
+**Decision:** step 19's "both golden paths recorded green in CI against test-mode vendors" ships as a
+**hermetic full-stack E2E harness**: the REAL `jobtext-api` Worker (`app.fetch`) against the REAL
+local Supabase, with Telnyx and Stripe **faked at their HTTP boundary** and their state machines
+advanced by the **same signed webhooks production receives**. No external network, no live vendor
+keys, deterministic in CI.
+
+- **Why faked, not live test-mode:** Telnyx has **no sandbox** that drives the 10DLC brand/campaign,
+  number-order, or porting **state transitions** — the exact spine of the US golden path. A
+  live-vendor E2E is therefore impossible for that path regardless of budget. A faithful fake that
+  speaks Telnyx's real request/response + signed-webhook contract is the maximal achievable coverage
+  and the lowest-upkeep choice (no flaky network, no secrets in CI, no vendor rate limits). Stripe is
+  faked the same way for symmetry and determinism (its Checkout/subscription/invoice/meter calls and
+  signed webhooks), rather than mixing a live Stripe test-mode into an otherwise hermetic run.
+- **The seam:** `env.TELNYX_API_BASE` / `env.STRIPE_API_BASE` (both OPTIONAL, unset in production →
+  the real hosts) retarget the Telnyx client and stripe-node at in-process fake servers. Inbound
+  webhooks are signed by the harness with the matching test keys (Telnyx Ed25519, Stripe HMAC) and
+  POSTed to the real `/webhooks/*` routes, so verification, the ledger, ack-then-`waitUntil`, and the
+  dispatch state machines all execute as in production.
+- **What it covers (the three sequences step 19 names):** (1) **US sole-prop** — signup → paid
+  checkout (flips `active`) → number provisions (order + injected confirmation) → registration
+  pending (CA-destined send works, US-destined send blocked by `registration_pending`) → injected
+  10DLC approval → US send works; (2) **CA-only instant** — signup with `us_texting_enabled=false`,
+  no wizard, immediate send; (3) **cancel → grace → release** — injected `subscription.deleted`
+  suspends numbers, the grace cron on a wound-forward clock releases on day 30 and deactivates the
+  campaign. Assertions are on observable state (API responses + DB rows + captured vendor calls).
+- **Scope boundary (honest):** this is a **server/state-machine** E2E, not a Playwright browser
+  drive — Stripe-hosted Checkout can't be exercised against a fake Stripe in a real browser, and the
+  cross-vendor spine (the load-bearing, otherwise-uncovered part) is entirely server-side. The web UI
+  is covered by its own unit suite + the CI `next build`. A browser smoke test against **live**
+  vendor test-mode stays a manual go-live checklist item (docs/deploy/07 §C), where a human can drive
+  Stripe test Checkout and a real handset.
+- **CI:** a dedicated job stands up local Supabase (`supabase db reset`), runs the E2E vitest project,
+  and must be green on `main`. It is additive to the existing unit + SQL-suite jobs.
+- **Consistency:** SPEC §12 step 19 (the pass criterion, now met by the faithful-fake harness), §7
+  (verify → ledger → ack → `waitUntil` exercised end to end), D13 (tests land with the step), and the
+  minimal-upkeep rule (no new vendor, no live keys in CI, no browser-farm dependency).

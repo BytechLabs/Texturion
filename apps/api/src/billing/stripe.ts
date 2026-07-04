@@ -22,6 +22,12 @@ export function getStripe(env: Env): Stripe {
   const cached = clients.get(env);
   if (cached) return cached;
 
+  // Vendor host is api.stripe.com unless STRIPE_API_BASE overrides it (unset in
+  // production; the E2E launch-pass harness points it at a fake — D31). Parsing
+  // the full origin into stripe-node's host/protocol/port keeps the SDK's
+  // request-building intact while retargeting the network edge.
+  const override = env.STRIPE_API_BASE ? new URL(env.STRIPE_API_BASE) : null;
+
   const client = new Stripe(env.STRIPE_SECRET_KEY, {
     httpClient: Stripe.createFetchHttpClient((...args: Parameters<typeof fetch>) =>
       globalThis.fetch(...args),
@@ -31,6 +37,17 @@ export function getStripe(env: Env): Stripe {
     // the webhook_events ledger + sweeper cron owns retry durability, not the
     // HTTP client.
     maxNetworkRetries: 1,
+    ...(override
+      ? {
+          host: override.hostname,
+          protocol: override.protocol.replace(":", "") as "http" | "https",
+          port: override.port
+            ? Number(override.port)
+            : override.protocol === "https:"
+              ? 443
+              : 80,
+        }
+      : {}),
   });
   clients.set(env, client);
   return client;

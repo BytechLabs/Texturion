@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "stripe:setup": "node --experimental-strip-types scripts/stripe-setup.ts"
   },
   "dependencies": {

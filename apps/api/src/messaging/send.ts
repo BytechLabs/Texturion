@@ -167,6 +167,12 @@ export async function gateOutboundSend(
   return { message: result.message, existing: result.existing === true };
 }
 
+/**
+ * Default Telnyx host; `env.TELNYX_API_BASE` overrides it (unset in production
+ * → the real host). This is the SAME seam telnyx/client.ts uses, so the D31
+ * launch-pass harness can retarget the outbound `/v2/messages` send at its
+ * in-process fake exactly as it does every other Telnyx call.
+ */
 const TELNYX_API_BASE = "https://api.telnyx.com";
 
 /** A Telnyx /v2/messages API failure — surfaced, never silent (SPEC §5, §8). */
@@ -186,7 +192,7 @@ async function telnyxCreateMessage(
 ): Promise<TelnyxSendResult> {
   let response: Response;
   try {
-    response = await fetch(`${TELNYX_API_BASE}/v2/messages`, {
+    response = await fetch(`${env.TELNYX_API_BASE ?? TELNYX_API_BASE}/v2/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.TELNYX_API_KEY}`,

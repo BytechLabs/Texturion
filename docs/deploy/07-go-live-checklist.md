@@ -83,6 +83,17 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 
 ## C. Smoke test (test mode end-to-end)
 
+> **Automated coverage (D31).** The cross-vendor spine of the three golden paths —
+> (1) US sole-prop signup → paid checkout → provision → 10DLC registration gate →
+> approval → US send, (2) CA-only instant send, (3) cancel → grace → day-30 release —
+> now runs green in CI as a **hermetic full-stack E2E** (the real `jobtext-api` Worker
+> against real local Supabase, Telnyx + Stripe faked at their HTTP boundary and advanced
+> by the same signed webhooks production receives; `apps/api/e2e/*.e2e.ts`, the `e2e` job
+> in `.github/workflows/ci.yml`). That covers the server/state-machine wiring
+> deterministically on every push. The manual pass below stays the **human check**: it is
+> the only place a real Stripe-hosted Checkout and a real handset exercise the parts a fake
+> cannot (hosted payment UI, live carrier delivery). Run it before flipping to live.
+
 Run against **Stripe test mode** and a **Telnyx sandbox number** before flipping to
 live. Use two real phones (or one phone + the Telnyx test tooling).
 

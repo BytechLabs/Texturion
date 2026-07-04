@@ -81,6 +81,16 @@ const envSchema = z.object({
    * → the gate is skipped.
    */
   VERIFY_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * OPTIONAL vendor base-URL overrides — production leaves them UNSET so the
+   * clients hit the real vendor hosts (Telnyx `api.telnyx.com`, Stripe
+   * `api.stripe.com`). The hermetic E2E launch-pass harness (SPEC §12 step 19,
+   * D31) points them at in-process fake servers so both golden paths run with
+   * no external network and no live keys. Must be a full origin, e.g.
+   * `http://127.0.0.1:8791`.
+   */
+  TELNYX_API_BASE: z.url().optional(),
+  STRIPE_API_BASE: z.url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

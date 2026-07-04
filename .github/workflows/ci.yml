@@ -35,6 +35,47 @@ jobs:
         if: always()
         run: supabase stop --no-backup
 
+  e2e:
+    name: Launch-pass E2E (hermetic golden paths)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Stand up the SAME local Supabase the SQL job uses: `supabase start`
+      # names the DB container supabase_db_JobText (project_id in config.toml)
+      # and serves the API at 127.0.0.1:54321 with the CLI-default keys — the
+      # exact host/keys the D31 harness resolves via `supabase status -o json`
+      # (with the literal fallbacks). `db reset` applies migrations from zero.
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Apply migrations from zero (db reset)
+        run: supabase db reset
+
+      # The harness runs the REAL Worker (app.fetch) against that DB with only
+      # the vendor HTTP boundary faked (in-process node:http servers), so the
+      # api package's deps must be installed to import src/.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run launch-pass E2E (smoke + 3 golden paths)
+        run: pnpm --filter @jobtext/api test:e2e
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+
   ci:
     runs-on: ubuntu-latest
     env:
