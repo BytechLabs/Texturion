@@ -109,7 +109,7 @@ This needs three GitHub secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
 `SUPABASE_PROJECT_REF` (`.github/workflows/deploy.yml:52-55`). CI additionally
 runs the full migration set from zero against a local stack on every push, then
 **every SQL assertion suite** via the root `db:test:ci` script (delegates to
-`db:test:all` — `.github/workflows/ci.yml:9-36`, `package.json:28-29`), so a
+`db:test:all` — `.github/workflows/ci.yml:9-36`, `package.json:30-31`), so a
 broken migration fails CI before deploy.
 
 The initial schema migrations, in order (`supabase/migrations/` — later feature

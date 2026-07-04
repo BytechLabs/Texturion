@@ -86,7 +86,44 @@ email with the hosted invoice link; no state change
 
 ---
 
-## 4. Rotating a leaked key
+## 4. Storage — allowance, caps, and accounting (D30)
+
+Supabase Pro includes **100 GB** of storage; beyond it the marginal cost is
+~$0.021/GB-month (`SPEC.md:1157-1162`, `docs/DECISIONS.md` D30). JobText's
+storage splits into two arms that are governed **differently on purpose**:
+
+- **Generic (note/task) attachments — a budgeted allowance, enforced at upload.**
+  Each company gets **Starter 5 GB / Pro 25 GB** of live attachments
+  (`STORAGE_BUDGET_BYTES`, `apps/api/src/billing/plans.ts:43-45`). `POST
+  /v1/attachments` claims the space through the atomic advisory-lock RPC
+  `claim_attachment_storage`, which re-sums the company's live bytes under a
+  per-company `pg_advisory_xact_lock` and inserts in one transaction — the claim
+  is the **sole** budget authority (no check-then-write TOCTOU). Over budget →
+  **409 `conflict`** with plain copy; freeing space means deleting files
+  (`supabase/migrations/20260704030000_attach_fixes.sql:178-235`,
+  `apps/api/src/routes/attachments.ts:254-319`). The per-file (25 MB) and
+  per-owner (10) caps still stand. A maxed tenant costs ~$0.11 (Starter) / ~$0.53
+  (Pro) per month — inside plan margin.
+- **MMS media — bounded by metering + a per-message item cap, never
+  budget-blocked.** Outbound MMS is already priced (3 segments) and rate/overage
+  capped; inbound MMS is customer content and is **never** blocked on a budget —
+  it is bounded per message at the first **≤10 items × ≤5 MB each**
+  (`MAX_INBOUND_MEDIA_ITEMS`/`MAX_INBOUND_MEDIA_BYTES`,
+  `apps/api/src/messaging/media.ts:32,41`).
+
+**Accounting:** per-company stored bytes for both arms (generic
+`attachments_bytes` + display-only `mms_bytes`) come from the exact-sum RPC
+`api_storage_usage` (`supabase/migrations/20260704050000_storage_accounting.sql:29-50`),
+surfaced by `GET /v1/usage` (`apps/api/src/routes/usage.ts`) and the
+**`/settings/usage`** page (`apps/web/src/app/(app)/settings/usage/page.tsx`), so
+an owner sees storage the way they see segments. Retention is unchanged
+(conversation history + media kept while the account exists and through
+grace/release); the soft-delete → 15-min hard-delete sweep (§1, `*/15` cron) is
+the only reclamation path.
+
+---
+
+## 5. Rotating a leaked key
 
 Set the new value, then invalidate the old at the vendor. No redeploy is needed for
 the Worker to pick up a new secret; re-hit `/health` after.
@@ -114,7 +151,7 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 
 ---
 
-## 5. Backups & restore (Supabase)
+## 6. Backups & restore (Supabase)
 
 - **Automated backups** ship with Supabase **Pro** — daily backups with
   **Point-in-Time Recovery (PITR)** available. Confirm PITR is enabled in
@@ -123,15 +160,17 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
   environment rebuild, migrations are the source of truth — a fresh project +
   `supabase db push` reproduces the schema exactly (CI proves this on every run via
   `supabase db reset`, `.github/workflows/ci.yml:22-26`).
-- **Storage (`mms-media`)** is not covered by DB PITR — it's object storage. Treat
-  media as reconstructable from Telnyx where possible; for critical retention,
-  configure separate object backup if your compliance posture requires it.
+- **Object storage** (the `mms-media` bucket and the generic `attachments`
+  bucket, §4) is not covered by DB PITR. Treat MMS media as reconstructable from
+  Telnyx where possible; the generic attachments bucket holds note/task files
+  with no upstream source, so for critical retention configure separate object
+  backup if your compliance posture requires it.
 - **Do not** manually edit the schema in the dashboard — always add a migration under
   `supabase/migrations/` so `db push` and CI stay authoritative.
 
 ---
 
-## 6. Incident basics
+## 7. Incident basics
 
 1. **Triage with `/health`** — if it 500s, a secret is missing/invalid; the error
    names the key. Fix and re-check.

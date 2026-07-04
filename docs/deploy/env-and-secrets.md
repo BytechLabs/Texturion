@@ -6,7 +6,7 @@ Two deploy artifacts:
 
 | Worker | wrangler name | main entry | reads secrets via |
 | --- | --- | --- | --- |
-| **api** (Hono) | `jobtext-api` (`apps/api/wrangler.jsonc:3`) | `src/index.ts` (`apps/api/wrangler.jsonc:4`) | Worker encrypted secrets (`wrangler secret put`) — validated by zod in `apps/api/src/env.ts:22-74` — plus the `SEND_RATE_LIMITER` binding from `wrangler.jsonc` (§1a) |
+| **api** (Hono) | `jobtext-api` (`apps/api/wrangler.jsonc:3`) | `src/index.ts` (`apps/api/wrangler.jsonc:4`) | Worker encrypted secrets (`wrangler secret put`) — validated by zod in `apps/api/src/env.ts:22-74` — plus the `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` bindings from `wrangler.jsonc` (§1a) |
 | **web** (Next.js / OpenNext) | `jobtext-web` (`apps/web/wrangler.jsonc:4`) | `.open-next/worker.js` (`apps/web/wrangler.jsonc:5`) | `NEXT_PUBLIC_*` build-time inlined vars only — `apps/web/src/env.ts:3-17` |
 
 ---
@@ -85,9 +85,12 @@ The canonical local template is `apps/api/.dev.vars.example` (lines 4-32).
 
 > The VAPID **public** key is also needed client-side for push subscription. It is served to the browser by the API (not baked into the web bundle) — there is no `NEXT_PUBLIC_VAPID_*` var. Generate the pair once and reuse it forever; rotating it invalidates all existing push subscriptions.
 
-### §1a — the `SEND_RATE_LIMITER` binding (NOT a secret)
+### §1a — the two rate-limiter bindings (NOT secrets)
 
-One api binding is **not** a secret and never touches `wrangler secret put`: `SEND_RATE_LIMITER`, the per-company outbound rate limiter, declared as a Workers `ratelimit` **unsafe binding** in `apps/api/wrangler.jsonc:23-40` and typed/accepted as optional by the schema (`apps/api/src/env.ts:8-15,73`). Configuration: `limit: 10` per `period: 10` seconds, keyed on `company_id` at the single outbound-send choke point — the SPEC's "1 msg/s" expressed in the only period Workers rate limiting supports. The `namespace_id` (`"1001"`) must be **account-unique**; local dev/tests run without the binding and the gate is skipped.
+Two api bindings are **not** secrets and never touch `wrangler secret put`. Both are Workers `ratelimit` **unsafe bindings** declared in `apps/api/wrangler.jsonc:23-53` and typed/accepted as optional by the schema (`apps/api/src/env.ts:8-15,73,83`); local dev/tests run without them and each gate is skipped. Each `namespace_id` must be **account-unique**.
+
+- `SEND_RATE_LIMITER` (`namespace_id "1001"`): the per-company outbound rate limiter, `limit: 10` per `period: 10` seconds, keyed on `company_id` at the single outbound-send choke point — the SPEC's "1 msg/s" expressed in the only period Workers rate limiting supports (`apps/api/wrangler.jsonc:33-37`, `env.ts:73`).
+- `VERIFY_RATE_LIMITER` (`namespace_id "1002"`): the keep-your-number ownership-verification limiter, `limit: 3` per `period: 60` seconds, keyed on the **target number**. Requesting a code makes Telnyx SMS/CALL a number the company has not yet proven it owns, and the verify endpoint accepts code guesses, so both `routes/text-enablement.ts` endpoints are bounded per target number — 3/min caps call/SMS-bombing and code brute-force (`apps/api/wrangler.jsonc:48-51`, `env.ts:83`).
 
 ---
 

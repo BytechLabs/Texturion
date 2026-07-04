@@ -97,11 +97,13 @@ descriptions and formats are in [06 — env reference](./06-env-reference.md).
 `wrangler.jsonc`'s `vars` is intentionally empty — every credential is a secret
 (`apps/api/wrangler.jsonc:50`).
 
-> **Not a secret:** the `SEND_RATE_LIMITER` per-company outbound rate limiter is
-> a Workers rate-limiting binding declared in `apps/api/wrangler.jsonc:23-40`
-> (limit 10 per 10 s per company ≈ 1 msg/s) and ships with `wrangler deploy` —
-> nothing to `secret put`. Its `namespace_id` must be unique within your
-> Cloudflare account ([06](./06-env-reference.md) §A.1).
+> **Not secrets:** the **two** rate-limiter bindings — `SEND_RATE_LIMITER` (the
+> per-company outbound limiter, limit 10 per 10 s ≈ 1 msg/s) and
+> `VERIFY_RATE_LIMITER` (the keep-your-number verification limiter, limit 3 per
+> 60 s per target number) — are Workers rate-limiting bindings declared in
+> `apps/api/wrangler.jsonc:23-53` and ship with `wrangler deploy`, nothing to
+> `secret put`. Each `namespace_id` (`"1001"` / `"1002"`) must be unique within
+> your Cloudflare account ([06](./06-env-reference.md) §A.1).
 
 > **Chicken-and-egg with `STRIPE_WEBHOOK_SECRET`:** you only get the `whsec_` after
 > creating the Stripe endpoint in §4 (which needs the live API domain). It's fine to
@@ -208,7 +210,7 @@ var and fails.
 
 - **CI** (`ci.yml`) runs on PRs and pushes to `main`: **all SQL suites** against a
   from-zero `supabase db reset` via the root `db:test:ci` script (which delegates
-  to `db:test:all`, `.github/workflows/ci.yml:28-32`, `package.json:28-29`), then
+  to `db:test:all`, `.github/workflows/ci.yml:28-32`, `package.json:30-31`), then
   typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy
   --dry-run` for the API (`.github/workflows/ci.yml:9-77`).
 - **Deploy** (`deploy.yml`) runs on `workflow_run` of a **successful CI on `main`**,

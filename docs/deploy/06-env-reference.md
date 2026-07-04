@@ -11,8 +11,8 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 - **Web build vars** are the `NEXT_PUBLIC_*` inlined at `next build` — three
   required plus two optional (`apps/web/src/env.ts:3-17`).
 - **GitHub Actions secrets** feed CI/Deploy (`.github/workflows/*`).
-- One Worker **binding** is configured in `wrangler.jsonc`, not as a secret:
-  `SEND_RATE_LIMITER` (see A.1 below).
+- Two Worker **bindings** are configured in `wrangler.jsonc`, not as secrets:
+  `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` (see A.1 below).
 
 ---
 
@@ -52,16 +52,19 @@ every analytics capture is a silent no-op
 — see [05](./05-workers-deploy.md) §2. `wrangler.jsonc` `vars` is intentionally
 empty (`apps/api/wrangler.jsonc:50`).
 
-### A.1 Not a secret — the `SEND_RATE_LIMITER` binding
+### A.1 Not secrets — the two rate-limiter bindings
 
-The per-company outbound rate limiter is a Workers **rate-limiting unsafe
-binding** declared in `apps/api/wrangler.jsonc:23-40`, deployed with the Worker —
-there is nothing to `wrangler secret put`. It is configured as `limit: 10` per
-`period: 10`s per company (≡ the SPEC's 1 msg/s average with sub-10s bursts) and
-checked at the single outbound-send choke point. The `namespace_id` (`"1001"`)
-must be **unique within your Cloudflare account** — change it if it collides with
-another Worker's limiter. The binding is optional in the schema
-(`apps/api/src/env.ts:73`) so local dev/tests run without it (gate skipped).
+Two Workers **rate-limiting unsafe bindings** are declared in
+`apps/api/wrangler.jsonc:23-53`, deployed with the Worker — there is nothing to
+`wrangler secret put`. Both are typed `optional` in the schema
+(`apps/api/src/env.ts:73,83`), so local dev/tests run without either binding and
+the respective gate is skipped. Each `namespace_id` must be **unique within your
+Cloudflare account** — change it if it collides with another Worker's limiter.
+
+| Binding | `namespace_id` | Config | Keyed on | Guards |
+|---------|:--:|--------|----------|--------|
+| `SEND_RATE_LIMITER` | `"1001"` | `limit: 10` / `period: 10`s | `company_id` | The per-company outbound-send choke point (≡ the SPEC's 1 msg/s average with sub-10s bursts). `wrangler.jsonc:33-37`, `env.ts:73`. |
+| `VERIFY_RATE_LIMITER` | `"1002"` | `limit: 3` / `period: 60`s | target number | The keep-your-number ownership-verification endpoints (`routes/text-enablement.ts`): requesting a code makes Telnyx SMS/CALL the target number the company has not yet proven it owns, and the verify endpoint accepts code guesses — so both are bounded per target number (3/min caps call/SMS-bombing and code brute-force). `wrangler.jsonc:48-51`, `env.ts:83`. |
 
 ---
 

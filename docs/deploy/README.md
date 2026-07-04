@@ -85,8 +85,9 @@ operator walkthrough — start here.**
    `POSTHOG_API_KEY`) runtime bindings validated at startup
    (`apps/api/src/env.ts:22-74`). Set with `wrangler secret put` **before the
    first deploy** — CI does *not* set them (`.github/workflows/deploy.yml:58-62`).
-   The `SEND_RATE_LIMITER` rate-limiting binding is the one non-secret binding —
-   declared in `apps/api/wrangler.jsonc:23-40`, deployed with the Worker. See [05](./05-workers-deploy.md) §2.
+   The `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` rate-limiting bindings are
+   the two non-secret bindings — declared in `apps/api/wrangler.jsonc:23-53`,
+   deployed with the Worker. See [05](./05-workers-deploy.md) §2.
 3. **`jobtext-web` build-time public vars** — the three required `NEXT_PUBLIC_*`
    (plus two optional: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` for Supabase Auth captcha
    and `NEXT_PUBLIC_APP_ORIGIN` for the D27 marketing/app host split)

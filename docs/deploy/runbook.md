@@ -100,7 +100,7 @@ STRIPE_STARTER_OVERAGE_PRICE_ID STRIPE_PRO_OVERAGE_PRICE_ID
 STRIPE_US_FEE_PRICE_ID STRIPE_SMS_METER_EVENT_NAME
 ```
 
-Optional 22nd: `POSTHOG_API_KEY` (§1h). **Not a secret:** the `SEND_RATE_LIMITER` per-company outbound rate limiter is a Workers `ratelimit` binding declared in `apps/api/wrangler.jsonc:23-40` (limit 10 per 10 s ≈ 1 msg/s; `namespace_id` must be account-unique) and ships with `wrangler deploy` — nothing to put.
+Optional 22nd: `POSTHOG_API_KEY` (§1h). **Not secrets:** two Workers `ratelimit` bindings ship with `wrangler deploy` and never touch `secret put` — `SEND_RATE_LIMITER` (per-company outbound limiter, limit 10 per 10 s ≈ 1 msg/s, `namespace_id "1001"`) and `VERIFY_RATE_LIMITER` (keep-your-number verification limiter, limit 3 per 60 s per target number, `namespace_id "1002"`), both declared in `apps/api/wrangler.jsonc:23-53`. Each `namespace_id` must be account-unique.
 
 Verify: after deploy, `GET ${API_ORIGIN}/health` re-runs env validation and 500s (naming missing keys) if any secret is absent (`apps/api/src/index.ts:88-92`, `env.ts:94-100`).
 
@@ -130,7 +130,7 @@ Trigger: `Deploy` runs on `workflow_run` of `CI` completing successfully on `mai
 4. **Deploy api**: `pnpm --filter @jobtext/api exec wrangler deploy` (`:58-59`) → `wrangler deploy` (`apps/api/package.json:8`).
 5. **Deploy web**: `pnpm --filter @jobtext/web run deploy` (`:61-62`) → `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (`apps/web/package.json:10`).
 
-CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset` via the root `db:test:ci` script (delegates to `db:test:all` — `ci.yml:22-32`, `package.json:28-29`), then typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy --dry-run` for api (`ci.yml:58-77`).
+CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset` via the root `db:test:ci` script (delegates to `db:test:all` — `ci.yml:22-32`, `package.json:30-31`), then typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy --dry-run` for api (`ci.yml:58-77`).
 
 ### Manual deploy (equivalent)
 ```
