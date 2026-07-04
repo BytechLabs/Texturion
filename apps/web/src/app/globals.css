@@ -581,8 +581,16 @@
 
 /* Calm DARK equivalent (PORTAL-UX §4: "calm dark equivalent, hairlines, no
    glow"). The ground is a warm green-black; cards step up a hair; structure is
-   still hairlines, not shadows. No petrol glow. Fires when a `.dark` ancestor
-   sits inside `.app-scope`, or the scope root itself is `.dark`. */
+   still hairlines, not shadows. No petrol glow.
+
+   next-themes (attribute="class") sets `.dark` on <html>, which is an ANCESTOR
+   of the nested `.app-scope` element — so `.dark .app-scope` is the selector
+   that actually matches in production and must re-set the tokens (higher
+   specificity than the base `.app-scope` light block, so it wins). The other
+   two forms cover a `.dark` on / inside the scope root for completeness. Without
+   `.dark .app-scope`, the base `.app-scope` kept the LIGHT values and dark mode
+   only affected the few `dark:` utility classes (issue: "90% stays light"). */
+.dark .app-scope,
 .app-scope.dark,
 .app-scope .dark {
   --background: #0e1512; /* warm green-black ground */
@@ -725,42 +733,63 @@
 }
 
 /* ==========================================================================
-   MARKETING-ONLY additions (DESIGN-DIRECTION §3), owned by the marketing
-   surface. The "Caught" identity: Basteleur display, Hanken body, Commit Mono
-   data, over a brand-washed pale petrol-grey ground with a rationed marker
-   yellow. Bounded by the brand; the app itself never uses any of these.
+   MARKETING-ONLY additions (DESIGN-DIRECTION), owned by the marketing surface.
+   The "Open all night" identity: Besley display, Public Sans body, Martian
+   Mono data, over a hue-locked petrol night that lifts into porcelain
+   daylight. Bounded by the brand; the app itself never uses any of these.
    ========================================================================== */
 
 /*
- * DESIGN-DIRECTION §3 palette, 5 named brand tokens (+ graphite), scoped to
- * marketing DOM via `.mkt-scope` (the (marketing) layout root). Deliberately
- * NOT the app's stone/teal oklch tokens: the ground is a pale petrol-grey
- * "painted panel", not cream and not white. Additive, the app's :root tokens
- * are untouched, and nothing here leaks into (app)/ because it is gated on
- * `.mkt-scope`. Tints are derived from these five; no new hues.
+ * DESIGN-DIRECTION "Open all night" palette, scoped to marketing DOM via
+ * `.mkt-scope` (the (marketing) layout root). Two acts share one hue family:
+ * a petrol-ink NIGHT (hue-locked near 172°, never neutral black) where
+ * incoming messages are the light source, and a cool-porcelain DAYLIGHT for
+ * the money sections. Additive, the app's :root tokens are untouched, and
+ * nothing here leaks into (app)/ because it is gated on `.mkt-scope`.
  */
 .mkt-scope {
-  --petrol: #0f766e; /* brand anchor: links, key marks */
-  --deep: #0b4f49; /* the single dark band ground (used once) */
-  --ink: #101615; /* headlines on light / body-dark; warm green-black */
-  --paper: #e6ebe8; /* the dominant ground: pale petrol-grey painted panel */
-  --marker: #f4d64e; /* legal-pad yellow. RATIONED: highlight one word, mark the act */
-  --graphite: #444b4c; /* secondary text */
+  /* ---- The night act ---- */
+  --ink-11pm: #041f1c; /* primary dark ground: hero, problem, final CTA, footer */
+  --ink-midnight: #02110f; /* the page's darkest point: the demo stage only */
+  --cab-panel: #0a312c; /* raised surfaces on dark: cards, app-shell chrome */
+  --signal-aqua: #3fd5c0; /* live signal on dark: links, ticks, focus, lit rail */
+  --porch-amber: #ffb454; /* incoming light ONLY: inbound glow, unread dots, honesty tint */
+  --amber-core: #fff4df; /* the warm core inside inbound glows (lamp engine only) */
+  --moonlight: #eaf4f0; /* headline/body text on dark grounds (green cast, on purpose) */
+  --dusk: #8fb3ac; /* secondary text on dark: timestamps, captions, the unlit rail */
 
-  /* Derived tints (from the five, no new hues). */
-  --paper-2: #eef2f0; /* a half-step lighter panel for card surfaces on paper */
-  --paper-edge: #d8e0dc; /* a half-step darker panel edge for hairlines on paper */
+  /* ---- The daylight act ---- */
+  --first-light: #f2f8f5; /* light ground: features, pricing, comparison, approval clock */
+  --day-ink: #0b2b26; /* all text on light grounds; petrol-cast, never #000 */
+  --copper: #9a4f26; /* money only: price rules, the Won tag, the flat-vs-seat delta */
+  --copper-lift: #c06a3b; /* the lifted money tint, ONLY for figures >= 32px on light */
+
+  /* ---- Brand anchor (identical to the app UI and favicon) ---- */
+  --petrol: #0f766e; /* CTA buttons, status pills, links + focus on light */
+
+  /* ---- Sanctioned tints (the only alpha variants allowed) ---- */
+  --rule-dark: rgba(143, 179, 172, 0.12); /* 1px rules on dark (dusk @ 12%) */
+  --rule-light: rgba(11, 43, 38, 0.12); /* 1px rules on light (day-ink @ 12%) */
+  --amber-strip: rgba(255, 180, 84, 0.1); /* the honesty-strip background on light */
+  --amber-spill: rgba(255, 180, 84, 0.06); /* sidebar spill overlay in the demo */
+
+  /* ---- Compatibility aliases (older marketing components + subpages read
+     these; they now resolve to the daylight act so every marketing subpage
+     inherits the new identity without edits) ---- */
+  --deep: var(--ink-11pm); /* ground-deep bands now paint the night ground */
+  --ink: var(--day-ink);
+  --paper: var(--first-light);
+  --marker: var(--porch-amber); /* the old yellow highlight reads as lamplight now */
+  --graphite: #46605a; /* secondary text on light */
+  --paper-2: #fbfdfc; /* card surfaces on the porcelain ground */
+  --paper-edge: #dce7e2; /* panel edges on light */
   --petrol-12: rgba(15, 118, 110, 0.12);
   --petrol-24: rgba(15, 118, 110, 0.24);
-  --marker-40: rgba(244, 214, 78, 0.4);
-  /* Softer body inks. SOLID (not alpha): the alpha versions composited over the
-     hero glow gradient to ~4.2:1 and failed the color-contrast audit at desktop
-     width. As solids they read the same "softer than full ink" but hold AA over
-     the glow: --ink-70 #434a48 = 7.5:1 on paper (7.8:1 over the glow-lifted bg),
-     --ink-55 #5b615f = 4.9:1 on paper. */
-  --ink-70: #434a48; /* soft body text (was rgba(16,22,21,0.7)) */
-  --ink-55: #5b615f; /* quieter body text (was rgba(16,22,21,0.55)) */
-  --hairline: rgba(68, 75, 76, 0.18); /* graphite @ 18%, warm hairline, not a broadsheet rule */
+  --marker-40: rgba(255, 180, 84, 0.32);
+  /* Softer body inks. SOLID (not alpha) so they hold AA over washes. */
+  --ink-70: #3a534d; /* soft body text on light */
+  --ink-55: #587068; /* quieter body text on light */
+  --hairline: var(--rule-light);
 
   /* FORCE LIGHT (accessibility + identity). The marketing identity is a LIGHT
      "painted panel" surface (DESIGN-DIRECTION §3); there is no marketing dark
@@ -817,112 +846,149 @@
    scope AND its descendants. Marketing-scoped only; the app surface is untouched. */
 .mkt-scope .dark,
 .mkt-scope.dark {
-  --ink: #e7ece9; /* headlines / body on dark: near-paper, 14.6:1 on stone-950 */
-  --graphite: #a7b0ac; /* secondary text on dark, 7.9:1 */
-  --petrol: #5ed0c4; /* links / key marks on dark: a lifted petrol, 9.4:1 */
-  --deep: #1c1917; /* the "deep" ground on dark reads as the dark field itself */
-  --paper: #1c1917; /* the ground under this region is the dark field, not petrol-grey */
-  --paper-2: #292524; /* card panels on dark: stone-900 */
-  --paper-edge: #3a3532; /* panel edges on dark */
-  --marker-40: rgba(244, 214, 78, 0.28); /* the highlight reads lighter on dark */
-  --ink-70: rgba(231, 236, 233, 0.72);
-  --ink-55: rgba(231, 236, 233, 0.55);
-  --hairline: rgba(231, 236, 233, 0.16);
-  --petrol-12: rgba(94, 208, 196, 0.14);
-  --petrol-24: rgba(94, 208, 196, 0.26);
+  --ink: var(--moonlight); /* headlines / body on the night grounds */
+  --graphite: var(--dusk); /* secondary text on dark */
+  --petrol: var(--signal-aqua); /* links / key marks on dark: interactive means lit */
+  --deep: var(--ink-11pm);
+  --paper: var(--ink-11pm); /* the ground under this region is the night itself */
+  --paper-2: var(--cab-panel); /* card panels on dark: one luminance step up */
+  --paper-edge: #12403a; /* panel edges on dark */
+  --marker-40: rgba(255, 180, 84, 0.28);
+  --ink-70: rgba(234, 244, 240, 0.78);
+  --ink-55: rgba(234, 244, 240, 0.6);
+  --hairline: var(--rule-dark);
+  --petrol-12: rgba(63, 213, 192, 0.14);
+  --petrol-24: rgba(63, 213, 192, 0.26);
   color: var(--ink);
 }
 
-/* Card / panel surfaces on the paper ground read as a half-step lighter painted
-   panel with a warm hairline, not the app's white card on stone. One consistent
-   frame language for the marketing surface (§3–4). */
+/* Card / panel surfaces on the porcelain ground ("Quiet daylight" v3): white,
+   one hairline, the faintest sanctioned shadow. Nothing heavier exists. */
 @utility panel-card {
-  background-color: var(--paper-2);
-  border: 1px solid var(--hairline);
+  background-color: #ffffff;
+  border: 1px solid rgba(11, 43, 38, 0.08);
+  box-shadow: 0 1px 2px rgb(11 43 38 / 0.05);
 }
 
-/* The one deep-petrol band ground (§3), used exactly once on the page. */
+/* Night grounds ("Open all night"). ground-deep is the compat name older
+   sections use; it now paints the primary night ground. */
 @utility ground-deep {
-  background-color: var(--deep);
-  color: var(--paper);
+  background-color: var(--ink-11pm);
+  color: var(--moonlight);
+}
+
+@utility ground-night {
+  background-color: var(--ink-11pm);
+  color: var(--moonlight);
+}
+
+@utility ground-midnight {
+  /* The page's darkest point: the night-shift demo stage only. */
+  background-color: var(--ink-midnight);
+  color: var(--moonlight);
+}
+
+@utility panel-cab {
+  /* Raised surface on the night grounds: elevation is a luminance step, never
+     a drop shadow. Lit states add a 1px porch-amber rim at the call site. */
+  background-color: var(--cab-panel);
+  border: 1px solid var(--rule-dark);
 }
 
 @utility font-display {
-  /* The MARKETING display face (DESIGN-DIRECTION §3): Basteleur, mounted in the
+  /* The MARKETING display face: Besley (variable 700-900), mounted in the
      (marketing) layout as --font-display, scoped to marketing DOM. HEADLINES +
-     the expressive numeral moments only, never body/UI. Inert (serif fallback)
-     wherever --font-display is unset (the app). Weight 700 = the Bold cut;
-     weight 300 = the Moonlight emphasis cut. */
+     price figures only, never body/UI. Inert (serif fallback) wherever
+     --font-display is unset (the app). 900 = hero, 800 = H2, 700 = H3. */
   font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
 }
 
 @utility font-body-mkt {
-  /* The MARKETING body face: Hanken Grotesk (--font-body-mkt), set on the
-     (marketing) subtree root so marketing prose reads warm, not Inter. */
+  /* The MARKETING body face: Public Sans (--font-body-mkt), set on the
+     (marketing) subtree root. The honesty register in typographic form. */
   font-family: var(--font-body-mkt), ui-sans-serif, system-ui, sans-serif;
 }
 
 @utility font-mono-mkt {
-  /* The MARKETING data mono: Commit Mono (--font-mono-mkt) for the numbers that
-     matter, $29, phone numbers, timestamps, usage counts. */
+  /* The MARKETING data mono: Martian Mono (--font-mono-mkt) for everything
+     countable: clock eyebrows, ticks, segments, phone numbers, dollars. */
   font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
     monospace;
   font-variant-numeric: tabular-nums;
 }
 
-@utility display-numeral {
-  /* The one true display-scale numeral (§3 signature). Used sparingly, the $29
-     in the truth bar, the day counts in the first-week timeline. Never prose.
-     Set in Commit Mono (the data mono): a true tabular numeral reads honest and
-     aligned, and keeps the numeral moment in the "work-order" voice rather than
-     borrowing the display serif's figures. Petrol is applied by the call site. */
+@utility eyebrow-clock {
+  /* Section eyebrows are clock times ("9:47 PM", "7:22 AM"), Martian Mono
+     condensed light, never "01 / 02 / 03". */
   font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
     monospace;
-  font-size: clamp(84px, 12vw, 128px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 0.8125rem;
+  font-weight: 300;
+  font-stretch: 75%;
+  letter-spacing: 0.08em;
   line-height: 1;
-  font-variant-numeric: tabular-nums lining-nums;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility display-numeral {
+  /* The price figure scale ("Quiet daylight" v3): Besley 700, restrained. The
+     copper underline rule and color are applied by the call site. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+  font-size: clamp(2.25rem, 1.5rem + 2vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  font-variant-numeric: lining-nums;
 }
 
 @utility display-hero {
-  /* Hero H1 scale (§3), Basteleur Bold. The heavy hand-set forms read confident
-     and warm at this scale; the H1 min-height reservation below holds the box so
-     the swap-in never shifts. Sentence case. */
+  /* Hero H1 scale (v3): Besley 700 at a calm editorial size, not a poster
+     shout. The H1 min-height reservation holds the box so the font upgrade
+     never shifts. Sentence case. */
   font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: clamp(42px, 5.4vw, 72px);
+  font-size: clamp(2.25rem, 1.4rem + 3.2vw, 3.5rem);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.02;
-  color: var(--ink);
-}
-
-@utility display-h2 {
-  /* Section H2 scale (§3), Basteleur Bold. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: clamp(30px, 3.6vw, 44px);
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.015em;
   line-height: 1.08;
   color: var(--ink);
 }
 
+@utility display-h2 {
+  /* Section H2 scale (v3), Besley 700. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+  font-size: clamp(1.65rem, 1.2rem + 1.8vw, 2.375rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+@utility display-h3 {
+  /* Card H3 scale (v3), Besley 700. */
+  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
 @utility marketing-glow {
-  /* The ONE petrol radial glow per page (§1.2), rendered as a decorative layer
-     BEHIND content (never over LCP text). CSS gradients only, no image, no
-     blur() filter (a large blur is a paint cost; soft-stop gradients instead).
-     A petrol core low-left + a warm amber lift upper-right over the stone-50
-     base, so the hero sits in warm morning light. Consumed by GlowBackdrop. */
+  /* The ONE decorative radial wash per subpage, rendered BEHIND content (never
+     over LCP text). CSS gradients only, no image, no blur() filter (a large
+     blur is a paint cost; soft-stop gradients instead). Petrol low-left + a
+     porch-amber lift upper-right over the porcelain ground. Consumed by
+     GlowBackdrop. */
   background-image:
     radial-gradient(
       60% 55% at 18% 82%,
-      rgba(15, 118, 110, 0.12) 0%,
+      rgba(15, 118, 110, 0.1) 0%,
       rgba(15, 118, 110, 0) 70%
     ),
     radial-gradient(
       50% 50% at 85% 12%,
-      rgba(251, 191, 36, 0.06) 0%,
-      rgba(251, 191, 36, 0) 72%
+      rgba(255, 180, 84, 0.07) 0%,
+      rgba(255, 180, 84, 0) 72%
     );
 }
 
@@ -935,19 +1001,16 @@
    -------------------------------------------------------------------------- */
 
 @utility dsp-emph {
-  /* Composable emphasis word inside a <Display>: the Basteleur MOONLIGHT cut
-     (weight 300), a lighter, sharper optical contrast against the Bold body of
-     the headline. Basteleur has no true italic, so emphasis is weight/optical
-     contrast, which is more distinctive than a faux-slant anyway. Optionally
-     italicized by the call site via .dsp-emph-italic. */
-  font-weight: 300;
+  /* Composable emphasis word inside a <Display>: the light end of Besley's
+     variable range (700) against the 900 body of the headline, weight/optical
+     contrast rather than a slant. */
+  font-weight: 700;
 }
 
 @utility dsp-emph-italic {
-  /* A real slant on the emphasis cut where the composition wants it (§3 "italic
-     treatments"). Basteleur ships no italic master, so this is a restrained
-     synthetic oblique, used sparingly, only on short emphasis words. */
-  font-weight: 300;
+  /* A restrained synthetic oblique on the emphasis weight, used sparingly on
+     short emphasis words only (the latin subset ships no italic master). */
+  font-weight: 700;
   font-style: italic;
 }
 
