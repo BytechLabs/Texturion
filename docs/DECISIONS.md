@@ -736,3 +736,96 @@ first-class in the same audit surface — one timeline, no second log.
   index — no new audit store), D8 (actor is the verified `sub`, membership-scoped), D9/D14 (broadcast
   untouched; events are the durable complement), D17/D19/D21 (task + attachment + timeline all land in one
   audit surface). Append-only, never edited or deleted (D7).
+
+## D26. Voice wave — missed-call text-back, forward-to-cell, and keep-your-number text-enablement
+
+**Decision:** the FEATURE-GAPS BUILD-NOW voice work ships as one wave: missed-call text-back (Step 2),
+forward-to-cell (Step 2b, inside the Step-2 fence), and the keep-your-number **text-enablement** path
+(Step 0-number path B — hosted SMS on a landline the owner keeps; path A port-in shipped as D16). The
+after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1/3) shipped previously.
+(D23–D25 live in `docs/HOME-AND-VIEWS.md`; this log continues at D26.)
+
+- **"Missed" is COMPUTED, never a bare `call.hangup`.** With a `forward_to_cell` configured: the inbound
+  leg is answered and the cell dialed as a second leg with `timeout_secs=20` + AMD (`detect_beep`); the
+  FORWARD leg's terminal signal decides — hangup cause timeout/no-answer/busy/rejected ⇒ missed, AMD
+  `machine`/`not_human` ⇒ missed (carrier voicemail is a miss — the exact case AMD exists for), AMD
+  `human` ⇒ answered, no text. With NO forward: nobody can answer live, so the inbound leg's hangup IS the
+  miss. The compute is a pure function (`computeMissedFromEvent`) — unit-tested without network.
+- **No forward ⇒ the call is never answered.** Answering with no one to connect would put the caller into
+  dead air and bill the leg; the call rings out naturally (the caller hears an honest "no answer") and the
+  hangup is the missed signal. AMD `not_sure` and a bare `normal_clearing` with no human verdict are
+  treated as ANSWERED (never text someone a human just spoke to — conservative by design).
+- **One shared Call-Control application** (`TELNYX_VOICE_CONNECTION_ID`, account-level secret, created
+  once at vendor setup with its webhook pointed at `/webhooks/telnyx`), not per-company voice connections.
+  Tenant isolation still holds: every `call.*` event resolves number → company before acting, exactly like
+  inbound SMS. Enabling voice on a number PATCHes **only the voice facet** (`/v2/phone_numbers/:id/voice`)
+  — the messaging binding is never touched, so SMS cannot regress.
+- **Voice binding is triggered twice, idempotently:** (a) the settings PATCH that turns on `mctb_enabled`
+  or sets `forward_to_cell` (fire-and-forget `waitUntil`), and (b) the 15-minute reconcile cron
+  (`reconcileVoiceEnablement`) that binds any ACTIVE un-bound number of a feature-on company — covering
+  enable-before-active (the normal onboarding order), numbers added/ported later, and transient failures
+  of (a). **Hosted numbers are never voice-bound** — their voice deliberately stays on the owner's
+  carrier, so missed-call text-back requires a JobText-carried (provisioned or ported) number; the UI says
+  so plainly.
+- **The text-back rides the shared auto-send machinery**: `claim_missed_call_text` (SECURITY DEFINER RPC)
+  atomically threads the caller (same D7 rules as an inbound text — contact upsert, reopen-within-30d,
+  else fresh), honors the opt-out mirror (D3), applies the shared `last_auto_reply_at` throttle (one
+  auto-text per conversation per 3h — a repeat caller is texted once), and dedupes per call
+  (`conversation_events` `missed_call` payload `call_id`) so a retried webhook can never double-text. The
+  send is a REPLY (the caller dialed us — D4 reply-exempt: no consent gate, no quiet hours); the queued row
+  dispatches through the exact §8 Telnyx path. The message is **owner-authored** (`mctb_message`,
+  merge-fields applied; enabled-but-unauthored sends nothing) and booking-forward per FEATURE-GAPS.
+- **Surfacing:** a `missed_call` conversation event renders in-thread ("This customer called and no one
+  picked up — we texted them back") with the auto-text below it, and the crew gets the §8-mirrored loud
+  alert (Resend email + Web Push to assignee-else-all). No new inbox row type, no D24 bell entry — the
+  thread + alert are the record.
+- **Text-enablement (keep-your-number path B):** `text_enablement_orders` mirrors the Telnyx
+  hosted-messaging order lifecycle (`pending → action-required → in-progress → completed`, plus local
+  `failed`/`cancelled`); the `phone_numbers` row is `source='hosted'`, `status='provisioning'` until the
+  carrier completes — the product copy is honest about the multi-day carrier review (LOA + recent bill).
+  Slot accounting is identical to provision/port (`claim_text_enablement_slot`: company lock,
+  count-vs-plan, §4.2 sole-prop cap, Idempotency-Key replay). Releasing a hosted number cleans up the
+  Telnyx hosted side and closes the order row.
+- **The buy saga is fenced to its own rows (bug fix, recorded):** `reconcileNumbers`/`resumeProvisioning`
+  now operate on `source='provisioned'` rows ONLY. Ported and hosted rows sit at `status='provisioning'`
+  for weeks/days by design and are owned by their own sagas — running the buy saga on them would purchase
+  a random new number and overwrite the owner's own `number_e164` (the exact keep-your-number betrayal).
+- **Costs stated, not hidden:** forwarding bills two legs (inbound + outbound-to-cell), bounded by the
+  20s ring cap; voice-capable DIDs carry the per-number voice charge. No IVR/PBX — explicit FEATURE-GAPS
+  non-goal. Voice-minute metering is out of scope (SPEC §9 metering is SMS-only).
+- **Consistency:** D2 (per-company messaging profiles untouched), D3 (opt-out mirror honored by the RPC),
+  D4 (reply-exempt basis), D7 (threading rules reused verbatim; append-only events), D8 (Worker-side
+  authorization; RPCs service-role-only), D9 (the queued message flows the normal broadcast paths), D16
+  (port path untouched; a ported number voice-binds like a provisioned one once active), §10 (missed-call
+  settings are owner/admin).
+
+## D27. Marketing/app host split — one Worker, two hostnames, middleware-enforced
+
+**Decision:** the landing site and the product are SEPARATED at the hostname level — `jobtext.app`
+(+ `www`) serves ONLY the marketing pages, `app.jobtext.app` serves ONLY the product (app, auth,
+onboarding) — WITHOUT adding a deploy surface. Both hostnames attach to the ONE existing web Worker
+(D1's two-Worker architecture is unchanged), and the split is enforced by the session middleware's
+first gate (`lib/hosts.ts`, a pure tested function).
+
+- **Why middleware, not a third app:** a separate marketing app/Worker would double the web deploy
+  surface (second build, second CI lane, second domain wiring, second dependency tree) against the
+  product's one hard constraint — lowest possible upkeep. Host-based gating in the middleware that
+  already runs on every request costs one pure-function call and zero new infrastructure.
+- **The gate** (`decideHostRedirect`): on the marketing host, app-surface paths (the protected
+  prefixes + auth pages + `/update-password`, `/invite`, `/auth`, `/dashboard`, `/join`) 308 to the
+  app origin; `www` canonicalizes to the apex. On the app host, `/` roots at `/for-you` (the auth
+  middleware bounces signed-out visitors to login) and marketing paths 308 to the canonical site.
+  Requests from a host matching neither origin pass through untouched.
+- **Activation is env-gated:** `NEXT_PUBLIC_APP_ORIGIN` (optional). Unset — local dev, CI, previews —
+  the split is OFF and every route stays reachable on one origin, so nothing about development
+  changes. A malformed value disables the split rather than breaking requests.
+- **No component knows about hostnames.** Marketing pages keep linking to the app with relative
+  paths (`/login`, `/signup` — `APP_LINKS`); the middleware hop makes them land on the app origin.
+  `SITE_URL` (`https://jobtext.app`) remains the canonical base for sitemap/SEO/JSON-LD, which never
+  emit app paths; robots.txt keeps disallowing the app surfaces.
+- **Operator step:** attach `jobtext.app`, `www.jobtext.app`, and `app.jobtext.app` as custom
+  domains on the web Worker, set the `NEXT_PUBLIC_APP_ORIGIN` GitHub Actions secret, and keep
+  Supabase/auth/Stripe return URLs on `APP_ORIGIN` (unchanged — they always pointed at the app host).
+- **Consistency:** D1 (still exactly two Workers), SPEC §10 (auth middleware unchanged, the host gate
+  runs before any session read), BLUEPRINT §11 (canonical marketing origin; www→apex is now enforced
+  in code rather than assumed at the DNS layer).

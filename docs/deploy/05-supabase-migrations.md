@@ -78,15 +78,27 @@ Signup is protected by **Cloudflare Turnstile via Supabase Auth's captcha
 setting**, because Supabase Auth traffic goes browser → `<project>.supabase.co`
 directly and is not behind JobText's Cloudflare zone (`SPEC.md:1052`).
 
-**Operator action:** Supabase dashboard → Authentication → Attack Protection →
-CAPTCHA → provider **Turnstile**, and paste the Turnstile secret. That setting
-*is* the signup Turnstile mechanism (`SPEC.md:1052`). (No app env var — it lives
-in Supabase Auth config.)
+Two halves:
+
+- **Supabase dashboard (secret key):** Authentication → Attack Protection →
+  CAPTCHA → provider **Turnstile**, paste the Turnstile **secret** key
+  (`SPEC.md:1052`).
+- **Web build (site key):** the widget's **site** key is the optional
+  `NEXT_PUBLIC_TURNSTILE_SITE_KEY` build var (`apps/web/src/env.ts:10`) — when
+  set, signup/login/reset-password render Turnstile and pass its `captchaToken`
+  to Supabase Auth; unset, no captcha renders. The deploy workflow injects it
+  from the optional GitHub secret of the same name
+  (`.github/workflows/deploy.yml:23-26`).
+
+> **Ordering:** set the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub secret and
+> redeploy web **before** enabling the dashboard setting. Captcha enforced
+> against a web build with no site key rejects every email/password
+> signup/login/reset (no token is ever sent).
 
 ## Step 5 — Push migrations
 
 Migrations are applied by the deploy workflow, **before either Worker deploys**
-(`.github/workflows/deploy.yml:41-53`):
+(`.github/workflows/deploy.yml:50-62`):
 
 ```
 supabase link --project-ref "$SUPABASE_PROJECT_REF"
@@ -94,12 +106,16 @@ supabase db push
 ```
 
 This needs three GitHub secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
-`SUPABASE_PROJECT_REF` (`.github/workflows/deploy.yml:41-47`). CI additionally
-runs the full migration set from zero against a local stack on every push
-(`supabase db reset` + schema tests — `.github/workflows/ci.yml:8-33`), so a
+`SUPABASE_PROJECT_REF` (`.github/workflows/deploy.yml:52-55`). CI additionally
+runs the full migration set from zero against a local stack on every push, then
+**every SQL assertion suite** via the root `db:test:ci` script (delegates to
+`db:test:all` — `.github/workflows/ci.yml:9-36`, `package.json:28-29`), so a
 broken migration fails CI before deploy.
 
-The committed migrations, in order (`supabase/migrations/`):
+The initial schema migrations, in order (`supabase/migrations/` — later feature
+waves appended more files on top of these, e.g. porting, tasks/attachments,
+send-features, and the voice wave; the directory listing is the source of truth
+and `db push` applies them all):
 
 | File | Creates |
 |---|---|

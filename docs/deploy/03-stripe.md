@@ -101,7 +101,7 @@ price ID to stamp `registration_fee_paid_at`
 Stripe dashboard → **Developers → Webhooks → Add endpoint**.
 
 - **Endpoint URL:** `https://api.jobtext.app/webhooks/stripe`
-  (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:114`,
+  (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:129`,
   handled at `apps/api/src/webhooks/stripe.ts:33`). This route is **outside** the
   JWT/CORS chain — the HMAC signature is the authentication.
 - **Events to enable — exactly these 7** (the handler no-ops anything else,

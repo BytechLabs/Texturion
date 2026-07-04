@@ -8,25 +8,27 @@ basics.
 
 ## 1. Cron jobs — what runs and how to verify
 
-Seven cron triggers on `jobtext-api`, registered automatically on `wrangler deploy`
-(`apps/api/wrangler.jsonc:11-19`), mapped to jobs at `apps/api/src/index.ts:142-162`.
+Nine cron triggers on `jobtext-api`, registered automatically on `wrangler deploy`
+(`apps/api/wrangler.jsonc:11-21`), mapped to jobs at `apps/api/src/index.ts:157-198`.
 Jobs sharing a trigger run **sequentially but fail independently**; if any fails the
 whole run rejects (as an `AggregateError`) so Sentry records it
-(`apps/api/src/index.ts:184-197`).
+(`apps/api/src/index.ts:219-233`).
 
 | Cron (UTC) | Jobs | What it does |
 |------------|------|--------------|
-| `*/5 * * * *` | `sweepWebhookEvents` | Replays `webhook_events` rows still unprocessed after 2 min, up to 5 attempts; the 5th failure raises a Sentry alert (`apps/api/src/messaging/crons.ts:24-25,37`). Both providers, through the same dispatch as the live routes. |
-| `*/15 * * * *` | `reconcileNumbers`, `retryCampaignAssignments` | Resumes stuck provisioning, adopts crash-after-buy orphans, retries §4.4 campaign number-assignments (`apps/api/src/index.ts:145-148`). |
-| `0 * * * *` | `reportUnreportedUsage`, `runUsageAlertsJob` | Re-POSTs Stripe meter events for `usage_events` where `stripe_reported_at IS NULL`, then checks 80%/100% usage alerts (`apps/api/src/index.ts:149-151`, `apps/api/src/messaging/crons.ts:11-13`). |
-| `30 * * * *` | `nudgeSoleProprietorOtp` | Nudges sole-prop OTP outstanding ≥12h, once per submission (`apps/api/src/index.ts:152-153`). |
-| `0 13 * * *` | `pollRegistrations` | Daily 10DLC registration poller (fallback; webhooks are primary) (`apps/api/src/index.ts:154-155`). |
-| `0 14 * * *` | `runGraceJob` | Grace warnings (day 1/15/27) + day-30 number release + campaign deactivation (`apps/api/src/index.ts:156-158`). |
-| `0 15 * * *` | `runSubscriptionReconcileJob` | Re-mirrors non-active companies from Stripe; reports stale invites (`apps/api/src/index.ts:159-161`). |
+| `*/5 * * * *` | `sweepWebhookEvents` | Replays `webhook_events` rows still unprocessed after 2 min, up to 5 attempts; the 5th failure raises a Sentry alert (`apps/api/src/messaging/crons.ts:25,37,81-84`). Both providers, through the same dispatch as the live routes. |
+| `*/15 * * * *` | `reconcileNumbers`, `retryCampaignAssignments`, `sweepDeletedAttachments`, `reconcileTextEnablement`, `reconcileVoiceEnablement` | Resumes stuck provisioning, adopts crash-after-buy orphans, retries §4.4 campaign number-assignments; reclaims soft-deleted attachment objects past the signed-URL grace window; polls in-flight keep-your-number hosted-SMS orders (`/v1/text-enablements`, webhooks primary); binds voice on active numbers whose company has missed-call text-back on (`apps/api/src/index.ts:165-176`, `apps/api/src/telnyx/voice.ts:160-205`). |
+| `0 * * * *` | `reportUnreportedUsage`, `runUsageAlertsJob` | Re-POSTs Stripe meter events for `usage_events` where `stripe_reported_at IS NULL`, then checks 80%/100% usage alerts (`apps/api/src/index.ts:179`, `apps/api/src/messaging/crons.ts:102`). |
+| `30 * * * *` | `nudgeSoleProprietorOtp` | Nudges sole-prop OTP outstanding ≥12h, once per submission (`apps/api/src/index.ts:181`). |
+| `20 * * * *` | `geocodeContactsJob` | Backfills contact geocoding via Nominatim (D25), rate-limited to 1 req/s, cached to `contacts.lat/lng`; skips already-geocoded and not-found rows (`apps/api/src/index.ts:185`). |
+| `0 13 * * *` | `pollRegistrations` | Daily 10DLC registration poller (fallback; webhooks are primary). Also migrates already-approved campaigns' declared content — review-ask `sample3` + description, once per campaign (`apps/api/src/index.ts:187`, `apps/api/src/telnyx/registration.ts:790-823,940-950`). |
+| `10 13 * * *` | `pollPortRequests` | Daily port reconcile & resume (PORTING.md §5.2): polls in-flight porting orders, applies missed transitions, resumes stalled sagas (webhooks primary) (`apps/api/src/index.ts:191`). |
+| `0 14 * * *` | `runGraceJob` | Grace warnings (day 1/15/27) + day-30 number release + campaign deactivation (`apps/api/src/index.ts:194`). |
+| `0 15 * * *` | `runSubscriptionReconcileJob` | Re-mirrors non-active companies from Stripe; reports stale invites (`apps/api/src/index.ts:197`). |
 
 ### Verify the crons
 
-- **Cloudflare dashboard** → `jobtext-api` → **Triggers → Cron Triggers**: all 7
+- **Cloudflare dashboard** → `jobtext-api` → **Triggers → Cron Triggers**: all 9
   expressions listed with last-run status.
 - **Live logs:** `pnpm --filter @jobtext/api exec wrangler tail` and watch a
   `*/5` window, or Cloudflare → Worker → Logs.
@@ -66,16 +68,20 @@ email with the hosted invoice link; no state change
 ## 3. Monitoring
 
 - **Sentry** — the whole Worker (fetch + scheduled) is wrapped by
-  `Sentry.withSentry` (`apps/api/src/index.ts:206`). Unhandled `/v1` errors and cron
+  `Sentry.withSentry` (`apps/api/src/index.ts:242`). Unhandled `/v1` errors and cron
   failures are captured. PII is scrubbed: `sendDefaultPii:false`,
   `tracesSampleRate:0`, and `beforeSend`/`beforeBreadcrumb` scrubbers
   (`apps/api/src/observability/sentry.ts:117-125`) — message bodies never reach
   Sentry. Watch for: the `*/5` sweeper's 5th-attempt alerts, cron `AggregateError`s,
   and Resend/Telnyx/Stripe call failures.
 - **`/health`** — `GET https://api.jobtext.app/health` re-runs env validation; a 500
-  naming a key means a secret is missing/invalid (`apps/api/src/index.ts:78-82`). Good
+  naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`). Good
   target for an uptime monitor / the status page.
-- **PostHog** — not integrated; there is no product analytics pipeline to monitor.
+- **PostHog** — optional product analytics (`POSTHOG_API_KEY`,
+  [06](./06-env-reference.md) §E). Captures are best-effort: a PostHog failure
+  never breaks the send/webhook path — it logs and leaves a Sentry breadcrumb
+  (`apps/api/src/analytics/posthog.ts:49-57`). With the key unset there is
+  nothing to monitor.
 - **Cloudflare Workers metrics/logs** — request volume, error rate, cron invocations.
 
 ---
@@ -92,6 +98,8 @@ the Worker to pick up a new secret; re-hit `/health` after.
 | `STRIPE_WEBHOOK_SECRET` | Stripe → Webhooks → roll signing secret | `wrangler secret put STRIPE_WEBHOOK_SECRET` |
 | `TELNYX_API_KEY` | Telnyx → API Keys → new V2 key, delete old | `wrangler secret put TELNYX_API_KEY` |
 | `TELNYX_PUBLIC_KEY` | Only if Telnyx rotates the signing key | `wrangler secret put TELNYX_PUBLIC_KEY` |
+| `TELNYX_VOICE_CONNECTION_ID` | n/a — an application **id**, not a credential; nothing to leak. Changes only if you recreate the Call-Control app ([04](./04-telnyx.md) §1) | `wrangler secret put TELNYX_VOICE_CONNECTION_ID` (only after recreating the app) |
+| `POSTHOG_API_KEY` | PostHog → Project Settings → roll the project API key | `wrangler secret put POSTHOG_API_KEY` |
 | `RESEND_API_KEY` | Resend → API Keys → new key, revoke old | `wrangler secret put RESEND_API_KEY` |
 | `SENTRY_DSN` | Sentry → Client Keys → new DSN | `wrangler secret put SENTRY_DSN` |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → API Tokens | Update the GitHub Actions secret |
@@ -99,7 +107,7 @@ the Worker to pick up a new secret; re-hit `/health` after.
 
 > **Do NOT rotate `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`** except in a real
 > compromise — rotation invalidates **every** existing push subscription
-> (`apps/api/src/env.ts:23-29`). If you must, users re-subscribe on next visit.
+> (`apps/api/src/env.ts:44-50`). If you must, users re-subscribe on next visit.
 
 After rotating any secret, run the [07](./07-go-live-checklist.md) §C smoke test's
 affected leg (e.g. a Stripe test event after rotating the webhook secret).
@@ -141,7 +149,7 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 4. **Outbound texting blocked for one company** — expected when `past_due`/`canceled`
    (§2). Check `subscription_status`.
 5. **CORS failures in the browser** — `APP_ORIGIN` on the Worker must exactly equal
-   the web origin, no trailing slash mismatch (`apps/api/src/index.ts:65`).
+   the web origin, no trailing slash mismatch (`apps/api/src/index.ts:75`).
 6. **Rollback** — deploys are per-Worker; redeploy the previous commit
    (`pnpm --filter @jobtext/api exec wrangler deploy` / the web deploy) or use
    Cloudflare's version rollback. Migrations are **forward-only** — never `db push` a

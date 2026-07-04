@@ -21,10 +21,10 @@ later step needs credentials and hostnames from here.
 | Domain registrar | your registrar | — | Register the domain, delegate DNS to Cloudflare. |
 | Status page | Instatus / BetterStack (free tier) | — | Launch blocker (`docs/marketing/BLUEPRINT.md:984`). Stand up `status.<domain>`. |
 
-**PostHog:** listed as a subprocessor in marketing prose
-(`apps/web/src/app/(marketing)/legal/subprocessors/page.tsx:73`) but **there is no
-PostHog code integration** in `apps/api` or `apps/web` and no env var reads it —
-nothing to create or configure for deploy.
+**PostHog:** optional. The API Worker captures product analytics when the
+optional `POSTHOG_API_KEY` secret is set (silent no-op when unset,
+`apps/api/src/analytics/posthog.ts:31`) — create a PostHog Cloud US project only
+if you want analytics. See [06](./06-env-reference.md) §E.
 
 ---
 
@@ -35,24 +35,39 @@ config and env, so decide them before setting secrets.
 
 | Hostname (PLACEHOLDER) | Serves | Cloudflare object | Feeds env |
 |------------------------|--------|-------------------|-----------|
-| `app.jobtext.app` | The web app (`jobtext-web` Worker) | Custom domain on `jobtext-web` | `APP_ORIGIN` (api secret), `NEXT_PUBLIC_API_URL`'s peer |
+| `app.jobtext.app` | The product (app/auth/onboarding) — `jobtext-web` Worker | Custom domain on `jobtext-web` | `APP_ORIGIN` (api secret), `NEXT_PUBLIC_APP_ORIGIN` (web build, optional — D27) |
 | `api.jobtext.app` | The API + webhooks (`jobtext-api` Worker) | Custom domain on `jobtext-api` | `API_ORIGIN` (api secret), `NEXT_PUBLIC_API_URL` (web build) |
-| `jobtext.app` (root) | Marketing site | Part of the `jobtext-web` app (marketing route group) | — |
+| `jobtext.app` (root) + `www.jobtext.app` | Marketing site **only** (D27) | Custom domains on the same `jobtext-web` Worker | — |
 | `status.jobtext.app` | Hosted status page | CNAME to the status provider | — |
+
+> **D27 — marketing/app host split** (`docs/DECISIONS.md` D27): there is still
+> only **one** web Worker. `jobtext.app`, `www.jobtext.app`, **and**
+> `app.jobtext.app` all attach to it as custom domains; the middleware's first
+> gate (`apps/web/src/lib/hosts.ts`) decides per request. With
+> `NEXT_PUBLIC_APP_ORIGIN` set, the marketing host serves only marketing pages
+> (app-surface paths 308 to the app origin; `www` canonicalizes to the apex) and
+> the app host serves only the product (marketing paths 308 to the canonical
+> site; `/` roots at `/for-you`). Unset (dev/CI/previews) = no gating.
 
 Why these matter in code:
 
 - **`APP_ORIGIN`** is the *exact* CORS allow-origin for the API — no wildcard
-  (`apps/api/src/index.ts:65`) — and the base of every email/billing link
+  (`apps/api/src/index.ts:75`) — and the base of every email/billing link
   (e.g. `apps/api/src/routes/billing.ts:171,199`, `apps/api/src/webhooks/stripe.ts:412`).
+  Supabase/Stripe return URLs stay on `APP_ORIGIN` — the D27 split changes none
+  of them.
 - **`API_ORIGIN`** is built into the Telnyx webhook callback URL
   (`${API_ORIGIN}/webhooks/telnyx`, `apps/api/src/telnyx/wizard.ts:140-142`) and the
-  Stripe webhook endpoint (`${API_ORIGIN}/webhooks/stripe`, `apps/api/src/index.ts:114`).
+  Stripe webhook endpoint (`${API_ORIGIN}/webhooks/stripe`, `apps/api/src/index.ts:129`).
 - **`NEXT_PUBLIC_API_URL`** (the web bundle's API base) must equal `API_ORIGIN`
   (`apps/web/src/env.ts:6`).
+- **`NEXT_PUBLIC_APP_ORIGIN`** (optional, web build) must equal `APP_ORIGIN` and
+  activates the D27 host split (`apps/web/src/env.ts:11-16`,
+  `apps/web/src/lib/hosts.ts`).
 
-`APP_ORIGIN`, `API_ORIGIN`, and `NEXT_PUBLIC_API_URL` must all agree with the actual
-deployed Worker URLs or CORS, webhooks, and links break.
+`APP_ORIGIN`, `API_ORIGIN`, `NEXT_PUBLIC_API_URL` (and `NEXT_PUBLIC_APP_ORIGIN`
+when set) must all agree with the actual deployed Worker URLs or CORS, webhooks,
+links, and the host split break.
 
 ---
 
@@ -68,9 +83,10 @@ deployed Worker URLs or CORS, webhooks, and links break.
    **custom-domain** bindings you add to each Worker in [05](./05-workers-deploy.md)
    §4 create the routing records for `app.` and `api.` automatically (orange-cloud
    proxied).
-4. For the **root marketing** hostname, the same `jobtext-web` Worker serves it —
-   add `jobtext.app` (and optionally `www`) as additional custom domains on
-   `jobtext-web` in [05](./05-workers-deploy.md) §4.
+4. For the **marketing** hostnames, the same `jobtext-web` Worker serves them —
+   add `jobtext.app` **and** `www.jobtext.app` as additional custom domains on
+   `jobtext-web` in [05](./05-workers-deploy.md) §4. (With the D27 host split
+   active, `www` must be attached so the middleware can 308 it to the apex.)
 5. For **`status.jobtext.app`**, add a `CNAME` to whatever host your status provider
    gives you (this is external to the Workers).
 

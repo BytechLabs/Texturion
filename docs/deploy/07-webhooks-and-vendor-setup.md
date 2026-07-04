@@ -7,17 +7,19 @@ webhook endpoint) is in [09](./09-stripe-catalog-setup.md). Supabase is in
 
 The one webhook URL rule for JobText: **there is exactly one Telnyx webhook path
 and one Stripe webhook path**, both on the API Worker, both outside the JWT/CORS
-chain (the provider signature is the authentication) — `apps/api/src/index.ts:108-114`.
+chain (the provider signature is the authentication) — `apps/api/src/index.ts:123-129`.
+The Telnyx path receives messaging, 10DLC, porting, **and** `call.*`
+Call-Control (voice) events alike.
 
 | Provider | URL | Registered where | Auth |
 |---|---|---|---|
-| Telnyx | `${API_ORIGIN}/webhooks/telnyx` | **Programmatically**, per messaging profile (not the portal) | Ed25519 |
+| Telnyx | `${API_ORIGIN}/webhooks/telnyx` | **Programmatically**, per messaging profile (not the portal) — plus **once manually** on the Call-Control application ([04](./04-telnyx.md) §1) | Ed25519 |
 | Stripe | `${API_ORIGIN}/webhooks/stripe` | **Manually**, one endpoint in the Stripe dashboard | HMAC |
 
 With `API_ORIGIN=https://api.jobtext.app` these are
 `https://api.jobtext.app/webhooks/telnyx`
 (`apps/api/src/telnyx/wizard.ts:140-142`) and
-`https://api.jobtext.app/webhooks/stripe` (`apps/api/src/index.ts:114`).
+`https://api.jobtext.app/webhooks/stripe` (`apps/api/src/index.ts:129`).
 
 ---
 
@@ -42,15 +44,24 @@ enablement Telnyx requires before you can order numbers or register 10DLC.
    Ed25519 over `"{telnyx-timestamp}|{raw_body}"` from the
    `telnyx-signature-ed25519` header, 5-minute tolerance
    (`apps/api/src/telnyx/verify.ts:56-101`).
-3. **Account-level messaging enablement / funding** as Telnyx requires before
+3. **Create the Call-Control (voice) application, once.** Portal → Voice →
+   **Call Control** (Programmable Voice application): set its webhook URL **and**
+   webhook failover URL to `${API_ORIGIN}/webhooks/telnyx` — the same endpoint as
+   messaging; its `call.*` events carry the same Ed25519 signature and are
+   verified identically. Copy the application id → `TELNYX_VOICE_CONNECTION_ID`
+   (`apps/api/src/env.ts:28-34`). The Worker binds each company's numbers'
+   **voice** settings to this application at runtime when missed-call text-back
+   is enabled (`apps/api/src/telnyx/voice.ts:73,88-101`); the SMS binding
+   (messaging profile) is never touched.
+4. **Account-level messaging enablement / funding** as Telnyx requires before
    number orders and 10DLC (account balance, US 10DLC access). *Not encoded in
    the app — a Telnyx account prerequisite; the code assumes ordering and 10DLC
    submission succeed.*
 
 That is the entire portal surface. **Do NOT create messaging profiles, set
-webhook URLs, order numbers, or register brands/campaigns in the portal** — the
-Worker does all of that per-company via the API, and a portal-created profile
-would not be linked to a company row.
+per-profile webhook URLs, order numbers, or register brands/campaigns in the
+portal** — the Worker does all of that per-company via the API, and a
+portal-created profile would not be linked to a company row.
 
 ### What the Worker does via the API (no operator action)
 
@@ -105,26 +116,31 @@ status updates come back to the same `/webhooks/telnyx` endpoint.
 ### Telnyx webhook — event types the Worker handles
 
 The single `/webhooks/telnyx` route dispatches on `data.event_type`
-(`apps/api/src/messaging/dispatch.ts:19-29`, `SPEC.md:864-867`):
+(`apps/api/src/messaging/dispatch.ts:14-43`, `SPEC.md:864-867`):
 
 | `event_type` | Handler | Source |
 |---|---|---|
-| `message.received` | inbound pipeline (threading, opt-out, MMS download) | `dispatch.ts:19-21` |
-| `message.sent` | mark message `sent` | `dispatch.ts:22-24` |
-| `message.finalized` | delivery status + metering | `dispatch.ts:22-24` |
-| `10dlc.brand.update` | brand state machine | `dispatch.ts:25-28`, `registration.ts:800-808` |
-| `10dlc.campaign.update` | campaign state machine | `registration.ts:810-821` |
-| `10dlc.phone_number.update` | number-assignment ledger | `registration.ts:823-850` |
+| `message.received` | inbound pipeline (threading, opt-out, MMS download) | `dispatch.ts:21-23` |
+| `message.sent` | mark message `sent` | `dispatch.ts:24-26` |
+| `message.finalized` | delivery status + metering | `dispatch.ts:24-26` |
+| `call.*` (from the Call-Control app: `call.initiated`, `call.hangup`, `call.machine.detection.ended`; other lifecycle events are acked no-ops) | missed-call text-back — forward-to-cell dial + computed-missed → text-back | `dispatch.ts:27-31`, `messaging/voice-webhook.ts:99-120` |
+| `10dlc.brand.update` | brand state machine | `dispatch.ts:32-35`, `registration.ts:873-881` |
+| `10dlc.campaign.update` | campaign state machine | `registration.ts:883-894` |
+| `10dlc.phone_number.update` | number-assignment ledger | `registration.ts:896-923` |
+| `porting_order.*` | port-in state machine (PORTING.md §5.1) | `dispatch.ts:36-41`, `telnyx/porting.ts` |
 
-Anything else is acked as a no-op (`dispatch.ts:29`). You do **not** enable these
-event types in a portal UI — they are delivered because the messaging profile
-and 10DLC objects were created with the webhook URL set (above). Telnyx requires
+Anything else is acked as a no-op (`dispatch.ts:42`). You do **not** enable these
+event types in a portal UI — they are delivered because the messaging profile,
+10DLC objects, and the Call-Control application were created with the webhook
+URL set (above). Telnyx requires
 a 2xx within 2 seconds and retries up to 6× (`SPEC.md:843`); the route acks fast
 and processes in `waitUntil`, with a PK-dedupe ledger for the expected
 duplicates (`apps/api/src/webhooks/telnyx.ts:31-74`).
 
-**Yields env vars:** `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`
-(`apps/api/src/env.ts:12-13`). No portal webhook-URL entry is required.
+**Yields env vars:** `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`,
+`TELNYX_VOICE_CONNECTION_ID` (`apps/api/src/env.ts:26-34`). The only portal
+webhook-URL entry is the one on the Call-Control application (step 3);
+everything else is programmatic.
 
 ---
 
@@ -147,11 +163,11 @@ Two uses, both need one verified domain and one API key.
 1. **Add and verify the sending domain** (e.g. `jobtext.app`) — add the DKIM/SPF
    DNS records Resend gives you and wait for verification. `RESEND_FROM` must use
    an address at this verified domain, e.g.
-   `JobText <notifications@jobtext.app>` (`apps/api/src/env.ts:21`,
-   `apps/api/.dev.vars.example:15`). An unverified domain makes every
+   `JobText <notifications@jobtext.app>` (`apps/api/src/env.ts:42-43`,
+   `apps/api/.dev.vars.example:18`). An unverified domain makes every
    `sendEmail` throw on the non-2xx (`apps/api/src/email/resend.ts:43-50`).
 2. **Create an API key** → `RESEND_API_KEY` (`re_...`)
-   (`apps/api/src/env.ts:16`).
+   (`apps/api/src/env.ts:37`).
 3. For Supabase SMTP: Resend → SMTP credentials; plug host/port/user/pass into
    Supabase Auth (see [05](./05-supabase-migrations.md)).
 
@@ -166,24 +182,30 @@ One action: create a project, take its DSN.
 - The whole Worker (fetch + scheduled) is wrapped by `Sentry.withSentry` with
   `dsn: SENTRY_DSN`, `sendDefaultPii: false`, `tracesSampleRate: 0`, and PII
   scrubbing in `beforeSend`/`beforeBreadcrumb`
-  (`apps/api/src/index.ts:206`, `apps/api/src/observability/sentry.ts:117-125`).
+  (`apps/api/src/index.ts:242`, `apps/api/src/observability/sentry.ts:117-125`).
 - The scrubber redacts E.164 phone numbers everywhere and strips name-keyed
   fields, request bodies, cookies, and query strings before anything leaves the
   Worker (`apps/api/src/observability/sentry.ts:20-110`). No extra Sentry-side
   configuration is required for the PII policy — it is enforced in code.
 
 **Operator action:** Sentry dashboard → your project → Settings → Client Keys
-(DSN) → copy → set `SENTRY_DSN` (`apps/api/src/env.ts:17`).
+(DSN) → copy → set `SENTRY_DSN` (`apps/api/src/env.ts:38`).
 
 **Yields env var:** `SENTRY_DSN`.
 
 ## PostHog
 
-**No integration exists in the committed code.** The strings "PostHog"/"Sentry"
-appear only as prose in marketing/legal pages
-(`apps/web/src/app/(marketing)/legal/subprocessors/page.tsx`,
-`.../security/page.tsx`, `.../legal/privacy/page.tsx`) — there is no PostHog env
-var, client init, or capture call anywhere in `apps/api` or `apps/web`. There is
-nothing to deploy or configure for PostHog. (Grep confirmed: no `posthog` import
-or key in any `.ts`/`.tsx`; only docs/marketing/legal text.) Do not add a
-PostHog secret expecting the code to read it — it will not.
+**Optional, server-side only.** The API Worker has a single `capture` helper
+(`apps/api/src/analytics/posthog.ts`) that posts the north-star funnel events
+(checkout completed, first outbound sent, registration submitted/approved) to
+PostHog Cloud US. `distinct_id` is always the **company_id** — never a person,
+never PII (`posthog.ts:40`), and captures are best-effort (a PostHog outage
+never breaks the send/webhook path, `posthog.ts:49-57`).
+
+**Operator action (optional):** create a PostHog Cloud US project and set its
+Project API key as the `POSTHOG_API_KEY` Worker secret
+(`apps/api/src/env.ts:65`). With the key unset, every capture is a silent no-op
+(`posthog.ts:31`) — running without PostHog is fully supported. There is no
+web-side PostHog client; the strings in marketing/legal pages are prose only.
+
+**Yields env var:** `POSTHOG_API_KEY` (optional).

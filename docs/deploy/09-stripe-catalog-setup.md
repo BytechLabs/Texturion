@@ -135,7 +135,7 @@ https://api.jobtext.app/webhooks/stripe
 ```
 
 The route is mounted at `/webhooks/stripe`, outside the JWT/CORS chain — the
-Stripe signature is the authentication (`apps/api/src/index.ts:114`,
+Stripe signature is the authentication (`apps/api/src/index.ts:129`,
 `apps/api/src/webhooks/stripe.ts:22-33`).
 
 **Events to enable** on the endpoint — the handler switches on exactly this set

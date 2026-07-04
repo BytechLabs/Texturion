@@ -68,7 +68,7 @@ Key facts:
 
 ## 4. Apply migrations (`supabase link` + `supabase db push`)
 
-Migrations run **before either Worker deploys** (`.github/workflows/deploy.yml:41-53`).
+Migrations run **before either Worker deploys** (`.github/workflows/deploy.yml:50-62`).
 CI does this for you on merge to `main`; to run it manually:
 
 ```bash
@@ -80,7 +80,7 @@ supabase link --project-ref <SUPABASE_PROJECT_REF>
 supabase db push
 ```
 
-This is exactly what the deploy workflow runs (`.github/workflows/deploy.yml:46-47`).
+This is exactly what the deploy workflow runs (`.github/workflows/deploy.yml:54-56`).
 The migrations under `supabase/migrations/` create, among other things:
 
 - **Extensions** (in the `extensions` schema, *not* the dashboard):
@@ -93,7 +93,7 @@ The migrations under `supabase/migrations/` create, among other things:
 
 The three CI secrets this step needs (set them in [05](./05-workers-deploy.md) §5):
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`
-(`.github/workflows/deploy.yml:43-46`).
+(`.github/workflows/deploy.yml:52-55`).
 
 ---
 
@@ -119,14 +119,23 @@ private). If it's missing, the migration didn't run.
 
 ## 6. Signup CAPTCHA = Cloudflare Turnstile
 
-Signup CAPTCHA is a **Supabase dashboard setting**, not an app env var
-(`SPEC.md:1052`):
+Turnstile has **two halves** (`SPEC.md:1052`):
 
-- Supabase → **Authentication → Attack Protection → CAPTCHA** → enable, provider
-  **Turnstile**, paste your Cloudflare Turnstile secret.
+- **Secret key → Supabase dashboard**: Supabase → **Authentication → Attack
+  Protection → CAPTCHA** → enable, provider **Turnstile**, paste your Cloudflare
+  Turnstile **secret** key.
+- **Site key → the web build**: the widget's **site** key is the optional
+  `NEXT_PUBLIC_TURNSTILE_SITE_KEY` build var (`apps/web/src/env.ts:10`). When
+  set, signup/login/reset-password render the Turnstile widget and pass its
+  `captchaToken` to Supabase Auth; when unset, no captcha renders.
 
-That dashboard setting *is* the signup Turnstile mechanism; the app reads no
-Turnstile env var.
+> **Order of operations — do NOT enable the dashboard setting first.** Once
+> Supabase enforces captcha, any auth attempt without a `captchaToken` is
+> rejected — a web build without the site key means **every email/password
+> signup/login/reset breaks**. Set the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub
+> Actions secret (the deploy workflow passes it into the web build,
+> `.github/workflows/deploy.yml:23-26`), redeploy web, *then* flip the Supabase
+> setting. See [06](./06-env-reference.md) §B.
 
 ---
 

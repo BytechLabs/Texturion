@@ -16,22 +16,42 @@ prerequisites flagged by the marketing/legal docs.
 - [ ] Migrations applied (`supabase db push` succeeded); `mms-media` bucket present
       (private, 5 MB); extensions installed ([02](./02-supabase.md) §4–§5).
 - [ ] Turnstile CAPTCHA + Resend custom SMTP configured on Supabase Auth
-      ([02](./02-supabase.md) §6–§7).
+      ([02](./02-supabase.md) §6–§7). **Captcha ordering:** the
+      `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub secret must be set and web
+      redeployed **before** enabling the Supabase captcha setting (site key in
+      the build; secret key in the Supabase dashboard) — otherwise every
+      email/password signup/login/reset breaks ([06](./06-env-reference.md) §B).
 - [ ] Stripe **live** catalog created; 6 IDs captured; Tax active; portal + dunning
       (→ cancel) configured; webhook endpoint at
       `https://api.jobtext.app/webhooks/stripe` with the **7** events; `whsec_`
       captured ([03](./03-stripe.md)).
-- [ ] Telnyx live V2 API key + webhook public key captured; account has US/CA + 10DLC
+- [ ] Telnyx live V2 API key + webhook public key captured; **Call-Control (voice)
+      application created** with webhook + failover URL =
+      `https://api.jobtext.app/webhooks/telnyx` and its id captured as
+      `TELNYX_VOICE_CONNECTION_ID`; account has US/CA + 10DLC
       and funded balance ([04](./04-telnyx.md)).
 - [ ] Resend sending domain verified; `RESEND_FROM` on that domain. Sentry DSN
       captured. VAPID pair generated ([05](./05-workers-deploy.md) §1).
-- [ ] All **20** API Worker secrets set on `jobtext-api`; `GET
+- [ ] All **21** required API Worker secrets set on `jobtext-api` (+ optional
+      `POSTHOG_API_KEY` if you use analytics); `GET
       https://api.jobtext.app/health` → `{"ok":true}` ([05](./05-workers-deploy.md) §2).
-- [ ] All **7** GitHub Actions secrets set; **`NEXT_PUBLIC_API_URL` gap resolved** by
-      the CI owner (or web deployed manually with the var) ([05](./05-workers-deploy.md) §5).
-- [ ] Both Workers deployed; custom domains bound; `app.` loads, `api./health` OK
-      ([05](./05-workers-deploy.md) §3–§4).
-- [ ] Cron triggers visible on `jobtext-api` (Cloudflare → Worker → Triggers) — all 7
+- [ ] All **8** required GitHub Actions secrets set — including
+      `NEXT_PUBLIC_API_URL`, which Deploy now reads
+      (`.github/workflows/deploy.yml:22`) — plus the optional two:
+      `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`, **required before
+      enabling Supabase captcha**) and `NEXT_PUBLIC_APP_ORIGIN`
+      (`deploy.yml:27-30`, activates the D27 host split; production value
+      `https://app.jobtext.app`) ([05](./05-workers-deploy.md) §5).
+- [ ] Both Workers deployed; custom domains bound — `app.jobtext.app`,
+      `jobtext.app`, **and** `www.jobtext.app` all on the one `jobtext-web`
+      Worker (D27), `api.jobtext.app` on `jobtext-api`; `app.` loads,
+      `api./health` OK ([05](./05-workers-deploy.md) §3–§4,
+      [01](./01-accounts-and-domain.md) §2).
+- [ ] D27 host split verified (with `NEXT_PUBLIC_APP_ORIGIN` set):
+      `jobtext.app/login` 308s to `app.jobtext.app/login`, `www.jobtext.app`
+      canonicalizes to `jobtext.app`, and a marketing path on `app.jobtext.app`
+      308s back to `jobtext.app` (`apps/web/src/lib/hosts.ts`).
+- [ ] Cron triggers visible on `jobtext-api` (Cloudflare → Worker → Triggers) — all 9
       ([05](./05-workers-deploy.md) §6).
 
 ---
@@ -67,7 +87,8 @@ Run against **Stripe test mode** and a **Telnyx sandbox number** before flipping
 live. Use two real phones (or one phone + the Telnyx test tooling).
 
 1. **Sign up** — create an account at `https://app.jobtext.app`. Confirm the signup
-   CAPTCHA (Turnstile) appears and the Supabase invite/confirmation email arrives via
+   CAPTCHA (Turnstile) appears (it renders only when the build had
+   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set) and the Supabase invite/confirmation email arrives via
    Resend. Confirm the app can call the API (a `/v1/me`-class request returns 200, not
    401 — this validates the ES256 JWKS path, `apps/api/src/auth/jwt.ts:41-44`).
 2. **Pay in Stripe (test)** — start checkout, pay with `4242 4242 4242 4242`. Confirm
@@ -82,7 +103,7 @@ live. Use two real phones (or one phone + the Telnyx test tooling).
    submission starts (`apps/api/src/webhooks/stripe.ts:271`).
 4. **Send + receive a real text** — send an outbound SMS from the app to your test
    phone; reply from the phone. Confirm the inbound arrives
-   (`message.received` → `apps/api/src/messaging/dispatch.ts:19-29`) and appears in the
+   (`message.received` → `apps/api/src/messaging/dispatch.ts:21-23`) and appears in the
    conversation in near-real-time (realtime broadcast).
 5. **Webhook delivery** — confirm `message.sent`/`message.finalized` status webhooks
    land and usage is metered (a `usage_events` row; then a Stripe meter event on the
@@ -105,8 +126,9 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 - [ ] Re-run `stripe:setup` in **live** mode; swap the 6 `STRIPE_*` IDs,
       `STRIPE_SECRET_KEY` (live restricted key), and `STRIPE_WEBHOOK_SECRET` (live
       endpoint) on the Worker.
-- [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account; confirm
-      10DLC approval.
+- [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account (and
+      `TELNYX_VOICE_CONNECTION_ID` to a Call-Control app created in that account);
+      confirm 10DLC approval.
 - [ ] Re-hit `https://api.jobtext.app/health` → `{"ok":true}`.
 - [ ] Repeat the smoke test's send/receive with a **live** number and a real card
       (small amount), then refund.
