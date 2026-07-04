@@ -104,6 +104,9 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
         finish US registration.
       </p>
       <form
+        // method="post" so a pre-hydration native submit sends the OTP code in
+        // the body, never the URL (the handler preventDefaults once hydrated).
+        method="post"
         className="mt-3 flex flex-wrap items-end gap-2"
         onSubmit={(event) => {
           event.preventDefault();

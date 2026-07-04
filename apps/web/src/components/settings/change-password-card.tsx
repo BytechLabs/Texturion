@@ -132,6 +132,9 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
     >
       <Form {...form}>
         <form
+          // method="post" so a pre-hydration native submit sends the passwords
+          // in the body, never the URL (handleSubmit preventDefaults once live).
+          method="post"
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
           noValidate

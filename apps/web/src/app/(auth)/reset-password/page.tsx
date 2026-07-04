@@ -91,6 +91,9 @@ export default function ResetPasswordPage() {
       </div>
       <Form {...form}>
         <form
+          // method="post" so a pre-hydration native submit sends the email in
+          // the body, never the URL (handleSubmit preventDefaults once live).
+          method="post"
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
           noValidate

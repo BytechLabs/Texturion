@@ -131,6 +131,10 @@ export default function SignupPage() {
       <OAuthButtons />
       <Form {...form}>
         <form
+          // Belt-and-suspenders: `handleSubmit` preventDefaults once hydrated,
+          // but method="post" ensures a pre-hydration native submit sends
+          // credentials in the request BODY, never the URL query string.
+          method="post"
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
           noValidate

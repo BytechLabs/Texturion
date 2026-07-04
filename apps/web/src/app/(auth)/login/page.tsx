@@ -89,6 +89,9 @@ function LoginForm() {
       <OAuthButtons next={searchParams.get("next")} />
       <Form {...form}>
         <form
+          // method="post" so a pre-hydration native submit sends credentials
+          // in the body, never the URL (handleSubmit preventDefaults once live).
+          method="post"
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
           noValidate

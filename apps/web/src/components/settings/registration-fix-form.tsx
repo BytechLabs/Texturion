@@ -366,6 +366,9 @@ export function RegistrationFixForm({
   return (
     <Form {...form}>
       <form
+        // method="post" so a pre-hydration native submit keeps sensitive
+        // registration data (EIN, SSN last-4) in the body, never the URL.
+        method="post"
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
         noValidate

@@ -134,6 +134,9 @@ export default function UpdatePasswordPage() {
       </div>
       <Form {...form}>
         <form
+          // method="post" so a pre-hydration native submit sends the new
+          // password in the body, never the URL (handleSubmit preventDefaults).
+          method="post"
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-4"
           noValidate
