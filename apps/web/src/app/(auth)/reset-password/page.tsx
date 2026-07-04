@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { publicEnv } from "@/env";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -29,6 +31,12 @@ export default function ResetPasswordPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
+  // Supabase's captcha setting gates resetPasswordForEmail too, so this form
+  // carries the same optional Turnstile token as signup (SPEC §10 front door).
+  const siteKey = publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "" },
@@ -38,9 +46,15 @@ export default function ResetPasswordPage() {
     setServerError(null);
     const { error } = await getSupabaseBrowser().auth.resetPasswordForEmail(
       values.email,
-      { redirectTo: `${window.location.origin}/update-password` },
+      {
+        redirectTo: `${window.location.origin}/update-password`,
+        captchaToken: captchaToken ?? undefined,
+      },
     );
     if (error) {
+      // Captcha tokens are single-use — mint a fresh one before a retry.
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
       setServerError(authErrorMessage(error));
       return;
     }
@@ -100,6 +114,13 @@ export default function ResetPasswordPage() {
               </FormItem>
             )}
           />
+          {siteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={siteKey}
+              onToken={setCaptchaToken}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-destructive">
               {serverError}
@@ -108,7 +129,10 @@ export default function ResetPasswordPage() {
           <Button
             type="submit"
             className="w-full"
-            disabled={form.formState.isSubmitting}
+            disabled={
+              form.formState.isSubmitting ||
+              (siteKey !== undefined && captchaToken === null)
+            }
           >
             {form.formState.isSubmitting ? "Sending…" : "Send reset link"}
           </Button>

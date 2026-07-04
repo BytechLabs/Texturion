@@ -216,6 +216,15 @@ export default function NumberStepPage() {
               </Label>
             ))}
           </RadioGroup>
+          {/* Path B (keep number AND carrier) is deliberately not a third
+              wizard fork — it's a Settings flow after signup. One honest
+              mention here so landline owners know it exists. */}
+          <p className="text-[13px] text-muted-foreground">
+            Have a landline you&apos;d rather keep with its current carrier?
+            After signup you can add texting to it from Settings → Numbers —
+            calls don&apos;t change, and the carrier review takes a few
+            business days.
+          </p>
         </fieldset>
 
         <fieldset className="space-y-2">

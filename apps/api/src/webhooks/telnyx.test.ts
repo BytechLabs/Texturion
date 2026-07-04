@@ -487,7 +487,7 @@ describe("inbound pipeline — notification pipeline (§8)", () => {
     expect(email.subject).toBe("New text from Dana Smith");
     expect(email.text).toContain("Hi, do you do gutters?");
     expect(email.text).toContain(
-      `${env.APP_ORIGIN}/conversations/${CONVERSATION_ID}`,
+      `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
     );
     expect(world.ledger.stamp.calls).toHaveLength(1); // processed
   });

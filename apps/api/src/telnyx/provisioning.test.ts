@@ -24,6 +24,7 @@ const CHECKOUT = "cs_test_0001";
 
 const NUMBER_DEFAULTS = {
   status: "provisioning",
+  source: "provisioned",
   requested_area_code: null,
   number_e164: null,
   telnyx_phone_number_id: null,
@@ -453,6 +454,69 @@ describe("reconcileNumbers — §11 crash-window recovery", () => {
     const summary = await reconcileNumbers(env);
     expect(summary.retried).toBe(0); // canceled → grace path owns it
     expect(summary.orphansFlagged).toBe(1);
+  });
+
+  it("never touches ported/hosted rows waiting on their own sagas", async () => {
+    const { env, rest, telnyx } = setup();
+    // A port sits at status='provisioning' for the whole multi-week transfer;
+    // a hosted (text-enablement) row for the multi-day carrier review. The buy
+    // saga running on either would ORDER A NEW NUMBER and overwrite the
+    // owner's own number_e164 — the exact keep-your-number betrayal.
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "ported",
+      provisioning_key: "port-key",
+      country: "US",
+      number_e164: "+16135550100",
+      updated_at: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "hosted",
+      provisioning_key: "hosted-key",
+      country: "US",
+      number_e164: "+16135550200",
+      updated_at: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+      data: [],
+      meta: { total_pages: 1 },
+    }));
+
+    const summary = await reconcileNumbers(env);
+    expect(summary.retried).toBe(0);
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(0);
+    for (const row of rest.rows("phone_numbers")) {
+      expect(row.status).toBe("provisioning"); // untouched
+      expect(row.number_e164).toMatch(/^\+1613555/); // never overwritten
+    }
+  });
+});
+
+describe("resumeProvisioning — source guard", () => {
+  it("refuses to run the buy saga on a non-provisioned row", async () => {
+    const { env, telnyx } = setup();
+    const hosted = {
+      id: "33333333-3333-4333-8333-333333333333",
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "hosted",
+      provisioning_key: "hosted-key",
+      requested_area_code: null,
+      country: "US",
+      number_e164: "+16135550200",
+      telnyx_phone_number_id: null,
+      telnyx_order_id: null,
+      provision_attempts: 0,
+      last_provision_error: null,
+    } as unknown as PhoneNumberRow;
+
+    const row = await resumeProvisioning(env, hosted);
+    expect(row).toEqual(hosted); // returned untouched
+    expect(telnyx.calls).toHaveLength(0); // no Telnyx traffic at all
   });
 });
 

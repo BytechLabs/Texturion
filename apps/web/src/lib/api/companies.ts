@@ -59,6 +59,11 @@ export interface CompanyPatch {
   away_message?: string | null;
   /** FEATURE-GAPS Step 2 — Google review deep-link (O/A). null clears it. */
   google_review_link?: string | null;
+  /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
+  mctb_enabled?: boolean;
+  mctb_message?: string | null;
+  /** Optional E.164 cell to forward calls to; null clears it. */
+  forward_to_cell?: string | null;
 }
 
 /** PATCH /v1/company — workspace name (O/A) + overage cap (owner). */

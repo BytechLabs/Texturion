@@ -8,6 +8,7 @@ import { handlePortingEvent } from "../telnyx/porting";
 import { handle10dlcEvent } from "../telnyx/registration";
 import { handleInboundMessage } from "./inbound";
 import { handleStatusEvent } from "./status";
+import { handleCallEvent } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";
 
 export async function dispatchTelnyxEvent(
@@ -22,6 +23,11 @@ export async function dispatchTelnyxEvent(
   }
   if (eventType === "message.sent" || eventType === "message.finalized") {
     return handleStatusEvent(env, event);
+  }
+  if (eventType.startsWith("call.")) {
+    // FEATURE-GAPS voice wave: inbound Call-Control events for the missed-call
+    // text-back. Compute-missed → text-back through the shared auto-send guard.
+    return handleCallEvent(env, event);
   }
   if (eventType.startsWith("10dlc.")) {
     // Cross-track contract: the registration state machine (telnyx track).

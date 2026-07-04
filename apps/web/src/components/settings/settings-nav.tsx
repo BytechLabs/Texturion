@@ -8,6 +8,7 @@ import {
   CreditCard,
   Gauge,
   Phone,
+  PhoneMissed,
   ShieldCheck,
   Star,
   UserRound,
@@ -52,6 +53,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Business hours & away reply",
     description: "Auto-reply after hours in your own words",
     icon: Clock,
+  },
+  {
+    // FEATURE-GAPS voice wave — missed-call text-back.
+    slug: "missed-calls",
+    label: "Missed calls",
+    description: "Text back when a call goes unanswered",
+    icon: PhoneMissed,
   },
   {
     // FEATURE-GAPS Step 2 — Google review link.

@@ -26,13 +26,15 @@ import { cn } from "@/lib/utils";
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
 const MAX_BYTES = 10 * 1024 * 1024;
 
-function FileField({
+/** One labeled file slot — shared with the text-enablement documents form. */
+export function FileField({
   id,
   label,
   hint,
   filename,
   uploaded,
   onFile,
+  accept = ACCEPT,
 }: {
   id: string;
   label: string;
@@ -40,6 +42,8 @@ function FileField({
   filename: string | null;
   uploaded: boolean;
   onFile: (file: File | null) => void;
+  /** Input accept filter; defaults to the porting PDF/PNG/JPEG set. */
+  accept?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -82,7 +86,7 @@ function FileField({
           ref={inputRef}
           id={id}
           type="file"
-          accept={ACCEPT}
+          accept={accept}
           className="sr-only"
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />

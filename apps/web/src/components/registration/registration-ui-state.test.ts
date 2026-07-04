@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { HONEST_TIMELINE, REGISTRATION_COPY } from "./copy";
 import {
   deriveRegistrationUiState,
+  hostedReviewOnly,
   type RegistrationRowInput,
   type RegistrationUiInput,
 } from "./registration-ui-state";
@@ -56,6 +57,13 @@ describe("SPEC §4.4 banner copy — exact strings", () => {
     expect(REGISTRATION_COPY.approved).toBe("US texting is live.");
   });
 
+  it("keeps the hosted-review line honest — multi-day, never 'under a minute'", () => {
+    expect(REGISTRATION_COPY.hostedReview).toBe(
+      "Text-enabling your existing number — carrier review usually takes a few business days. Calls keep working the whole time.",
+    );
+    expect(REGISTRATION_COPY.hostedReview).not.toMatch(/under a minute/);
+  });
+
   it("keeps the SPEC §4.1 checkout copy verbatim on the timeline card", () => {
     expect(HONEST_TIMELINE).toEqual([
       "Receiving texts works the moment your number is ready (minutes).",
@@ -96,6 +104,91 @@ describe("deriveRegistrationUiState — number lifecycle (§4.4 rows 1–2)", ()
         }),
       ).kind,
     ).not.toBe("number_provisioning");
+  });
+});
+
+describe("deriveRegistrationUiState — hosted text-enablement rows (voice wave)", () => {
+  const hostedProvisioning = {
+    status: "provisioning",
+    source: "hosted",
+  } as const;
+
+  it("released provisioned + provisioning hosted → the honest hosted-review state", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            { status: "released", source: "provisioned" },
+            hostedProvisioning,
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_hosted_review" });
+  });
+
+  it("hosted only → hosted review, never the under-a-minute promise", () => {
+    expect(
+      deriveRegistrationUiState(input({ numbers: [hostedProvisioning] })),
+    ).toEqual({ kind: "number_hosted_review" });
+  });
+
+  it("a provisioning PURCHASED number alongside keeps the provisioning promise (that one really is minutes away)", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            { status: "provisioning", source: "provisioned" },
+            hostedProvisioning,
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_provisioning" });
+  });
+
+  it("a failed purchased provision alongside a hosted row still reads delayed", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            { status: "provision_failed", source: "provisioned" },
+            hostedProvisioning,
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_delayed" });
+  });
+
+  it("an ACTIVE hosted number silences the number states like any active number", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({ numbers: [{ status: "active", source: "hosted" }] }),
+      ).kind,
+    ).toBe("registration_pending");
+  });
+
+  it("hostedReviewOnly — the shared predicate the inbox empty state renders from", () => {
+    expect(hostedReviewOnly([hostedProvisioning])).toBe(true);
+    expect(
+      hostedReviewOnly([
+        { status: "released", source: "provisioned" },
+        hostedProvisioning,
+      ]),
+    ).toBe(true);
+    // A live non-hosted row (or an active one) turns it off…
+    expect(
+      hostedReviewOnly([
+        { status: "provisioning", source: "provisioned" },
+        hostedProvisioning,
+      ]),
+    ).toBe(false);
+    expect(hostedReviewOnly([{ status: "active", source: "hosted" }])).toBe(
+      false,
+    );
+    // …and with nothing live there is nothing to review.
+    expect(hostedReviewOnly([])).toBe(false);
+    expect(
+      hostedReviewOnly([{ status: "released", source: "hosted" }]),
+    ).toBe(false);
   });
 });
 

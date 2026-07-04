@@ -11,6 +11,13 @@ export const REGISTRATION_COPY = {
   /** §4.4 "Provisioning delayed/failed (internal)". */
   numberDelayed:
     "We're setting up your number — this is taking longer than usual. You don't need to do anything.",
+  /**
+   * FEATURE-GAPS voice wave (not a §4.4 row): the only live number is a
+   * keep-your-number text-enablement in carrier review — an honest multi-day
+   * line, never the under-a-minute provisioning promise.
+   */
+  hostedReview:
+    "Text-enabling your existing number — carrier review usually takes a few business days. Calls keep working the whole time.",
   /** §4.4 "Registration submitted/pending". */
   registrationPending:
     "US texting activates in ~3–7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",

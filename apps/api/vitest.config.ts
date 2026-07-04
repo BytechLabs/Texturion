@@ -28,6 +28,8 @@ const REAL_TELNYX_TESTS = [
   "src/routes/registration.test.ts",
   "src/routes/numbers.test.ts",
   "src/routes/porting.test.ts",
+  // Drives the real hosted-order saga + document upload HTTP sequences.
+  "src/routes/text-enablement.test.ts",
   // The integration suite asserts the real exported app + §11 cron map.
   "src/mount.test.ts",
 ];

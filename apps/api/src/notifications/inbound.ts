@@ -142,7 +142,10 @@ export async function notifyInboundMessage(
   const contactName =
     conversation.contacts.name?.trim() || conversation.contacts.phone_e164;
   const snippet = notificationSnippet(input.body, input.mediaCount);
-  const link = `${env.APP_ORIGIN}/conversations/${input.conversationId}`;
+  // The web thread route is /inbox/[conversationId]; a /conversations/:id
+  // email link would 404 (only the service worker's push normalizer knows the
+  // legacy shape).
+  const link = `${env.APP_ORIGIN}/inbox/${input.conversationId}`;
 
   const failures: unknown[] = [];
 

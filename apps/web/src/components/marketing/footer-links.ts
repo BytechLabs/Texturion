@@ -10,13 +10,9 @@ import type { NavItem } from "./nav-links";
  *
  * COPY §F groups the tail as one "Company & legal" column; the branded footer
  * (§5b) splits it into a balanced Company column (Security / Status / Contact)
- * and a Legal column (Terms / Privacy / Acceptable use / Sub-processors) so the
- * grid reads as five tidy groups rather than one long stack.
- *
- * The "SMS messaging policy" and "30-day guarantee" pages ship in later
- * iterations (BLUEPRINT §2 inventory), so they are intentionally NOT in the
- * footer yet, linking to a 404 would break the honesty guard. They return the
- * moment their pages land. ZERO dead links.
+ * and a Legal column (Terms / Privacy / Acceptable use / SMS messaging policy /
+ * Sub-processors / 30-day guarantee, COPY §F order) so the grid reads as five
+ * tidy groups rather than one long stack. Every page is live. ZERO dead links.
  */
 
 export interface FooterColumn {
@@ -94,7 +90,13 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Terms of service", href: LIVE_ROUTES.terms, live: true },
       { label: "Privacy policy", href: LIVE_ROUTES.privacy, live: true },
       { label: "Acceptable use", href: LIVE_ROUTES.aup, live: true },
+      {
+        label: "SMS messaging policy",
+        href: LIVE_ROUTES.messaging,
+        live: true,
+      },
       { label: "Sub-processors", href: LIVE_ROUTES.subprocessors, live: true },
+      { label: "30-day guarantee", href: LIVE_ROUTES.refunds, live: true },
     ],
   },
 ];

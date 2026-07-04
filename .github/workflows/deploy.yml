@@ -19,6 +19,15 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+      # Optional (blank = no captcha widget). MUST be set BEFORE enabling the
+      # Supabase Auth captcha dashboard setting, or every deployed email/password
+      # signup, login, and password-reset request fails captcha verification.
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+      # Optional (blank = no host split). D27: when set (https://app.jobtext.app),
+      # the middleware serves ONLY marketing pages on jobtext.app and ONLY the
+      # product on this origin. Both hostnames must be attached to the web Worker.
+      NEXT_PUBLIC_APP_ORIGIN: ${{ secrets.NEXT_PUBLIC_APP_ORIGIN }}
     steps:
       - uses: actions/checkout@v4
         with:

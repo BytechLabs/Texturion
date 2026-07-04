@@ -21,6 +21,14 @@ export const keys = {
     detail: (companyId: string, portId: string) =>
       [companyId, "port-requests", "detail", portId] as const,
   },
+  textEnablements: {
+    /** Root for the company's text-enablement list + every order detail. */
+    all: (companyId: string) => [companyId, "text-enablements"] as const,
+    list: (companyId: string) =>
+      [companyId, "text-enablements", "list"] as const,
+    detail: (companyId: string, orderId: string) =>
+      [companyId, "text-enablements", "detail", orderId] as const,
+  },
   tags: (companyId: string) => [companyId, "tags"] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   members: (companyId: string) => [companyId, "members"] as const,

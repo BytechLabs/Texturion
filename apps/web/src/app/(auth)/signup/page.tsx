@@ -3,11 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -19,6 +20,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { publicEnv } from "@/env";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -41,6 +43,14 @@ export default function SignupPage() {
     null,
   );
 
+  // Optional Turnstile gate (SPEC §10 front door). When the site key is
+  // configured, Supabase Auth verifies the token server-side, so submit stays
+  // blocked until the widget hands one over; when it isn't, signup behaves
+  // exactly as before.
+  const siteKey = publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "" },
@@ -55,9 +65,13 @@ export default function SignupPage() {
         // The DB trigger copies display_name into profiles (SPEC §6).
         data: { display_name: values.name },
         emailRedirectTo: `${window.location.origin}/onboarding`,
+        captchaToken: captchaToken ?? undefined,
       },
     });
     if (error) {
+      // Captcha tokens are single-use — mint a fresh one before a retry.
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
       setServerError(authErrorMessage(error));
       return;
     }
@@ -67,6 +81,8 @@ export default function SignupPage() {
       router.refresh();
       return;
     }
+    // The token was consumed; "Start over" remounts the widget for a new one.
+    setCaptchaToken(null);
     setConfirmationEmail(values.email);
   }
 
@@ -192,6 +208,13 @@ export default function SignupPage() {
               </FormItem>
             )}
           />
+          {siteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={siteKey}
+              onToken={setCaptchaToken}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-destructive">
               {serverError}
@@ -200,7 +223,10 @@ export default function SignupPage() {
           <Button
             type="submit"
             className="w-full"
-            disabled={form.formState.isSubmitting}
+            disabled={
+              form.formState.isSubmitting ||
+              (siteKey !== undefined && captchaToken === null)
+            }
           >
             {form.formState.isSubmitting
               ? "Creating your account…"

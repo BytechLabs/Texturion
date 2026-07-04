@@ -110,6 +110,10 @@ export function eventSentence(
       return `${by} attached a file to a note`;
     case "note_attachment_removed":
       return `${by} removed a file from a note`;
+    // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
+    // in the crew's plain language (the message itself renders just below).
+    case "missed_call":
+      return "This customer called and no one picked up — we texted them back";
   }
 }
 

@@ -42,6 +42,16 @@ const nextConfig: NextConfig = {
         destination: "/invite/:inviteId",
         permanent: false,
       },
+      // Defense in depth for notification links: the thread route is
+      // /inbox/[conversationId]. Emails now link there directly, and the
+      // service worker normalizes push URLs — this catches anything already
+      // in flight (queued pushes, old emails) that still carries the legacy
+      // /conversations/:id shape.
+      {
+        source: "/conversations/:id",
+        destination: "/inbox/:id",
+        permanent: false,
+      },
     ];
   },
 };

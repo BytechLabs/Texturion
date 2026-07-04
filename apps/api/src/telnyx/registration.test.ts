@@ -7,6 +7,7 @@ import {
   nudgeSoleProprietorOtp,
   pollRegistrations,
   submitRegistration,
+  updateCampaignContent,
   type RegistrationRow,
 } from "./registration";
 import {
@@ -16,7 +17,10 @@ import {
   telnyxError,
   type SentEmailCapture,
 } from "./test-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
+import { getDb } from "../db";
+import type { Env } from "../env";
+import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -305,15 +309,23 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
       messageFlow: CAMPAIGN_DATA.messageFlow,
       sample1: CAMPAIGN_DATA.sample1,
       sample2: CAMPAIGN_DATA.sample2,
+      // Step 0c: the review ask is DECLARED content — brand name in the body,
+      // review deep-link domain visible, embedded links on.
+      sample3:
+        "Thanks for choosing Acme Plumbing! A quick Google review means a lot: " +
+        "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4",
       optinKeywords: "START",
       optoutKeywords: "STOP",
       helpKeywords: "HELP",
       helpMessage:
         "Acme Plumbing: reply STOP to opt out. Contact us at +12125550100.",
-      embeddedLink: false,
+      embeddedLink: true,
       numberPool: false,
       ageGated: false,
     });
+    expect(
+      (builder.body as { description: string }).description,
+    ).toContain("post-service review requests");
 
     const campaign = campaignRowOf(rest);
     expect(campaign.status).toBe("submitted");
@@ -543,10 +555,14 @@ describe("pollRegistrations — §11 daily fallback", () => {
     telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
       data: { campaignId: "camp-1", campaignStatus: "MNO_ACCEPTED" },
     }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({}));
 
-    await pollRegistrations(env);
+    const summary = await pollRegistrations(env);
     expect(campaignRowOf(rest).status).toBe("approved");
     expect(emails).toHaveLength(1);
+    // Step 0c: the freshly-approved campaign has no remote sample3 yet, so
+    // the same poll run migrates its content.
+    expect(summary.contentUpdated).toBe(1);
   });
 
   it("applies a missed campaign rejection with failureReasons", async () => {
@@ -603,14 +619,230 @@ describe("pollRegistrations — §11 daily fallback", () => {
       number_e164: "+12125550123",
     });
     telnyx.on("POST", /^\/v2\/10dlc\/phoneNumberCampaign$/, () => ({}));
+    // Remote content already migrated (sample3 present) → Step 0c no-op.
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1", sample3: "already-declared review sample" },
+    }));
 
     const summary = await pollRegistrations(env);
     expect(summary.assignmentsRetried).toBe(1);
+    expect(summary.contentUpdated).toBe(0);
     const ledger = (campaignRowOf(rest).data as {
       numberAssignments: Record<string, string>;
     }).numberAssignments;
     expect(ledger["+12125550123"]).toBe("pending");
     expect(telnyx.callsTo("POST", /phoneNumberCampaign/)).toHaveLength(1);
+  });
+});
+
+describe("updateCampaignContent — Step 0c content migration", () => {
+  const EXPECTED_SAMPLE3 =
+    "Thanks for choosing Acme Plumbing! A quick Google review means a lot: " +
+    "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4";
+
+  it("PUTs ONLY the update-schema sample fields when the remote campaign has no sample3", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: {
+        campaignId: "camp-1",
+        embeddedLink: false,
+        sample1: CAMPAIGN_DATA.sample1,
+        sample2: CAMPAIGN_DATA.sample2,
+      },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({}));
+
+    const sent = await updateCampaignContent(env, getDb(env), campaignRowOf(rest));
+    expect(sent).toBe(true);
+
+    // Telnyx's UpdateCampaignRequest accepts only resellerId / sample1..5 /
+    // messageFlow / helpMessage / autoRenewal / webhook URLs — and only the
+    // samples are actually editable after registration — so the PUT body is
+    // exactly the sample block: no create-only description/embeddedLink, no
+    // identity fields.
+    const put = telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)[0];
+    expect(put.body).toEqual({
+      sample1: CAMPAIGN_DATA.sample1,
+      sample2: CAMPAIGN_DATA.sample2,
+      sample3: EXPECTED_SAMPLE3,
+    });
+    const body = put.body as Record<string, unknown>;
+    expect(body.description).toBeUndefined();
+    expect(body.messageFlow).toBeUndefined();
+    expect(body.embeddedLink).toBeUndefined();
+    expect(body.brandId).toBeUndefined();
+    expect(body.usecase).toBeUndefined();
+  });
+
+  it("truncates legacy >255-char samples to the update schema's cap", async () => {
+    // The CREATE path (and the wizard) allow samples up to 1024 chars, but
+    // UpdateCampaignRequest caps every sampleN at 255 — an unclamped PUT
+    // would 422 forever for this campaign.
+    const longSample1 = `Hi, this is Acme Plumbing. ${"We can come Tuesday at 3pm. ".repeat(12)}`;
+    expect(longSample1.length).toBeGreaterThan(255);
+    expect(longSample1.length).toBeLessThanOrEqual(1024);
+
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "approved",
+        telnyx_id: "camp-1",
+        data: { ...CAMPAIGN_DATA, sample1: longSample1 },
+      },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({}));
+
+    const sent = await updateCampaignContent(env, getDb(env), campaignRowOf(rest));
+    expect(sent).toBe(true);
+
+    const body = telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)[0]
+      .body as Record<string, string>;
+    expect(body.sample1).toBe(longSample1.trim().slice(0, 255));
+    expect(body.sample1.length).toBe(255);
+    expect(body.sample2).toBe(CAMPAIGN_DATA.sample2);
+    expect(body.sample3.length).toBeLessThanOrEqual(255);
+  });
+
+  it("swallows a Telnyx 422 on the PUT (reports, returns false) instead of throwing", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () =>
+      telnyxError(422, "10015", "sample rejected"),
+    );
+
+    const sent = await updateCampaignContent(env, getDb(env), campaignRowOf(rest));
+    expect(sent).toBe(false);
+    expect(telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)).toHaveLength(1);
+  });
+
+  it("still propagates non-422 PUT failures (the poll must retry outages)", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () =>
+      telnyxError(500, "internal", "boom"),
+    );
+
+    await expect(
+      updateCampaignContent(env, getDb(env), campaignRowOf(rest)),
+    ).rejects.toThrow("Telnyx 500");
+  });
+
+  it("one campaign whose content PUT 422s cannot poison pollRegistrations", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, () =>
+      telnyxError(422, "10015", "sample rejected"),
+    );
+
+    const summary = await pollRegistrations(env); // must NOT throw AggregateError
+    expect(summary.contentUpdated).toBe(0);
+  });
+
+  it("no-ops when the remote campaign already declares a sample3", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1", sample3: EXPECTED_SAMPLE3 },
+    }));
+
+    const sent = await updateCampaignContent(env, getDb(env), campaignRowOf(rest));
+    expect(sent).toBe(false);
+    expect(telnyx.callsTo("PUT", /campaign/)).toHaveLength(0);
+  });
+
+  it("does not PUT when the stored campaign draft is incomplete", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: {} },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    const sent = await updateCampaignContent(env, getDb(env), campaignRowOf(rest));
+    expect(sent).toBe(false);
+    expect(telnyx.callsTo("PUT", /campaign/)).toHaveLength(0);
+  });
+
+  it("pollRegistrations migrates a stale campaign once, then converges", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1" },
+    );
+    // Stateful remote: no sample3 until the migration PUT lands it.
+    let remoteSample3: string | undefined;
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      data: {
+        campaignId: "camp-1",
+        ...(remoteSample3 ? { sample3: remoteSample3 } : {}),
+      },
+    }));
+    telnyx.on("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/, (call) => {
+      remoteSample3 = (call.body as { sample3?: string }).sample3;
+      return {};
+    });
+
+    const first = await pollRegistrations(env);
+    expect(first.contentUpdated).toBe(1);
+
+    const second = await pollRegistrations(env);
+    expect(second.contentUpdated).toBe(0);
+    expect(telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)).toHaveLength(1);
+  });
+
+  it("skips deactivated campaigns in the poll migration", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "approved",
+        telnyx_id: "camp-1",
+        deactivated_at: "2026-06-01T00:00:00.000Z",
+      },
+    );
+    const summary = await pollRegistrations(env);
+    expect(summary.contentUpdated).toBe(0);
+    expect(telnyx.callsTo("GET", /campaign/)).toHaveLength(0);
   });
 });
 
@@ -838,5 +1070,144 @@ describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {
     );
     expect(await nudgeSoleProprietorOtp(env)).toBe(0);
     expect(emails).toHaveLength(0);
+  });
+});
+
+describe("PostHog north-star events (§12 step 18)", () => {
+  interface PosthogCapture {
+    api_key: string;
+    event: string;
+    distinct_id: string;
+    properties: Record<string, unknown>;
+  }
+
+  /**
+   * Same world as setup(), plus POSTHOG_API_KEY and a capture recorder —
+   * self-contained so the analytics assertions never leak into the other
+   * suites (whose env has no key, making every capture a silent no-op).
+   */
+  function setupWithAnalytics(apiKey: string | null = "phc_test_key") {
+    const env: Env = {
+      ...completeEnv(),
+      ...(apiKey ? { POSTHOG_API_KEY: apiKey } : {}),
+    };
+    const rest = new FakeRest(env);
+    rest.table("companies");
+    rest.table("messaging_registrations", REGISTRATION_DEFAULTS);
+    rest.table("phone_numbers", {
+      status: "active",
+      number_e164: null,
+      telnyx_phone_number_id: null,
+    });
+    rest.table("company_members");
+    rest.user(OWNER_ID, "owner@acme.example");
+    rest.insert("companies", {
+      id: COMPANY_ID,
+      name: "Acme Plumbing",
+      country: "US",
+      us_texting_enabled: true,
+      subscription_status: "active",
+      requested_area_code: "212",
+    });
+    rest.insert("company_members", {
+      company_id: COMPANY_ID,
+      user_id: OWNER_ID,
+      role: "owner",
+      deactivated_at: null,
+    });
+
+    const telnyx = new TelnyxMock();
+    const emails: SentEmailCapture[] = [];
+    const posthog: PosthogCapture[] = [];
+    const posthogRoute: FetchRoute = async (url, request) => {
+      if (url.href !== POSTHOG_CAPTURE_URL) return undefined;
+      posthog.push((await request.clone().json()) as PosthogCapture);
+      return Response.json({ status: 1 });
+    };
+    stubFetch(rest.route(), telnyx.route(), resendRoute(emails), posthogRoute);
+    return { env, rest, telnyx, emails, posthog };
+  }
+
+  it("submitRegistration fires registration_submitted with the action", async () => {
+    const { env, rest, telnyx, posthog } = setupWithAnalytics();
+    seedRows(rest, {}, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
+      data: { brandId: "brand-1" },
+    }));
+
+    await submitRegistration(env, COMPANY_ID);
+    expect(posthog).toHaveLength(1);
+    expect(posthog[0]).toEqual({
+      api_key: "phc_test_key",
+      event: "registration_submitted",
+      distinct_id: COMPANY_ID,
+      properties: { action: "brand_submitted" },
+    });
+  });
+
+  it("a noop submission (already under review) fires nothing", async () => {
+    const { env, rest, posthog } = setupWithAnalytics();
+    seedRows(rest, { status: "pending", telnyx_id: "brand-1" }, {});
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("noop");
+    expect(posthog).toHaveLength(0);
+  });
+
+  it("campaign approval fires registration_approved exactly once (duplicate delivery)", async () => {
+    const { env, rest, telnyx, posthog } = setupWithAnalytics();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "pending", telnyx_id: "camp-1" },
+    );
+    telnyx.on("POST", /^\/v2\/10dlc\/phoneNumberCampaign$/, () => ({}));
+    const event = {
+      data: {
+        event_type: "10dlc.campaign.update",
+        id: "evt-approve",
+        payload: { campaignId: "camp-1", type: "MNO_REVIEW", status: "ACCEPTED" },
+      },
+    };
+
+    await handle10dlcEvent(env, event);
+    await handle10dlcEvent(env, event); // duplicate → no second transition
+
+    const approvals = posthog.filter((c) => c.event === "registration_approved");
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]).toMatchObject({
+      distinct_id: COMPANY_ID,
+      properties: {},
+    });
+  });
+
+  it("a brand-only approval does not fire registration_approved", async () => {
+    const { env, rest, telnyx, posthog } = setupWithAnalytics();
+    seedRows(rest, { status: "pending", telnyx_id: "brand-1" }, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    await handle10dlcEvent(env, {
+      data: {
+        event_type: "10dlc.brand.update",
+        id: "evt-brand",
+        payload: { brandId: "brand-1", identityStatus: "VERIFIED" },
+      },
+    });
+    expect(
+      posthog.filter((c) => c.event === "registration_approved"),
+    ).toHaveLength(0);
+  });
+
+  it("stays entirely silent without POSTHOG_API_KEY", async () => {
+    const { env, rest, telnyx, posthog } = setupWithAnalytics(null);
+    seedRows(rest, {}, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
+      data: { brandId: "brand-1" },
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("brand_submitted");
+    expect(posthog).toHaveLength(0);
   });
 });

@@ -15,10 +15,15 @@ export const COMPANY_COLUMNS =
   "cancel_at_period_end," +
   // FEATURE-GAPS Step 1 & 2: after-hours away settings + review link.
   "business_hours,away_enabled,away_message,google_review_link," +
+  // FEATURE-GAPS voice wave: missed-call text-back settings.
+  "mctb_enabled,mctb_message,forward_to_cell," +
   "created_at,updated_at";
 
+// source + voice_enabled (FEATURE-GAPS voice wave): hosted-vs-purchased and
+// voice status, so the web can label keep-your-number rows.
 const NUMBER_COLUMNS =
-  "id,status,country,number_e164,requested_area_code,created_at";
+  "id,status,source,voice_enabled,country,number_e164,requested_area_code," +
+  "created_at";
 
 const REGISTRATION_COLUMNS =
   "kind,status,sole_proprietor,rejection_reason,submission_count," +

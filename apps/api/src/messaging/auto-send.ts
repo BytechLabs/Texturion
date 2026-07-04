@@ -22,6 +22,7 @@ import { estimateSegments } from "@jobtext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { ApiError } from "../http/errors";
 import { isCarrierKeyword } from "./keywords";
 import { dispatchOutbound } from "./send";
 import type { MessageRow } from "./types";
@@ -96,11 +97,34 @@ export async function guardedAutoSend(
   }
 
   // Reuse the exact §8 Telnyx send path; the guard row was inserted 'queued'.
-  const sent = await dispatchOutbound(env, db, result.message, {
-    from: args.from,
-    to: args.to,
-    text: args.body,
-    mediaUrls: [],
-  });
+  let sent: MessageRow;
+  try {
+    sent = await dispatchOutbound(env, db, result.message, {
+      from: args.from,
+      to: args.to,
+      text: args.body,
+      mediaUrls: [],
+    });
+  } catch (cause) {
+    // The §10 layer-3 per-company rate limiter denied the dispatch AFTER the
+    // claim stamped conversations.last_auto_reply_at — without compensation
+    // the customer's auto-reply is silently gone for the whole throttle
+    // window (any replay hits 'throttled'). Release the stamp so the NEXT
+    // inbound in the burst re-attempts naturally; the failed row (persisted
+    // by dispatchOutbound) stays in the thread as the audit trail.
+    if (cause instanceof ApiError && cause.code === "rate_limited") {
+      const { error: releaseError } = await db
+        .from("conversations")
+        .update({ last_auto_reply_at: null })
+        .eq("id", args.conversationId)
+        .eq("company_id", args.companyId);
+      if (releaseError) {
+        console.error(
+          `auto-reply throttle release failed for conversation ${args.conversationId}: ${releaseError.message}`,
+        );
+      }
+    }
+    throw cause;
+  }
   return { sent: true, message: sent };
 }

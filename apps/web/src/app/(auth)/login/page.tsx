@@ -3,11 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -18,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { publicEnv } from "@/env";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { safeNextPath } from "@/lib/auth/redirects";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -33,6 +35,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Supabase's captcha setting gates signInWithPassword too, so login carries
+  // the same optional Turnstile token as signup (SPEC §10 front door).
+  const siteKey = publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   // Surface a failed OAuth sign-in (the /auth/callback route redirects here with
   // ?error=oauth) as a calm inline message instead of a blank login page.
@@ -54,8 +62,12 @@ function LoginForm() {
     const { error } = await getSupabaseBrowser().auth.signInWithPassword({
       email: values.email,
       password: values.password,
+      options: { captchaToken: captchaToken ?? undefined },
     });
     if (error) {
+      // Captcha tokens are single-use — mint a fresh one before a retry.
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
       setServerError(authErrorMessage(error));
       return;
     }
@@ -125,6 +137,13 @@ function LoginForm() {
               </FormItem>
             )}
           />
+          {siteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={siteKey}
+              onToken={setCaptchaToken}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-destructive">
               {serverError}
@@ -133,7 +152,10 @@ function LoginForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={form.formState.isSubmitting}
+            disabled={
+              form.formState.isSubmitting ||
+              (siteKey !== undefined && captchaToken === null)
+            }
           >
             {form.formState.isSubmitting ? "Logging in…" : "Log in"}
           </Button>

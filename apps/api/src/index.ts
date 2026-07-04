@@ -37,9 +37,12 @@ import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
+import { textEnablementRoutes } from "./routes/text-enablement";
 import { usageRoutes } from "./routes/usage";
 import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers } from "./telnyx/provisioning";
+import { reconcileTextEnablement } from "./telnyx/text-enablement";
+import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
   nudgeSoleProprietorOtp,
   pollRegistrations,
@@ -101,6 +104,7 @@ app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
 app.route("/v1/numbers", numbersRoutes);
 app.route("/v1/port-requests", portingRoutes);
+app.route("/v1/text-enablements", textEnablementRoutes);
 app.route("/v1/registration", registrationRoutes);
 app.route("/v1", composeRoutes); // POST /v1/conversations — before conversationsRoutes
 app.route("/v1", conversationsRoutes);
@@ -162,6 +166,13 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
     reconcileNumbers,
     retryCampaignAssignments,
     sweepDeletedAttachments,
+    // Keep-your-number hosted text-enablement: poll in-flight orders and flip
+    // the number active once the carrier finishes (webhooks primary; fallback).
+    reconcileTextEnablement,
+    // Missed-call voice binding: enable voice on any active, un-bound number
+    // whose company has MCTB/forwarding on (covers enable-before-active,
+    // later-added numbers, and settings-time enables that failed transiently).
+    reconcileVoiceEnablement,
   ],
   // Usage re-reporter, then the 80%/100% usage-alert check (§9 metering
   // pipeline tail) over the freshly-reported state.

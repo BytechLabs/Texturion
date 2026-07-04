@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { REGISTRATION_COPY } from "@/components/registration/copy";
+import { hostedReviewOnly } from "@/components/registration/registration-ui-state";
 import { Button } from "@/components/ui/button";
 import { NumberReveal } from "@/components/ui/number-reveal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,6 +95,24 @@ export function ActivationEmptyState() {
               <Link href="/settings/billing">Go to billing</Link>
             </Button>
           )}
+        </div>
+      );
+    }
+
+    // Voice wave: the only live number is a hosted text-enablement in
+    // carrier review (days) — the honest line, never "under a minute".
+    if (hostedReviewOnly(numbers)) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <p className="max-w-xs text-sm text-muted-foreground">
+            {REGISTRATION_COPY.hostedReview}
+          </p>
+          <Link
+            href="/settings/numbers"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            See progress in Settings
+          </Link>
         </div>
       );
     }

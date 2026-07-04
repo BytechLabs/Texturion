@@ -6,6 +6,9 @@ SUPABASE_SECRET_KEY=
 SUPABASE_JWKS_URL=
 TELNYX_API_KEY=
 TELNYX_PUBLIC_KEY=
+# The Telnyx Call-Control application id (voice "connection") per-company numbers
+# bind to for inbound voice — the target of the missed-call text-back webhooks.
+TELNYX_VOICE_CONNECTION_ID=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 RESEND_API_KEY=
@@ -24,3 +27,6 @@ STRIPE_STARTER_OVERAGE_PRICE_ID=
 STRIPE_PRO_OVERAGE_PRICE_ID=
 STRIPE_US_FEE_PRICE_ID=
 STRIPE_SMS_METER_EVENT_NAME=sms_segments
+# OPTIONAL — PostHog Cloud project API key (SPEC §12 step 18). Leave unset to
+# disable product analytics entirely (captures become silent no-ops).
+POSTHOG_API_KEY=

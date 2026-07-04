@@ -35,6 +35,18 @@ export const pollPortRequests = vi.fn<
   (env: Env, now?: Date) => Promise<void>
 >(async () => {});
 
+export const uploadPortDocument = vi.fn<
+  (
+    env: Env,
+    document: {
+      file: ArrayBuffer | Uint8Array | Blob;
+      filename: string;
+      contentType: string;
+    },
+    documentType: "loa" | "invoice",
+  ) => Promise<string>
+>(async (_env, _document, documentType) => `doc-double-${documentType}`);
+
 /** Contract mirror of the real hasRequiredDocuments (both doc UUIDs present). */
 export function hasRequiredDocuments(row: {
   telnyx_loa_document_id?: string | null;

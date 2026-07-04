@@ -184,11 +184,109 @@ export function buildBrandPayload(
 }
 
 /**
+ * Representative Google review deep link declared in the campaign's sample
+ * content (FEATURE-GAPS Step 0c). The manual review ask (routes/review.ts)
+ * merges the company's own `google_review_link` — this domain/path shape —
+ * into `{review_link}`; a campaign that never declared that content gets its
+ * review sends silently carrier-filtered regardless of consent.
+ */
+export const REVIEW_SAMPLE_LINK =
+  "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4";
+
+/**
+ * Hard cap on every `sampleN` in Telnyx's campaign UPDATE schema:
+ * `UpdateCampaignRequest.sample1..sample5` are `maxLength: 255` — stricter
+ * than the create path, whose samples the wizard allows up to 1024 chars.
+ * Anything longer 422s the `PUT /v2/10dlc/campaign/{campaignId}` forever.
+ */
+export const TCR_UPDATE_SAMPLE_MAX_LENGTH = 255;
+
+/**
+ * The registered review-ask sample message (sample3, Step 0c): brand name in
+ * the body + the review deep-link domain visible. Mirrors DEFAULT_REVIEW_BODY
+ * in routes/review.ts — keep the two textually parallel so the registered
+ * sample stays representative of what the number actually emits.
+ *
+ * Guaranteed ≤ {@link TCR_UPDATE_SAMPLE_MAX_LENGTH} (255) chars total — the
+ * business name is truncated so the fixed copy + link always fit — because
+ * this sample rides both the create payload AND the 255-capped campaign
+ * UPDATE schema (see {@link buildCampaignContentUpdate}).
+ */
+export function buildReviewSample(businessName: string): string {
+  const prefix = "Thanks for choosing ";
+  const suffix = `! A quick Google review means a lot: ${REVIEW_SAMPLE_LINK}`;
+  const budget = TCR_UPDATE_SAMPLE_MAX_LENGTH - prefix.length - suffix.length;
+  const name =
+    businessName.length > budget
+      ? businessName.slice(0, budget).trimEnd()
+      : businessName;
+  return `${prefix}${name}${suffix}`;
+}
+
+/**
+ * The CREATE-time content block for `POST /v2/10dlc/campaignBuilder`
+ * ({@link buildCampaignPayload}). `description` — like `embeddedLink` — is
+ * CREATE-ONLY: Telnyx's campaign UPDATE schema (`UpdateCampaignRequest`)
+ * does not accept it, so it can never be migrated onto an already-registered
+ * campaign ({@link buildCampaignContentUpdate} is the update-safe subset).
+ * The `description` is the fixed ICP boilerplate restating the AUP
+ * commitments (§5) plus the Step 0c declaration of post-service review asks;
+ * `sample3` is the generated review-ask sample.
+ */
+export function buildCampaignContent(options: {
+  campaign: CampaignDraft;
+  /** Business display name (brand `displayName`) for the review sample. */
+  businessName: string;
+}): Record<string, unknown> {
+  return {
+    description:
+      "Conversational two-way customer service SMS for a home-service business. " +
+      "Customers text the business's number first, or ask the business in person " +
+      "or by phone to text them. Includes one-time post-service review requests " +
+      "with an embedded Google review link (search.google.com). No marketing " +
+      "blasts, no purchased lists, no SHAFT content.",
+    messageFlow: options.campaign.messageFlow,
+    sample1: options.campaign.sample1,
+    sample2: options.campaign.sample2,
+    sample3: buildReviewSample(options.businessName),
+  };
+}
+
+/**
+ * The UPDATE-safe content block for `PUT /v2/10dlc/campaign/{campaignId}`
+ * (the Step 0c migration of already-registered campaigns). Telnyx's
+ * `UpdateCampaignRequest` schema accepts only resellerId / sample1..sample5
+ * (maxLength 255 each) / messageFlow / helpMessage / autoRenewal / webhook
+ * URLs — and Telnyx documents that only the sample messages are actually
+ * editable after registration — so this sends ONLY the samples.
+ * `description` and `embeddedLink` are create-only and cannot be migrated:
+ * a legacy campaign's sole enforceable declaration of the review ask is the
+ * sample3 review sample. Wizard samples may be up to 1024 chars (the create
+ * limit), so sample1/sample2 are truncated to the update schema's 255-char
+ * cap; sample3 is ≤255 by construction ({@link buildReviewSample}).
+ */
+export function buildCampaignContentUpdate(options: {
+  campaign: CampaignDraft;
+  /** Business display name (brand `displayName`) for the review sample. */
+  businessName: string;
+}): Record<string, unknown> {
+  const clamp = (sample: string) =>
+    sample.slice(0, TCR_UPDATE_SAMPLE_MAX_LENGTH);
+  return {
+    sample1: clamp(options.campaign.sample1),
+    sample2: clamp(options.campaign.sample2),
+    sample3: buildReviewSample(options.businessName),
+  };
+}
+
+/**
  * Build the `POST /v2/10dlc/campaignBuilder` payload (§4.4 mapping):
  * LOW_VOLUME (SOLE_PROPRIETOR on the sole-prop path), the wizard's opt-in
  * flow description and samples, and the fixed §5-matching keyword/boolean
- * block. `description` is the fixed ICP boilerplate restating the AUP
- * commitments (§5); `helpMessage` is the exact §4.4 template.
+ * block. The content fields come from {@link buildCampaignContent};
+ * `helpMessage` is the exact §4.4 template. `embeddedLink` is TRUE
+ * (FEATURE-GAPS Step 0c): the review ask emits a Google review URL, and an
+ * embedded link the campaign never declared is a carrier-filtering trigger.
  */
 export function buildCampaignPayload(
   env: Env,
@@ -206,19 +304,15 @@ export function buildCampaignPayload(
     brandId: options.brandId,
     usecase: options.soleProprietor ? "SOLE_PROPRIETOR" : "LOW_VOLUME",
     autoRenewal: true,
-    description:
-      "Conversational two-way customer service SMS for a home-service business. " +
-      "Customers text the business's number first, or ask the business in person " +
-      "or by phone to text them. No marketing blasts, no purchased lists, no " +
-      "SHAFT content.",
-    messageFlow: options.campaign.messageFlow,
-    sample1: options.campaign.sample1,
-    sample2: options.campaign.sample2,
+    ...buildCampaignContent({
+      campaign: options.campaign,
+      businessName: options.businessName,
+    }),
     optinKeywords: "START",
     optoutKeywords: "STOP",
     helpKeywords: "HELP",
     helpMessage: `${options.businessName}: reply STOP to opt out. Contact us at ${options.brandContactPhone}.`,
-    embeddedLink: false,
+    embeddedLink: true,
     numberPool: false,
     ageGated: false,
     webhookURL: webhook,

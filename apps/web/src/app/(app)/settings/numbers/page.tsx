@@ -6,6 +6,8 @@ import { PortSection } from "@/components/settings/port-section";
 import { ProvisionNumberDialog } from "@/components/settings/provision-number-dialog";
 import { RegistrationSection } from "@/components/settings/registration-section";
 import { LoadError, SettingsPage } from "@/components/settings/section";
+import { TextEnableSection } from "@/components/settings/text-enable-section";
+import { splitHostedNumbers } from "@/components/settings/text-enable-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
@@ -49,14 +51,23 @@ export default function NumbersSettingsPage() {
         />
       ) : (
         (() => {
+          // A hosted (keep-your-number text-enabled) row is rendered ONCE,
+          // through the TextEnableSection order card — never as a NumberCard,
+          // whose "under a minute" provisioning copy would flatly contradict
+          // the multi-day carrier review. Same de-duplication discipline as
+          // the ported rows partitioned out just below.
+          const { hosted, rest } = splitHostedNumbers(numbers.data.data);
           const { provisioned } = partitionNumbers(
-            numbers.data.data,
+            rest,
             ports.data?.data ?? [],
           );
-          // A transfer in flight IS a number — the "no number yet" empty state
-          // only applies when there is neither a provisioned number nor a port.
+          // A transfer or text-enablement in flight IS a number — the "no
+          // number yet" empty state only applies when there is neither a
+          // provisioned number, a port, nor a hosted row.
           const hasAnyNumber =
-            provisioned.length > 0 || (ports.data?.data.length ?? 0) > 0;
+            provisioned.length > 0 ||
+            hosted.length > 0 ||
+            (ports.data?.data.length ?? 0) > 0;
           // The Pro second-number slot counts ALL non-released numbers
           // (a ported row holds the same one slot as a provisioned one), so the
           // affordance never appears once a port already fills the seat.
@@ -90,6 +101,8 @@ export default function NumbersSettingsPage() {
                 )}
 
               <PortSection company={company.data} />
+
+              <TextEnableSection company={company.data} />
 
               <RegistrationSection company={company.data} />
             </div>

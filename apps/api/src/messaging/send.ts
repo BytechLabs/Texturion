@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lookupAreaCode } from "@jobtext/shared";
 
+import { capture } from "../analytics/posthog";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
@@ -233,28 +234,12 @@ async function telnyxCreateMessage(
   return { ok: true, telnyxMessageId };
 }
 
-/**
- * The send-lifecycle tail (SPEC §8): Telnyx call → persist telnyx_message_id
- * on success, or status='failed' + error columns on API failure (retryable
- * via POST /v1/messages/:id/retry while telnyx_message_id IS NULL, §7).
- * Returns the updated message row either way — failures are surfaced on the
- * row, never thrown away.
- */
-export async function dispatchOutbound(
-  env: Env,
+/** Persist a patch onto the message row and return the updated row. */
+async function persistMessagePatch(
   db: SupabaseClient,
   message: MessageRow,
-  args: { from: string; to: string; text: string; mediaUrls: string[] },
+  patch: Record<string, unknown>,
 ): Promise<MessageRow> {
-  const result = await telnyxCreateMessage(env, args);
-
-  const patch = result.ok
-    ? { telnyx_message_id: result.telnyxMessageId }
-    : {
-        status: "failed" as const,
-        error_code: result.errorCode,
-        error_detail: result.errorDetail.slice(0, 2000),
-      };
   const { data, error } = await db
     .from("messages")
     .update(patch)
@@ -265,5 +250,97 @@ export async function dispatchOutbound(
   if (error) throw new Error(`message persist failed: ${error.message}`);
   const row = (data ?? [])[0] as MessageRow | undefined;
   if (!row) throw new Error(`message ${message.id} vanished during send`);
+  return row;
+}
+
+/**
+ * SPEC §12 step 18 north-star: `first_outbound_sent` — fired when the row
+ * that just got its telnyx_message_id is the company's first Telnyx-accepted
+ * outbound ever. The existence check (one indexed limit-1 lookup for any
+ * OTHER dispatched outbound) runs ONLY when POSTHOG_API_KEY is set, so the
+ * hot path pays nothing with analytics off. Best-effort: a lookup or capture
+ * failure never breaks the send, and the rare concurrent-first-sends
+ * duplicate is harmless (funnels count first occurrence per distinct_id).
+ */
+async function captureFirstOutboundSent(
+  env: Env,
+  db: SupabaseClient,
+  message: MessageRow,
+): Promise<void> {
+  if (!env.POSTHOG_API_KEY) return; // analytics off — keep the hot path clean
+  try {
+    const { data, error } = await db
+      .from("messages")
+      .select("id")
+      .eq("company_id", message.company_id)
+      .eq("direction", "outbound")
+      .not("telnyx_message_id", "is", null)
+      .neq("id", message.id)
+      .limit(1);
+    if (error) {
+      throw new Error(`first-outbound lookup failed: ${error.message}`);
+    }
+    if ((data ?? []).length > 0) return; // not the first — nothing to record
+    await capture(env, "first_outbound_sent", message.company_id);
+  } catch (cause) {
+    // Analytics never breaks a send that already succeeded.
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    console.error("first_outbound_sent capture skipped:", detail);
+  }
+}
+
+/**
+ * The send-lifecycle tail (SPEC §8): Telnyx call → persist telnyx_message_id
+ * on success, or status='failed' + error columns on API failure (retryable
+ * via POST /v1/messages/:id/retry while telnyx_message_id IS NULL, §7).
+ * Returns the updated message row either way — failures are surfaced on the
+ * row, never thrown away.
+ *
+ * This is also the ONE outbound choke point (routes, composes, and every
+ * auto-send funnel through it), so the SPEC §10 layer-3 per-company rate
+ * limiter lives here: when the SEND_RATE_LIMITER binding exists (production),
+ * a denial persists a retryable failure on the row (failed + no Telnyx id,
+ * §7 retry rules) and throws the stable §7 `rate_limited` code. Local
+ * dev/tests have no binding → the gate is skipped.
+ */
+export async function dispatchOutbound(
+  env: Env,
+  db: SupabaseClient,
+  message: MessageRow,
+  args: { from: string; to: string; text: string; mediaUrls: string[] },
+): Promise<MessageRow> {
+  if (env.SEND_RATE_LIMITER) {
+    const { success } = await env.SEND_RATE_LIMITER.limit({
+      key: message.company_id,
+    });
+    if (!success) {
+      await persistMessagePatch(db, message, {
+        status: "failed",
+        error_code: "rate_limited",
+        error_detail:
+          "Outbound rate limit reached (about 1 message per second per company).",
+      });
+      throw new ApiError(
+        "rate_limited",
+        "Sending too quickly — try again in a moment.",
+      );
+    }
+  }
+
+  const result = await telnyxCreateMessage(env, args);
+
+  const patch = result.ok
+    ? { telnyx_message_id: result.telnyxMessageId }
+    : {
+        status: "failed" as const,
+        error_code: result.errorCode,
+        error_detail: result.errorDetail.slice(0, 2000),
+      };
+  const row = await persistMessagePatch(db, message, patch);
+  if (result.ok) {
+    // §12 step 18: after the accepted send is durably recorded (instant
+    // no-op when analytics is off).
+    await captureFirstOutboundSent(env, db, row);
+  }
   return row;
 }

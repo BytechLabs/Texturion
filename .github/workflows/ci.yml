@@ -7,10 +7,13 @@ on:
 
 jobs:
   schema:
-    name: Schema tests (Supabase)
+    name: SQL tests (Supabase)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # pnpm is only needed to run the root db:test:ci script (docker/psql, no install).
+      - uses: pnpm/action-setup@v4
 
       - uses: supabase/setup-cli@v1
         with:
@@ -22,8 +25,11 @@ jobs:
       - name: Apply migrations from zero (db reset)
         run: supabase db reset
 
-      - name: Run schema assertion suite
-        run: docker exec -i supabase_db_JobText psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql
+      # Runs every suite in supabase/tests/ against the container supabase start
+      # created. The ordered list lives in the root package.json db:test:all
+      # script (source of truth); db:test:ci delegates to it.
+      - name: Run SQL assertion suites
+        run: pnpm run db:test:ci
 
       - name: Stop Supabase
         if: always()
@@ -35,6 +41,10 @@ jobs:
       # next build inlines these; web/src/env.ts fails the build if they are missing.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      # env.ts only requires a syntactically valid URL (z.url()); the CI build
+      # artifact is never deployed (deploy.yml rebuilds with the real secret),
+      # so a fixed placeholder keeps this job deterministic.
+      NEXT_PUBLIC_API_URL: https://api.jobtext.app
     steps:
       - uses: actions/checkout@v4
 

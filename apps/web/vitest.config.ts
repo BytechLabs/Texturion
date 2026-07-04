@@ -10,6 +10,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // tsconfig has Next's `"jsx": "preserve"`; tests that import .tsx components
+  // (e.g. the auth pages) need vite's transform to compile the JSX itself.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
   },

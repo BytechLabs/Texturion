@@ -20,6 +20,7 @@ export function LegalPage({
   title,
   intro,
   lastUpdated,
+  lastUpdatedIso = "2026-07-02",
   breadcrumbLabel,
   path,
   sections,
@@ -29,6 +30,9 @@ export function LegalPage({
   intro?: string;
   /** Human display date, e.g. "July 2, 2026". */
   lastUpdated: string;
+  /** ISO date for the <time> element, e.g. "2026-07-02". Defaults to the
+   * launch-set date the original four legal pages share. */
+  lastUpdatedIso?: string;
   breadcrumbLabel: string;
   path: string;
   sections: LegalSection[];
@@ -63,7 +67,7 @@ export function LegalPage({
             )}
             <p className="font-mono-mkt mt-6 text-[13px] text-[color:var(--graphite)]">
               Last updated{" "}
-              <time dateTime="2026-07-02" className="font-medium text-[color:var(--ink)]">
+              <time dateTime={lastUpdatedIso} className="font-medium text-[color:var(--ink)]">
                 {lastUpdated}
               </time>
               .

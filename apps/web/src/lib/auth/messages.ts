@@ -28,6 +28,8 @@ export function authErrorMessage(error: unknown): string {
       case "session_expired":
       case "refresh_token_not_found":
         return "Your session ended. Log in again.";
+      case "captcha_failed":
+        return "We couldn't confirm you're human. Refresh the page and try again.";
       default:
         break;
     }

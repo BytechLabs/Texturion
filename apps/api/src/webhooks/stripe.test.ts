@@ -14,7 +14,9 @@ import Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { stripeWebhookRoute } from "./stripe";
+import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import type { AppEnv } from "../context";
+import type { Env } from "../env";
 import {
   endpoint,
   makeExecutionContext,
@@ -182,7 +184,7 @@ function recipientEndpoints(): StubEndpoint[] {
 async function deliver(
   event: object,
   harness: Harness,
-  options: { body?: string; header?: string | null } = {},
+  options: { body?: string; header?: string | null; env?: Env } = {},
 ): Promise<Response> {
   const payload = options.body ?? JSON.stringify(event);
   const header =
@@ -196,7 +198,7 @@ async function deliver(
       body: payload,
       headers: header === null ? {} : { "stripe-signature": header },
     },
-    env,
+    options.env ?? env,
     ctx,
   );
   await drain();
@@ -371,6 +373,54 @@ describe("§9 event → state table", () => {
     // §4.1 step 5c / §9: the paid checkout submits the 10DLC registration
     // (R1, or the §4.4 post-grace campaign reactivation) — never manual.
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+  });
+
+  it("checkout.session.completed fires the checkout_completed PostHog event (§12 step 18)", async () => {
+    const buildHarness = () =>
+      makeHarness([
+        ...ledgerEndpoints(),
+        endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+          subscriptionFixture(),
+        ),
+        endpoint(
+          "GET",
+          /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+          () => ({
+            object: "list",
+            data: [{ id: "li_1", price: { id: env.STRIPE_STARTER_PRICE_ID } }],
+          }),
+        ),
+        endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+        endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+        endpoint("POST", /us\.i\.posthog\.com\/capture/, () => ({ status: 1 })),
+      ]);
+
+    // Key set → one capture, distinct_id = company_id, plan as safe metadata.
+    const withKey = buildHarness();
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      withKey,
+      { env: { ...env, POSTHOG_API_KEY: "phc_test_key" } },
+    );
+    expect(response.status).toBe(200);
+    const captures = withKey.callsTo("POST", /posthog/);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].url.href).toBe(POSTHOG_CAPTURE_URL);
+    expect(captures[0].json()).toEqual({
+      api_key: "phc_test_key",
+      event: "checkout_completed",
+      distinct_id: COMPANY_ID,
+      properties: { plan: "starter" },
+    });
+
+    // Key unset (every other suite's env) → zero PostHog traffic.
+    const withoutKey = buildHarness();
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      withoutKey,
+    );
+    expect(withoutKey.callsTo("POST", /posthog/)).toHaveLength(0);
+    expect(withoutKey.callsTo("PATCH", /companies/)).toHaveLength(1);
   });
 
   it("checkout.session.completed without the fee line does not stamp the fee", async () => {

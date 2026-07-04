@@ -1,0 +1,284 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  LoadError,
+  SettingsCard,
+  SettingsPage,
+} from "@/components/settings/section";
+import { onlyHostedNumbers } from "@/components/settings/text-enable-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useCompany, useUpdateCompany } from "@/lib/api/companies";
+import { ApiError } from "@/lib/api/error";
+import { previewAwayMessage } from "@/lib/settings/away-preview";
+import type { CompanyView } from "@/lib/api/types";
+import { useActiveCompany } from "@/lib/company/provider";
+
+const DEFAULT_MCTB_MESSAGE =
+  "Sorry we missed your call! This is {business_name}. Reply here with your address and what you need, and we'll get you booked in.";
+
+/** A +1 US/CA E.164 cell, e.g. +16135551234. Loose client hint; server validates. */
+const E164_HINT = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
+
+function MissedCallsSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Loading missed-call settings">
+      <Skeleton className="h-72 w-full rounded-lg" />
+      <Skeleton className="h-40 w-full rounded-lg" />
+    </div>
+  );
+}
+
+/** The missed-call text-back toggle + owner-authored message + live preview. */
+function TextBackCard({
+  company,
+  canEdit,
+}: {
+  company: CompanyView;
+  canEdit: boolean;
+}) {
+  const update = useUpdateCompany();
+  const [enabled, setEnabled] = useState(company.mctb_enabled);
+  const [message, setMessage] = useState(company.mctb_message ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEnabled(company.mctb_enabled);
+    setMessage(company.mctb_message ?? "");
+  }, [company.mctb_enabled, company.mctb_message]);
+
+  const dirty =
+    enabled !== company.mctb_enabled ||
+    message.trim() !== (company.mctb_message ?? "").trim();
+
+  const preview = previewAwayMessage(
+    message.trim().length > 0 ? message : DEFAULT_MCTB_MESSAGE,
+    company.name,
+  );
+
+  function save() {
+    setError(null);
+    const trimmed = message.trim();
+    if (enabled && trimmed.length === 0) {
+      setError("Write your text-back message before turning it on.");
+      return;
+    }
+    update.mutate(
+      {
+        mctb_enabled: enabled,
+        mctb_message: trimmed.length > 0 ? trimmed : null,
+      },
+      {
+        onSuccess: () => toast.success("Missed-call text-back saved."),
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          ),
+      },
+    );
+  }
+
+  return (
+    <SettingsCard
+      title="Text back a missed call"
+      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply — instead of calling the next plumber."
+      footer={
+        canEdit ? (
+          <div className="flex items-center justify-end">
+            <Button onClick={save} disabled={!dirty || update.isPending}>
+              {update.isPending ? "Saving…" : "Save text-back"}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <div className="space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="mctb-enabled" className="text-sm font-medium">
+              Text back missed calls
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Fires once per caller when a call goes unanswered. A caller who
+              dials you started the conversation, so this reply is always
+              allowed — opted-out numbers are never texted.
+            </p>
+          </div>
+          <Switch
+            id="mctb-enabled"
+            checked={enabled}
+            disabled={!canEdit || update.isPending}
+            onCheckedChange={setEnabled}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="mctb-message" className="text-sm font-medium">
+            Your text-back message
+          </Label>
+          <Textarea
+            id="mctb-message"
+            value={message}
+            disabled={!canEdit || update.isPending}
+            maxLength={1000}
+            rows={4}
+            placeholder={DEFAULT_MCTB_MESSAGE}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            You can use{" "}
+            <code className="rounded bg-secondary px-1 py-0.5">
+              {"{business_name}"}
+            </code>
+            . Keep it short and ask for what you need to book them in.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Preview</p>
+          <div
+            aria-live="polite"
+            className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
+          >
+            {preview}
+          </div>
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {!canEdit && (
+          <p className="text-xs text-muted-foreground">
+            Only owners and admins can change the missed-call text-back.
+          </p>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
+/** Optional forward-to-cell: ring the owner's phone first, text if unanswered. */
+function ForwardCard({
+  company,
+  canEdit,
+}: {
+  company: CompanyView;
+  canEdit: boolean;
+}) {
+  const update = useUpdateCompany();
+  const [cell, setCell] = useState(company.forward_to_cell ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => setCell(company.forward_to_cell ?? ""), [company.forward_to_cell]);
+
+  const dirty = cell.trim() !== (company.forward_to_cell ?? "");
+  const invalid = cell.trim().length > 0 && !E164_HINT.test(cell.trim());
+
+  function save() {
+    setError(null);
+    const trimmed = cell.trim();
+    if (trimmed.length > 0 && !E164_HINT.test(trimmed)) {
+      setError("Enter a US or Canada mobile number like +16135551234.");
+      return;
+    }
+    update.mutate(
+      { forward_to_cell: trimmed.length > 0 ? trimmed : null },
+      {
+        onSuccess: () => toast.success("Call forwarding saved."),
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          ),
+      },
+    );
+  }
+
+  return (
+    <SettingsCard
+      title="Ring your cell first (optional)"
+      description="If you set a cell number, an incoming call rings it first. Only if you don't pick up in time do we count the call as missed and text the caller."
+      footer={
+        canEdit ? (
+          <div className="flex items-center justify-end">
+            <Button onClick={save} disabled={!dirty || invalid || update.isPending}>
+              {update.isPending ? "Saving…" : "Save forwarding"}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="forward-cell" className="text-sm font-medium">
+          Forward calls to
+        </Label>
+        <Input
+          id="forward-cell"
+          type="tel"
+          inputMode="tel"
+          value={cell}
+          disabled={!canEdit || update.isPending}
+          placeholder="+16135551234"
+          onChange={(e) => setCell(e.target.value)}
+          className="max-w-xs"
+        />
+        <p className="text-xs text-muted-foreground">
+          Leave blank to skip forwarding — every unanswered call is then texted
+          right away. We use answering-machine detection so a call that hits your
+          voicemail still counts as missed.
+        </p>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
+export default function MissedCallsSettingsPage() {
+  const company = useCompany();
+  const { role } = useActiveCompany();
+  const canEdit = role === "owner" || role === "admin";
+
+  return (
+    <SettingsPage
+      title="Missed calls"
+      description="Turn a missed call into a booked job with one automatic text."
+    >
+      {company.isPending ? (
+        <MissedCallsSkeleton />
+      ) : company.isError ? (
+        <LoadError onRetry={() => company.refetch()} />
+      ) : (
+        <div className="space-y-6">
+          {/* A text-enabled landline's calls ring the owner's existing
+              carrier, so there is no JobText call to observe as missed. */}
+          {onlyHostedNumbers(company.data.numbers) && (
+            <p className="text-sm text-muted-foreground">
+              Missed-call text-back needs a number whose calls come through
+              JobText — calls to your text-enabled landline stay with your
+              existing carrier, so these settings won&apos;t apply until you
+              add or transfer a JobText number.
+            </p>
+          )}
+          <TextBackCard company={company.data} canEdit={canEdit} />
+          <ForwardCard company={company.data} canEdit={canEdit} />
+        </div>
+      )}
+    </SettingsPage>
+  );
+}

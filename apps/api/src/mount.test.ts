@@ -21,6 +21,8 @@ import { composeRoutes } from "./routes/compose";
 import { conversationsRoutes } from "./routes/conversations";
 import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers } from "./telnyx/provisioning";
+import { reconcileTextEnablement } from "./telnyx/text-enablement";
+import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
   nudgeSoleProprietorOtp,
   pollRegistrations,
@@ -280,6 +282,11 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["PUT", "/v1/port-requests/:id/documents"],
     ["POST", "/v1/port-requests/:id/resubmit"],
     ["POST", "/v1/port-requests/:id/cancel"],
+    // keep-your-number text-enablement (hosted SMS)
+    ["POST", "/v1/text-enablements"],
+    ["GET", "/v1/text-enablements"],
+    ["GET", "/v1/text-enablements/:id"],
+    ["POST", "/v1/text-enablements/:id/cancel"],
     // conversations (compose owns the POST)
     ["POST", "/v1/conversations"],
     ["GET", "/v1/conversations"],
@@ -411,6 +418,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       reconcileNumbers,
       retryCampaignAssignments,
       sweepDeletedAttachments,
+      reconcileTextEnablement,
+      reconcileVoiceEnablement,
     ]);
     expect(CRON_JOBS["0 * * * *"]).toEqual([
       reportUnreportedUsage,

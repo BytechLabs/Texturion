@@ -4,6 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, TelnyxApiError } from "./client";
 import { provisioningDelayedCopy } from "./emails";
+// Type-only (erased at runtime): a VALUE import here would close a module
+// cycle with text-enablement.ts (which reuses ensureMessagingProfile /
+// fetchProvisioningCompany from this file) and break module init under
+// vite-node — so the hosted release below re-issues the two Telnyx DELETEs
+// itself instead of calling cancelTextEnablement.
+import type { TextEnablementOrderRow } from "./text-enablement";
 import { telnyxWebhookUrl } from "./wizard";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
@@ -36,6 +42,15 @@ export interface PhoneNumberRow {
   id: string;
   company_id: string;
   status: "provisioning" | "active" | "suspended" | "released" | "provision_failed";
+  /**
+   * How the row gets its number: 'provisioned' = this saga buys inventory;
+   * 'ported' = the port saga (PORTING.md §4) fulfils it; 'hosted' = the
+   * text-enablement saga (keep-your-number) adds SMS to an owner-kept number.
+   * ONLY 'provisioned' rows may ever be searched/ordered against — running the
+   * buy saga on a ported/hosted row would purchase a random new number and
+   * overwrite the owner's own number on the row.
+   */
+  source: "provisioned" | "ported" | "hosted";
   provisioning_key: string;
   requested_area_code: string | null;
   country: string;
@@ -60,7 +75,7 @@ const COMPANY_COLUMNS =
   "id,name,country,requested_area_code,telnyx_messaging_profile_id,subscription_status";
 
 const NUMBER_COLUMNS =
-  "id,company_id,status,provisioning_key,requested_area_code,country," +
+  "id,company_id,status,source,provisioning_key,requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
   "last_provision_error,updated_at";
 
@@ -460,6 +475,17 @@ export async function resumeProvisioning(
   env: Env,
   row: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
+  // Belt-and-braces: this saga BUYS inventory, so it must never run on a
+  // keep-your-number row. A ported row is fulfilled by the port saga and a
+  // hosted row by the text-enablement saga — ordering here would purchase a
+  // random new number and overwrite the owner's own number_e164.
+  if (row.source !== "provisioned") {
+    Sentry.captureMessage(
+      `resumeProvisioning called on a source='${row.source}' row ${row.id} — skipped`,
+      "warning",
+    );
+    return row;
+  }
   const db = getDb(env);
   const company = await fetchCompany(db, row.company_id);
   try {
@@ -582,16 +608,90 @@ export async function suspendCompanyNumbers(
 }
 
 /**
- * Release one row: hand the number back to Telnyx (tolerating "already gone"),
- * then mark the row `released` (rows are retained forever — SPEC §6). Used by
- * the grace-expiry job via {@link releaseCompanyNumbers} and by
+ * Release one row: undo the Telnyx side (tolerating "already gone"), then mark
+ * the row `released` (rows are retained forever — SPEC §6). Used by the
+ * grace-expiry job via {@link releaseCompanyNumbers} and by
  * `DELETE /v1/numbers/:id` (§12 step 18).
+ *
+ * Purchased/ported rows own a Telnyx phone-number resource → DELETE
+ * /v2/phone_numbers/{id}. A source='hosted' row owns NO Telnyx number (voice
+ * stays on the owner's carrier) — its Telnyx side is the hosted-messaging
+ * ORDER: cancelled while non-terminal, or the live hosted NUMBER deleted
+ * (DELETE /v2/messaging_hosted_numbers/{id}) once 'completed'; the order row
+ * is then marked cancelled. In every branch, only a Telnyx 404 (already gone)
+ * lets the row converge to released — any other Telnyx failure keeps it
+ * un-released for the daily cron to retry.
  */
 export async function releaseNumberRow(
   env: Env,
   row: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
   if (row.status === "released") return row;
+  if (row.source === "hosted") {
+    const db = getDb(env);
+    const { data, error } = await db
+      .from("text_enablement_orders")
+      .select("id,status,telnyx_hosted_order_id,telnyx_hosted_number_id")
+      .eq("phone_number_id", row.id)
+      .limit(1);
+    if (error) {
+      throw new Error(`text_enablement_orders lookup failed: ${error.message}`);
+    }
+    const order = (data?.[0] ?? null) as Pick<
+      TextEnablementOrderRow,
+      "id" | "status" | "telnyx_hosted_order_id" | "telnyx_hosted_number_id"
+    > | null;
+    if (!order) {
+      // A hosted row without its order is a data bug worth flagging — but
+      // never a reason to keep the slot occupied.
+      Sentry.captureMessage(
+        `release: hosted row ${row.id} has no text_enablement_orders row`,
+        "warning",
+      );
+    } else if (order.status !== "cancelled") {
+      // Telnyx side first (same DELETE calls cancelTextEnablement uses):
+      // 'completed' → the live hosted NUMBER; non-terminal → the ORDER
+      // ("delete a messaging hosted number order and all associated phone
+      // numbers" — the documented cancel; there is no /actions/cancel).
+      const path =
+        order.status === "completed"
+          ? order.telnyx_hosted_number_id
+            ? `/v2/messaging_hosted_numbers/${order.telnyx_hosted_number_id}`
+            : null
+          : order.telnyx_hosted_order_id
+            ? `/v2/messaging_hosted_number_orders/${order.telnyx_hosted_order_id}`
+            : null;
+      if (path) {
+        try {
+          await telnyxRequest(env, { method: "DELETE", path });
+        } catch (cause) {
+          if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
+            throw cause;
+          }
+        }
+      } else if (order.status === "completed") {
+        // Completed but the hosted-number id never landed: nothing
+        // addressable to delete — flag it, don't hold the slot.
+        Sentry.captureMessage(
+          `release: completed enablement ${order.id} has no telnyx_hosted_number_id`,
+          "warning",
+        );
+      }
+      const { error: orderError } = await db
+        .from("text_enablement_orders")
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+        .eq("id", order.id);
+      if (orderError) {
+        throw new Error(
+          `text_enablement_orders update failed: ${orderError.message}`,
+        );
+      }
+    }
+    return updateNumberRow(db, row.id, {
+      status: "released",
+      released_at: new Date().toISOString(),
+    });
+  }
   if (row.telnyx_phone_number_id) {
     try {
       await telnyxRequest(env, {
@@ -678,9 +778,15 @@ export async function reconcileNumbers(
   const db = getDb(env);
   const summary: ReconcileSummary = { retried: 0, activated: 0, orphansFlagged: 0 };
 
+  // Work-set: ONLY source='provisioned' rows. Ported rows sit at
+  // status='provisioning' for the whole multi-week transfer (the port saga's
+  // daily cron owns them) and hosted rows for the multi-day carrier review
+  // (reconcileTextEnablement owns them) — resuming the buy saga on either
+  // would order a brand-new number over the owner's own one.
   const { data, error } = await db
     .from("phone_numbers")
     .select(NUMBER_COLUMNS)
+    .eq("source", "provisioned")
     .in("status", ["provisioning", "provision_failed"]);
   if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
 

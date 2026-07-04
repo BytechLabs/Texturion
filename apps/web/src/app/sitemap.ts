@@ -86,11 +86,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: LIVE_ROUTES.terms, priority: 0.3, changeFrequency: "yearly" },
     { path: LIVE_ROUTES.privacy, priority: 0.3, changeFrequency: "yearly" },
     { path: LIVE_ROUTES.aup, priority: 0.3, changeFrequency: "yearly" },
+    { path: LIVE_ROUTES.messaging, priority: 0.3, changeFrequency: "yearly" },
     {
       path: LIVE_ROUTES.subprocessors,
       priority: 0.3,
       changeFrequency: "yearly",
     },
+    { path: LIVE_ROUTES.refunds, priority: 0.3, changeFrequency: "yearly" },
   ];
 
   return entries.map(({ path, priority, changeFrequency }) => ({

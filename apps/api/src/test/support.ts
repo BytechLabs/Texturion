@@ -17,6 +17,7 @@ export function completeEnv(): Env {
       "https://abcdefghijkl.supabase.co/auth/v1/.well-known/jwks.json",
     TELNYX_API_KEY: "KEY0123456789ABCDEF",
     TELNYX_PUBLIC_KEY: "3fJ8mQz1xW9yK2vL5nB7cD4eF6gH8iJ0kL2mN4oP6qR=",
+    TELNYX_VOICE_CONNECTION_ID: "2000000000000000001",
     STRIPE_SECRET_KEY: "rk_test_0123456789abcdef",
     STRIPE_WEBHOOK_SECRET: "whsec_0123456789abcdef",
     RESEND_API_KEY: "re_0123456789abcdef",

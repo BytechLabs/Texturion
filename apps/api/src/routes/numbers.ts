@@ -24,15 +24,24 @@ import {
 export const numbersRoutes = new Hono<AppEnv>();
 
 const NUMBER_COLUMNS =
-  "id,company_id,status,provisioning_key,requested_area_code,country," +
+  "id,company_id,status,source,voice_enabled,provisioning_key," +
+  "requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
   "last_provision_error,updated_at,created_at,suspended_at,released_at";
 
+type NumberRowFull = PhoneNumberRow & {
+  voice_enabled?: boolean;
+} & Record<string, unknown>;
+
 /** Vendor ids and provisioning internals stay server-side. */
-function sanitizeNumber(row: PhoneNumberRow & Record<string, unknown>) {
+function sanitizeNumber(row: NumberRowFull) {
   return {
     id: row.id,
     status: row.status,
+    // Hosted-vs-purchased + voice state (FEATURE-GAPS voice wave): the web
+    // renders keep-your-number rows differently from bought inventory.
+    source: row.source,
+    voice_enabled: row.voice_enabled ?? false,
     number_e164: row.number_e164,
     country: row.country,
     requested_area_code: row.requested_area_code,
@@ -41,8 +50,6 @@ function sanitizeNumber(row: PhoneNumberRow & Record<string, unknown>) {
     released_at: row.released_at ?? null,
   };
 }
-
-type NumberRowFull = PhoneNumberRow & Record<string, unknown>;
 
 async function listCompanyNumbers(
   db: SupabaseClient,

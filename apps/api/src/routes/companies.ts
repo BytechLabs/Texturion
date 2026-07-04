@@ -15,7 +15,12 @@
  *         D15); { overage_cap_multiplier? } is owner-only (number or null —
  *         SPEC §2 cap, §10 matrix).
  */
-import { isValidBusinessHours, NANP_AREA_CODES } from "@jobtext/shared";
+import {
+  isUsCaDestination,
+  isValidBusinessHours,
+  lookupAreaCode,
+  NANP_AREA_CODES,
+} from "@jobtext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -24,6 +29,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { enableVoiceForCompany } from "../telnyx/voice";
 import { COMPANY_COLUMNS, loadCompanyView } from "./core/company-view";
 import { parseJsonBody, unwrap } from "./core/http";
 import { isValidIanaTimezone } from "./core/timezone";
@@ -68,6 +74,12 @@ const patchSchema = z
     away_message: z.string().trim().max(1000).nullable().optional(),
     // FEATURE-GAPS Step 2 — Google review deep-link; null clears it.
     google_review_link: z.string().trim().max(2000).nullable().optional(),
+    // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
+    // owner-authored (null clears it); forward_to_cell is an optional E.164 cell
+    // (null clears it), validated against the NANP table below.
+    mctb_enabled: z.boolean().optional(),
+    mctb_message: z.string().trim().max(1000).nullable().optional(),
+    forward_to_cell: z.string().trim().max(20).nullable().optional(),
   })
   .refine(
     (body) =>
@@ -77,7 +89,10 @@ const patchSchema = z
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
       "away_message" in body ||
-      "google_review_link" in body,
+      "google_review_link" in body ||
+      body.mctb_enabled !== undefined ||
+      "mctb_message" in body ||
+      "forward_to_cell" in body,
     { message: "Provide at least one field to update." },
   );
 
@@ -208,8 +223,34 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       patch.google_review_link = null;
     }
   }
+  // FEATURE-GAPS voice wave: missed-call text-back settings.
+  if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;
+  if ("mctb_message" in body) {
+    // Empty string clears to null (an unauthored message never fires).
+    patch.mctb_message =
+      body.mctb_message && body.mctb_message.length > 0
+        ? body.mctb_message
+        : null;
+  }
+  if ("forward_to_cell" in body) {
+    if (body.forward_to_cell && body.forward_to_cell.length > 0) {
+      // Must be a real US/CA E.164 cell (the DB CHECK is the storage backstop;
+      // this is the friendly validation the owner sees).
+      if (!isUsCaDestination(body.forward_to_cell) ||
+          !lookupAreaCode(body.forward_to_cell)?.geographic) {
+        throw new ApiError(
+          "validation_failed",
+          "forward_to_cell must be a valid US or Canada mobile number (+1…).",
+        );
+      }
+      patch.forward_to_cell = body.forward_to_cell;
+    } else {
+      patch.forward_to_cell = null;
+    }
+  }
 
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
   const rows = unwrap<Record<string, unknown>[]>(
     await db
       .from("companies")
@@ -223,5 +264,42 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }
+
+  // When the missed-call text-back is turned ON, or a forward cell is set, the
+  // company's number(s) must be able to RECEIVE CALLS. Enable voice idempotently
+  // (a no-op when already enabled or when no active number exists yet). Only the
+  // voice facet is touched — SMS is never affected. Best-effort in the
+  // background so the settings write returns immediately; a failure here is
+  // logged and the number stays SMS-only until the next enable (settings re-save
+  // or a cron), never blocking the settings save.
+  const turnedOnVoice =
+    body.mctb_enabled === true ||
+    (typeof patch.forward_to_cell === "string" &&
+      patch.forward_to_cell.length > 0);
+  if (turnedOnVoice) {
+    const enable = enableVoiceForCompany(env, db, c.get("companyId")).catch(
+      (cause: unknown) => {
+        console.error(
+          `voice enable for company ${c.get("companyId")} failed:`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      },
+    );
+    const ctx = executionCtxOf(c);
+    if (ctx) ctx.waitUntil(enable);
+    else await enable;
+  }
+
   return c.json(company);
 });
+
+/** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
+function executionCtxOf(c: {
+  executionCtx: { waitUntil(p: Promise<unknown>): void };
+}): { waitUntil(p: Promise<unknown>): void } | null {
+  try {
+    return c.executionCtx;
+  } catch {
+    return null;
+  }
+}

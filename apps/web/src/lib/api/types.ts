@@ -27,6 +27,12 @@ export type NumberStatus =
   | "suspended"
   | "released"
   | "provision_failed";
+/**
+ * Where a `phone_numbers` row came from (`number_source` enum): a bought
+ * number, a full port-in, or a keep-your-number text-enablement (hosted SMS —
+ * voice stays with the owner's existing carrier).
+ */
+export type NumberSource = "provisioned" | "ported" | "hosted";
 export type RegistrationStatus =
   | "draft"
   | "submitted"
@@ -69,7 +75,11 @@ export type ConversationEventType =
   | "note_attachment_added"
   | "note_attachment_removed"
   | "task_attachment_added"
-  | "task_attachment_removed";
+  | "task_attachment_removed"
+  // FEATURE-GAPS voice wave — logged on the caller's conversation when a call
+  // is COMPUTED missed and the text-back fired. Actor is NULL (system);
+  // payload: { call_id, message_id, caller }.
+  | "missed_call";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {
@@ -104,6 +114,15 @@ export interface PhoneNumberSummary {
   number_e164: string | null;
   requested_area_code: string | null;
   created_at: string;
+  /**
+   * FEATURE-GAPS voice wave: hosted-vs-purchased. Returned by BOTH read
+   * surfaces (GET /v1/numbers and the company-view embed) but kept optional so
+   * cached pre-wave shapes stay assignable — readers treat a missing value as
+   * "provisioned".
+   */
+  source?: NumberSource;
+  /** Voice on Telnyx — false for hosted rows (calls stay on the old carrier). */
+  voice_enabled?: boolean;
   /** Present on GET /v1/numbers rows; absent from the company-view embed. */
   suspended_at?: string | null;
   released_at?: string | null;
@@ -146,6 +165,11 @@ export interface CompanyView {
   away_message: string | null;
   /** FEATURE-GAPS Step 2 — Google review deep-link (null until set). */
   google_review_link: string | null;
+  /** FEATURE-GAPS voice wave — missed-call text-back settings. */
+  mctb_enabled: boolean;
+  mctb_message: string | null;
+  /** Optional E.164 cell the inbound call is forwarded to (null = no forward). */
+  forward_to_cell: string | null;
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];
@@ -713,6 +737,52 @@ export interface CreatePortRequestInput {
 export type UpdatePortRequestInput = Partial<
   Omit<CreatePortRequestInput, "phone_e164" | "wants_bridge_number">
 >;
+
+// ---------------------------------------------------------------------------
+// text-enablements (FEATURE-GAPS voice wave, path B — keep your number AND
+// your carrier: a Telnyx hosted-SMS order adds texting to an existing
+// landline; voice never moves)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hosted-order status mirror (routes/text-enablement.ts). Carrier review takes
+ * a few business days; texting is live only at `completed` — the UI surfaces
+ * these states plainly, never an invented progress percentage.
+ */
+export type TextEnablementStatus =
+  | "pending"
+  | "action-required"
+  | "in-progress"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/**
+ * How the number-ownership verification code is delivered to the number being
+ * text-enabled (POST /v1/text-enablements/:id/verification-codes): a text, or
+ * an automated call for a landline that can't receive SMS.
+ */
+export type TextEnablementVerificationMethod = "sms" | "call";
+
+/**
+ * A text-enablement order, as serialized by routes/text-enablement.ts
+ * `sanitize()`. Vendor ids stay server-side — only the status, the document
+ * on-file booleans, and the honest timestamps reach the client. `created_at`
+ * is always present on fresh responses; kept nullable so pre-wave cached
+ * shapes stay assignable (readers render the started line only when present).
+ */
+export interface TextEnablement {
+  id: string;
+  phone_e164: string;
+  country: Country;
+  status: TextEnablementStatus;
+  has_loa: boolean;
+  has_bill: boolean;
+  last_error: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string | null;
+}
 
 export interface NotificationPrefs {
   email_enabled: boolean;

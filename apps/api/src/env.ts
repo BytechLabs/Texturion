@@ -1,6 +1,20 @@
 import { z } from "zod";
 
 /**
+ * The Workers rate-limiting binding surface (wrangler's "ratelimit" unsafe
+ * binding — not importable from a package, so typed here). `success: false`
+ * means the key is over its configured limit for the current period.
+ */
+export interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+const rateLimiterSchema = z.custom<RateLimiter>(
+  (value) =>
+    typeof (value as RateLimiter | null | undefined)?.limit === "function",
+);
+
+/**
  * Every binding the api Worker requires (SPEC §10). All of these are Worker
  * encrypted secrets in production (`wrangler secret put`) and `.dev.vars`
  * entries locally — see .dev.vars.example.
@@ -11,6 +25,13 @@ const envSchema = z.object({
   SUPABASE_JWKS_URL: z.url(),
   TELNYX_API_KEY: z.string().min(1),
   TELNYX_PUBLIC_KEY: z.string().min(1),
+  /**
+   * The Telnyx Call-Control application id (a.k.a. voice "connection"), created
+   * once at account setup, that per-company numbers are bound to for inbound
+   * voice — the target of the missed-call text-back's Call-Control webhooks.
+   * Enabling voice on an SMS-only number points its voice settings at this app.
+   */
+  TELNYX_VOICE_CONNECTION_ID: z.string().min(1),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),
@@ -36,6 +57,20 @@ const envSchema = z.object({
   STRIPE_US_FEE_PRICE_ID: z.string().min(1),
   /** Billing Meter `event_name` (SPEC §9: 'sms_segments'). */
   STRIPE_SMS_METER_EVENT_NAME: z.string().min(1),
+  /**
+   * PostHog Cloud project API key (SPEC §12 step 18 product analytics).
+   * OPTIONAL: when unset (local dev, tests) every analytics capture is a
+   * silent no-op — see src/analytics/posthog.ts.
+   */
+  POSTHOG_API_KEY: z.string().min(1).optional(),
+  /**
+   * The per-company outbound rate limiter (SPEC §10 layer 3: ~1 msg/s),
+   * declared in wrangler.jsonc as a "ratelimit" unsafe binding. Workers rate
+   * limiting only supports 10s/60s periods, so 1 msg/s is configured as
+   * limit=10 per period=10s — the same average rate with small bursts.
+   * OPTIONAL: absent in local dev/tests → the dispatch-time gate is skipped.
+   */
+  SEND_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

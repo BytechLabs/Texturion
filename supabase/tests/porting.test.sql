@@ -55,7 +55,10 @@ begin
   from pg_enum e join pg_type t on t.oid = e.enumtypid
   join pg_namespace n on n.oid = t.typnamespace
   where n.nspname = 'public' and t.typname = 'number_source';
-  if ns is distinct from array['provisioned','ported'] then
+  -- 'hosted' is appended by the FEATURE-GAPS voice-wave migration
+  -- (20260703060000) for the keep-your-number text-enablement path — a new
+  -- ADD VALUE, never a re-order of the shipped set.
+  if ns is distinct from array['provisioned','ported','hosted'] then
     raise exception 'PT1 FAILED: number_source enum wrong or mis-ordered: %', ns;
   end if;
   raise notice 'PT1 PASSED: port_status/port_messaging_status/number_source enums match the verified Telnyx sets';

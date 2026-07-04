@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 
+import { capture } from "../analytics/posthog";
 import { recordAndSendGraceNotice } from "../billing/grace";
 import {
   mirrorSubscriptionStatus,
@@ -251,6 +252,13 @@ async function handleCheckoutCompleted(
   }
 
   if (status === "active") {
+    // §12 step 18 north-star: the company just flipped active on a paid
+    // checkout. distinct_id = company_id, plan is safe metadata (no PII,
+    // SPEC §10). Best-effort — a rare sweeper re-run of a half-processed
+    // event may re-fire, which PostHog funnels absorb (first occurrence
+    // per distinct_id counts).
+    await capture(env, "checkout_completed", companyId, { plan });
+
     // Resubscribe-within-grace: un-suspend instead of provisioning (§9) —
     // the saga then skips because a non-released number exists.
     const { error: unsuspendError } = await db

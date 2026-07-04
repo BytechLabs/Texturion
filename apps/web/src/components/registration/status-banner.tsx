@@ -76,13 +76,15 @@ export function RegistrationStatusBanner() {
       ? REGISTRATION_COPY.numberProvisioning
       : state.kind === "number_delayed"
         ? REGISTRATION_COPY.numberDelayed
-        : state.kind === "otp_pending"
-          ? REGISTRATION_COPY.otpPending(otpPhone)
-          : state.kind === "rejected"
-            ? REGISTRATION_COPY.rejected(
-                state.reason ?? "the carrier flagged a detail",
-              )
-            : REGISTRATION_COPY.registrationPending;
+        : state.kind === "number_hosted_review"
+          ? REGISTRATION_COPY.hostedReview
+          : state.kind === "otp_pending"
+            ? REGISTRATION_COPY.otpPending(otpPhone)
+            : state.kind === "rejected"
+              ? REGISTRATION_COPY.rejected(
+                  state.reason ?? "the carrier flagged a detail",
+                )
+              : REGISTRATION_COPY.registrationPending;
 
   const action =
     state.kind === "otp_pending"

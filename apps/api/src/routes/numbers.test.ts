@@ -19,6 +19,8 @@ const OWNER_ID = "22222222-2222-4222-8222-222222222222";
 
 const NUMBER_DEFAULTS = {
   status: "provisioning",
+  source: "provisioned",
+  voice_enabled: false,
   requested_area_code: null,
   number_e164: null,
   telnyx_phone_number_id: null,
@@ -187,6 +189,9 @@ describe("GET /v1/numbers", () => {
       status: "active",
       number_e164: "+12125550123",
       country: "US",
+      // Hosted-vs-purchased + voice state (FEATURE-GAPS voice wave).
+      source: "provisioned",
+      voice_enabled: false,
     });
     expect(body.data[0].telnyx_phone_number_id).toBeUndefined();
     expect(body.data[0].telnyx_order_id).toBeUndefined();

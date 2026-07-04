@@ -20,6 +20,24 @@
       "0 15 * * *" // subscription reconcile (daily)
     ]
   },
+  "unsafe": {
+    "bindings": [
+      {
+        // SPEC §10 layer 3: the per-company outbound rate limiter, checked at
+        // the single dispatch choke point (src/messaging/send.ts) for human
+        // sends and auto-sends alike, keyed on company_id. Workers rate
+        // limiting only supports periods of 10 or 60 seconds, so the SPEC's
+        // "1 msg/s" is expressed as limit=10 per period=10s — the identical
+        // average rate, tolerating sub-10s bursts. Local dev/tests run
+        // without the binding (it is optional in src/env.ts) → gate skipped.
+        "name": "SEND_RATE_LIMITER",
+        "type": "ratelimit",
+        // Account-unique id for this limiter's namespace.
+        "namespace_id": "1001",
+        "simple": { "limit": 10, "period": 10 }
+      }
+    ]
+  },
   // Only non-secret plain-text configuration belongs in "vars". Every credential
   // this Worker needs (SPEC §10) is a Worker encrypted secret — `wrangler secret put`
   // in production, `.dev.vars` locally. See .dev.vars.example for the full list,

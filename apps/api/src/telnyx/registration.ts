@@ -10,12 +10,14 @@ import {
 import {
   brandDraftSchema,
   buildBrandPayload,
+  buildCampaignContentUpdate,
   buildCampaignPayload,
   campaignDraftSchema,
   isSoleProprietorDraft,
   type BrandDraft,
   type CampaignDraft,
 } from "./wizard";
+import { capture } from "../analytics/posthog";
 import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
@@ -366,6 +368,10 @@ async function applyTransition(
       company.id,
       usTextingLiveCopy(company.name, env),
     );
+    // §12 step 18 north-star: carrier approval — US texting just unlocked.
+    // ALLOWED_TRANSITIONS gates this transition (and so this capture) to at
+    // most once per approval, across webhook/poller overlap and redelivery.
+    await capture(env, "registration_approved", company.id);
   }
   if (mapped.next === "rejected") {
     // R4: rejection email with the fix-and-resubmit link.
@@ -592,8 +598,25 @@ export type SubmitRegistrationResult =
  *    sole-prop additionally triggers the OTP
  *  - R2 recovery: brand approved + campaign draft/rejected → submit campaign
  *  - already in flight / already approved → noop
+ *
+ * Every non-noop outcome fires the §12 step 18 `registration_submitted`
+ * north-star event (the `action` property distinguishes the R1 first
+ * submission from resubmits/recovery/reactivation).
  */
 export async function submitRegistration(
+  env: Env,
+  companyId: string,
+): Promise<SubmitRegistrationResult> {
+  const result = await runSubmitRegistration(env, companyId);
+  if (result.action !== "noop") {
+    await capture(env, "registration_submitted", companyId, {
+      action: result.action,
+    });
+  }
+  return result;
+}
+
+async function runSubmitRegistration(
   env: Env,
   companyId: string,
 ): Promise<SubmitRegistrationResult> {
@@ -749,6 +772,77 @@ export async function retryCampaignAssignments(env: Env): Promise<number> {
   return retried;
 }
 
+/**
+ * Step 0c content migration for ALREADY-registered campaigns (FEATURE-GAPS):
+ * campaigns created before the review-link feature shipped never declared the
+ * review-ask content, so the review sends they now emit are undeclared.
+ * Declare it after the fact via `PUT /v2/10dlc/campaign/{campaignId}` with
+ * the update-safe sample block ({@link buildCampaignContentUpdate}).
+ *
+ * `description` and `embeddedLink` are CREATE-ONLY: Telnyx's campaign UPDATE
+ * schema (`UpdateCampaignRequest`) accepts neither, and Telnyx documents that
+ * only the sample messages are editable after registration — they can never
+ * be migrated onto an existing campaign. A legacy campaign's only enforceable
+ * declaration of the review ask is the sample3 review sample this PUT lands.
+ *
+ * Idempotent — GETs the campaign first and skips when a `sample3` is already
+ * registered: sample3 is the field this migration introduces, so its presence
+ * is the cheap "already migrated?" marker. Returns true when an update was
+ * actually sent. A Telnyx 422 on the PUT is reported to Sentry and swallowed
+ * (returns false): the payload is built to the update schema's 255-char caps,
+ * but a campaign Telnyx still refuses must not fail the caller — otherwise
+ * one bad tenant poisons every {@link pollRegistrations} run with a daily
+ * AggregateError.
+ */
+export async function updateCampaignContent(
+  env: Env,
+  db: SupabaseClient,
+  campaign: RegistrationRow,
+): Promise<boolean> {
+  if (!campaign.telnyx_id) return false;
+  const remote = unwrapTendlc(
+    await telnyxRequest(env, {
+      method: "GET",
+      path: `/v2/10dlc/campaign/${campaign.telnyx_id}`,
+    }),
+  );
+  if (typeof remote.sample3 === "string" && remote.sample3.trim().length > 0) {
+    return false; // already declares a review sample — nothing to migrate
+  }
+
+  const draft = parseCampaignDraft(campaign);
+  if (!draft) return false; // no trustworthy local draft to (re)declare from
+
+  const { brand } = await fetchRegistrationRows(db, campaign.company_id);
+  const brandDraft = brand ? parseBrandDraft(brand) : null;
+  const businessName =
+    brandDraft?.displayName ??
+    (brand && typeof brand.data.displayName === "string"
+      ? brand.data.displayName
+      : "Our business");
+
+  try {
+    await telnyxRequest(env, {
+      method: "PUT",
+      path: `/v2/10dlc/campaign/${campaign.telnyx_id}`,
+      body: buildCampaignContentUpdate({ campaign: draft, businessName }),
+    });
+  } catch (cause) {
+    if (cause instanceof TelnyxApiError && cause.status === 422) {
+      // Defense in depth: content this specific campaign cannot accept is a
+      // per-tenant data problem, not a poll-stopping outage. Report and skip;
+      // any other failure (5xx, transport) propagates so the poll retries.
+      Sentry.captureMessage(
+        `10DLC campaign content migration rejected (422) for campaign ${campaign.telnyx_id} (company ${campaign.company_id}): ${cause.message}`,
+        "error",
+      );
+      return false;
+    }
+    throw cause;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Webhook entry point
 // ---------------------------------------------------------------------------
@@ -860,6 +954,8 @@ export interface PollSummary {
   polled: number;
   transitioned: number;
   assignmentsRetried: number;
+  /** Step 0c: registered campaigns whose remote content was migrated. */
+  contentUpdated: number;
 }
 
 /**
@@ -868,11 +964,18 @@ export interface PollSummary {
  * `GET /v2/10dlc/campaign/{campaignId}`) and apply any missed transition —
  * side-effect emails ride the same transition path as webhooks, so they fire
  * exactly once. Also recovers a missed R2 (brand approved while its campaign
- * never left draft) and re-runs failed R3 assignments.
+ * never left draft), re-runs failed R3 assignments, and migrates
+ * already-registered campaign content to the Step 0c shape (once per
+ * campaign — see {@link updateCampaignContent}).
  */
 export async function pollRegistrations(env: Env): Promise<PollSummary> {
   const db = getDb(env);
-  const summary: PollSummary = { polled: 0, transitioned: 0, assignmentsRetried: 0 };
+  const summary: PollSummary = {
+    polled: 0,
+    transitioned: 0,
+    assignmentsRetried: 0,
+    contentUpdated: 0,
+  };
 
   const { data, error } = await db
     .from("messaging_registrations")
@@ -923,6 +1026,30 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
       const { campaign } = await fetchRegistrationRows(db, brand.company_id);
       if (campaign && campaign.status === "draft" && campaign.deactivated_at === null) {
         await submitCampaignIfReady(env, db, company, brand);
+      }
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+
+  // Step 0c content migration: registered (approved, live) campaigns created
+  // before the review-link content shipped get one PUT declaring it; the
+  // sample3 guard inside updateCampaignContent makes every later run a no-op,
+  // so this converges to one cheap GET per live campaign per day.
+  const { data: liveCampaigns, error: liveError } = await db
+    .from("messaging_registrations")
+    .select(ROW_COLUMNS)
+    .eq("kind", "campaign")
+    .eq("status", "approved")
+    .is("deactivated_at", null)
+    .not("telnyx_id", "is", null);
+  if (liveError) {
+    throw new Error(`messaging_registrations lookup failed: ${liveError.message}`);
+  }
+  for (const campaign of (liveCampaigns ?? []) as unknown as RegistrationRow[]) {
+    try {
+      if (await updateCampaignContent(env, db, campaign)) {
+        summary.contentUpdated += 1;
       }
     } catch (cause) {
       failures.push(cause);

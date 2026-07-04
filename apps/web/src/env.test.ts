@@ -69,4 +69,36 @@ describe("public env validation (SPEC §3, §10)", () => {
 
     await expect(importEnv()).rejects.toThrowError(/NEXT_PUBLIC_API_URL/);
   });
+
+  // The Turnstile site key is optional: local dev and CI run without it, and
+  // the auth screens only render the captcha when it is present.
+  it("exposes the Turnstile site key when configured", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAAFakeKey");
+
+    const { publicEnv } = await importEnv();
+    expect(publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBe("0x4AAAAAAAFakeKey");
+  });
+
+  it("treats a missing Turnstile site key as not configured", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", undefined);
+
+    const { publicEnv } = await importEnv();
+    expect(publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBeUndefined();
+  });
+
+  it("treats a blank Turnstile site key as not configured", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+
+    const { publicEnv } = await importEnv();
+    expect(publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBeUndefined();
+  });
 });
