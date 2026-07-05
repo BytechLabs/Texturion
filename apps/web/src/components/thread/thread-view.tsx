@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,36 @@ function readPanelPref(): boolean {
     return window.localStorage.getItem(PANEL_PREF_KEY) === "true";
   } catch {
     return false;
+  }
+}
+
+// Persisted contact-panel width (drag the panel's left edge to resize). Clamped
+// so the thread column (min-w-0) is never crushed even at a 1280px viewport.
+const PANEL_WIDTH_KEY = "jobtext:contact-panel-width";
+const PANEL_MIN_WIDTH = 260;
+const PANEL_MAX_WIDTH = 560;
+const PANEL_DEFAULT_WIDTH = 300;
+
+function clampPanelWidth(px: number): number {
+  return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, px));
+}
+
+function readPanelWidth(): number {
+  if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
+  try {
+    const raw = window.localStorage.getItem(PANEL_WIDTH_KEY);
+    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) ? clampPanelWidth(parsed) : PANEL_DEFAULT_WIDTH;
+  } catch {
+    return PANEL_DEFAULT_WIDTH;
+  }
+}
+
+function persistPanelWidth(px: number): void {
+  try {
+    window.localStorage.setItem(PANEL_WIDTH_KEY, String(px));
+  } catch {
+    /* preference only — losing it is harmless. */
   }
 }
 
@@ -139,6 +169,15 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // Desktop panel preference persists (G3); mobile uses a bottom sheet.
   const [panelOpen, setPanelOpen] = useState(readPanelPref);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  // Panel width starts at the default (so server + first client paint agree),
+  // then adopts the stored value on mount — avoids a hydration mismatch on the
+  // inline style. A ref mirrors it so the drag handler reads the live width.
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  useEffect(() => {
+    setPanelWidth(readPanelWidth());
+  }, []);
+  const panelWidthRef = useRef(panelWidth);
+  panelWidthRef.current = panelWidth;
   // §5.2: the attachments gallery has ONE entry point (the thread-header
   // overflow); the context panel's "View all attachments" row opens this same
   // surface. State lives here so both entry points share it.
@@ -163,6 +202,30 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       setMobilePanelOpen(true);
     }
   };
+
+  // Drag the panel's LEFT edge to resize; the final width persists on release.
+  const startResize = useCallback((event: React.PointerEvent) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = panelWidthRef.current;
+    let latest = startWidth;
+    const onMove = (moveEvent: PointerEvent) => {
+      // The handle sits on the left edge, so dragging left (clientX ↓) widens.
+      latest = clampPanelWidth(startWidth + (startX - moveEvent.clientX));
+      setPanelWidth(latest);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      persistPanelWidth(latest);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
 
   // Opening a thread marks it read immediately (G4); re-mark as messages
   // arrive while viewing — inbound, a teammate's reply/note, or your own send
@@ -224,8 +287,34 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       {panelOpen && (
         <aside
           aria-label={`Contact details for ${contactDisplayName(conversation.contact)}`}
-          className="hidden w-[300px] shrink-0 border-l border-app-line bg-app-white xl:block"
+          style={{ width: panelWidth }}
+          className="relative hidden shrink-0 border-l border-app-line bg-app-white xl:block"
         >
+          {/* Left-edge resize handle. Drag to resize (persisted); double-click
+              resets to the default; ←/→ nudge by 16px for keyboard users. */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize contact panel"
+            tabIndex={0}
+            onPointerDown={startResize}
+            onDoubleClick={() => {
+              setPanelWidth(PANEL_DEFAULT_WIDTH);
+              persistPanelWidth(PANEL_DEFAULT_WIDTH);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              setPanelWidth((width) => {
+                const next = clampPanelWidth(
+                  width + (event.key === "ArrowLeft" ? 16 : -16),
+                );
+                persistPanelWidth(next);
+                return next;
+              });
+            }}
+            className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-petrol/40 focus-visible:outline-none"
+          />
           <ContactPanel
             conversation={conversation}
             contact={contact.data}

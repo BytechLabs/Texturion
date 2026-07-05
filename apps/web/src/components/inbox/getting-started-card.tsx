@@ -74,6 +74,11 @@ export function GettingStartedCard() {
   if (!hasPaid(company.data.subscription_status)) return null;
 
   const numberDone = company.data.numbers.some((n) => n.status === "active");
+  // Don't promise "under a minute" once a purchase has actually stalled — the
+  // honest delayed line matches the app-wide status banner for the same state.
+  const numberStalled =
+    !numberDone &&
+    company.data.numbers.some((n) => n.status === "provision_failed");
   const inboundDone = conversations.data.pages.some(
     (page) => page.data.length > 0,
   );
@@ -86,7 +91,11 @@ export function GettingStartedCard() {
       key: "number",
       done: numberDone,
       label: "Get your business number",
-      hint: numberDone ? undefined : "It's on its way — usually under a minute.",
+      hint: numberDone
+        ? undefined
+        : numberStalled
+          ? "Taking a little longer than usual — you don't need to do anything."
+          : "It's on its way — usually under a minute.",
     },
     {
       key: "inbound",

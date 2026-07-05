@@ -574,6 +574,27 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(bump.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
+  it("allows an attachment-only note with an empty body (files upload later)", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/messages", () =>
+      Response.json([noteRow({ body: "" })], { status: 201 }),
+    );
+    sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/notes`,
+      { method: "POST", companyId: COMPANY_ID, body: { body: "" } },
+    );
+    expect(res.status).toBe(201);
+    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    expect(insert.body).toMatchObject({ direction: "note", body: "" });
+  });
+
   it("404s an unknown conversation without inserting", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => []);
@@ -655,20 +676,20 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(sb.find("POST", "/rest/v1/messages")).toHaveLength(0);
   });
 
-  it("422s a missing, empty, or whitespace-only body", async () => {
+  it("422s a missing body field (empty/whitespace is allowed — attachment-only)", async () => {
     const sb = memberStub();
     stubFetch(jwksRoute(auth), sb.route);
 
-    for (const body of [{}, { body: "" }, { body: "   " }]) {
-      const res = await apiRequest(
-        app,
-        env,
-        await auth.token(),
-        `/v1/conversations/${CONV_ID}/notes`,
-        { method: "POST", companyId: COMPANY_ID, body },
-      );
-      expect(res.status, JSON.stringify(body)).toBe(422);
-    }
+    // The `body` field is still required by the schema, but an empty/whitespace
+    // value is now valid (an attachment-only note; files upload separately).
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/notes`,
+      { method: "POST", companyId: COMPANY_ID, body: {} },
+    );
+    expect(res.status).toBe(422);
   });
 });
 

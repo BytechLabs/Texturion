@@ -10,7 +10,6 @@ import {
 } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
-import { RegistrationStatusBanner } from "@/components/registration/status-banner";
 import { Button } from "@/components/ui/button";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -27,10 +26,10 @@ import {
 import { SearchResults } from "./search-results";
 
 /**
- * The G4 list pane: registration banner (cross-track contract) → filter bar →
- * virtualized conversation list, or grouped search results when a query ≥2
- * chars is active. URL owns every filter (G3); `router.replace` keeps
- * back-button history clean while filtering.
+ * The G4 list pane: filter bar → virtualized conversation list, or grouped
+ * search results when a query ≥2 chars is active. (The workspace status banner
+ * now lives app-wide in the shell.) URL owns every filter (G3); `router.replace`
+ * keeps back-button history clean while filtering.
  */
 export function InboxPane() {
   const router = useRouter();
@@ -64,10 +63,9 @@ export function InboxPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-app-stone-0">
-      <RegistrationStatusBanner />
-      {/* The list header. Compose lives in the top bar now (desktop) and the FAB
-          (mobile), so the list header is title-only — the segment + search below
-          carry the filtering. Mobile keeps the title for orientation. */}
+      {/* Mobile-only list header (title + New). On desktop the sidebar's
+          "New message" button owns compose; below lg the floating FAB does. The
+          segment + search below carry the filtering. */}
       <header className="flex items-center justify-between px-4 pb-1 pt-4 md:hidden">
         <h1 className="text-lg font-semibold text-app-ink">Inbox</h1>
         <Button asChild size="sm" variant="ghost" aria-label="New conversation">

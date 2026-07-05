@@ -47,7 +47,7 @@ import { useProvisioningEvents } from "./use-provisioning-events";
  * window and a link to the Settings → Numbers tracker.
  */
 
-type RowStatus = "done" | "working" | "waiting" | "action";
+type RowStatus = "done" | "working" | "waiting" | "action" | "stalled";
 
 function RowIcon({ status, order = 0 }: { status: RowStatus; order?: number }) {
   if (status === "done") {
@@ -72,9 +72,12 @@ function RowIcon({ status, order = 0 }: { status: RowStatus; order?: number }) {
       </span>
     );
   }
-  if (status === "action") {
-    // Needs the user, not time — a spinner here would promise progress that
-    // isn't happening. Amber matches the port card's exception treatment.
+  if (status === "action" || status === "stalled") {
+    // "action" needs the user; "stalled" means provisioning is taking longer
+    // than usual (automatic retries are still running / the number just hasn't
+    // landed). Either way a spinner would promise progress that isn't visibly
+    // happening — the calm amber alert is honest. Matches the port card's
+    // exception treatment.
     return (
       <span className="flex size-6 items-center justify-center rounded-full bg-warning/15 text-amber-800 dark:text-warning">
         <AlertTriangle className="size-4" strokeWidth={2} aria-hidden />
@@ -430,9 +433,11 @@ function SettingUp() {
 
   const numberStatus: RowStatus = activeNumber
     ? "done"
-    : portItem?.actionNeeded
-      ? "action"
-      : "working";
+    : provisionFailed
+      ? "stalled"
+      : portItem?.actionNeeded
+        ? "action"
+        : "working";
   const registrationStatus: RowStatus =
     !owes || campaignApproved ? "done" : confirming ? "waiting" : "working";
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
@@ -550,9 +555,19 @@ function SettingUp() {
               </Button>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Your inbox unlocks as soon as your number is ready.
-            </p>
+            // The inbox works before the number lands — never trap the user on
+            // this screen. The app-wide status banner keeps the setup progress
+            // visible on every page.
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                You can start using JobText now — your inbox fills in the moment
+                your number is ready, and we&apos;ll keep you posted at the top
+                of every screen.
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/inbox">Open your inbox</Link>
+              </Button>
+            </div>
           )}
         </ChecklistRow>
       </ul>

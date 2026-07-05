@@ -1,4 +1,5 @@
 import type {
+  MemberRole,
   NumberSource,
   NumberStatus,
   RegistrationStatus,
@@ -37,14 +38,23 @@ export interface RegistrationUiInput {
   country: "US" | "CA";
   usTextingEnabled: boolean;
   subscriptionStatus: SubscriptionStatus;
+  /** The viewer's role — decides whether an unpaid company nags (member) or is
+   * silently routed to onboarding (owner/admin, handled by CompanyProvider). */
+  role: MemberRole;
   numbers: NumberRowInput[];
   brand: RegistrationRowInput | null;
   campaign: RegistrationRowInput | null;
 }
 
 export type RegistrationUiState =
-  /** Nothing to say: pre-checkout, canceled, or CA company with US texting off. */
+  /** Nothing to say: owner mid-onboarding (redirected), or CA company US-off. */
   | { kind: "none" }
+  /** Unpaid company viewed by a member (can't pay) — nudge the owner. */
+  | { kind: "setup_unfinished_member" }
+  /** Subscription canceled — reads work, outbound is off until resubscribe. */
+  | { kind: "subscription_canceled" }
+  /** past_due / unpaid — a failed payment paused outbound texting. */
+  | { kind: "payment_issue" }
   | { kind: "number_provisioning" }
   | { kind: "number_delayed" }
   /** No live number except a hosted text-enablement in carrier review (days). */
@@ -81,21 +91,31 @@ function owesUsRegistration(input: RegistrationUiInput): boolean {
 }
 
 /**
- * Priority: pre/post-subscription silence → number states → US-registration
- * states. Every SPEC §4.4 banner row maps to exactly one kind (see the test
- * table in registration-ui-state.test.ts).
+ * Priority: subscription/billing states → number states → US-registration
+ * states. A billing problem outranks a registration line — outbound texting is
+ * paused until it's fixed. Every SPEC §4.4 registration row maps to exactly one
+ * kind (see the test table in registration-ui-state.test.ts).
  */
 export function deriveRegistrationUiState(
   input: RegistrationUiInput,
 ): RegistrationUiState {
-  // Pre-payment the onboarding wizard owns the surface; canceled companies
-  // get billing surfaces, not a registration nag.
-  if (
-    input.subscriptionStatus === "incomplete" ||
-    input.subscriptionStatus === "incomplete_expired" ||
-    input.subscriptionStatus === "canceled"
-  ) {
-    return { kind: "none" };
+  // Subscription-level states first — the most urgent thing to surface.
+  switch (input.subscriptionStatus) {
+    case "incomplete":
+    case "incomplete_expired":
+      // Owners/admins are routed back to onboarding to finish paying
+      // (CompanyProvider), so they never reach a page with this banner. A
+      // member can't pay — nudge them to ask the account owner.
+      return input.role === "member"
+        ? { kind: "setup_unfinished_member" }
+        : { kind: "none" };
+    case "canceled":
+      return { kind: "subscription_canceled" };
+    case "past_due":
+    case "unpaid":
+      return { kind: "payment_issue" };
+    case "active":
+      break;
   }
 
   // Number lifecycle first (§4.4 rows 1–2): nothing else matters until the

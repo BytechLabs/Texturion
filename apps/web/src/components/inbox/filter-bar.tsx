@@ -178,7 +178,7 @@ function SearchField({
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search conversations"
         aria-label="Search conversations and contacts"
-        className="h-9 pl-8"
+        className="h-9 pl-8 pr-8"
       />
       {searchText !== "" && (
         <button

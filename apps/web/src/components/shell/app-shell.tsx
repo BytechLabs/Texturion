@@ -1,8 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import { UnreadTitleManager } from "@/components/notifications/unread-title-manager";
+import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
 import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
@@ -11,21 +13,35 @@ import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
+import { TopBar } from "./top-bar";
 import { WindowDropGuard } from "./window-drop-guard";
 
+const SIDEBAR_PREF_KEY = "jobtext:sidebar-collapsed";
+
+function readSidebarCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_PREF_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * The PORTAL-UX app frame (§1): a calm LEFT SIDEBAR (retiring the old top bar),
- * then the destination content owning the rest of the width. A fixed
- * full-viewport-height row (`h-svh overflow-hidden`) so the browser page never
- * scrolls — the sidebar is pinned and the inner panes/documents scroll.
+ * The PORTAL-UX app frame (§1): a slim desktop TOP BAR (utilities only —
+ * collapse toggle, search-that-opens-⌘K, notifications, account) above a row of
+ * the calm LEFT SIDEBAR (still the sole primary nav) + the destination content.
+ * A fixed full-viewport-height column (`h-svh overflow-hidden`) so the browser
+ * page never scrolls — the bar + sidebar are pinned and the inner panes/
+ * documents scroll.
  *
- * - Sidebar (232px, lg+): company tile, FOCUS + LIBRARY nav, footer member tile.
- *   The single hairline right border, no shadow (sidebar.tsx). Hidden <1000px,
- *   where the labeled bottom tab bar owns primary nav.
+ * - Top bar (lg+ only): global utilities; NOT navigation (nav stays the sidebar).
+ * - Sidebar (232px expanded / 64px icon rail, lg+): company tile, New message,
+ *   FOCUS + LIBRARY nav, Settings. The collapse choice is persisted per browser.
+ *   Hidden <1000px, where the labeled bottom tab bar owns primary nav.
  * - Content region (`main`): the destination fills it — the inbox is the fixed
- *   3-pane frame (sidebar | list | thread | drawer); the calm surfaces (for-you,
- *   tasks, contacts, settings, templates) scroll as documents. Each destination
- *   owns its own scroll containers, so `main` is the flex track, not a scroller.
+ *   3-pane frame; the calm surfaces (for-you, tasks, contacts, settings,
+ *   templates) scroll as documents. `main` is the flex track, not a scroller.
  *
  * The ground is flat calm paper (app-ground; no wash).
  */
@@ -35,17 +51,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // other destination is a calm scrolling document.
   const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
 
+  // Persisted sidebar collapse. Start expanded on the server + first paint
+  // (avoids a hydration mismatch), then adopt the stored choice on mount.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(readSidebarCollapsed());
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(SIDEBAR_PREF_KEY, String(next));
+      } catch {
+        /* private mode / storage off — the toggle still works this session. */
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <div className="flex h-svh overflow-hidden app-ground">
-      <Sidebar />
-      <main
-        className={cn(
-          "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
-          fixedFrame ? "overflow-hidden" : "overflow-y-auto",
-        )}
-      >
-        {children}
-      </main>
+      {/* Full-height sidebar on the left; the top bar sits only over the content
+          column to its right, so the two borders meet in a clean grid and the
+          whole frame reads as one shell (not a bar hanging over a rail). */}
+      <Sidebar collapsed={collapsed} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
+        {/* Ambient workspace status (number provisioning / registration / billing).
+            Mounted app-wide so a not-ready workspace is obvious on every page;
+            renders null when there's nothing to say. */}
+        <WorkspaceStatusBanner />
+        <main
+          className={cn(
+            "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
+            fixedFrame ? "overflow-hidden" : "overflow-y-auto",
+          )}
+        >
+          {children}
+        </main>
+      </div>
       <MobileTabBar />
       <ComposeFab />
       <CommandPalette />

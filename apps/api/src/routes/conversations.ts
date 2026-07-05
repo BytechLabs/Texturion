@@ -95,18 +95,18 @@ const patchSchema = z
     { message: "Provide at least one field to update." },
   );
 
-const noteSchema = z
-  .object({
-    body: z.string().max(4096),
-    // TASKS-V2 (D17 D-D): an optional link to a task in THIS conversation. A
-    // note composed from the task drawer sets this so the note appears both
-    // interwoven in the thread AND collected in the task's activity timeline.
-    // Validated below to belong to the same conversation + company (422 else).
-    task_id: z.uuid().optional(),
-  })
-  .refine((value) => value.body.trim().length > 0, {
-    message: "body: a note needs text.",
-  });
+// An attachment-only note is valid: its files upload separately (POST
+// /v1/attachments) against the returned note id, so the body may be empty at
+// create time. The client enforces "text OR at least one staged file"; the
+// server has no attachment context here, so there is no body-required refine.
+const noteSchema = z.object({
+  body: z.string().max(4096),
+  // TASKS-V2 (D17 D-D): an optional link to a task in THIS conversation. A
+  // note composed from the task drawer sets this so the note appears both
+  // interwoven in the thread AND collected in the task's activity timeline.
+  // Validated below to belong to the same conversation + company (422 else).
+  task_id: z.uuid().optional(),
+});
 
 const attachTagSchema = z
   .object({

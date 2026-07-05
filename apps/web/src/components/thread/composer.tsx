@@ -236,7 +236,7 @@ export function Composer({
   const canSend =
     !pending &&
     (isNote
-      ? text.trim() !== ""
+      ? text.trim() !== "" || noteStage.files.length > 0
       : text.trim() !== "" || attachments.length > 0);
 
   const openFilePicker = () => fileRef.current?.click();
@@ -439,14 +439,6 @@ export function Composer({
           className="mx-auto max-w-[42rem] px-1 pb-2"
         />
       )}
-      {/* A note needs a line of text to save (the files ride the note). Say so
-          quietly when files are staged but the body is still empty (#8). */}
-      {isNote && noteStage.files.length > 0 && text.trim() === "" && (
-        <p className="mx-auto max-w-[42rem] px-1 pb-2 text-xs text-app-muted">
-          Add a line of text to save these files
-        </p>
-      )}
-
       {/* The elevated composer CARD (mockup .composer): a white card with the
           panel shadow + hairline, constrained to the 42rem reading track. */}
       <div

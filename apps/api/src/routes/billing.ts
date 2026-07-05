@@ -168,8 +168,12 @@ billingRoutes.post("/checkout", async (c) => {
       : {}),
     line_items: lineItems,
     automatic_tax: { enabled: true },
-    success_url: `${env.APP_ORIGIN}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.APP_ORIGIN}/dashboard?checkout=canceled`,
+    // Land directly on the real post-checkout surfaces (the onboarding step
+    // machine routes a just-paid company to setting-up, an unpaid one back to
+    // plan). Avoids a /dashboard 307 hop whose extra navigation the offline
+    // service worker could mask as "You're offline" on a slow return.
+    success_url: `${env.APP_ORIGIN}/onboarding/setting-up?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${env.APP_ORIGIN}/onboarding/plan?checkout=canceled`,
   });
 
   if (!session.url) {

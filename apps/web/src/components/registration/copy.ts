@@ -31,6 +31,15 @@ export const REGISTRATION_COPY = {
   approved: "US texting is live.",
   /** G7: the green toast fired on the approval realtime event. */
   approvedToast: "You're live — US texting is on.",
+  /** Unpaid company, viewed by a member (can't pay): nudge the owner. */
+  setupUnfinishedMember:
+    "Your workspace setup isn't finished yet — ask your account owner to complete it.",
+  /** Canceled subscription: reads keep working, sending is off. */
+  subscriptionCanceled:
+    "Your subscription is canceled — outbound texting is off. Resubscribe to turn it back on.",
+  /** past_due / unpaid: a failed payment paused outbound texting. */
+  paymentIssue:
+    "Payment didn't go through — outbound texting is paused. Update your card to restore it.",
 } as const;
 
 /**

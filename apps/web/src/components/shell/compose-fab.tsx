@@ -5,12 +5,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Mobile compose FAB (G3): petrol, bottom-right, above the tab bar, shown on
- * the inbox tab only. Routes to the new-conversation flow (/inbox/new).
+ * Mobile/tablet compose FAB (G3): petrol, bottom-right, above the tab bar.
+ * Shown on the calm destinations below lg (the desktop sidebar carries its own
+ * "New message" button). Hidden on the open thread and the compose page, whose
+ * bottom-anchored composer the FAB would overlap. Routes to /inbox/new.
  */
 export function ComposeFab() {
   const pathname = usePathname();
-  if (pathname !== "/inbox") return null;
+  // "/inbox/[id]" (open thread) and "/inbox/new" (already composing) both start
+  // with "/inbox/"; the "/inbox" list itself does not, so the FAB stays there.
+  if (pathname.startsWith("/inbox/")) return null;
 
   return (
     <Link

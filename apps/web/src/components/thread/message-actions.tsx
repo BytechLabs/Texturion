@@ -138,14 +138,26 @@ function MessageOverflow({
             </button>
           </DropdownMenuTrigger>
         </PopoverAnchor>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent
+          align="end"
+          className="w-44"
+          // The Popover shares this menu's anchor button but via PopoverAnchor
+          // (not PopoverTrigger), so it is NOT excluded from the popover's
+          // outside-dismiss. If the menu returns focus to that button on close,
+          // the popover sees a focus-outside and closes instantly (the "Make a
+          // task" form flashed open then vanished). Suppress the focus return.
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           {promotable && (
             <DropdownMenuItem
               onSelect={() => {
-                // Close the menu, then open the inline form on the next tick so
-                // the two overlays don't fight for focus.
+                // Close the menu, then open the inline form on the NEXT TICK.
+                // Both share the overflow button as anchor; opening the popover
+                // in the same tick lets the menu's closing dismiss/focus event
+                // reach the popover and immediately close it (it flashed open
+                // then vanished). Deferring past the menu's teardown fixes it.
                 setMenuOpen(false);
-                setTaskFormOpen(true);
+                setTimeout(() => setTaskFormOpen(true), 0);
               }}
             >
               <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />

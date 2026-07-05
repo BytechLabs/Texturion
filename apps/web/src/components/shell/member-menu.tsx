@@ -25,7 +25,16 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * out. Every destination the retired top-bar avatar menu carried is preserved;
  * the trigger is supplied by the caller (the member tile button) via `children`.
  */
-export function MemberMenu({ children }: { children: React.ReactNode }) {
+export function MemberMenu({
+  children,
+  side = "top",
+  align = "start",
+}: {
+  children: React.ReactNode;
+  /** Menu placement — footer tile opens up (default); the top-bar avatar down. */
+  side?: "top" | "bottom";
+  align?: "start" | "end";
+}) {
   const { displayName, membership } = useActiveCompany();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -40,7 +49,7 @@ export function MemberMenu({ children }: { children: React.ReactNode }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="w-56">
+      <DropdownMenuContent align={align} side={side} className="w-56">
         <DropdownMenuLabel>
           <span className="block truncate text-sm font-medium">
             {displayName || "You"}

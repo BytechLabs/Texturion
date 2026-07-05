@@ -30,6 +30,7 @@ function input(overrides: Partial<RegistrationUiInput> = {}): RegistrationUiInpu
     country: "US",
     usTextingEnabled: true,
     subscriptionStatus: "active",
+    role: "owner",
     numbers: [{ status: "active" }],
     brand: row(),
     campaign: row(),
@@ -307,21 +308,50 @@ describe("deriveRegistrationUiState — not-applicable and silence", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("pre-checkout and canceled subscriptions stay silent", () => {
+  it("pre-checkout stays silent for an owner (they're redirected to onboarding)", () => {
     for (const subscriptionStatus of [
       "incomplete",
       "incomplete_expired",
-      "canceled",
     ] as const) {
       expect(
-        deriveRegistrationUiState(input({ subscriptionStatus, numbers: [] })),
+        deriveRegistrationUiState(
+          input({ subscriptionStatus, role: "owner", numbers: [] }),
+        ),
+      ).toEqual({ kind: "none" });
+      expect(
+        deriveRegistrationUiState(
+          input({ subscriptionStatus, role: "admin", numbers: [] }),
+        ),
       ).toEqual({ kind: "none" });
     }
   });
+});
 
-  it("past_due keeps the honest registration state visible", () => {
+describe("deriveRegistrationUiState — subscription/billing states (issue #7)", () => {
+  it("unpaid company viewed by a member → setup_unfinished_member (can't pay)", () => {
+    for (const subscriptionStatus of [
+      "incomplete",
+      "incomplete_expired",
+    ] as const) {
+      expect(
+        deriveRegistrationUiState(
+          input({ subscriptionStatus, role: "member", numbers: [] }),
+        ),
+      ).toEqual({ kind: "setup_unfinished_member" });
+    }
+  });
+
+  it("canceled subscription → subscription_canceled (was silent before)", () => {
     expect(
-      deriveRegistrationUiState(input({ subscriptionStatus: "past_due" })),
-    ).toEqual({ kind: "registration_pending" });
+      deriveRegistrationUiState(input({ subscriptionStatus: "canceled" })),
+    ).toEqual({ kind: "subscription_canceled" });
+  });
+
+  it("past_due and unpaid → payment_issue (outranks the registration line)", () => {
+    for (const subscriptionStatus of ["past_due", "unpaid"] as const) {
+      expect(
+        deriveRegistrationUiState(input({ subscriptionStatus })),
+      ).toEqual({ kind: "payment_issue" });
+    }
   });
 });

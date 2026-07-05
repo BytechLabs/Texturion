@@ -56,7 +56,7 @@ export function registrationRejectedCopy(
     `Hi,\n\nUS carrier registration for ${companyName} needs a fix:\n\n` +
       `${rejectionReason}\n\n` +
       `Update your details and resubmit — it takes 2 minutes:\n` +
-      `${env.APP_ORIGIN}/registration\n\n— JobText`,
+      `${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
   );
 }
 
@@ -67,7 +67,7 @@ export function otpNudgeCopy(companyName: string, env: Env): EmailCopy {
     `Hi,\n\nOne step left for ${companyName}: enter the verification code we ` +
       `texted to your mobile number to finish US registration. The code ` +
       `expires 24 hours after it was sent — you can request a fresh one from ` +
-      `the dashboard.\n\nFinish up: ${env.APP_ORIGIN}/registration\n\n— JobText`,
+      `Settings.\n\nFinish up: ${env.APP_ORIGIN}/settings/numbers\n\n— JobText`,
   );
 }
 

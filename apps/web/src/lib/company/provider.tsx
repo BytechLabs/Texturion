@@ -90,6 +90,18 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [me.data, activeId, memberships, switchCompany]);
 
+  // An owner/admin whose checkout never completed belongs back in onboarding to
+  // finish paying (SPEC §4.1). Members can't pay, so they stay in the app and
+  // see the "ask your owner" workspace banner instead of a dead redirect loop.
+  const needsCheckout =
+    value !== null &&
+    value.role !== "member" &&
+    (value.membership.subscription_status === "incomplete" ||
+      value.membership.subscription_status === "incomplete_expired");
+  useEffect(() => {
+    if (needsCheckout) router.replace("/onboarding");
+  }, [needsCheckout, router]);
+
   if (me.isError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
@@ -104,14 +116,14 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!value) {
+  if (!value || needsCheckout) {
     // Loading (or redirecting to onboarding): named state, never a bare
     // spinner (G1 "no spinners without words").
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6">
         <Skeleton className="h-8 w-40" />
         <p className="text-sm text-muted-foreground">
-          {needsOnboarding
+          {needsOnboarding || needsCheckout
             ? "Taking you to setup…"
             : "Loading your workspace…"}
         </p>

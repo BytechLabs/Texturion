@@ -328,7 +328,9 @@ export function ForYouView() {
               : "You're all caught up."}
           </p>
         </div>
-        <div className="flex items-center gap-1 pt-0.5">
+        {/* Desktop hosts search + bell in the top bar; keep them here only on
+            mobile (which has no top bar) so they aren't duplicated on lg+. */}
+        <div className="flex items-center gap-1 pt-0.5 lg:hidden">
           <button
             type="button"
             onClick={openCommand}

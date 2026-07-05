@@ -295,9 +295,11 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.get("line_items[2][price]")).toBe(env.STRIPE_US_FEE_PRICE_ID);
     expect(form.get("line_items[2][quantity]")).toBe("1");
     expect(form.get("success_url")).toBe(
-      `${env.APP_ORIGIN}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      `${env.APP_ORIGIN}/onboarding/setting-up?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     );
-    expect(form.get("cancel_url")).toBe(`${env.APP_ORIGIN}/dashboard?checkout=canceled`);
+    expect(form.get("cancel_url")).toBe(
+      `${env.APP_ORIGIN}/onboarding/plan?checkout=canceled`,
+    );
     expect(form.has("customer")).toBe(false);
   });
 
