@@ -25,6 +25,24 @@ const METER_EVENT_NAME = "sms_segments";
 /** Stripe Tax: "Software as a service (SaaS) - business use" (SPEC §2). */
 const SAAS_TAX_CODE = "txcd_10103000";
 
+/**
+ * #12 plan-builder modules: one flat monthly licensed price each (the module
+ * unlocks a capability that is itself cap-protected — no per-use metering yet).
+ * MUST stay in sync with MODULE_CATALOG in src/billing/modules.ts (id, monthly
+ * price, env key); this operator script is standalone so the list is inlined.
+ */
+const MODULE_PRICES: {
+  id: string;
+  label: string;
+  monthlyCents: number;
+  envKey: string;
+}[] = [
+  { id: "mms", label: "Picture messages", monthlyCents: 500, envKey: "STRIPE_MODULE_MMS_PRICE_ID" },
+  { id: "voice", label: "Call forwarding", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
+  { id: "extra_storage", label: "Extra storage", monthlyCents: 500, envKey: "STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID" },
+  { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },
+];
+
 const secretKey = process.env.STRIPE_SECRET_KEY;
 if (!secretKey) {
   console.error(
@@ -162,6 +180,24 @@ try {
     tax_behavior: "exclusive",
   });
 
+  // #12 plan-builder module add-ons: a product + flat monthly licensed price
+  // per module, idempotent by the same lookup_key/catalog-metadata scheme.
+  const modulePriceIds: { envKey: string; id: string }[] = [];
+  for (const mod of MODULE_PRICES) {
+    const product = await ensureProduct(
+      `module_${mod.id}`,
+      `JobText — ${mod.label}`,
+    );
+    const price = await ensurePrice(`jobtext_module_${mod.id}_licensed`, {
+      product: product.id,
+      currency: "usd",
+      unit_amount: mod.monthlyCents,
+      recurring: { interval: "month" },
+      tax_behavior: "exclusive",
+    });
+    modulePriceIds.push({ envKey: mod.envKey, id: price.id });
+  }
+
   console.error("\nCatalog ready. Worker env bindings:\n");
   console.log(`STRIPE_SMS_METER_EVENT_NAME=${METER_EVENT_NAME}`);
   console.log(`STRIPE_STARTER_PRICE_ID=${starterLicensed.id}`);
@@ -169,6 +205,9 @@ try {
   console.log(`STRIPE_STARTER_OVERAGE_PRICE_ID=${starterOverage.id}`);
   console.log(`STRIPE_PRO_OVERAGE_PRICE_ID=${proOverage.id}`);
   console.log(`STRIPE_US_FEE_PRICE_ID=${usFee.id}`);
+  for (const { envKey, id } of modulePriceIds) {
+    console.log(`${envKey}=${id}`);
+  }
 } catch (error) {
   console.error(
     "Stripe catalog setup failed:",

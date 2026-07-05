@@ -8,6 +8,7 @@ import { enabledModules, isModuleEnabled } from "./company-modules";
 import {
   isPlanModule,
   MODULE_CATALOG,
+  modulePrice,
   PLAN_MODULES,
   type PlanModule,
 } from "./modules";
@@ -50,6 +51,12 @@ describe("module catalog", () => {
   it("isPlanModule narrows known ids and rejects the rest", () => {
     expect(isPlanModule("voice")).toBe(true);
     expect(isPlanModule("bogus")).toBe(false);
+  });
+
+  it("modulePrice resolves the configured id, null when unprovisioned", () => {
+    expect(modulePrice(env, "voice")).toBe("price_module_voice_0001");
+    const bare = { ...env, STRIPE_MODULE_VOICE_PRICE_ID: undefined };
+    expect(modulePrice(bare, "voice")).toBeNull();
   });
 });
 

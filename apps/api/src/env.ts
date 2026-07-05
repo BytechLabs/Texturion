@@ -55,6 +55,16 @@ const envSchema = z.object({
   STRIPE_STARTER_OVERAGE_PRICE_ID: z.string().min(1),
   STRIPE_PRO_OVERAGE_PRICE_ID: z.string().min(1),
   STRIPE_US_FEE_PRICE_ID: z.string().min(1),
+  /**
+   * #12 plan-builder module add-on prices (created by `pnpm stripe:setup`).
+   * OPTIONAL so the Worker boots before the module catalog is provisioned;
+   * checkout validates presence only when a customer actually selects the
+   * module (billing/modules.ts modulePrice()).
+   */
+  STRIPE_MODULE_MMS_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_MODULE_VOICE_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_MODULE_REGIONS_CA_PRICE_ID: z.string().min(1).optional(),
   /** Billing Meter `event_name` (SPEC §9: 'sms_segments'). */
   STRIPE_SMS_METER_EVENT_NAME: z.string().min(1),
   /**

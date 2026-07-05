@@ -35,6 +35,10 @@ export function completeEnv(): Env {
     STRIPE_STARTER_OVERAGE_PRICE_ID: "price_starter_overage_0001",
     STRIPE_PRO_OVERAGE_PRICE_ID: "price_pro_overage_0001",
     STRIPE_US_FEE_PRICE_ID: "price_us_registration_0001",
+    STRIPE_MODULE_MMS_PRICE_ID: "price_module_mms_0001",
+    STRIPE_MODULE_VOICE_PRICE_ID: "price_module_voice_0001",
+    STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: "price_module_extra_storage_0001",
+    STRIPE_MODULE_REGIONS_CA_PRICE_ID: "price_module_regions_ca_0001",
     STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
   };
 }

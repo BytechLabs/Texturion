@@ -12,6 +12,7 @@
  * constants so retuning is one edit. Enablement lives in `company_modules`;
  * `company-modules.ts` reads it, checkout writes it.
  */
+import type { Env } from "../env";
 
 /** The toggleable modules (mirrors the company_modules.module CHECK). */
 export const PLAN_MODULES = [
@@ -77,4 +78,23 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
 /** Type guard: is a raw string one of the known modules? */
 export function isPlanModule(value: string): value is PlanModule {
   return (PLAN_MODULES as readonly string[]).includes(value);
+}
+
+/**
+ * The configured Stripe licensed price id for a module, or null when the
+ * catalog hasn't been provisioned in this environment yet (the env id is
+ * optional so the Worker boots without it). Checkout treats null as "module
+ * not purchasable here" and rejects a selection referencing it.
+ */
+export function modulePrice(env: Env, module: PlanModule): string | null {
+  switch (module) {
+    case "mms":
+      return env.STRIPE_MODULE_MMS_PRICE_ID ?? null;
+    case "voice":
+      return env.STRIPE_MODULE_VOICE_PRICE_ID ?? null;
+    case "extra_storage":
+      return env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID ?? null;
+    case "regions_ca":
+      return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
+  }
 }
