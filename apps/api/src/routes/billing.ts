@@ -11,6 +11,7 @@ import {
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
+import { enabledModules } from "../billing/company-modules";
 import { MODULE_CATALOG, modulePrice, PLAN_MODULES } from "../billing/modules";
 import {
   owesUsRegistration,
@@ -27,6 +28,11 @@ const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
   // #12 plan builder: opt-in module add-ons selected at checkout.
   modules: z.array(z.enum(PLAN_MODULES)).optional(),
+});
+
+const moduleBodySchema = z.object({
+  module: z.enum(PLAN_MODULES),
+  enabled: z.boolean(),
 });
 
 interface BillingCompany {
@@ -356,4 +362,119 @@ billingRoutes.post("/change-plan", async (c) => {
     effective: "period_end",
     effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
   });
+});
+
+/**
+ * GET /v1/billing/modules (#12 plan builder) — the module catalog with each
+ * one's current enabled state, for the settings plan-builder surface.
+ */
+billingRoutes.get("/modules", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const enabled = new Set(await enabledModules(db, c.get("companyId")));
+  return c.json({
+    modules: PLAN_MODULES.map((id) => ({
+      id,
+      label: MODULE_CATALOG[id].label,
+      blurb: MODULE_CATALOG[id].blurb,
+      monthly_cents: MODULE_CATALOG[id].monthlyCents,
+      enabled: enabled.has(id),
+      available: modulePrice(env, id) !== null,
+    })),
+  });
+});
+
+/**
+ * POST /v1/billing/modules (#12 plan builder) — turn a module on/off on an
+ * existing subscription. Enabling adds the module's flat line item (prorated
+ * now); disabling removes it AND clears any capability it gated (voice →
+ * forward + missed-call text) so a switched-off module can never keep costing
+ * us. Mirrored to `company_modules`; the subscription webhook re-mirrors too.
+ */
+billingRoutes.post("/modules", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const companyId = c.get("companyId");
+
+  const parsed = moduleBodySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "Body must be { module, enabled }.",
+    );
+  }
+  const { module, enabled } = parsed.data;
+
+  const company = await fetchCompany(db, companyId);
+  if (!company.stripe_subscription_id || company.plan === null) {
+    return errorResponse(
+      c,
+      "conflict",
+      "No subscription yet — complete checkout first.",
+    );
+  }
+  const price = modulePrice(env, module);
+  if (!price) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+    );
+  }
+
+  const stripe = getStripe(env);
+  const subscription = await stripe.subscriptions.retrieve(
+    company.stripe_subscription_id,
+  );
+  const existingItem = subscription.items.data.find(
+    (item) => item.price?.id === price,
+  );
+
+  if (enabled) {
+    if (!existingItem) {
+      await stripe.subscriptionItems.create({
+        subscription: subscription.id,
+        price,
+        proration_behavior: "always_invoice",
+      });
+    }
+    const { error } = await db.from("company_modules").upsert(
+      {
+        company_id: companyId,
+        module,
+        enabled_at: new Date().toISOString(),
+        disabled_at: null,
+      },
+      { onConflict: "company_id,module" },
+    );
+    if (error) throw new Error(`module enable failed: ${error.message}`);
+    return c.json({ module, enabled: true });
+  }
+
+  // Disable: drop the line item, mark disabled, and clear the gated capability.
+  if (existingItem) {
+    await stripe.subscriptionItems.del(existingItem.id, {
+      proration_behavior: "always_invoice",
+    });
+  }
+  const { error } = await db
+    .from("company_modules")
+    .update({ disabled_at: new Date().toISOString() })
+    .eq("company_id", companyId)
+    .eq("module", module)
+    .is("disabled_at", null);
+  if (error) throw new Error(`module disable failed: ${error.message}`);
+  if (module === "voice") {
+    // A switched-off voice module must stop forwarding calls — clear the
+    // settings the webhook reads so no further call is ever forwarded.
+    const { error: voiceError } = await db
+      .from("companies")
+      .update({ forward_to_cell: null, mctb_enabled: false })
+      .eq("id", companyId);
+    if (voiceError) {
+      throw new Error(`voice settings clear failed: ${voiceError.message}`);
+    }
+  }
+  return c.json({ module, enabled: false });
 });

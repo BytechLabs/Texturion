@@ -63,6 +63,15 @@ async function post(
   );
 }
 
+async function get(
+  path: string,
+  harness: Harness,
+  role: MemberRole = "owner",
+): Promise<Response> {
+  stubFetch(harness.route);
+  return makeApp(role).request(path, { method: "GET" }, env);
+}
+
 function companyRow(overrides: Record<string, unknown> = {}) {
   return {
     id: COMPANY_ID,
@@ -116,12 +125,18 @@ function checkoutSessionEndpoint(): StubEndpoint {
 }
 
 function subscriptionFixture(
-  overrides: { licensed?: string; metered?: string; schedule?: string | null } = {},
+  overrides: {
+    licensed?: string;
+    metered?: string;
+    schedule?: string | null;
+    moduleItems?: { id: string; priceId: string }[];
+  } = {},
 ) {
   const {
     licensed = env.STRIPE_STARTER_PRICE_ID,
     metered = env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     schedule = null,
+    moduleItems = [],
   } = overrides;
   return {
     id: "sub_1",
@@ -150,6 +165,14 @@ function subscriptionFixture(
             recurring: { interval: "month", meter: "mtr_1" },
           },
         },
+        ...moduleItems.map((m) => ({
+          id: m.id,
+          object: "subscription_item",
+          quantity: 1,
+          current_period_start: PERIOD_START,
+          current_period_end: PERIOD_END,
+          price: { id: m.priceId, object: "price", recurring: { interval: "month" } },
+        })),
       ],
     },
   };
@@ -630,5 +653,108 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(
       harness.callsTo("POST", /subscription_schedules\/sub_sched_9/),
     ).toHaveLength(1);
+  });
+});
+
+describe("plan-builder modules (#12)", () => {
+  const activeStarter = () =>
+    companyRow({
+      plan: "starter",
+      subscription_status: "active",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+    });
+
+  it("GET /modules lists the catalog with enabled state", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /\/rest\/v1\/company_modules/, () => [{ module: "mms" }]),
+    ]);
+    const response = await get("/v1/billing/modules", harness);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      modules: { id: string; enabled: boolean }[];
+    };
+    const mms = body.modules.find((m) => m.id === "mms");
+    const voice = body.modules.find((m) => m.id === "voice");
+    expect(mms?.enabled).toBe(true);
+    expect(voice?.enabled).toBe(false);
+    expect(body.modules).toHaveLength(4);
+  });
+
+  it("POST /modules enable adds the line item + enables the module", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+        id: "si_module_voice",
+        object: "subscription_item",
+      })),
+      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
+    ]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "voice", enabled: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ module: "voice", enabled: true });
+
+    const create = harness.callsTo("POST", /subscription_items$/);
+    expect(create).toHaveLength(1);
+    const form = create[0].form();
+    expect(form.get("subscription")).toBe("sub_1");
+    expect(form.get("price")).toBe(env.STRIPE_MODULE_VOICE_PRICE_ID);
+    expect(form.get("proration_behavior")).toBe("always_invoice");
+  });
+
+  it("POST /modules disable drops the item, disables, and clears voice settings", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          moduleItems: [
+            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
+          ],
+        }),
+      ),
+      endpoint(
+        "DELETE",
+        /api\.stripe\.com\/v1\/subscription_items\/si_voice/,
+        () => ({ id: "si_voice", deleted: true }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "voice", enabled: false },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ module: "voice", enabled: false });
+
+    expect(
+      harness.callsTo("DELETE", /subscription_items\/si_voice/),
+    ).toHaveLength(1);
+    // Voice capability cleared so no further call is forwarded.
+    const companyPatch = harness.callsTo("PATCH", /companies/);
+    expect(companyPatch).toHaveLength(1);
+    expect(companyPatch[0].json()).toEqual({
+      forward_to_cell: null,
+      mctb_enabled: false,
+    });
+  });
+
+  it("POST /modules 409 without a subscription", async () => {
+    const harness = makeHarness([companyEndpoint(companyRow())]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "mms", enabled: true },
+      harness,
+    );
+    expect(response.status).toBe(409);
   });
 });
