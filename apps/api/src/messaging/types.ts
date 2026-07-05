@@ -22,6 +22,9 @@ export interface MessageRow {
   /** D14 done state: set/cleared together (messages_done_consistency). */
   done_at: string | null;
   done_by_user_id: string | null;
+  /** #3 pin state: set/cleared together (messages_pinned_consistency). */
+  pinned_at: string | null;
+  pinned_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 }

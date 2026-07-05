@@ -268,6 +268,9 @@ export interface Message {
   /** D14 done state — set/cleared together by PATCH /v1/messages/:id. */
   done_at: string | null;
   done_by_user_id: string | null;
+  /** #3 pin state — set/cleared together by PATCH /v1/messages/:id {pinned}. */
+  pinned_at: string | null;
+  pinned_by_user_id: string | null;
   created_at: string;
   /**
    * Present on every message read surface (SPEC §7). POST /v1/conversations

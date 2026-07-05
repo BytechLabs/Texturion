@@ -41,6 +41,8 @@ function message(
     telnyx_message_id: null,
     done_at: null,
     done_by_user_id: null,
+    pinned_at: null,
+    pinned_by_user_id: null,
     created_at: createdAt,
     attachments: [],
     ...overrides,

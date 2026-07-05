@@ -194,6 +194,8 @@ export function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
     provider_cost: null,
     done_at: null,
     done_by_user_id: null,
+    pinned_at: null,
+    pinned_by_user_id: null,
     created_at: "2026-07-01T12:00:00.000Z",
     updated_at: "2026-07-01T12:00:00.000Z",
     ...overrides,

@@ -1016,6 +1016,191 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
   });
 });
 
+describe("PATCH /v1/messages/:id — pin state (#3)", () => {
+  const PINNED_AT = "2026-07-04T09:00:00.000Z";
+
+  function pinStubs(row: Partial<MessageRow>, options: { found?: boolean } = {}) {
+    const message = messageRow({
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      conversation_id: CONVERSATION_ID,
+      ...row,
+    });
+    const lookup = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "messages",
+        (url) => url.searchParams.get("id") === `eq.${MESSAGE_ID}`,
+      ),
+      () => (options.found === false ? [] : [message]),
+    );
+    // #3: the pin flip routes through the set_message_pinned security-definer
+    // RPC (company-scoped, idempotent no-op, NO audit event — a pin is
+    // organizational, not an audited transition like done). The stub mirrors
+    // its real outcomes: not_found / unchanged / updated.
+    const rpc = stubRoute(rpcMatch(env, "set_message_pinned"), (call) => {
+      const args = call.body as {
+        p_company_id: string;
+        p_message_id: string;
+        p_pinned: boolean;
+        p_actor_user_id: string;
+      };
+      if (options.found === false || args.p_company_id !== COMPANY_ID) {
+        return { outcome: "not_found", message: null };
+      }
+      const alreadyPinned = message.pinned_at !== null;
+      if (args.p_pinned === alreadyPinned) {
+        return { outcome: "unchanged", message };
+      }
+      const flipped = args.p_pinned
+        ? {
+            ...message,
+            pinned_at: PINNED_AT,
+            pinned_by_user_id: args.p_actor_user_id,
+          }
+        : { ...message, pinned_at: null, pinned_by_user_id: null };
+      return { outcome: "updated", message: flipped };
+    });
+    const attachmentsLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    return {
+      lookup,
+      rpc,
+      attachmentsLookup,
+      all: [
+        jwksRoute(auth),
+        companyMembersRoute(env, [
+          { id: "11111111-0000-4000-8000-000000000011", role: "member" },
+        ]),
+        lookup.route,
+        rpc.route,
+        attachmentsLookup.route,
+      ],
+    };
+  }
+
+  async function patchPin(body: unknown): Promise<Response> {
+    return app.fetch(
+      new Request(`https://api.jobtext.app/v1/messages/${MESSAGE_ID}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${await auth.token()}`,
+          "X-Company-Id": COMPANY_ID,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+      env,
+    );
+  }
+
+  it("pins: stamps pinned_at + pinned_by_user_id via the atomic RPC", async () => {
+    const stubs = pinStubs({ pinned_at: null, pinned_by_user_id: null });
+    stubFetch(...stubs.all);
+
+    const response = await patchPin({ pinned: true });
+    expect(response.status).toBe(200);
+    // Company-scoped everywhere (§10) — the pre-RPC lookup AND the RPC args.
+    expect(stubs.lookup.calls[0].url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+    expect(stubs.rpc.calls).toHaveLength(1);
+    expect(stubs.rpc.calls[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_message_id: MESSAGE_ID,
+      p_pinned: true,
+      p_actor_user_id: auth.subject,
+    });
+
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      id: MESSAGE_ID,
+      pinned_at: expect.any(String),
+      pinned_by_user_id: auth.subject,
+      attachments: [],
+    });
+    expect(body).not.toHaveProperty("body_tsv");
+  });
+
+  it("unpins: nulls both columns via the atomic RPC", async () => {
+    const stubs = pinStubs({
+      pinned_at: PINNED_AT,
+      pinned_by_user_id: auth.subject,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await patchPin({ pinned: false });
+    expect(response.status).toBe(200);
+    expect(stubs.rpc.calls[0].body).toMatchObject({
+      p_pinned: false,
+      p_message_id: MESSAGE_ID,
+    });
+    expect(await response.json()).toMatchObject({
+      pinned_at: null,
+      pinned_by_user_id: null,
+    });
+  });
+
+  it("is idempotent: re-pinning returns the row unchanged (RPC no-op)", async () => {
+    const stubs = pinStubs({
+      pinned_at: PINNED_AT,
+      pinned_by_user_id: auth.subject,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await patchPin({ pinned: true });
+    expect(response.status).toBe(200);
+    expect(stubs.rpc.calls).toHaveLength(1);
+    expect(await response.json()).toMatchObject({ pinned_at: PINNED_AT });
+  });
+
+  it("404s a message outside the caller's company (tenant isolation, §10)", async () => {
+    const stubs = pinStubs({}, { found: false });
+    stubFetch(...stubs.all);
+
+    const response = await patchPin({ pinned: true });
+    expect(response.status).toBe(404);
+    expect(await errorCode(response)).toBe("not_found");
+    expect(stubs.rpc.calls).toHaveLength(0);
+  });
+
+  it("422s a body that sets neither or both facets, or a non-boolean", async () => {
+    const stubs = pinStubs({});
+    stubFetch(...stubs.all);
+    for (const body of [
+      {},
+      { pinned: "yes" },
+      { pinned: 1 },
+      { done: true, pinned: true },
+    ]) {
+      const response = await patchPin(body);
+      expect(response.status, JSON.stringify(body)).toBe(422);
+    }
+    expect(stubs.rpc.calls).toHaveLength(0);
+  });
+
+  it("pins notes and inbound rows alike (any message can be pinned)", async () => {
+    for (const row of [
+      { direction: "note", status: null } as const,
+      { direction: "inbound", status: "received" } as const,
+    ]) {
+      const stubs = pinStubs({
+        ...row,
+        pinned_at: null,
+        pinned_by_user_id: null,
+      });
+      stubFetch(...stubs.all);
+      const response = await patchPin({ pinned: true });
+      expect(response.status, row.direction).toBe(200);
+      expect(stubs.rpc.calls).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("GET /v1/conversations/:id/messages (§7)", () => {
   it("pages newest-first with attachments summarized", async () => {
     const conversationCheck = stubRoute(

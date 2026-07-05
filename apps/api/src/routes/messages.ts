@@ -97,10 +97,20 @@ const sendSchema = z
     { message: "Provide a body, media, or both." },
   );
 
-/** D14: PATCH /v1/messages/:id — the whole surface is one boolean. */
-const donePatchSchema = z.object({
-  done: z.boolean(),
-});
+/**
+ * PATCH /v1/messages/:id — flip exactly ONE message facet: `done` (D14) or
+ * `pinned` (#3). Each is a single boolean routed through its own security-
+ * definer RPC. Exactly-one keeps the request unambiguous (one facet, one
+ * broadcast) and mirrors the done surface's minimalism.
+ */
+const messagePatchSchema = z
+  .object({
+    done: z.boolean().optional(),
+    pinned: z.boolean().optional(),
+  })
+  .refine((v) => (v.done !== undefined) !== (v.pinned !== undefined), {
+    message: "Set exactly one of `done` or `pinned`.",
+  });
 
 interface ConversationSendView {
   id: string;
@@ -388,7 +398,7 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const messageId = pathUuid(c, "id");
-  const body = await parseJsonBody(c, donePatchSchema);
+  const body = await parseJsonBody(c, messagePatchSchema);
   const db = getDb(env);
 
   // Company-scoped fetch (§10): a message outside the caller's company is
@@ -417,14 +427,30 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   // is the ONE completion audit — tasks never re-audit done (TASKS.md T2.1). The
   // shipped broadcast_message_change trigger fires `message.status` off the
   // UPDATE for free (§8 broadcast-from-DB).
+  // #3: pinning reuses the exact same atomic-RPC shape as done — company-
+  // scoped, row-locked, idempotent ('unchanged' on a redundant toggle → no
+  // write, no broadcast), and the shipped broadcast_message_change trigger
+  // fires `message.status` off the UPDATE (§8). Pinning carries no audit event
+  // (it's organizational, not an audited transition like done).
   const userId = c.get("userId");
-  const { data, error } = await db.rpc("set_message_done", {
-    p_company_id: companyId,
-    p_message_id: message.id,
-    p_done: body.done,
-    p_actor_user_id: userId,
-  });
-  if (error) throw new Error(`set_message_done failed: ${error.message}`);
+  const { data, error } =
+    body.pinned !== undefined
+      ? await db.rpc("set_message_pinned", {
+          p_company_id: companyId,
+          p_message_id: message.id,
+          p_pinned: body.pinned,
+          p_actor_user_id: userId,
+        })
+      : await db.rpc("set_message_done", {
+          p_company_id: companyId,
+          p_message_id: message.id,
+          p_done: body.done,
+          p_actor_user_id: userId,
+        });
+  if (error) {
+    const fn = body.pinned !== undefined ? "set_message_pinned" : "set_message_done";
+    throw new Error(`${fn} failed: ${error.message}`);
+  }
   const result = data as {
     outcome: "updated" | "unchanged" | "not_found";
     message: MessageRow | null;
@@ -468,7 +494,7 @@ messageRoutes.get(
       .select(
         "id,conversation_id,direction,body,status,segments,encoding," +
           "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
-          "done_at,done_by_user_id,task_id," +
+          "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id," +
           "created_at,message_attachments(id,content_type,size_bytes)",
       )
       .eq("company_id", companyId)
