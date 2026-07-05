@@ -79,12 +79,16 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     env:
-      # next build inlines these; web/src/env.ts fails the build if they are missing.
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      # env.ts only requires a syntactically valid URL (z.url()); the CI build
-      # artifact is never deployed (deploy.yml rebuilds with the real secret),
-      # so a fixed placeholder keeps this job deterministic.
+      # next build inlines these; web/src/env.ts fails the build if they are
+      # missing. env.ts only validates SHAPE (NEXT_PUBLIC_SUPABASE_URL is
+      # z.url(), the publishable key is a non-empty string) and the CI build
+      # artifact is NEVER deployed — deploy.yml rebuilds with the real secrets —
+      # so ALL of these are fixed placeholders that keep this job deterministic
+      # and independent of repo-secret configuration. (Previously the two
+      # SUPABASE vars read from ${{ secrets.* }} that were never set in the repo,
+      # so `next build` failed public-env validation on every commit.)
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
       NEXT_PUBLIC_API_URL: https://api.jobtext.app
     steps:
       - uses: actions/checkout@v4
