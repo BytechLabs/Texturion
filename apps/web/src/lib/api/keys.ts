@@ -42,6 +42,12 @@ export const keys = {
     lists: (companyId: string) => [companyId, "conversations", "list"] as const,
     list: (companyId: string, filters: ConversationFilters) =>
       [companyId, "conversations", "list", filters] as const,
+    /** Root for every pinned-only supplement query (#13). */
+    pinnedRoot: (companyId: string) =>
+      [companyId, "conversations", "pinned"] as const,
+    /** #13 pinned-only supplement — surfaces pins past the loaded pages. */
+    pinned: (companyId: string, filters: ConversationFilters) =>
+      [companyId, "conversations", "pinned", filters] as const,
     detail: (companyId: string, conversationId: string) =>
       [companyId, "conversations", "detail", conversationId] as const,
     events: (companyId: string, conversationId: string) =>

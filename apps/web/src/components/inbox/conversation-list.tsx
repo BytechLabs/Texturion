@@ -4,8 +4,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
-import { sortPinnedFirst } from "@/lib/api/cache";
-import { useConversations } from "@/lib/api/conversations";
+import {
+  useConversations,
+  usePinnedConversations,
+} from "@/lib/api/conversations";
 import type { ConversationFilters } from "@/lib/api/filters";
 import { flattenPages } from "@/lib/api/pagination";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -75,9 +77,19 @@ export function ConversationList({
   activeConversationId: string | null;
 }) {
   const query = useConversations(filters);
-  // #3: pinned threads float to the top of the loaded list (display-only sort;
-  // the pagination cursor is unaffected).
-  const rows = sortPinnedFirst(flattenPages(query.data));
+  // #13: pinned threads come complete + server-ordered (pinned_at desc) from
+  // their own query, so a pin past the loaded pages still shows at the top. We
+  // filter pins out of the main rows to avoid a duplicate; the main list + its
+  // keyset cursor are unchanged.
+  const pinnedQuery = usePinnedConversations(filters);
+  const pinnedRows = pinnedQuery.data?.data ?? [];
+  const pinnedIds = new Set(pinnedRows.map((row) => row.id));
+  // Dedup by id (not "drop every pin") so a pin beyond the supplement's page
+  // still shows via the main list rather than vanishing.
+  const rows = [
+    ...pinnedRows,
+    ...flattenPages(query.data).filter((row) => !pinnedIds.has(row.id)),
+  ];
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowElements = useRef<Map<string, HTMLElement>>(new Map());

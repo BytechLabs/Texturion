@@ -58,6 +58,32 @@ export function fetchConversationPage(
   });
 }
 
+/**
+ * #13: the company's pinned conversations for the current filters, in ONE call
+ * (server-ordered pinned_at desc). A supplement to the main list so a pinned
+ * thread that has scrolled past the loaded pages still shows at the top — the
+ * main list + its keyset cursor are untouched. Pins are few, so one page (100)
+ * is ample.
+ */
+export function fetchPinnedConversations(
+  companyId: string,
+  filters: ConversationFilters,
+): Promise<Page<ConversationListItem>> {
+  return apiFetch<Page<ConversationListItem>>("/v1/conversations", {
+    companyId,
+    searchParams: {
+      status: filters.status,
+      assigned_user_id: filters.assigned_user_id,
+      tag_id: filters.tag_id,
+      is_spam: filters.is_spam,
+      unread: filters.unread,
+      q: filters.q,
+      pinned: "only",
+      limit: "100",
+    },
+  });
+}
+
 export function fetchConversationDetail(
   companyId: string,
   conversationId: string,
@@ -145,6 +171,21 @@ export function useConversations(filters: ConversationFilters = {}) {
   });
 }
 
+/**
+ * #13 pinned-first supplement: the complete, server-ordered pinned set for the
+ * current filters. Rendered above the main list so far-horizon pins always show
+ * at the top; the main `useConversations` query (and its realtime/cache path)
+ * is unchanged.
+ */
+export function usePinnedConversations(filters: ConversationFilters = {}) {
+  const companyId = useCompanyId();
+  const normalized = normalizeFilters(filters);
+  return useQuery({
+    queryKey: keys.conversations.pinned(companyId, normalized),
+    queryFn: () => fetchPinnedConversations(companyId, normalized),
+  });
+}
+
 /** Thread header + contact panel + embedded first message page. */
 export function useConversation(conversationId: string) {
   const companyId = useCompanyId();
@@ -197,7 +238,15 @@ export function useUpdateConversation(conversationId: string) {
         companyId,
         body: patch,
       }),
-    onSuccess: (updated) => {
+    onSuccess: (updated, patch) => {
+      // #13: a pin toggle moves the thread in/out of the pinned supplement —
+      // refetch it so the top section reflects the change immediately.
+      if (patch.pinned !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: keys.conversations.pinnedRoot(companyId),
+          refetchType: "active",
+        });
+      }
       // Detail: merge the fresh conversation fields, keep contact/tags/messages.
       queryClient.setQueryData<ConversationDetail>(
         keys.conversations.detail(companyId, conversationId),
