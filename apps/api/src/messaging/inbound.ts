@@ -15,6 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { STORAGE_BUDGET_BYTES, type PlanId } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
@@ -226,6 +227,38 @@ async function handleOptOutKeywords(
  * (10) items are processed per message (D30); the tail is skipped with a
  * warning, the same permanent-condition outcome as an unsupported type.
  */
+/**
+ * #12 cap-and-drop: is the company at or over its plan storage budget (D30
+ * attachments + MMS media, both arms via api_storage_usage)? Pre-checkout / an
+ * unknown plan returns false (no budget yet, and they can't own much). Used to
+ * DROP new inbound media instead of growing storage unbounded on our dollar.
+ */
+async function companyOverStorageBudget(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  const { data: companies, error: companyError } = await db
+    .from("companies")
+    .select("plan")
+    .eq("id", companyId)
+    .limit(1);
+  const plan = (companies?.[0] as { plan: PlanId | null } | undefined)?.plan;
+  if (companyError || !plan) return false;
+
+  const { data: usage, error: usageError } = await db.rpc("api_storage_usage", {
+    p_company_id: companyId,
+  });
+  if (usageError) {
+    throw new Error(`storage usage lookup failed: ${usageError.message}`);
+  }
+  const u = usage as {
+    attachments_bytes: number | string;
+    mms_bytes: number | string;
+  };
+  const total = Number(u.attachments_bytes) + Number(u.mms_bytes);
+  return total >= STORAGE_BUDGET_BYTES[plan];
+}
+
 async function downloadInboundMedia(
   db: SupabaseClient,
   args: {
@@ -234,6 +267,17 @@ async function downloadInboundMedia(
     media: { url: string; content_type?: string; size?: number }[];
   },
 ): Promise<void> {
+  // #12 cap-and-drop: over the storage budget → DROP this message's media (the
+  // text already arrived; we never grow storage unbounded on our dollar). The
+  // owner is warned by the storage arm of the usage-alerts cron.
+  if (await companyOverStorageBudget(db, args.companyId)) {
+    console.warn(
+      `inbound media for message ${args.messageId} DROPPED — company ` +
+        `${args.companyId} is at/over its storage budget (#12 cap-and-drop)`,
+    );
+    return;
+  }
+
   // D30 per-message item cap: process the first 10, skip the rest. Skipping
   // (not throwing) keeps the ledger row processable — retrying would never
   // change how many items the sender attached.
