@@ -129,7 +129,7 @@ export default function PortNumberPage() {
       index={1}
       total={5}
       title="Which number do you want to bring?"
-      subtitle="Enter the number your customers already text. We'll check it can move to JobText — no commitment yet."
+      subtitle="Enter the number your customers already text. We'll check it can move to Loonext — no commitment yet."
     >
       <div className="space-y-6">
         <div className="space-y-2">

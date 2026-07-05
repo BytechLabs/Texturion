@@ -46,13 +46,13 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  // Canonical/OG resolution base + the "%s · JobText" title template
+  // Canonical/OG resolution base + the "%s · Loonext" title template
   // (BLUEPRINT §11.1). The marketing home overrides this with an absolute
   // title; every other marketing page supplies just the "%s" half.
-  metadataBase: new URL("https://jobtext.app"),
+  metadataBase: new URL("https://loonext.com"),
   title: {
-    default: "JobText — a shared SMS inbox for your crew",
-    template: "%s · JobText",
+    default: "Loonext — a shared SMS inbox for your crew",
+    template: "%s · Loonext",
   },
   description:
     "One local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
   // standalone with the petrol status bar treatment.
   appleWebApp: {
     capable: true,
-    title: "JobText",
+    title: "Loonext",
     statusBarStyle: "default",
   },
 };

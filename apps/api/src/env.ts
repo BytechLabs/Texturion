@@ -39,7 +39,7 @@ const envSchema = z.object({
   APP_ORIGIN: z.url(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
   API_ORIGIN: z.url(),
-  /** Resend sender, e.g. `JobText <notifications@jobtext.app>` (SPEC §3). */
+  /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
   /**
    * Web Push VAPID key pair as Worker secrets (SPEC §8). Standard encoding

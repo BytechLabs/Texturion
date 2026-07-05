@@ -125,7 +125,7 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
   it("still shows a calm generic notification for empty or garbage payloads", () => {
     for (const raw of [null, "", "not-json", "{}"]) {
       const { title, options } = sw.formatPushNotification(raw, ORIGIN);
-      expect(title).toBe("JobText");
+      expect(title).toBe("Loonext");
       expect(options.body).toBe("You have a new message.");
       expect((options.data as { url: string }).url).toBe("/inbox");
     }
@@ -195,7 +195,7 @@ describe("push event listener", () => {
     const sw = loadServiceWorker();
     await dispatch(sw.listeners, "push", { data: null });
     expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(
-      "JobText",
+      "Loonext",
       expect.objectContaining({ body: "You have a new message." }),
     );
   });

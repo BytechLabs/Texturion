@@ -88,7 +88,7 @@ export function resolvePortChecklistItem(
  */
 export const PORT_CHECKLIST_COPY = {
   /** Replaces the "Creating your number" row title for a port. */
-  title: "Transferring your number to JobText",
+  title: "Transferring your number to Loonext",
   needsDocuments:
     "Upload your signed authorization (LOA) and a recent phone bill to start the transfer — your number can't move until we have both.",
   needsDocumentsCta: "Upload your documents",

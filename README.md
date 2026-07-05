@@ -1,6 +1,6 @@
-# JobText
+# Loonext
 
-JobText is a shared SMS inbox for small service businesses. A company buys a
+Loonext is a shared SMS inbox for small service businesses. A company buys a
 subscription, gets a local business phone number, and every incoming text becomes
 a conversation the whole team can see, reply to, assign, tag, note, and close.
 

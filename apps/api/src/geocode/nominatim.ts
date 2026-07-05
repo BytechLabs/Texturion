@@ -22,11 +22,11 @@
 export const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 
 /**
- * Identifies JobText to the OSM operators per the Nominatim policy (a real
+ * Identifies Loonext to the OSM operators per the Nominatim policy (a real
  * contact address is required by the policy; this is the app's own domain).
  */
 export const NOMINATIM_USER_AGENT =
-  "JobText/1.0 (+https://jobtext.app; geocoding@jobtext.app)";
+  "Loonext/1.0 (+https://loonext.com; geocoding@loonext.com)";
 
 /** Nominatim fair-use pace: at most one request per second (D25). */
 export const NOMINATIM_MIN_INTERVAL_MS = 1000;

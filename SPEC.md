@@ -1,12 +1,12 @@
-# JobText — Build Specification v2
+# Loonext — Build Specification v2
 
-**Status: authoritative.** This document is the single source of truth for the JobText MVP build. It supersedes draft spec v1 and implements every binding decision in `docs/DECISIONS.md` (D1–D13). Where this spec states a value, API name, or behavior, it is final — build exactly this.
+**Status: authoritative.** This document is the single source of truth for the Loonext MVP build. It supersedes draft spec v1 and implements every binding decision in `docs/DECISIONS.md` (D1–D13). Where this spec states a value, API name, or behavior, it is final — build exactly this.
 
 ---
 
 ## 1. Overview & goals
 
-JobText is a shared SMS inbox for small service businesses. A company buys a subscription, gets a local business phone number, and every incoming text becomes a conversation that the whole team can see, reply to, assign, tag, note, and close — replacing the owner's personal cell as the business's texting front door.
+Loonext is a shared SMS inbox for small service businesses. A company buys a subscription, gets a local business phone number, and every incoming text becomes a conversation that the whole team can see, reply to, assign, tag, note, and close — replacing the owner's personal cell as the business's texting front door.
 
 **ICP (D12):** US and Canada home-service businesses — plumbing, landscaping, cleaning, HVAC, salons — with 1–10 field staff who currently text customers from a personal cell phone.
 
@@ -982,7 +982,7 @@ POST /v1/messages/send
 
 ### Stripe catalog (created by a checked-in setup script, ids stored as env config)
 
-- **Products:** `JobText Starter`, `JobText Pro` (SaaS product tax code on both), `US texting registration`.
+- **Products:** `Loonext Starter`, `Loonext Pro` (SaaS product tax code on both), `US texting registration`.
 - **Meter:** one Billing Meter, `event_name = 'sms_segments'`, aggregation `sum`, `customer_mapping` by `stripe_customer_id`.
 - **Prices:**
   - Starter licensed: $29/mo flat.
@@ -1050,7 +1050,7 @@ In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** 
   2. Worker-side destination validation against the **US/CA area-code table** in `packages/shared` — NANP includes ~20 Caribbean countries billed at international rates, so `+1` alone is never accepted.
   3. Per-company rate limit: **1 msg/s** via the Workers rate-limiting binding; **250 segments/hour** via a DB check evaluated inside the send RPC — `sum` of segment estimates (shared estimator, §9) over `messages` where `company_id = X AND direction = 'outbound' AND created_at > now() - interval '1 hour'`; at ≥250 the send is rejected 429 `rate_limited`.
   4. Overage cap (default 3× quota, §2).
-- **Front door:** Cloudflare WAF rate-limiting rule on `/v1/billing/checkout` (10 req/min/IP). Supabase Auth traffic goes browser → `<project>.supabase.co` directly (§3) — it is **not** behind JobText's Cloudflare zone, so it is protected by Supabase Auth's built-in rate limits plus **Cloudflare Turnstile enabled through Supabase Auth's captcha-protection setting** (Auth → Attack Protection → CAPTCHA, provider "Turnstile") — that setting *is* the signup Turnstile mechanism.
+- **Front door:** Cloudflare WAF rate-limiting rule on `/v1/billing/checkout` (10 req/min/IP). Supabase Auth traffic goes browser → `<project>.supabase.co` directly (§3) — it is **not** behind Loonext's Cloudflare zone, so it is protected by Supabase Auth's built-in rate limits plus **Cloudflare Turnstile enabled through Supabase Auth's captcha-protection setting** (Auth → Attack Protection → CAPTCHA, provider "Turnstile") — that setting *is* the signup Turnstile mechanism.
 - **Provisioning:** initial number provisioning is **webhook-driven only**. `POST /v1/numbers/provision` is owner/admin-only, requires active subscription, atomic count-vs-plan check, per-request `Idempotency-Key` (backstopped by `phone_numbers.provisioning_key` uniqueness); sole-prop companies are capped at 1 number (409 `conflict`, §4.2/§7).
 - **Role matrix (D8):**
 

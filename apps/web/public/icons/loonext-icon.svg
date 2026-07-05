@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Loonext app icon (source of truth for every raster).
+
+    Design: the calm petrol tile (#0F766E, teal-700) from the JobText system,
+    with a LOON in profile — head, curved neck, and the loon's signature
+    straight dagger bill — as a solid white silhouette with a petrol eye. A
+    bird, not a speech bubble: the brand ("Loon + ext") isn't tied to texting,
+    leaving room for calls later. The glyph stays inside the 80% maskable safe
+    circle (radius ~205 around 256,256) so the same artwork serves `purpose:
+    any` (this rounded tile) and `purpose: maskable` (full-bleed — the corner
+    radius is flattened by scripts/generate-icons.mjs).
+
+    Rendered by apps/web/scripts/generate-icons.mjs into the PNG/ICO family.
+  -->
+  <rect id="tile" x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#0F766E"/>
+  <!-- Loon: head + curved neck + straight bill, one filled silhouette. -->
+  <path fill="#FFFFFF" d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"/>
+  <!-- Eye (petrol negative space, reads as a hole over the tile). -->
+  <circle cx="300" cy="198" r="15" fill="#0F766E"/>
+</svg>

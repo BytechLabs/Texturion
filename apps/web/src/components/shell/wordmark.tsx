@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-/** The JobText wordmark — text-based, petrol accent on the second half. */
+/** The Loonext wordmark — text-based, petrol accent on the second half. */
 export function Wordmark({
   href = "/inbox",
   className,
@@ -18,7 +18,7 @@ export function Wordmark({
         className,
       )}
     >
-      Job<span className="text-primary">Text</span>
+      Loon<span className="text-primary">ext</span>
     </Link>
   );
 }

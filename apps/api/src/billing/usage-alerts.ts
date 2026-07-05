@@ -40,7 +40,7 @@ function alertCopy(
         `billing period — that's all ${included} included in your plan. ` +
         `Messages keep sending normally; extra segments are now billed as ` +
         `overage on your next invoice, up to your overage cap.\n\n` +
-        `See usage and manage your cap: ${usageUrl}\n\n— JobText`,
+        `See usage and manage your cap: ${usageUrl}\n\n— Loonext`,
     };
   }
   return {
@@ -50,7 +50,7 @@ function alertCopy(
       `message segments included in your plan this billing period. Once the ` +
       `included quota is used up, extra segments are billed as overage on ` +
       `your next invoice.\n\n` +
-      `See usage: ${usageUrl}\n\n— JobText`,
+      `See usage: ${usageUrl}\n\n— Loonext`,
   };
 }
 

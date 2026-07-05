@@ -401,7 +401,7 @@ describe("readiness gate — number stays provisioning until messaging ported", 
     ).toHaveLength(1);
     // P6c: ported_at stamped; §9 "live" email.
     expect(portRow(rest).ported_at).toBeTruthy();
-    expect(emails.some((e) => e.subject.includes("live on JobText"))).toBe(true);
+    expect(emails.some((e) => e.subject.includes("live on Loonext"))).toBe(true);
   });
 });
 
@@ -501,7 +501,7 @@ describe("handlePortingEvent — §5.1 transitions", () => {
       },
     });
     // Idempotent P6: no second "live" email.
-    expect(emails.filter((e) => e.subject.includes("live on JobText"))).toHaveLength(0);
+    expect(emails.filter((e) => e.subject.includes("live on Loonext"))).toHaveLength(0);
   });
 
   it("acks sharing_token_expired as a no-op (never fires for our ports)", async () => {

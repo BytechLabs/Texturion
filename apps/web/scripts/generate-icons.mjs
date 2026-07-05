@@ -7,9 +7,9 @@
  *   node scripts/generate-icons.mjs
  *
  * Inputs (committed, hand-crafted):
- *   public/icons/jobtext-icon.svg   the "Jt" tile (rounded, id="tile")
- *   public/favicon.svg              single-J favicon
- *   public/favicon-unread.svg       single-J favicon + unread badge
+ *   public/icons/loonext-icon.svg   the loon tile (rounded, id="tile")
+ *   public/favicon.svg              loon favicon
+ *   public/favicon-unread.svg       loon favicon + unread badge
  *
  * Outputs (committed alongside):
  *   public/icons/icon-192.png, icon-512.png           manifest `purpose: any`
@@ -75,7 +75,7 @@ function packIco(entries) {
 async function main() {
   await mkdir(iconsDir, { recursive: true });
 
-  const tileSvg = await readFile(path.join(iconsDir, "jobtext-icon.svg"));
+  const tileSvg = await readFile(path.join(iconsDir, "loonext-icon.svg"));
   // Maskable variant: flatten the tile's corner radius to full bleed. The
   // source rect is tagged id="tile" with rx/ry 116 — keep this replacement in
   // sync with the SVG if the radius ever changes.
@@ -84,7 +84,7 @@ async function main() {
   );
   if (maskableSvg.equals(tileSvg)) {
     throw new Error(
-      'jobtext-icon.svg lost its rx="116" ry="116" tile — update the maskable replacement.',
+      'loonext-icon.svg lost its rx="116" ry="116" tile — update the maskable replacement.',
     );
   }
 
@@ -95,7 +95,7 @@ async function main() {
   );
   if (badgeSvg.equals(tileSvg)) {
     throw new Error(
-      'jobtext-icon.svg lost its <rect id="tile"…/> — update the badge strip.',
+      'loonext-icon.svg lost its <rect id="tile"…/> — update the badge strip.',
     );
   }
 

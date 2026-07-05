@@ -141,7 +141,7 @@ function dateConfirmedState(status: PortStatus): PortStepState {
   return "todo";
 }
 
-/** Step 3 "Number switched" — voice cut over to JobText. */
+/** Step 3 "Number switched" — voice cut over to Loonext. */
 function numberSwitchedState(status: PortStatus): PortStepState {
   return status === "ported" ? "done" : "todo";
 }

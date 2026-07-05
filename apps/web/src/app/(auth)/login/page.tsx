@@ -165,7 +165,7 @@ function LoginForm() {
         </form>
       </Form>
       <p className="text-center text-sm text-muted-foreground">
-        New to JobText?{" "}
+        New to Loonext?{" "}
         <Link
           href="/signup"
           className="font-medium text-primary underline-offset-4 hover:underline"

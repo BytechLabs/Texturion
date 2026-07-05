@@ -560,7 +560,7 @@ function SettingUp() {
             // visible on every page.
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                You can start using JobText now — your inbox fills in the moment
+                You can start using Loonext now — your inbox fills in the moment
                 your number is ready, and we&apos;ll keep you posted at the top
                 of every screen.
               </p>

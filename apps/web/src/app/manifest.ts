@@ -11,8 +11,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "JobText",
-    short_name: "JobText",
+    name: "Loonext",
+    short_name: "Loonext",
     description:
       "One local business number your whole team can text from — every incoming text becomes a conversation you can reply to, assign, tag, and close.",
     id: "/inbox",

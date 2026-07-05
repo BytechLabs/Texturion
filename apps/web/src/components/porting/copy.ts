@@ -18,21 +18,21 @@ export const PORT_STEP_COPY: Record<
   },
   date_confirmed: {
     label: "Switch-over date confirmed",
-    meaning: "Your carrier confirmed the date your number moves to JobText.",
+    meaning: "Your carrier confirmed the date your number moves to Loonext.",
   },
   number_switched: {
     label: "Number switched",
-    meaning: "Your number moved to JobText — turning on texting now.",
+    meaning: "Your number moved to Loonext — turning on texting now.",
   },
   texting_live: {
     label: "Texting live",
-    meaning: "Text your customers straight from JobText.",
+    meaning: "Text your customers straight from Loonext.",
   },
 };
 
 /** Portability check result copy (PORTING.md §9, pre-pay). */
 export function portabilityOkCopy(display: string): string {
-  return `Good news — ${display} can move to JobText. It'll keep working with your current carrier until the switch-over date.`;
+  return `Good news — ${display} can move to Loonext. It'll keep working with your current carrier until the switch-over date.`;
 }
 
 export function portabilityFailCopy(reason: string | null): string {
@@ -53,8 +53,8 @@ export const PORT_HONEST_WINDOW =
 /** The pre-payment checkout expectation card lines (PORTING.md §8.1). */
 export const PORT_CHECKOUT_TIMELINE = [
   "Your number keeps working on your current carrier the whole time.",
-  "It switches to JobText on the transfer date — usually a few business days to about two weeks (US), often faster in Canada.",
-  "Texting through JobText starts once the switch completes — we'll show you exactly where it is and email you at each step.",
+  "It switches to Loonext on the transfer date — usually a few business days to about two weeks (US), often faster in Canada.",
+  "Texting through Loonext starts once the switch completes — we'll show you exactly where it is and email you at each step.",
 ] as const;
 
 /** Per-state banner copy for the Settings port card (PORTING.md §9). */
@@ -62,11 +62,11 @@ export const PORT_STATE_COPY = {
   submitted:
     "Transfer in progress. We've sent the request to your current carrier — they usually respond within a couple of business days. Your number still works on your old carrier for now.",
   focConfirmed: (date: string) =>
-    `Locked in. Your number switches to JobText on ${date}. Nothing works differently until then — we'll email you when it switches.`,
+    `Locked in. Your number switches to Loonext on ${date}. Nothing works differently until then — we'll email you when it switches.`,
   numberSwitched:
-    "Your number moved to JobText. We're turning on texting now — usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready.",
+    "Your number moved to Loonext. We're turning on texting now — usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready.",
   textingLive:
-    "Your number is live on JobText — text your customers straight from here.",
+    "Your number is live on Loonext — text your customers straight from here.",
   voiceException: (reason: string | null) =>
     `Your carrier flagged something on the transfer: ${
       reason?.trim().replace(/[.!?]+$/, "") ||

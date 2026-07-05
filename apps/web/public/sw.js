@@ -1,11 +1,11 @@
 /*
- * JobText service worker (DESIGN.md G9, SPEC §8).
+ * Loonext service worker (DESIGN.md G9, SPEC §8).
  *
  * Three jobs, nothing speculative:
  *   1. push          → show "contact name + snippet" notifications from the
  *                      server payload (apps/api/src/notifications/inbound.ts
  *                      sends `{ title, body, url }`).
- *   2. notificationclick → focus an open JobText tab on the deep-linked
+ *   2. notificationclick → focus an open Loonext tab on the deep-linked
  *                      thread, or open one.
  *   3. offline       → precached app-shell fallback (offline.html) for
  *                      navigations that can't reach the network. No other
@@ -64,7 +64,7 @@ function formatPushNotification(rawText, origin) {
   const title =
     payload && typeof payload.title === "string" && payload.title.trim() !== ""
       ? payload.title
-      : "JobText";
+      : "Loonext";
   const body =
     payload && typeof payload.body === "string" && payload.body.trim() !== ""
       ? payload.body
@@ -172,7 +172,7 @@ self.addEventListener("fetch", (event) => {
         .then(
           (cached) =>
             cached ??
-            new Response("You're offline. JobText needs a connection.", {
+            new Response("You're offline. Loonext needs a connection.", {
               status: 503,
               headers: { "Content-Type": "text/plain; charset=utf-8" },
             }),

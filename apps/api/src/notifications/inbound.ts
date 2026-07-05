@@ -167,7 +167,7 @@ export async function notifyInboundMessage(
         const text =
           `${contactName} sent a new text:\n\n` +
           `"${snippet}"\n\n` +
-          `Reply in JobText: ${link}\n`;
+          `Reply in Loonext: ${link}\n`;
         await sendEmail(env, {
           to,
           subject: `New text from ${contactName}`,
@@ -175,7 +175,7 @@ export async function notifyInboundMessage(
           html:
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
             `<blockquote>${escapeHtml(snippet)}</blockquote>` +
-            `<p><a href="${link}">Reply in JobText</a></p>`,
+            `<p><a href="${link}">Reply in Loonext</a></p>`,
         });
       }
     } catch (cause) {
