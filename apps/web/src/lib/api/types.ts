@@ -704,6 +704,51 @@ export type ChangePlanResult =
   | { plan: "pro"; effective: "now" }
   | { plan: "starter"; effective: "period_end"; effective_at: string };
 
+/** #12 plan-builder module ids (mirrors the API company_modules.module). */
+export const PLAN_MODULE_IDS = [
+  "mms",
+  "voice",
+  "extra_storage",
+  "regions_ca",
+] as const;
+export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
+
+/** Plan-builder add-on card copy (mirrors the API MODULE_CATALOG). */
+export interface PlanModuleCard {
+  id: PlanModule;
+  label: string;
+  blurb: string;
+  /** Human monthly price, e.g. "$5". */
+  price: string;
+}
+
+export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
+  {
+    id: "mms",
+    label: "Picture messages",
+    blurb: "Send photos in your texts. Incoming photos are always free.",
+    price: "$5",
+  },
+  {
+    id: "voice",
+    label: "Call forwarding",
+    blurb: "Forward calls to your cell and text back the ones you miss.",
+    price: "$8",
+  },
+  {
+    id: "extra_storage",
+    label: "Extra storage",
+    blurb: "More room for files on notes and saved picture messages.",
+    price: "$5",
+  },
+  {
+    id: "regions_ca",
+    label: "Canada numbers",
+    blurb: "Get and text Canadian numbers alongside your US number.",
+    price: "$5",
+  },
+];
+
 /** GET /v1/registration row — owner/admin additionally receive `data`. */
 export interface RegistrationRow extends RegistrationSummary {
   id: string;

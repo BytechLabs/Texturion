@@ -21,7 +21,12 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
-import type { PlanId } from "@/lib/api/types";
+import {
+  PLAN_MODULE_CARDS,
+  type PlanId,
+  type PlanModule,
+} from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { owesUsRegistration, stepProgress } from "../steps";
@@ -77,6 +82,16 @@ function PlanStep() {
   const ports = usePortRequestsForCompany(state.companyId);
   const [choosing, setChoosing] = useState<PlanId | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // #12 plan builder: opt-in add-ons carried into checkout.
+  const [modules, setModules] = useState<PlanModule[]>([]);
+
+  function toggleModule(id: PlanModule) {
+    setModules((current) =>
+      current.includes(id)
+        ? current.filter((m) => m !== id)
+        : [...current, id],
+    );
+  }
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
   if (!ready || !state.snapshot || !state.company || !state.companyId) {
@@ -105,7 +120,7 @@ function PlanStep() {
     setFormError(null);
     setChoosing(plan);
     try {
-      const { url } = await checkout.mutateAsync({ companyId, plan });
+      const { url } = await checkout.mutateAsync({ companyId, plan, modules });
       window.location.assign(url);
       // Keep the button in its busy state while the browser navigates.
     } catch (cause) {
@@ -198,6 +213,60 @@ function PlanStep() {
               </Button>
             </div>
           ))}
+        </div>
+
+        {/* #12 plan builder: opt-in add-ons. Toggle before choosing a plan;
+            the selection rides into checkout. Calm selectable rows — hairline
+            border, a petrol check when on, price on the right. */}
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-[15px] font-medium">Add-ons</h2>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Optional — turn on only what you need. Add or remove them any time.
+          </p>
+          <div className="mt-4 space-y-2">
+            {PLAN_MODULE_CARDS.map((mod) => {
+              const on = modules.includes(mod.id);
+              return (
+                <button
+                  key={mod.id}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  onClick={() => toggleModule(mod.id)}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    on
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border hover:bg-muted/40",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                      on
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border",
+                    )}
+                  >
+                    {on ? <Check className="size-3.5" strokeWidth={2.5} /> : null}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="text-sm font-medium">{mod.label}</span>
+                      <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                        {mod.price}/mo
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block text-[13px] text-muted-foreground">
+                      {mod.blurb}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {owesFee ? (

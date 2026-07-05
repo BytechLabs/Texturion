@@ -10,6 +10,7 @@ import type {
   CompanyView,
   HostedUrl,
   PlanId,
+  PlanModule,
   RegistrationState,
 } from "./types";
 
@@ -66,14 +67,23 @@ export function useSaveOnboardingRegistration() {
   });
 }
 
-/** POST /v1/billing/checkout — { plan } → hosted Stripe Checkout URL. */
+/** POST /v1/billing/checkout — { plan, modules? } → hosted Stripe Checkout URL. */
 export function useOnboardingCheckout() {
   return useMutation({
-    mutationFn: (input: { companyId: string; plan: PlanId }) =>
+    mutationFn: (input: {
+      companyId: string;
+      plan: PlanId;
+      modules?: PlanModule[];
+    }) =>
       apiFetch<HostedUrl>("/v1/billing/checkout", {
         method: "POST",
         companyId: input.companyId,
-        body: { plan: input.plan },
+        body: {
+          plan: input.plan,
+          ...(input.modules && input.modules.length > 0
+            ? { modules: input.modules }
+            : {}),
+        },
       }),
   });
 }
