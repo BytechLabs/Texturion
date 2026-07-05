@@ -220,6 +220,9 @@ export interface Conversation {
   status: ConversationStatus;
   is_spam: boolean;
   assigned_user_id: string | null;
+  /** #3 pin state — set/cleared together by PATCH /v1/conversations/:id {pinned}. */
+  pinned_at: string | null;
+  pinned_by_user_id: string | null;
   last_message_at: string;
   closed_at: string | null;
   created_at: string;

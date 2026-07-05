@@ -1,7 +1,7 @@
 "use client";
 
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Lock } from "lucide-react";
+import { Lock, Pin } from "lucide-react";
 import Link from "next/link";
 
 import type { ThreadData } from "@/lib/api/cache";
@@ -120,6 +120,7 @@ export function ConversationRow({
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
   const unread = conversation.unread;
+  const pinned = conversation.pinned_at !== null;
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id)
     : undefined;
@@ -167,11 +168,20 @@ export function ConversationRow({
           >
             {name}
           </span>
-          <span
-            className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2"
-            title={formatAbsoluteDateTime(conversation.last_message_at)}
-          >
-            {formatRelativeTime(conversation.last_message_at)}
+          <span className="flex shrink-0 items-center gap-1">
+            {pinned && (
+              <Pin
+                className="size-3 text-app-muted-2"
+                strokeWidth={2}
+                aria-label="Pinned"
+              />
+            )}
+            <span
+              className="text-[11.5px] tabular-nums text-app-muted-2"
+              title={formatAbsoluteDateTime(conversation.last_message_at)}
+            >
+              {formatRelativeTime(conversation.last_message_at)}
+            </span>
           </span>
         </span>
 

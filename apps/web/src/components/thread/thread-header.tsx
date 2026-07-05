@@ -11,6 +11,8 @@ import {
   MoreHorizontal,
   OctagonAlert,
   Phone,
+  Pin,
+  PinOff,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -153,6 +155,20 @@ export function ThreadHeader({
                 { onError: (e) => onApiError(e, "Couldn't undo.") },
               ),
           }),
+      },
+    );
+  };
+
+  // #3: pin/unpin the whole conversation to the top of the inbox. Trivially
+  // reversible from the same menu, so a plain confirm toast (no undo affordance).
+  const pinned = conversation.pinned_at !== null;
+  const togglePin = () => {
+    update.mutate(
+      { pinned: !pinned },
+      {
+        onError: (e) => onApiError(e, "Couldn't update pin."),
+        onSuccess: () =>
+          toast.success(pinned ? "Conversation unpinned" : "Conversation pinned"),
       },
     );
   };
@@ -351,6 +367,14 @@ export function ThreadHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={togglePin}>
+              {pinned ? (
+                <PinOff className="size-4" strokeWidth={1.75} />
+              ) : (
+                <Pin className="size-4" strokeWidth={1.75} />
+              )}
+              {pinned ? "Unpin conversation" : "Pin conversation"}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={toggleSpam}>
               <OctagonAlert className="size-4" strokeWidth={1.75} />
               {conversation.is_spam ? "Not spam" : "Mark as spam"}

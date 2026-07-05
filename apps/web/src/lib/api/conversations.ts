@@ -182,6 +182,8 @@ export interface ConversationPatch {
   status?: ConversationStatus;
   assigned_user_id?: string | null;
   is_spam?: boolean;
+  /** #3: pin/unpin the whole conversation (top of the inbox). */
+  pinned?: boolean;
 }
 
 /** PATCH /v1/conversations/:id — status / assignee / spam. */

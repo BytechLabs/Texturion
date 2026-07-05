@@ -64,7 +64,7 @@ const MMS_SIGNED_URL_TTL_SECONDS = 3600;
 
 const CONVERSATION_COLUMNS =
   "id,company_id,contact_id,phone_number_id,status,is_spam,assigned_user_id," +
-  "last_message_at,closed_at,created_at,updated_at";
+  "pinned_at,pinned_by_user_id,last_message_at,closed_at,created_at,updated_at";
 
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +
@@ -86,12 +86,15 @@ const patchSchema = z
     status: z.enum(["new", "open", "waiting", "closed"]).optional(),
     assigned_user_id: z.uuid().nullable().optional(),
     is_spam: z.boolean().optional(),
+    // #3: pin/unpin a whole conversation to the top of the inbox.
+    pinned: z.boolean().optional(),
   })
   .refine(
     (body) =>
       body.status !== undefined ||
       "assigned_user_id" in body ||
-      body.is_spam !== undefined,
+      body.is_spam !== undefined ||
+      body.pinned !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -349,7 +352,16 @@ conversationsRoutes.patch(
       });
     }
 
-    if (events.length === 0) {
+    // #3: pin/unpin — a direct pinned_at/pinned_by update, NO audit event (a pin
+    // is organizational, not an audited transition like status/spam/assign).
+    // It writes to `patch` but not `events`, so the no-op guard below keys off
+    // `patch` (which every real change touches), not `events`.
+    if (body.pinned !== undefined && body.pinned !== (current.pinned_at !== null)) {
+      patch.pinned_at = body.pinned ? now : null;
+      patch.pinned_by_user_id = body.pinned ? userId : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
       // Nothing actually changed — idempotent no-op, no timeline noise.
       return c.json(current);
     }

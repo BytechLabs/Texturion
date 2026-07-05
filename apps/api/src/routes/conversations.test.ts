@@ -486,6 +486,69 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
     );
     expect(res.status).toBe(422);
   });
+
+  it("pin: stamps pinned_at + pinned_by_user_id and emits NO audit event (#3)", async () => {
+    const sb = patchStub(
+      conversationRow({ pinned_at: null, pinned_by_user_id: null }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { pinned: true } },
+    );
+    expect(res.status).toBe(200);
+
+    const update = sb.find("PATCH", "/rest/v1/conversations")[0]
+      .body as Record<string, unknown>;
+    expect(typeof update.pinned_at).toBe("string");
+    expect(update.pinned_by_user_id).toBe(auth.subject);
+    // A pin is organizational — no conversation_events row.
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("unpin: clears both pin columns (#3)", async () => {
+    const sb = patchStub(
+      conversationRow({
+        pinned_at: "2026-07-04T09:00:00+00:00",
+        pinned_by_user_id: auth.subject,
+      }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), `/v1/conversations/${CONV_ID}`, {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { pinned: false },
+    });
+    const update = sb.find("PATCH", "/rest/v1/conversations")[0]
+      .body as Record<string, unknown>;
+    expect(update).toMatchObject({ pinned_at: null, pinned_by_user_id: null });
+  });
+
+  it("pinning an already-pinned conversation is an idempotent no-op (#3)", async () => {
+    const sb = patchStub(
+      conversationRow({
+        pinned_at: "2026-07-04T09:00:00+00:00",
+        pinned_by_user_id: auth.subject,
+      }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { pinned: true } },
+    );
+    expect(res.status).toBe(200);
+    // Already pinned → the no-op guard returns current without an UPDATE.
+    expect(sb.find("PATCH", "/rest/v1/conversations")).toHaveLength(0);
+  });
 });
 
 describe("POST /v1/conversations/:id/read", () => {

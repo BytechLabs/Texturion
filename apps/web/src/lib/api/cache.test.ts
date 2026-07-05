@@ -7,6 +7,7 @@ import {
   listSetUnread,
   pinMutationPatch,
   snippetFromMessage,
+  sortPinnedFirst,
   threadApplyStatus,
   threadPatchMessage,
   threadUpsertMessages,
@@ -75,6 +76,8 @@ function listItem(
     status: "open",
     is_spam: false,
     assigned_user_id: null,
+    pinned_at: null,
+    pinned_by_user_id: null,
     last_message_at: lastMessageAt,
     closed_at: null,
     created_at: "2026-06-01T00:00:00.000Z",
@@ -371,5 +374,36 @@ describe("pinMutationPatch (#3)", () => {
       pinned_at: "2026-07-04T12:00:00.000Z",
       pinned_by_user_id: null,
     });
+  });
+});
+
+describe("sortPinnedFirst (#3)", () => {
+  it("floats pinned rows to the top, newest pin first", () => {
+    const rows = [
+      listItem("a", "2026-07-04T12:00:00Z"),
+      listItem("b", "2026-07-04T11:00:00Z", { pinned_at: "2026-07-04T08:00:00Z" }),
+      listItem("c", "2026-07-04T10:00:00Z"),
+      listItem("d", "2026-07-04T09:00:00Z", { pinned_at: "2026-07-04T09:30:00Z" }),
+    ];
+    // Pinned d (08:30 pin? no — 09:30) before b (08:00 pin), then unpinned in
+    // their original order (a, c).
+    expect(sortPinnedFirst(rows).map((r) => r.id)).toEqual(["d", "b", "a", "c"]);
+  });
+
+  it("is a stable no-op ordering when nothing is pinned", () => {
+    const rows = [
+      listItem("a", "2026-07-04T12:00:00Z"),
+      listItem("b", "2026-07-04T11:00:00Z"),
+    ];
+    expect(sortPinnedFirst(rows).map((r) => r.id)).toEqual(["a", "b"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const rows = [
+      listItem("a", "2026-07-04T12:00:00Z"),
+      listItem("b", "2026-07-04T11:00:00Z", { pinned_at: "2026-07-04T08:00:00Z" }),
+    ];
+    sortPinnedFirst(rows);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b"]);
   });
 });

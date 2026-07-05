@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { sortPinnedFirst } from "@/lib/api/cache";
 import { useConversations } from "@/lib/api/conversations";
 import type { ConversationFilters } from "@/lib/api/filters";
 import { flattenPages } from "@/lib/api/pagination";
@@ -74,7 +75,9 @@ export function ConversationList({
   activeConversationId: string | null;
 }) {
   const query = useConversations(filters);
-  const rows = flattenPages(query.data);
+  // #3: pinned threads float to the top of the loaded list (display-only sort;
+  // the pagination cursor is unaffected).
+  const rows = sortPinnedFirst(flattenPages(query.data));
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowElements = useRef<Map<string, HTMLElement>>(new Map());
