@@ -155,7 +155,7 @@ async function loadSendView(
 }
 
 /** Attachment summaries for a set of message rows, keyed by message id. */
-async function loadAttachments(
+export async function loadAttachments(
   db: Db,
   companyId: string,
   messageIds: string[],
@@ -186,7 +186,7 @@ async function loadAttachments(
 }
 
 /** SPEC §7 message object: row + attachments summary, tsv column dropped. */
-function messageJson(
+export function messageJson(
   row: MessageRow,
   attachments: AttachmentSummary[],
 ): Record<string, unknown> {

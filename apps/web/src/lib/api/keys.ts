@@ -50,6 +50,9 @@ export const keys = {
       [companyId, "conversations", "pinned", filters] as const,
     detail: (companyId: string, conversationId: string) =>
       [companyId, "conversations", "detail", conversationId] as const,
+    /** #13 part 2: the conversation's full pinned-message set for the banner. */
+    pinnedMessages: (companyId: string, conversationId: string) =>
+      [companyId, "conversations", "pinned-messages", conversationId] as const,
     events: (companyId: string, conversationId: string) =>
       [companyId, "conversations", "events", conversationId] as const,
     /** The attachments gallery — union of message + note + task media (§5.2). */

@@ -1,6 +1,7 @@
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 
@@ -253,6 +254,31 @@ export function useSetMessagePinned(conversationId: string) {
         keys.conversations.detail(companyId, conversationId),
         (detail) => detailPatchMessage(detail, message.id, message),
       );
+      // #13: refresh the conversation-wide pinned set so the banner reflects a
+      // pin/unpin of a message that isn't on a loaded thread page.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedMessages(companyId, conversationId),
+      });
+    },
+  });
+}
+
+/**
+ * #13 part 2: GET /v1/conversations/:id/pinned — the conversation's COMPLETE
+ * pinned-message set (pinned_at desc), so the thread banner shows every pin,
+ * not only those on loaded pages. Merged with the loaded-page pins in the
+ * banner so an optimistic pin still shows before this refetches.
+ */
+export function useConversationPinnedMessages(conversationId: string) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.conversations.pinnedMessages(companyId, conversationId),
+    queryFn: async () => {
+      const page = await apiFetch<{ data: Message[] }>(
+        `/v1/conversations/${conversationId}/pinned`,
+        { companyId },
+      );
+      return page.data;
     },
   });
 }

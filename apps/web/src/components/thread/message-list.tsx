@@ -14,7 +14,10 @@ import {
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationEvents } from "@/lib/api/conversations";
-import { useMessages } from "@/lib/api/messages";
+import {
+  useConversationPinnedMessages,
+  useMessages,
+} from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Message } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
@@ -67,9 +70,18 @@ export function MessageList({
     () => flattenPages(messagesQuery.data).slice().sort(byChronology),
     [messagesQuery.data],
   );
-  // #3: pinned messages surfaced in the banner above the scroll (from loaded
-  // pages), newest-pin-first.
-  const pinnedMessages = useMemo(() => sortPinned(messages), [messages]);
+  // #13: the banner shows the conversation's COMPLETE pinned set from a
+  // dedicated query (so a pin on a not-yet-loaded page still appears), merged
+  // with the loaded-page pins so an optimistic pin shows before the query
+  // refetches. Deduped by id (loaded row wins → optimistic state), newest-pin
+  // first.
+  const pinnedQuery = useConversationPinnedMessages(conversationId);
+  const pinnedMessages = useMemo(() => {
+    const byId = new Map<string, (typeof messages)[number]>();
+    for (const m of pinnedQuery.data ?? []) byId.set(m.id, m);
+    for (const m of messages) byId.set(m.id, m);
+    return sortPinned([...byId.values()]);
+  }, [pinnedQuery.data, messages]);
 
   // §4.3: the done/undone timeline lines join the LIVE message body by id.
   // Built from the loaded message set — a cache-miss degrades to "a message"

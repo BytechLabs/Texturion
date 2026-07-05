@@ -58,6 +58,8 @@ import {
   loadMessageTaskFlags,
   loadNoteTaskLinks,
 } from "./core/message-tasks";
+import { loadAttachments, messageJson } from "./messages";
+import type { MessageRow as MsgRow } from "../messaging/types";
 
 const MMS_BUCKET = "mms-media";
 const MMS_SIGNED_URL_TTL_SECONDS = 3600;
@@ -184,6 +186,41 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
     ),
   );
 });
+
+/**
+ * GET /v1/conversations/:id/pinned (#13 part 2) — the conversation's COMPLETE
+ * set of pinned messages (pinned_at desc), independent of which thread pages
+ * are loaded, so the in-thread "Pinned" banner shows every pin. Company-scoped
+ * (§10): a conversation outside the caller's company simply reads as empty.
+ */
+conversationsRoutes.get(
+  "/conversations/:id/pinned",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const rows = unwrap<MsgRow[]>(
+      await db
+        .from("messages")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .not("pinned_at", "is", null)
+        .order("pinned_at", { ascending: false }),
+      "pinned messages",
+    );
+    const attachments = await loadAttachments(
+      db,
+      companyId,
+      rows.map((row) => row.id),
+    );
+    return c.json({
+      data: rows.map((row) => messageJson(row, attachments.get(row.id) ?? [])),
+    });
+  },
+);
 
 conversationsRoutes.get(
   "/conversations/:id",
