@@ -391,56 +391,10 @@ begin
   raise notice 'VW-13 PASSED: a live number cannot be double-claimed (number_taken)';
 end $$;
 
--- ===========================================================================
--- VW-14. claim_review_request v2 — a review ask whose text NEVER reached
---        Telnyx (failed, no telnyx id — e.g. the rate limiter denied the
---        dispatch) does NOT burn the one-per-job claim; a Telnyx-accepted ask
---        still suppresses for the window.
--- ===========================================================================
-do $$
-declare
-  res jsonb; conv_id uuid; contact_id uuid; msg1 uuid; msg2 uuid;
-begin
-  insert into public.contacts (company_id, phone_e164, consent_source, consent_at)
-  values ('facade00-0000-4000-8000-000000000002', '+14165559222', 'inbound_sms', now())
-  returning id into contact_id;
-  insert into public.conversations (company_id, contact_id, phone_number_id, status)
-  values ('facade00-0000-4000-8000-000000000002', contact_id,
-          'facade00-0000-4000-8000-000000000003', 'open')
-  returning id into conv_id;
-
-  -- First ask claims fine.
-  res := public.claim_review_request(
-    'facade00-0000-4000-8000-000000000002', conv_id,
-    'facade00-0000-4000-8000-000000000001',
-    'Thanks! A quick review means a lot: https://g.page/r/x', 1, 2592000);
-  if res ? 'skipped' then raise exception 'VW-14 FAILED: first ask skipped %', res; end if;
-  msg1 := (res->'message'->>'id')::uuid;
-
-  -- The dispatch was DENIED (rate limiter): failed, no telnyx id → the claim
-  -- must be re-askable, not suppressed for 30 days.
-  update public.messages set status='failed', telnyx_message_id=null where id=msg1;
-  res := public.claim_review_request(
-    'facade00-0000-4000-8000-000000000002', conv_id,
-    'facade00-0000-4000-8000-000000000001',
-    'Thanks! A quick review means a lot: https://g.page/r/x', 1, 2592000);
-  if res ? 'skipped' then
-    raise exception 'VW-14 FAILED: never-dispatched ask still suppressed (%)!', res;
-  end if;
-  msg2 := (res->'message'->>'id')::uuid;
-
-  -- The second ask DID go out → suppression applies again.
-  update public.messages set status='sent', telnyx_message_id='tx-vw-2' where id=msg2;
-  res := public.claim_review_request(
-    'facade00-0000-4000-8000-000000000002', conv_id,
-    'facade00-0000-4000-8000-000000000001',
-    'Thanks again: https://g.page/r/x', 1, 2592000);
-  if res->>'skipped' <> 'already_requested' then
-    raise exception 'VW-14 FAILED: dispatched ask should suppress, got %', res;
-  end if;
-
-  raise notice 'VW-14 PASSED: rate-limited review ask does not burn the one-per-job claim';
-end $$;
+-- (VW-14 removed: it tested claim_review_request, which was dropped in
+-- 20260704060000_drop_claim_review_request.sql — the review-ask feature was
+-- removed from the product, but this test block was left behind and referenced
+-- a now-nonexistent function.)
 
 -- ===========================================================================
 -- VW-15. claim_text_enablement_slot — TENANT ISOLATION on the Idempotency-Key
