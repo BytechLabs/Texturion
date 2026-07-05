@@ -142,3 +142,44 @@ own included allowance and overage priced **above true cost**:
 7. **"No cap" customers:** keep an opt‑in unlimited tier (with a deposit/credit‑card‑on‑file guarantee), or always enforce the hard ceiling?
 
 _Phase 0 can proceed immediately — it only closes abuse holes and needs none of the above._
+
+---
+
+## 8. Chosen defaults (implementation basis — TWEAK THESE)
+
+Per the #12 decision to "make sensible defaults & build," these are the values I'm
+implementing against. They are **placeholders sized to be safe + above true cost**;
+change any number and the code picks it up (kept in constants / plan config, not
+scattered).
+
+**Hard safety ceiling (Increment B) — "no matter what":**
+- Even when an owner sets `overage_cap_multiplier = NULL` ("no soft cap"), a
+  **system hard ceiling of 10× the plan quota** always applies (starter 5,000 /
+  pro 25,000 outbound segments per period). Combined with the existing 250-seg/hr
+  rate limit, unpaid-overage exposure is bounded. No "truly unlimited" tier by
+  default (add one deliberately later if wanted).
+
+**Metering (Increment A) — measure everything, bill nothing yet:**
+- Record **inbound** SMS (1 seg) + MMS (3 seg) per company per period, plus
+  scaffolds for **egress GB** and **voice minutes** — in a NON-billing counter,
+  separate from the Stripe `usage_events` pipeline. Visibility first; capping later.
+
+**Modular plan (Increment C) — default prices ABOVE true cost (~$0.0085/seg):**
+- **Base** (per plan): covers 1 number rental + the 10DLC brand/campaign recurring
+  fee + an included outbound-segment allowance (starter 500 / pro 2,500, unchanged).
+- **Texting overage:** starter 3¢ / pro 2.5¢ per segment (unchanged — clears cost).
+  Inbound counts against the SAME allowance by default.
+- **MMS module (opt-in):** 5¢ per part overage (cost ~$0.015+carrier out / $0.005 in).
+- **Voice / forwarding module (opt-in):** included minutes + **5¢/min** overage
+  (cost ~$0.012/min both legs), or hard-cap if the module is off.
+- **Storage:** included 5 GB / 25 GB (unchanged) + **15¢/GB** overage covering both
+  storage ($0.021) and egress ($0.09) headroom.
+- **Regions:** US (10DLC required) and/or Canada as toggles; each carries its own
+  number + registration cost. Canada rates flagged UNVERIFIED (§4) — confirm before
+  charging CA.
+
+**Limit-reached UX (Increment D):**
+- Soft warning at ~80% of any allowance (reuse `usage-alerts.ts`); a hard,
+  clear "limit reached — upgrade / add credit" that **blocks the cost-incurring
+  action** at 100%. **Never block receiving inbound customer content** (that's the
+  customer's brand) — instead throttle downstream processing + notify the owner.
