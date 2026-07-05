@@ -29,6 +29,8 @@ interface UsageState {
   /** api_storage_usage bytes (default 0 → no storage alerts). */
   mmsBytes?: number;
   attachmentBytes?: number;
+  /** api_period_voice_seconds (default 0 → no voice alerts). */
+  voiceSeconds?: number;
 }
 
 function usageEndpoints(state: UsageState): StubEndpoint[] {
@@ -46,6 +48,11 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       attachments_bytes: state.attachmentBytes ?? 0,
       mms_bytes: state.mmsBytes ?? 0,
     })),
+    endpoint(
+      "POST",
+      /\/rest\/v1\/rpc\/api_period_voice_seconds/,
+      () => state.voiceSeconds ?? 0,
+    ),
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
       const row = call.json() as { metric: string; threshold: number };
       const key = `${row.metric}:${row.threshold}`;
@@ -166,6 +173,34 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(state.ledger).toEqual(new Set(["attachment_storage:80"]));
   });
 
+  it("voice minutes at 100% (starter: 500 min = 30000 s) sends both call-forwarding alerts", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      voiceSeconds: 500 * 60,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const subjects = sentEmails(harness).map((email) => email.subject);
+    expect(subjects).toHaveLength(2);
+    expect(subjects[0]).toContain("nearing its call-forwarding minutes");
+    expect(subjects[1]).toContain("used all its included call-forwarding");
+    expect(state.ledger).toEqual(
+      new Set(["voice_minutes:80", "voice_minutes:100"]),
+    );
+  });
+
+  it("voice minutes below 80% sends nothing", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      voiceSeconds: 100 * 60, // 100 of 500 min
+    };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(0);
+  });
+
   it("segment and storage metrics never collide at the same threshold", async () => {
     // Over on segments (100%) AND over on MMS storage (100%): four distinct
     // alerts, one per (metric, threshold) — the metric axis keeps the two 80s
@@ -215,6 +250,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         attachments_bytes: 0,
         mms_bytes: 0,
       })),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);

@@ -126,6 +126,16 @@ exception
 end $$;
 
 -- ===========================================================================
+-- M-5b. 'voice_minutes' is an accepted metric (#12 voice alerts).
+-- ===========================================================================
+do $$
+begin
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-08-01T00:00:00Z', 'voice_minutes', 80);
+  raise notice 'M-5b PASSED: voice_minutes accepted by the metric check';
+end $$;
+
+-- ===========================================================================
 -- M-6. api_period_voice_seconds (#12 voice metering) sums billable_seconds over
 --      BOTH legs in the period and excludes pre-period rows.
 -- ===========================================================================

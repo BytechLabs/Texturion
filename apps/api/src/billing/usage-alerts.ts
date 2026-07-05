@@ -2,9 +2,10 @@
  * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms): when a company
  * crosses 80% or 100% of a budget, email the owner + active admins — exactly
  * once per (company, period, metric, threshold), gated by the `usage_alerts`
- * ledger PK. Three metrics: outbound `segments` vs the plan's INCLUDED quota
+ * ledger PK. Four metrics: outbound `segments` vs the plan's INCLUDED quota
  * (never the cap); `mms_storage` + `attachment_storage` vs their #12 storage
- * budgets. Runs from the hourly cron right after the usage re-reporter (§11
+ * budgets; `voice_minutes` vs the plan's call-forwarding allowance. Runs from
+ * the hourly cron right after the usage re-reporter (§11
  * idempotency style: work is selected by state — sums vs the ledger — never by
  * "last run" bookkeeping), so re-runs and overlaps can never double-send.
  */
@@ -12,6 +13,7 @@ import { billingRecipients } from "./recipients";
 import {
   MMS_STORAGE_BUDGET_BYTES,
   PLAN_INCLUDED_SEGMENTS,
+  PLAN_VOICE_MINUTES,
   STORAGE_BUDGET_BYTES,
   type PlanId,
 } from "./plans";
@@ -29,7 +31,11 @@ export const USAGE_ALERT_THRESHOLDS: readonly UsageAlertThreshold[] = [80, 100];
  * budgets (their own separate pools). The `metric` column keeps them from
  * colliding at the same (company, period, threshold).
  */
-export type UsageAlertMetric = "segments" | "mms_storage" | "attachment_storage";
+export type UsageAlertMetric =
+  | "segments"
+  | "mms_storage"
+  | "attachment_storage"
+  | "voice_minutes";
 
 interface ActiveCompanyRow {
   id: string;
@@ -130,6 +136,42 @@ function storageAlertCopy(
       `Hi,\n\n${company.name} has used ${used} of the ${budget} of file ` +
       `storage included in your plan. When it's full, new uploads are paused ` +
       `until you delete files you no longer need.\n\n` +
+      `See usage: ${usageUrl}\n\n— Loonext`,
+  };
+}
+
+/**
+ * #12 voice-minutes alert copy. Over the allowance, new inbound calls are NOT
+ * forwarded (the caller gets the text-back instead) — the copy says so plainly
+ * so a busy owner upgrades before their customers stop getting through.
+ */
+function voiceAlertCopy(
+  company: ActiveCompanyRow,
+  threshold: UsageAlertThreshold,
+  includedMinutes: number,
+  usedMinutes: number,
+  env: Env,
+): { subject: string; text: string } {
+  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (threshold === 100) {
+    return {
+      subject: `${company.name} has used all its included call-forwarding minutes`,
+      text:
+        `Hi,\n\n${company.name} has used all ${includedMinutes} call-forwarding ` +
+        `minutes included in your plan this billing period. New incoming calls ` +
+        `are no longer forwarded to your cell — callers get your missed-call ` +
+        `text instead — so your phone bill can't run past your plan. Move to a ` +
+        `larger plan to keep forwarding calls.\n\n` +
+        `See usage: ${usageUrl}\n\n— Loonext`,
+    };
+  }
+  return {
+    subject: `${company.name} is nearing its call-forwarding minutes limit`,
+    text:
+      `Hi,\n\n${company.name} has used ${usedMinutes} of the ${includedMinutes} ` +
+      `call-forwarding minutes included in your plan this billing period. Once ` +
+      `they're used up, new incoming calls stop forwarding to your cell (callers ` +
+      `get your missed-call text instead). Move to a larger plan to avoid that.\n\n` +
       `See usage: ${usageUrl}\n\n— Loonext`,
   };
 }
@@ -284,6 +326,36 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
               ),
             );
           }
+        }
+      }
+
+      // #12 voice arm: warn before the hard cap (voice-webhook.ts) starts
+      // rejecting calls. Threshold math is on SECONDS to avoid a rounding edge;
+      // the copy shows whole minutes.
+      const { data: voiceSeconds, error: voiceError } = await db.rpc(
+        "api_period_voice_seconds",
+        { p_company_id: company.id, p_since: company.current_period_start },
+      );
+      if (voiceError) {
+        throw new Error(`voice usage failed: ${voiceError.message}`);
+      }
+      const usedVoiceSeconds = Number(voiceSeconds);
+      const includedVoiceSeconds = PLAN_VOICE_MINUTES[company.plan] * 60;
+      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+        if (usedVoiceSeconds * 100 >= includedVoiceSeconds * threshold) {
+          await recordAndSendAlert(
+            env,
+            company,
+            "voice_minutes",
+            threshold,
+            voiceAlertCopy(
+              company,
+              threshold,
+              PLAN_VOICE_MINUTES[company.plan],
+              Math.floor(usedVoiceSeconds / 60),
+              env,
+            ),
+          );
         }
       }
     } catch (cause) {
