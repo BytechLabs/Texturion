@@ -246,13 +246,21 @@ Storage, and Canada are opt-in modules. Shipped:
   only, so grandfathering is safe). (`9420d1a`)
 - **Onboarding picker** — calm add-on toggles on the plan step feed checkout.
   (`96a0c5b`)
-- **First gate** — outbound MMS requires the mms module (clear 409, no silent
+- **MMS gate** — outbound MMS requires the mms module (clear 409, no silent
   charge; text unaffected). (`db42299`)
+- **Voice gate** — turning on forwarding / missed-call text-back in settings
+  requires the voice module; a migration grandfathers mctb-only companies so no
+  existing voice user is bitten. (`76ab721`)
 
 Remaining plan-builder follow-ups (revenue enforcement, not cost protection):
 
-- Voice gating (block enabling forwarding without the voice module + webhook
-  safety net), Canada-number gating (`regions_ca`), extra_storage budget bump.
+- **Canada-number gate (`regions_ca`)** — needs a regional-model call: Canada is
+  a HOME region for country='CA' companies (grandfathered + always included, so
+  NEVER gated for them) but an ADD-ON for a US company reaching into Canada. So
+  the gate should fire only on provisioning/porting a CA number for a country=
+  'US' company. Confirm before wiring, since mis-modeling would block CA signups.
+- **extra_storage** budget bump (enabling the module raises the storage budget).
+- Voice-webhook safety net (skip forwarding if the module was later disabled).
 - Post-signup module management (settings add/remove via a subscription-item
   change, mirrored to `company_modules`) + a read-only "your plan includes" on
   the billing page.
