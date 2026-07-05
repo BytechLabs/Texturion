@@ -26,8 +26,9 @@ const mediaDir = join(webDir, distDir, "static", "media");
 const srcFontDir = join(webDir, "src", "app", "fonts", "marketing");
 const outFile = join(webDir, "public", "marketing-font-preloads.json");
 
-// The single LCP face: Basteleur Bold, the weight the home hero H1 (the LCP
-// element) is set in. It is the ONLY face preloaded, deliberately, not an omission:
+// The single LCP face: Besley (the variable file carrying the 700-900 range the
+// hero H1, the LCP element, is set in). It is the ONLY face preloaded,
+// deliberately, not an omission:
 //
 // Under Lighthouse's Lantern simulation every extra `<link rel=preload as=font>`
 // is a High-priority resource that lands on the critical path in the first-paint
@@ -44,7 +45,7 @@ const outFile = join(webDir, "public", "marketing-font-preloads.json");
 // `optional` + their size-adjusted fallbacks, upgrade in-window with zero CLS. The
 // app Inter is on the other surface. Map each by exact source byte-size.
 const HERO_SOURCES = {
-  "Basteleur-Bold.woff2": true,
+  "Besley-latin.woff2": true,
 };
 
 function bySize() {

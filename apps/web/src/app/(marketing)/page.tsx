@@ -1,94 +1,92 @@
 /**
- * Home page (Track B), composes the BLUEPRINT §3 sections in the canonical
- * density-wave order (§1.4). Renders ONLY the ordered sections; Track A's
- * (marketing)/layout.tsx supplies <Nav/> + <Footer/> and the route-group
- * wiring (CONTRACT). ROOT / resolves here.
+ * Home page: "Quiet daylight" (v3-spec, BINDING; supersedes the "Open all
+ * night" nocturne after client rejection). ROOT / resolves here;
+ * (marketing)/layout.tsx supplies <Nav/> + <Footer/> + fonts + the shared
+ * RevealActivator, so this file composes ONLY the ordered sections.
  *
- * The page is fully static (BLUEPRINT §11.4): every section is a server
- * component except the small client islands (the thread demos, the three
- * interactives), which hydrate after first paint. The LCP is the hero H1 text
- * over a server-rendered thread, no raster hero image (§3.1).
+ * The page is light, calm, and minimal: white/porcelain grounds, hairline
+ * rules, one petrol accent, the amber unread dot, and exactly ONE dark band
+ * (the final CTA). Motion is limited to the shared [data-reveal] rise, the
+ * hero message's single soft landing, the delivery-tick steps, and the
+ * final-CTA odometer roll; everything else is static. No-JS and reduced
+ * motion both get the identical resolved server markup.
  *
- * <HomeJsonLd/> is Track A's WebSite + SoftwareApplication node, rendered once
- * here per Track A's SEO-lane contract (their component, invoked by this page).
+ * Section order (footer comes from the layout):
+ *  - NightHero          #tonight      calm 7/5 split, one thread card, LCP H1 text
+ *  - AfterDark          #after-dark   three problem cards
+ *  - NightShift         #night-shift  the five-step story + resolved thread card
+ *  - DaylightFeatures   #day          six crew-tool cards
+ *  - Pricing            #pricing      flat-price cards + the mono cost table
+ *  - ApprovalClock      #approval     the carrier-approval day-tick board
+ *  - Faq                #faq          native-disclosure FAQ
+ *  - FinalCta           #start        the one dark band: odometer + composer CTA
  *
- * The "Caught" identity (DESIGN-DIRECTION.md, BINDING): the page opens on the
- * signature Caught hero (the customer text that would have been missed, now
- * caught and claimed by a name) and everything else stays quiet around it.
- * Structure comes from GROUND changes (paper to the one deep-petrol band and
- * back) and display-lettering rhythm, NOT from a numbered spine (§0: the ledger
- * 01…12 numbering, the FILED stamp, and fake indicators are removed).
+ * <NightCss/> mounts the small shared motion/style block once (land, ticks,
+ * unread pulse, odometer roll). LCP: the hero H1 text node, full color from
+ * first paint. Hero + the first band after it stay undeferred; everything
+ * below defers via <Section defer intrinsic>.
  *
- * Section order (real content logic: a text arrives, someone catches it, the job
- * gets done, here is the price, start), with no two adjacent bands sharing a
- * silhouette. Structure is carried by GROUND changes and display-lettering
- * rhythm, NOT a counter:
- *  - Caught hero            the signature: a message lands, a name attaches
- *    Product showcase       framed inbox-shot proof reveal
- *  - Truth bar ($29 as art) the one expressive numeral
- *  - The problem            asymmetric register + duotone photo
- *  - Inbox deep-dive        the same catch, slowed down (real product demo)
- *  - How it works + timeline steps + the Day 0 numeral
- *  - Features bento         asymmetric bento with a switchable live tile
- *  - Missed-text math       sparse breather + calculator
- *  - Built for the truck    real dark-mode screenshot on paper (the ONE deep
- *                           ground is reserved for the final close)
- *  - Pricing + slider       petrol-tinted panel with live proof
- *  - Canada + compliance    interleaved editorial, flipped silhouettes
- *  - FAQ                    accordion
- *  - Final CTA              the one deep-petrol flood close
+ * <HomeJsonLd/> is the WebSite + SoftwareApplication node, rendered once here
+ * per the SEO-lane contract. Metadata: buildMetadata carries the deck's page
+ * title/description; the deck's OG title/description differ from the meta
+ * pair, so openGraph/twitter are overridden wholesale below (overriding
+ * replaces the whole object, hence type/siteName/url re-included; the
+ * canonical survives via the spread). og:image is auto-wired by Next from
+ * (marketing)/opengraph-image.tsx; never hardcode image URLs here.
  */
 
 import type { Metadata } from "next";
 
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
 import { buildMetadata } from "@/lib/marketing/seo";
-import { CaughtHero } from "@/components/marketing/hero-caught";
-import { LedgerStyles } from "@/components/marketing/ledger";
-import { ProductShowcase } from "@/components/marketing/home/product-showcase";
-import { TruthBar } from "@/components/marketing/home/truth-bar";
-import { Problem } from "@/components/marketing/home/problem";
-import { InboxDeepDive } from "@/components/marketing/home/inbox-deep-dive";
-import { HowItWorks } from "@/components/marketing/home/how-it-works";
-import { Bento } from "@/components/marketing/home/bento";
-import { MissedTextMath } from "@/components/marketing/home/missed-text-math";
-import { DarkBand } from "@/components/marketing/home/dark-band";
-import { PricingPreview } from "@/components/marketing/home/pricing-preview";
-import { CanadaCompliance } from "@/components/marketing/home/canada-compliance";
-import { Faq } from "@/components/marketing/home/faq";
-import { FinalCta } from "@/components/marketing/home/final-cta";
+import { absoluteUrl } from "@/lib/marketing/site";
+import { NightCss } from "@/components/marketing/night/night-css";
+import { NightHero } from "@/components/marketing/night/hero";
+import { AfterDark } from "@/components/marketing/night/after-dark";
+import { NightShift } from "@/components/marketing/night/night-shift";
+import { DaylightFeatures } from "@/components/marketing/night/daylight-features";
+import { Pricing } from "@/components/marketing/night/pricing";
+import { ApprovalClock } from "@/components/marketing/night/approval-clock";
+import { Faq } from "@/components/marketing/night/faq";
+import { FinalCta } from "@/components/marketing/night/final-cta";
 
-export const metadata: Metadata = buildMetadata({
-  title: "JobText. Shared text inbox for your crew | $29/mo flat",
-  description:
-    "One local business number your whole crew can text from, reply, assign, tag, and close together. Flat $29/mo for the team, month to month, no sales calls. US & Canada.",
-  path: "/",
-  absoluteTitle: true,
-});
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "JobText: shared text inbox for your crew, $29 a month flat",
+    description:
+      "One local business number the whole crew texts from. Every customer text answered, assigned, and closed. $29 a month flat for the team, not per user.",
+    path: "/",
+    absoluteTitle: true,
+  }),
+  openGraph: {
+    type: "website",
+    siteName: "JobText",
+    url: absoluteUrl("/"),
+    title: "Your best lead texts at 9:47 pm.",
+    description:
+      "JobText is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Your best lead texts at 9:47 pm.",
+    description:
+      "JobText is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+  },
+};
 
 export default function HomePage() {
   return (
     <>
       <HomeJsonLd />
-      {/* Marketing-scoped CSS for the remaining drawn affordances (the delivered
-          check, the arrow-expand CTA). One inert <style>, zero JS; globals.css
-          and components/ui are untouched. The ledger costume (FILED stamp, spine
-          numbering, pulse/ghost) is removed per DESIGN-DIRECTION §0. */}
-      <LedgerStyles />
-      {/* The signature "Caught" hero (DESIGN-DIRECTION §2, §3), the customer
-          text that would have been missed, now caught and claimed by a name.
-          The one place the site spends its boldness. */}
-      <CaughtHero />
-      <ProductShowcase />
-      <TruthBar />
-      <Problem />
-      <InboxDeepDive />
-      <HowItWorks />
-      <Bento />
-      <MissedTextMath />
-      <DarkBand />
-      <PricingPreview />
-      <CanadaCompliance />
+      {/* The one shared motion/style block (land, ticks, unread pulse,
+          odometer roll). Mounted exactly once, above the first section. */}
+      <NightCss />
+      <NightHero />
+      <AfterDark />
+      <NightShift />
+      <DaylightFeatures />
+      <Pricing />
+      <ApprovalClock />
       <Faq />
       <FinalCta />
     </>

@@ -11,20 +11,22 @@ import { FeaturedCell } from "./featured-cell";
 import { MenuRow } from "./menu-row";
 
 /**
- * A designed desktop mega-menu panel (VISUALS §5b), built on Radix
- * NavigationMenu (already in the `radix-ui` package, no new dependency). Radix
- * gives us the right primitive for a *nav* (semantic links, hover-intent
- * open/close, full keyboard path, aria) instead of the wrong `menuitem` roles a
- * DropdownMenu would apply to navigation.
+ * A designed desktop mega-menu panel, built on Radix NavigationMenu (already
+ * in the `radix-ui` package, no new dependency). Radix gives us the right
+ * primitive for a *nav* (semantic links, hover-intent open/close, full
+ * keyboard path, aria) instead of the wrong `menuitem` roles a DropdownMenu
+ * would apply to navigation.
  *
- * The panel is a rounded elevated card with generous padding and a subtle enter
- * animation (150–200ms fade + rise, reduced-motion safe via the animate classes).
- * Rows are the two-line MenuRow (icon chip + label + description). Long lists
- * (Trades) use a two-column grid; the Product menu adds the FeaturedCell promo.
- * The Compare menu rows show a "vs" motif.
+ * "Quiet daylight" skin (v3 spec §6): the trigger reads --ink-70 and deepens
+ * to --day-ink on hover/open; the panel itself is the shared white Viewport
+ * in desktop-nav.tsx. Rows are the two-line MenuRow (quiet icon chip + label
+ * + --ink-55 description). Long lists (Trades) use a two-column grid; the
+ * Product menu adds the FeaturedCell promo. The Compare menu rows show a
+ * "vs" motif.
  *
- * Rendered inside a shared <NavigationMenu.Root> at the call site (nav.tsx) so
- * one menu closes when another opens, and the animated viewport is shared.
+ * Rendered inside a shared <NavigationMenu.Root> at the call site
+ * (desktop-nav.tsx) so one menu closes when another opens, and the animated
+ * viewport is shared.
  */
 export function MegaMenu({ menu }: { menu: NavMenu }) {
   const isCompare = menu.label === "Compare";
@@ -35,9 +37,8 @@ export function MegaMenu({ menu }: { menu: NavMenu }) {
     <NavigationMenu.Item>
       <NavigationMenu.Trigger
         className={cn(
-          "group inline-flex h-9 items-center gap-1 rounded-md px-3 text-sm font-medium text-foreground/80 outline-none transition-colors",
-          "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-          "data-[state=open]:text-primary",
+          "group nxh-focus inline-flex h-9 items-center gap-1 rounded-md px-3 text-sm font-medium text-[color:var(--ink-70)] transition-colors",
+          "hover:text-[color:var(--day-ink)] data-[state=open]:text-[color:var(--day-ink)]",
         )}
       >
         {menu.label}
@@ -71,10 +72,7 @@ export function MegaMenu({ menu }: { menu: NavMenu }) {
         )}
       >
         <ul
-          className={cn(
-            "grid gap-0.5",
-            twoCol ? "grid-cols-2" : "grid-cols-1",
-          )}
+          className={cn("grid gap-0.5", twoCol ? "grid-cols-2" : "grid-cols-1")}
         >
           {menu.items.map((item) => (
             <li key={item.label}>
@@ -89,7 +87,7 @@ export function MegaMenu({ menu }: { menu: NavMenu }) {
           <NavigationMenu.Link asChild>
             <Link
               href={menu.featured.href}
-              className="block rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="nxh-focus block rounded-[10px]"
             >
               <FeaturedCell featured={menu.featured} />
             </Link>

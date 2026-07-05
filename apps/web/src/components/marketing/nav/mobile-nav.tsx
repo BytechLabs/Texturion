@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -12,18 +11,18 @@ import {
   LOGIN_HREF,
   NAV_MENUS,
   PRICING_LINK,
-  PRIMARY_CTA_LABEL,
   SIGNUP_HREF,
   type NavItem,
 } from "../nav-links";
 
 /**
- * The mobile navigation sheet (VISUALS §5b): not a flat text list, but grouped
- * sections that mirror the desktop mega-menu, section headers, the same
- * petrol-tinted icon chips, and the one-line descriptions, with comfortable
- * spacing so it feels like the app. The primary petrol CTA is pinned to the
- * bottom of the sheet, always reachable (CONVERSION §2). Every row is ≥44px
- * (G11). Selecting any link closes the sheet.
+ * The mobile navigation sheet, light skin (v3 spec §6): a white panel (the
+ * surface itself is painted by nxh-sheet in nav.tsx) with the same grouped
+ * sections as the desktop mega-menu — Public Sans 600 --ink-55 section
+ * labels (sentence case; mono is figures-only in v3), quiet #F0F4F2 icon
+ * chips with petrol glyphs, --day-ink labels, --ink-55 descriptions. The one
+ * petrol "Start" CTA is pinned to the bottom of the sheet, always reachable.
+ * Every row is ≥44px (G11). Selecting any link closes the sheet.
  */
 export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   return (
@@ -34,7 +33,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
 
         {NAV_MENUS.map((menu) => (
           <section key={menu.label} className="mt-6">
-            <h3 className="px-1 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            <h3 className="font-body-mkt px-1 pb-1 text-[11px] font-semibold text-[color:var(--ink-55)]">
               {menu.label}
             </h3>
             <ul className="space-y-0.5">
@@ -52,7 +51,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
         ))}
 
         {/* Canada + Log in, quiet flat rows at the bottom of the scroll. */}
-        <div className="mt-6 space-y-0.5 border-t border-border pt-4">
+        <div className="mt-6 space-y-0.5 border-t border-[color:var(--rule-light)] pt-4">
           <FlatRow item={CANADA_LINK} onNavigate={onNavigate} />
           <FlatRow
             item={{ label: "Log in", href: LOGIN_HREF }}
@@ -61,21 +60,24 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </div>
 
-      {/* Pinned petrol CTA (§5b, CONVERSION §2). */}
-      <div className="border-t border-border p-4">
+      {/* Pinned petrol CTA, the one button, "Start" (copy deck "Persistent
+          chrome"), 44px tap height. */}
+      <div className="border-t border-[color:var(--rule-light)] p-4">
         <SheetClose asChild>
-          <Button asChild size="lg" className="w-full">
-            <Link href={SIGNUP_HREF} onClick={onNavigate}>
-              {PRIMARY_CTA_LABEL}
-            </Link>
-          </Button>
+          <Link
+            href={SIGNUP_HREF}
+            onClick={onNavigate}
+            className="nxh-btn nxh-btn-lg nxh-focus w-full"
+          >
+            Start
+          </Link>
         </SheetClose>
       </div>
     </div>
   );
 }
 
-/** A grouped two-line row: icon chip + label + description (§5b). */
+/** A grouped two-line row: quiet icon chip + day-ink label + ink-55 line. */
 function MobileRow({
   item,
   compareMotif = false,
@@ -92,12 +94,12 @@ function MobileRow({
         href={item.href}
         onClick={onNavigate}
         className={cn(
-          "flex min-h-11 items-start gap-3 rounded-[10px] p-2.5 transition-colors",
-          "active:bg-teal-50 hover:bg-teal-50 dark:active:bg-teal-950/40 dark:hover:bg-teal-950/40",
+          "nxh-focus flex min-h-11 items-start gap-3 rounded-[10px] p-2.5 transition-colors",
+          "hover:bg-[#F0F4F2] active:bg-[#F0F4F2]",
         )}
       >
         <span
-          className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary"
+          className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-[rgba(11,43,38,0.08)] bg-[#F0F4F2] text-[color:var(--petrol)]"
           aria-hidden
         >
           {compareMotif ? (
@@ -107,11 +109,11 @@ function MobileRow({
           ) : null}
         </span>
         <span className="min-w-0">
-          <span className="block text-[15px] font-medium text-foreground">
+          <span className="block text-[15px] font-medium text-[color:var(--day-ink)]">
             {item.label}
           </span>
           {item.description ? (
-            <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+            <span className="mt-0.5 block text-[13px] leading-snug text-[color:var(--ink-55)]">
               {item.description}
             </span>
           ) : null}
@@ -135,13 +137,13 @@ function FlatRow({
         href={item.href}
         onClick={onNavigate}
         className={cn(
-          "flex min-h-11 items-center justify-between rounded-[10px] px-2.5 text-[15px] font-medium text-foreground transition-colors",
-          "active:bg-teal-50 hover:bg-teal-50 dark:active:bg-teal-950/40 dark:hover:bg-teal-950/40",
+          "nxh-focus flex min-h-11 items-center justify-between rounded-[10px] px-2.5 text-[15px] font-medium text-[color:var(--day-ink)] transition-colors",
+          "hover:bg-[#F0F4F2] active:bg-[#F0F4F2]",
         )}
       >
         {item.label}
         <ArrowRight
-          className="size-4 text-muted-foreground"
+          className="size-4 text-[color:var(--ink-55)]"
           strokeWidth={1.75}
           aria-hidden
         />

@@ -1,19 +1,20 @@
 import { Footer } from "@/components/marketing/footer";
+import { LedgerStyles } from "@/components/marketing/ledger";
 import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
 import { organizationJsonLd } from "@/lib/marketing/seo";
-import { basteleur, hankenGrotesk, commitMono } from "@/lib/marketing/fonts";
+import { besley, publicSans, martianMono } from "@/lib/marketing/fonts";
 import { MARKETING_FONT_PRELOADS } from "@/lib/marketing/font-preloads";
 
 /**
- * The MARKETING type trio (DESIGN-DIRECTION §3), locked by the /fontlab render
- * pass: Basteleur (display), Hanken Grotesk (body), Commit Mono (data). The
- * next/font/local instances are defined once in `@/lib/marketing/fonts`; here we
- * mount their combined `.variable` classNames on the (marketing) route-group
- * subtree so the marketing headline/body/mono utilities resolve them. The APP
- * stays calm Inter-only (the two-surfaces rule), nothing outside this subtree
- * can resolve --font-display / --font-body-mkt / --font-mono-mkt.
+ * The MARKETING type trio (DESIGN-DIRECTION, "Open all night"): Besley
+ * (display), Public Sans (body), Martian Mono (data). The next/font/local
+ * instances are defined once in `@/lib/marketing/fonts`; here we mount their
+ * combined `.variable` classNames on the (marketing) route-group subtree so
+ * the marketing headline/body/mono utilities resolve them. The APP stays calm
+ * Inter-only (the two-surfaces rule), nothing outside this subtree can resolve
+ * --font-display / --font-body-mkt / --font-mono-mkt.
  */
 
 /**
@@ -41,17 +42,17 @@ export default function MarketingLayout({
     // Mounts --font-display / --font-body-mkt / --font-mono-mkt on the (marketing)
     // subtree only (the two-surfaces rule); the app stays Inter.
     <div
-      className={`mkt-scope ${basteleur.variable} ${hankenGrotesk.variable} ${commitMono.variable} font-body-mkt flex min-h-svh flex-col`}
+      className={`mkt-scope ${besley.variable} ${publicSans.variable} ${martianMono.variable} font-body-mkt flex min-h-svh flex-col`}
     >
-      {/* PRELOAD the LCP hero face (Basteleur Bold, the weight the H1 is set in).
+      {/* PRELOAD the LCP hero face (Besley, the variable file the H1 is set in).
           next/font doesn't emit this with inlineCss on. With font-display:optional
-          the preload is what lets Bold make the ~100 ms block window so the hero
+          the preload is what lets Besley make the ~100 ms block window so the hero
           lettering renders instead of the fallback on warm loads. ONLY the LCP face
-          is preloaded: preloading the demoted above-the-fold faces (Moonlight/
-          Hanken) only contends for the critical path with no LCP benefit, so they
-          upgrade in-window from the inlined @font-face instead (gen-font-preloads
-          .mjs). React 19 hoists this <link> into <head>; the manifest is generated
-          post-build and is empty on the first build pass. */}
+          is preloaded: preloading the demoted above-the-fold faces (Public Sans/
+          Martian Mono) only contends for the critical path with no LCP benefit, so
+          they upgrade in-window from the inlined @font-face instead (gen-font-
+          preloads.mjs). React 19 hoists this <link> into <head>; the manifest is
+          generated post-build and is empty on the first build pass. */}
       {MARKETING_FONT_PRELOADS.map((href) => (
         <link
           key={href}
@@ -68,10 +69,19 @@ export default function MarketingLayout({
         <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
       </noscript>
       <JsonLd data={organizationJsonLd()} />
+      {/* The shared drawn-affordance CSS (.jt-meta, .jt-arrow-link, the
+          delivered check): mounted here because ArrowLink and the meta voice
+          appear on subpages (canada, compare, features, trades), not just the
+          home page that used to carry this style block. */}
+      <LedgerStyles />
       {/* One shared IntersectionObserver drives every [data-reveal] (§1.5). */}
       <RevealActivator />
       <Nav />
-      <main className="flex-1">{children}</main>
+      {/* id="content" is the nav skip link's target (copy deck "Skip to
+          content"); keep it in sync with nav.tsx's .nxh-skip href. */}
+      <main id="content" className="flex-1">
+        {children}
+      </main>
       <Footer />
     </div>
   );

@@ -1,127 +1,121 @@
-# JobText Marketing — Design Direction (BINDING, single source of truth)
+# JobText Marketing: Design Direction (BINDING, single source of truth)
 
-Supersedes the templated parts of VISUALS-V2 / VISUALS-V3 (the ledger section-numbering, the
-"dispatch/FILED" costume, the em-dash copy, the generic stock/library imagery). What still holds
-from earlier: owned duotone-treated imagery over stock, expressive typography over a bare font
-swap, real product screenshots, performance floor. This doc is the point of view; the build
-follows it exactly.
+"Quiet daylight" (v3). Supersedes both the "Caught" direction and the "Open all night" nocturne
+(v2, rejected at review: dark grounds, glow effects, the sticky demo stage, and the clock-rail
+chrome read as clutter). The client's standing verdict, which binds all future marketing visual
+work: CLEAN, BEAUTIFUL, MINIMAL, LIGHT.
 
-## 0. Hard removals (do these everywhere, first)
+What carries over from earlier directions: the type trio (Besley 700 / Public Sans / Martian
+Mono, self-hosted latin woff2), the copy deck (docs/marketing voice: night-shift plain, verbatim
+honesty lines, no em-dashes, no fake social proof), the performance floor (text LCP, server-
+rendered resolved states, no-JS floor, reduced-motion parity, islands only where listed), and
+the two-surfaces rule (app stays Inter; marketing tokens live under .mkt-scope).
 
-- **No em-dashes.** Remove every `—` from all marketing copy (and the app copy too). Rewrite with
-  periods, commas, colons, or parentheses. The em-dash-for-drama habit is an AI tell.
-- **No section numbers.** Delete the ledger spine `01…12` numbering and the SpineTick. The home
-  page is not a numbered sequence, so numbering encodes nothing true. Structure comes from ground
-  changes and typographic rhythm, not counters.
-- **No fake indicators.** Remove staged "live" dots, "FILED" stamps, fake activity badges, fake
-  presence. The interactive demo may show states the visitor actually drives; it must never wear a
-  decorative "live/online" costume.
+---
 
-## 1. The brief, pinned
+The client rejected the dark nocturne execution outright: "extremely ugly, needs big clean up,
+CLEAN, BEAUTIFUL, MINIMAL, not shippable." This spec is the correction. The client's words are
+law: clean, beautiful, minimal, light. Every decision below serves calm and craft. When in doubt,
+remove.
 
-Subject: a shared text-message inbox for a small service business. Audience: the owner and crew of
-a plumbing, HVAC, landscaping, cleaning, electrical, or salon shop. Hands-on people, often in a
-truck or on a job, phone buzzing in a dusty pocket. The page's one job: convince this skeptical
-tradesperson that JobText catches every customer text that turns into paying work, and get them to
-start for $29. Their world: the van and its lettering, the yard sign, the clipboard, the phone,
-the job address on a scrap of paper, "on my way," the invoice, the tools. The characteristic
-moment: a text arrives while your hands are full, and it either becomes money or a missed call.
+## 1. What dies (from the current build, everywhere, no exceptions)
+- All dark section grounds EXCEPT one immaculate final-CTA band. No --ink-midnight anywhere.
+- The lamp engine: every radial-gradient glow, .nx-lamp*, .nx-screen (mix-blend), .nx-spill,
+  .nx-rim, the hero vignette, the dawn crossfade band, the status tint overlays. Light smears over
+  text are the single ugliest defect: zero glows survive.
+- The night rail (night-rail.tsx + rail-tracker.tsx): removed from the page entirely.
+- The 400vh sticky demo stage, the beat stepper island, beat-gated display CSS, pinned captions.
+- Clock eyebrows ("9:47 PM" / "7:04 AM" section eyebrows): all removed. The hero H1 already says
+  9:47 pm; that is the only clock on the page.
+- The dim-then-brighten hero H1 transition. H1 renders full color, always.
+- Dark cab-panel fragments inside light cards (S4): fragments restyle light like everything else.
 
-## 2. The direction, and the one risk
+## 2. Grounds + color (minimal palette, light page)
+- Page ground: #FBFDFC (use existing --paper-2 value; set on sections explicitly or inherit
+  .mkt-scope default --paper #F2F8F5 -> NO: sections use bg-white/#FBFDFC panels on --paper.
+  Concretely: page keeps .mkt-scope's --paper #F2F8F5; cards/panels are white #FFFFFF).
+- Cards: #FFFFFF, 1px solid rgba(11,43,38,0.08), border-radius 12px, shadow
+  0 1px 2px rgba(11,43,38,0.05). Nothing heavier. Hover states may deepen the border to
+  rgba(11,43,38,0.16), no lifts, no scale.
+- Text: --day-ink #0B2B26 (headings), --ink-70 #3A534D (body), --ink-55 #587068 (captions, metas).
+- Accents, complete list. Petrol #0F766E: buttons, links, delivered ticks, active pills, focus.
+  Porch-amber #FFB454: ONLY the small unread dot (and the OG image). Copper #9A4F26: ONLY the
+  pricing delta figure, the "Won" chip, and the 2px price underline. No other color exists.
+- The one dark moment: the final CTA band on --ink-11pm #041F1C with --moonlight text, flat
+  (no vignette, no gradient, no glow), bounded by nothing but its own padding.
 
-**"Caught."** The identity dramatizes the single most characteristic thing in this world: the
-customer text that would have been missed, now caught and claimed by a name so it gets handled.
-Confidence, not cuteness. It borrows the way trades announce themselves to the street, bold,
-legible, hand-set lettering, and marries it to the calm of a text thread that never drops a lead.
+## 3. Type (calm scale, same faces)
+- Besley stays the display face but drops to weight 700 everywhere and a RESTRAINED scale:
+  H1 clamp(2.25rem, 1.4rem + 3.2vw, 3.5rem), line-height 1.08, tracking -0.015em;
+  H2 clamp(1.65rem, 1.2rem + 1.8vw, 2.375rem), lh 1.15; H3 1.25rem, lh 1.3.
+- Body: Public Sans 400, 1rem-1.0625rem, line-height 1.65, measure <= 65ch. Small: 0.875rem.
+- Kickers (only where a section truly needs one): Public Sans 600, 0.8125rem, --ink-55,
+  sentence case, no letterspacing tricks. Not mono, not a clock.
+- Martian Mono: ONLY prices, phone digits, in-thread timestamps, table figures, usage counters.
+  Never headings, never captions, never eyebrows. Normal width (no condensed).
+- The price figure: Besley 700, clamp(2.25rem, 4vw, 3rem), 2px copper underline offset 6px.
 
-**The one aesthetic risk (spend boldness here, keep everything else quiet):** the hero and section
-headlines are set in a distinctive, uncommon DISPLAY face at a confident scale, with a real
-customer message as the star and a single marker-yellow highlight on the one word that carries the
-promise. Trades live by their signage; a confident, unmistakable letterform grounds JobText in
-their world. Justification: it is specific to this audience and no competitor in the SMS-inbox
-category does it, so it cannot be mistaken for a template.
+## 4. Motion (four things move, nothing else)
+1. The existing [data-reveal] rise (opacity + 12px), staggered via RevealGroup. Default state.
+2. Hero: the inbound message soft-LANDs once on load (opacity + 6px translate, 300ms, 250ms
+   delay), reduced-motion/no-JS = already landed. Keep the tiny replay island for this only.
+3. Delivery ticks step queued -> sent -> delivered once when revealed (existing nx-tick concept,
+   restyled petrol on white).
+4. The final-CTA phone number odometer ROLL (existing island), digits at clamp(2rem, 4.5vw, 3.5rem)
+   — quieter than before.
+Everything else is static. No repeating animation except one gentle unread-dot double-pulse in
+the hero (then steady).
 
-## 3. Tokens
+## 5. Kit restyle (kit.tsx + night-css.tsx; same exported API, glow props become inert)
+- Thread card surface: white, 1px rgba(11,43,38,0.08) border, 12px radius.
+- Inbound bubble: #F0F4F2 fill, --day-ink text, 12px radius. NO glow pseudo.
+- Outbound bubble: petrol fill, white text. Append line: white at 90% opacity, 12px.
+- Ticks: petrol, small mono. Note row: white, dashed rgba border, --ink-55.
+- SystemLine: --ink-55 centered small. TagChip: rgba(11,43,38,0.06) bg, --ink-70 text; won =
+  copper text on rgba(154,79,38,0.1). StatusPill: quiet tints (New = petrol-12 bg + petrol text;
+  Open = same family; Waiting/Closed = neutral tint + --ink-55). No solid loud fills.
+- QuietHoursDialog: white, border, 0 4px 12px rgba(11,43,38,0.08), petrol primary button.
+- Composer: white input, 1px border, petrol send button. UsageMeter: mono figures, hairline rules.
+- NightShell: becomes a clean master-detail card (white, hairlines between panes); sidebar pane
+  only where a section explicitly asks (the S3 story does NOT use the sidebar anymore).
+- night-css.tsx shrinks to: land keyframe, tick steps, unread double-pulse, odometer roll.
 
-### Palette (5 named, brand-anchored, deliberately not a default)
-Chosen against the three AI defaults (warm-cream+terracotta+serif; near-black+acid accent;
-broadsheet hairlines). The ground is a brand-washed pale petrol-grey, not cream and not white.
+## 6. Sections (same order, same verbatim copy deck text, new dress)
+- S1 hero (porcelain, no panel behind): 7/5 split. Left: H1, subhead (--ink-70), petrol CTA
+  "Start with one number" + quiet link "See pricing", honesty microline small --ink-55. Right:
+  ONE clean thread card — header row (Dana Whitfield · amber unread dot · "now"), inbound bubble,
+  outbound reply with ticks + append line. NO conversation list, NO quiet-hours dialog, NO
+  composer in the hero. The card is the only ornament the hero gets.
+- S2 (was "unlit"): white ground, kicker-less H2 + kicker line, three white cards, each: H3, two
+  sentences, then its small UI fragment (light-styled) + one-line caption --ink-55. Remove the
+  phone SVG.
+- S3 the night shift: normal-height section. H2 + intro line. Two columns: LEFT = the five steps
+  as a clean vertical list (time in mono --ink-55, caption Besley H3, one detail line); RIGHT =
+  the resolved thread in one clean card (all bubbles/notes/system lines/task/ticks, light kit
+  styling), revealed with the standard stagger. Delete the sticky wrapper, sentinels, beat
+  stepper, tints, pinned captions, stage chrome, "Demo thread" mono line -> becomes a plain
+  caption under the card in --ink-55. Keep aria structure.
+- S4: keep the 3x2 white card grid; fragments now light; delete the dawn band completely.
+- S5 pricing: already close. Keep cards white with hairlines; price per §3; line items mono
+  0.8125rem --ink-70 with hairline separators; honesty strip stays (amber 10% bg, --day-ink);
+  table as a quiet receipt (hairlines, mono, right-aligned figures, copper delta).
+- S6 approval clock: white band, hairline top/bottom rules (rgba(11,43,38,0.08), NOT amber);
+  keep the day-tick board, petrol/amber nodes fine (the amber node here is data, allowed).
+- S6.5 FAQ: moves OUT of the dark band into its own light section (white, native details/summary,
+  hairline separated, plus/minus glyph, --day-ink questions, --ink-70 answers).
+- S7 final CTA: THE one dark band, flat #041F1C: mono caption "Tonight, 9:47 PM" small
+  (--dusk), the odometer number (--moonlight, §4 size), H2 Besley 700 --moonlight, body --dusk,
+  composer-CTA (white surface input look, petrol button, works as one link to /signup as built),
+  honesty + reassurance lines --dusk. Nothing else. Generous padding.
+- S8 footer: light ground, top hairline, the existing columns/links, --ink-55 text, colophon
+  kept, quiet.
+- Nav: light skin: white at 92% + backdrop blur, bottom hairline rgba(11,43,38,0.08), wordmark
+  Besley 700 --day-ink, links --ink-70 hover --day-ink, petrol Start button. Mega/mobile panels:
+  white surfaces, same content.
 
-- `--petrol   #0F766E`  brand anchor (continuity with the app), links, key marks
-- `--deep     #0B4F49`  the single dark band ground (used once, not site-wide)
-- `--ink      #101615`  headlines on light, body-dark; a warm green-black, never pure #000
-- `--paper    #E6EBE8`  the dominant ground: a pale petrol-grey "painted panel", not cream
-- `--marker   #F4D64E`  legal-pad / highlighter yellow. RATIONED: highlight one word, mark the act.
-- (`--graphite #444B4C` secondary text; derive tints from these five, do not add new hues)
-
-### Type (deliberate pairing, not the reach-for families; lock via a render pass)
-Three roles. A characterful DISPLAY used with restraint, an honest BODY, a utility MONO for data.
-Run a font-selection render pass FIRST: render the shortlist in 3-4 real headline compositions,
-screenshot, lock the most beautiful in-situ, then build. Do NOT use Fraunces, Playfair, Poppins,
-Montserrat, Space Grotesk, Clash, Satoshi, Instrument Serif, Anton (overused).
-
-- **Display shortlist** (uncommon, free/OFL, self-host via next/font/local; pick ONE): Redaction
-  (halftone-grain serif), Basteleur (warm quirky serif), Bagnard (Velvetyne, bold), Le Murmure
-  (striking condensed), Gambetta (high-contrast serif). Bias to one with confidence + warmth. If
-  all fail QA, choose another clearly-distinctive OFL face, never a popular one.
-- **Body:** a plain honest workhorse with a little more character than the marketing default.
-  Prefer a warm grotesque (e.g. Hanken Grotesk or Schibsted Grotesk) over reaching for Inter again;
-  Inter is an acceptable fallback only if the pairing needs it. Set a real scale with intentional
-  weights and measure (~66ch).
-- **Mono (data):** a distinctive mono for the numbers that matter, the $29, phone numbers, the demo
-  timestamps (Commit Mono, Spline Sans Mono, or Departure Mono). This "work-order" honesty is
-  grounded in the trade; avoid the common JetBrains/Space Mono.
-
-### Layout
-Editorial flow whose structure follows the content's real logic (a text arrives, someone catches
-it, the job gets done, here is the price, start), not a counter. Sections are separated by GROUND
-changes (paper to the one deep-petrol band and back) and by display-lettering rhythm. Eyebrows and
-labels appear only where they carry something true (a real trade name, a real timestamp), never as
-decoration. Generous asymmetry, a confident measure, no two adjacent sections share a silhouette.
-
-### Signature
-The "caught" thread: a real, specific incoming customer message ("hi, water heater's leaking all
-over the garage, can someone come today??") lands and visibly gets claimed by a crew member's name,
-the promise word marker-highlighted, the phone and time in mono, over the painted-panel paper. This
-is the one thing the page is remembered by. Everything around it stays quiet.
-
-## 4. Imagery (owned, not stock)
-Keep the owned treatment: real photography re-graded to a consistent duotone in the palette
-(petrol shadows, paper highlights) plus a whisper of grain, one frame language, and the occasional
-hand marker annotation pointing at the meaningful part. Real product screenshots kept, framed and
-optionally duotone-tinted for cohesion. No generic illustration library. The marker language
-(underline, circle, arrow, check) is the only "drawn" element, used sparingly and consistently.
-
-## 5. Motion
-One orchestrated moment: the hero "catch" (the message arrives, a name attaches) plays once on
-load, respects reduced motion (renders the caught state statically), and is the page's motion
-budget. Scroll-reveals are quiet (a short fade-rise, once). No ambient loops, no scattered effects.
-Less is more; extra motion reads as generated.
-
-## 6. Writing
-Design material, not decoration. End-user's side of the screen: name things by what people control.
-Active voice, sentence case, plain verbs, specific over clever, no filler, and no em-dashes.
-Buttons say exactly what happens and keep the same word through the flow ("Start for $29" stays
-"Start for $29"). Errors state what went wrong and how to fix it, in the interface's voice, and do
-not apologize. Empty states invite an action. Real trade content throughout (real-sounding customer
-messages, real trade scenarios), never lorem or generic SaaS filler.
-
-## 7. Self-critique vs the defaults (what I changed and why)
-- Rejected cream+serif+terracotta (default 1): ground is a brand pale petrol-grey, accent is a
-  rationed legal-pad yellow drawn from the trade's own pad, display is chosen by render not by
-  reflex.
-- Rejected near-black+acid accent (default 2): the dark petrol band is used once, not as the site;
-  no acid green, no vermilion.
-- Rejected broadsheet hairlines/newspaper columns (default 3): editorial but warm and asymmetric,
-  radius and texture present, not a hairline grid.
-- Killed the numbered ledger and the FILED costume (my own prior template), which were the loudest
-  generic tells.
-
-## 8. Scope and sequencing
-Marketing-only rework (app stays calm petrol/stone Inter; this bold identity does not touch the
-app). Serialized apps/web wave, after the running code review commits. Order inside the wave: (a)
-em-dash + numbering + fake-indicator purge; (b) font-selection render pass, lock the display/body/
-mono; (c) build the `<Display>` expressive headline system + marker language + duotone imagery + the
-"caught" hero; (d) apply across home, feature, trade, compare; (e) design-QA judges "unmistakable,
-subject-grounded, no AI tells, one bold thing, quiet around it," plus Lighthouse and the quality
-floor (responsive, visible focus, reduced motion).
+## 7. Quality floor (unchanged, binding)
+Server components; islands only hero-replay + odometer (+ existing Reveal activator). LCP = H1
+text. No-JS/reduced-motion = resolved state. Focus rings petrol on light / aqua on the dark band.
+Contrast: all pairs from the v2 audit still apply; new pairs (ink-55 on white 4.9:1, petrol on
+white 4.8:1) pass. Sentence case, no em-dashes (except the product append line), copy deck
+verbatim. tsc + eslint clean.
