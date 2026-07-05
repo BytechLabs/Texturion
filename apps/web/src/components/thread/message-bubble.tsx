@@ -2,7 +2,6 @@
 
 import { Check, CheckCheck, CircleCheck, ListChecks, Lock } from "lucide-react";
 import { format } from "date-fns";
-import Link from "next/link";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import {
@@ -11,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useRetryMessage } from "@/lib/api/messages";
-import type { Message } from "@/lib/api/types";
+import type { Message, MessageTaskLink } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
@@ -121,15 +120,19 @@ function DoneBadge({ message }: { message: Message }) {
   const memberNames = useMemberNames();
   const label = doneBadgeLabel(message, (userId) => memberNames.get(userId));
 
+  // A labeled petrol "Done" pill — legible at a glance on touch (no hover
+  // needed) and unmistakably distinct from the stone "Task" chip. The tooltip
+  // still carries the "Done · Sam · 2:14 PM" detail for pointer users.
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex items-center rounded-full bg-primary/10 p-0.5 text-primary"
+          className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary"
           tabIndex={0}
         >
-          <CircleCheck aria-hidden className="size-3" strokeWidth={2} />
-          <span className="sr-only">{label}</span>
+          <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
+          Done
+          <span className="sr-only">— {label}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
@@ -138,28 +141,25 @@ function DoneBadge({ message }: { message: Message }) {
 }
 
 /**
- * T5.1 / APP-LAYOUT-V2 §4.1: the quiet STONE task marker a promoted message
- * carries in its action row — visually distinct from the petrol done-check
- * (petrol stays reserved for done). Stone at rest, petrol on hover/focus; a
- * Link to the conversation where the task lives in the checklist (the app has
- * no standalone task page — a task's home is its thread's context panel, the
- * same target for-you/board rows navigate to).
+ * T5.1 / APP-LAYOUT-V2 §4.1: the "Task" chip a promoted message carries in its
+ * action row. A labeled STONE chip — distinct from the petrol "Done" pill
+ * (petrol stays reserved for done, so the two never converge in color) and
+ * legible on touch without hover. Clicking OPENS THE TASK in the drawer
+ * (`?task=<id>`), the same target every other task affordance uses — not a
+ * no-op link back to the conversation you're already reading.
  */
-function TaskIndicator({ conversationId }: { conversationId: string }) {
+function TaskIndicator({ task }: { task: MessageTaskLink }) {
+  const { openTask } = useTaskDrawer();
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Link
-          href={`/inbox/${conversationId}`}
-          aria-label="This message is a task — open its checklist"
-          className="tap-target inline-flex items-center rounded-full p-0.5 text-stone-400 transition-colors duration-150 ease-out hover:text-primary focus-visible:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:text-stone-500"
-        >
-          <ListChecks aria-hidden className="size-3" strokeWidth={2} />
-          <span className="sr-only">This message is a task</span>
-        </Link>
-      </TooltipTrigger>
-      <TooltipContent>This message is a task</TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={() => openTask(task.id)}
+      aria-label={`Open the task: ${task.title}`}
+      className="tap-target inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <ListChecks aria-hidden className="size-3" strokeWidth={2} />
+      Task
+    </button>
   );
 }
 
@@ -290,8 +290,11 @@ export function MessageBubble({
         {note && <NoteAttachments noteId={message.id} />}
         {(isLastOfCluster || failed || done || hasTask) && (
           <span className="flex items-center gap-1.5">
-            {/* Exactly one petrol mark (done) + one stone glyph (task): T5.1. */}
-            {hasTask && <TaskIndicator conversationId={conversationId} />}
+            {/* Labeled chips, orthogonal facts: a stone "Task" chip (opens the
+                task) and a petrol "Done" pill — never the same glyph or color. */}
+            {hasTask && message.promoted_task && (
+              <TaskIndicator task={message.promoted_task} />
+            )}
             {done && <DoneBadge message={message} />}
             {(isLastOfCluster || failed) &&
               (note || !outbound ? (

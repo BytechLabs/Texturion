@@ -257,6 +257,7 @@ conversationsRoutes.get(
             ...message,
             attachments: message_attachments,
             has_task: promoted.has(message.id),
+            promoted_task: promoted.get(message.id) ?? null,
             task:
               typeof message.task_id === "string"
                 ? taskLinks.get(message.task_id) ?? null

@@ -508,6 +508,7 @@ messageRoutes.get(
         ...rest,
         attachments: message_attachments ?? [],
         has_task: promoted.has(rest.id),
+        promoted_task: promoted.get(rest.id) ?? null,
         task:
           typeof rest.task_id === "string"
             ? taskLinks.get(rest.task_id) ?? null

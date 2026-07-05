@@ -1038,7 +1038,11 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     // T5.1: the list annotates has_task from a batch tasks lookup. Promote the
     // newest message (m3) so the response flags exactly it.
     const tasks = stubRoute(restMatch(env, "GET", "tasks"), () => [
-      { message_id: "00000000-0000-4000-8000-000000000003" },
+      {
+        id: "cccccccc-0000-4000-8000-000000000003",
+        title: "Follow up on the quote",
+        message_id: "00000000-0000-4000-8000-000000000003",
+      },
     ]);
     stubFetch(
       jwksRoute(auth),
@@ -1073,16 +1077,26 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     expect(query.get("select")).toContain("done_by_user_id");
 
     const body = (await response.json()) as {
-      data: { id: string; attachments: unknown[]; has_task: boolean }[];
+      data: {
+        id: string;
+        attachments: unknown[];
+        has_task: boolean;
+        promoted_task: { id: string; title: string } | null;
+      }[];
       next_cursor: string | null;
     };
     expect(body.data).toHaveLength(2);
     expect(body.data[0].attachments).toEqual([
       { id: "at-1", content_type: "image/jpeg", size_bytes: 4 },
     ]);
-    // T5.1: the promoted newest message is flagged; the other is not.
+    // T5.1: the promoted newest message is flagged with its task; the other is not.
     expect(body.data[0].has_task).toBe(true);
+    expect(body.data[0].promoted_task).toEqual({
+      id: "cccccccc-0000-4000-8000-000000000003",
+      title: "Follow up on the quote",
+    });
     expect(body.data[1].has_task).toBe(false);
+    expect(body.data[1].promoted_task).toBeNull();
     // The tasks lookup was company-scoped, live-only, and keyed to the page ids.
     const taskQuery = tasks.calls[0].url.searchParams;
     expect(taskQuery.get("company_id")).toBe(`eq.${COMPANY_ID}`);

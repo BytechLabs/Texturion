@@ -282,6 +282,12 @@ export interface Message {
    */
   has_task?: boolean;
   /**
+   * T5.1: when `has_task`, the task this message was PROMOTED into ({ id,
+   * title }) — the target the thread's "Task" chip opens in the drawer. Absent
+   * on the bare compose row / optimistic patches (treated as not-yet-promoted).
+   */
+  promoted_task?: MessageTaskLink | null;
+  /**
    * TASKS-V2 (D17 D-D): the task this note is linked to (a `direction='note'`
    * message composed from the task drawer). Null/absent for every non-note or
    * unlinked message. Present on the message read surfaces + the note-create

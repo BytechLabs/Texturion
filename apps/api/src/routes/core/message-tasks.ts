@@ -14,34 +14,40 @@ import { unwrap } from "./http";
 
 type Db = ReturnType<typeof getDb>;
 
+/** A task embed for the thread ({ id, title }) — the promoted task or a
+ * task-linked note's task. */
+export interface NoteTaskLink {
+  id: string;
+  title: string;
+}
+
 /**
- * The set of message ids (from `messageIds`) that currently have a LIVE task.
- * Empty input → empty set (no query issued).
+ * Map each message id (from `messageIds`) that currently has a LIVE task
+ * promoted over it → that task's `{ id, title }`. The thread renders a "Task"
+ * chip that OPENS the task, so the read surfaces need the task id, not just a
+ * boolean. Empty input → empty map (no query issued). The partial-unique
+ * `tasks_message_uq` (one live task per message) guarantees ≤1 row per id.
  */
 export async function loadMessageTaskFlags(
   db: Db,
   companyId: string,
   messageIds: string[],
-): Promise<Set<string>> {
-  const promoted = new Set<string>();
+): Promise<Map<string, NoteTaskLink>> {
+  const promoted = new Map<string, NoteTaskLink>();
   if (messageIds.length === 0) return promoted;
-  const rows = unwrap<{ message_id: string }[]>(
+  const rows = unwrap<{ id: string; title: string; message_id: string }[]>(
     await db
       .from("tasks")
-      .select("message_id")
+      .select("id,title,message_id")
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .in("message_id", messageIds),
     "message task-flags lookup",
   );
-  for (const row of rows) promoted.add(row.message_id);
+  for (const row of rows) {
+    promoted.set(row.message_id, { id: row.id, title: row.title });
+  }
   return promoted;
-}
-
-/** The `task` embed a task-linked note carries for the thread chip (D-D). */
-export interface NoteTaskLink {
-  id: string;
-  title: string;
 }
 
 /**
