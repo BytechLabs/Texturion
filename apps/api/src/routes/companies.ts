@@ -25,6 +25,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -256,6 +257,23 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
 
   const env = getEnv(c.env);
   const db = getDb(env);
+
+  // #12 plan builder: call forwarding + missed-call text-back are the opt-in
+  // "Call forwarding" add-on. Block a settings change that TURNS them on when
+  // the module is off — a clear upsell before any voice cost is possible.
+  // Grandfathered companies (a forward number or MCTB already on) have the
+  // module, so this never bites an existing voice user.
+  const enablingVoice =
+    body.mctb_enabled === true ||
+    (typeof patch.forward_to_cell === "string" &&
+      patch.forward_to_cell.length > 0);
+  if (enablingVoice && !(await isModuleEnabled(db, c.get("companyId"), "voice"))) {
+    throw new ApiError(
+      "conflict",
+      "Call forwarding needs the Call forwarding add-on — turn it on in Settings › Billing.",
+    );
+  }
+
   const rows = unwrap<Record<string, unknown>[]>(
     await db
       .from("companies")

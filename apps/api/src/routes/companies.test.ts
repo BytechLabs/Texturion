@@ -508,6 +508,8 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
   it("admin saves mctb_enabled + mctb_message + forward_to_cell and enables voice", async () => {
     const sb = stubWithRole("admin");
     sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    // #12: the voice add-on is enabled, so the settings gate lets it through.
+    sb.on("GET", "/rest/v1/company_modules", () => [{ module: "voice" }]);
     // enableVoiceForCompany lists active numbers; none active → no voice calls,
     // but the settings write still succeeds.
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
@@ -530,6 +532,23 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
         "Sorry we missed your call — reply with your address and we'll book you in.",
       forward_to_cell: "+16135559999",
     });
+  });
+
+  it("without the Call forwarding add-on, turning on voice is a 409 (#12)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    sb.on("GET", "/rest/v1/company_modules", () => []); // voice module off
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { mctb_enabled: true, forward_to_cell: "+16135559999" },
+    });
+    expect(res.status).toBe(409);
+    expect(await errorCodeOf(res)).toBe("conflict");
+    // Blocked before the write — settings untouched.
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
 
   it("422s an invalid forward_to_cell (not a US/CA number)", async () => {
