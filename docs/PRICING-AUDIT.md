@@ -1,6 +1,6 @@
 # Pricing model audit & redesign proposal (#12)
 
-**Status:** audit complete · design proposed · awaiting business decisions before implementation
+**Status:** audit complete · protection layer shipping (see §9) · plan builder in progress
 **Cost basis dated:** 2026‑07‑04 (provider list prices; see sources inline)
 **Core invariant to enforce:** _we must never pay a provider more for a tenant than that tenant pays us._
 
@@ -181,5 +181,36 @@ scattered).
 **Limit-reached UX (Increment D):**
 - Soft warning at ~80% of any allowance (reuse `usage-alerts.ts`); a hard,
   clear "limit reached — upgrade / add credit" that **blocks the cost-incurring
-  action** at 100%. **Never block receiving inbound customer content** (that's the
-  customer's brand) — instead throttle downstream processing + notify the owner.
+  action** at 100%. The owner directive **"cap and drop"** supersedes the
+  original "never block inbound" stance for cost-incurring inbound *media*: when
+  a storage budget is full we DROP the picture (never the text) so the bill can
+  never outrun the plan. The customer's message still arrives; only the media we
+  would have to store on our dollar is shed, and the owner is alerted.
+
+## 9. Implementation status (living)
+
+Shipped (main):
+
+- **Hard overage ceiling** — `overage_cap_multiplier` NOT NULL, CHECK (0,10],
+  NULL→10 clamp; `gate_outbound_send` + `outbound_spend_check` enforce it, so the
+  cap can't be disabled. (`69c8c4c`)
+- **Auto-reply + missed-call respect the send cap** — `claim_auto_reply` /
+  `claim_missed_call_text` call `outbound_spend_check` and skip when rate-limited
+  or over cap, closing the two automated-send abuse holes. (`91a8f8a`, `a2abeef`)
+- **Inbound metering** — `api_period_inbound_segments` + the usage route surface
+  received volume (visibility, non-billing). (`7914aea`)
+- **Storage cap-and-drop + owner alerts** — MMS media has its own
+  `MMS_STORAGE_BUDGET_BYTES` pool (separate from the D30 attachment budget); over
+  budget → inbound media dropped, text kept (`e9ca5e0`, `a0d0408`). The
+  usage-alert cron gained `mms_storage` + `attachment_storage` arms at 80/100%
+  (`usage_alerts.metric` column) (`fa6ad8f`); the usage page shows both pools
+  honestly (`1abb491`).
+
+Remaining for #12:
+
+- **Voice metering + cap** — no call-duration is stored yet (no calls table), so
+  minute metering needs new recording infra on call end + a cap on forwarding
+  when over the voice allowance.
+- **Modular plan builder** — module config (texting/MMS/voice/storage/regions),
+  per-company enablement, gating enforcement, prices from §8, builder UI +
+  checkout, limit-reached UX surfacing.
