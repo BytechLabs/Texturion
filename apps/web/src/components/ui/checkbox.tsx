@@ -19,6 +19,10 @@ function Checkbox({
       )}
       {...props}
     >
+      {/* #11: the check glyph snaps in with transition-none ON PURPOSE — a
+          checkbox toggle should feel instantaneous (the box fill eases via the
+          root's transition-shadow; the mark itself is a crisp confirmation, not
+          an animation). Deliberate, not an unreviewed default. */}
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none"
