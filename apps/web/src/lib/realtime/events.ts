@@ -29,18 +29,29 @@ export interface MessageStatusEvent {
    */
   done_at?: string | null;
   done_by_user_id?: string | null;
+  /**
+   * #3: the same trigger includes the pin fields on every message.status
+   * broadcast (pin toggles emit this same event). Optional so payloads from a
+   * not-yet-migrated database still patch delivery/done state correctly.
+   */
+  pinned_at?: string | null;
+  pinned_by_user_id?: string | null;
 }
 
 /**
  * The cache patch a message.status broadcast carries (pure — unit-tested):
- * always the delivery status; the D14 done fields only when the payload has
- * them, so an older payload can never wipe local done state.
+ * always the delivery status; the D14 done fields and #3 pin fields only when
+ * the payload has them, so an older payload can never wipe local done/pin state.
  */
 export function messageStatusPatch(event: MessageStatusEvent): Partial<Message> {
   const patch: Partial<Message> = { status: event.status ?? null };
   if ("done_at" in event) patch.done_at = event.done_at ?? null;
   if ("done_by_user_id" in event) {
     patch.done_by_user_id = event.done_by_user_id ?? null;
+  }
+  if ("pinned_at" in event) patch.pinned_at = event.pinned_at ?? null;
+  if ("pinned_by_user_id" in event) {
+    patch.pinned_by_user_id = event.pinned_by_user_id ?? null;
   }
   return patch;
 }

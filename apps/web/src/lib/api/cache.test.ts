@@ -5,6 +5,7 @@ import {
   listApplyConversation,
   listPatchConversation,
   listSetUnread,
+  pinMutationPatch,
   snippetFromMessage,
   threadApplyStatus,
   threadPatchMessage,
@@ -345,5 +346,30 @@ describe("snippetFromMessage", () => {
     const bare = message("m3", T1);
     delete bare.attachments;
     expect(snippetFromMessage(bare).has_attachments).toBe(false);
+  });
+});
+
+describe("pinMutationPatch (#3)", () => {
+  const NOW = new Date("2026-07-04T12:00:00.000Z");
+
+  it("stamps pinned_at + the acting user when pinning", () => {
+    expect(pinMutationPatch(true, "u1", NOW)).toEqual({
+      pinned_at: "2026-07-04T12:00:00.000Z",
+      pinned_by_user_id: "u1",
+    });
+  });
+
+  it("clears both fields when unpinning", () => {
+    expect(pinMutationPatch(false, "u1", NOW)).toEqual({
+      pinned_at: null,
+      pinned_by_user_id: null,
+    });
+  });
+
+  it("keeps a null actor (optimistic before /me settles) rather than inventing one", () => {
+    expect(pinMutationPatch(true, null, NOW)).toEqual({
+      pinned_at: "2026-07-04T12:00:00.000Z",
+      pinned_by_user_id: null,
+    });
   });
 });

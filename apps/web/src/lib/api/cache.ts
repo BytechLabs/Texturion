@@ -148,6 +148,21 @@ export function doneMutationPatch(
 }
 
 /**
+ * The optimistic #3 pin patch (PATCH /v1/messages/:id { pinned }): pinned=true
+ * stamps now + the acting user; pinned=false clears both — mirroring exactly
+ * what the API writes so the optimistic row and the server row agree in shape.
+ */
+export function pinMutationPatch(
+  pinned: boolean,
+  userId: string | null,
+  now: Date = new Date(),
+): Pick<Message, "pinned_at" | "pinned_by_user_id"> {
+  return pinned
+    ? { pinned_at: now.toISOString(), pinned_by_user_id: userId }
+    : { pinned_at: null, pinned_by_user_id: null };
+}
+
+/**
  * Patch one message inside a detail response's embedded first page (the
  * GET /v1/conversations/:id cache). Same reference when nothing changed.
  */

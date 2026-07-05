@@ -6,6 +6,8 @@ import {
   Copy,
   ListChecks,
   MoreHorizontal,
+  Pin,
+  PinOff,
   RotateCw,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +26,11 @@ import {
   PopoverHeader,
   PopoverTitle,
 } from "@/components/ui/popover";
-import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
+import {
+  useRetryMessage,
+  useSetMessageDone,
+  useSetMessagePinned,
+} from "@/lib/api/messages";
 import type { Message } from "@/lib/api/types";
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -142,9 +148,11 @@ function MessageOverflow({
   conversationId: string;
 }) {
   const retry = useRetryMessage(conversationId);
+  const setPinned = useSetMessagePinned(conversationId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const retryable = isRetryable(message);
+  const pinned = message.pinned_at !== null;
   const hasBody = message.body.trim() !== "";
   // A promoted message can't be re-promoted (server 409); hide the affordance
   // when we already know it's a task, so the primary path is a clean create.
@@ -198,6 +206,20 @@ function MessageOverflow({
           // task" form flashed open then vanished). Suppress the focus return.
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
+          {/* #3: pin/unpin surfaces an important message (address, quote, gate
+              code) at the top of the thread. Shared/team-wide, any message. */}
+          <DropdownMenuItem
+            onSelect={() =>
+              setPinned.mutate({ messageId: message.id, pinned: !pinned })
+            }
+          >
+            {pinned ? (
+              <PinOff className="size-4" strokeWidth={1.75} aria-hidden />
+            ) : (
+              <Pin className="size-4" strokeWidth={1.75} aria-hidden />
+            )}
+            {pinned ? "Unpin" : "Pin"}
+          </DropdownMenuItem>
           {promotable && (
             <DropdownMenuItem
               onSelect={() => {

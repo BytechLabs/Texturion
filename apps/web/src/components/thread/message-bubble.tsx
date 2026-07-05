@@ -1,6 +1,13 @@
 "use client";
 
-import { Check, CheckCheck, CircleCheck, ListChecks, Lock } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  CircleCheck,
+  ListChecks,
+  Lock,
+  Pin,
+} from "lucide-react";
 import { format } from "date-fns";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
@@ -113,6 +120,25 @@ export function DeliveryState({
 }
 
 /**
+ * #3: the calm "Pinned" chip a pinned message carries in its action row. A
+ * quiet stone chip with a pin glyph — a distinct fact from the stone "Task"
+ * chip (different glyph) and the petrol "Done" pill (different color). The
+ * pin/unpin action itself lives in the message overflow (⋯) menu.
+ */
+function PinnedBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted"
+      title="Pinned"
+    >
+      <Pin aria-hidden className="size-3" strokeWidth={2} />
+      Pinned
+      <span className="sr-only">— pinned message</span>
+    </span>
+  );
+}
+
+/**
  * The small petrol check badge a done message carries, with the D14 tooltip
  * "Done · Sam · 2:14 PM" (and the same text for screen readers).
  */
@@ -209,6 +235,7 @@ export function MessageBubble({
   const failed = message.status === "failed";
   const done = isDone(message);
   const hasTask = message.has_task === true;
+  const pinned = message.pinned_at !== null;
 
   return (
     <div
@@ -288,10 +315,12 @@ export function MessageBubble({
             generic-attachment owner shown in-thread; MMS media on real messages
             still renders via AttachmentImage above. */}
         {note && <NoteAttachments noteId={message.id} />}
-        {(isLastOfCluster || failed || done || hasTask) && (
+        {(isLastOfCluster || failed || done || hasTask || pinned) && (
           <span className="flex items-center gap-1.5">
-            {/* Labeled chips, orthogonal facts: a stone "Task" chip (opens the
-                task) and a petrol "Done" pill — never the same glyph or color. */}
+            {/* Labeled chips, orthogonal facts: a "Pinned" chip, a stone "Task"
+                chip (opens the task), and a petrol "Done" pill — never the same
+                glyph or color. */}
+            {pinned && <PinnedBadge />}
             {hasTask && message.promoted_task && (
               <TaskIndicator task={message.promoted_task} />
             )}

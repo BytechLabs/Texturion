@@ -9,6 +9,7 @@ import { useCompanyId } from "@/lib/company/provider";
 import {
   detailPatchMessage,
   doneMutationPatch,
+  pinMutationPatch,
   threadPatchMessage,
   threadUpsertMessages,
   type ThreadData,
@@ -181,6 +182,77 @@ export function useSetMessageDone(conversationId: string) {
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
       });
+    },
+  });
+}
+
+/**
+ * PATCH /v1/messages/:id { pinned } — the #3 pin toggle. Optimistic (the pin
+ * indicator appears at click), rolls back on error, replaced by the server row
+ * on success. Other clients update via the message.status broadcast the DB
+ * trigger emits. Unlike done, pinning writes NO conversation_events audit row,
+ * so there is nothing to invalidate on the events timeline.
+ */
+export function useSetMessagePinned(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { messageId: string; pinned: boolean }) =>
+      apiFetch<Message>(`/v1/messages/${input.messageId}`, {
+        method: "PATCH",
+        companyId,
+        body: { pinned: input.pinned },
+      }),
+    onMutate: async (input) => {
+      const threadKey = keys.thread(companyId, conversationId);
+      const detailKey = keys.conversations.detail(companyId, conversationId);
+      await queryClient.cancelQueries({ queryKey: threadKey });
+
+      const previousThread = queryClient.getQueryData<ThreadData>(threadKey);
+      const previousDetail =
+        queryClient.getQueryData<ConversationDetail>(detailKey);
+
+      const userId = queryClient.getQueryData<Me>(keys.me)?.user_id ?? null;
+      const patch = pinMutationPatch(input.pinned, userId);
+
+      if (previousThread) {
+        queryClient.setQueryData<ThreadData>(
+          threadKey,
+          threadPatchMessage(previousThread, input.messageId, patch),
+        );
+      }
+      if (previousDetail) {
+        queryClient.setQueryData<ConversationDetail>(
+          detailKey,
+          detailPatchMessage(previousDetail, input.messageId, patch),
+        );
+      }
+      return { previousThread, previousDetail };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousThread) {
+        queryClient.setQueryData(
+          keys.thread(companyId, conversationId),
+          context.previousThread,
+        );
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(
+          keys.conversations.detail(companyId, conversationId),
+          context.previousDetail,
+        );
+      }
+    },
+    onSuccess: (message) => {
+      queryClient.setQueryData<ThreadData>(
+        keys.thread(companyId, conversationId),
+        (thread) =>
+          thread ? threadPatchMessage(thread, message.id, message) : thread,
+      );
+      queryClient.setQueryData<ConversationDetail>(
+        keys.conversations.detail(companyId, conversationId),
+        (detail) => detailPatchMessage(detail, message.id, message),
+      );
     },
   });
 }
