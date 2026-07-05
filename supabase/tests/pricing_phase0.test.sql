@@ -129,6 +129,36 @@ begin
 end $$;
 
 -- ===========================================================================
+-- P0-3c. DRIFT GUARD — the shared helper's overage-cap verdict must match
+--        gate_outbound_send's Gate 4 for the SAME company state (the helper
+--        duplicates the gate's cap arithmetic; this is the money-critical
+--        cross-check the migration comment promises). Over cap, under the rate
+--        limit, so both must return exactly 'usage_cap_reached'. The gate takes
+--        the error path (no message inserted).
+-- ===========================================================================
+do $$
+declare
+  g jsonb;
+  h text;
+begin
+  g := public.gate_outbound_send(
+    '77777777-7777-4777-8777-777000000000',
+    '77777777-7777-4777-8777-777000000003',
+    '77777777-7777-4777-8777-777777777777',
+    'x', 'idem-phase0-crosscheck', 1);
+  h := public.outbound_spend_check('77777777-7777-4777-8777-777000000000', 1);
+
+  if (g->>'error') is distinct from h then
+    raise exception 'P0-3c FAILED: gate (%) and helper (%) disagree on the over-cap verdict',
+      g->>'error', h;
+  end if;
+  if h is distinct from 'usage_cap_reached' then
+    raise exception 'P0-3c FAILED: expected usage_cap_reached from both, got %', h;
+  end if;
+  raise notice 'P0-3c PASSED: gate_outbound_send and outbound_spend_check agree on the cap verdict';
+end $$;
+
+-- ===========================================================================
 -- P0-4. outbound_spend_check — 250 segments in the trailing hour → 'rate_limited'
 --       (Gate 3 is checked before the cap).
 -- ===========================================================================
