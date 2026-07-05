@@ -98,6 +98,37 @@ begin
 end $$;
 
 -- ===========================================================================
+-- P0-3b. claim_missed_call_text — over the cap SKIPS too (it may thread the
+--        caller, but writes NO outbound booking text and does not dispatch).
+-- ===========================================================================
+do $$
+declare
+  res        jsonb;
+  out_before int;
+  out_after  int;
+begin
+  select count(*) into out_before from public.messages
+   where company_id = '77777777-7777-4777-8777-777000000000' and direction = 'outbound';
+
+  res := public.claim_missed_call_text(
+    '77777777-7777-4777-8777-777000000000',
+    '77777777-7777-4777-8777-777000000001',
+    '+14165559999', 'call-phase0-1',
+    'Sorry we missed your call — text us here to book.', 1, 10800);
+
+  if res->>'skipped' is distinct from 'usage_cap_reached' then
+    raise exception 'P0-3b FAILED: claim_missed_call_text should skip usage_cap_reached, got %', res;
+  end if;
+
+  select count(*) into out_after from public.messages
+   where company_id = '77777777-7777-4777-8777-777000000000' and direction = 'outbound';
+  if out_after <> out_before then
+    raise exception 'P0-3b FAILED: an over-cap missed-call text must not write an outbound message';
+  end if;
+  raise notice 'P0-3b PASSED: claim_missed_call_text skips (no spend) when over the overage cap';
+end $$;
+
+-- ===========================================================================
 -- P0-4. outbound_spend_check — 250 segments in the trailing hour → 'rate_limited'
 --       (Gate 3 is checked before the cap).
 -- ===========================================================================
