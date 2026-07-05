@@ -69,4 +69,60 @@ begin
   raise notice 'M-2 PASSED: api_period_inbound_segments is service-role only';
 end $$;
 
+-- ===========================================================================
+-- M-3. usage_alerts.metric (#12 storage alerts): the PK spans metric, so the
+--      same (company, period, threshold) coexists across the three metrics;
+--      the column defaults to 'segments' for the pre-#12 backfill.
+-- ===========================================================================
+do $$
+declare v_count int;
+begin
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-06-01T00:00:00Z', 'segments', 80),
+         ('66666666-6666-4666-8666-666000000000', '2026-06-01T00:00:00Z', 'mms_storage', 80),
+         ('66666666-6666-4666-8666-666000000000', '2026-06-01T00:00:00Z', 'attachment_storage', 80);
+  select count(*) into v_count from public.usage_alerts
+   where company_id = '66666666-6666-4666-8666-666000000000'
+     and period_start = '2026-06-01T00:00:00Z';
+  if v_count <> 3 then
+    raise exception 'M-3 FAILED: expected 3 metric rows at one threshold, got %', v_count;
+  end if;
+
+  insert into public.usage_alerts (company_id, period_start, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-07-01T00:00:00Z', 100);
+  perform 1 from public.usage_alerts
+   where company_id = '66666666-6666-4666-8666-666000000000'
+     and period_start = '2026-07-01T00:00:00Z' and metric = 'segments';
+  if not found then
+    raise exception 'M-3 FAILED: metric did not default to segments';
+  end if;
+  raise notice 'M-3 PASSED: usage_alerts.metric widens the PK; defaults to segments';
+end $$;
+
+-- ===========================================================================
+-- M-4. a duplicate within a single metric still conflicts on the PK.
+-- ===========================================================================
+do $$
+begin
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-06-01T00:00:00Z', 'segments', 80);
+  raise exception 'M-4 FAILED: duplicate (company, period, metric, threshold) accepted';
+exception
+  when unique_violation then
+    raise notice 'M-4 PASSED: duplicate within a metric still conflicts on the PK';
+end $$;
+
+-- ===========================================================================
+-- M-5. an unknown metric is rejected by the check constraint.
+-- ===========================================================================
+do $$
+begin
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-06-01T00:00:00Z', 'bogus', 80);
+  raise exception 'M-5 FAILED: unknown metric accepted';
+exception
+  when check_violation then
+    raise notice 'M-5 PASSED: unknown metric rejected by the check constraint';
+end $$;
+
 rollback;

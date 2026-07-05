@@ -23,9 +23,12 @@ const PERIOD_START = "2026-06-15T00:00:00.000Z";
 interface UsageState {
   /** Sum api_period_segments reports for the company. */
   used: number;
-  /** Ledger thresholds already present (80/100). */
-  ledger: Set<number>;
+  /** Ledger keys already present, `${metric}:${threshold}` (e.g. "segments:80"). */
+  ledger: Set<string>;
   plan?: "starter" | "pro";
+  /** api_storage_usage bytes (default 0 → no storage alerts). */
+  mmsBytes?: number;
+  attachmentBytes?: number;
 }
 
 function usageEndpoints(state: UsageState): StubEndpoint[] {
@@ -39,10 +42,15 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       },
     ]),
     endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, () => state.used),
+    endpoint("POST", /\/rest\/v1\/rpc\/api_storage_usage/, () => ({
+      attachments_bytes: state.attachmentBytes ?? 0,
+      mms_bytes: state.mmsBytes ?? 0,
+    })),
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
-      const row = call.json() as { threshold: number };
-      if (state.ledger.has(row.threshold)) return [];
-      state.ledger.add(row.threshold);
+      const row = call.json() as { metric: string; threshold: number };
+      const key = `${row.metric}:${row.threshold}`;
+      if (state.ledger.has(key)) return [];
+      state.ledger.add(key);
       return [{ company_id: COMPANY_ID }];
     }),
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
@@ -55,6 +63,9 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
   ];
 }
+
+/** Starter storage budgets in bytes (mirrors billing/plans.ts). */
+const GB = 1024 * 1024 * 1024;
 
 function run(state: UsageState): { harness: Harness; done: Promise<void> } {
   const harness = makeHarness(usageEndpoints(state));
@@ -89,11 +100,11 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("80%");
     expect(emails[0].to).toEqual(["owner@example.com"]);
-    expect(state.ledger).toEqual(new Set([80]));
+    expect(state.ledger).toEqual(new Set(["segments:80"]));
   });
 
   it("re-running with the 80% ledger row present sends nothing (PK idempotency)", async () => {
-    const state: UsageState = { used: 450, ledger: new Set([80]) };
+    const state: UsageState = { used: 450, ledger: new Set(["segments:80"]) };
     const { harness, done } = run(state);
     await done;
     expect(sentEmails(harness)).toHaveLength(0);
@@ -107,7 +118,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(subjects).toHaveLength(2);
     expect(subjects[0]).toContain("80%");
     expect(subjects[1]).toContain("all 500 included messages");
-    expect(state.ledger).toEqual(new Set([80, 100]));
+    expect(state.ledger).toEqual(new Set(["segments:80", "segments:100"]));
 
     // Converged: the next run is a pure no-op.
     const again = run(state);
@@ -120,7 +131,57 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const { harness, done } = run(state);
     await done;
     expect(sentEmails(harness)).toHaveLength(1);
-    expect(state.ledger).toEqual(new Set([80]));
+    expect(state.ledger).toEqual(new Set(["segments:80"]));
+  });
+
+  it("MMS storage at 100% (starter: 5 GB) sends both picture-storage alerts", async () => {
+    const state: UsageState = { used: 0, ledger: new Set(), mmsBytes: 5 * GB };
+    const { harness, done } = run(state);
+    await done;
+    const subjects = sentEmails(harness).map((email) => email.subject);
+    expect(subjects).toHaveLength(2);
+    expect(subjects[0]).toContain("nearing its picture-message storage limit");
+    expect(subjects[1]).toContain("reached its picture-message storage limit");
+    expect(state.ledger).toEqual(
+      new Set(["mms_storage:80", "mms_storage:100"]),
+    );
+
+    // Converged: re-running with the ledger populated is a pure no-op.
+    const again = run(state);
+    await again.done;
+    expect(sentEmails(again.harness)).toHaveLength(0);
+  });
+
+  it("attachment storage at exactly 80% (starter: 4 of 5 GB) sends only the 80% file alert", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      attachmentBytes: 4 * GB,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toContain("nearing its file storage limit");
+    expect(state.ledger).toEqual(new Set(["attachment_storage:80"]));
+  });
+
+  it("segment and storage metrics never collide at the same threshold", async () => {
+    // Over on segments (100%) AND over on MMS storage (100%): four distinct
+    // alerts, one per (metric, threshold) — the metric axis keeps the two 80s
+    // and two 100s apart in the ledger.
+    const state: UsageState = { used: 500, ledger: new Set(), mmsBytes: 5 * GB };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(4);
+    expect(state.ledger).toEqual(
+      new Set([
+        "segments:80",
+        "segments:100",
+        "mms_storage:80",
+        "mms_storage:100",
+      ]),
+    );
   });
 
   it("one broken tenant does not starve the rest; the run still fails loudly", async () => {
@@ -150,6 +211,10 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         }
         return 500; // Fine Co is at 100%
       }),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_storage_usage/, () => ({
+        attachments_bytes: 0,
+        mms_bytes: 0,
+      })),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);
