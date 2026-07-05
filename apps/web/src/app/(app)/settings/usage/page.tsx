@@ -117,6 +117,14 @@ function PeriodMeter({ usage }: { usage: Usage }) {
             No cap — sending never pauses, overage is billed as you go.
           </p>
         )}
+        {usage.inbound_segments > 0 && (
+          <p className="text-muted-foreground">
+            <span className="tabular-nums">
+              {usage.inbound_segments.toLocaleString()}
+            </span>{" "}
+            messages received this period.
+          </p>
+        )}
       </div>
     </div>
   );

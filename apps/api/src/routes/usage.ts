@@ -71,6 +71,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       period_end: null,
       included_segments: 0,
       used_segments: 0,
+      inbound_segments: 0,
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
@@ -86,6 +87,18 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
         p_since: company.current_period_start,
       }),
       "usage sum",
+    ),
+  );
+
+  // #12: inbound volume this period (visibility only — not billed). Derived
+  // from the messages table, the audit's #1 unmeasured cost center.
+  const inboundUsed = Number(
+    unwrap<number | string>(
+      await db.rpc("api_period_inbound_segments", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      "inbound usage sum",
     ),
   );
 
@@ -119,6 +132,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     period_end: company.current_period_end,
     included_segments: included,
     used_segments: used,
+    inbound_segments: inboundUsed,
     overage_segments: overage,
     cap_segments: multiplier === null ? null : Math.round(included * multiplier),
     projected_overage_cents: Math.round(

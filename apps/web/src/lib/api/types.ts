@@ -609,6 +609,8 @@ export interface Usage {
   period_end: string | null;
   included_segments: number;
   used_segments: number;
+  /** #12: inbound segments received this period (visibility only, not billed). */
+  inbound_segments: number;
   overage_segments: number;
   cap_segments: number | null; // null = no cap
   projected_overage_cents: number;

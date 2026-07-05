@@ -48,6 +48,9 @@ const HISTORY = [
 /** D30 storage arm the api_storage_usage RPC stub reports. */
 const STORAGE = { attachments_bytes: 123_456, mms_bytes: 78_900 };
 
+/** #12: inbound-volume the api_period_inbound_segments RPC stub reports. */
+const INBOUND_USED = 200;
+
 function usageStub(
   company: Record<string, unknown>,
   used: number,
@@ -61,6 +64,7 @@ function usageStub(
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
+  sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => INBOUND_USED);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   return sb;
@@ -87,6 +91,7 @@ describe("GET /v1/usage", () => {
       period_end: "2026-07-15T00:00:00+00:00",
       included_segments: 500,
       used_segments: 620,
+      inbound_segments: INBOUND_USED,
       overage_segments: 120,
       cap_segments: 1500,
       projected_overage_cents: 360,
@@ -176,6 +181,7 @@ describe("GET /v1/usage", () => {
       period_end: null,
       included_segments: 0,
       used_segments: 0,
+      inbound_segments: 0,
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
@@ -183,6 +189,9 @@ describe("GET /v1/usage", () => {
       storage: { attachments_bytes: 0, mms_bytes: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_period_inbound_segments"),
+    ).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/rpc/api_usage_history")).toHaveLength(0);
     // Pre-checkout companies can't own files/media — zeros without querying.
     expect(sb.find("POST", "/rest/v1/rpc/api_storage_usage")).toHaveLength(0);
