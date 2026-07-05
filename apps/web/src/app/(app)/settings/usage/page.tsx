@@ -136,33 +136,40 @@ const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
   pro: 25 * 1024 ** 3,
 };
 
+/** #12 per-plan MMS-media storage budgets (mirrors the API's plan table). */
+const MMS_STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
+  starter: 5 * 1024 ** 3,
+  pro: 25 * 1024 ** 3,
+};
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 2) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
-/** D30: attachment storage vs the plan budget + the MMS display-only line. */
-function StorageMeter({
-  storage,
-  plan,
+/** One labelled storage budget bar (files, or picture messages). */
+function StorageBar({
+  label,
+  used,
+  budget,
+  help,
 }: {
-  storage: UsageStorage;
-  plan: PlanId | null;
+  label: string;
+  used: number;
+  budget: number | null;
+  help: string;
 }) {
-  const budget = plan ? STORAGE_BUDGET_BYTES[plan] : null;
-  const ratio = budget ? storage.attachments_bytes / budget : 0;
+  const ratio = budget ? used / budget : 0;
   const percent = Math.min(100, Math.round(ratio * 100));
   const warning = ratio >= 0.8;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-        <span className="font-medium tabular-nums">
-          {formatBytes(storage.attachments_bytes)}
-        </span>
-        <span className="text-muted-foreground">
-          of {budget ? formatBytes(budget) : "—"} for files on notes
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums text-muted-foreground">
+          {formatBytes(used)} of {budget ? formatBytes(budget) : "—"}
         </span>
       </div>
       {budget !== null && (
@@ -170,8 +177,8 @@ function StorageMeter({
           role="meter"
           aria-valuemin={0}
           aria-valuemax={budget}
-          aria-valuenow={Math.min(storage.attachments_bytes, budget)}
-          aria-label={`${formatBytes(storage.attachments_bytes)} of ${formatBytes(budget)} attachment storage used`}
+          aria-valuenow={Math.min(used, budget)}
+          aria-label={`${label}: ${formatBytes(used)} of ${formatBytes(budget)} used`}
           className="h-2 w-full overflow-hidden rounded-full bg-secondary"
         >
           <div
@@ -183,12 +190,38 @@ function StorageMeter({
           />
         </div>
       )}
-      <p className="text-sm text-muted-foreground">
-        Files attached to notes count toward your plan&apos;s storage — when
-        it&apos;s full, delete files you no longer need. Picture messages
-        (currently {formatBytes(storage.mms_bytes)}) are part of your
-        conversation history and never count against it.
-      </p>
+      <p className="text-sm text-muted-foreground">{help}</p>
+    </div>
+  );
+}
+
+/**
+ * D30 + #12: the two separate storage pools — files you attach to notes, and
+ * picture messages customers text you. Each has its own plan budget and its own
+ * full behaviour (files: uploads pause; pictures: new ones are held, text
+ * always arrives), so they get their own bar rather than sharing one.
+ */
+function StorageMeter({
+  storage,
+  plan,
+}: {
+  storage: UsageStorage;
+  plan: PlanId | null;
+}) {
+  return (
+    <div className="space-y-6">
+      <StorageBar
+        label="Files on notes"
+        used={storage.attachments_bytes}
+        budget={plan ? STORAGE_BUDGET_BYTES[plan] : null}
+        help="Files you attach to notes are saved here. When it's full, delete files you no longer need to free up space."
+      />
+      <StorageBar
+        label="Picture messages"
+        used={storage.mms_bytes}
+        budget={plan ? MMS_STORAGE_BUDGET_BYTES[plan] : null}
+        help="Pictures customers text you are saved here. When it's full, new pictures are held — the message text always comes through — until you free up space or move to a larger plan."
+      />
     </div>
   );
 }
