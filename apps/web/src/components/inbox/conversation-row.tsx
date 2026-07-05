@@ -103,8 +103,9 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
 /**
  * The APP-SHELL-REDESIGN inbox row (mockup .row): a colored-initial avatar, the
  * contact name + a 2-line preview + a tabular time, an unread petrol dot, and up
- * to two tag chips. Hover lifts the row (fill + soft shadow); the SELECTED row is
- * a lifted white card with a petrol-tint ring + shadow (NOT a left accent bar).
+ * to two tag chips. Differentiation is calm and hairline-only (PORTAL-UX: no
+ * shadows): hover fills the row (stone tint + soft hairline); the SELECTED row
+ * lifts to a white card with a solid hairline border (NOT a left accent bar).
  * All behavior (the /inbox/:id link, active state, spam view) is preserved.
  */
 export function ConversationRow({
