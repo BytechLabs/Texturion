@@ -51,6 +51,9 @@ const STORAGE = { attachments_bytes: 123_456, mms_bytes: 78_900 };
 /** #12: inbound-volume the api_period_inbound_segments RPC stub reports. */
 const INBOUND_USED = 200;
 
+/** #12: voice seconds the api_period_voice_seconds RPC stub reports (3660 = 61 min). */
+const VOICE_SECONDS = 3660;
+
 function usageStub(
   company: Record<string, unknown>,
   used: number,
@@ -67,6 +70,7 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => INBOUND_USED);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
+  sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
   return sb;
 }
 
@@ -97,6 +101,7 @@ describe("GET /v1/usage", () => {
       projected_overage_cents: 360,
       history: HISTORY,
       storage: { attachments_bytes: 123_456, mms_bytes: 78_900 },
+      voice: { used_minutes: 61, included_minutes: 500 },
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
@@ -187,6 +192,7 @@ describe("GET /v1/usage", () => {
       projected_overage_cents: 0,
       history: [],
       storage: { attachments_bytes: 0, mms_bytes: 0 },
+      voice: { used_minutes: 0, included_minutes: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
     expect(
@@ -195,5 +201,8 @@ describe("GET /v1/usage", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_usage_history")).toHaveLength(0);
     // Pre-checkout companies can't own files/media — zeros without querying.
     expect(sb.find("POST", "/rest/v1/rpc/api_storage_usage")).toHaveLength(0);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_period_voice_seconds"),
+    ).toHaveLength(0);
   });
 });

@@ -15,7 +15,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tertiary } from "@/components/ui/tertiary";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
-import type { PlanId, Usage, UsageMonth, UsageStorage } from "@/lib/api/types";
+import type {
+  PlanId,
+  Usage,
+  UsageMonth,
+  UsageStorage,
+  UsageVoice,
+} from "@/lib/api/types";
 import {
   capLabel,
   capSegments,
@@ -226,6 +232,50 @@ function StorageMeter({
   );
 }
 
+/** #12: call-forwarding minutes used vs the plan allowance. */
+function VoiceMeter({ voice }: { voice: UsageVoice }) {
+  const ratio =
+    voice.included_minutes > 0
+      ? voice.used_minutes / voice.included_minutes
+      : 0;
+  const percent = Math.min(100, Math.round(ratio * 100));
+  const warning = ratio >= 0.8;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <span className="font-medium tabular-nums">
+          {voice.used_minutes.toLocaleString()} min
+        </span>
+        <span className="text-muted-foreground">
+          of {voice.included_minutes.toLocaleString()} included
+        </span>
+      </div>
+      <div
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={voice.included_minutes}
+        aria-valuenow={Math.min(voice.used_minutes, voice.included_minutes)}
+        aria-label={`${voice.used_minutes} of ${voice.included_minutes} included call-forwarding minutes used`}
+        className="h-2 w-full overflow-hidden rounded-full bg-secondary"
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            warning ? "bg-warning" : "bg-primary",
+          )}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Calls forwarded to your cell use these minutes. When they&apos;re used
+        up, new calls aren&apos;t forwarded — callers get your missed-call text
+        instead — so your phone bill can&apos;t run past your plan.
+      </p>
+    </div>
+  );
+}
+
 function monthLabel(month: string, long = false): string {
   const [year, monthNumber] = month.split("-").map(Number);
   return new Date(year, (monthNumber ?? 1) - 1, 1).toLocaleDateString(
@@ -336,6 +386,12 @@ export default function UsageSettingsPage() {
               plan={company.data.plan}
             />
           </SettingsCard>
+
+          {usage.data.voice.included_minutes > 0 && (
+            <SettingsCard title="Call forwarding">
+              <VoiceMeter voice={usage.data.voice} />
+            </SettingsCard>
+          )}
 
           <SettingsCard
             title="Overage cap"

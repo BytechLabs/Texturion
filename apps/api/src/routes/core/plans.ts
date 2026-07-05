@@ -8,12 +8,14 @@ import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_LIMITS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
+  PLAN_VOICE_MINUTES,
   type PlanId,
 } from "../../billing/plans";
 
 export {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
+  PLAN_VOICE_MINUTES,
   type PlanId,
 };
 

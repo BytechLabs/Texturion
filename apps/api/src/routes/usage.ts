@@ -5,7 +5,8 @@
  *   { period_start, period_end, included_segments, used_segments,
  *     overage_segments, cap_segments, projected_overage_cents,
  *     history: [{ month: 'YYYY-MM', segments }],
- *     storage: { attachments_bytes, mms_bytes } }
+ *     storage: { attachments_bytes, mms_bytes },
+ *     voice: { used_minutes, included_minutes } }
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
  * SPEC §2). `history` is the last 6 calendar months (oldest first, zero-
  * filled) for the G8 "6-month history bars". `storage` (D30) is the
@@ -27,6 +28,7 @@ import { unwrap } from "./core/http";
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
+  PLAN_VOICE_MINUTES,
   type PlanId,
 } from "./core/plans";
 
@@ -77,6 +79,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       projected_overage_cents: 0,
       history: [],
       storage: { attachments_bytes: 0, mms_bytes: 0 },
+      voice: { used_minutes: 0, included_minutes: 0 },
     });
   }
 
@@ -120,6 +123,18 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     "storage usage",
   );
 
+  // #12: call-forwarding minutes this period, summed over both legs from
+  // call_records. Whole minutes for display (the cap works in seconds).
+  const voiceSeconds = Number(
+    unwrap<number | string>(
+      await db.rpc("api_period_voice_seconds", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      "voice usage sum",
+    ),
+  );
+
   const included = PLAN_INCLUDED_SEGMENTS[company.plan];
   const overage = Math.max(0, used - included);
   const multiplier =
@@ -142,6 +157,10 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),
       mms_bytes: Number(storage.mms_bytes),
+    },
+    voice: {
+      used_minutes: Math.floor(voiceSeconds / 60),
+      included_minutes: PLAN_VOICE_MINUTES[company.plan],
     },
   });
 });

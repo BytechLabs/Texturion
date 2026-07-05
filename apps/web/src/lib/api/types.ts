@@ -603,6 +603,14 @@ export interface UsageStorage {
   mms_bytes: number;
 }
 
+/** #12 call-forwarding minutes embedded in GET /v1/usage. */
+export interface UsageVoice {
+  /** Whole minutes forwarded this period (summed over both legs). */
+  used_minutes: number;
+  /** Included call-forwarding minutes for the plan (0 pre-checkout). */
+  included_minutes: number;
+}
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 export interface Usage {
   period_start: string | null;
@@ -618,6 +626,8 @@ export interface Usage {
   history: UsageMonth[];
   /** D30: the company's stored bytes, both arms. */
   storage: UsageStorage;
+  /** #12: call-forwarding minutes used vs the plan allowance. */
+  voice: UsageVoice;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
