@@ -230,13 +230,29 @@ autonomous drop. All the DOWNSTREAM amplifiers of an inbound flood (media
 storage/egress, auto-replies, per-conversation notifications) are already
 capped, so a flood can no longer multiply into unbounded spend on our side.
 
-Remaining for #12 (monetization, not protection):
+### Plan builder (opt-in modules; user picked opt-in + "make prices yourself")
 
-- **Modular plan builder** — chosen module split (decisions owned per the "make
-  all decisions yourself" directive): **base** (number + 10DLC recurring +
-  starter segment allowance) always on; opt-in **MMS**, **Voice**, **extra
-  Storage**, and **Regions (US/CA)** modules, each a Stripe licensed+metered
-  price pair (env-configured like the existing plan prices, created by
-  `stripe:setup`), a `company_modules` enablement table, gating at each module's
-  action, and a builder UI + checkout. Overage prices per §8 (all above true
-  cost). This is a revenue feature; the cost-protection mandate is already met.
+Base plan (texting + 1 US number + US 10DLC) stays; MMS, Call forwarding, extra
+Storage, and Canada are opt-in modules. Shipped:
+
+- **Catalog + enablement** — `MODULE_CATALOG` (billing/modules.ts, flat monthly
+  prices: MMS $5, Voice $8, Storage $5, Canada $5), `company_modules` table with
+  live-customer **grandfathering**, `isModuleEnabled` gate. (`0235b71`)
+- **Stripe catalog** — `stripe:setup` creates a product + price per module; ran
+  against the test account, ids in `.dev.vars` / `STRIPE_MODULE_*_PRICE_ID`.
+  (`e245786`)
+- **Checkout + enablement mirror** — checkout accepts `modules[]`, adds a line
+  each, and `checkout.session.completed` enables the purchased modules (enable-
+  only, so grandfathering is safe). (`9420d1a`)
+- **Onboarding picker** — calm add-on toggles on the plan step feed checkout.
+  (`96a0c5b`)
+- **First gate** — outbound MMS requires the mms module (clear 409, no silent
+  charge; text unaffected). (`db42299`)
+
+Remaining plan-builder follow-ups (revenue enforcement, not cost protection):
+
+- Voice gating (block enabling forwarding without the voice module + webhook
+  safety net), Canada-number gating (`regions_ca`), extra_storage budget bump.
+- Post-signup module management (settings add/remove via a subscription-item
+  change, mirrored to `company_modules`) + a read-only "your plan includes" on
+  the billing page.
