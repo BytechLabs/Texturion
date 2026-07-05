@@ -1,6 +1,6 @@
 # Pricing model audit & redesign proposal (#12)
 
-**Status:** audit complete · protection layer shipping (see §9) · plan builder in progress
+**Status:** audit complete · protection layer COMPLETE (see §9) · plan builder (monetization) next
 **Cost basis dated:** 2026‑07‑04 (provider list prices; see sources inline)
 **Core invariant to enforce:** _we must never pay a provider more for a tenant than that tenant pays us._
 
@@ -205,12 +205,38 @@ Shipped (main):
   usage-alert cron gained `mms_storage` + `attachment_storage` arms at 80/100%
   (`usage_alerts.metric` column) (`fa6ad8f`); the usage page shows both pools
   honestly (`1abb491`).
+- **Voice metering + cap-and-drop + alerts** — `call_records` records each
+  forwarded leg's billable seconds on hangup; `api_period_voice_seconds` sums
+  them; over `PLAN_VOICE_MINUTES` the inbound call is REJECTED instead of
+  forwarded (the reject's hangup still fires the missed-call text). 80/100%
+  `voice_minutes` owner alerts + a usage-page meter. (`09a19cd`, `012d35e`,
+  `6f82019`)
 
-Remaining for #12:
+### Protection layer: COMPLETE for every cost center we amplify
 
-- **Voice metering + cap** — no call-duration is stored yet (no calls table), so
-  minute metering needs new recording infra on call end + a cap on forwarding
-  when over the voice allowance.
-- **Modular plan builder** — module config (texting/MMS/voice/storage/regions),
-  per-company enablement, gating enforcement, prices from §8, builder UI +
-  checkout, limit-reached UX surfacing.
+Every cost center where JobText controls the amplified spend is now bounded:
+outbound (un-defeatable hard ceiling + rate limit), auto-reply + missed-call
+(send cap), MMS media + attachment storage (cap-and-drop / 409 + alerts), voice
+(cap-and-drop + alerts), 10DLC campaign (deactivation is state-gated + retried
+daily on grace-expiry — verified, no leak). Inbound auto-reply, media, and
+notifications (15-min debounced per conversation) are all individually bounded.
+
+**The one residual is the raw Telnyx inbound-receive charge** (~$0.004 SMS /
+$0.005 MMS per message): it is incurred UPSTREAM at Telnyx before our webhook
+runs, so the only way to stop it is to suspend/release the flooded number —
+which would harm a legitimately busy business and is therefore an ops/abuse
+decision (monitor + manual/threshold suspension), NOT a silent per-message
+autonomous drop. All the DOWNSTREAM amplifiers of an inbound flood (media
+storage/egress, auto-replies, per-conversation notifications) are already
+capped, so a flood can no longer multiply into unbounded spend on our side.
+
+Remaining for #12 (monetization, not protection):
+
+- **Modular plan builder** — chosen module split (decisions owned per the "make
+  all decisions yourself" directive): **base** (number + 10DLC recurring +
+  starter segment allowance) always on; opt-in **MMS**, **Voice**, **extra
+  Storage**, and **Regions (US/CA)** modules, each a Stripe licensed+metered
+  price pair (env-configured like the existing plan prices, created by
+  `stripe:setup`), a `company_modules` enablement table, gating at each module's
+  action, and a builder UI + checkout. Overage prices per §8 (all above true
+  cost). This is a revenue feature; the cost-protection mandate is already met.
