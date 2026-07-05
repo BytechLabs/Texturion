@@ -224,7 +224,10 @@ function PlanStep() {
             Optional — turn on only what you need. Add or remove them any time.
           </p>
           <div className="mt-4 space-y-2">
-            {PLAN_MODULE_CARDS.map((mod) => {
+            {/* regions_ca is inert in the single-region model (numbers are
+                fixed to the company's country), so it isn't offered yet. */}
+            {PLAN_MODULE_CARDS.filter((mod) => mod.id !== "regions_ca").map(
+              (mod) => {
               const on = modules.includes(mod.id);
               return (
                 <button

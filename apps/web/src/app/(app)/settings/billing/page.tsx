@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
+import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import {
   LoadError,
   SettingsCard,
@@ -246,6 +247,10 @@ export default function BillingSettingsPage() {
               </div>
             </SettingsCard>
           )}
+
+          {canManage &&
+            company.data.plan !== null &&
+            company.data.subscription_status === "active" && <PlanModulesCard />}
 
           {canManage ? (
             <>

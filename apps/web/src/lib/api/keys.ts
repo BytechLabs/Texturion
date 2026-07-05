@@ -12,6 +12,7 @@ export const keys = {
 
   company: (companyId: string) => [companyId, "company"] as const,
   usage: (companyId: string) => [companyId, "usage"] as const,
+  modules: (companyId: string) => [companyId, "modules"] as const,
   numbers: (companyId: string) => [companyId, "numbers"] as const,
   registration: (companyId: string) => [companyId, "registration"] as const,
   portRequests: {
