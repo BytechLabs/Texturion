@@ -229,6 +229,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           filters,
         ),
       );
+      // #13: a pin/unpin from another client moves the thread in/out of the
+      // pinned-first supplement (usePinnedConversations) — refresh it when the
+      // pin state actually changed, so a teammate's pin floats live.
+      if ((cachedRow?.pinned_at ?? null) !== (detail.pinned_at ?? null)) {
+        void queryClient.invalidateQueries({
+          queryKey: keys.conversations.pinnedRoot(companyId),
+          refetchType: "active",
+        });
+      }
       // Status/assign/tag changes also append timeline events (G5).
       queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
