@@ -10,8 +10,9 @@
 begin;
 
 -- ===========================================================================
--- T1. Structure: all 23 tables exist, RLS enabled on every public table.
---     (port_requests added by 20260702030000_number_porting.sql — D16.)
+-- T1. Structure: every expected table exists, RLS enabled on every public
+--     table. (port_requests added by 20260702030000_number_porting.sql — D16;
+--     call_records by 20260704140000_voice_metering.sql — #12.)
 -- ===========================================================================
 do $$
 declare
@@ -21,7 +22,7 @@ declare
     'messages','message_attachments','conversation_events','tags',
     'conversation_tags','opt_outs','usage_events','webhook_events','templates',
     'push_subscriptions','notification_prefs','usage_alerts','grace_notices',
-    'port_requests'];
+    'port_requests','call_records'];
   missing text;
   no_rls  text;
 begin
@@ -37,7 +38,7 @@ begin
   if no_rls is not null then
     raise exception 'T1 FAILED: RLS not enabled on: %', no_rls;
   end if;
-  raise notice 'T1 PASSED: 23 tables present, RLS enabled on every public table';
+  raise notice 'T1 PASSED: every expected table present, RLS enabled on every public table';
 end $$;
 
 -- ===========================================================================

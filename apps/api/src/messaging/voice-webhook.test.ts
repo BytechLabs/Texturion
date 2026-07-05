@@ -64,7 +64,10 @@ function numberStub(): Stub {
  * handlers: exactly id,forward_to_cell (no mctb_message — that is the
  * sendMissedCallText settings select).
  */
-function companyStubs(forward: string | null): Stub[] {
+function companyStubs(
+  forward: string | null,
+  voice?: { plan: "starter" | "pro"; currentPeriodStart: string },
+): Stub[] {
   return [
     stubRoute(
       restMatch(
@@ -76,7 +79,14 @@ function companyStubs(forward: string | null): Stub[] {
           return sel.includes("forward_to_cell") && !sel.includes("mctb_message");
         },
       ),
-      () => [{ id: COMPANY_ID, forward_to_cell: forward }],
+      () => [
+        {
+          id: COMPANY_ID,
+          forward_to_cell: forward,
+          plan: voice?.plan ?? null,
+          current_period_start: voice?.currentPeriodStart ?? null,
+        },
+      ],
     ),
   ];
 }
@@ -133,6 +143,27 @@ function telnyxCallAction(): Stub {
       request.method === "POST" &&
       /\/v2\/calls\/[^/]+\/actions\/(answer|transfer)$/.test(url.pathname),
     () => ({ data: { result: "ok" } }),
+  );
+}
+
+function telnyxReject(): Stub {
+  return stubRoute(
+    (url, request) =>
+      request.method === "POST" &&
+      /\/v2\/calls\/[^/]+\/actions\/reject$/.test(url.pathname),
+    () => ({ data: { result: "ok" } }),
+  );
+}
+
+/** api_period_voice_seconds RPC → the company's used voice seconds this period. */
+function voiceSecondsStub(seconds: number): Stub {
+  return stubRoute(rpcMatch(env, "api_period_voice_seconds"), () => seconds);
+}
+
+/** call_records insert sink (#12 voice metering). */
+function callRecordsStub(): Stub {
+  return stubRoute(restMatch(env, "POST", "call_records"), () =>
+    Response.json([], { status: 201 }),
   );
 }
 
@@ -266,6 +297,69 @@ describe("handleCallEvent — inbound call.initiated", () => {
     );
     expect(action.calls).toHaveLength(0);
   });
+
+  it("forwards normally when under the voice-minute cap (#12)", async () => {
+    const action = telnyxCallAction();
+    serve(
+      numberStub(),
+      ...companyStubs(CELL, {
+        plan: "starter",
+        currentPeriodStart: "2026-07-01T00:00:00Z",
+      }),
+      voiceSecondsStub(100 * 60), // 100 of the 500 included minutes
+      action,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+      }),
+    );
+
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/answer")),
+    ).toBe(true);
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/transfer")),
+    ).toBe(true);
+  });
+
+  it("rejects the call and never forwards when over the voice-minute cap (#12 cap-and-drop)", async () => {
+    const action = telnyxCallAction();
+    const reject = telnyxReject();
+    serve(
+      numberStub(),
+      ...companyStubs(CELL, {
+        plan: "starter",
+        currentPeriodStart: "2026-07-01T00:00:00Z",
+      }),
+      voiceSecondsStub(500 * 60), // exactly at the 500-minute allowance
+      action,
+      reject,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+      }),
+    );
+
+    // The expensive two-leg forward is avoided — the call is rejected instead.
+    // Its untagged hangup will flow through the normal missed path (text-back).
+    expect(reject.calls).toHaveLength(1);
+    expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
+    expect(action.calls).toHaveLength(0);
+  });
 });
 
 describe("handleCallEvent — terminal → text-back", () => {
@@ -348,6 +442,58 @@ describe("handleCallEvent — terminal → text-back", () => {
     // The original caller (recovered from client_state) is the SMS destination.
     expect(sms.calls).toHaveLength(1);
     expect(sms.calls[0].body).toMatchObject({ to: CALLER, from: OUR_NUMBER });
+  });
+
+  it("records a leg's billable duration on hangup (#12 voice metering)", async () => {
+    const callRecords = callRecordsStub();
+    // An inbound_forwarded leg hangup is NOT missed (only the forward leg
+    // decides), so no text-back fires — but the duration is still metered,
+    // proving recording happens before the missed-vs-answered branch.
+    serve(numberStub(), callRecords);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-inb-1",
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+        client_state: btoa(INBOUND_FORWARDED_STATE),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:45.000Z", // 45 seconds
+      }),
+    );
+
+    expect(callRecords.calls).toHaveLength(1);
+    expect(callRecords.calls[0].body).toMatchObject({
+      company_id: COMPANY_ID,
+      call_leg_id: "leg-inb-1",
+      leg: "inbound",
+      billable_seconds: 45,
+    });
+  });
+
+  it("does not meter a hangup with no duration window", async () => {
+    const callRecords = callRecordsStub();
+    serve(numberStub(), ...companyStubs(CELL), callRecords);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-inb-2",
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+        client_state: btoa(INBOUND_FORWARDED_STATE),
+        // no start_time / end_time
+      }),
+    );
+
+    expect(callRecords.calls).toHaveLength(0);
   });
 
   it("forward configured: the inbound leg's own hangup does NOT fire (only the forward leg decides)", async () => {

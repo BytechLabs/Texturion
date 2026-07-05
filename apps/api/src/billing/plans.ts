@@ -34,6 +34,21 @@ export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
 };
 
 /**
+ * #12 call-forwarding minutes included per period, before the hard cap. A
+ * forwarded call runs two billable Telnyx legs (~$0.012/min combined), and
+ * there is no voice-overage billing yet, so every included minute is a cost we
+ * eat — this allowance is therefore ALSO our max per-company voice exposure per
+ * period (allowance × cost). Sized to mirror the segment quota for an easy
+ * mental model; the 80% owner alert + the hard cap (voice-webhook.ts) are the
+ * real protection, and these numbers are placeholders to retune when the opt-in
+ * voice module adds metered overage. Kept as a constant so tuning is one edit.
+ */
+export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
+  starter: 500,
+  pro: 2500,
+};
+
+/**
  * D30: per-company budget for the generic `attachments` bucket (note-borne
  * files), enforced at POST /v1/attachments as an atomic company-wide
  * sum(size_bytes) over LIVE rows (claim_attachment_storage). Starter 5 GB,

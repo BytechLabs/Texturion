@@ -43,6 +43,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { PLAN_VOICE_MINUTES, type PlanId } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { telnyxRequest } from "../telnyx/client";
@@ -70,6 +71,38 @@ interface CallPayload {
   client_state?: string | null; // base64 of whatever we set
   hangup_cause?: string;
   result?: string; // AMD result on machine.detection.ended
+  start_time?: string; // ISO — leg answered/started (call.hangup)
+  end_time?: string; // ISO — leg ended (call.hangup)
+}
+
+/** Cause we reject an over-voice-budget inbound call with (#12 cap). */
+const OVER_BUDGET_REJECT_CAUSE = "USER_BUSY";
+
+interface CompanyVoiceState {
+  plan: PlanId | null;
+  current_period_start: string | null;
+}
+
+/**
+ * #12 voice cap: has the company already used its plan's included forwarding
+ * minutes this period? Pre-checkout (no plan) or no live period → not over (no
+ * allowance to exceed, and no numbers to receive calls anyway). Reads the
+ * period-sum RPC over call_records (both legs of every forwarded call).
+ */
+async function companyOverVoiceBudget(
+  db: SupabaseClient,
+  companyId: string,
+  company: CompanyVoiceState,
+): Promise<boolean> {
+  if (!company.plan || !company.current_period_start) return false;
+  const { data, error } = await db.rpc("api_period_voice_seconds", {
+    p_company_id: companyId,
+    p_since: company.current_period_start,
+  });
+  if (error) {
+    throw new Error(`voice usage lookup failed: ${error.message}`);
+  }
+  return Number(data) >= PLAN_VOICE_MINUTES[company.plan] * 60;
 }
 
 function decodeClientState(raw: string | null | undefined): string | null {
@@ -114,6 +147,8 @@ function isForwardLeg(payload: CallPayload): boolean {
 interface McTbCompany {
   id: string;
   forward_to_cell: string | null;
+  plan: PlanId | null;
+  current_period_start: string | null;
 }
 
 /** Call-Control entry point (dispatched from /webhooks/telnyx). */
@@ -186,7 +221,7 @@ async function handleInboundInitiated(
 
   const { data: companyRows, error: companyError } = await db
     .from("companies")
-    .select("id,forward_to_cell")
+    .select("id,forward_to_cell,plan,current_period_start")
     .eq("id", resolved.companyId)
     .limit(1);
   if (companyError) {
@@ -196,6 +231,22 @@ async function handleInboundInitiated(
   // No forward target → leave the call ringing (never answer into dead air);
   // the inbound leg's call.hangup is the missed signal (handleTerminalCallEvent).
   if (!company?.forward_to_cell) return;
+
+  // #12 voice cap-and-drop: over the plan's forwarding-minute allowance → do
+  // NOT forward (forwarding runs two billable legs and there's no voice-overage
+  // billing yet, so we'd eat it). Reject the inbound call instead; the reject's
+  // untagged-leg hangup flows through handleTerminalCallEvent as a missed call,
+  // so the caller still gets the "sorry we missed you, text us" SMS (idempotent
+  // per call, and only if the owner enabled text-back). The owner was warned at
+  // 80% by the voice arm of the usage-alerts cron.
+  if (await companyOverVoiceBudget(db, resolved.companyId, company)) {
+    await telnyxRequest(env, {
+      method: "POST",
+      path: `/v2/calls/${callControlId}/actions/reject`,
+      body: { cause: OVER_BUDGET_REJECT_CAUSE },
+    });
+    return;
+  }
 
   // Answer the inbound leg so we control it (required before we can dial/bridge
   // and before AMD can run on the forward leg).
@@ -249,6 +300,19 @@ async function handleTerminalCallEvent(
 
   const leg = classifyLeg(payload);
 
+  // Our number, per leg:
+  //   - inbound (untagged/forwarded) leg: to = our number, from = the caller.
+  //   - forward leg: from = our number (we presented it), to = the owner's cell.
+  const forwardLeg = leg === "forward";
+  const ourNumberE164 = forwardLeg ? payload.from : payload.to;
+
+  // #12 voice metering: record this leg's billable duration on every hangup —
+  // BEFORE the missed-vs-answered branch, because an answered call costs minutes
+  // too. AMD events carry no duration window, so only call.hangup records.
+  if (eventType === "call.hangup" && ourNumberE164) {
+    await recordCallDuration(db, payload, leg, ourNumberE164);
+  }
+
   const outcome = computeMissedFromEvent({
     eventType,
     hangupCause: payload.hangup_cause ?? null,
@@ -257,13 +321,8 @@ async function handleTerminalCallEvent(
   });
   if (!outcome.missed) return;
 
-  // Our number + the original caller, per leg:
-  //   - inbound (untagged) leg: to = our number, from = the caller.
-  //   - forward leg: from = our number (we presented it), to = the owner's
-  //     cell, and the ORIGINAL caller rides the client_state we stamped when
-  //     dialing (this payload never carries it).
-  const forwardLeg = leg === "forward";
-  const ourNumberE164 = forwardLeg ? payload.from : payload.to;
+  // The original caller, per leg: the inbound leg carries it as `from`; the
+  // forward leg does not, so it rides the client_state we stamped when dialing.
   const finalCaller = forwardLeg
     ? decodeForwardCaller(payload.client_state ?? null)
     : payload.from;
@@ -279,6 +338,52 @@ async function handleTerminalCallEvent(
     callerE164: finalCaller,
     callId,
   });
+}
+
+/**
+ * #12: persist one forwarded-call leg's billable seconds (end − start) to
+ * call_records, keyed by call_leg_id so a webhook replay is a no-op. Both legs
+ * of a forwarded call are recorded; api_period_voice_seconds sums them for the
+ * cap + owner alerts. Skips silently when the payload has no parseable duration
+ * window (nothing to meter) or we don't own the number.
+ */
+async function recordCallDuration(
+  db: SupabaseClient,
+  payload: CallPayload,
+  leg: CallLeg,
+  ourNumberE164: string,
+): Promise<void> {
+  const startMs = Date.parse(payload.start_time ?? "");
+  const endMs = Date.parse(payload.end_time ?? "");
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+  const legId = payload.call_leg_id ?? payload.call_control_id;
+  if (!legId) return;
+
+  const resolved = await resolveNumber(db, ourNumberE164);
+  if (!resolved) return;
+
+  const seconds = Math.max(0, Math.round((endMs - startMs) / 1000));
+  const caller =
+    leg === "forward"
+      ? decodeForwardCaller(payload.client_state ?? null)
+      : (payload.from ?? null);
+
+  const { error } = await db.from("call_records").upsert(
+    {
+      company_id: resolved.companyId,
+      phone_number_id: resolved.phoneNumberId,
+      call_session_id: payload.call_session_id ?? null,
+      call_leg_id: legId,
+      leg: leg === "forward" ? "forward" : "inbound",
+      caller_e164: caller,
+      billable_seconds: seconds,
+      hangup_cause: payload.hangup_cause ?? null,
+    },
+    { onConflict: "call_leg_id", ignoreDuplicates: true },
+  );
+  if (error) {
+    throw new Error(`call_records upsert failed: ${error.message}`);
+  }
 }
 
 /**

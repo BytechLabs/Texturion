@@ -125,4 +125,51 @@ exception
     raise notice 'M-5 PASSED: unknown metric rejected by the check constraint';
 end $$;
 
+-- ===========================================================================
+-- M-6. api_period_voice_seconds (#12 voice metering) sums billable_seconds over
+--      BOTH legs in the period and excludes pre-period rows.
+-- ===========================================================================
+do $$
+declare v bigint;
+begin
+  insert into public.call_records
+    (company_id, phone_number_id, call_session_id, call_leg_id, leg, billable_seconds, created_at)
+  values
+    ('66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000001', 'sess-1', 'leg-inb-1', 'inbound', 30, now()),
+    ('66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000001', 'sess-1', 'leg-fwd-1', 'forward', 25, now()),
+    ('66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000001', 'sess-0', 'leg-old-1', 'inbound', 999, now() - interval '40 days');
+  v := public.api_period_voice_seconds(
+    '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
+  if v <> 55 then
+    raise exception 'M-6 FAILED: expected 55 in-period voice seconds (30+25), got %', v;
+  end if;
+  raise notice 'M-6 PASSED: api_period_voice_seconds sums both legs in-period, excludes pre-period';
+end $$;
+
+-- ===========================================================================
+-- M-7. a duplicate call_leg_id conflicts (webhook replay is a no-op).
+-- ===========================================================================
+do $$
+begin
+  insert into public.call_records (company_id, call_leg_id, leg, billable_seconds)
+  values ('66666666-6666-4666-8666-666000000000', 'leg-inb-1', 'inbound', 10);
+  raise exception 'M-7 FAILED: duplicate call_leg_id accepted';
+exception
+  when unique_violation then
+    raise notice 'M-7 PASSED: duplicate call_leg_id conflicts on the unique key';
+end $$;
+
+-- ===========================================================================
+-- M-8. api_period_voice_seconds is service-role only.
+-- ===========================================================================
+do $$
+declare acl boolean;
+begin
+  select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'api_period_voice_seconds' limit 1;
+  if acl then raise exception 'M-8 FAILED: api_period_voice_seconds executable by authenticated'; end if;
+  raise notice 'M-8 PASSED: api_period_voice_seconds is service-role only';
+end $$;
+
 rollback;
