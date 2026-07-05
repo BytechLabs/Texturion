@@ -34,6 +34,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -215,6 +216,17 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
 
   // §7 gate order: subscription → destination US/CA → registration.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
+
+  // #12 plan builder: sending pictures is the opt-in "Picture messages" add-on.
+  // Grandfathered companies already have it; one that opted out gets a clear
+  // upgrade prompt instead of a silent Telnyx MMS charge. Text-only sends are
+  // unaffected. (Incoming pictures are always free — this gate is outbound-only.)
+  if (media.length > 0 && !(await isModuleEnabled(db, companyId, "mms"))) {
+    throw new ApiError(
+      "conflict",
+      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
+    );
+  }
 
   // Step 0a merge-fields: applied server-side at SEND time to the composed body
   // (and to any saved-reply text the composer pasted in), reusing the contact +

@@ -122,6 +122,8 @@ function sendStubs(options: {
   view?: ReturnType<typeof sendView>;
   hasInbound?: boolean;
   gate?: (call: { body: unknown }) => unknown;
+  /** #12: whether the Picture messages (mms) module is enabled (default true). */
+  mmsEnabled?: boolean;
 } = {}): SendStubs {
   const view = options.view ?? sendView();
   const conversationView = stubRoute(
@@ -195,6 +197,13 @@ function sendStubs(options: {
   const sign = stubRoute(storageSignMatch(env), (call) => ({
     signedURL: `${call.url.pathname.replace("/storage/v1", "")}?token=test-token`,
   }));
+  // #12 plan builder: the mms-module gate on picture sends. Enabled by default
+  // (grandfathered posture) so text + MMS tests pass; a test opts out to assert
+  // the block.
+  const modulesLookup = stubRoute(
+    restMatch(env, "GET", "company_modules"),
+    () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
+  );
 
   return {
     conversationView,
@@ -222,6 +231,7 @@ function sendStubs(options: {
       upload.route,
       attachmentInsert.route,
       sign.route,
+      modulesLookup.route,
     ],
   };
 }
@@ -704,6 +714,34 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
 
     const body = (await response.json()) as { attachments: unknown[] };
     expect(body.attachments).toHaveLength(1);
+  });
+
+  it("without the Picture messages add-on, a media send is a 409 (#12)", async () => {
+    const stubs = sendStubs({ mmsEnabled: false });
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "photo attached",
+      media: [{ content_type: "image/jpeg", base64: PIXEL }],
+    });
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("conflict");
+    // Blocked before any upload or Telnyx send — no cost incurred.
+    expect(stubs.upload.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
+  it("a text-only send never consults the module gate (#12)", async () => {
+    const stubs = sendStubs({ mmsEnabled: false });
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "just text, no picture",
+    });
+    // Text is unaffected by the mms add-on gate.
+    expect(response.status).toBe(201);
   });
 });
 
