@@ -1,20 +1,19 @@
 "use client";
 
 import {
-  BookText,
   Check,
   CheckSquare,
   ChevronsUpDown,
   Inbox as InboxIcon,
-  PenSquare,
-  Rows3,
-  Settings as SettingsIcon,
+  PanelLeft,
+  Search,
   Users,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +30,8 @@ import {
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
+import { avatarInitials } from "./avatar-color";
+import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
 
@@ -47,22 +48,25 @@ function companyInitials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+/** Opens the ⌘K command palette — the app's search + navigator. */
+function openCommand() {
+  window.dispatchEvent(new Event("jobtext:open-command"));
+}
+
 interface NavRow {
   label: string;
   href: string;
   icon: typeof InboxIcon;
 }
 
+// The sidebar is the SOLE primary nav (issue #8). Templates and Numbers live in
+// Settings only; compose is the app-wide FAB; search + notifications + account
+// live in the footer user-bar. So the nav list is just the four focus surfaces.
 const FOCUS: NavRow[] = [
   { label: "For you", href: "/for-you", icon: Zap },
   { label: "Inbox", href: "/inbox", icon: InboxIcon },
   { label: "Tasks", href: "/tasks", icon: CheckSquare },
   { label: "Contacts", href: "/contacts", icon: Users },
-];
-
-const LIBRARY: NavRow[] = [
-  { label: "Templates", href: "/templates", icon: Rows3 },
-  { label: "Numbers", href: "/settings/numbers", icon: BookText },
 ];
 
 /**
@@ -174,26 +178,36 @@ function NavItem({
 }
 
 /**
- * The calm LEFT SIDEBAR (PORTAL-UX §1): a full-height white column with a single
- * hairline right border and no shadow, the app's SOLE primary nav. Its top
- * brand cell is exactly the height of the content top bar (both 56px + a bottom
- * hairline), so the two align into one continuous top band — the frame reads as
- * a single shell. Expanded (232px, labeled) ⇄ collapsed (64px icon rail) via the
- * top-bar toggle; the choice is persisted.
+ * The calm LEFT SIDEBAR (PORTAL-UX §1) — the app's SOLE shell after the top bar
+ * was retired (issue #8). Full-height white column, single hairline right
+ * border, no shadow. Top → bottom:
+ *   - Brand cell (workspace switcher).
+ *   - Search row (opens the ⌘K palette).
+ *   - FOCUS nav: For you · Inbox · Tasks · Contacts.
+ *   - Footer "user bar" (Discord-style): a collapse toggle + notifications bell,
+ *     then the account tile that opens the member menu (Settings lives there —
+ *     one entry, not two). Templates + Numbers live in Settings; compose is the
+ *     app-wide FAB.
  *
- * Brand cell (workspace switcher) · New message · FOCUS group (For you is the
- * only petrol pill) · LIBRARY group · a pinned Settings row. The notifications
- * bell + account menu live in the top bar, not here.
- *
- * Hidden below lg, where the labeled bottom tab bar owns nav (§5).
+ * Expanded (232px, labeled) ⇄ collapsed (64px icon rail) via the footer toggle;
+ * the choice is persisted. Hidden below lg, where the labeled bottom tab bar
+ * owns nav (§5).
  */
-export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
+export function Sidebar({
+  collapsed = false,
+  onToggleSidebar,
+}: {
+  collapsed?: boolean;
+  onToggleSidebar: () => void;
+}) {
   const pathname = usePathname();
-  const { membership, memberships, switchCompany } = useActiveCompany();
+  const { membership, memberships, switchCompany, displayName, role } =
+    useActiveCompany();
   const counts = useNavCounts();
 
   const multi = memberships.length > 1;
   const numbersActive = counts.numbers;
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   const logo = (
     <span
@@ -245,6 +259,48 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
     </DropdownMenuContent>
   );
 
+  const collapseToggle = (
+    <button
+      type="button"
+      onClick={onToggleSidebar}
+      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-pressed={collapsed}
+      className="grid size-8 shrink-0 place-items-center rounded-[8px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <PanelLeft className="size-[17px]" strokeWidth={1.8} aria-hidden />
+    </button>
+  );
+
+  const memberTile = (
+    <MemberMenu>
+      <button
+        type="button"
+        aria-label="Account and settings"
+        className={cn(
+          "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+          collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
+        )}
+      >
+        <span
+          aria-hidden
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-petrol-deep"
+        >
+          {avatarInitials(displayName || membership.name)}
+        </span>
+        {!collapsed && (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px] font-semibold text-app-ink">
+              {displayName || "You"}
+            </span>
+            <span className="block truncate text-[11px] text-app-muted-2">
+              {roleLabel}
+            </span>
+          </span>
+        )}
+      </button>
+    </MemberMenu>
+  );
+
   return (
     <TooltipProvider delayDuration={0}>
       <aside
@@ -253,7 +309,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           collapsed ? "w-[64px]" : "w-[232px]",
         )}
       >
-        {/* Brand cell — 56px + bottom hairline, aligned with the top bar. */}
+        {/* Brand cell — 56px + bottom hairline. */}
         <div
           className={cn(
             "flex h-14 shrink-0 items-center border-b border-app-line",
@@ -265,7 +321,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
               <DropdownMenuTrigger
                 aria-label="Switch workspace"
                 className={cn(
-                  "flex items-center rounded-[10px] outline-none transition-colors hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
                   collapsed
                     ? "size-10 justify-center"
                     : "w-full gap-2.5 px-2 py-1 text-left",
@@ -288,35 +344,43 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           )}
         </div>
 
-        {/* Nav area. */}
+        {/* Nav area: search + focus nav. */}
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-y-auto pb-3.5 pt-3",
+            "flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 pt-3",
             collapsed ? "px-2" : "px-3",
           )}
         >
-          {/* Primary action: start a new conversation. */}
+          {/* Search — opens the ⌘K palette (issue #8: search moved to sidebar). */}
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  href="/inbox/new"
-                  aria-label="New message"
-                  className="mb-2 flex h-9 items-center justify-center rounded-[10px] bg-app-petrol text-white transition-colors duration-150 hover:bg-app-petrol/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <button
+                  type="button"
+                  onClick={openCommand}
+                  aria-label="Search"
+                  aria-keyshortcuts="Meta+K Control+K"
+                  className="mb-1 flex h-9 items-center justify-center rounded-[9px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <PenSquare className="size-[16px]" strokeWidth={2} aria-hidden />
-                </Link>
+                  <Search className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                </button>
               </TooltipTrigger>
-              <TooltipContent side="right">New message</TooltipContent>
+              <TooltipContent side="right">Search · ⌘K</TooltipContent>
             </Tooltip>
           ) : (
-            <Link
-              href="/inbox/new"
-              className="mb-2.5 flex h-[38px] items-center justify-center gap-2 rounded-[10px] bg-app-petrol text-[13.5px] font-semibold text-white transition-colors duration-150 hover:bg-app-petrol/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <button
+              type="button"
+              onClick={openCommand}
+              aria-label="Search"
+              aria-keyshortcuts="Meta+K Control+K"
+              className="mb-1 flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PenSquare className="size-[16px]" strokeWidth={2} aria-hidden />
-              New message
-            </Link>
+              <Search className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-left">Search</span>
+              <kbd className="shrink-0 rounded border border-app-line bg-app-stone-1 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-app-muted-2">
+                ⌘K
+              </kbd>
+            </button>
           )}
 
           {/* FOCUS group. */}
@@ -339,33 +403,32 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
                 collapsed={collapsed}
               />
             ))}
-
-            {collapsed ? (
-              <div className="mx-1 my-2 h-px bg-app-line-soft" aria-hidden />
-            ) : (
-              <div className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-app-muted-2">
-                Library
-              </div>
-            )}
-            {LIBRARY.map((row) => (
-              <NavItem
-                key={row.href}
-                row={row}
-                active={isNavActive(pathname, row.href)}
-                count={row.href === "/settings/numbers" ? counts.numbers : undefined}
-                collapsed={collapsed}
-              />
-            ))}
           </nav>
+        </div>
 
-          {/* Pinned footer: Settings (bell + account moved to the top bar). */}
-          <div className="mt-auto border-t border-app-line-soft pt-2">
-            <NavItem
-              row={{ label: "Settings", href: "/settings", icon: SettingsIcon }}
-              active={isNavActive(pathname, "/settings")}
-              collapsed={collapsed}
-            />
-          </div>
+        {/* Footer user-bar: collapse toggle + notifications, then the account
+            tile that opens the member menu (Settings + theme + sign out). */}
+        <div
+          className={cn(
+            "shrink-0 border-t border-app-line-soft px-2 py-2",
+            collapsed ? "flex flex-col items-center gap-1" : "",
+          )}
+        >
+          {collapsed ? (
+            <>
+              {collapseToggle}
+              <NotificationBell appVariant />
+              {memberTile}
+            </>
+          ) : (
+            <>
+              <div className="mb-1 flex items-center justify-between px-0.5">
+                {collapseToggle}
+                <NotificationBell appVariant />
+              </div>
+              {memberTile}
+            </>
+          )}
         </div>
       </aside>
     </TooltipProvider>

@@ -7,6 +7,7 @@ import {
   Clock,
   CreditCard,
   Gauge,
+  MessageSquareText,
   Phone,
   PhoneMissed,
   ShieldCheck,
@@ -25,6 +26,10 @@ export interface SettingsSection {
   label: string;
   description: string;
   icon: LucideIcon;
+  /** Absolute href override for sections that live outside `/settings/*`
+   * (e.g. Templates keeps its top-level `/templates` route). Defaults to
+   * `/settings/${slug}`. */
+  href?: string;
 }
 
 /** The G8 settings sections, in nav order. */
@@ -67,6 +72,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Reviews",
     description: "Your Google review link for texts and templates",
     icon: Star,
+  },
+  {
+    // Issue #8: Templates live in Settings only (route stays top-level).
+    slug: "templates",
+    label: "Templates",
+    description: "Saved replies your team can send in one tap",
+    icon: MessageSquareText,
+    href: "/templates",
   },
   {
     slug: "usage",
@@ -116,7 +129,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
           return (
             <Link
               key={section.slug}
-              href={`/settings/${section.slug}`}
+              href={section.href ?? `/settings/${section.slug}`}
               className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Icon
@@ -146,7 +159,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
   return (
     <nav aria-label="Settings sections" className="flex flex-col gap-0.5">
       {SETTINGS_SECTIONS.map((section) => {
-        const href = `/settings/${section.slug}`;
+        const href = section.href ?? `/settings/${section.slug}`;
         const active = pathname === href || pathname.startsWith(`${href}/`);
         const Icon = section.icon;
         return (

@@ -13,7 +13,6 @@ import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
-import { TopBar } from "./top-bar";
 import { WindowDropGuard } from "./window-drop-guard";
 
 const SIDEBAR_PREF_KEY = "jobtext:sidebar-collapsed";
@@ -28,20 +27,20 @@ function readSidebarCollapsed(): boolean {
 }
 
 /**
- * The PORTAL-UX app frame (§1): a slim desktop TOP BAR (utilities only —
- * collapse toggle, search-that-opens-⌘K, notifications, account) above a row of
- * the calm LEFT SIDEBAR (still the sole primary nav) + the destination content.
- * A fixed full-viewport-height column (`h-svh overflow-hidden`) so the browser
- * page never scrolls — the bar + sidebar are pinned and the inner panes/
- * documents scroll.
+ * The PORTAL-UX app frame (§1): the calm LEFT SIDEBAR is the sole desktop shell
+ * (issue #8 — the top bar was retired; search, notifications, account, and the
+ * collapse toggle now live in the sidebar's footer user-bar). A fixed
+ * full-viewport-height row (`h-svh overflow-hidden`) so the browser page never
+ * scrolls — the sidebar is pinned and the inner panes/documents scroll.
  *
- * - Top bar (lg+ only): global utilities; NOT navigation (nav stays the sidebar).
- * - Sidebar (232px expanded / 64px icon rail, lg+): company tile, New message,
- *   FOCUS + LIBRARY nav, Settings. The collapse choice is persisted per browser.
+ * - Sidebar (232px expanded / 64px icon rail, lg+): workspace tile, search,
+ *   FOCUS nav, footer user-bar. The collapse choice is persisted per browser.
  *   Hidden <1000px, where the labeled bottom tab bar owns primary nav.
+ * - WorkspaceStatusBanner: ambient not-ready strip, app-wide above the content.
  * - Content region (`main`): the destination fills it — the inbox is the fixed
  *   3-pane frame; the calm surfaces (for-you, tasks, contacts, settings,
  *   templates) scroll as documents. `main` is the flex track, not a scroller.
+ * - Compose is the app-wide FAB (all breakpoints).
  *
  * The ground is flat calm paper (app-ground; no wash).
  */
@@ -72,12 +71,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-svh overflow-hidden app-ground">
-      {/* Full-height sidebar on the left; the top bar sits only over the content
-          column to its right, so the two borders meet in a clean grid and the
-          whole frame reads as one shell (not a bar hanging over a rail). */}
-      <Sidebar collapsed={collapsed} />
+      {/* Full-height sidebar on the left is the whole desktop shell; the content
+          column (status banner + destination) fills the rest. */}
+      <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
         {/* Ambient workspace status (number provisioning / registration / billing).
             Mounted app-wide so a not-ready workspace is obvious on every page;
             renders null when there's nothing to say. */}

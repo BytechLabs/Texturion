@@ -2,7 +2,6 @@ import {
   Home,
   Inbox,
   ListChecks,
-  MessageSquareText,
   MoreHorizontal,
   Settings,
   Users,
@@ -23,18 +22,17 @@ export interface NavItem {
 
 /**
  * Primary navigation, in the APP-LAYOUT-V2 §1.3 order:
- * For You · Inbox · Tasks · Contacts · Templates.
+ * For You · Inbox · Tasks · Contacts.
  *
  * /for-you (D23 focus queue) and /tasks (D25 four-view switcher) are the shipped
  * feature surfaces — HOME-AND-VIEWS.md. Every item resolves to a real page, so
- * there are zero dead links.
+ * there are zero dead links. (Templates + Numbers live in Settings — issue #8.)
  */
 export const PRIMARY_NAV: NavItem[] = [
   { label: "For You", href: "/for-you", icon: Home },
   { label: "Inbox", href: "/inbox", icon: Inbox, countsUnread: true },
   { label: "Tasks", href: "/tasks", icon: ListChecks },
   { label: "Contacts", href: "/contacts", icon: Users },
-  { label: "Templates", href: "/templates", icon: MessageSquareText },
 ];
 
 export const SETTINGS_NAV: NavItem = {

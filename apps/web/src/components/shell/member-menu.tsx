@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Monitor, Moon, Settings, Sun, Users } from "lucide-react";
+import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -20,10 +20,11 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
- * The sidebar member-tile menu (PORTAL-UX §1.1): opens from the footer member
- * tile with profile, team, the theme toggle (System / Light / Dark), and Sign
- * out. Every destination the retired top-bar avatar menu carried is preserved;
- * the trigger is supplied by the caller (the member tile button) via `children`.
+ * The sidebar footer user-bar menu (issue #8, Discord-style): opens upward from
+ * the account tile with the ONE Settings entry (its own sidebar row was
+ * removed — Settings lives here, not in two places), the theme toggle
+ * (System / Light / Dark), and Sign out. The trigger is supplied by the caller
+ * (the account tile button) via `children`.
  */
 export function MemberMenu({
   children,
@@ -31,7 +32,7 @@ export function MemberMenu({
   align = "start",
 }: {
   children: React.ReactNode;
-  /** Menu placement — footer tile opens up (default); the top-bar avatar down. */
+  /** Menu placement — the footer account tile opens up (default). */
   side?: "top" | "bottom";
   align?: "start" | "end";
 }) {
@@ -60,15 +61,9 @@ export function MemberMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/settings/profile">
+          <Link href="/settings">
             <Settings className="size-4" strokeWidth={1.75} />
-            Profile
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings/team">
-            <Users className="size-4" strokeWidth={1.75} />
-            Team
+            Settings
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
