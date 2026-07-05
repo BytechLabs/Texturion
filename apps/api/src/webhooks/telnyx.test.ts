@@ -752,13 +752,14 @@ describe("inbound pipeline — MMS media (§7)", () => {
     expect(stubs.ledger.stamp.calls).toHaveLength(1); // processed, not failed
   });
 
-  it("drops inbound media when the company is at/over its storage budget (#12 cap-and-drop)", async () => {
+  it("drops inbound media when the company is at/over its MMS storage budget (#12 cap-and-drop)", async () => {
     const stubs = mediaStubs();
-    // Starter budget is 5 GB — report the account sitting exactly at the ceiling
-    // so companyOverStorageBudget returns true and the media is dropped.
+    // Starter MMS budget is 5 GB — report the mms-media bucket sitting exactly
+    // at the ceiling so companyOverMmsStorageBudget returns true and the media
+    // is dropped. Attachment bytes are a separate pool and irrelevant here.
     const overBudget = stubRoute(rpcMatch(env, "api_storage_usage"), () => ({
-      attachments_bytes: 5 * 1024 ** 3,
-      mms_bytes: 0,
+      attachments_bytes: 0,
+      mms_bytes: 5 * 1024 ** 3,
     }));
     serve(
       stubs.ledger.insert,

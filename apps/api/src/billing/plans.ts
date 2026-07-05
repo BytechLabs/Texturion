@@ -35,12 +35,28 @@ export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
 
 /**
  * D30: per-company budget for the generic `attachments` bucket (note-borne
- * files), enforced at POST /v1/attachments as a company-wide sum(size_bytes)
- * over LIVE rows. Starter 5 GB, Pro 25 GB. MMS media is deliberately NOT
- * gated on this budget (inbound customer content is never blocked; outbound
- * MMS is already metered/capped) — it only counts toward the usage display.
+ * files), enforced at POST /v1/attachments as an atomic company-wide
+ * sum(size_bytes) over LIVE rows (claim_attachment_storage). Starter 5 GB,
+ * Pro 25 GB. This budget is ATTACHMENTS-ONLY — inbound MMS media lives in its
+ * own bucket with its own #12 cost cap (MMS_STORAGE_BUDGET_BYTES); the two
+ * never share a pool, so heavy file use never drops a customer's picture and
+ * vice-versa.
  */
 export const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
+  starter: 5 * 1024 * 1024 * 1024,
+  pro: 25 * 1024 * 1024 * 1024,
+};
+
+/**
+ * #12 cap-and-drop budget for the `mms-media` bucket (inbound picture-message
+ * media, which we download + store on our dollar). Symmetrical with the
+ * attachment budget — Starter 5 GB, Pro 25 GB — but a SEPARATE pool: once a
+ * company's stored MMS media reaches this, new inbound media is dropped (the
+ * text still lands) so an image flood can never grow our storage bill past
+ * what the plan pays for. The owner is warned at 80% / 100% by the storage
+ * arm of the usage-alerts cron before/when drops begin.
+ */
+export const MMS_STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
   starter: 5 * 1024 * 1024 * 1024,
   pro: 25 * 1024 * 1024 * 1024,
 };

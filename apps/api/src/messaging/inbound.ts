@@ -15,7 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { STORAGE_BUDGET_BYTES, type PlanId } from "../billing/plans";
+import { MMS_STORAGE_BUDGET_BYTES, type PlanId } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
@@ -228,12 +228,14 @@ async function handleOptOutKeywords(
  * warning, the same permanent-condition outcome as an unsupported type.
  */
 /**
- * #12 cap-and-drop: is the company at or over its plan storage budget (D30
- * attachments + MMS media, both arms via api_storage_usage)? Pre-checkout / an
- * unknown plan returns false (no budget yet, and they can't own much). Used to
- * DROP new inbound media instead of growing storage unbounded on our dollar.
+ * #12 cap-and-drop: is the company at or over its MMS-media storage budget?
+ * Only the `mms-media` bucket counts here (api_storage_usage.mms_bytes) — the
+ * attachment bucket has its own separate D30 budget and never shares this
+ * pool. Pre-checkout / an unknown plan returns false (no budget yet, and they
+ * can't own much). Used to DROP new inbound media instead of growing storage
+ * unbounded on our dollar.
  */
-async function companyOverStorageBudget(
+async function companyOverMmsStorageBudget(
   db: SupabaseClient,
   companyId: string,
 ): Promise<boolean> {
@@ -251,12 +253,8 @@ async function companyOverStorageBudget(
   if (usageError) {
     throw new Error(`storage usage lookup failed: ${usageError.message}`);
   }
-  const u = usage as {
-    attachments_bytes: number | string;
-    mms_bytes: number | string;
-  };
-  const total = Number(u.attachments_bytes) + Number(u.mms_bytes);
-  return total >= STORAGE_BUDGET_BYTES[plan];
+  const u = usage as { mms_bytes: number | string };
+  return Number(u.mms_bytes) >= MMS_STORAGE_BUDGET_BYTES[plan];
 }
 
 async function downloadInboundMedia(
@@ -267,13 +265,13 @@ async function downloadInboundMedia(
     media: { url: string; content_type?: string; size?: number }[];
   },
 ): Promise<void> {
-  // #12 cap-and-drop: over the storage budget → DROP this message's media (the
-  // text already arrived; we never grow storage unbounded on our dollar). The
-  // owner is warned by the storage arm of the usage-alerts cron.
-  if (await companyOverStorageBudget(db, args.companyId)) {
+  // #12 cap-and-drop: over the MMS-media storage budget → DROP this message's
+  // media (the text already arrived; we never grow storage unbounded on our
+  // dollar). The owner is warned by the storage arm of the usage-alerts cron.
+  if (await companyOverMmsStorageBudget(db, args.companyId)) {
     console.warn(
       `inbound media for message ${args.messageId} DROPPED — company ` +
-        `${args.companyId} is at/over its storage budget (#12 cap-and-drop)`,
+        `${args.companyId} is at/over its MMS storage budget (#12 cap-and-drop)`,
     );
     return;
   }
