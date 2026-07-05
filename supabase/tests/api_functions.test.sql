@@ -287,6 +287,64 @@ begin
 end $$;
 
 -- ===========================================================================
+-- F2c. #13 p_pinned filter: 'only' returns pinned threads ordered pinned_at
+--      desc; 'exclude' drops them from the keyset list; the main cursor is
+--      untouched. (F2 mutated cv1's messages but pinned nothing.)
+-- ===========================================================================
+do $$
+declare
+  f record;
+  rows jsonb[];
+begin
+  select * into f from fixture;
+
+  -- Pin cv2 first, then cv1 (a MORE RECENT pin) so 'only' orders cv1 before cv2.
+  update public.conversations
+     set pinned_at = '2026-07-02T09:00:00Z',
+         pinned_by_user_id = '11111111-1111-4111-8111-111111111111'
+   where id = f.cv2;
+  update public.conversations
+     set pinned_at = '2026-07-02T10:00:00Z',
+         pinned_by_user_id = '11111111-1111-4111-8111-111111111111'
+   where id = f.cv1;
+
+  -- 'only': both pinned; most-recently-pinned (cv1) first.
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'only'));
+  if array_length(rows, 1) <> 2
+     or (rows[1]->>'id')::uuid <> f.cv1 or (rows[2]->>'id')::uuid <> f.cv2 then
+    raise exception 'F2c FAILED: only-order wrong: %', rows;
+  end if;
+
+  -- 'exclude': both non-spam are pinned, cv3 is spam → empty.
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'exclude'));
+  if coalesce(array_length(rows, 1), 0) <> 0 then
+    raise exception 'F2c FAILED: exclude kept a pinned thread: %', array_length(rows, 1);
+  end if;
+
+  -- Unpin cv1 → 'only' = [cv2]; 'exclude' = [cv1].
+  update public.conversations set pinned_at = null, pinned_by_user_id = null
+   where id = f.cv1;
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'only'));
+  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv2 then
+    raise exception 'F2c FAILED: only after unpin wrong: %', rows;
+  end if;
+  rows := array(select public.api_list_conversations(
+    f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'exclude'));
+  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+    raise exception 'F2c FAILED: exclude after unpin wrong: %', rows;
+  end if;
+
+  -- Cleanup so later tests see the original (unpinned) fixture.
+  update public.conversations set pinned_at = null, pinned_by_user_id = null
+   where id = f.cv2;
+
+  raise notice 'F2c PASSED: p_pinned only/exclude + pinned_at desc order';
+end $$;
+
+-- ===========================================================================
 -- F2b. unread excludes the caller's own sends (DESIGN G4 — migration
 --      20260702000000): replying never marks the thread unread for the
 --      sender; inbound and teammates' messages still do. Flag and p_unread

@@ -79,6 +79,9 @@ const listQuerySchema = z.object({
   is_spam: z.enum(["true", "false"]).optional(),
   unread: z.enum(["true", "false"]).optional(),
   q: z.string().trim().min(1).max(200).optional(),
+  // #13 pinned-first: 'only' fetches just pinned threads (pinned_at desc, no
+  // cursor); 'exclude' is the main keyset list minus pins; absent = all.
+  pinned: z.enum(["only", "exclude"]).optional(),
 });
 
 const patchSchema = z
@@ -150,6 +153,7 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
     is_spam: c.req.query("is_spam"),
     unread: c.req.query("unread"),
     q: c.req.query("q"),
+    pinned: c.req.query("pinned"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -168,6 +172,7 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
       p_q: query.q === undefined ? null : escapeLike(query.q),
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
+      p_pinned: query.pinned ?? null,
     }),
     "conversations list",
   );

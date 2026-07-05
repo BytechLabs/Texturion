@@ -111,6 +111,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_q: "smith\\_50\\%", // LIKE wildcards escaped
       p_cursor_ts: "2026-07-01T10:00:00+00:00",
       p_cursor_id: CONV_ID,
+      p_pinned: null,
     });
   });
 
@@ -136,6 +137,33 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_q: null,
       p_cursor_ts: null,
     });
+  });
+
+  it("#13: ?pinned=only forwards p_pinned; a bad value is rejected (422)", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const ok = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/conversations?pinned=only",
+      { companyId: COMPANY_ID },
+    );
+    expect(ok.status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body,
+    ).toMatchObject({ p_pinned: "only" });
+
+    const bad = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/conversations?pinned=sometimes",
+      { companyId: COMPANY_ID },
+    );
+    expect(bad.status).toBe(422);
   });
 
   it("pages: limit+1 rows in → limit rows out with a next_cursor on the last row", async () => {
