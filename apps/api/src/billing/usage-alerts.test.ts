@@ -53,6 +53,9 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       /\/rest\/v1\/rpc\/api_period_voice_seconds/,
       () => state.voiceSeconds ?? 0,
     ),
+    // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage
+    // off → base budgets, so the storage thresholds are unchanged.
+    endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
       const row = call.json() as { metric: string; threshold: number };
       const key = `${row.metric}:${row.threshold}`;
@@ -251,6 +254,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         mms_bytes: 0,
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
+      endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);

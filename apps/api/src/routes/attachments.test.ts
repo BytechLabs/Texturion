@@ -57,6 +57,9 @@ function stubWithRole(role: string | null): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, role),
   );
+  // #12: the storage budget reads company_modules; [] = extra_storage off →
+  // base plan budget, so the D30 boundary assertions are unchanged.
+  sb.on("GET", "/rest/v1/company_modules", () => []);
   return sb;
 }
 
@@ -596,7 +599,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     };
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toBe(
-      "Your plan's 5 GB attachment storage is full — delete some files to free space.",
+      "Your 5 GB of file storage is full — delete some files to free space.",
     );
     // Upload-first ordering: the object WAS written (it's now an orphan the D19
     // sweep reclaims), but the atomic claim rejected → no row, no audit event.
@@ -664,7 +667,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { message: string } };
     expect(body.error.message).toBe(
-      "Your plan's 25 GB attachment storage is full — delete some files to free space.",
+      "Your 25 GB of file storage is full — delete some files to free space.",
     );
   });
 });

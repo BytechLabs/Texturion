@@ -4,7 +4,11 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { enabledModules, isModuleEnabled } from "./company-modules";
+import {
+  effectiveStorageBudgets,
+  enabledModules,
+  isModuleEnabled,
+} from "./company-modules";
 import {
   isPlanModule,
   MODULE_CATALOG,
@@ -83,5 +87,21 @@ describe("enabledModules", () => {
     );
     const mods = await enabledModules(getDb(env), COMPANY);
     expect(mods).toEqual<PlanModule[]>(["mms", "voice"]);
+  });
+});
+
+describe("effectiveStorageBudgets", () => {
+  const GB = 1024 * 1024 * 1024;
+
+  it("returns the base plan pools when extra_storage is off", async () => {
+    serve(modulesStub([]));
+    const budgets = await effectiveStorageBudgets(getDb(env), COMPANY, "starter");
+    expect(budgets).toEqual({ attachmentBytes: 5 * GB, mmsBytes: 5 * GB });
+  });
+
+  it("grows both pools by 10 GB when extra_storage is on (pro)", async () => {
+    serve(modulesStub([{ module: "extra_storage" }]));
+    const budgets = await effectiveStorageBudgets(getDb(env), COMPANY, "pro");
+    expect(budgets).toEqual({ attachmentBytes: 35 * GB, mmsBytes: 35 * GB });
   });
 });

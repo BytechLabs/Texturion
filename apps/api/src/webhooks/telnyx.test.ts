@@ -554,6 +554,11 @@ describe("inbound pipeline — MMS media (§7)", () => {
       attachments_bytes: 0,
       mms_bytes: 0,
     }));
+    // #12: the budget reads company_modules; [] = extra_storage off → base pool.
+    const companyModules = stubRoute(
+      restMatch(env, "GET", "company_modules"),
+      () => [],
+    );
     return {
       ledger,
       numberLookup,
@@ -565,6 +570,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       attachmentInsert,
       companyPlan,
       storageUsage,
+      companyModules,
     };
   }
 
@@ -578,6 +584,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
@@ -619,6 +626,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
@@ -655,6 +663,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       stubs.storageUsage,
       videoDownload,
       stubs.upload,
@@ -692,6 +701,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       stubs.storageUsage,
       manyDownloads,
       stubs.upload,
@@ -737,6 +747,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
@@ -769,6 +780,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.away,
       stubs.attachmentLookup,
       stubs.companyPlan,
+      stubs.companyModules,
       overBudget,
       stubs.mediaDownload,
       stubs.upload,

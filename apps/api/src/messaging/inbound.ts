@@ -15,7 +15,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { MMS_STORAGE_BUDGET_BYTES, type PlanId } from "../billing/plans";
+import { effectiveStorageBudgets } from "../billing/company-modules";
+import type { PlanId } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
@@ -254,7 +255,8 @@ async function companyOverMmsStorageBudget(
     throw new Error(`storage usage lookup failed: ${usageError.message}`);
   }
   const u = usage as { mms_bytes: number | string };
-  return Number(u.mms_bytes) >= MMS_STORAGE_BUDGET_BYTES[plan];
+  const { mmsBytes } = await effectiveStorageBudgets(db, companyId, plan);
+  return Number(u.mms_bytes) >= mmsBytes;
 }
 
 async function downloadInboundMedia(

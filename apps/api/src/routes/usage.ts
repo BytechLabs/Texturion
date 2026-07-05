@@ -20,6 +20,7 @@
 import { Hono } from "hono";
 
 import { requireRole } from "../auth/company";
+import { effectiveStorageBudgets } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -78,7 +79,12 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       cap_segments: null,
       projected_overage_cents: 0,
       history: [],
-      storage: { attachments_bytes: 0, mms_bytes: 0 },
+      storage: {
+        attachments_bytes: 0,
+        mms_bytes: 0,
+        attachment_budget_bytes: 0,
+        mms_budget_bytes: 0,
+      },
       voice: { used_minutes: 0, included_minutes: 0 },
     });
   }
@@ -123,6 +129,14 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     "storage usage",
   );
 
+  // #12: effective budgets (base plan + extra_storage add-on), so the meter
+  // shows the room the company actually has.
+  const storageBudgets = await effectiveStorageBudgets(
+    db,
+    companyId,
+    company.plan,
+  );
+
   // #12: call-forwarding minutes this period, summed over both legs from
   // call_records. Whole minutes for display (the cap works in seconds).
   const voiceSeconds = Number(
@@ -157,6 +171,8 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),
       mms_bytes: Number(storage.mms_bytes),
+      attachment_budget_bytes: storageBudgets.attachmentBytes,
+      mms_budget_bytes: storageBudgets.mmsBytes,
     },
     voice: {
       used_minutes: Math.floor(voiceSeconds / 60),

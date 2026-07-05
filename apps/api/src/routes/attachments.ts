@@ -36,11 +36,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import {
-  STORAGE_BUDGET_BYTES,
-  storageBudgetLabel,
-  type PlanId,
-} from "../billing/plans";
+import { effectiveStorageBudgets } from "../billing/company-modules";
+import { type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -131,7 +128,9 @@ async function companyStorageBudget(
     "company plan lookup",
   );
   const plan: PlanId = companies[0]?.plan ?? "starter";
-  return { plan, budgetBytes: STORAGE_BUDGET_BYTES[plan] };
+  // #12: the effective budget includes the extra_storage add-on when enabled.
+  const { attachmentBytes } = await effectiveStorageBudgets(db, companyId, plan);
+  return { plan, budgetBytes: attachmentBytes };
 }
 
 /**
@@ -250,9 +249,9 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     );
   }
 
-  // D30 budget is resolved from the plan; the atomic CLAIM below is the
-  // authority (fix for the TOCTOU race — see claim_attachment_storage).
-  const { plan, budgetBytes } = await companyStorageBudget(db, companyId);
+  // D30 budget is resolved from the plan (+ any extra_storage add-on); the
+  // atomic CLAIM below is the authority (TOCTOU race — see the RPC).
+  const { budgetBytes } = await companyStorageBudget(db, companyId);
 
   const objectPath = attachmentStoragePath({
     companyId,
@@ -300,9 +299,10 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   const claim = parseStorageClaim(claimData);
   if (!claim.allowed) {
     // Over budget — the uploaded object is orphaned; the D19 sweep reclaims it.
+    const budgetGb = Math.round(budgetBytes / (1024 * 1024 * 1024));
     throw new ApiError(
       "conflict",
-      `Your plan's ${storageBudgetLabel(plan)} attachment storage is full — delete some files to free space.`,
+      `Your ${budgetGb} GB of file storage is full — delete some files to free space.`,
     );
   }
   if (!claim.attachment) throw new Error("claim_attachment_storage returned no row");

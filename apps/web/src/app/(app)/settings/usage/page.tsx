@@ -15,13 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tertiary } from "@/components/ui/tertiary";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
-import type {
-  PlanId,
-  Usage,
-  UsageMonth,
-  UsageStorage,
-  UsageVoice,
-} from "@/lib/api/types";
+import type { Usage, UsageMonth, UsageStorage, UsageVoice } from "@/lib/api/types";
 import {
   capLabel,
   capSegments,
@@ -136,18 +130,6 @@ function PeriodMeter({ usage }: { usage: Usage }) {
   );
 }
 
-/** D30 per-plan attachment-storage budgets (mirrors the API's plan table). */
-const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
-  starter: 5 * 1024 ** 3,
-  pro: 25 * 1024 ** 3,
-};
-
-/** #12 per-plan MMS-media storage budgets (mirrors the API's plan table). */
-const MMS_STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
-  starter: 5 * 1024 ** 3,
-  pro: 25 * 1024 ** 3,
-};
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 2) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
@@ -203,29 +185,23 @@ function StorageBar({
 
 /**
  * D30 + #12: the two separate storage pools — files you attach to notes, and
- * picture messages customers text you. Each has its own plan budget and its own
- * full behaviour (files: uploads pause; pictures: new ones are held, text
- * always arrives), so they get their own bar rather than sharing one.
+ * picture messages customers text you. Each has its own budget (base plan + the
+ * extra_storage add-on) and its own full behaviour (files: uploads pause;
+ * pictures: new ones are held, text always arrives), so they get their own bar.
  */
-function StorageMeter({
-  storage,
-  plan,
-}: {
-  storage: UsageStorage;
-  plan: PlanId | null;
-}) {
+function StorageMeter({ storage }: { storage: UsageStorage }) {
   return (
     <div className="space-y-6">
       <StorageBar
         label="Files on notes"
         used={storage.attachments_bytes}
-        budget={plan ? STORAGE_BUDGET_BYTES[plan] : null}
+        budget={storage.attachment_budget_bytes || null}
         help="Files you attach to notes are saved here. When it's full, delete files you no longer need to free up space."
       />
       <StorageBar
         label="Picture messages"
         used={storage.mms_bytes}
-        budget={plan ? MMS_STORAGE_BUDGET_BYTES[plan] : null}
+        budget={storage.mms_budget_bytes || null}
         help="Pictures customers text you are saved here. When it's full, new pictures are held — the message text always comes through — until you free up space or move to a larger plan."
       />
     </div>
@@ -381,10 +357,7 @@ export default function UsageSettingsPage() {
           )}
 
           <SettingsCard title="Storage">
-            <StorageMeter
-              storage={usage.data.storage}
-              plan={company.data.plan}
-            />
+            <StorageMeter storage={usage.data.storage} />
           </SettingsCard>
 
           {usage.data.voice.included_minutes > 0 && (

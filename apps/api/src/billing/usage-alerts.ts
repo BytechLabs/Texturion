@@ -10,11 +10,10 @@
  * "last run" bookkeeping), so re-runs and overlaps can never double-send.
  */
 import { billingRecipients } from "./recipients";
+import { effectiveStorageBudgets } from "./company-modules";
 import {
-  MMS_STORAGE_BUDGET_BYTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_VOICE_MINUTES,
-  STORAGE_BUDGET_BYTES,
   type PlanId,
 } from "./plans";
 import { getDb } from "../db";
@@ -292,6 +291,12 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         attachments_bytes: number | string;
         mms_bytes: number | string;
       };
+      // Effective budgets include the extra_storage add-on when enabled.
+      const { attachmentBytes, mmsBytes } = await effectiveStorageBudgets(
+        db,
+        company.id,
+        company.plan,
+      );
       const storageArms: {
         metric: "mms_storage" | "attachment_storage";
         used: number;
@@ -300,12 +305,12 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         {
           metric: "mms_storage",
           used: Number(s.mms_bytes),
-          budget: MMS_STORAGE_BUDGET_BYTES[company.plan],
+          budget: mmsBytes,
         },
         {
           metric: "attachment_storage",
           used: Number(s.attachments_bytes),
-          budget: STORAGE_BUDGET_BYTES[company.plan],
+          budget: attachmentBytes,
         },
       ];
       for (const arm of storageArms) {

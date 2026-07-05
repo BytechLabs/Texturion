@@ -71,8 +71,13 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
+  // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage off.
+  sb.on("GET", "/rest/v1/company_modules", () => []);
   return sb;
 }
+
+/** Starter storage budget in bytes (base plan, no extra_storage). */
+const STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
 
 const starterCompany = {
   plan: "starter",
@@ -100,7 +105,12 @@ describe("GET /v1/usage", () => {
       cap_segments: 1500,
       projected_overage_cents: 360,
       history: HISTORY,
-      storage: { attachments_bytes: 123_456, mms_bytes: 78_900 },
+      storage: {
+        attachments_bytes: 123_456,
+        mms_bytes: 78_900,
+        attachment_budget_bytes: STARTER_BUDGET,
+        mms_budget_bytes: STARTER_BUDGET,
+      },
       voice: { used_minutes: 61, included_minutes: 500 },
     });
 
@@ -191,7 +201,12 @@ describe("GET /v1/usage", () => {
       cap_segments: null,
       projected_overage_cents: 0,
       history: [],
-      storage: { attachments_bytes: 0, mms_bytes: 0 },
+      storage: {
+        attachments_bytes: 0,
+        mms_bytes: 0,
+        attachment_budget_bytes: 0,
+        mms_budget_bytes: 0,
+      },
       voice: { used_minutes: 0, included_minutes: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);

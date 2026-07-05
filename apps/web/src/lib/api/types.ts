@@ -599,8 +599,12 @@ export interface UsageMonth {
 export interface UsageStorage {
   /** Live note-borne attachments — the arm the plan budget gates on upload. */
   attachments_bytes: number;
-  /** MMS media (both directions) — display-only, never budget-blocked. */
+  /** Stored inbound MMS media (its own #12 pool). */
   mms_bytes: number;
+  /** Effective attachment budget (plan + extra_storage add-on). */
+  attachment_budget_bytes: number;
+  /** Effective MMS-media budget (plan + extra_storage add-on). */
+  mms_budget_bytes: number;
 }
 
 /** #12 call-forwarding minutes embedded in GET /v1/usage. */

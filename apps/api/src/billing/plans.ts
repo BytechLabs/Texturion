@@ -76,6 +76,13 @@ export const MMS_STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
   pro: 25 * 1024 * 1024 * 1024,
 };
 
+/**
+ * #12 extra_storage module: the additional room the "Extra storage" add-on
+ * grants to EACH pool (attachments + MMS media) when enabled. Placeholder,
+ * tweakable — kept here as the one source of truth.
+ */
+export const EXTRA_STORAGE_BYTES = 10 * 1024 * 1024 * 1024;
+
 /** Human figure for the D30 budget copy ("5 GB", "25 GB"). */
 export function storageBudgetLabel(plan: PlanId): string {
   return `${STORAGE_BUDGET_BYTES[plan] / (1024 * 1024 * 1024)} GB`;
