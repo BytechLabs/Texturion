@@ -373,7 +373,7 @@ end $$;
 
 -- ===========================================================================
 -- VW-13. claim_text_enablement_slot — number_taken: a number already live on
---        JobText (any tenant — here the company's own active number) is a
+--        Loonext (any tenant — here the company's own active number) is a
 --        first-class 'number_taken' outcome, never a raw unique_violation.
 -- ===========================================================================
 do $$

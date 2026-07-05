@@ -76,7 +76,7 @@ export default function BusinessNumberPage() {
         wash
       >
         <p>
-          When you sign up, you tell JobText where your customers are, a city or
+          When you sign up, you tell Loonext where your customers are, a city or
           an area code, and we find you a local number to match. A shop in
           Toronto gets a (416) or (647); a shop in Austin gets a (512). The
           picker above uses the exact same numbering data the app uses to choose
@@ -115,7 +115,7 @@ export default function BusinessNumberPage() {
           conversations, and sometimes the customers, leave with them.
         </p>
         <p>
-          A JobText number fixes that at the root. It&apos;s owned by the
+          A Loonext number fixes that at the root. It&apos;s owned by the
           company and shared by the crew, so the front door to your business is a
           single, consistent number that everyone can answer and nobody can walk
           off with. Your own cell stops buzzing with work at 9pm, and the
@@ -126,7 +126,7 @@ export default function BusinessNumberPage() {
       {/* Section 3, bring your existing number (real porting). */}
       <FeatureSection
         eyebrow="Bring your number"
-        heading="Keep the number on your trucks, transfer it to JobText, free."
+        heading="Keep the number on your trucks, transfer it to Loonext, free."
         visual={
           <PhotoFrame
             id="tools-wall"
@@ -141,7 +141,7 @@ export default function BusinessNumberPage() {
           Already have a number your customers know, the one on your trucks,
           your yard signs, and your Google listing? Bring it with you.{" "}
           <strong>
-            You can transfer your existing US or Canadian number to JobText for
+            You can transfer your existing US or Canadian number to Loonext for
             free
           </strong>
           , and keep every customer who has it saved. At signup, choose
@@ -152,8 +152,8 @@ export default function BusinessNumberPage() {
         <p>
           A transfer typically takes about 1 to 7 business days. The important
           part: your number keeps working on your current carrier the whole
-          time, so nothing goes dark, it switches over to JobText on the
-          transfer date, and texting through JobText turns on once the transfer
+          time, so nothing goes dark, it switches over to Loonext on the
+          transfer date, and texting through Loonext turns on once the transfer
           finishes. We show you exactly where the transfer is the entire way and
           email you at each step. In a hurry? Get a new local number now and
           transfer your existing one alongside it.{" "}
@@ -184,7 +184,7 @@ export default function BusinessNumberPage() {
         <p>
           It&apos;s a genuinely useful setup that usually costs extra elsewhere,
           the per-user tools tend to bill a few dollars a month for every added
-          number. On JobText, the second number is simply part of Pro.
+          number. On Loonext, the second number is simply part of Pro.
         </p>
       </FeatureSection>
 
@@ -203,7 +203,7 @@ export default function BusinessNumberPage() {
         flip
       >
         <p>
-          If your customers are in Canada, a Canadian number on JobText is live
+          If your customers are in Canada, a Canadian number on Loonext is live
           for texting the day you sign up, no US carrier registration to wait
           on, because that requirement doesn&apos;t apply to a Canadian business
           texting Canadian customers. Local numbers are available across every
@@ -253,12 +253,12 @@ export default function BusinessNumberPage() {
 
       {/* Honest details. */}
       <HonestDetails
-        lead="A phone number is a serious thing to hand your customers, so here's exactly how JobText numbers work, including what isn't possible yet."
+        lead="A phone number is a serious thing to hand your customers, so here's exactly how Loonext numbers work, including what isn't possible yet."
         items={[
           {
             term: "A transfer takes days, not minutes, and we set the timeline honestly.",
             detail:
-              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time, it only switches to JobText on the transfer date, and texting through JobText turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
+              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time, it only switches to Loonext on the transfer date, and texting through Loonext turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
           },
           {
             term: "Numbers are US and Canada only.",
@@ -313,12 +313,12 @@ export default function BusinessNumberPage() {
             hint: "Crews spread across sites, all reachable at one local number.",
           },
           {
-            label: "JobText in Canada",
+            label: "Loonext in Canada",
             href: "/canada",
             hint: "Local Canadian numbers that text the same day you sign up.",
           },
           {
-            label: "JobText vs Quo",
+            label: "Loonext vs Quo",
             href: "/compare/quo",
             hint: "Two numbers on Pro, next to a tool that charges per extra number.",
           },
@@ -335,7 +335,7 @@ export default function BusinessNumberPage() {
           },
           {
             q: "Can I keep the number already on my trucks and my Google listing?",
-            a: "Yes, transfer it to JobText. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date, texting through JobText turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
+            a: "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to Loonext on the transfer date, texting through Loonext turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
           },
           {
             q: "What do the two numbers on Pro actually get me?",

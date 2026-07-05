@@ -11,7 +11,7 @@
  * (footer identity line, /contact, legal pages) updates together.
  */
 
-/** Registered legal entity name, e.g. "JobText Technologies Inc.", from ops. */
+/** Registered legal entity name, e.g. "Loonext Technologies Inc.", from ops. */
 export const LEGAL_ENTITY_NAME: string | null = null;
 
 /** Mailing address (single line), required for CASL identification, from ops. */
@@ -21,13 +21,13 @@ export const MAILING_ADDRESS: string | null = null;
 export const PRIVACY_OFFICER_NAME: string | null = null;
 
 /** Support email, the only support channel (BLUEPRINT §2: no chat, no phone). */
-export const SUPPORT_EMAIL = "support@jobtext.app";
+export const SUPPORT_EMAIL = "support@loonext.app";
 
 /** Responsible-disclosure contact for /security (SPEC §10). */
-export const SECURITY_EMAIL = "security@jobtext.app";
+export const SECURITY_EMAIL = "security@loonext.app";
 
 /** Privacy contact for /legal/privacy. */
-export const PRIVACY_EMAIL = "privacy@jobtext.app";
+export const PRIVACY_EMAIL = "privacy@loonext.app";
 
 /** Support-response SLA (BLUEPRINT §14 placeholder until ops confirms). */
 export const SUPPORT_SLA = "We reply within 1 business day.";

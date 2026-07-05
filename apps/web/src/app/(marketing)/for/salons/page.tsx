@@ -48,7 +48,7 @@ const CONTENT: TradeContent = {
     </>
   ),
   heroSub:
-    "A no-show is an empty chair you can't get back, and a cancellation is only a loss if you can't fill it. JobText gives the front desk and every stylist one number to confirm appointments, work a waitlist, and rebook, so the chairs stay full and the “did they confirm?” guesswork ends.",
+    "A no-show is an empty chair you can't get back, and a cancellation is only a loss if you can't fill it. Loonext gives the front desk and every stylist one number to confirm appointments, work a waitlist, and rebook, so the chairs stay full and the “did they confirm?” guesswork ends.",
   heroTruthLine:
     "One number for the whole floor. Live in minutes. Month to month.",
   heroPhotoId: "owner-counter-phone",
@@ -57,7 +57,7 @@ const CONTENT: TradeContent = {
   painH2: "An empty chair is money you can't earn back. A confirmation is cheap.",
   painBody: [
     "At a busy salon, the front desk is one person, and that person can't be answering the phone, checking someone out, and confirming tomorrow's column all at once. So confirmations slip, a client forgets, and at 2pm a stylist is standing at an empty chair that was booked solid a week ago. That gap is pure lost revenue, and it happens on the days you can least afford it.",
-    "Cancellations aren't the problem; unfilled cancellations are. When a 3pm color cancels, there's almost always someone on a waitlist who'd take it, if you can reach them in the next ten minutes. JobText puts the whole floor on one inbox: confirm the day's appointments with a couple of taps, text the waitlist the moment a slot opens, and rebook a client before they've left the chair.",
+    "Cancellations aren't the problem; unfilled cancellations are. When a 3pm color cancels, there's almost always someone on a waitlist who'd take it, if you can reach them in the next ten minutes. Loonext puts the whole floor on one inbox: confirm the day's appointments with a couple of taps, text the waitlist the moment a slot opens, and rebook a client before they've left the chair.",
   ],
   painVisual: (
     <TradePhoto
@@ -168,7 +168,7 @@ const CONTENT: TradeContent = {
   faqH2: "Salon questions, straight answers.",
   faqs: [
     {
-      q: "Will JobText send appointment reminders on its own?",
+      q: "Will Loonext send appointment reminders on its own?",
       a: "No, you send them, and that's on purpose. Pull up tomorrow's column and text each client a confirmation with a saved reply; it takes a couple of taps per client and keeps a real person in the loop (the phone companies don't allow unsolicited blasts, and we won't fake “automated”). What you get is one shared inbox where the whole team sees who's confirmed and who hasn't.",
     },
     {

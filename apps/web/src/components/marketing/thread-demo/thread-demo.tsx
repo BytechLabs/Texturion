@@ -4,7 +4,7 @@
  * ThreadDemo (Track B), the shared live-thread component.
  *
  * The signature moment (BLUEPRINT §0.1): a real React component that renders a
- * JobText conversation in the app's visual language and animates a scripted
+ * Loonext conversation in the app's visual language and animates a scripted
  * exchange on the app's motion grammar (200ms fade + 4px rise). Built ONCE,
  * parameterized by script, and reused by the hero (§3.1, autoplay), the §3.4
  * deep-dive (steppable), the dark band (§3.7), and bento tiles 1 & 5 (§3.6).

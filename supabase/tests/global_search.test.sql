@@ -1,11 +1,11 @@
--- JobText global-search assertion suite (D29 — migration
+-- Loonext global-search assertion suite (D29 — migration
 -- 20260704020000_global_search.sql): trigram indexes for the new arms,
 -- api_search_v2 privilege posture, and every arm company-scoped with the
 -- promised hit shapes (note direction on conversation hits, derived task
 -- done, fuzzy description/filename matching, template snippet).
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/global_search.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes
 -- the local database.

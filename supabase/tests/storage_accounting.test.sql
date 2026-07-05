@@ -5,7 +5,7 @@
 --
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/storage_accounting.test.sql
 --
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes

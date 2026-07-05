@@ -47,7 +47,7 @@ const CONTENT: TradeContent = {
     </>
   ),
   heroSub:
-    "Half your business is the same clients on repeat, and half the job is knowing how to get in. Gate codes, lockbox notes, “the dog stays crated,” reschedules. JobText keeps all of it in one inbox every cleaner on the team can see, from one business number.",
+    "Half your business is the same clients on repeat, and half the job is knowing how to get in. Gate codes, lockbox notes, “the dog stays crated,” reschedules. Loonext keeps all of it in one inbox every cleaner on the team can see, from one business number.",
   heroTruthLine:
     "Access notes saved to the client, not one person's phone. Live in minutes. Month to month.",
   heroPhotoId: "owner-apron-phone",
@@ -56,7 +56,7 @@ const CONTENT: TradeContent = {
   painH2: "Half the job is getting in the door. That info can't live on one phone.",
   painBody: [
     "Cleaning is a relationship business built on trust and repetition. The same homes, the same offices, week after week, and every one of them has a way in: a door code, a lockbox, a “side gate's unlocked, key's under the mat.” When that lives in one owner's text history, the cleaner sent to cover a shift is locked out on the porch, texting “what's the code again?” to a phone that's busy.",
-    "Then there are the reschedules. A client pushes Friday to Monday, someone on the team says yes, and now two cleaners think they're covering it, or nobody does. JobText gives the whole team one inbox: the access notes sit on the client, the reschedule is visible to everyone, and the person who shows up already knows the code, the dog, and what the client asked for last time.",
+    "Then there are the reschedules. A client pushes Friday to Monday, someone on the team says yes, and now two cleaners think they're covering it, or nobody does. Loonext gives the whole team one inbox: the access notes sit on the client, the reschedule is visible to everyone, and the person who shows up already knows the code, the dog, and what the client asked for last time.",
   ],
   painVisual: (
     <TradePhoto
@@ -172,7 +172,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We reschedule a lot. Will two cleaners end up covering the same house?",
-      a: "Not when the reschedule is in one shared inbox. Assign the visit to one owner and the whole team sees who's got it and when, no double-coverage, no gap. JobText doesn't move appointments for you, but everyone's looking at the same thread instead of separate phones.",
+      a: "Not when the reschedule is in one shared inbox. Assign the visit to one owner and the whole team sees who's got it and when, no double-coverage, no gap. Loonext doesn't move appointments for you, but everyone's looking at the same thread instead of separate phones.",
     },
     {
       q: "Most of our clients are weekly or biweekly regulars. Does texting help?",

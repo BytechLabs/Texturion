@@ -53,7 +53,7 @@ export function NightHero() {
             </h1>
 
             <p className="mt-6 max-w-[52ch] text-base leading-[1.65] text-[color:var(--ink-70)] sm:text-[1.0625rem]">
-              JobText gives your shop one local number and a shared inbox the
+              Loonext gives your shop one local number and a shared inbox the
               whole crew can see. Every customer text gets answered, assigned,
               and closed. $29 a month flat for the team, not per person.
             </p>
@@ -92,7 +92,7 @@ export function NightHero() {
               // Distinct from S3's deck-verbatim stage label: two landmarks
               // sharing one accessible name is an AT navigation trap, and the
               // deck defines the "Demo:" string for the S3 stage only.
-              aria-label="Preview: a Reyes Plumbing conversation in the JobText inbox"
+              aria-label="Preview: a Reyes Plumbing conversation in the Loonext inbox"
               className="panel-card font-body-mkt overflow-hidden rounded-xl text-left text-sm leading-[1.45] text-[color:var(--day-ink)]"
             >
               {/* Slim header row: name · unread dot · mono "now". The dot's

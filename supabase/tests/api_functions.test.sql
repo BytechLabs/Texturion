@@ -1,9 +1,9 @@
--- JobText API route-function assertion suite (SPEC §7 — migrations
+-- Loonext API route-function assertion suite (SPEC §7 — migrations
 -- 20260701010000_api_route_functions.sql and
 -- 20260701050000_list_snippets_usage_history.sql).
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/api_functions.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes
 -- the local database.

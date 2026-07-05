@@ -15,14 +15,14 @@
  * Supabase-dashboard config item, NOT shipped in this bundle. Google needs a
  * Cloud OAuth 2.0 Web client (authorized redirect URI = the Supabase project's
  * `…/auth/v1/callback`); Apple needs a Services ID + Sign-in-with-Apple Key +
- * Team ID. Both must list JobText's prod + preview origins in the Supabase Auth
+ * Team ID. Both must list Loonext's prod + preview origins in the Supabase Auth
  * redirect allow list. No provider secret ever reaches the browser (D8) — the
  * frontend gets only NEXT_PUBLIC_SUPABASE_URL + publishable key.
  */
 
 import { safeNextPath } from "./redirects";
 
-/** The OAuth providers JobText offers alongside email/password (D18). */
+/** The OAuth providers Loonext offers alongside email/password (D18). */
 export type OAuthProvider = "google" | "apple";
 
 /** The path the callback Route Handler lives at (apps/web). */

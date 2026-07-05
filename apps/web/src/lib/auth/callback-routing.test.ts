@@ -80,22 +80,22 @@ describe("resolveCallbackRedirect (D18 OAuth callback routing)", () => {
 
 describe("oauthRedirectTo (signInWithOAuth redirectTo builder)", () => {
   it("targets the callback route on the given origin with a safe next", () => {
-    const url = oauthRedirectTo("https://app.jobtext.com", "/tasks");
+    const url = oauthRedirectTo("https://app.loonext.com", "/tasks");
     const parsed = new URL(url);
-    expect(parsed.origin).toBe("https://app.jobtext.com");
+    expect(parsed.origin).toBe("https://app.loonext.com");
     expect(parsed.pathname).toBe(AUTH_CALLBACK_PATH);
     expect(parsed.searchParams.get("next")).toBe("/tasks");
   });
 
   it("falls back to /for-you for a missing or unsafe next", () => {
     expect(
-      new URL(oauthRedirectTo("https://app.jobtext.com", null)).searchParams.get(
+      new URL(oauthRedirectTo("https://app.loonext.com", null)).searchParams.get(
         "next",
       ),
     ).toBe("/for-you");
     expect(
       new URL(
-        oauthRedirectTo("https://app.jobtext.com", "https://evil.com"),
+        oauthRedirectTo("https://app.loonext.com", "https://evil.com"),
       ).searchParams.get("next"),
     ).toBe("/for-you");
   });

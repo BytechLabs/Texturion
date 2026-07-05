@@ -346,7 +346,7 @@ describe("POST /v1/text-enablements", () => {
     expect(second.status).toBe(409);
   });
 
-  it("409s a number already in service on JobText (RPC outcome number_taken)", async () => {
+  it("409s a number already in service on Loonext (RPC outcome number_taken)", async () => {
     const h = buildHarness();
     // Another company's live number occupies the unique index.
     h.rest.insert("phone_numbers", {

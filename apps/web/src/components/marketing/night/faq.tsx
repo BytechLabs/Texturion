@@ -35,7 +35,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does the 30-day guarantee work?",
-    a: "Run JobText for a month. If it isn’t catching texts that turn into work, tell us within 30 days and we refund what you paid.",
+    a: "Run Loonext for a month. If it isn’t catching texts that turn into work, tell us within 30 days and we refund what you paid.",
   },
   {
     q: "Does the crew need new phones?",

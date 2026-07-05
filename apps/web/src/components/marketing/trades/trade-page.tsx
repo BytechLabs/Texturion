@@ -17,7 +17,7 @@
  *  - CTA copy is "Start for $29", kept identical through the flow (§6).
  *
  * Section order: hero (duotone photo + composed headline) -> the scripted thread
- * -> "sound familiar?" pain (real photo) -> how JobText fits (supporting photo)
+ * -> "sound familiar?" pain (real photo) -> how Loonext fits (supporting photo)
  * -> use cases -> saved-replies pack -> features strip -> pricing teaser -> FAQ
  * -> deep-petrol final CTA.
  *
@@ -95,14 +95,14 @@ export interface TradeContent {
   /** A trade-relevant real duotone photo for the pain section. */
   painVisual: ReactNode;
 
-  /** How JobText fits, the live thread demo. */
+  /** How Loonext fits, the live thread demo. */
   threadH2: ReactNode;
   /** One-line framing above the demo. */
   threadLede: string;
   /** The trade-specific scripted thread (reuses the shared ThreadDemo). */
   script: ThreadScript;
 
-  /** A trade-relevant supporting graphic shown beside the "how JobText fits" copy. */
+  /** A trade-relevant supporting graphic shown beside the "how Loonext fits" copy. */
   supportingGraphic: ReactNode;
 
   /** Use cases. */
@@ -228,7 +228,7 @@ export function TradePage({ content }: { content: TradeContent }) {
         </Container>
       </Section>
 
-      {/* How JobText fits: the trade's own catch, played out. The scripted
+      {/* How Loonext fits: the trade's own catch, played out. The scripted
           thread is the live-DOM centerpiece; a supporting duotone photo sits
           beside the framing copy. Back on the paper ground. */}
       <Section defer intrinsic={640}>

@@ -13,7 +13,7 @@ import { buildImportCsv, type ImportMapping } from "./csv-import";
  * surface, no second pipeline (§3.3 "shared upsert route").
  */
 
-/** The two properties JobText asks the picker for (name + phone). */
+/** The two properties Loonext asks the picker for (name + phone). */
 export const PICKER_PROPERTIES = ["name", "tel"] as const;
 
 /**

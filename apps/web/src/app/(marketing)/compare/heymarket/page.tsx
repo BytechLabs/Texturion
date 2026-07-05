@@ -1,7 +1,7 @@
 /**
- * /compare/heymarket. JobText vs Heymarket (BLUEPRINT §5–6).
+ * /compare/heymarket. Loonext vs Heymarket (BLUEPRINT §5–6).
  *
- * The flat-team-price page: JobText's one flat price vs Heymarket's per-user
+ * The flat-team-price page: Loonext's one flat price vs Heymarket's per-user
  * seats with a 2-user minimum, messages billed separately on top of seats, and
  * a $10/mo-per-campaign carrier fee. Heymarket is a genuine, enterprise-grade
  * shared inbox with SOC 2, HIPAA/BAA, email, and deep CRM integrations, we
@@ -48,9 +48,9 @@ const PATH = "/compare/heymarket";
 const COMPETITOR = "Heymarket";
 
 export const metadata: Metadata = buildMetadata({
-  title: "JobText vs Heymarket: pricing & honest differences (2026)",
+  title: "Loonext vs Heymarket: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is $29/mo flat for the crew; Heymarket is $49/user (2-user minimum), with texts and a carrier fee billed separately.",
+    "A fair, dated comparison: Loonext is $29/mo flat for the crew; Heymarket is $49/user (2-user minimum), with texts and a carrier fee billed separately.",
   path: PATH,
 });
 
@@ -61,7 +61,7 @@ export const metadata: Metadata = buildMetadata({
 const ROWS: ComparisonRow[] = [
   {
     label: "Base price",
-    jobtext: {
+    loonext: {
       value: "$29/mo flat (3 people) · $79/mo (10 people)",
       emphasis: true,
       note: "Whole team, one price. Not per seat (SPEC §2).",
@@ -73,7 +73,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "How texts are priced",
-    jobtext: {
+    loonext: {
       value: "Included, 500 on Starter, 2,500 on Pro",
       emphasis: true,
       note: "Outgoing texts are in the plan; receiving is free and unlimited.",
@@ -85,7 +85,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Carrier / 10DLC fee",
-    jobtext: {
+    loonext: {
       value: "$29 one time, ever",
       note: "One-time US registration fee; Canadian-only texting never pays it (SPEC §4.1).",
     },
@@ -96,7 +96,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "How you buy",
-    jobtext: {
+    loonext: {
       value: "Self-serve, sign up and pay online",
       emphasis: true,
       note: "No demo required (SPEC §1).",
@@ -108,7 +108,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Contract",
-    jobtext: {
+    loonext: {
       value: "Month to month",
       emphasis: true,
       note: "Cancel anytime in billing settings.",
@@ -120,9 +120,9 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Email channel",
-    jobtext: {
+    loonext: {
       value: "Not included, texting only",
-      note: "JobText is a shared SMS inbox; no email inbox.",
+      note: "Loonext is a shared SMS inbox; no email inbox.",
     },
     competitor: {
       value: "Included (email at $0.0025/segment)",
@@ -132,7 +132,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Enterprise compliance",
-    jobtext: {
+    loonext: {
       value: "Encryption + tenant isolation + US residency, stated plainly",
       note: "No SOC 2 or HIPAA/BAA claims, we don't hold them yet (SPEC §10).",
     },
@@ -149,25 +149,25 @@ const ROWS: ComparisonRow[] = [
 /* -------------------------------------------------------------------------- */
 
 function HeymarketCostStack() {
-  const rows: { label: string; jobtext: string; heymarket: string }[] = [
+  const rows: { label: string; loonext: string; heymarket: string }[] = [
     {
       label: "Seats (3 people)",
-      jobtext: "$29 flat, covers 3",
+      loonext: "$29 flat, covers 3",
       heymarket: "$49/user × 3 = $147",
     },
     {
       label: "500 texts a month",
-      jobtext: "Included",
+      loonext: "Included",
       heymarket: "~$15 (3¢/segment × 500, single-segment)",
     },
     {
       label: "Carrier / 10DLC fee",
-      jobtext: "$0/mo (one-time $29)",
+      loonext: "$0/mo (one-time $29)",
       heymarket: "$10/mo per campaign",
     },
     {
       label: "Monthly total",
-      jobtext: "$29",
+      loonext: "$29",
       heymarket: "≈ $172/mo",
     },
   ];
@@ -178,7 +178,7 @@ function HeymarketCostStack() {
           <tr className="border-b border-[color:var(--hairline)]">
             <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
             <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
-              JobText Starter
+              Loonext Starter
             </th>
             <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
               Heymarket Standard
@@ -206,7 +206,7 @@ function HeymarketCostStack() {
                   {r.label}
                 </th>
                 <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-semibold tabular-nums text-[color:var(--ink)]">
-                  {r.jobtext}
+                  {r.loonext}
                 </td>
                 <td
                   className={cn(
@@ -229,28 +229,28 @@ function HeymarketCostStack() {
 
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
-    q: "Why is JobText so much cheaper for a small crew?",
-    a: "Because we don't charge per seat, we include your texts, and we don't add a monthly carrier line item. Heymarket's model is per user (2-user minimum), plus 3¢ a segment for texts, plus $10 a month per campaign. For a 3-person shop sending 500 texts that stacks up to roughly $172 a month; on JobText the same crew is $29. If you're a large team where seats are the smaller part of the bill, that gap narrows.",
+    q: "Why is Loonext so much cheaper for a small crew?",
+    a: "Because we don't charge per seat, we include your texts, and we don't add a monthly carrier line item. Heymarket's model is per user (2-user minimum), plus 3¢ a segment for texts, plus $10 a month per campaign. For a 3-person shop sending 500 texts that stacks up to roughly $172 a month; on Loonext the same crew is $29. If you're a large team where seats are the smaller part of the bill, that gap narrows.",
   },
   {
     q: "Does Heymarket really route you to a demo even though prices are listed?",
-    a: "As of July 2026, yes, the per-user prices are printed on Heymarket's pricing page, but the button on every paid tier says \"Book a free demo\" rather than sign up. JobText skips that step: the price is on the page and the button starts your account. If a guided demo is something you actively want, that's a point for Heymarket, not against it.",
+    a: "As of July 2026, yes, the per-user prices are printed on Heymarket's pricing page, but the button on every paid tier says \"Book a free demo\" rather than sign up. Loonext skips that step: the price is on the page and the button starts your account. If a guided demo is something you actively want, that's a point for Heymarket, not against it.",
   },
   {
-    q: "We might need email and SMS in one inbox. Can JobText do that?",
-    a: "No. JobText is a shared SMS inbox, texting only. Heymarket added a shared email channel (billed per segment), so if a unified text-and-email inbox is a requirement, Heymarket fits that better and we'd tell you to use it. If texting is the whole job, JobText does that one thing for a flat price.",
+    q: "We might need email and SMS in one inbox. Can Loonext do that?",
+    a: "No. Loonext is a shared SMS inbox, texting only. Heymarket added a shared email channel (billed per segment), so if a unified text-and-email inbox is a requirement, Heymarket fits that better and we'd tell you to use it. If texting is the whole job, Loonext does that one thing for a flat price.",
   },
   {
-    q: "Is Heymarket more secure than JobText?",
-    a: "On paper, today, in the ways auditors measure: Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA; JobText doesn't hold those certifications yet, and we won't claim badges we don't have. What we do state plainly and can prove: data encrypted in transit and at rest, tenant isolation, US data residency, and no message content in our analytics or error logs. For a regulated healthcare buyer, Heymarket's certifications are a real edge.",
+    q: "Is Heymarket more secure than Loonext?",
+    a: "On paper, today, in the ways auditors measure: Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA; Loonext doesn't hold those certifications yet, and we won't claim badges we don't have. What we do state plainly and can prove: data encrypted in transit and at rest, tenant isolation, US data residency, and no message content in our analytics or error logs. For a regulated healthcare buyer, Heymarket's certifications are a real edge.",
   },
   {
-    q: "How long until I can text US customers on JobText?",
+    q: "How long until I can text US customers on Loonext?",
     a: "About a week. Every business that texts US numbers has to register with the carriers first. Heymarket handles that with its $10/mo campaign fee, we handle it with a one-time $29 fee. We file yours the minute you pay; approval usually lands in 3–7 business days, and receiving texts works right away. Canadian texting is same-day.",
   },
   {
     q: "Can I bring my existing number over?",
-    a: "Yes, you can transfer your existing US or Canadian number into JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the carrier paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier the whole time, it switches to JobText on the transfer date, and texting on it turns on once the transfer completes. If you want to text before it finishes, get a new local number now and transfer your old one alongside it.",
+    a: "Yes, you can transfer your existing US or Canadian number into Loonext for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the carrier paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier the whole time, it switches to Loonext on the transfer date, and texting on it turns on once the transfer completes. If you want to text before it finishes, get a new local number now and transfer your old one alongside it.",
   },
 ];
 
@@ -261,19 +261,19 @@ export default function CompareHeymarketPage() {
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
           { name: "Compare", path: "/compare" },
-          { name: "JobText vs Heymarket", path: PATH },
+          { name: "Loonext vs Heymarket", path: PATH },
         ])}
       />
 
       <CompareHero
-        eyebrow="JobText vs Heymarket"
+        eyebrow="Loonext vs Heymarket"
         title={
           <>
             One <Display.Mark>flat price</Display.Mark>, next to per-seat plus
             extras.
           </>
         }
-        lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations, genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. JobText is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
+        lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations, genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. Loonext is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
         visual={
           <CompareHeroPhoto
             photoId="crew-rooftop"
@@ -288,7 +288,7 @@ export default function CompareHeymarketPage() {
             Side by side, with the sources in the cells.
           </Display>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-            JobText facts are from our own product and pricing. Every Heymarket
+            Loonext facts are from our own product and pricing. Every Heymarket
             figure is dated July 2026 and cites the exact line item from its
             public pricing page, including the parts that count in Heymarket&apos;s
             favor.
@@ -302,13 +302,13 @@ export default function CompareHeymarketPage() {
       {/* At-a-glance visual, flat vs per-seat (VISUALS §3 compare-page rule). */}
       <AtAGlanceChart
         heading="One flat price vs. a bill that grows per seat."
-        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. JobText is flat, $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
+        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. Loonext is flat, $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
       />
 
       <WhoEachIsFor
         heading="Who each one is really for."
-        jobtextTitle="Reach for JobText if…"
-        jobtextBody={
+        loonextTitle="Reach for Loonext if…"
+        loonextBody={
           <>
             <p>
               You&apos;re a small service crew where a per-user bill and a
@@ -341,19 +341,19 @@ export default function CompareHeymarketPage() {
 
       <BetterPickCallout
         heading="Where Heymarket may be the better pick."
-        intro="Heymarket is a serious product, and it beats JobText in concrete ways. If any of these are on your must-have list, buy Heymarket, you'll be happier."
+        intro="Heymarket is a serious product, and it beats Loonext in concrete ways. If any of these are on your must-have list, buy Heymarket, you'll be happier."
         points={[
           {
             title: "Enterprise compliance you can hand to an auditor.",
-            body: "Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA. JobText doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real, disqualifying gap on our side.",
+            body: "Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real, disqualifying gap on our side.",
           },
           {
             title: "Text and email in one shared inbox.",
-            body: "Heymarket handles both channels together. JobText is SMS only. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
+            body: "Heymarket handles both channels together. Loonext is SMS only. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
           },
           {
             title: "Deep CRM integrations and automations.",
-            body: "Heymarket integrates tightly with Salesforce and HubSpot and offers list broadcasts, campaigns, and AI-assisted flows. JobText keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
+            body: "Heymarket integrates tightly with Salesforce and HubSpot and offers list broadcasts, campaigns, and AI-assisted flows. Loonext keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
           },
         ]}
         recommendation={
@@ -361,14 +361,14 @@ export default function CompareHeymarketPage() {
             Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email inbox,
             or CRM-deep automations, buy Heymarket, it&apos;s built for that and
             does it well. If you&apos;re a small crew who just wants texting to
-            land in one place at one flat price, that&apos;s where JobText is the
+            land in one place at one flat price, that&apos;s where Loonext is the
             better-value call.
           </>
         }
       />
 
       <Advantages
-        heading="Where JobText wins for a small crew."
+        heading="Where Loonext wins for a small crew."
         lead="For a two-to-ten-person shop, the pricing model is the whole story, and it runs the other way from Heymarket's."
         items={[
           {
@@ -403,14 +403,14 @@ export default function CompareHeymarketPage() {
         lead="Same crew, same 500 texts a month, at published prices as of July 2026. Heymarket's total assumes each text is a single 160-character segment, longer texts count as more, so real Heymarket bills can run higher, not lower."
         footnote={
           <>
-            JobText&apos;s numbers come straight from our published plans (SPEC
+            Loonext&apos;s numbers come straight from our published plans (SPEC
             §1–2). Heymarket figures are from heymarket.com/pricing, re-verified
             2026-07-02:
             Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS
             $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total
             assumes 3 seats, 500 single-segment texts, and one campaign; texts
             over 160 characters count as multiple segments and cost more.
-            One-time registration fees are excluded from both totals (JobText&apos;s
+            One-time registration fees are excluded from both totals (Loonext&apos;s
             is $29). If any figure changes, tell us and we&apos;ll correct it.
           </>
         }
@@ -423,22 +423,22 @@ export default function CompareHeymarketPage() {
         body={
           <>
             <p>
-              Start JobText alongside Heymarket, sign up, choose your local
+              Start Loonext alongside Heymarket, sign up, choose your local
               number, and add the crew in minutes. Run both while you shift your
               texting over, then cancel Heymarket once your conversations live in
-              JobText. Because we&apos;re month to month, there&apos;s no exit
+              Loonext. Because we&apos;re month to month, there&apos;s no exit
               window on our side to plan around.
             </p>
             <p>
               <strong className="font-semibold text-[color:var(--ink)]">
                 On keeping your number:
               </strong>{" "}
-              you can transfer your existing US or Canadian number into JobText
+              you can transfer your existing US or Canadian number into Loonext
               for free, choose &ldquo;Bring my number&rdquo; at signup, share
               your current carrier details, and upload a recent bill; we handle
               the paperwork. A transfer typically takes about 1 to 7 business
               days, and your number keeps working on your current carrier until
-              it switches over to JobText, texting on it turns on once the
+              it switches over to Loonext, texting on it turns on once the
               transfer completes. No rush to move everyone at once.
             </p>
           </>
@@ -447,8 +447,8 @@ export default function CompareHeymarketPage() {
 
       {/* Internal links, feature + trade pages (SEO: thin-internal-linking fix). */}
       <CompareRelatedLinks
-        heading="If texting is the job, here's the JobText version."
-        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where JobText focuses, and where it fits a couple of trades."
+        heading="If texting is the job, here's the Loonext version."
+        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where Loonext focuses, and where it fits a couple of trades."
         links={[
           {
             label: "The shared inbox",

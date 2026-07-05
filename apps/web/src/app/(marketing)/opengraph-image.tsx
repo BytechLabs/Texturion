@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
  * "Open all night" identity (design spec §1, §4; copy deck FINAL metadata):
  * 1200×630, dark petrol ground #041F1C (never neutral black, spec §9), ONE
  * amber-lit inbound bubble carrying the deck's verbatim bubble text, a petrol
- * reply on its way back (the alt text's promise), the JobText wordmark, the
+ * reply on its way back (the alt text's promise), the Loonext wordmark, the
  * 9:47 PM clock stamp, and the footer line "One inbox. The whole crew. $29
  * flat."
  *

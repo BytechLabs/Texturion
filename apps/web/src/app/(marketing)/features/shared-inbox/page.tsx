@@ -90,7 +90,7 @@ export default function SharedInboxPage() {
               A text stops being one person&apos;s problem.
             </Display>
             <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-              When a customer texts your business number, JobText turns that text
+              When a customer texts your business number, Loonext turns that text
               into a conversation in a shared inbox. Priya sees it. Dale sees it.
               Marcus sees it. Whoever is free picks it up, and because everyone
               is looking at the same thread, two people never reply to the same
@@ -149,7 +149,7 @@ export default function SharedInboxPage() {
           Some of what a crew needs to say about a job should never leave the
           building: &ldquo;gate code 4482, dog is friendly,&rdquo; &ldquo;last
           visit ran long, quote high,&rdquo; &ldquo;this is the third backup on
-          that street.&rdquo; In JobText you write those as internal notes,
+          that street.&rdquo; In Loonext you write those as internal notes,
           right inside the conversation where they belong. Notes are drawn in an
           unmistakable amber card with a lock icon and an &ldquo;Internal
           note&rdquo; label, they are never sent to the customer, ever, and the
@@ -172,7 +172,7 @@ export default function SharedInboxPage() {
         wash
       >
         <p>
-          JobText is live. The moment someone on the crew sends a reply, the
+          Loonext is live. The moment someone on the crew sends a reply, the
           conversation updates on every other phone, the status changes, the
           snippet updates, the thread re-sorts to the top. You don&apos;t
           refresh, you don&apos;t poll, you don&apos;t wonder. If a customer
@@ -233,7 +233,7 @@ export default function SharedInboxPage() {
           {
             term: "It's a texting inbox, not a phone system.",
             detail:
-              "JobText handles SMS and MMS to and from your business number. It doesn't place or receive voice calls, and it doesn't do mass text blasts, it's built for one-to-one conversations a crew can share.",
+              "Loonext handles SMS and MMS to and from your business number. It doesn't place or receive voice calls, and it doesn't do mass text blasts, it's built for one-to-one conversations a crew can share.",
           },
           {
             term: "Receiving is free and unlimited; sending is what counts.",
@@ -276,7 +276,7 @@ export default function SharedInboxPage() {
       {/* Internal links, trades + related features + a comparison. */}
       <RelatedLinks
         heading="See the shared inbox in your trade"
-        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades, and where JobText's flat, shared model stands next to the per-seat tools."
+        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades, and where Loonext's flat, shared model stands next to the per-seat tools."
         links={[
           {
             label: "Texting for plumbers",
@@ -294,7 +294,7 @@ export default function SharedInboxPage() {
             hint: "Saved replies, sell-pipeline tags, and done-marks inside the inbox.",
           },
           {
-            label: "JobText vs Heymarket",
+            label: "Loonext vs Heymarket",
             href: "/compare/heymarket",
             hint: "A shared inbox at a flat price, next to a per-user platform.",
           },
@@ -315,7 +315,7 @@ export default function SharedInboxPage() {
           },
           {
             q: "Do customers know it's a shared inbox and not one person's phone?",
-            a: "No, to the customer it's a normal text conversation with your business. Internal notes and assignments live inside JobText and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
+            a: "No, to the customer it's a normal text conversation with your business. Internal notes and assignments live inside Loonext and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
           },
           {
             q: "What happens to conversations when a teammate leaves?",

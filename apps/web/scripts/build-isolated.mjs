@@ -10,14 +10,14 @@
  * Those were the flaky red bars: the build itself is correct (typecheck passes),
  * the failure is a shared-cache race, not a source error.
  *
- * next.config.ts honors JOBTEXT_DIST_DIR (sets `distDir`). This script points it
+ * next.config.ts honors LOONEXT_DIST_DIR (sets `distDir`). This script points it
  * at a FRESH, unique dir per build (`.next-build-<pid>-<ts>`), removes any stale
  * one first, runs `next build`, and cleans up on success. The build can then run
  * green regardless of a concurrent dev server, because it never touches `.next`.
  *
  * Usage:  pnpm --filter @loonext/web build:isolated
  *         # keep the output for `next start`:  KEEP_DIST=1 pnpm ... build:isolated
- *         # pin the dir name:  JOBTEXT_DIST_DIR=.next-prod pnpm ... build:isolated
+ *         # pin the dir name:  LOONEXT_DIST_DIR=.next-prod pnpm ... build:isolated
  */
 
 import { spawnSync } from "node:child_process";
@@ -27,7 +27,7 @@ import { join } from "node:path";
 
 const webDir = process.cwd();
 const distDir =
-  process.env.JOBTEXT_DIST_DIR ||
+  process.env.LOONEXT_DIST_DIR ||
   `.next-build-${process.pid}-${Date.now()}`;
 const keep = process.env.KEEP_DIST === "1";
 const distPath = join(webDir, distDir);
@@ -50,7 +50,7 @@ clean();
 const require = createRequire(import.meta.url);
 const nextBin = require.resolve("next/dist/bin/next");
 
-const env = { ...process.env, JOBTEXT_DIST_DIR: distDir };
+const env = { ...process.env, LOONEXT_DIST_DIR: distDir };
 
 function nextBuild() {
   return spawnSync(process.execPath, [nextBin, "build"], {

@@ -5,7 +5,7 @@ import { SITE_URL, absoluteUrl } from "./site";
 /**
  * Per-page Metadata builder for marketing routes (BLUEPRINT §11.1).
  *
- * - `title` feeds the root "%s · JobText" template unless `absoluteTitle` is set
+ * - `title` feeds the root "%s · Loonext" template unless `absoluteTitle` is set
  *   (the home page uses an absolute title).
  * - Descriptions are hand-written per page (no templating, §11.1).
  * - `alternates.canonical` is emitted for every page.
@@ -31,7 +31,7 @@ export function buildMetadata({
     alternates: { canonical },
     openGraph: {
       type: "website",
-      siteName: "JobText",
+      siteName: "Loonext",
       title,
       description,
       url: canonical,
@@ -66,7 +66,7 @@ export function organizationJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "@id": ORG_ID,
-    name: "JobText",
+    name: "Loonext",
     url: SITE_URL,
     logo: `${SITE_URL}/icons/icon-512.png`,
     description:
@@ -80,7 +80,7 @@ export function websiteJsonLd() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "@id": `${SITE_URL}/#website`,
-    name: "JobText",
+    name: "Loonext",
     url: SITE_URL,
     publisher: { "@id": ORG_ID },
   } as const;
@@ -97,7 +97,7 @@ export function softwareApplicationJsonLd() {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "@id": `${SITE_URL}/#software`,
-    name: "JobText",
+    name: "Loonext",
     applicationCategory: "BusinessApplication",
     applicationSubCategory: "WebApplication",
     operatingSystem: "Web",

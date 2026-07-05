@@ -303,7 +303,7 @@ function ReleaseHostedNumberDialog({
           <DialogHeader>
             <DialogTitle>Remove texting from {display}?</DialogTitle>
             <DialogDescription>
-              This releases the number from JobText: texting stops and its plan
+              This releases the number from Loonext: texting stops and its plan
               slot frees up. Calls aren&apos;t affected — the number itself
               stays with your current carrier. Text-enabling it again later
               means a fresh carrier review. Type the number to confirm.

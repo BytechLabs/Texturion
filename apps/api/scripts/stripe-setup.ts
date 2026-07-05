@@ -8,14 +8,14 @@
  * Finds-or-creates, exactly per SPEC §2/§9:
  *   - Billing Meter `sms_segments` (sum aggregation, customer mapping by
  *     stripe_customer_id, value from `value`)
- *   - Products: JobText Starter, JobText Pro (SaaS tax code on both),
+ *   - Products: Loonext Starter, Loonext Pro (SaaS tax code on both),
  *     US texting registration
  *   - Prices: $29/mo + $79/mo licensed; graduated metered overage
  *     (0–500 / 0–2,500 at $0, then $0.03 / $0.025 via unit_amount_decimal);
  *     $29 one-time US registration. All tax-exclusive.
  *
  * Idempotency: the meter is keyed by `event_name`, products by
- * `metadata.jobtext_catalog`, prices by `lookup_key` — reruns reuse existing
+ * `metadata.loonext_catalog`, prices by `lookup_key` — reruns reuse existing
  * objects and only print the ids. Prints the exact env lines the Worker needs.
  */
 import Stripe from "stripe";
@@ -83,7 +83,7 @@ async function ensureProduct(
     active: true,
     limit: 100,
   })) {
-    if (product.metadata.jobtext_catalog === catalogKey) {
+    if (product.metadata.loonext_catalog === catalogKey) {
       console.error(`product: reusing ${product.id} (${catalogKey})`);
       return product;
     }
@@ -91,7 +91,7 @@ async function ensureProduct(
   const product = await stripe.products.create({
     name,
     tax_code: SAAS_TAX_CODE,
-    metadata: { jobtext_catalog: catalogKey },
+    metadata: { loonext_catalog: catalogKey },
   });
   console.error(`product: created ${product.id} (${catalogKey})`);
   return product;
@@ -117,15 +117,15 @@ async function ensurePrice(
 
 try {
   const meter = await ensureMeter();
-  const starterProduct = await ensureProduct("starter", "JobText Starter");
-  const proProduct = await ensureProduct("pro", "JobText Pro");
+  const starterProduct = await ensureProduct("starter", "Loonext Starter");
+  const proProduct = await ensureProduct("pro", "Loonext Pro");
   const registrationProduct = await ensureProduct(
     "us_registration",
     "US texting registration",
   );
 
   // Starter licensed: $29/mo flat, tax-exclusive (SPEC §2, §9).
-  const starterLicensed = await ensurePrice("jobtext_starter_licensed", {
+  const starterLicensed = await ensurePrice("loonext_starter_licensed", {
     product: starterProduct.id,
     currency: "usd",
     unit_amount: 2900,
@@ -134,7 +134,7 @@ try {
   });
 
   // Starter metered overage: 0–500 at $0, then $0.03/segment (SPEC §9).
-  const starterOverage = await ensurePrice("jobtext_starter_overage", {
+  const starterOverage = await ensurePrice("loonext_starter_overage", {
     product: starterProduct.id,
     currency: "usd",
     recurring: { interval: "month", usage_type: "metered", meter: meter.id },
@@ -148,7 +148,7 @@ try {
   });
 
   // Pro licensed: $79/mo flat.
-  const proLicensed = await ensurePrice("jobtext_pro_licensed", {
+  const proLicensed = await ensurePrice("loonext_pro_licensed", {
     product: proProduct.id,
     currency: "usd",
     unit_amount: 7900,
@@ -159,7 +159,7 @@ try {
   // Pro metered overage: 0–2,500 at $0, then $0.025/segment — fractional
   // cents require unit_amount_decimal (SPEC §9); stripe v22 models decimal
   // params with its branded Decimal type.
-  const proOverage = await ensurePrice("jobtext_pro_overage", {
+  const proOverage = await ensurePrice("loonext_pro_overage", {
     product: proProduct.id,
     currency: "usd",
     recurring: { interval: "month", usage_type: "metered", meter: meter.id },
@@ -173,7 +173,7 @@ try {
   });
 
   // US registration: $29 one-time, at most once per company ever (SPEC §2).
-  const usFee = await ensurePrice("jobtext_us_registration", {
+  const usFee = await ensurePrice("loonext_us_registration", {
     product: registrationProduct.id,
     currency: "usd",
     unit_amount: 2900,
@@ -186,9 +186,9 @@ try {
   for (const mod of MODULE_PRICES) {
     const product = await ensureProduct(
       `module_${mod.id}`,
-      `JobText — ${mod.label}`,
+      `Loonext — ${mod.label}`,
     );
-    const price = await ensurePrice(`jobtext_module_${mod.id}_licensed`, {
+    const price = await ensurePrice(`loonext_module_${mod.id}_licensed`, {
       product: product.id,
       currency: "usd",
       unit_amount: mod.monthlyCents,

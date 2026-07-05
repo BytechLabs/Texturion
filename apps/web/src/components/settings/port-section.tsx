@@ -48,7 +48,7 @@ export function PortSection({ company }: { company: CompanyView }) {
     return (
       <SettingsCard
         title="Bring your existing number"
-        description="Transfer the number your customers already know to JobText — it's free, and it keeps working until the switch completes."
+        description="Transfer the number your customers already know to Loonext — it's free, and it keeps working until the switch completes."
       >
         <StartPortDialog country={company.country} />
       </SettingsCard>
@@ -58,7 +58,7 @@ export function PortSection({ company }: { company: CompanyView }) {
   return (
     <SettingsCard
       title="Number transfers"
-      description="Bringing your existing number over to JobText."
+      description="Bringing your existing number over to Loonext."
     >
       <div className="space-y-5">
         {rows.map((port) => (

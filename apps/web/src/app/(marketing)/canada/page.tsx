@@ -72,7 +72,7 @@ export default function CanadaPage() {
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
                 The US carrier registration that makes American shops wait about
                 a week doesn&apos;t apply to a Canadian business texting Canadian
-                customers. So on JobText, you pick a local number, invite the
+                customers. So on Loonext, you pick a local number, invite the
                 crew, and start texting, today. One shared inbox, one flat price:
                 a flat{" "}
                 <span className="font-mono-mkt text-[color:var(--petrol)]">
@@ -143,7 +143,7 @@ export default function CanadaPage() {
         </p>
         <p>
           That&apos;s not a workaround or a trial mode, it&apos;s how the rules
-          actually work north of the border, and JobText is built to take
+          actually work north of the border, and Loonext is built to take
           advantage of it. Pick your number, add your crew, put &ldquo;call or
           text&rdquo; on your trucks, and you&apos;re in business the same
           afternoon.
@@ -158,7 +158,7 @@ export default function CanadaPage() {
         flip
       >
         <p>
-          Type your city and JobText finds you a matching local number, a (416)
+          Type your city and Loonext finds you a matching local number, a (416)
           or (647) in Toronto, a (604) in Vancouver, a (403) in Calgary, a (902)
           in Halifax. The picker uses the same real numbering data the app uses
           to choose your number, so a customer in your city sees a number that
@@ -179,7 +179,7 @@ export default function CanadaPage() {
         wash
       >
         <p>
-          CASL is Canada&apos;s anti-spam law, and JobText is built with it in
+          CASL is Canada&apos;s anti-spam law, and Loonext is built with it in
           mind. Consent is recorded when you start a conversation, one checkbox
           confirming the customer asked you to text them, saved with a name and a
           date. Your first text to a new contact automatically ends with your
@@ -189,7 +189,7 @@ export default function CanadaPage() {
           blocked.
         </p>
         <p>
-          We&apos;re careful with the words here: JobText <em>helps you follow</em>{" "}
+          We&apos;re careful with the words here: Loonext <em>helps you follow</em>{" "}
           CASL, it doesn&apos;t make you &ldquo;CASL-compliant,&rdquo; because
           staying within the law also depends on you only texting people who
           actually agreed to hear from you. We give you the consent records, the
@@ -396,8 +396,8 @@ export default function CanadaPage() {
             a: "Yes, a local number in the area code you choose, available across every province. Type your city in the picker on this page and you'll see the exact area code you'd get, from the same numbering data the app uses.",
           },
           {
-            q: "Does JobText make me CASL-compliant?",
-            a: "It helps you follow CASL, that's the honest phrasing. JobText records consent, adds your business identification to first messages, and enforces opt-outs, which are the mechanics CASL cares about. Staying compliant also depends on you only texting people who agreed to hear from you, which is on you, not the tool.",
+            q: "Does Loonext make me CASL-compliant?",
+            a: "It helps you follow CASL, that's the honest phrasing. Loonext records consent, adds your business identification to first messages, and enforces opt-outs, which are the mechanics CASL cares about. Staying compliant also depends on you only texting people who agreed to hear from you, which is on you, not the tool.",
           },
           {
             q: "Where is my data stored?",

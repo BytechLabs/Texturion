@@ -17,7 +17,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Privacy policy",
   description:
-    "How JobText handles your data under PIPEDA and Quebec Law 25: US data processing named plainly, and a firm commitment that mobile numbers and SMS consent data are never sold or shared for third-party marketing.",
+    "How Loonext handles your data under PIPEDA and Quebec Law 25: US data processing named plainly, and a firm commitment that mobile numbers and SMS consent data are never sold or shared for third-party marketing.",
   path: PATH,
 });
 
@@ -47,11 +47,11 @@ export default function PrivacyPage() {
     >
       <LegalSectionBlock id="scope" heading="1. Scope">
         <p>
-          This policy covers the personal information JobText handles when a
+          This policy covers the personal information Loonext handles when a
           business uses the service to text its customers. Two groups of people
           are involved: the <strong>account users</strong> on a business&apos;s
           crew, and the <strong>contacts</strong> those businesses text. The
-          business is the party that decides who to text and why; JobText
+          business is the party that decides who to text and why; Loonext
           processes that data to run the shared inbox on the business&apos;s
           behalf.
         </p>
@@ -102,12 +102,12 @@ export default function PrivacyPage() {
             to, third parties or affiliates for their own marketing.
           </strong>{" "}
           The consent a customer gives to be texted, and the phone number tied to
-          it, stay inside JobText and the business that collected them. They are
+          it, stay inside Loonext and the business that collected them. They are
           used only to deliver that business&apos;s messages and to honor
           opt-outs.
         </p>
         <p>
-          When a business starts a conversation with a new contact, JobText
+          When a business starts a conversation with a new contact, Loonext
           records that consent was attested, a name and a date, and
           automatically adds the business&apos;s identity and a &quot;Reply STOP
           to opt out&quot; line to the first message. When someone texts STOP,
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
 
       <LegalSectionBlock id="where" heading="5. Where your data lives">
         <p>
-          JobText processes and stores data in the <strong>United States</strong>
+          Loonext processes and stores data in the <strong>United States</strong>
           . Our database, authentication, and file storage run on Supabase in the
           AWS <code className="rounded bg-muted px-1 py-0.5 text-sm">us-east-1</code>{" "}
           region. If you are in Canada, your data is transferred to and processed
@@ -168,7 +168,7 @@ export default function PrivacyPage() {
         <p>
           For Quebec residents, Law 25 gives you additional rights, including the
           right to be informed of the use and disclosure of your information and
-          the right to portability. As required by Law 25, JobText has a
+          the right to portability. As required by Law 25, Loonext has a
           designated person responsible for the protection of personal
           information:{" "}
           <strong>

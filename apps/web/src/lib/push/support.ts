@@ -26,7 +26,7 @@ export function browserFamily(userAgent: string): BrowserFamily {
 export function permissionRecoverySteps(userAgent: string): string {
   switch (browserFamily(userAgent)) {
     case "ios":
-      return "Open Settings → Notifications → JobText on your phone, allow notifications, then come back here.";
+      return "Open Settings → Notifications → Loonext on your phone, allow notifications, then come back here.";
     case "firefox":
       return "Click the permissions icon next to the address bar, remove the notifications block, then reload this page.";
     case "safari":

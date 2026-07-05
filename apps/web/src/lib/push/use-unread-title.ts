@@ -2,7 +2,7 @@
 
 /**
  * useUnreadTitle — the G9 unread indicators: keeps `document.title` prefixed
- * with the unread conversation count (`(3) Inbox — JobText`) and swaps the
+ * with the unread conversation count (`(3) Inbox — Loonext`) and swaps the
  * SVG favicon to the dotted variant while anything is unread.
  *
  * Driven by the conversations unread data (G12: one source of truth): the

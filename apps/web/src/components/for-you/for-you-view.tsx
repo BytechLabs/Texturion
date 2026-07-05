@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 /** Open the shared command-K palette (the search glyph in the header). */
 function openCommand() {
-  window.dispatchEvent(new Event("jobtext:open-command"));
+  window.dispatchEvent(new Event("loonext:open-command"));
 }
 
 /**

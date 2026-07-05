@@ -59,7 +59,7 @@ const CONTENT: TradeContent = {
   painH2: "You can't quote a water heater with your hands in a drain.",
   painBody: [
     "Every plumber knows the cycle: you're mid-job, the phone buzzes, and it's either a new customer you can't answer or a scheduled one asking where you are. Voicemail fills up. Callbacks slip. And every quote, address, and “yes please book me” lives on one personal phone that goes home with one person.",
-    "Texting fixes half of that on its own, customers would rather text than call anyway. JobText fixes the other half: the texts stop belonging to one phone and start belonging to the business, so the tech in the crawlspace and the one at the supply house are looking at the same conversation.",
+    "Texting fixes half of that on its own, customers would rather text than call anyway. Loonext fixes the other half: the texts stop belonging to one phone and start belonging to the business, so the tech in the crawlspace and the one at the supply house are looking at the same conversation.",
   ],
   painVisual: (
     <TradePhoto
@@ -175,7 +175,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "My techs aren't tech people. Will they use it?",
-      a: "If they can text, they can use JobText, it looks like texting. They open a link on their own phone, and they're in. Nothing to install, no training day.",
+      a: "If they can text, they can use Loonext, it looks like texting. They open a link on their own phone, and they're in. Nothing to install, no training day.",
     },
     {
       q: "What about texts that come in at night?",

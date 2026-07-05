@@ -1,4 +1,4 @@
--- JobText schema assertion suite (SPEC §6).
+-- Loonext schema assertion suite (SPEC §6).
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with: psql -v ON_ERROR_STOP=1 -f supabase/tests/schema.test.sql
 -- (root script: pnpm run db:test — docker exec against the local supabase db)

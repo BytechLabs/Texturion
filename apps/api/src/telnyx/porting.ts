@@ -415,7 +415,7 @@ async function patchPortingOrder(
     phone_number_configuration: {
       // The EXACT field name (§3.4) — messaging_profile_id, not message_profile_id.
       messaging_profile_id: messagingProfileId,
-      tags: ["jobtext", `company:${row.company_id}`],
+      tags: ["loonext", `company:${row.company_id}`],
     },
     // SMS is a SEPARATE sub-order; must be explicit and re-sent every submit.
     messaging: { enable_messaging: true },
@@ -946,7 +946,7 @@ async function applyStatusTransition(
 /**
  * Apply a `messaging_port_status` transition with its P6 / exception side
  * effects. Messaging is a separate track with its own field; `ported` is what
- * unlocks JobText texting. Idempotent (P6 no-ops on already-active rows).
+ * unlocks Loonext texting. Idempotent (P6 no-ops on already-active rows).
  */
 async function applyMessagingTransition(
   env: Env,

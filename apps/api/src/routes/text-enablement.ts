@@ -256,11 +256,11 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
 
   if (slot.outcome === "number_taken") {
     // The phone_numbers unique index fired inside the RPC: the number is live
-    // on JobText (this company or another) — a hosted order can't take it.
+    // on Loonext (this company or another) — a hosted order can't take it.
     return errorResponse(
       c,
       "conflict",
-      "This number is already in service on JobText and can't be text-enabled.",
+      "This number is already in service on Loonext and can't be text-enabled.",
     );
   }
   if (slot.outcome === "plan_limit") {

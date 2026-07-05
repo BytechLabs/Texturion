@@ -271,13 +271,13 @@ export default function MissedCallsSettingsPage() {
       ) : (
         <div className="space-y-6">
           {/* A text-enabled landline's calls ring the owner's existing
-              carrier, so there is no JobText call to observe as missed. */}
+              carrier, so there is no Loonext call to observe as missed. */}
           {onlyHostedNumbers(company.data.numbers) && (
             <p className="text-sm text-muted-foreground">
               Missed-call text-back needs a number whose calls come through
-              JobText — calls to your text-enabled landline stay with your
+              Loonext — calls to your text-enabled landline stay with your
               existing carrier, so these settings won&apos;t apply until you
-              add or transfer a JobText number.
+              add or transfer a Loonext number.
             </p>
           )}
           <TextBackCard company={company.data} canEdit={canEdit} />

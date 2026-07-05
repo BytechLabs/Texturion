@@ -112,7 +112,7 @@ export function Nav() {
                   <Wordmark className="nxh-wordmark nxh-focus rounded-[4px]" />
                 </SheetTitle>
                 <SheetDescription className="sr-only">
-                  JobText navigation, product, who it&apos;s for, compare, and
+                  Loonext navigation, product, who it&apos;s for, compare, and
                   pricing.
                 </SheetDescription>
                 <MobileNav onNavigate={() => setMobileOpen(false)} />

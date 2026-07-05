@@ -249,7 +249,7 @@ async function postSend(
     headers["Idempotency-Key"] = options.idempotencyKey ?? crypto.randomUUID();
   }
   return app.fetch(
-    new Request("https://api.jobtext.app/v1/messages/send", {
+    new Request("https://api.loonext.app/v1/messages/send", {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -798,7 +798,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
   async function postRetry(): Promise<Response> {
     return app.fetch(
       new Request(
-        `https://api.jobtext.app/v1/messages/${MESSAGE_ID}/retry`,
+        `https://api.loonext.app/v1/messages/${MESSAGE_ID}/retry`,
         {
           method: "POST",
           headers: {
@@ -964,7 +964,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
 
   async function patchDone(body: unknown): Promise<Response> {
     return app.fetch(
-      new Request(`https://api.jobtext.app/v1/messages/${MESSAGE_ID}`, {
+      new Request(`https://api.loonext.app/v1/messages/${MESSAGE_ID}`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${await auth.token()}`,
@@ -1161,7 +1161,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
 
   async function patchPin(body: unknown): Promise<Response> {
     return app.fetch(
-      new Request(`https://api.jobtext.app/v1/messages/${MESSAGE_ID}`, {
+      new Request(`https://api.loonext.app/v1/messages/${MESSAGE_ID}`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${await auth.token()}`,
@@ -1318,7 +1318,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
 
     const response = await app.fetch(
       new Request(
-        `https://api.jobtext.app/v1/conversations/${CONVERSATION_ID}/messages?limit=2`,
+        `https://api.loonext.app/v1/conversations/${CONVERSATION_ID}/messages?limit=2`,
         {
           headers: {
             Authorization: `Bearer ${await auth.token()}`,
@@ -1381,7 +1381,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
 
     const response = await app.fetch(
       new Request(
-        `https://api.jobtext.app/v1/conversations/${CONVERSATION_ID}/messages`,
+        `https://api.loonext.app/v1/conversations/${CONVERSATION_ID}/messages`,
         {
           headers: {
             Authorization: `Bearer ${await auth.token()}`,

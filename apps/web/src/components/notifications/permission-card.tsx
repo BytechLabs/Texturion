@@ -59,12 +59,12 @@ export function PermissionCard() {
           ) : !push.supported ? (
             <p className="text-sm text-muted-foreground">
               {environment.iosTab
-                ? "On iPhone, push needs JobText on your home screen: tap Share, choose “Add to Home Screen”, then turn notifications on from there."
+                ? "On iPhone, push needs Loonext on your home screen: tap Share, choose “Add to Home Screen”, then turn notifications on from there."
                 : "This browser doesn't support push notifications. Email notifications still work."}
             </p>
           ) : blocked ? (
             <p className="text-sm text-muted-foreground">
-              Notifications are blocked for JobText in this browser.{" "}
+              Notifications are blocked for Loonext in this browser.{" "}
               {environment.recovery}
             </p>
           ) : push.subscribed ? (
@@ -74,7 +74,7 @@ export function PermissionCard() {
           ) : (
             <p className="text-sm text-muted-foreground">
               Get a notification on this device when a customer texts you —
-              even with JobText closed.
+              even with Loonext closed.
             </p>
           )}
           {push.error && (

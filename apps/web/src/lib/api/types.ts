@@ -796,7 +796,7 @@ export type PortStatus =
   | "cancel-pending"
   | "cancelled";
 
-/** Messaging (SMS) sub-track (PORTING.md §1). `ported` unlocks JobText texting. */
+/** Messaging (SMS) sub-track (PORTING.md §1). `ported` unlocks Loonext texting. */
 export type PortMessagingStatus =
   | "not_applicable"
   | "pending"

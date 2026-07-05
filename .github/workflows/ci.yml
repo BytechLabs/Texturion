@@ -53,7 +53,7 @@ jobs:
           version: latest
 
       # Stand up the SAME local Supabase the SQL job uses: `supabase start`
-      # names the DB container supabase_db_JobText (project_id in config.toml)
+      # names the DB container supabase_db_Loonext (project_id in config.toml)
       # and serves the API at 127.0.0.1:54321 with the CLI-default keys — the
       # exact host/keys the D31 harness resolves via `supabase status -o json`
       # (with the literal fallbacks). `db reset` applies migrations from zero.
@@ -89,7 +89,7 @@ jobs:
       # so `next build` failed public-env validation on every commit.)
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
-      NEXT_PUBLIC_API_URL: https://api.jobtext.app
+      NEXT_PUBLIC_API_URL: https://api.loonext.app
     steps:
       - uses: actions/checkout@v4
 

@@ -346,7 +346,7 @@ begin
   -- existing number), status='provisioning' until enablement completes. The
   -- provisioning_key backstops idempotency on the phone_numbers unique too.
   -- phone_numbers_e164_uq (global, partial on status <> 'released') rejects a
-  -- number already live on JobText — for ANY tenant (own active number, a
+  -- number already live on Loonext — for ANY tenant (own active number, a
   -- mid-port number, another company's number). Surface that as a first-class
   -- outcome (§7 conflict), never a raw 500. Race-safe: the company row lock
   -- above serializes same-company claims, and the unique index itself is the

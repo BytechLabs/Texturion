@@ -1,5 +1,5 @@
 /**
- * /compare/podium. JobText vs Podium (BLUEPRINT §5–6).
+ * /compare/podium. Loonext vs Podium (BLUEPRINT §5–6).
  *
  * The honest anti-Podium page: transparent self-serve pricing vs demo-only
  * sales gate, month-to-month vs annual lock-in, a focused SMS inbox vs an
@@ -47,9 +47,9 @@ const PATH = "/compare/podium";
 const COMPETITOR = "Podium";
 
 export const metadata: Metadata = buildMetadata({
-  title: "JobText vs Podium: pricing & honest differences (2026)",
+  title: "Loonext vs Podium: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is a $29/mo flat, self-serve text inbox; Podium is a demo-only, annual-contract all-in-one platform (reported ~$399/mo).",
+    "A fair, dated comparison: Loonext is a $29/mo flat, self-serve text inbox; Podium is a demo-only, annual-contract all-in-one platform (reported ~$399/mo).",
   path: PATH,
 });
 
@@ -60,7 +60,7 @@ export const metadata: Metadata = buildMetadata({
 const ROWS: ComparisonRow[] = [
   {
     label: "How you buy",
-    jobtext: {
+    loonext: {
       value: "Self-serve. See the price, pay, start texting.",
       emphasis: true,
       note: "SPEC §1–2: pricing published, sign up and pay online.",
@@ -72,7 +72,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Published price",
-    jobtext: {
+    loonext: {
       value: "$29/mo (Starter) · $79/mo (Pro)",
       emphasis: true,
       note: "On the pricing page; flat, not per seat.",
@@ -84,7 +84,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Contract",
-    jobtext: {
+    loonext: {
       value: "Month to month, cancel anytime",
       emphasis: true,
       note: "Cancel in billing settings; no phone call.",
@@ -96,7 +96,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "What it is",
-    jobtext: {
+    loonext: {
       value: "A shared SMS inbox, and that's it",
       note: "Reply, assign, tag, note, search, close, from any phone.",
     },
@@ -107,7 +107,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Team pricing",
-    jobtext: {
+    loonext: {
       value: "Flat, 3 people on $29, 10 on $79",
       emphasis: true,
       note: "No per-seat charge (SPEC §2).",
@@ -119,7 +119,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "US texting go-live",
-    jobtext: {
+    loonext: {
       value: "About a week after signup",
       note: "Carrier registration filed at signup; receiving + Canada texting work day one (SPEC §4.1).",
     },
@@ -130,7 +130,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Voice, reviews, payments",
-    jobtext: {
+    loonext: {
       value: "Not included, texting only",
       note: "We're a shared text inbox. No calls, no review management, no payments.",
     },
@@ -147,25 +147,25 @@ const ROWS: ComparisonRow[] = [
 /* -------------------------------------------------------------------------- */
 
 function PodiumCostStack() {
-  const rows: { label: string; jobtext: string; podium: string }[] = [
+  const rows: { label: string; loonext: string; podium: string }[] = [
     {
       label: "First month, out the door",
-      jobtext: "$58 ($29 plan + one-time $29 US registration)",
+      loonext: "$58 ($29 plan + one-time $29 US registration)",
       podium: "Not published, quote required",
     },
     {
       label: "Every month after",
-      jobtext: "$29 flat",
+      loonext: "$29 flat",
       podium: "Reported ~$399/mo Core, before add-ons",
     },
     {
       label: "To even see a number",
-      jobtext: "Read the pricing page",
+      loonext: "Read the pricing page",
       podium: "Book a demo with sales",
     },
     {
       label: "Commitment",
-      jobtext: "Cancel any month",
+      loonext: "Cancel any month",
       podium: "Annual term reported",
     },
   ];
@@ -176,7 +176,7 @@ function PodiumCostStack() {
           <tr className="border-b border-[color:var(--hairline)]">
             <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
             <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
-              JobText
+              Loonext
             </th>
             <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
               Podium
@@ -193,7 +193,7 @@ function PodiumCostStack() {
                 {r.label}
               </th>
               <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-medium tabular-nums text-[color:var(--ink)]">
-                {r.jobtext}
+                {r.loonext}
               </td>
               <td className="border-l border-[color:var(--hairline)] p-4 align-top tabular-nums text-[color:var(--ink-70)]">
                 {r.podium}
@@ -211,26 +211,26 @@ function PodiumCostStack() {
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
     q: "Why can't I find Podium's price to compare it here?",
-    a: "Because Podium doesn't publish one. Its pricing page routes you to a sales call, so the only Podium dollar figure on this page, around $399 a month to start, comes from third-party reviewers, not from Podium, and we label it that way every time. JobText's price is $29 a month, printed on our pricing page, no call required.",
+    a: "Because Podium doesn't publish one. Its pricing page routes you to a sales call, so the only Podium dollar figure on this page, around $399 a month to start, comes from third-party reviewers, not from Podium, and we label it that way every time. Loonext's price is $29 a month, printed on our pricing page, no call required.",
   },
   {
-    q: "I use Podium for reviews and payments. Can JobText replace all of that?",
-    a: "No, and we won't pretend it can. Podium manages reviews, runs webchat, and takes payments; JobText does one thing, a shared text inbox your crew answers from any phone. If reviews and payments are load-bearing for you, keep Podium. If the part you actually live in is the texting, that's the part we do for a flat $29.",
+    q: "I use Podium for reviews and payments. Can Loonext replace all of that?",
+    a: "No, and we won't pretend it can. Podium manages reviews, runs webchat, and takes payments; Loonext does one thing, a shared text inbox your crew answers from any phone. If reviews and payments are load-bearing for you, keep Podium. If the part you actually live in is the texting, that's the part we do for a flat $29.",
   },
   {
     q: "Am I locked into a contract if I switch?",
-    a: "Not with us. JobText is month to month, cancel in your billing settings any month, no phone call, no retention gauntlet. Reviewers report Podium runs on annual terms with notice required before renewal, so check your renewal date before you move.",
+    a: "Not with us. Loonext is month to month, cancel in your billing settings any month, no phone call, no retention gauntlet. Reviewers report Podium runs on annual terms with notice required before renewal, so check your renewal date before you move.",
   },
   {
     q: "Can I keep my current business number?",
-    a: "Yes, transfer it to JobText for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers cover US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to JobText on the transfer date, texting on it turns on once the transfer completes. Need to text before it lands? Get a new local number now and transfer your old one alongside it.",
+    a: "Yes, transfer it to Loonext for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers cover US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to Loonext on the transfer date, texting on it turns on once the transfer completes. Need to text before it lands? Get a new local number now and transfer your old one alongside it.",
   },
   {
     q: "How long until I can text US customers?",
-    a: "About a week. US carriers require every business that texts to register first, that's an industry rule, not a Podium-or-JobText rule. We file yours the minute you pay, it usually clears in 3–7 business days, and receiving texts works immediately. In Canada you can text customers the same day.",
+    a: "About a week. US carriers require every business that texts to register first, that's an industry rule, not a Podium-or-Loonext rule. We file yours the minute you pay, it usually clears in 3–7 business days, and receiving texts works immediately. In Canada you can text customers the same day.",
   },
   {
-    q: "What if JobText turns out to be too simple for us?",
+    q: "What if Loonext turns out to be too simple for us?",
     a: "Then it wasn't the right fit, and you get your money back, full refund of your first invoice, registration fee included, within 30 days, no forms. We'd rather you leave square than stay unhappy. If you find you need calling and reviews in one platform, Podium is a reasonable place to land.",
   },
 ];
@@ -242,19 +242,19 @@ export default function ComparePodiumPage() {
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
           { name: "Compare", path: "/compare" },
-          { name: "JobText vs Podium", path: PATH },
+          { name: "Loonext vs Podium", path: PATH },
         ])}
       />
 
       <CompareHero
-        eyebrow="JobText vs Podium"
+        eyebrow="Loonext vs Podium"
         title={
           <>
             The price is right on the page, no{" "}
             <Display.Mark>sales call</Display.Mark>.
           </>
         }
-        lead="Podium is a capable all-in-one platform for local businesses. AI answering, reviews, payments, webchat. But you can't see what it costs without a sales call, it's sold on an annual term, and reported entry pricing starts around $399 a month. JobText is the opposite bet: a shared text inbox, $29 a month flat, month to month, buy it yourself in minutes. Here's the honest side-by-side, dated July 2026."
+        lead="Podium is a capable all-in-one platform for local businesses. AI answering, reviews, payments, webchat. But you can't see what it costs without a sales call, it's sold on an annual term, and reported entry pricing starts around $399 a month. Loonext is the opposite bet: a shared text inbox, $29 a month flat, month to month, buy it yourself in minutes. Here's the honest side-by-side, dated July 2026."
         visual={
           <CompareHeroPhoto
             photoId="owner-apron-phone"
@@ -270,7 +270,7 @@ export default function ComparePodiumPage() {
             Side by side, with every source shown.
           </Display>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-            JobText facts come from our own product and pricing page. Podium
+            Loonext facts come from our own product and pricing page. Podium
             facts are dated July 2026, from its public pricing page where a
             number exists, and clearly marked as third-party-reported where
             Podium publishes nothing.
@@ -284,14 +284,14 @@ export default function ComparePodiumPage() {
       {/* At-a-glance visual, flat vs per-seat (VISUALS §3 compare-page rule). */}
       <AtAGlanceChart
         heading="Flat, whatever your crew size."
-        lead="Podium doesn't publish a seat price, but the pattern is the one to watch with any per-user tool: the bill climbs as you hire. JobText stays flat, $29 up to three people, $79 up to ten. Here's that flat line against a typical per-user tool as a crew grows."
+        lead="Podium doesn't publish a seat price, but the pattern is the one to watch with any per-user tool: the bill climbs as you hire. Loonext stays flat, $29 up to three people, $79 up to ten. Here's that flat line against a typical per-user tool as a crew grows."
       />
 
       {/* Who each is for, the honest concession. */}
       <WhoEachIsFor
         heading="Who each one is really for."
-        jobtextTitle="Reach for JobText if…"
-        jobtextBody={
+        loonextTitle="Reach for Loonext if…"
+        loonextBody={
           <>
             <p>
               You run a service crew and the thing you actually need is texting:
@@ -324,19 +324,19 @@ export default function ComparePodiumPage() {
       {/* Where Podium may be the better pick, explicit concession. */}
       <BetterPickCallout
         heading="Where Podium may be the better pick."
-        intro="We'd rather point you to the right tool than win you and disappoint you. Podium genuinely beats JobText in real ways, and if these are what you need, buy Podium:"
+        intro="We'd rather point you to the right tool than win you and disappoint you. Podium genuinely beats Loonext in real ways, and if these are what you need, buy Podium:"
         points={[
           {
             title: "Reviews, payments, and webchat in one platform.",
-            body: "JobText doesn't manage Google reviews, run a website chat widget, or take card payments. Podium does all three as core features. If you want one login for messaging, reviews, and getting paid, that's Podium's whole pitch, not ours.",
+            body: "Loonext doesn't manage Google reviews, run a website chat widget, or take card payments. Podium does all three as core features. If you want one login for messaging, reviews, and getting paid, that's Podium's whole pitch, not ours.",
           },
           {
             title: "An AI that answers calls, not just texts.",
-            body: "Podium's AI can pick up the phone and route calls after hours. JobText is texting only, it can't answer your phone. If missed calls are your bigger leak, Podium's calling features are built for exactly that.",
+            body: "Podium's AI can pick up the phone and route calls after hours. Loonext is texting only, it can't answer your phone. If missed calls are your bigger leak, Podium's calling features are built for exactly that.",
           },
           {
             title: "Deep field-service tooling.",
-            body: "Podium's home-services offering adds dispatch boards, a technician app, and job workflows. JobText is a shared inbox, not a field-service management suite. If you need the whole operating system, Podium goes further.",
+            body: "Podium's home-services offering adds dispatch boards, a technician app, and job workflows. Loonext is a shared inbox, not a field-service management suite. If you need the whole operating system, Podium goes further.",
           },
         ]}
         recommendation={
@@ -345,19 +345,19 @@ export default function ComparePodiumPage() {
             one platform, buy Podium, it does more than we do, and it does those
             things well. If the piece you live in every day is the texting, and
             you&apos;d rather see the price and pay it yourself, that&apos;s the
-            trade JobText is built to win.
+            trade Loonext is built to win.
           </>
         }
       />
 
-      {/* JobText advantages, factual. */}
+      {/* Loonext advantages, factual. */}
       <Advantages
-        heading="Where JobText wins for a small crew."
+        heading="Where Loonext wins for a small crew."
         lead="These aren't slogans, they're the concrete differences a two-to-ten-person shop feels in the first week."
         items={[
           {
             title: "The price is on the page.",
-            body: "You never book a call to learn what JobText costs. $29 a month, printed, with every other cost listed beside it. Podium's price is a sales conversation.",
+            body: "You never book a call to learn what Loonext costs. $29 a month, printed, with every other cost listed beside it. Podium's price is a sales conversation.",
           },
           {
             title: "Month to month, not a year.",
@@ -385,10 +385,10 @@ export default function ComparePodiumPage() {
       {/* What you'll actually pay, dated, sourced. */}
       <PayMathBlock
         heading="What you'll actually pay."
-        lead="A same-shape comparison is impossible here, because Podium doesn't publish a price, so this is JobText's real, printed cost next to the best public information about Podium's, dated July 2026."
+        lead="A same-shape comparison is impossible here, because Podium doesn't publish a price, so this is Loonext's real, printed cost next to the best public information about Podium's, dated July 2026."
         footnote={
           <>
-            JobText figures are from our pricing page (SPEC §1–2). Podium
+            Loonext figures are from our pricing page (SPEC §1–2). Podium
             publishes no prices on podium.com/pricing (re-verified 2026-07-02);
             the ~$399/mo Core figure and annual-term note come from third-party
             reviewers, not from Podium, and are labeled as reported throughout. If
@@ -406,7 +406,7 @@ export default function ComparePodiumPage() {
           <>
             <p>
               You don&apos;t have to rip anything out on day one. Sign up for
-              JobText, pick your local number, and invite the crew, that part
+              Loonext, pick your local number, and invite the crew, that part
               takes minutes. Keep Podium running while you move your texting over,
               and cancel it when you&apos;re ready (mind its renewal date, since
               reviewers report an annual term).
@@ -415,12 +415,12 @@ export default function ComparePodiumPage() {
               <strong className="font-semibold text-[color:var(--ink)]">
                 About your number:
               </strong>{" "}
-              you can transfer your existing US or Canadian number into JobText
+              you can transfer your existing US or Canadian number into Loonext
               for free, choose &ldquo;Bring my number&rdquo; at signup, share
               your current carrier details, and upload a recent bill; we handle
               the paperwork. A transfer typically takes about 1 to 7 business
               days, and your number keeps working on your current carrier the
-              whole time, it switches to JobText on the transfer date, and
+              whole time, it switches to Loonext on the transfer date, and
               texting on it turns on once the transfer completes. Prefer to start
               texting today? Get a new local number now and transfer your old one
               alongside it.
@@ -433,7 +433,7 @@ export default function ComparePodiumPage() {
           for thin internal linking). */}
       <CompareRelatedLinks
         heading="Not sure Podium's breadth is what you need?"
-        intro="If the part you actually live in is the texting, here's what JobText does with it, and a couple of trades where a shared inbox earns its keep."
+        intro="If the part you actually live in is the texting, here's what Loonext does with it, and a couple of trades where a shared inbox earns its keep."
         links={[
           {
             label: "The shared inbox",

@@ -105,7 +105,7 @@ const CONTENT: TradeContent = {
     </>
   ),
   heroSub:
-    "The GC, the subs, the client, and the supply house all text the same number, yours. JobText gets those conversations off your personal cell and into one inbox the crew shares, where every message is a task you can hand off, note, and check off when it's done.",
+    "The GC, the subs, the client, and the supply house all text the same number, yours. Loonext gets those conversations off your personal cell and into one inbox the crew shares, where every message is a task you can hand off, note, and check off when it's done.",
   heroTruthLine:
     "Job comms off your personal phone. Live in minutes. Month to month.",
   heroPhotoId: "crew-rooftop",
@@ -114,12 +114,12 @@ const CONTENT: TradeContent = {
   painH2: "The GC, the subs, and the client all text one phone, yours.",
   painBody: [
     "On a job site, everything runs through the person whose number is on the estimate. The builder texts the address and the paint spec, the electrician texts a question about the panel location, the client texts a change they want, and the supplier texts that the tile's in, all to one personal cell, in between the kid's soccer schedule and the group chat. Miss one and you're repainting a room the wrong color or holding up a sub for a day.",
-    "The stakes are higher than a missed reply, too. When the job lives in one person's texts, nobody else can cover, take a day off and the whole job stalls. And when it's time to reconcile a change order, the “proof” is a text thread on a phone that walks out the door if that person does. JobText makes the number the business's, the conversation the crew's, and every message a task the team can see, hand off, and mark done.",
+    "The stakes are higher than a missed reply, too. When the job lives in one person's texts, nobody else can cover, take a day off and the whole job stalls. And when it's time to reconcile a change order, the “proof” is a text thread on a phone that walks out the door if that person does. Loonext makes the number the business's, the conversation the crew's, and every message a task the team can see, hand off, and mark done.",
   ],
   painVisual: (
     <TradePhoto
       photoId="owner-apron-phone"
-      caption="The GC, the subs, the client, the supplier, all texting one phone. JobText makes that number the business's, so the whole crew can cover it."
+      caption="The GC, the subs, the client, the supplier, all texting one phone. Loonext makes that number the business's, so the whole crew can cover it."
     />
   ),
 
@@ -228,7 +228,7 @@ const CONTENT: TradeContent = {
   faqs: [
     {
       q: "Is this a project-management or “jobs” app?",
-      a: "No, and we're deliberate about that. JobText is a shared texting inbox, not a jobs board or a scheduling suite. The one place it touches “tasks” is simple: any message can be marked done right in the thread, because on a job site a text like “paint the hall Hale Navy” is a task. It strikes through with a check when it's handled and syncs to the crew, but there's no separate screen, no board, no counts to maintain.",
+      a: "No, and we're deliberate about that. Loonext is a shared texting inbox, not a jobs board or a scheduling suite. The one place it touches “tasks” is simple: any message can be marked done right in the thread, because on a job site a text like “paint the hall Hale Navy” is a task. It strikes through with a check when it's handled and syncs to the crew, but there's no separate screen, no board, no counts to maintain.",
     },
     {
       q: "So how does “mark done” actually work?",
@@ -240,7 +240,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "Where's the proof if a client disputes a change order?",
-      a: "In the thread. The request, your price, and their approval are all there in writing, with names and timestamps, and because it's the business's inbox, not one person's phone, it doesn't walk off the job if someone leaves. JobText doesn't generate the change-order paperwork, but the conversation is the record behind it.",
+      a: "In the thread. The request, your price, and their approval are all there in writing, with names and timestamps, and because it's the business's inbox, not one person's phone, it doesn't walk off the job if someone leaves. Loonext doesn't generate the change-order paperwork, but the conversation is the record behind it.",
     },
     {
       q: "If I'm out for a day, does the whole job stall?",

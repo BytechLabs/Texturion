@@ -115,7 +115,7 @@ export function planForLicensedPrice(env: Env, priceId: string): PlanId | null {
 
 /**
  * Map a Stripe subscription status onto the SPEC §6 enum. The two Stripe
- * statuses outside the enum can never legitimately occur here (JobText has no
+ * statuses outside the enum can never legitimately occur here (Loonext has no
  * trials and never pauses collection), but a webhook must not crash on them:
  * `trialing` degrades to `active` (it is a collectible, live subscription) and
  * `paused` returns null — the caller skips the mirror and leaves the last

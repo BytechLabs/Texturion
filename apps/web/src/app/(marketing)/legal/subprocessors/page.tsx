@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Sub-processors",
   description:
-    "The third-party vendors JobText uses to run the service, what each one processes, and the region it operates in, from the SMS carrier to payments, hosting, email, and analytics.",
+    "The third-party vendors Loonext uses to run the service, what each one processes, and the region it operates in, from the SMS carrier to payments, hosting, email, and analytics.",
   path: PATH,
 });
 
@@ -81,7 +81,7 @@ export default function SubprocessorsPage() {
   return (
     <LegalPage
       title="Sub-processors"
-      intro="These are the vendors that process data on our behalf so JobText can run. Each is limited to what its job requires."
+      intro="These are the vendors that process data on our behalf so Loonext can run. Each is limited to what its job requires."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Sub-processors"
       path={PATH}
@@ -136,7 +136,7 @@ export default function SubprocessorsPage() {
         <p>
           If we add or replace a sub-processor, we&apos;ll update this page and
           the date above. This list is the authoritative record of who processes
-          data for JobText.
+          data for Loonext.
         </p>
       </LegalSectionBlock>
 

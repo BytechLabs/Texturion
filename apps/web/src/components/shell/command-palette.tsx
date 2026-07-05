@@ -200,7 +200,7 @@ function ConversationActions({
 
 /**
  * The context-aware command palette (PORTAL-UX §1.2): the real navigator. Opens
- * over any screen (⌘K, or the search glyphs dispatching `jobtext:open-command`).
+ * over any screen (⌘K, or the search glyphs dispatching `loonext:open-command`).
  * When a conversation is open it leads with "Actions on this conversation", then
  * global search (D29: conversations, contacts, tasks, attachments, templates —
  * sections, never a blended list; a section with no hits renders nothing) and
@@ -227,10 +227,10 @@ export function CommandPalette() {
       setOpen(true);
     }
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("jobtext:open-command", onOpenRequest);
+    window.addEventListener("loonext:open-command", onOpenRequest);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("jobtext:open-command", onOpenRequest);
+      window.removeEventListener("loonext:open-command", onOpenRequest);
     };
   }, []);
 

@@ -74,7 +74,7 @@ const COMPARISON: readonly {
   { tool: "Heymarket", cost: "$245 and up", note: "$49 and up per seat, times five" },
   { tool: "Podium", cost: "a sales call to find out", note: "annual contract" },
   {
-    tool: "JobText",
+    tool: "Loonext",
     cost: "$79 flat",
     note: "Pro covers up to 10 people and 2 numbers",
     self: true,

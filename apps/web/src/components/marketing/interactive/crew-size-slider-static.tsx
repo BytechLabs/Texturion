@@ -4,7 +4,7 @@
  * the converting comparison is meaningful before (and without) the interactive
  * island. <LazyIsland> swaps in the draggable version on viewport approach.
  *
- * Values mirror the interactive slider (BLUEPRINT §3.9 / COPY §H9): JobText is
+ * Values mirror the interactive slider (BLUEPRINT §3.9 / COPY §H9): Loonext is
  * flat ($29 ≤3 people, $79 for 4–10); the per-user figure is the dated, sourced
  * Quo monthly seat price ($19/user/mo, July 2026), linked to /compare/quo. At
  * the default 6 people that is $79 flat vs 6 × $19 = $114, the swap is seamless.
@@ -14,9 +14,9 @@ import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 const PER_USER_MONTHLY = 19;
 const SEATS = 6;
-const JOBTEXT_PRICE = 79; // 4–10 people → Pro
+const LOONEXT_PRICE = 79; // 4–10 people → Pro
 const PER_USER = SEATS * PER_USER_MONTHLY; // $114
-const SAVINGS = PER_USER - JOBTEXT_PRICE; // $35
+const SAVINGS = PER_USER - LOONEXT_PRICE; // $35
 const MAX_PER_USER = 10 * PER_USER_MONTHLY; // $190
 
 function usd(n: number): string {
@@ -24,7 +24,7 @@ function usd(n: number): string {
 }
 
 export function CrewSizeSliderStatic() {
-  const jobtextWidth = Math.max(6, (JOBTEXT_PRICE / MAX_PER_USER) * 100);
+  const loonextWidth = Math.max(6, (LOONEXT_PRICE / MAX_PER_USER) * 100);
   const perUserWidth = Math.max(6, (PER_USER / MAX_PER_USER) * 100);
 
   return (
@@ -45,10 +45,10 @@ export function CrewSizeSliderStatic() {
       <div className="mt-6 space-y-4">
         <div>
           <div className="flex items-baseline justify-between text-[14px]">
-            <span className="font-medium text-foreground">JobText Pro</span>
+            <span className="font-medium text-foreground">Loonext Pro</span>
             <span className="tabular-nums">
               <span className="font-semibold text-primary">
-                {usd(JOBTEXT_PRICE)}
+                {usd(LOONEXT_PRICE)}
               </span>
               <span className="text-muted-foreground">/mo, flat</span>
             </span>
@@ -56,7 +56,7 @@ export function CrewSizeSliderStatic() {
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-secondary">
             <div
               className="h-full rounded-full bg-primary"
-              style={{ width: `${jobtextWidth}%` }}
+              style={{ width: `${loonextWidth}%` }}
             />
           </div>
         </div>
@@ -87,7 +87,7 @@ export function CrewSizeSliderStatic() {
         <span className="font-semibold tabular-nums text-primary">
           {usd(SAVINGS)} less a month
         </span>{" "}
-        with JobText, {usd(JOBTEXT_PRICE)} flat instead of {SEATS} ×{" "}
+        with Loonext, {usd(LOONEXT_PRICE)} flat instead of {SEATS} ×{" "}
         {usd(PER_USER_MONTHLY)}.
       </p>
 
@@ -95,7 +95,7 @@ export function CrewSizeSliderStatic() {
         href="/signup"
         className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
       >
-        Start for {usd(JOBTEXT_PRICE)} flat →
+        Start for {usd(LOONEXT_PRICE)} flat →
       </a>
 
       <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">

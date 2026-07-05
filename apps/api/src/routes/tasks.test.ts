@@ -113,7 +113,7 @@ async function request(
   app = memberApp,
 ): Promise<Response> {
   return app.fetch(
-    new Request(`https://api.jobtext.app${path}`, {
+    new Request(`https://api.loonext.app${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${await auth.token()}`,

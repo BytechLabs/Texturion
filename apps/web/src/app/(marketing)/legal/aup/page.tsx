@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Acceptable use policy",
   description:
-    "The rules for texting on JobText: consent required, no purchased or harvested lists, no SHAFT content, immediate opt-out. At least as strict as our carrier's, because those rules flow down to you.",
+    "The rules for texting on Loonext: consent required, no purchased or harvested lists, no SHAFT content, immediate opt-out. At least as strict as our carrier's, because those rules flow down to you.",
   path: PATH,
 });
 
@@ -34,7 +34,7 @@ export default function AupPage() {
   return (
     <LegalPage
       title="Acceptable use policy"
-      intro="JobText anti-sells blast marketing on purpose. These rules keep message delivery healthy for every business on the network, and they are at least as strict as the carrier obligations that flow down to us."
+      intro="Loonext anti-sells blast marketing on purpose. These rules keep message delivery healthy for every business on the network, and they are at least as strict as the carrier obligations that flow down to us."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Acceptable use"
       path={PATH}
@@ -42,7 +42,7 @@ export default function AupPage() {
     >
       <LegalSectionBlock id="why" heading="1. Why this exists">
         <p>
-          When you text through JobText, you text through the phone companies and
+          When you text through Loonext, you text through the phone companies and
           carriers we rely on. Their rules pass through to you, and breaking them
           hurts delivery for everyone. You accept this policy when you sign up
           (there&apos;s a checkbox), and it is part of our{" "}
@@ -74,7 +74,7 @@ export default function AupPage() {
         heading="4. Prohibited content (SHAFT and more)"
       >
         <p>
-          You may not use JobText to send content related to{" "}
+          You may not use Loonext to send content related to{" "}
           <strong>SHAFT</strong>, sex, hate, alcohol, firearms, or tobacco
           (including cannabis and vaping), or any of the following:
         </p>
@@ -87,7 +87,7 @@ export default function AupPage() {
           <li>Harassment, threats, or hateful content toward any person or group</li>
         </ul>
         <p>
-          JobText is a conversational customer-service inbox for service
+          Loonext is a conversational customer-service inbox for service
           businesses. It is not a platform for bulk marketing blasts, and we
           don&apos;t offer those tools.
         </p>
@@ -96,7 +96,7 @@ export default function AupPage() {
       <LegalSectionBlock id="opt-out" heading="5. Opt-out is immediate">
         <p>
           Every recipient can opt out at any time by replying STOP (or a similar
-          keyword). JobText records the opt-out and blocks any further sends to
+          keyword). Loonext records the opt-out and blocks any further sends to
           that number until the person opts back in. You may not try to evade
           opt-outs, no texting from a second number, no &quot;are you sure&quot;
           follow-ups, no re-adding an opted-out contact.
@@ -105,7 +105,7 @@ export default function AupPage() {
 
       <LegalSectionBlock id="identification" heading="6. Identify yourself">
         <p>
-          Your business must be identifiable in your messages. JobText adds your
+          Your business must be identifiable in your messages. Loonext adds your
           business name and a &quot;Reply STOP to opt out&quot; line to your first
           message to a new contact automatically; don&apos;t remove or obscure
           your identity in later messages, and don&apos;t impersonate another
@@ -116,7 +116,7 @@ export default function AupPage() {
       <LegalSectionBlock id="no-abuse" heading="7. No abuse of the network">
         <p>
           Don&apos;t attempt to send spam, don&apos;t try to route around our
-          rate limits or spending caps, and don&apos;t use JobText to text
+          rate limits or spending caps, and don&apos;t use Loonext to text
           destinations outside the United States and Canada. We enforce
           per-account rate limits and destination restrictions to protect the
           network; working around them is a violation.
@@ -137,7 +137,7 @@ export default function AupPage() {
         <p>
           Not sure whether something is allowed? Ask first ,{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.
-          To report abuse of a JobText number, email the same address.
+          To report abuse of a Loonext number, email the same address.
         </p>
       </LegalSectionBlock>
     </LegalPage>

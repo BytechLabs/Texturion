@@ -220,7 +220,7 @@ export function PortCard({
           {display}
         </p>
         <span className="text-[13px] text-muted-foreground">
-          {ui.live ? "Live on JobText" : "Transferring to JobText"}
+          {ui.live ? "Live on Loonext" : "Transferring to Loonext"}
         </span>
       </div>
 

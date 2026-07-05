@@ -1,4 +1,4 @@
--- JobText app-v2 backend schema assertion suite (D17/D19/D22/D25).
+-- Loonext app-v2 backend schema assertion suite (D17/D19/D22/D25).
 -- Covers: tasks (derived-completion model, message_id NOT NULL + partial-unique,
 -- NO status/done column), generic attachments (owner_type discriminator, 25 MB,
 -- append-only/no updated_at, RLS deny-by-default), contacts geocode columns, the
@@ -7,7 +7,7 @@
 --
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/appv2.test.sql
 -- (root script: pnpm run db:test:appv2, wired into db:test:all)
 --

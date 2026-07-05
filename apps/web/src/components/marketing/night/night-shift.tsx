@@ -61,7 +61,7 @@ const STEPS = [
 function ThreadCard() {
   return (
     <NightShell
-      ariaLabel="Demo: a Reyes Plumbing conversation in the JobText inbox"
+      ariaLabel="Demo: a Reyes Plumbing conversation in the Loonext inbox"
       sidebar={false}
       className="w-full max-w-xl"
       threadExtra={

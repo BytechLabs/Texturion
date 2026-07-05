@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 3, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "30-day money-back guarantee",
   description:
-    "The JobText 30-day money-back guarantee: a full refund of your first invoice, subscription and the one-time registration fee included, no deductions for texts you sent, requested with a single email.",
+    "The Loonext 30-day money-back guarantee: a full refund of your first invoice, subscription and the one-time registration fee included, no deductions for texts you sent, requested with a single email.",
   path: PATH,
 });
 
@@ -29,7 +29,7 @@ export default function RefundsPage() {
   return (
     <LegalPage
       title="30-day money-back guarantee"
-      intro="No asterisks, no fine print. If JobText isn't right for your crew in the first 30 days, you get all your money back."
+      intro="No asterisks, no fine print. If Loonext isn't right for your crew in the first 30 days, you get all your money back."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-03"
       breadcrumbLabel="30-day guarantee"
@@ -38,12 +38,12 @@ export default function RefundsPage() {
     >
       <LegalSectionBlock id="guarantee" heading="1. The guarantee">
         <p>
-          If JobText isn&apos;t right for your crew, tell us within 30 days of
+          If Loonext isn&apos;t right for your crew, tell us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
           subscription and, if you paid it, the one-time $29 registration fee.
           No &quot;minus credits used&quot; — the texts you sent during those 30
           days are on us. No forms, no retention call. The guarantee covers the
-          first 30 days of your first JobText subscription; it doesn&apos;t
+          first 30 days of your first Loonext subscription; it doesn&apos;t
           reset if you cancel and come back later. It is also part of our{" "}
           <LegalLink href="/legal/terms">terms of service</LegalLink>.
         </p>

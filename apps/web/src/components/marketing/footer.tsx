@@ -38,7 +38,7 @@ const PRODUCT: FooterLinkItem[] = [
   { label: "Your business number", href: LIVE_ROUTES.featuresBusinessNumber },
   { label: "Compliance built in", href: LIVE_ROUTES.featuresCompliance },
   { label: "Templates & tags", href: LIVE_ROUTES.featuresTemplatesAndTags },
-  { label: "JobText in Canada", href: LIVE_ROUTES.canada },
+  { label: "Loonext in Canada", href: LIVE_ROUTES.canada },
 ];
 
 const TRADES: FooterLinkItem[] = [
@@ -52,9 +52,9 @@ const TRADES: FooterLinkItem[] = [
 
 const COMPARE: FooterLinkItem[] = [
   { label: "All comparisons", href: LIVE_ROUTES.compareIndex },
-  { label: "JobText vs Podium", href: LIVE_ROUTES.comparePodium },
-  { label: "JobText vs Heymarket", href: LIVE_ROUTES.compareHeymarket },
-  { label: "JobText vs Quo", href: LIVE_ROUTES.compareQuo },
+  { label: "Loonext vs Podium", href: LIVE_ROUTES.comparePodium },
+  { label: "Loonext vs Heymarket", href: LIVE_ROUTES.compareHeymarket },
+  { label: "Loonext vs Quo", href: LIVE_ROUTES.compareQuo },
 ];
 
 const COMPANY: FooterLinkItem[] = [
@@ -143,10 +143,10 @@ export function Footer() {
           <div className="lg:col-span-3">
             <Link
               href="/"
-              aria-label="JobText home"
+              aria-label="Loonext home"
               className="nxft-mark font-display text-2xl font-bold tracking-tight text-[color:var(--day-ink)]"
             >
-              JobText
+              Loonext
             </Link>
             <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-[color:var(--ink-55)]">
               The shared text inbox for small service crews.
@@ -212,7 +212,7 @@ export function Footer() {
               business.ts. Not deck copy, but compliance is not optional. */}
           <p className="text-[color:var(--ink-55)]">{businessIdentityLine()}</p>
           <p className="text-[color:var(--ink-55)]">
-            © {year} JobText. Month to month, like we said.
+            © {year} Loonext. Month to month, like we said.
           </p>
         </div>
       </Container>

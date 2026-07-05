@@ -43,7 +43,7 @@ function makeClient(
       handler(String(input), init),
   );
   const request = createApiClient({
-    baseUrl: "https://api.jobtext.test",
+    baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
     fetch: fetchSpy as unknown as typeof fetch,
   });
@@ -64,7 +64,7 @@ describe("create — POST /v1/text-enablements", () => {
 
     expect(created).toEqual(ROW);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(String(url)).toBe("https://api.jobtext.test/v1/text-enablements");
+    expect(String(url)).toBe("https://api.loonext.test/v1/text-enablements");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Company-Id"]).toBe("company-1");
     expect(headers["Idempotency-Key"]).toBe(idempotencyKey);
@@ -122,7 +122,7 @@ describe("documents — PUT /v1/text-enablements/:id/documents", () => {
     expect(updated.has_bill).toBe(true);
     const [url, init] = fetchSpy.mock.calls[0];
     expect(String(url)).toBe(
-      `https://api.jobtext.test/v1/text-enablements/${ROW.id}/documents`,
+      `https://api.loonext.test/v1/text-enablements/${ROW.id}/documents`,
     );
     expect(init?.method).toBe("PUT");
     const sent = init?.body as FormData;
@@ -154,7 +154,7 @@ describe("verification — the number-ownership code POSTs", () => {
     expect(result).toEqual({ requested: true, verification_method: "call" });
     const [url, init] = fetchSpy.mock.calls[0];
     expect(String(url)).toBe(
-      `https://api.jobtext.test/v1/text-enablements/${ROW.id}/verification-codes`,
+      `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes`,
     );
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({
@@ -200,7 +200,7 @@ describe("verification — the number-ownership code POSTs", () => {
     expect(result).toEqual({ verified: true });
     const [url, init] = fetchSpy.mock.calls[0];
     expect(String(url)).toBe(
-      `https://api.jobtext.test/v1/text-enablements/${ROW.id}/verification-codes/verify`,
+      `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes/verify`,
     );
     expect(JSON.parse(String(init?.body))).toEqual({ code: "482913" });
   });
@@ -239,7 +239,7 @@ describe("resubmit / cancel — the action POSTs", () => {
     expect(reset.status).toBe("pending");
     const [url, init] = fetchSpy.mock.calls[0];
     expect(String(url)).toBe(
-      `https://api.jobtext.test/v1/text-enablements/${ROW.id}/resubmit`,
+      `https://api.loonext.test/v1/text-enablements/${ROW.id}/resubmit`,
     );
     expect(init?.method).toBe("POST");
   });

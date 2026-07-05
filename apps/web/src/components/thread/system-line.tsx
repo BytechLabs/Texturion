@@ -37,7 +37,7 @@ export function eventSentence(
   messageBody: (messageId: string) => string | undefined = () => undefined,
 ): string {
   const actor = memberName(event.actor_user_id);
-  const by = actor ?? "JobText";
+  const by = actor ?? "Loonext";
   switch (event.type) {
     case "status_changed": {
       const to = event.payload.to as ConversationStatus | undefined;

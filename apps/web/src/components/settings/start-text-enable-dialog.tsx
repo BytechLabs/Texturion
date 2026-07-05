@@ -74,7 +74,7 @@ export function StartTextEnableDialog() {
           <DialogTitle>Text-enable your existing landline</DialogTitle>
           <DialogDescription>
             Your number and your carrier stay exactly as they are — calls
-            don&apos;t change. JobText adds texting to the number; the carrier
+            don&apos;t change. Loonext adds texting to the number; the carrier
             review usually takes a few business days, and texting goes live
             once it completes.
           </DialogDescription>

@@ -361,7 +361,7 @@ function TaskActivityTimeline({ items }: { items: TaskActivityItem[] }) {
               item.actor?.display_name ??
                 (item.actor_user_id
                   ? memberNames.get(item.actor_user_id) ?? "A teammate"
-                  : "JobText"),
+                  : "Loonext"),
               (userId) => (userId ? memberNames.get(userId) ?? null : null),
             ) ?? "Task updated"}
             <span className="ml-1 tabular-nums text-app-muted-2/80">

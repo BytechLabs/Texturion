@@ -44,7 +44,7 @@ export interface PushSubscriptionState {
   /** This browser has the SW + Push + Notification stack. */
   supported: boolean;
   permission: PushPermission;
-  /** This device currently receives JobText pushes. */
+  /** This device currently receives Loonext pushes. */
   subscribed: boolean;
   /** True while the initial inspection or a subscribe/unsubscribe runs. */
   pending: boolean;

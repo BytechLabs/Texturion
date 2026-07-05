@@ -146,14 +146,14 @@ export function CompareHeroPhoto({
 
 export function WhoEachIsFor({
   heading,
-  jobtextTitle,
-  jobtextBody,
+  loonextTitle,
+  loonextBody,
   competitorTitle,
   competitorBody,
 }: {
   heading: ReactNode;
-  jobtextTitle: string;
-  jobtextBody: ReactNode;
+  loonextTitle: string;
+  loonextBody: ReactNode;
   competitorTitle: string;
   competitorBody: ReactNode;
 }) {
@@ -167,10 +167,10 @@ export function WhoEachIsFor({
           <Reveal>
             <div className="h-full rounded-2xl border border-[color:var(--petrol)]/40 bg-[color:var(--petrol-12)] p-6 sm:p-8">
               <h3 className="text-lg font-semibold text-[color:var(--petrol)]">
-                {jobtextTitle}
+                {loonextTitle}
               </h3>
               <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-[color:var(--ink)]">
-                {jobtextBody}
+                {loonextBody}
               </div>
             </div>
           </Reveal>
@@ -245,7 +245,7 @@ export function BetterPickCallout({
 }
 
 /* -------------------------------------------------------------------------- */
-/* JobText advantages, framed factually (§6). Marker-checked list of real wins. */
+/* Loonext advantages, framed factually (§6). Marker-checked list of real wins. */
 /* -------------------------------------------------------------------------- */
 
 export function Advantages({

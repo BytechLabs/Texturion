@@ -48,7 +48,7 @@ const CONTENT: TradeContent = {
     </>
   ),
   heroSub:
-    "The first cold snap, the first heat wave, the calls all come at once, and every one of them is urgent. JobText turns the pile-up into a triaged queue your whole team can work: read the fault, assign the tech, send the window, keep the install quotes from going cold.",
+    "The first cold snap, the first heat wave, the calls all come at once, and every one of them is urgent. Loonext turns the pile-up into a triaged queue your whole team can work: read the fault, assign the tech, send the window, keep the install quotes from going cold.",
   heroTruthLine:
     "Triage the surge from one inbox. Live in minutes. No busy-season contract.",
   heroPhotoId: "tools-wall",
@@ -57,7 +57,7 @@ const CONTENT: TradeContent = {
   painH2: "When it's -18 out, everyone calls at once, and no-heat can't go to voicemail.",
   painBody: [
     "HVAC demand doesn't trickle in; it spikes. The morning a cold front lands, a dozen no-heat calls hit before 8am, and the same thing happens in reverse the first 30-degree week of summer. Route all of that through one owner's cell and you get a full voicemail box, a stressed dispatcher, and customers calling the next company because nobody picked up.",
-    "The rest of the year is a different problem: the slow bleed. An install quote you sent three weeks ago that never got a follow-up. A maintenance-plan customer whose tune-up you meant to remind them about. Those are real dollars, and they slip because the follow-up lives on a sticky note. JobText keeps the surge triaged and the follow-ups visible, the whole team working one inbox instead of one phone.",
+    "The rest of the year is a different problem: the slow bleed. An install quote you sent three weeks ago that never got a follow-up. A maintenance-plan customer whose tune-up you meant to remind them about. Those are real dollars, and they slip because the follow-up lives on a sticky note. Loonext keeps the surge triaged and the follow-ups visible, the whole team working one inbox instead of one phone.",
   ],
   painVisual: (
     <TradePhoto
@@ -103,7 +103,7 @@ const CONTENT: TradeContent = {
     {
       icon: BellRing,
       title: "Send maintenance-plan reminders yourself, on time.",
-      body: "Twice a year, text your plan customers to book their tune-up, you send it, with a saved reply, so it's fast but it's real (JobText doesn't blast on its own). The whole team sees who's been reminded and who's booked.",
+      body: "Twice a year, text your plan customers to book their tune-up, you send it, with a saved reply, so it's fast but it's real (Loonext doesn't blast on its own). The whole team sees who's been reminded and who's booked.",
     },
   ],
 
@@ -168,8 +168,8 @@ const CONTENT: TradeContent = {
   faqH2: "HVAC questions, straight answers.",
   faqs: [
     {
-      q: "Does JobText send maintenance reminders automatically?",
-      a: "No, and we won't pretend it does. Reminders are something you send, fast, with a saved reply: pull up your plan customers and text the tune-up nudge in a couple of taps. That keeps it honest with the phone companies (no unsolicited blasts) and keeps a real person deciding who to contact. What JobText gives you is the shared inbox where the whole team sees who's been reminded and who's booked.",
+      q: "Does Loonext send maintenance reminders automatically?",
+      a: "No, and we won't pretend it does. Reminders are something you send, fast, with a saved reply: pull up your plan customers and text the tune-up nudge in a couple of taps. That keeps it honest with the phone companies (no unsolicited blasts) and keeps a real person deciding who to contact. What Loonext gives you is the shared inbox where the whole team sees who's been reminded and who's booked.",
     },
     {
       q: "The calls all hit at once in a cold snap. How does a shared inbox help?",

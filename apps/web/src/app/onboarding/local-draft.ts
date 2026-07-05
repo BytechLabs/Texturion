@@ -6,7 +6,7 @@ import type { OnboardingDraft, PortDraft } from "./steps";
  * screens persist locally until the company exists; every later step writes
  * server-side immediately (G7 resumability).
  */
-const DRAFT_KEY = "jobtext:onboarding-draft";
+const DRAFT_KEY = "loonext:onboarding-draft";
 
 /** Pure parser so malformed storage never breaks the wizard. */
 export function parseDraft(raw: string | null): OnboardingDraft {

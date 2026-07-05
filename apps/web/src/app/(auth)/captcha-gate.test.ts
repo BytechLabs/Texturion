@@ -25,7 +25,7 @@ vi.mock("next/link", async () => {
 
 const VALID_URL = "https://abcdefghijkl.supabase.co";
 const VALID_KEY = "sb_publishable_0123456789abcdef";
-const VALID_API = "https://api.jobtext.app";
+const VALID_API = "https://api.loonext.app";
 const FAKE_SITE_KEY = "0x4AAAAAAAFakeSiteKey";
 
 const pages = {

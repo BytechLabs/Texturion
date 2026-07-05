@@ -39,7 +39,7 @@ function makeClient(
       handler(String(input), init),
   );
   const request = createApiClient({
-    baseUrl: "https://api.jobtext.test",
+    baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
     fetch: fetchSpy as unknown as typeof fetch,
   });
@@ -88,7 +88,7 @@ describe("attachment upload — multipart request shape", () => {
     });
 
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(String(url)).toBe("https://api.jobtext.test/v1/attachments");
+    expect(String(url)).toBe("https://api.loonext.test/v1/attachments");
     expect(init?.method).toBe("POST");
 
     const headers = init?.headers as Record<string, string>;
@@ -282,7 +282,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
     });
 
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(String(url)).toBe("https://api.jobtext.test/v1/attachments/att-1");
+    expect(String(url)).toBe("https://api.loonext.test/v1/attachments/att-1");
     expect(init?.method).toBe("DELETE");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Company-Id"]).toBe("company-1");
@@ -324,7 +324,7 @@ describe("invalidateAfterNoteUpload — the note-file upload invalidation set", 
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
       "sb_publishable_0123456789abcdef",
     );
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.jobtext.app");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.loonext.app");
     const mod = await import("./attachments");
     return mod.invalidateAfterNoteUpload;
   }

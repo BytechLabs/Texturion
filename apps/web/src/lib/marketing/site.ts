@@ -12,7 +12,7 @@
  * real standalone pages. There are ZERO dead links.
  */
 
-export const SITE_URL = "https://jobtext.app";
+export const SITE_URL = "https://loonext.app";
 
 /** Absolute canonical for a path (leading slash), e.g. "/legal/terms". */
 export function absoluteUrl(path: string): string {

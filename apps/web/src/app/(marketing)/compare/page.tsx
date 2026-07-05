@@ -28,9 +28,9 @@ import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 const PATH = "/compare";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Compare JobText: honest, dated side-by-sides",
+  title: "Compare Loonext: honest, dated side-by-sides",
   description:
-    "See how JobText's flat $29/mo shared text inbox stacks up against Podium, Heymarket, and Quo, every competitor price dated and sourced, every trade-off stated plainly.",
+    "See how Loonext's flat $29/mo shared text inbox stacks up against Podium, Heymarket, and Quo, every competitor price dated and sourced, every trade-off stated plainly.",
   path: PATH,
 });
 
@@ -88,13 +88,13 @@ export default function CompareIndexPage() {
                 Honest comparisons
               </p>
               <Display as="h1" size="hero" className="mt-5 text-balance">
-                How JobText compares, with the price{" "}
+                How Loonext compares, with the price{" "}
                 <Display.Mark>on the page</Display.Mark>.
               </Display>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-                We put JobText next to the tools you&apos;re weighing it against
+                We put Loonext next to the tools you&apos;re weighing it against
                 and tell the truth about both, every competitor number dated and
-                sourced, every place they beat us named outright. JobText is a
+                sourced, every place they beat us named outright. Loonext is a
                 shared text inbox at one flat price:{" "}
                 <span className="font-mono-mkt text-[color:var(--petrol)]">
                   $29
@@ -152,7 +152,7 @@ export default function CompareIndexPage() {
                     <Building2 className="size-5" strokeWidth={1.75} aria-hidden />
                   </span>
                   <h3 className="mt-4 text-lg font-semibold text-[color:var(--ink)]">
-                    JobText vs {card.competitor}
+                    Loonext vs {card.competitor}
                   </h3>
                   <p className="mt-2 flex-1 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                     {card.angle}
@@ -185,7 +185,7 @@ export default function CompareIndexPage() {
                 The whole story, at a glance.
               </Display>
               <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-                Most of the tools above bill per user. JobText is flat, $29 up to
+                Most of the tools above bill per user. Loonext is flat, $29 up to
                 three people, $79 up to ten. The more your crew grows, the wider
                 the gap. Here&apos;s a flat line against a typical per-user tool
                 as the team scales.

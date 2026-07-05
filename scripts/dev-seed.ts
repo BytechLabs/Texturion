@@ -23,8 +23,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SERVICE_KEY =
   process.env.SUPABASE_SECRET_KEY ?? "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 
-export const SEED_OWNER = { email: "owner@jobtext.test", password: "devseed1" };
-export const SEED_MEMBER = { email: "sam@jobtext.test", password: "devseed1" };
+export const SEED_OWNER = { email: "owner@loonext.test", password: "devseed1" };
+export const SEED_MEMBER = { email: "sam@loonext.test", password: "devseed1" };
 
 const COMPANY_NUMBER = "+15125550100";
 
@@ -182,7 +182,7 @@ async function uploadAttachment(path: string, bytes: Uint8Array): Promise<void> 
 /* ------------------------------------------------------------------ */
 
 async function main() {
-  console.log("Seeding local JobText dev data …");
+  console.log("Seeding local Loonext dev data …");
 
   const ownerId = await gotrueCreateUser(
     SEED_OWNER.email,

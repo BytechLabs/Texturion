@@ -28,7 +28,7 @@
 }
 
 /*
- * JobText design tokens (DESIGN.md G2) — shadcn/ui CSS-variable convention,
+ * Loonext design tokens (DESIGN.md G2) — shadcn/ui CSS-variable convention,
  * light + dark. Warm stone neutrals, one confident "petrol" accent
  * (#0F766E / teal-700; teal-500 on dark), semantic colors used sparingly.
  * Values are the Tailwind v4 oklch palette so utility classes and tokens

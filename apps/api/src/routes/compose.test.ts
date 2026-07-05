@@ -254,7 +254,7 @@ async function postCompose(
   options: { idempotencyKey?: string } = {},
 ): Promise<Response> {
   return app.fetch(
-    new Request("https://api.jobtext.app/v1/conversations", {
+    new Request("https://api.loonext.app/v1/conversations", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${await auth.token()}`,

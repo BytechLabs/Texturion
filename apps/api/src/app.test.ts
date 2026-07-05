@@ -25,7 +25,7 @@ describe("env validation", () => {
     const bindings = completeEnv();
     const env = getEnv(bindings);
     expect(env.SUPABASE_URL).toBe(bindings.SUPABASE_URL);
-    expect(env.APP_ORIGIN).toBe("https://app.jobtext.app");
+    expect(env.APP_ORIGIN).toBe("https://app.loonext.app");
   });
 
   it("rejects a missing key and names it in the error", () => {

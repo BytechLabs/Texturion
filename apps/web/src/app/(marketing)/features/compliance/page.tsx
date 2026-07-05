@@ -70,7 +70,7 @@ export default function CompliancePage() {
             <Display.Mark>handled</Display.Mark>.
           </>
         }
-        sub="Business texting in the US and Canada comes with real rules, registering with the phone companies, honoring opt-outs, recording consent, identifying your business. Most tools hand you a homework packet. JobText files the paperwork, enforces the opt-outs, and writes the footers, so you can get back to the job."
+        sub="Business texting in the US and Canada comes with real rules, registering with the phone companies, honoring opt-outs, recording consent, identifying your business. Most tools hand you a homework packet. Loonext files the paperwork, enforces the opt-outs, and writes the footers, so you can get back to the job."
         truthChips={[
           "10DLC registration, filed for you",
           "STOP honored automatically",
@@ -99,9 +99,9 @@ export default function CompliancePage() {
         <p>
           In the US, the phone companies require every business that texts to
           register first, it&apos;s called 10DLC, and it&apos;s an industry
-          rule, not a JobText rule. Done yourself, it means brand and campaign
+          rule, not a Loonext rule. Done yourself, it means brand and campaign
           forms, carrier vetting, and a resubmission if anything bounces. On
-          JobText you answer a few plain questions at signup, your legal name,
+          Loonext you answer a few plain questions at signup, your legal name,
           address, and EIN, and we file the whole thing for you the minute you
           pay, follow it through review, and resubmit if it comes back.
         </p>
@@ -124,7 +124,7 @@ export default function CompliancePage() {
         flip
       >
         <p>
-          When a customer texts STOP (or UNSUBSCRIBE, CANCEL, END, QUIT), JobText
+          When a customer texts STOP (or UNSUBSCRIBE, CANCEL, END, QUIT), Loonext
           opts them out on the spot and blocks any future send to that number
           until they opt back in. There&apos;s no toggle to remember and no way
           to text them by accident afterward, a send to an opted-out number is
@@ -175,7 +175,7 @@ export default function CompliancePage() {
       >
         <p>
           If you <em>start</em> a new conversation with someone between 8pm and
-          8am in their local time, JobText quietly checks first:
+          8am in their local time, Loonext quietly checks first:
           &ldquo;It&apos;s 9:14pm where this customer is. Send anyway?&rdquo; You
           can send or wait, it&apos;s a nudge, not a hard block, and the time
           zone is inferred from the customer&apos;s area code so you don&apos;t
@@ -228,12 +228,12 @@ export default function CompliancePage() {
 
       {/* Honest details, the precise scope (§4). */}
       <HonestDetails
-        lead="Compliance copy is where it's easy to overpromise, so here's the careful version of what JobText does and doesn't claim."
+        lead="Compliance copy is where it's easy to overpromise, so here's the careful version of what Loonext does and doesn't claim."
         items={[
           {
             term: "We help you follow the rules, we don't make you 'compliant.'",
             detail:
-              "JobText handles the mechanics: registration, opt-outs, consent records, identification. Following the law (TCPA in the US, CASL in Canada) also depends on how you use it, you still have to only text people who agreed to hear from you. We give you the tools and the guardrails; the honest word is 'helps.'",
+              "Loonext handles the mechanics: registration, opt-outs, consent records, identification. Following the law (TCPA in the US, CASL in Canada) also depends on how you use it, you still have to only text people who agreed to hear from you. We give you the tools and the guardrails; the honest word is 'helps.'",
           },
           {
             term: "The US wait is the carriers', and it's real.",
@@ -295,7 +295,7 @@ export default function CompliancePage() {
             hint: "Confirmations and consult photos, with the rules handled for a front desk of one.",
           },
           {
-            label: "JobText vs Podium",
+            label: "Loonext vs Podium",
             href: "/compare/podium",
             hint: "Compliance handled without a sales call or an annual contract.",
           },
@@ -308,7 +308,7 @@ export default function CompliancePage() {
         faqs={[
           {
             q: "What is 10DLC, and do I really have to register?",
-            a: "10DLC is the US system for registering the local numbers that businesses use to text. Registration is required by the phone companies for every business that texts US numbers, it's not optional and it's not specific to JobText. The difference is that we file it for you and carry it through approval, instead of handing you the forms.",
+            a: "10DLC is the US system for registering the local numbers that businesses use to text. Registration is required by the phone companies for every business that texts US numbers, it's not optional and it's not specific to Loonext. The difference is that we file it for you and carry it through approval, instead of handing you the forms.",
           },
           {
             q: "Why does US texting take about a week to turn on?",
@@ -316,19 +316,19 @@ export default function CompliancePage() {
           },
           {
             q: "What happens when a customer replies STOP?",
-            a: "They're opted out instantly, and JobText blocks any further texts to that number until they opt back in. A send to an opted-out number is rejected in the app before it reaches the carrier, so there's no accidental message. A teammate can also mark someone opted out manually if they ask to stop in their own words.",
+            a: "They're opted out instantly, and Loonext blocks any further texts to that number until they opt back in. A send to an opted-out number is rejected in the app before it reaches the carrier, so there's no accidental message. A teammate can also mark someone opted out manually if they ask to stop in their own words.",
           },
           {
             q: "How is consent recorded?",
             a: "Customers who text you first are recorded as having consented automatically. To start a new conversation with someone, you confirm they asked you to text them, one required checkbox, which records the consent with your name and the date. That record is what makes the opt-in you declared to the carriers accurate.",
           },
           {
-            q: "Does JobText add anything to my messages?",
+            q: "Does Loonext add anything to my messages?",
             a: "Only to the very first text you send a brand-new contact: your business name and a 'Reply STOP to opt out' line, which the rules expect for identification. The composer previews it before you send, and it's not added to later messages in the conversation.",
           },
           {
-            q: "Are you saying JobText makes me legally compliant?",
-            a: "No, we say it helps you follow the rules, and we mean the difference. JobText handles registration, opt-outs, consent records, and identification, but staying within TCPA and CASL also depends on you only texting people who agreed to hear from you. We give you the tooling and the guardrails; we don't claim to absolve you of the rules.",
+            q: "Are you saying Loonext makes me legally compliant?",
+            a: "No, we say it helps you follow the rules, and we mean the difference. Loonext handles registration, opt-outs, consent records, and identification, but staying within TCPA and CASL also depends on you only texting people who agreed to hear from you. We give you the tooling and the guardrails; we don't claim to absolve you of the rules.",
           },
         ]}
       />

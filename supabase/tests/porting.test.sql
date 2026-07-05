@@ -1,7 +1,7 @@
--- JobText number-porting (port-in) schema assertion suite (D16 / PORTING.md §2).
+-- Loonext number-porting (port-in) schema assertion suite (D16 / PORTING.md §2).
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/porting.test.sql
 -- (root script: pnpm run db:test:porting, wired into db:test:all)
 --

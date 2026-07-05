@@ -56,7 +56,7 @@ const CONTENT: TradeContent = {
   painH2: "In April, the quotes come in faster than one phone can hold them.",
   painBody: [
     "Landscaping runs in waves. The first warm week, everyone wants a spring cleanup, a mulch estimate, a mowing quote, all at once, all by text, all to the number printed on the truck. If that number is the owner's cell, the owner spends the busiest month of the year as a full-time receptionist instead of running crews.",
-    "And the work is spread out. One crew's at the Alvarez place, another's across town, and the addresses, gate notes, and “which corner did they want re-mulched” live in a hundred separate text threads on separate phones. JobText puts every property conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same address, the same notes.",
+    "And the work is spread out. One crew's at the Alvarez place, another's across town, and the addresses, gate notes, and “which corner did they want re-mulched” live in a hundred separate text threads on separate phones. Loonext puts every property conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same address, the same notes.",
   ],
   painVisual: (
     <TradePhoto
@@ -180,7 +180,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "The weather changes our schedule constantly. Does texting help?",
-      a: "It's the fastest way to reschedule. Pull up the day's conversations, send each affected customer the new time with a saved reply, and everyone knows before the crew doesn't show. JobText doesn't reschedule for you, but it makes sending 15 updates a two-minute job.",
+      a: "It's the fastest way to reschedule. Pull up the day's conversations, send each affected customer the new time with a saved reply, and everyone knows before the crew doesn't show. Loonext doesn't reschedule for you, but it makes sending 15 updates a two-minute job.",
     },
     {
       q: "Our customers are seasonal, will they remember us next spring?",

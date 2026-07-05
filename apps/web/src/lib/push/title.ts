@@ -1,5 +1,5 @@
 /**
- * Pure logic behind the G9 unread indicators: the `(3) Inbox — JobText`
+ * Pure logic behind the G9 unread indicators: the `(3) Inbox — Loonext`
  * document title prefix, the favicon swap, and the unread count derived from
  * cached conversation lists. All plain functions/objects — unit-tested in
  * title.test.ts, applied to the DOM by use-unread-title.ts.
@@ -8,7 +8,7 @@
 /** Title counts above this render as "99+" — precision stops mattering. */
 const MAX_DISPLAY_COUNT = 99;
 
-/** `(3) Inbox — JobText` (G9). Pure — no stripping, base title comes in. */
+/** `(3) Inbox — Loonext` (G9). Pure — no stripping, base title comes in. */
 export function formatUnreadTitle(baseTitle: string, unread: number): string {
   if (unread <= 0) return baseTitle;
   const count =
@@ -18,7 +18,7 @@ export function formatUnreadTitle(baseTitle: string, unread: number): string {
 
 /**
  * Stateful (but DOM-free) title controller. A regex can't distinguish our
- * `(3) ` prefix from a legitimate page title like `(416) 555-0182 — JobText`
+ * `(3) ` prefix from a legitimate page title like `(416) 555-0182 — Loonext`
  * (G10 phone formatting), so the controller remembers exactly what it last
  * wrote: any OTHER value it sees is a page-authored base title.
  */

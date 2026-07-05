@@ -1,4 +1,4 @@
--- JobText service_role grant assertion suite (SPEC §6 — Worker data access).
+-- Loonext service_role grant assertion suite (SPEC §6 — Worker data access).
 -- The Worker's sb_secret_ key executes as service_role over PostgREST; direct
 -- table operations require explicit DML grants because the no-auto-grant
 -- default is kept (20260701030000_service_role_grants.sql provides them).

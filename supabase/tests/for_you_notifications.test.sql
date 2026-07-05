@@ -1,7 +1,7 @@
--- JobText /for-you (D23) + notifications read-model (D24) assertion suite
+-- Loonext /for-you (D23) + notifications read-model (D24) assertion suite
 -- (migration 20260702070000_appv2_for_you_notifications.sql). psql-runnable:
 -- every test is a DO block that RAISEs EXCEPTION on failure. Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/for_you_notifications.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes
 -- the local database. now() is transaction-fixed, which these tests rely on

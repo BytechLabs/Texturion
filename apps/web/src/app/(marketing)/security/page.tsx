@@ -18,7 +18,7 @@ const PATH = "/security";
 export const metadata: Metadata = buildMetadata({
   title: "Security",
   description:
-    "How JobText protects your data in plain language: tenant isolation with row-level security, encryption in transit and at rest, signed webhooks, least-privilege keys, and message content kept out of analytics and error logs.",
+    "How Loonext protects your data in plain language: tenant isolation with row-level security, encryption in transit and at rest, signed webhooks, least-privilege keys, and message content kept out of analytics and error logs.",
   path: PATH,
 });
 
@@ -31,12 +31,12 @@ const POINTS = [
   {
     Icon: ShieldCheck,
     title: "Your data is isolated from every other business",
-    body: "Every business on JobText is a separate tenant. Each database query is scoped to one business by its ID, and Postgres row-level security is enabled deny-by-default on every table as a second line of defense, so one business can never see another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
+    body: "Every business on Loonext is a separate tenant. Each database query is scoped to one business by its ID, and Postgres row-level security is enabled deny-by-default on every table as a second line of defense, so one business can never see another's conversations, contacts, or numbers. Realtime updates are gated the same way: you only join your own company's channel.",
   },
   {
     Icon: Lock,
     title: "Encrypted in transit and at rest",
-    body: "Traffic to JobText runs over HTTPS/TLS. Your data, messages, contacts, and attachments, is encrypted at rest by our infrastructure providers. Message attachments live in a private, per-business storage bucket and are served only through short-lived signed links.",
+    body: "Traffic to Loonext runs over HTTPS/TLS. Your data, messages, contacts, and attachments, is encrypted at rest by our infrastructure providers. Message attachments live in a private, per-business storage bucket and are served only through short-lived signed links.",
   },
   {
     Icon: Webhook,
@@ -76,7 +76,7 @@ export default function SecurityPage() {
             The honest version of &quot;we take security seriously.&quot;
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            No badges we don&apos;t hold, no jargon. Here is exactly how JobText
+            No badges we don&apos;t hold, no jargon. Here is exactly how Loonext
             protects your business&apos;s data, each point is something the
             product actually does today.
           </p>
@@ -109,7 +109,7 @@ export default function SecurityPage() {
             Where your data lives
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            JobText processes and stores data in the United States (Supabase on
+            Loonext processes and stores data in the United States (Supabase on
             AWS us-east-1). The full list of vendors that process data on our
             behalf, and the region each operates in, is on our{" "}
             <a

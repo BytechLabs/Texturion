@@ -169,7 +169,7 @@ export const tradesMenu: NavMenu = {
       live: true,
     },
     {
-      label: "JobText in Canada",
+      label: "Loonext in Canada",
       href: LIVE_ROUTES.canada,
       description: "Canadian crews text customers the same day they sign up.",
       icon: Leaf,
@@ -186,21 +186,21 @@ export const compareMenu: NavMenu = {
   columns: 1,
   items: [
     {
-      label: "JobText vs Podium",
+      label: "Loonext vs Podium",
       href: LIVE_ROUTES.comparePodium,
       description: "Flat pricing and a buy button instead of a sales call.",
       icon: Building2,
       live: true,
     },
     {
-      label: "JobText vs Heymarket",
+      label: "Loonext vs Heymarket",
       href: LIVE_ROUTES.compareHeymarket,
       description: "One flat price vs $49/user with a two-user minimum.",
       icon: Building2,
       live: true,
     },
     {
-      label: "JobText vs Quo",
+      label: "Loonext vs Quo",
       href: LIVE_ROUTES.compareQuo,
       description: "Whole-crew pricing vs per-seat, texting included.",
       icon: Building2,

@@ -19,7 +19,7 @@ function makeClient(
       handler(String(input), init),
   );
   const request = createApiClient({
-    baseUrl: "https://api.jobtext.test",
+    baseUrl: "https://api.loonext.test",
     getAccessToken: async () => token,
     fetch: fetchSpy as unknown as typeof fetch,
   });
@@ -92,7 +92,7 @@ describe("api client request building (G12)", () => {
       body: { conversation_id: "c1", body: "hi" },
     });
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(String(url)).toBe("https://api.jobtext.test/v1/messages/send");
+    expect(String(url)).toBe("https://api.loonext.test/v1/messages/send");
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-token");
     expect(headers["X-Company-Id"]).toBe("company-1");

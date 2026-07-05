@@ -1,7 +1,7 @@
--- JobText §8 notification-debounce assertion suite (thread_inbound_message's
+-- Loonext §8 notification-debounce assertion suite (thread_inbound_message's
 -- `notify` claim + last_notified_at stamp). psql-runnable: every test is a DO
 -- block that RAISEs EXCEPTION on failure. Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/notifications.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes
 -- the local database. (now() is transaction-fixed, which these tests rely on:

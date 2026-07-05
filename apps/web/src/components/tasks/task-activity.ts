@@ -21,7 +21,7 @@ export interface TaskEventLike {
 
 /**
  * A quiet sentence for a task event, with the actor's name. `by` is the
- * resolved actor (or a fallback like "JobText"); `memberName` resolves a user
+ * resolved actor (or a fallback like "Loonext"); `memberName` resolves a user
  * id to a display name for the "assigned to <name>" line. Unknown types return
  * null so the caller can skip rendering.
  */

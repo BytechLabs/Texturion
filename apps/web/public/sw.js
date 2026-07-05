@@ -19,7 +19,7 @@
 "use strict";
 
 /** Bump when the precache list or offline.html changes. */
-const SHELL_CACHE = "jobtext-shell-v1";
+const SHELL_CACHE = "loonext-shell-v1";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
 
@@ -78,7 +78,7 @@ function formatPushNotification(rawText, origin) {
       badge: "/icons/badge-72.png",
       // One notification per thread: a second text from the same customer
       // replaces the first instead of stacking (calm, G1) but still alerts.
-      tag: `jobtext:${url}`,
+      tag: `loonext:${url}`,
       renotify: true,
       data: { url },
     },
@@ -101,7 +101,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("jobtext-") && key !== SHELL_CACHE)
+            .filter((key) => key.startsWith("loonext-") && key !== SHELL_CACHE)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -184,7 +184,7 @@ self.addEventListener("fetch", (event) => {
 // Test seam: the pure helpers above are asserted directly by
 // src/lib/push/sw.test.ts, which evaluates this file in a VM with a stubbed
 // `self`. Harmless in production (an extra property on the worker global).
-self.__jobtextSw = {
+self.__loonextSw = {
   SHELL_CACHE,
   OFFLINE_URL,
   PRECACHE,

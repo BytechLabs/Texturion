@@ -50,7 +50,7 @@ function companyInitials(name: string): string {
 
 /** Opens the ⌘K command palette — the app's search + navigator. */
 function openCommand() {
-  window.dispatchEvent(new Event("jobtext:open-command"));
+  window.dispatchEvent(new Event("loonext:open-command"));
 }
 
 interface NavRow {

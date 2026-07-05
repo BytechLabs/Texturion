@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
  * inbox), when dismissed (localStorage, per company), or once complete.
  */
 
-const DISMISS_KEY_PREFIX = "jobtext:getting-started-dismissed:";
+const DISMISS_KEY_PREFIX = "loonext:getting-started-dismissed:";
 
 interface StepItem {
   key: string;

@@ -31,7 +31,7 @@ function syntheticEvent(): ErrorEvent {
       },
     ],
     request: {
-      url: `https://api.jobtext.app/v1/contacts?phone=${encodeURIComponent(PHONE)}`,
+      url: `https://api.loonext.app/v1/contacts?phone=${encodeURIComponent(PHONE)}`,
       method: "POST",
       query_string: `q=${PHONE}`,
       cookies: { session: "abc" },

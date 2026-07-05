@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const VALID_URL = "https://abcdefghijkl.supabase.co";
 const VALID_KEY = "sb_publishable_0123456789abcdef";
-const VALID_API = "https://api.jobtext.app";
+const VALID_API = "https://api.loonext.app";
 
 // env.ts validates at module load, so each test stubs process.env first and
 // then imports a fresh copy of the module.

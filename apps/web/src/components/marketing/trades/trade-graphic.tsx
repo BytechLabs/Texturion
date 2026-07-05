@@ -1,6 +1,6 @@
 /**
  * <TradeGraphic>, the framed card that presents a trade page's supporting
- * illustration beside the "how JobText fits" copy (BLUEPRINT §5, VISUALS §3
+ * illustration beside the "how Loonext fits" copy (BLUEPRINT §5, VISUALS §3
  * trade-page rule: hero thread demo PLUS at least one supporting graphic). A
  * thin, shared presentational shell so all six trade pages frame their art
  * identically (card, 10px radius, ambient shadow, centered caption) while each

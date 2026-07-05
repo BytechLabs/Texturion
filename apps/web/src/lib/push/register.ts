@@ -43,6 +43,6 @@ export async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRe
 export function registerServiceWorker(): void {
   if (!serviceWorkerSupported()) return;
   void navigator.serviceWorker.register(SW_URL).catch((cause) => {
-    console.warn("JobText service worker registration failed:", cause);
+    console.warn("Loonext service worker registration failed:", cause);
   });
 }

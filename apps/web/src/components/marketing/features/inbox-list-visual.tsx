@@ -148,7 +148,7 @@ export function InboxListVisual({ className }: { className?: string }) {
             AA 4.5:1 on white (G11), matches the corrected thread-frame.tsx
             primitive. Reads as a muted chrome hint, not body text. */}
         <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
-          jobtext.app/inbox
+          loonext.app/inbox
         </div>
       </div>
 

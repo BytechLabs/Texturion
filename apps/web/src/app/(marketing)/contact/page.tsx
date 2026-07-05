@@ -17,7 +17,7 @@ const PATH = "/contact";
 export const metadata: Metadata = buildMetadata({
   title: "Contact",
   description:
-    "Get in touch with JobText. Email is our only support channel, no chat bot, no phone tree, and a real person answers, usually within one business day.",
+    "Get in touch with Loonext. Email is our only support channel, no chat bot, no phone tree, and a real person answers, usually within one business day.",
   path: PATH,
 });
 

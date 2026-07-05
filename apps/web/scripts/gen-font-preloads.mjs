@@ -21,7 +21,7 @@ import { readdirSync, writeFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const webDir = process.cwd();
-const distDir = process.env.JOBTEXT_DIST_DIR || ".next";
+const distDir = process.env.LOONEXT_DIST_DIR || ".next";
 const mediaDir = join(webDir, distDir, "static", "media");
 const srcFontDir = join(webDir, "src", "app", "fonts", "marketing");
 const outFile = join(webDir, "public", "marketing-font-preloads.json");

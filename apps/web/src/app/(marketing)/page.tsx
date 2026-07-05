@@ -52,7 +52,7 @@ import { FinalCta } from "@/components/marketing/night/final-cta";
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "JobText: shared text inbox for your crew, $29 a month flat",
+    title: "Loonext: shared text inbox for your crew, $29 a month flat",
     description:
       "One local business number the whole crew texts from. Every customer text answered, assigned, and closed. $29 a month flat for the team, not per user.",
     path: "/",
@@ -60,17 +60,17 @@ export const metadata: Metadata = {
   }),
   openGraph: {
     type: "website",
-    siteName: "JobText",
+    siteName: "Loonext",
     url: absoluteUrl("/"),
     title: "Your best lead texts at 9:47 pm.",
     description:
-      "JobText is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+      "Loonext is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Your best lead texts at 9:47 pm.",
     description:
-      "JobText is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+      "Loonext is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
   },
 };
 

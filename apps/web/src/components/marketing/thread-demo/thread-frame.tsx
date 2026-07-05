@@ -3,7 +3,7 @@
  *
  * Two framings per BLUEPRINT §1.3:
  * - "desktop": a white card with a minimal stone browser-chrome hint (three
- *   dots + `jobtext.app/inbox` URL), quietly reinforces "it's just the web,
+ *   dots + `loonext.app/inbox` URL), quietly reinforces "it's just the web,
  *   no download". Used by the hero right phone / deep-dive.
  * - "phone": a neutral rounded frame (stone ring, 28px radius), NO Apple/Android
  *   device chrome (keeps the PWA story honest). Used by the hero left phone and
@@ -22,7 +22,7 @@ import { DemoAvatar, DemoStatusPill } from "./thread-primitives";
 const AMBIENT_SHADOW = "shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]";
 
 /** The stone browser-chrome hint (three dots + neutral URL bar). */
-function BrowserChrome({ url = "jobtext.app/inbox" }: { url?: string }) {
+function BrowserChrome({ url = "loonext.app/inbox" }: { url?: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
       <div className="flex gap-1.5" aria-hidden>

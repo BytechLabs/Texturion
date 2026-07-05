@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 2, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Terms of service",
   description:
-    "The JobText terms of service: a month-to-month subscription, no annual contract, plain-language cancellation with a 30-day number hold, and the money-back guarantee.",
+    "The Loonext terms of service: a month-to-month subscription, no annual contract, plain-language cancellation with a 30-day number hold, and the money-back guarantee.",
   path: PATH,
 });
 
@@ -35,7 +35,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of service"
-      intro="These terms cover your use of JobText, the shared text inbox for service crews. We keep them short and plain, the way we keep everything about JobText."
+      intro="These terms cover your use of Loonext, the shared text inbox for service crews. We keep them short and plain, the way we keep everything about Loonext."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Terms of service"
       path={PATH}
@@ -43,17 +43,17 @@ export default function TermsPage() {
     >
       <LegalSectionBlock id="agreement" heading="1. The agreement">
         <p>
-          By creating a JobText account or using the service, you agree to these
+          By creating a Loonext account or using the service, you agree to these
           terms on behalf of your business. If you don&apos;t agree, don&apos;t
-          use JobText. &quot;JobText,&quot; &quot;we,&quot; and &quot;us&quot;
-          mean the company that operates JobText; &quot;you&quot; means the
+          use Loonext. &quot;Loonext,&quot; &quot;we,&quot; and &quot;us&quot;
+          mean the company that operates Loonext; &quot;you&quot; means the
           business that holds the account and the people it authorizes to use it.
         </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="eligibility" heading="2. Who can sign up">
         <p>
-          JobText is built for businesses in the United States and Canada that
+          Loonext is built for businesses in the United States and Canada that
           text their own customers. You must be able to enter into a contract,
           run a real business, and give accurate business information when you
           register your number with the phone companies. You must have the
@@ -64,7 +64,7 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="subscription" heading="3. Subscription & billing">
         <p>
-          JobText is a paid, month-to-month subscription. There is no annual
+          Loonext is a paid, month-to-month subscription. There is no annual
           contract and nothing auto-converts from a trial, there is no trial
           that provisions a number. You pick Starter ($29/mo) or Pro ($79/mo),
           pay through Stripe, and your number is created only after your payment
@@ -88,25 +88,25 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="numbers" heading="4. Your phone number">
         <p>
-          The local number JobText provisions belongs to your business account
+          The local number Loonext provisions belongs to your business account
           while your subscription is active. You can send to Canadian numbers as
           soon as the number is live; sending to US numbers turns on after the
           phone companies approve your registration (typically 3–7 business
           days). Receiving texts works right away.
         </p>
         <p>
-          You can bring your existing US or Canadian number to JobText instead
+          You can bring your existing US or Canadian number to Loonext instead
           of getting a new one, the transfer is free. Your number keeps working
-          on your current carrier the whole time and switches to JobText on the
+          on your current carrier the whole time and switches to Loonext on the
           transfer date, which typically takes about 1–7 business days. Texting
-          through JobText turns on once the transfer completes. We show you where
+          through Loonext turns on once the transfer completes. We show you where
           the transfer is at every step.
         </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="acceptable-use" heading="5. Acceptable use">
         <p>
-          Your use of JobText is subject to our{" "}
+          Your use of Loonext is subject to our{" "}
           <LegalLink href="/legal/aup">acceptable use policy</LegalLink>. In
           short: text only people who have agreed to hear from you, no purchased
           or harvested lists, no SHAFT content (sex, hate, alcohol, firearms,
@@ -132,7 +132,7 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="guarantee" heading="7. 30-day money-back guarantee">
         <p>
-          If JobText isn&apos;t right for your crew, email us within 30 days of
+          If Loonext isn&apos;t right for your crew, email us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
           subscription and the one-time registration fee included. No
           &quot;minus credits used,&quot; no forms, no retention call.
@@ -141,7 +141,7 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="availability" heading="8. Availability & changes">
         <p>
-          We work to keep JobText available, but we don&apos;t guarantee
+          We work to keep Loonext available, but we don&apos;t guarantee
           uninterrupted service, text delivery depends on the phone companies
           and carriers, which we don&apos;t control. Current service status is
           on our <LegalLink href="/status">status page</LegalLink>. We may
@@ -153,7 +153,7 @@ export default function TermsPage() {
 
       <LegalSectionBlock id="liability" heading="9. Liability">
         <p>
-          JobText is provided &quot;as is.&quot; To the extent the law allows,
+          Loonext is provided &quot;as is.&quot; To the extent the law allows,
           we&apos;re not liable for indirect or consequential losses, and our
           total liability for any claim is limited to the amount you paid us in
           the three months before the claim. Nothing here limits liability that

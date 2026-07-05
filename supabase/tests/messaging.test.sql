@@ -1,7 +1,7 @@
--- JobText messaging-function assertion suite (SPEC §4/§6 threading, §7/§9/§10
+-- Loonext messaging-function assertion suite (SPEC §4/§6 threading, §7/§9/§10
 -- send gates). psql-runnable: every test is a DO block that RAISEs EXCEPTION
 -- on failure. Run with:
---   docker exec -i supabase_db_JobText psql -U postgres -d postgres \
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
 --     -v ON_ERROR_STOP=1 -f - < supabase/tests/messaging.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK: it never pollutes
 -- the local database.

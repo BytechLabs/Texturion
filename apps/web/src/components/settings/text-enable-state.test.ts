@@ -269,7 +269,7 @@ describe("onlyHostedNumbers — the missed-calls caveat predicate", () => {
     expect(onlyHostedNumbers([hosted])).toBe(true);
   });
 
-  it("false once any JobText-carried number exists", () => {
+  it("false once any Loonext-carried number exists", () => {
     expect(onlyHostedNumbers([hosted, number()])).toBe(false);
     expect(
       onlyHostedNumbers([hosted, number({ id: "num-p", source: "ported" })]),

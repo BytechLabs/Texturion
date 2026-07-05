@@ -2,7 +2,7 @@
  * D31 launch-pass harness — orchestration.
  *
  * Boots the three fake vendor servers (Telnyx, Stripe, JWKS), resolves the
- * REAL local Supabase from `supabase status`, and wires the REAL jobtext-api
+ * REAL local Supabase from `supabase status`, and wires the REAL loonext-api
  * Worker (`app.fetch`) at them. Provides:
  *   - buildEnv()      → the Bindings object the Worker validates (env.ts)
  *   - service client  → supabase-js over the sb_secret_ key, for seed/assert
@@ -31,7 +31,7 @@ import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
 // Literal fallbacks (the CLI defaults) if `supabase status` cannot be parsed.
 const FALLBACK_SUPABASE_URL = "http://127.0.0.1:54321";
 const FALLBACK_SECRET_KEY = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
-const DB_CONTAINER = "supabase_db_JobText";
+const DB_CONTAINER = "supabase_db_Loonext";
 const STRIPE_WEBHOOK_SECRET = "whsec_e2e_launch_pass_secret";
 
 interface SupabaseStatus {
@@ -211,9 +211,9 @@ export async function startHarness(): Promise<Harness> {
     STRIPE_WEBHOOK_SECRET,
     RESEND_API_KEY: "re_e2e",
     SENTRY_DSN: "https://e2e@o000001.ingest.sentry.io/0000001",
-    APP_ORIGIN: "https://app.jobtext.app",
-    API_ORIGIN: "https://api.jobtext.app",
-    RESEND_FROM: "JobText <notifications@jobtext.app>",
+    APP_ORIGIN: "https://app.loonext.app",
+    API_ORIGIN: "https://api.loonext.app",
+    RESEND_FROM: "Loonext <notifications@loonext.app>",
     VAPID_PUBLIC_KEY:
       "BD_hP_N07omlLXk14YXRFvsSICDKoywjGtx-T1_5PdLX155D623P5Ci-5sRhh5g2Qj5j0aQPiDWSgT2DlOefImw",
     VAPID_PRIVATE_KEY: "L9lOg9x05mb1bG5kwUIpxSSf8YiMrm6KZn-c_GIyqAM",
@@ -254,7 +254,7 @@ export async function startHarness(): Promise<Harness> {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(options.body);
     }
-    const request = new Request(`https://api.jobtext.app${path}`, {
+    const request = new Request(`https://api.loonext.app${path}`, {
       method,
       headers,
       body,
@@ -278,7 +278,7 @@ export async function startHarness(): Promise<Harness> {
       telnyx.privateKey,
       bodyText,
     );
-    const request = new Request("https://api.jobtext.app/webhooks/telnyx", {
+    const request = new Request("https://api.loonext.app/webhooks/telnyx", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -308,7 +308,7 @@ export async function startHarness(): Promise<Harness> {
       payload: bodyText,
       secret: STRIPE_WEBHOOK_SECRET,
     });
-    const request = new Request("https://api.jobtext.app/webhooks/stripe", {
+    const request = new Request("https://api.loonext.app/webhooks/stripe", {
       method: "POST",
       headers: {
         "content-type": "application/json",

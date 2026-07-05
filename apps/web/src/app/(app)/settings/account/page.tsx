@@ -25,7 +25,7 @@ type LoadState =
  * set password, and see the linked sign-in methods (Google · Apple · Password).
  *
  * All auth state comes from Supabase directly (the D8 boundary — the Worker
- * never brokers login); JobText reads email/identities from auth.users, so
+ * never brokers login); Loonext reads email/identities from auth.users, so
  * there's no app-side mirror to reconcile after a change.
  */
 export default function AccountSettingsPage() {
@@ -51,7 +51,7 @@ export default function AccountSettingsPage() {
   return (
     <SettingsPage
       title="Account"
-      description="How you sign in to JobText."
+      description="How you sign in to Loonext."
     >
       {state.status === "loading" && (
         <div className="space-y-4" aria-label="Loading account settings">

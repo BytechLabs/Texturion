@@ -5,7 +5,7 @@
  * The reusable desktop framing: a white card, 1px stone border, 10px radius (the
  * app's own card language), a three-dot traffic-light cluster where the leftmost
  * dot is PETROL (the brand accent, per VISUALS §1B), and a neutral URL slot
- * reading `jobtext.app/inbox`, quietly reinforcing "it's just the web, no
+ * reading `loonext.app/inbox`, quietly reinforcing "it's just the web, no
  * download". Wraps screenshots AND live-DOM product renders alike.
  *
  * The soft ambient shadow is the marketing exception to the app's no-card-shadow
@@ -35,7 +35,7 @@ export interface BrowserFrameProps {
 
 export function BrowserFrame({
   children,
-  url = "jobtext.app/inbox",
+  url = "loonext.app/inbox",
   flat = false,
   className,
   contentClassName,

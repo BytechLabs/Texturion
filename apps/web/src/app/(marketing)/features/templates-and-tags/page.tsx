@@ -107,7 +107,7 @@ export default function TemplatesAndTagsPage() {
       >
         <p>
           A conversation carries a status for its state (New, Open, Waiting,
-          Closed) and tags for how it fits your pipeline. JobText ships with a
+          Closed) and tags for how it fits your pipeline. Loonext ships with a
           sell-ready set, <strong>Quote sent</strong>,{" "}
           <strong>Scheduled</strong>, <strong>Won</strong>,{" "}
           <strong>Lost</strong>, and every one is editable to match the words
@@ -136,7 +136,7 @@ export default function TemplatesAndTagsPage() {
         <p>
           Inside a long conversation, some individual messages are little tasks:
           &ldquo;can you send someone to look at the water heater this
-          week?&rdquo; Tap that message and mark it done. JobText draws a
+          week?&rdquo; Tap that message and mark it done. Loonext draws a
           strikethrough through it and a small petrol check, and notes who
           checked it off and when. The whole crew can see at a glance that
           it&apos;s been handled.
@@ -145,7 +145,7 @@ export default function TemplatesAndTagsPage() {
           To be precise about what this is: a done-mark is a lightweight check on
           a single <em>message</em>, so a busy thread stays tidy and nothing gets
           lost. It isn&apos;t a job, a task manager, or a scheduling tool,
-          JobText is a texting inbox, and the done-mark is a way to keep the
+          Loonext is a texting inbox, and the done-mark is a way to keep the
           texting tidy, not a project tracker in disguise.
         </p>
       </FeatureSection>
@@ -168,7 +168,7 @@ export default function TemplatesAndTagsPage() {
         </p>
         <p>
           And everything is searchable. Type a name, a number, or a phrase like
-          &ldquo;water heater&rdquo; and JobText pulls up the matching
+          &ldquo;water heater&rdquo; and Loonext pulls up the matching
           conversations and contacts with the matching text highlighted, so
           &ldquo;what did we quote the Nguyens in March?&rdquo; is a five-second
           question, not a phone poll around the crew.
@@ -219,12 +219,12 @@ export default function TemplatesAndTagsPage() {
           {
             term: "Saved replies are shortcuts, not automation.",
             detail:
-              "A template is a text you send with one tap, it never sends on its own. There are no automated reminders, drip sequences, or scheduled sends. Confirmations and follow-ups are fast to send, but you send them; JobText doesn't text customers for you.",
+              "A template is a text you send with one tap, it never sends on its own. There are no automated reminders, drip sequences, or scheduled sends. Confirmations and follow-ups are fast to send, but you send them; Loonext doesn't text customers for you.",
           },
           {
             term: "Done-marks are on messages, not jobs.",
             detail:
-              "Marking a text done checks off a single message inside a thread. It's a way to keep a conversation tidy, not a task list, a job board, or a scheduler. If you need real project management, JobText isn't it, and won't pretend to be.",
+              "Marking a text done checks off a single message inside a thread. It's a way to keep a conversation tidy, not a task list, a job board, or a scheduler. If you need real project management, Loonext isn't it, and won't pretend to be.",
           },
           {
             term: "Import is your list, with consent.",
@@ -279,7 +279,7 @@ export default function TemplatesAndTagsPage() {
             hint: "Where saved replies, tags, and done-marks live, one inbox, the whole crew.",
           },
           {
-            label: "JobText vs Quo",
+            label: "Loonext vs Quo",
             href: "/compare/quo",
             hint: "Workflow tools included, next to a per-user phone system.",
           },
@@ -300,7 +300,7 @@ export default function TemplatesAndTagsPage() {
           },
           {
             q: "Do templates send automatically?",
-            a: "No. A saved reply is a text you send with one tap; it never sends on its own. JobText has no automated reminders or scheduled sends, the speed comes from templates being one tap away, not from the app texting customers for you.",
+            a: "No. A saved reply is a text you send with one tap; it never sends on its own. Loonext has no automated reminders or scheduled sends, the speed comes from templates being one tap away, not from the app texting customers for you.",
           },
           {
             q: "What exactly does 'mark a text done' do?",

@@ -11,14 +11,14 @@ const PATH = "/status";
 export const metadata: Metadata = buildMetadata({
   title: "Status",
   description:
-    "JobText service status. A live, hosted status page with incident history is on the way at status.jobtext.app; this page won't fake live metrics until it's wired up.",
+    "Loonext service status. A live, hosted status page with incident history is on the way at status.loonext.app; this page won't fake live metrics until it's wired up.",
   path: PATH,
 });
 
 /**
  * Honest static status page (BLUEPRINT §2, §14): states the current posture
  * plainly and says the live, hosted status page (Instatus/BetterStack at
- * status.jobtext.app) is being stood up. We do NOT fabricate live uptime numbers
+ * status.loonext.app) is being stood up. We do NOT fabricate live uptime numbers
  * or component metrics, that would be the opposite of the trust this page is
  * meant to earn.
  */
@@ -38,7 +38,7 @@ export default function StatusPage() {
             Is it down, or is it me?
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            JobText hard-gates outbound texting on carrier approval and sells
+            Loonext hard-gates outbound texting on carrier approval and sells
             trust through honesty, so a real status page matters. Here&apos;s
             where things stand.
           </p>
@@ -64,7 +64,7 @@ export default function StatusPage() {
               A live, hosted status page, with real-time component health and a
               full incident history, is being stood up at{" "}
               <span className="font-medium text-foreground">
-                status.jobtext.app
+                status.loonext.app
               </span>
               . Until it&apos;s wired up, we won&apos;t show fabricated uptime
               numbers here; when it&apos;s live, this page will point straight to
@@ -89,7 +89,7 @@ export default function StatusPage() {
                   Delivery depends on the phone companies and carriers
                 </strong>
                 , which we don&apos;t control. When they have trouble, texts can
-                be delayed even though JobText itself is up.
+                be delayed even though Loonext itself is up.
               </li>
             </ul>
             <p>

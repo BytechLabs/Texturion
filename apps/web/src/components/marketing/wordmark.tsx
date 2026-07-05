@@ -3,8 +3,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * The JobText marketing wordmark (BLUEPRINT §10.3): a rounded speech-bubble tile
- * in petrol containing a white "J", followed by the "JobText" wordmark in Inter
+ * The Loonext marketing wordmark (BLUEPRINT §10.3): a rounded speech-bubble tile
+ * in petrol containing a white "J", followed by the "Loonext" wordmark in Inter
  * 600 with the petrol accent on "Text". Links to the marketing home by default
  * (the app shell's Wordmark defaults to /inbox, this one is for chrome).
  */
@@ -20,7 +20,7 @@ export function Wordmark({
   return (
     <Link
       href={href}
-      aria-label="JobText home"
+      aria-label="Loonext home"
       className={cn(
         "inline-flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground",
         className,

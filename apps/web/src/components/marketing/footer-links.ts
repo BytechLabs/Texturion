@@ -45,7 +45,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
         live: true,
       },
       { label: "Pricing", href: LIVE_ROUTES.pricing, live: true },
-      { label: "JobText in Canada", href: LIVE_ROUTES.canada, live: true },
+      { label: "Loonext in Canada", href: LIVE_ROUTES.canada, live: true },
     ],
   },
   {
@@ -64,16 +64,16 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: "All comparisons", href: LIVE_ROUTES.compareIndex, live: true },
       {
-        label: "JobText vs Podium",
+        label: "Loonext vs Podium",
         href: LIVE_ROUTES.comparePodium,
         live: true,
       },
       {
-        label: "JobText vs Heymarket",
+        label: "Loonext vs Heymarket",
         href: LIVE_ROUTES.compareHeymarket,
         live: true,
       },
-      { label: "JobText vs Quo", href: LIVE_ROUTES.compareQuo, live: true },
+      { label: "Loonext vs Quo", href: LIVE_ROUTES.compareQuo, live: true },
     ],
   },
   {

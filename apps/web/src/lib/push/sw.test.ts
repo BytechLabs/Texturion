@@ -15,7 +15,7 @@ const SW_SOURCE = readFileSync(
   "utf8",
 );
 
-const ORIGIN = "https://app.jobtext.app";
+const ORIGIN = "https://app.loonext.app";
 
 interface WindowClientStub {
   url: string;
@@ -62,7 +62,7 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
   createContext(sandbox);
   runInContext(SW_SOURCE, sandbox);
 
-  const exposed = (self as { __jobtextSw?: Record<string, unknown> }).__jobtextSw;
+  const exposed = (self as { __loonextSw?: Record<string, unknown> }).__loonextSw;
   if (!exposed) throw new Error("sw.js did not expose its test seam");
   return {
     listeners,
@@ -118,7 +118,7 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
     });
     // Same-thread pushes collapse into one notification.
     expect(options.tag).toBe(
-      "jobtext:/inbox/7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "loonext:/inbox/7c9e6679-7425-40de-944b-e07fc1f90ae7",
     );
   });
 

@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 3, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "SMS messaging policy",
   description:
-    "The JobText SMS program disclosures: how opt-in works, reply STOP to stop and HELP for help, message frequency varies, message and data rates may apply, and numbers are never sold or shared for marketing.",
+    "The Loonext SMS program disclosures: how opt-in works, reply STOP to stop and HELP for help, message frequency varies, message and data rates may apply, and numbers are never sold or shared for marketing.",
   path: PATH,
 });
 
@@ -33,7 +33,7 @@ export default function MessagingPolicyPage() {
   return (
     <LegalPage
       title="SMS messaging policy"
-      intro="If you've received a text sent through JobText, this page explains what the program is, how you were opted in, and how to make it stop. It is also the messaging policy every business on JobText agrees to."
+      intro="If you've received a text sent through Loonext, this page explains what the program is, how you were opted in, and how to make it stop. It is also the messaging policy every business on Loonext agrees to."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-03"
       breadcrumbLabel="SMS messaging policy"
@@ -42,30 +42,30 @@ export default function MessagingPolicyPage() {
     >
       <LegalSectionBlock id="program" heading="1. What this program is">
         <p>
-          JobText is a shared text inbox that local service businesses in the
+          Loonext is a shared text inbox that local service businesses in the
           United States and Canada use to text{" "}
           <strong>their own customers</strong> — appointment questions, quotes,
           photos of the job, on-my-way updates, and replies to messages those
           customers sent. Every message
-          relayed through JobText is a conversation between one business and a
-          customer of that business. JobText is not a bulk-marketing platform
+          relayed through Loonext is a conversation between one business and a
+          customer of that business. Loonext is not a bulk-marketing platform
           and does not offer blast tools, see our{" "}
           <LegalLink href="/legal/aup">acceptable use policy</LegalLink>.
-          &quot;JobText,&quot; &quot;we,&quot; and &quot;us&quot; mean the
-          company that operates JobText, as defined in our{" "}
+          &quot;Loonext,&quot; &quot;we,&quot; and &quot;us&quot; mean the
+          company that operates Loonext, as defined in our{" "}
           <LegalLink href="/legal/terms">terms of service</LegalLink>.
         </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="opt-in" heading="2. How opt-in works">
         <p>
-          You receive texts from a business on JobText in one of three ways:
+          You receive texts from a business on Loonext in one of three ways:
           you texted the business first; you called the business (if no one
           could pick up, you may get a single text back about your call so you
           can reach them by reply); or you gave the business your number and
           agreed, in person, by phone, or in writing, to be texted. When a
           business starts a conversation you didn&apos;t initiate, it must
-          attest that it has your consent first; JobText requires that
+          attest that it has your consent first; Loonext requires that
           attestation and records it (who attested and when).
         </p>
         <p>
@@ -75,7 +75,7 @@ export default function MessagingPolicyPage() {
           starts a text conversation with you (rather than replying to a text
           or call you initiated), the first message includes the
           business&apos;s name and a &quot;Reply STOP to opt out&quot; line,
-          added by JobText automatically — and STOP works on{" "}
+          added by Loonext automatically — and STOP works on{" "}
           <em>any</em> message, whoever started the conversation (section 3).
         </p>
       </LegalSectionBlock>
@@ -111,7 +111,7 @@ export default function MessagingPolicyPage() {
           what you and the business are discussing. There is no fixed schedule
           of recurring messages.{" "}
           <strong>Message and data rates may apply</strong> according to your
-          mobile plan; JobText never charges the person receiving the texts.
+          mobile plan; Loonext never charges the person receiving the texts.
         </p>
       </LegalSectionBlock>
 
@@ -119,7 +119,7 @@ export default function MessagingPolicyPage() {
         <p>
           Carriers are not liable for delayed or undelivered messages. Text
           delivery depends on the mobile carrier networks, which neither
-          JobText nor the business texting you controls, and delivery is not
+          Loonext nor the business texting you controls, and delivery is not
           guaranteed.
         </p>
       </LegalSectionBlock>
@@ -129,7 +129,7 @@ export default function MessagingPolicyPage() {
           Mobile numbers and SMS consent data are never shared with, or sold
           to, third parties or affiliates for their own marketing. The consent
           you give a business, and the phone number tied to it, stay inside
-          JobText and the business that collected them, and are used only to
+          Loonext and the business that collected them, and are used only to
           deliver that business&apos;s messages and to honor opt-outs. The full
           detail is in our{" "}
           <LegalLink href="/legal/privacy">privacy policy</LegalLink>.
@@ -139,7 +139,7 @@ export default function MessagingPolicyPage() {
       <LegalSectionBlock id="contact" heading="8. Contact">
         <p>
           Questions about this program, or a message you received through
-          JobText? Email{" "}
+          Loonext? Email{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>{" "}
           or use our <LegalLink href="/contact">contact page</LegalLink>. A
           real person answers.

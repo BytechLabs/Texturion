@@ -40,7 +40,7 @@ create type port_messaging_status as enum (
   'not_applicable',         -- messaging enablement not set (we always enable)
   'pending',                -- messaging enabled but FOC not yet reached
   'activating',             -- voice ported; Telnyx verifying messaging activation
-  'ported',                 -- messaging live on Telnyx → JobText texting works
+  'ported',                 -- messaging live on Telnyx → Loonext texting works
   'exception'               -- messaging failed to auto-port; Telnyx escalating
 );
 

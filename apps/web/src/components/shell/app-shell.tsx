@@ -15,7 +15,7 @@ import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
 import { WindowDropGuard } from "./window-drop-guard";
 
-const SIDEBAR_PREF_KEY = "jobtext:sidebar-collapsed";
+const SIDEBAR_PREF_KEY = "loonext:sidebar-collapsed";
 
 function readSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;

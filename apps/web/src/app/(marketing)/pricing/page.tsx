@@ -51,7 +51,7 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "JobText pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day money-back guarantee. No per-user fees, no quote calls.",
+    "Loonext pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day money-back guarantee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
@@ -198,7 +198,7 @@ const LEDGER: { term: string; detail: React.ReactNode }[] = [
 /* -------------------------------------------------------------------------- */
 
 const COMPARE_COLUMNS = [
-  "JobText Starter",
+  "Loonext Starter",
   "Heymarket Standard",
   "Quo",
   "Podium",
@@ -245,7 +245,7 @@ const COMPARE_ROWS: { label: string; cells: string[] }[] = [
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
-    a: "No, and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So JobText is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
+    a: "No, and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So Loonext is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
   },
   {
     q: "Do texts customers send me count against my 500?",
@@ -273,7 +273,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What am I not getting at these prices?",
-    a: "JobText is a shared texting inbox, it doesn't do voice calls, mass text blasts, or review management. If you need those, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "Loonext is a shared texting inbox, it doesn't do voice calls, mass text blasts, or review management. If you need those, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];
 
@@ -532,7 +532,7 @@ export default function PricingPage() {
                 Try it for a month, on us if it&apos;s not for you.
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
-                If JobText isn&apos;t right for your crew, email us within 30
+                If Loonext isn&apos;t right for your crew, email us within 30
                 days of signing up and we&apos;ll refund your first invoice in
                 full, subscription and registration fee included. No &quot;minus
                 credits used,&quot; no forms, no retention call. We&apos;d rather

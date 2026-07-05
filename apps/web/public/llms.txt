@@ -1,8 +1,8 @@
-# JobText
+# Loonext
 
-JobText is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number, and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
+Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number, and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
 
-Website: https://jobtext.app
+Website: https://loonext.app
 
 ## Positioning
 - Flat per-company pricing, not per seat: $29/mo covers 3 people; $79/mo covers 10.
@@ -19,7 +19,7 @@ Website: https://jobtext.app
 
 ## The honest US timeline (a trust feature, stated before payment)
 - Day one: your number is live and receiving texts; texting Canadian customers works immediately.
-- US texting activates after the phone companies approve your business registration, typically 3–7 business days (about a week). JobText files everything the minute you pay and emails you the moment you're approved.
+- US texting activates after the phone companies approve your business registration, typically 3–7 business days (about a week). Loonext files everything the minute you pay and emails you the moment you're approved.
 
 ## Product features
 - Shared inbox with per-conversation owner and status (new, open, waiting, closed).
@@ -38,7 +38,7 @@ Website: https://jobtext.app
 - Your business name and a "Reply STOP to opt out" line are added to the first text automatically.
 - Helps you follow the rules (TCPA in the US, CASL in Canada). It does not make you compliant on its own, and it does not send marketing blasts.
 
-## What JobText does NOT do
+## What Loonext does NOT do
 - No voice calls, no mass/broadcast texting, no review management, no scheduled/automated sends.
 - No number porting yet (forward your existing number in the meantime); no CAD billing yet (charged in USD).
 

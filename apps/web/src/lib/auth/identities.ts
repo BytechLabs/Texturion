@@ -11,7 +11,7 @@
  * Framework-free so it is unit-testable without a live session.
  */
 
-/** The sign-in methods JobText surfaces, in display order (§1.8). */
+/** The sign-in methods Loonext surfaces, in display order (§1.8). */
 export type SignInMethod = "google" | "apple" | "password";
 
 /** The minimal identity shape we read (Supabase UserIdentity is wider). */

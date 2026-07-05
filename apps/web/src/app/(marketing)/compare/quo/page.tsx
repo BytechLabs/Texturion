@@ -1,10 +1,10 @@
 /**
- * /compare/quo. JobText vs Quo (formerly OpenPhone) (BLUEPRINT §5–6).
+ * /compare/quo. Loonext vs Quo (formerly OpenPhone) (BLUEPRINT §5–6).
  *
  * The per-user foil. Quo is a full business PHONE system, calling included,
- * aimed at a broad VoIP / developer / SMB audience. JobText is SMS-only and
+ * aimed at a broad VoIP / developer / SMB audience. Loonext is SMS-only and
  * Canada-first for service trades. The load-bearing honesty here (§6): concede
- * Quo's calling, maturity, and reviews OUTRIGHT. JobText cannot make a call,
+ * Quo's calling, maturity, and reviews OUTRIGHT. Loonext cannot make a call,
  * and NEVER claim "500 texts included" for Quo (its texting is metered at
  * $0.01/segment; claiming otherwise is a false competitor claim, the exact
  * exposure the blueprint's panel flagged).
@@ -50,9 +50,9 @@ const PATH = "/compare/quo";
 const COMPETITOR = "Quo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "JobText vs Quo: pricing & honest differences (2026)",
+  title: "Loonext vs Quo: pricing & honest differences (2026)",
   description:
-    "A fair, dated comparison: JobText is $29/mo flat and SMS-only; Quo (formerly OpenPhone) is a per-user phone system with texting metered separately.",
+    "A fair, dated comparison: Loonext is $29/mo flat and SMS-only; Quo (formerly OpenPhone) is a per-user phone system with texting metered separately.",
   path: PATH,
 });
 
@@ -64,7 +64,7 @@ export const metadata: Metadata = buildMetadata({
 const ROWS: ComparisonRow[] = [
   {
     label: "What it is",
-    jobtext: {
+    loonext: {
       value: "A shared SMS inbox, texting only",
       note: "Reply, assign, tag, note, search, close (SPEC §1).",
     },
@@ -76,7 +76,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Base price",
-    jobtext: {
+    loonext: {
       value: "$29/mo flat (3 people) · $79/mo (10 people)",
       emphasis: true,
       note: "One price for the whole crew, not per seat (SPEC §2).",
@@ -88,8 +88,8 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Voice calling",
-    jobtext: {
-      value: "Not included. JobText can't make calls",
+    loonext: {
+      value: "Not included. Loonext can't make calls",
       note: "We're a text inbox. If you need to call customers, this is a real gap.",
     },
     competitor: {
@@ -100,7 +100,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "How texts are priced",
-    jobtext: {
+    loonext: {
       value: "Included, 500 on Starter, 2,500 on Pro",
       emphasis: true,
       note: "A texting allowance ships with each plan; inbound is always free.",
@@ -112,7 +112,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Extra phone numbers",
-    jobtext: {
+    loonext: {
       value: "2nd number included on Pro",
       emphasis: true,
       note: "Pro gives two numbers (two locations, or office + field) at no add-on.",
@@ -124,7 +124,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Bring your existing number",
-    jobtext: {
+    loonext: {
       value: "Free number transfer (US/CA), ~1–7 business days",
       note: "Choose “Bring my number” at signup; we handle the carrier paperwork. Your number keeps working until it switches over (docs/PORTING.md).",
     },
@@ -136,7 +136,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Carrier registration fee",
-    jobtext: {
+    loonext: {
       value: "$29 one time, ever",
       note: "Canadian-only texting never pays it; charged once even if you leave and return (SPEC §4.1).",
     },
@@ -147,7 +147,7 @@ const ROWS: ComparisonRow[] = [
   },
   {
     label: "Canada",
-    jobtext: {
+    loonext: {
       value: "Canada-first, text Canadian customers the same day",
       emphasis: true,
       note: "No US carrier registration for CA→CA texting (SPEC §4.1). CASL-aware.",
@@ -164,25 +164,25 @@ const ROWS: ComparisonRow[] = [
 /* -------------------------------------------------------------------------- */
 
 function QuoCostStack() {
-  const rows: { label: string; jobtext: string; quo: string }[] = [
+  const rows: { label: string; loonext: string; quo: string }[] = [
     {
       label: "6-person crew, software",
-      jobtext: "$79 flat (Pro covers 10)",
+      loonext: "$79 flat (Pro covers 10)",
       quo: "$19/user × 6 = $114/mo (monthly billing)",
     },
     {
       label: "A second number",
-      jobtext: "Included on Pro",
+      loonext: "Included on Pro",
       quo: "+$5/mo",
     },
     {
       label: "Texting",
-      jobtext: "2,500 included",
+      loonext: "2,500 included",
       quo: "Metered at 1¢/segment, depends on volume",
     },
     {
       label: "Monthly total",
-      jobtext: "$79",
+      loonext: "$79",
       quo: "≈ $119/mo + texting",
     },
   ];
@@ -193,7 +193,7 @@ function QuoCostStack() {
           <tr className="border-b border-[color:var(--hairline)]">
             <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
             <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
-              JobText Pro
+              Loonext Pro
             </th>
             <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
               Quo Starter
@@ -221,7 +221,7 @@ function QuoCostStack() {
                   {r.label}
                 </th>
                 <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-semibold tabular-nums text-[color:var(--ink)]">
-                  {r.jobtext}
+                  {r.loonext}
                 </td>
                 <td
                   className={cn(
@@ -244,28 +244,28 @@ function QuoCostStack() {
 
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
-    q: "Does JobText make phone calls like Quo does?",
-    a: "No, and this is the honest headline of this whole comparison. Quo is a full business phone system: it makes and receives calls, and unlimited US/Canada calling is included on every plan. JobText can't call anyone; it's a shared text inbox. If your business lives on the phone, Quo is genuinely the better tool and we'll say so.",
+    q: "Does Loonext make phone calls like Quo does?",
+    a: "No, and this is the honest headline of this whole comparison. Quo is a full business phone system: it makes and receives calls, and unlimited US/Canada calling is included on every plan. Loonext can't call anyone; it's a shared text inbox. If your business lives on the phone, Quo is genuinely the better tool and we'll say so.",
   },
   {
     q: "Isn't Quo cheaper at $15 a user?",
-    a: "It depends on your crew size, and on texting. Quo's Starter is $15 a user on annual billing, $19 monthly, for a 6-person crew that's $90 to $114 a month, plus $5 for a second number, plus texting metered at 1¢ a segment. JobText Pro is $79 flat for up to 10 people with a second number and 2,500 texts included. For a solo operator who mostly calls, Quo can be cheaper; for a texting crew, JobText's flat price usually wins.",
+    a: "It depends on your crew size, and on texting. Quo's Starter is $15 a user on annual billing, $19 monthly, for a 6-person crew that's $90 to $114 a month, plus $5 for a second number, plus texting metered at 1¢ a segment. Loonext Pro is $79 flat for up to 10 people with a second number and 2,500 texts included. For a solo operator who mostly calls, Quo can be cheaper; for a texting crew, Loonext's flat price usually wins.",
   },
   {
     q: "Why don't you show Quo as \"500 texts included\" in the table?",
-    a: "Because it wouldn't be true, and we won't print a competitor number we can't stand behind. Quo doesn't bundle a texting allowance the way JobText does, its automated SMS is metered at 1¢ per segment. We show Quo's real terms, not a made-up allowance, on every row.",
+    a: "Because it wouldn't be true, and we won't print a competitor number we can't stand behind. Quo doesn't bundle a texting allowance the way Loonext does, its automated SMS is metered at 1¢ per segment. We show Quo's real terms, not a made-up allowance, on every row.",
   },
   {
-    q: "Quo discloses its fees really clearly. Does JobText?",
+    q: "Quo discloses its fees really clearly. Does Loonext?",
     a: "Quo sets a high bar here, and credit where it's due, it lists its $19.50 one-time registration and $1.50–$3/month carrier maintenance right on the pricing page, and even reminds you before a trial ends. We aim to match and beat that: one $29 registration fee, charged once ever, with no recurring carrier line item at all, and Canadian texting that skips registration entirely. Same honesty, simpler math.",
   },
   {
     q: "How fast can I text customers on each?",
-    a: "For US texting, both of us wait on the same carrier registration, it's an industry rule, not a product choice, and it usually takes 3–7 business days. The difference is Canada: JobText is built Canada-first, so Canadian crews text Canadian customers the same day they sign up, with no US registration. We file your US registration the minute you pay and email you when it clears.",
+    a: "For US texting, both of us wait on the same carrier registration, it's an industry rule, not a product choice, and it usually takes 3–7 business days. The difference is Canada: Loonext is built Canada-first, so Canadian crews text Canadian customers the same day they sign up, with no US registration. We file your US registration the minute you pay and email you when it clears.",
   },
   {
     q: "Can I bring my number over from Quo?",
-    a: "Yes, you can transfer your existing US or Canadian number into JobText for free. At signup choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier until it switches over to JobText, texting on it turns on once the transfer completes. Quo offers free porting too, so number transfer is a wash between the two; the real deciders here are calling (Quo has it, we don't) and price (flat vs per user).",
+    a: "Yes, you can transfer your existing US or Canadian number into Loonext for free. At signup choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier until it switches over to Loonext, texting on it turns on once the transfer completes. Quo offers free porting too, so number transfer is a wash between the two; the real deciders here are calling (Quo has it, we don't) and price (flat vs per user).",
   },
 ];
 
@@ -276,19 +276,19 @@ export default function CompareQuoPage() {
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
           { name: "Compare", path: "/compare" },
-          { name: "JobText vs Quo", path: PATH },
+          { name: "Loonext vs Quo", path: PATH },
         ])}
       />
 
       <CompareHero
-        eyebrow="JobText vs Quo"
+        eyebrow="Loonext vs Quo"
         title={
           <>
             A shared text inbox, not a{" "}
             <Display.Mark>per-seat</Display.Mark> phone system.
           </>
         }
-        lead="Quo (formerly OpenPhone) is a mature per-user business phone system, calling included, broad audience, genuinely polished. JobText is narrower on purpose: a shared SMS inbox, Canada-first, flat $29 a month for service crews. The biggest honest difference up top. JobText can't make calls, and Quo can. Here's the fair, dated side-by-side, July 2026."
+        lead="Quo (formerly OpenPhone) is a mature per-user business phone system, calling included, broad audience, genuinely polished. Loonext is narrower on purpose: a shared SMS inbox, Canada-first, flat $29 a month for service crews. The biggest honest difference up top. Loonext can't make calls, and Quo can. Here's the fair, dated side-by-side, July 2026."
         visual={
           <CompareHeroPhoto
             photoId="owner-counter-phone"
@@ -303,7 +303,7 @@ export default function CompareQuoPage() {
             Side by side, including where Quo wins.
           </Display>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-            JobText facts come from our own product and pricing. Every Quo figure
+            Loonext facts come from our own product and pricing. Every Quo figure
             is dated July 2026 and cites the exact line from its public pricing
             page, and we never dress up Quo&apos;s metered texting as an
             included allowance, because it isn&apos;t.
@@ -318,13 +318,13 @@ export default function CompareQuoPage() {
           published $19/user/mo (July 2026), so this page owns the sourced math. */}
       <AtAGlanceChart
         heading="Flat vs. per user, as the crew grows."
-        lead="Quo's Starter is $19/user a month on monthly billing. JobText is flat, $29 up to three people, $79 up to ten. For a solo operator Quo can be cheaper; the more you hire, the more the per-user line climbs while JobText holds. The figures below are Quo's published seat price, July 2026."
+        lead="Quo's Starter is $19/user a month on monthly billing. Loonext is flat, $29 up to three people, $79 up to ten. For a solo operator Quo can be cheaper; the more you hire, the more the per-user line climbs while Loonext holds. The figures below are Quo's published seat price, July 2026."
       />
 
       <WhoEachIsFor
         heading="Who each one is really for."
-        jobtextTitle="Reach for JobText if…"
-        jobtextBody={
+        loonextTitle="Reach for Loonext if…"
+        loonextBody={
           <>
             <p>
               You&apos;re a US or Canadian service crew whose customers text more
@@ -356,15 +356,15 @@ export default function CompareQuoPage() {
 
       <BetterPickCallout
         heading="Where Quo may be the better pick."
-        intro="Quo is a strong product and it beats JobText outright in several places. These aren't hedges, if any of them matter to you, buy Quo, you'll be better served."
+        intro="Quo is a strong product and it beats Loonext outright in several places. These aren't hedges, if any of them matter to you, buy Quo, you'll be better served."
         points={[
           {
             title: "It makes phone calls. We don't.",
-            body: "This is the big one. Quo is a full phone system, calling to US and Canadian numbers is included on every plan. JobText is texting only and cannot place or receive a call. If a real phone line is a requirement, JobText is simply the wrong tool and Quo is the right one.",
+            body: "This is the big one. Quo is a full phone system, calling to US and Canadian numbers is included on every plan. Loonext is texting only and cannot place or receive a call. If a real phone line is a requirement, Loonext is simply the wrong tool and Quo is the right one.",
           },
           {
             title: "It's more mature, with a bigger ecosystem.",
-            body: "Quo (as OpenPhone) has years of shipping behind it, a large integration catalog, an AI voice agent, and calling analytics. JobText is young and deliberately small. If you want breadth and a proven track record, Quo has more of both.",
+            body: "Quo (as OpenPhone) has years of shipping behind it, a large integration catalog, an AI voice agent, and calling analytics. Loonext is young and deliberately small. If you want breadth and a proven track record, Quo has more of both.",
           },
           {
             title: "Best-in-class fee transparency.",
@@ -375,7 +375,7 @@ export default function CompareQuoPage() {
           <>
             Said plainly: if you need to call customers or want a mature
             all-round phone platform, buy Quo, it genuinely does more than we
-            do. JobText is the better pick when texting is the whole job, you
+            do. Loonext is the better pick when texting is the whole job, you
             want it included at a flat price, and especially if you&apos;re a
             Canadian crew that wants to start today. Bringing your existing
             number over is free either way, so let calling and price decide it.
@@ -384,8 +384,8 @@ export default function CompareQuoPage() {
       />
 
       <Advantages
-        heading="Where JobText wins for a texting crew."
-        lead="Against a per-user phone system, JobText's edge is narrow and specific: flat pricing, texting included, and a Canada-first head start."
+        heading="Where Loonext wins for a texting crew."
+        lead="Against a per-user phone system, Loonext's edge is narrow and specific: flat pricing, texting included, and a Canada-first head start."
         items={[
           {
             title: "Flat price beats per-user as you grow.",
@@ -419,14 +419,14 @@ export default function CompareQuoPage() {
         lead="A texting crew of six, at published prices as of July 2026. Quo's software cost is real and dated; its texting is metered, so the true Quo total depends on how much you send, which is exactly why we don't print a single tidy number for it."
         footnote={
           <>
-            JobText&apos;s figures reflect our own published Starter and Pro
+            Loonext&apos;s figures reflect our own published Starter and Pro
             plans (SPEC §1–2). Quo figures are from quo.com/pricing, re-verified
             2026-07-02: Starter $15/user/mo
             (annual) or $19/user/mo (monthly), additional numbers $5/mo, automated
             SMS $0.01/segment, and calling included. The ~$119 Quo total uses
             monthly billing ($19 × 6) plus one extra number and excludes texting,
             which Quo meters separately. One-time registration fees are excluded
-            from both totals (JobText&apos;s is $29; Quo discloses $19.50). If any
+            from both totals (Loonext&apos;s is $29; Quo discloses $19.50). If any
             figure changes, tell us and we&apos;ll correct it.
           </>
         }
@@ -435,11 +435,11 @@ export default function CompareQuoPage() {
       </PayMathBlock>
 
       <SwitchingNote
-        heading="Trying JobText next to Quo is easy."
+        heading="Trying Loonext next to Quo is easy."
         body={
           <>
             <p>
-              Because JobText is month to month and self-serve, you can stand it
+              Because Loonext is month to month and self-serve, you can stand it
               up beside Quo in minutes, pick a number, add the crew, move your
               texting over, and decide with real usage in front of you. Keep Quo
               for calling as long as you want; nothing forces an all-or-nothing
@@ -449,7 +449,7 @@ export default function CompareQuoPage() {
               <strong className="font-semibold text-[color:var(--ink)]">
                 On keeping your number:
               </strong>{" "}
-              you can transfer your existing US or Canadian number into JobText
+              you can transfer your existing US or Canadian number into Loonext
               for free, choose &ldquo;Bring my number&rdquo; at signup, share
               your current carrier details, and upload a recent bill; we handle
               the paperwork. A transfer typically takes about 1 to 7 business
@@ -464,8 +464,8 @@ export default function CompareQuoPage() {
 
       {/* Internal links, feature + trade pages (SEO: thin-internal-linking fix). */}
       <CompareRelatedLinks
-        heading="What JobText does with texting, in depth."
-        intro="Quo is a phone system; JobText is a texting inbox. If texting is the part that matters, here's what it looks like, and where a second number and a Canada-first head start earn their keep."
+        heading="What Loonext does with texting, in depth."
+        intro="Quo is a phone system; Loonext is a texting inbox. If texting is the part that matters, here's what it looks like, and where a second number and a Canada-first head start earn their keep."
         links={[
           {
             label: "Your business number",
@@ -473,7 +473,7 @@ export default function CompareQuoPage() {
             hint: "Two numbers on Pro at no add-on, next to Quo's $5/mo per extra number.",
           },
           {
-            label: "JobText in Canada",
+            label: "Loonext in Canada",
             href: "/canada",
             hint: "Canadian crews text customers the same day, no US registration wait.",
           },

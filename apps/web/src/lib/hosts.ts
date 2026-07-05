@@ -3,8 +3,8 @@
  * Next request machinery — the middleware's FIRST gate.
  *
  * One Next app, one Worker, two hostnames:
- *   jobtext.app (+ www)  → the marketing site ONLY
- *   app.jobtext.app      → the product (app/auth/onboarding) ONLY
+ *   loonext.app (+ www)  → the marketing site ONLY
+ *   app.loonext.app      → the product (app/auth/onboarding) ONLY
  *
  * The split activates only when NEXT_PUBLIC_APP_ORIGIN is set (production).
  * Unset — local dev, CI, previews — every route stays reachable on one origin

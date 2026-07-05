@@ -3,7 +3,7 @@
  *
  * A live-DOM render of the app's quiet-hours dialog (SPEC §5, DESIGN.md G5):
  * when you START a new conversation with someone between 8pm and 8am in their
- * local time, JobText checks first ("It's 9:14 PM for this customer. Send
+ * local time, Loonext checks first ("It's 9:14 PM for this customer. Send
  * anyway?". Send / Wait). It's a nudge, not a hard block, and it never fires on
  * replies. Rendering the real dialog makes the scoped behavior unmistakable.
  *

@@ -37,7 +37,7 @@ function makeClient(
       handler(String(input), init),
   );
   const request = createApiClient({
-    baseUrl: "https://api.jobtext.test",
+    baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
     fetch: fetchSpy as unknown as typeof fetch,
   });
@@ -113,7 +113,7 @@ describe("search — request shape on the wire", () => {
 
     const [url, init] = fetchSpy.mock.calls[0];
     const parsed = new URL(String(url));
-    expect(parsed.origin).toBe("https://api.jobtext.test");
+    expect(parsed.origin).toBe("https://api.loonext.test");
     expect(parsed.pathname).toBe("/v1/search");
     expect(parsed.searchParams.get("q")).toBe("furnace");
     expect(parsed.searchParams.has("cursor")).toBe(false);

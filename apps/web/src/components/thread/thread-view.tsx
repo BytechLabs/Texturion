@@ -38,7 +38,7 @@ import { MessageList } from "./message-list";
 import { parseThreadFilter, type ThreadFilter } from "./thread-filter";
 import { ThreadHeader } from "./thread-header";
 
-const PANEL_PREF_KEY = "jobtext:contact-panel-open";
+const PANEL_PREF_KEY = "loonext:contact-panel-open";
 
 function readPanelPref(): boolean {
   if (typeof window === "undefined") return false;
@@ -51,7 +51,7 @@ function readPanelPref(): boolean {
 
 // Persisted contact-panel width (drag the panel's left edge to resize). Clamped
 // so the thread column (min-w-0) is never crushed even at a 1280px viewport.
-const PANEL_WIDTH_KEY = "jobtext:contact-panel-width";
+const PANEL_WIDTH_KEY = "loonext:contact-panel-width";
 const PANEL_MIN_WIDTH = 260;
 const PANEL_MAX_WIDTH = 560;
 const PANEL_DEFAULT_WIDTH = 300;

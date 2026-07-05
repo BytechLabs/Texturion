@@ -5,7 +5,7 @@ import {
   triggerBlobDownload,
 } from "./contacts-export";
 
-const BASE = "https://api.jobtext.test";
+const BASE = "https://api.loonext.test";
 const BOM = "﻿";
 
 function csvResponse(body: string, filename = "contacts.csv"): Response {
