@@ -1,5 +1,5 @@
 {
-  "name": "@jobtext/api",
+  "name": "@loonext/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "stripe:setup": "node --experimental-strip-types scripts/stripe-setup.ts"
   },
   "dependencies": {
-    "@jobtext/shared": "workspace:*",
+    "@loonext/shared": "workspace:*",
     "@sentry/cloudflare": "10.63.0",
     "@supabase/supabase-js": "2.110.0",
     "hono": "^4.12.27",

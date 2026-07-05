@@ -3,7 +3,7 @@
 /**
  * Text-length explainer + counter (COPY §PR "Text-length explainer + counter").
  * A trust demo, not a toy: it counts with the EXACT `estimateSegments` code from
- * @jobtext/shared that the app uses for its send-time segment pre-check, the same
+ * @loonext/shared that the app uses for its send-time segment pre-check, the same
  * package the product bills against (Telnyx's finalized parts stay authoritative
  * for the invoice; this is the app-side estimate, per SPEC §2). Copy verbatim
  * from §PR: "Type your usual message, we'll count it with the same code that
@@ -16,7 +16,7 @@
 
 import { useId, useState } from "react";
 
-import { estimateSegments } from "@jobtext/shared";
+import { estimateSegments } from "@loonext/shared";
 
 const DEFAULT_MESSAGE =
   "Hi Karen, it's Dale from Reyes Plumbing. I can come by tomorrow between 9 and 11 to look at the water heater. Does that work?";

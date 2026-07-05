@@ -15,7 +15,7 @@
  * one first, runs `next build`, and cleans up on success. The build can then run
  * green regardless of a concurrent dev server, because it never touches `.next`.
  *
- * Usage:  pnpm --filter @jobtext/web build:isolated
+ * Usage:  pnpm --filter @loonext/web build:isolated
  *         # keep the output for `next start`:  KEEP_DIST=1 pnpm ... build:isolated
  *         # pin the dir name:  JOBTEXT_DIST_DIR=.next-prod pnpm ... build:isolated
  */

@@ -9,7 +9,7 @@
  *   telnyx_message_id, or status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lookupAreaCode } from "@jobtext/shared";
+import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import type { Env } from "../env";

@@ -1,4 +1,4 @@
-import { isUsCaDestination } from "@jobtext/shared";
+import { isUsCaDestination } from "@loonext/shared";
 import { z } from "zod";
 
 import type { Env } from "../env";

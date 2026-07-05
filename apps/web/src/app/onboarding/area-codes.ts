@@ -2,7 +2,7 @@ import {
   NANP_AREA_CODES,
   type NanpCountry,
   type NanpGeographicEntry,
-} from "@jobtext/shared";
+} from "@loonext/shared";
 
 import { cityNpaMatches } from "./city-npas";
 

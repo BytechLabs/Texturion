@@ -17,7 +17,7 @@
  *     attestation still apply and are recorded.
  *   • the send itself runs the §7 gate order via the shared send core.
  */
-import { destinationLocalHour, estimateSegments } from "@jobtext/shared";
+import { destinationLocalHour, estimateSegments } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 

@@ -1,10 +1,10 @@
 /**
  * Live preview of an owner-authored away message (FEATURE-GAPS Step 1) and of a
  * review ask (Step 2). Both reuse the SAME canonical merge substituter the
- * server applies at send time (@jobtext/shared), so the preview is exactly what
+ * server applies at send time (@loonext/shared), so the preview is exactly what
  * ships. A representative sample contact stands in for {first_name}.
  */
-import { applyMergeFields } from "@jobtext/shared";
+import { applyMergeFields } from "@loonext/shared";
 
 /** The sample name used to show {first_name} resolving in a preview. */
 export const SAMPLE_FIRST_NAME = "Dana";

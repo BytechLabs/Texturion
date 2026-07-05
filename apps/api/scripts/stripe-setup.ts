@@ -3,7 +3,7 @@
  * script, ids stored as env config"). Run by the operator, once per Stripe
  * mode (test/live):
  *
- *   STRIPE_SECRET_KEY=sk_... pnpm --filter @jobtext/api stripe:setup
+ *   STRIPE_SECRET_KEY=sk_... pnpm --filter @loonext/api stripe:setup
  *
  * Finds-or-creates, exactly per SPEC §2/§9:
  *   - Billing Meter `sms_segments` (sum aggregation, customer mapping by
@@ -47,7 +47,7 @@ const secretKey = process.env.STRIPE_SECRET_KEY;
 if (!secretKey) {
   console.error(
     "STRIPE_SECRET_KEY is not set.\n" +
-      "Usage: STRIPE_SECRET_KEY=sk_... pnpm --filter @jobtext/api stripe:setup",
+      "Usage: STRIPE_SECRET_KEY=sk_... pnpm --filter @loonext/api stripe:setup",
   );
   process.exit(1);
 }

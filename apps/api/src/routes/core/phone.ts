@@ -7,7 +7,7 @@
  * NANP table (SPEC §10 layer 2: `+1` alone is never enough — Caribbean NANP
  * codes are billed internationally and are the classic SMS-pumping target).
  */
-import { isUsCaDestination } from "@jobtext/shared";
+import { isUsCaDestination } from "@loonext/shared";
 
 /**
  * Normalize free-form input to `+1NXXNXXXXXX` and validate it against the

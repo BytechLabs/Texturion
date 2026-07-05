@@ -1,4 +1,4 @@
-import { lookupAreaCode, isUsCaDestination } from "@jobtext/shared";
+import { lookupAreaCode, isUsCaDestination } from "@loonext/shared";
 
 /**
  * Live E.164 handling for the compose recipient field (G5): the user types

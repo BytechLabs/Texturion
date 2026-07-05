@@ -28,7 +28,7 @@
  *        (created_at, id) DESC, default 50 max 100; message objects carry
  *        `attachments: [{ id, content_type, size_bytes }]`.
  */
-import { estimateSegments } from "@jobtext/shared";
+import { estimateSegments } from "@loonext/shared";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";

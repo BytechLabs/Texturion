@@ -2,10 +2,17 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@loonext/api", "exec", "wrangler", "dev", "--port", "8787", "--ip", "127.0.0.1"],
+      "port": 8787
+    },
+    {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@jobtext/web", "exec", "next", "dev", "-p", "3100"],
-      "port": 3100
+      "runtimeArgs": ["--filter", "@loonext/web", "exec", "next", "dev"],
+      "port": 3100,
+      "autoPort": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { isUsCaDestination } from "@jobtext/shared";
+import { isUsCaDestination } from "@loonext/shared";
 
 /**
  * Input normalizers for the identity step (G10: formatted for humans,

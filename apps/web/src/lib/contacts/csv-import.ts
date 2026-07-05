@@ -1,4 +1,4 @@
-import { isUsCaDestination } from "@jobtext/shared";
+import { isUsCaDestination } from "@loonext/shared";
 
 /**
  * CSV import wizard logic (G6): column-mapping auto-detect, client-side

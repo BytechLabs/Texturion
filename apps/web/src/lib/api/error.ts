@@ -2,7 +2,7 @@ import {
   ERROR_CODES,
   INTERNAL_ERROR_CODE,
   type ApiErrorCode,
-} from "@jobtext/shared";
+} from "@loonext/shared";
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope

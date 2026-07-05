@@ -1,5 +1,5 @@
 {
-  "name": "@jobtext/web",
+  "name": "@loonext/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "@jobtext/shared": "workspace:*",
+    "@loonext/shared": "workspace:*",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "@tanstack/react-query": "^5.101.2",

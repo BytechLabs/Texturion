@@ -70,7 +70,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run launch-pass E2E (smoke + 3 golden paths)
-        run: pnpm --filter @jobtext/api test:e2e
+        run: pnpm --filter @loonext/api test:e2e
 
       - name: Stop Supabase
         if: always()
@@ -113,10 +113,10 @@ jobs:
         run: pnpm -r test
 
       - name: Build web (next build)
-        run: pnpm --filter @jobtext/web build
+        run: pnpm --filter @loonext/web build
 
       - name: Build web (OpenNext Cloudflare adapter)
-        run: pnpm --filter @jobtext/web exec opennextjs-cloudflare build
+        run: pnpm --filter @loonext/web exec opennextjs-cloudflare build
 
       - name: Validate api Worker (wrangler deploy --dry-run)
-        run: pnpm --filter @jobtext/api exec wrangler deploy --dry-run --outdir=dist
+        run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist

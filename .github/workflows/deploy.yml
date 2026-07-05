@@ -56,7 +56,7 @@ jobs:
           supabase db push
 
       - name: Deploy api Worker
-        run: pnpm --filter @jobtext/api exec wrangler deploy
+        run: pnpm --filter @loonext/api exec wrangler deploy
 
       - name: Deploy web Worker (OpenNext build + deploy)
-        run: pnpm --filter @jobtext/web run deploy
+        run: pnpm --filter @loonext/web run deploy

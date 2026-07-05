@@ -31,10 +31,12 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-build-16028-1783198077054/types/**/*.ts",
+    ".next-commit/types/**/*.ts",
     ".next-preview/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-commit/types/**/*.ts"
+    ".next-build-64768-1783200107824/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

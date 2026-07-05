@@ -20,7 +20,7 @@ import {
   isValidBusinessHours,
   lookupAreaCode,
   NANP_AREA_CODES,
-} from "@jobtext/shared";
+} from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 

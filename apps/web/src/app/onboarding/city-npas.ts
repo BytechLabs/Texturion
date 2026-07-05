@@ -1,4 +1,4 @@
-import { NANP_AREA_CODES, type NanpGeographicEntry } from "@jobtext/shared";
+import { NANP_AREA_CODES, type NanpGeographicEntry } from "@loonext/shared";
 
 /**
  * Curated metro-name → NPA index for the onboarding area-code picker.

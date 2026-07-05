@@ -1,4 +1,4 @@
-import { lookupAreaCode } from "@jobtext/shared";
+import { lookupAreaCode } from "@loonext/shared";
 
 import type {
   CompanyView,

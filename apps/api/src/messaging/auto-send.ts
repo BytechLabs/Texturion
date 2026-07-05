@@ -18,7 +18,7 @@
  * just started (an inbound reply), so it is reply-exempt — no consent
  * attestation, no quiet-hours gate. The opt-out mirror is honored regardless.
  */
-import { estimateSegments } from "@jobtext/shared";
+import { estimateSegments } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";

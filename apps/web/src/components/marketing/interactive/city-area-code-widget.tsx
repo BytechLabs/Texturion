@@ -4,7 +4,7 @@
  * City → area-code widget (Track B), §3.11 Canada beat / COPY §H11.
  *
  * Type a city (or a 3-digit code) and see the local area code, drawn from the
- * app's own verified NANP data (@jobtext/shared via city-lookup). A real
+ * app's own verified NANP data (@loonext/shared via city-lookup). A real
  * product visual, not a text list of chips (BLUEPRINT §3.10 finding). Keyboard-
  * accessible listbox pattern; aria-live result. <15KB island.
  *

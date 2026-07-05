@@ -1,4 +1,4 @@
-import { NANP_AREA_CODES } from "@jobtext/shared";
+import { NANP_AREA_CODES } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";

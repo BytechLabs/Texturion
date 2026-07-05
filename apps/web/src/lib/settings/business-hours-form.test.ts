@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BusinessHours } from "@jobtext/shared";
+import type { BusinessHours } from "@loonext/shared";
 
 import {
   isDirty,

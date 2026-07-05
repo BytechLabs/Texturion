@@ -11,8 +11,8 @@
  * ── Prerequisites (all local; see docs/marketing/screenshots.md) ──────────
  *   1. Supabase up:      pnpm db:start   (once) ; pnpm db:reset
  *   2. Seed demo data:   node --experimental-strip-types scripts/dev-seed.ts
- *   3. API worker:       pnpm --filter @jobtext/api exec wrangler dev --port 8787
- *   4. Web app:          pnpm --filter @jobtext/web  exec next dev --port 3100
+ *   3. API worker:       pnpm --filter @loonext/api exec wrangler dev --port 8787
+ *   4. Web app:          pnpm --filter @loonext/web  exec next dev --port 3100
  *      (web MUST be 3100 — the API's APP_ORIGIN CORS allowlist is exact.)
  *   5. Chromium:         pnpm dlx playwright install chromium
  *

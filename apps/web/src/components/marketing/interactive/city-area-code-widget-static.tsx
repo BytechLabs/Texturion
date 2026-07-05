@@ -3,7 +3,7 @@
  * (Toronto → 416), as pure server DOM. The LCP-neutral / no-JS / pre-hydration
  * frame so the Canada beat shows a real local-number result before (and
  * without) the interactive island, and, importantly, so the NANP lookup data
- * (@jobtext/shared table + the onboarding city index) stays OUT of the initial
+ * (@loonext/shared table + the onboarding city index) stays OUT of the initial
  * bundle until the widget nears the viewport. <LazyIsland> swaps in the typable
  * combobox on viewport approach.
  *

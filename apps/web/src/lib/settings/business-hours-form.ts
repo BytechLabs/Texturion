@@ -8,7 +8,7 @@
  * declarative and the conversion is unit-tested (mirroring the calm settings
  * house style of testable lib helpers).
  */
-import { WEEKDAYS, type BusinessHours, type Weekday } from "@jobtext/shared";
+import { WEEKDAYS, type BusinessHours, type Weekday } from "@loonext/shared";
 
 export { WEEKDAYS, type Weekday };
 
@@ -85,5 +85,5 @@ export function summarizeDay(day: DayFormState): string {
   return `${day.open} – ${day.close}`;
 }
 
-/** WEEKDAYS re-exported so callers don't reach into @jobtext/shared directly. */
+/** WEEKDAYS re-exported so callers don't reach into @loonext/shared directly. */
 export { WEEKDAYS as ALL_WEEKDAYS };

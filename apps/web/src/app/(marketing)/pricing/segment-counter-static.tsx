@@ -2,14 +2,14 @@
  * <SegmentCounterStatic>, the §PR segment counter at its default message, as
  * pure server DOM. The no-JS / pre-hydration frame so the trust demo shows a
  * real, correct count before (and without) the interactive island. It computes
- * the default with the SAME pure `estimateSegments` (@jobtext/shared) the
+ * the default with the SAME pure `estimateSegments` (@loonext/shared) the
  * interactive island and the app's billing use, so the count is real, not a
  * placeholder, and the swap to the typable textarea is seamless.
  *
  * <LazyIsland> loads the interactive counter on viewport approach.
  */
 
-import { estimateSegments } from "@jobtext/shared";
+import { estimateSegments } from "@loonext/shared";
 
 const DEFAULT_MESSAGE =
   "Hi Karen, it's Dale from Reyes Plumbing. I can come by tomorrow between 9 and 11 to look at the water heater. Does that work?";

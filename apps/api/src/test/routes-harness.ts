@@ -7,7 +7,7 @@
  * is dispatched to test-registered responders and captured for assertions;
  * anything unregistered fails the test loudly.
  */
-import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@jobtext/shared";
+import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import { Hono } from "hono";
 
 import { companyContext } from "../auth/company";

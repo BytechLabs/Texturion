@@ -1,4 +1,4 @@
-import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@jobtext/shared";
+import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 import { cors } from "hono/cors";

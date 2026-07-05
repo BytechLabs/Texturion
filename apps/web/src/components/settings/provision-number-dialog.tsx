@@ -1,6 +1,6 @@
 "use client";
 
-import { NANP_AREA_CODES } from "@jobtext/shared";
+import { NANP_AREA_CODES } from "@loonext/shared";
 import { useState } from "react";
 import { toast } from "sonner";
 

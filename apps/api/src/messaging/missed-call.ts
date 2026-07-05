@@ -43,7 +43,7 @@
  * this RPC-level check is the inner guard for the same call arriving via two
  * different event ids.
  */
-import { estimateSegments, isUsCaDestination } from "@jobtext/shared";
+import { estimateSegments, isUsCaDestination } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";

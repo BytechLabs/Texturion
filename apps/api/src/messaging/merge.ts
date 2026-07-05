@@ -3,14 +3,14 @@
  * (FEATURE-GAPS Step 0a). Applied at SEND time to composed messages, saved
  * replies pasted into the composer, the away-reply, and the review ask — all of
  * them — so {first_name}/{business_name}/{review_link} resolve from the SAME
- * canonical substituter the web composer previews with (@jobtext/shared).
+ * canonical substituter the web composer previews with (@loonext/shared).
  *
  * It reuses the contact + company already loaded on the send path (no extra
  * query per send): callers pass the fields they already hold. Unknown/empty
  * tokens degrade gracefully (the token is dropped cleanly — never a literal
- * `{first_name}` on the wire) — that logic lives in @jobtext/shared.
+ * `{first_name}` on the wire) — that logic lives in @loonext/shared.
  */
-import { applyMergeFields } from "@jobtext/shared";
+import { applyMergeFields } from "@loonext/shared";
 
 /** The already-loaded contact + company slice a merge needs. */
 export interface MergeContext {

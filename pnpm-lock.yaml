@@ -14,7 +14,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@jobtext/shared':
+      '@loonext/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@sentry/cloudflare':
@@ -66,7 +66,7 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.80.0(react@19.2.7))
-      '@jobtext/shared':
+      '@loonext/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@supabase/ssr':

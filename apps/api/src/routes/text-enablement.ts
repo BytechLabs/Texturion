@@ -24,7 +24,7 @@
  *     by design — a fresh order starts a fresh budget, and the per-number
  *     rate limiter covers the cross-order angle.
  */
-import { lookupAreaCode } from "@jobtext/shared";
+import { lookupAreaCode } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
