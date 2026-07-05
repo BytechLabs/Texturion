@@ -197,4 +197,29 @@ begin
   raise notice 'P0-5 PASSED: outbound_spend_check + claim_auto_reply are service-role only';
 end $$;
 
+-- ===========================================================================
+-- P0-6. The overage cap is UN-DEFEATABLE (#12 Phase 0.3): the column rejects
+--       NULL ("no cap") and any multiplier above the 10x hard ceiling, so the
+--       `if overage_cap_multiplier is not null` gate in gate_outbound_send /
+--       outbound_spend_check always fires.
+-- ===========================================================================
+do $$
+begin
+  begin
+    update public.companies set overage_cap_multiplier = null
+     where id = '77777777-7777-4777-8777-777000000000';
+    raise exception 'P0-6 FAILED: NULL overage_cap_multiplier accepted — cap is defeatable';
+  exception when not_null_violation then null;
+  end;
+
+  begin
+    update public.companies set overage_cap_multiplier = 25
+     where id = '77777777-7777-4777-8777-777000000000';
+    raise exception 'P0-6 FAILED: overage_cap_multiplier above the 10x ceiling accepted';
+  exception when check_violation then null;
+  end;
+
+  raise notice 'P0-6 PASSED: overage cap is un-defeatable (no NULL, <= 10x ceiling)';
+end $$;
+
 rollback;

@@ -332,6 +332,8 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       overage_cap_multiplier: 5,
     });
 
+    // #12 Phase 0.3: "no cap" (null) is no longer allowed — it resolves to the
+    // 10x hard ceiling (companies_overage_cap_range), not a disabled cap.
     const remove = await apiRequest(app, env, await auth.token(), "/v1/company", {
       method: "PATCH",
       companyId: COMPANY_ID,
@@ -339,8 +341,16 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     });
     expect(remove.status).toBe(200);
     expect(sb.find("PATCH", "/rest/v1/companies")[1].body).toEqual({
-      overage_cap_multiplier: null,
+      overage_cap_multiplier: 10,
     });
+
+    // Above the 10x ceiling is rejected (422) — the cap can't be raised past it.
+    const tooHigh = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { overage_cap_multiplier: 25 },
+    });
+    expect(tooHigh.status).toBe(422);
   });
 
   it("lets an admin set the timezone; invalid zones are 422 (D15)", async () => {

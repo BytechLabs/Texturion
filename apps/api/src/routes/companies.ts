@@ -56,10 +56,13 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
+    // #12 Phase 0.3: the overage cap is an un-defeatable ceiling — bounded to
+    // the (0, 10] safety range. `null` ("no cap") is still accepted for
+    // backward-compat but resolves to the 10x hard maximum below.
     overage_cap_multiplier: z
       .number()
       .positive()
-      .max(9999.99)
+      .max(10)
       .nullable()
       .optional(),
     // FEATURE-GAPS Step 1 — after-hours away reply (O/A). business_hours is a
@@ -191,9 +194,11 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     patch.timezone = body.timezone;
   }
   if ("overage_cap_multiplier" in body) {
+    // #12 Phase 0.3: `null` ("no cap") now resolves to the 10x hard ceiling —
+    // the cap can no longer be disabled (companies_overage_cap_range CHECK).
     patch.overage_cap_multiplier =
       body.overage_cap_multiplier === null
-        ? null
+        ? 10
         : Math.round(body.overage_cap_multiplier! * 100) / 100;
   }
   // FEATURE-GAPS Step 1: after-hours away settings.

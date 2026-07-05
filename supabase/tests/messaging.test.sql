@@ -30,7 +30,7 @@ values
    'past_due', 'starter', now() - interval '1 day', now() + interval '29 days', 3.00),
   ('20000000-0000-4000-8000-000000000003', 'Rate Co',
    '10000000-0000-4000-8000-000000000001', 'US', '613', now(),
-   'active', 'starter', now() - interval '1 day', now() + interval '29 days', null),
+   'active', 'starter', now() - interval '1 day', now() + interval '29 days', 3.00),
   ('20000000-0000-4000-8000-000000000004', 'Cap Co',
    '10000000-0000-4000-8000-000000000001', 'US', '613', now(),
    'active', 'starter', now() - interval '1 day', now() + interval '29 days', 3.00);
@@ -615,18 +615,10 @@ begin
     raise exception 'G6 FAILED: expected usage_cap_reached over the cap, got %', res;
   end if;
 
-  -- NULL multiplier = no cap (owner removed it): the same send passes.
-  update public.companies set overage_cap_multiplier = null
-   where id = '20000000-0000-4000-8000-000000000004';
-  res := public.gate_outbound_send(
-    '20000000-0000-4000-8000-000000000004',
-    '50000000-0000-4000-8000-000000000004',
-    '10000000-0000-4000-8000-000000000001',
-    'uncapped', 'idem-g6-3', 1);
-  if res ? 'error' then
-    raise exception 'G6 FAILED: uncapped company rejected: %', res->>'error';
-  end if;
-  raise notice 'G6 PASSED: overage cap (multiplier x quota) enforced; NULL = no cap';
+  -- #12 Phase 0.3: the cap is now UN-DEFEATABLE — NULL ("no cap") is rejected
+  -- by the companies_overage_cap_range constraint (asserted in
+  -- pricing_phase0.test.sql P0-6), so there is no "uncapped" path to test here.
+  raise notice 'G6 PASSED: overage cap (multiplier x quota) enforced';
 end $$;
 
 -- ===========================================================================
