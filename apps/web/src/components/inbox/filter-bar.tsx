@@ -30,6 +30,7 @@ import {
   clearSecondary,
   formatOpenCount,
   INBOX_SEGMENTS,
+  nextSegmentIndex,
   OPEN_COUNT_CAP,
   OPEN_COUNT_FILTERS,
   segmentOf,
@@ -58,6 +59,20 @@ export function FilterBar({
 }) {
   const segment = segmentOf(filters);
   const openCount = useOpenCount();
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // §7 / #11: the WAI-ARIA tablist keyboard contract the roles promise — Arrow
+  // keys (and Home/End) move the selection AND focus (automatic activation), so
+  // the announced `role="tab"` semantics match real behavior instead of leaving
+  // arrow keys dead. Roving tabindex keeps a single Tab stop on the control.
+  const onTablistKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const current = INBOX_SEGMENTS.findIndex((s) => s.id === segment);
+    const next = nextSegmentIndex(event.key, current, INBOX_SEGMENTS.length);
+    if (next === current) return;
+    event.preventDefault();
+    onChange(applySegment(filters, INBOX_SEGMENTS[next].id));
+    tabRefs.current[next]?.focus();
+  };
 
   return (
     <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
@@ -68,9 +83,10 @@ export function FilterBar({
       <div
         role="tablist"
         aria-label="Conversation status"
+        onKeyDown={onTablistKeyDown}
         className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
       >
-        {INBOX_SEGMENTS.map(({ id, label }) => {
+        {INBOX_SEGMENTS.map(({ id, label }, index) => {
           const selected = segment === id;
           const countLabel =
             id === "open" ? formatOpenCount(openCount) : "";
@@ -80,6 +96,10 @@ export function FilterBar({
               type="button"
               role="tab"
               aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
               onClick={() => onChange(applySegment(filters, id))}
               className={cn(
                 // min-h-11 below md: the ≥44px mobile hit-target bar (§7).

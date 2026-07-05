@@ -110,6 +110,35 @@ export function applySegment(
 }
 
 /**
+ * #11 a11y: the segmented status control is a WAI-ARIA tablist, so Arrow / Home
+ * / End must move the selection (roving tabindex). Given the pressed key, the
+ * current segment index, and the segment count, return the next index — wrapping
+ * at both ends — or the SAME index for any key the tablist doesn't handle (so
+ * the caller can early-return without preventing default). Pure, so the
+ * filter-bar keyboard handler is unit-testable without a DOM.
+ */
+export function nextSegmentIndex(
+  key: string,
+  current: number,
+  count: number,
+): number {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowDown":
+      return (current + 1) % count;
+    case "ArrowLeft":
+    case "ArrowUp":
+      return (current - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return current;
+  }
+}
+
+/**
  * The GET /v1/conversations filter object for the current URL. `q` drives
  * the /v1/search view instead of the list (§2.4), so it is never forwarded.
  */

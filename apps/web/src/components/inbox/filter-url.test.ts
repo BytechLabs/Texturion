@@ -6,6 +6,7 @@ import {
   clearSecondary,
   formatOpenCount,
   hasActiveFilters,
+  nextSegmentIndex,
   parseInboxSearchParams,
   segmentOf,
   serializeInboxFilters,
@@ -172,5 +173,32 @@ describe("clearSecondary", () => {
     // Untouched dimensions are a no-op; the original is not mutated.
     expect(clearSecondary(base, "spam")).toEqual(base);
     expect(base.tag).toBe("t-1");
+  });
+});
+
+describe("nextSegmentIndex (#11 tablist keyboard)", () => {
+  const COUNT = 4; // open · mine · all · closed
+
+  it("moves forward with ArrowRight/ArrowDown and wraps at the end", () => {
+    expect(nextSegmentIndex("ArrowRight", 0, COUNT)).toBe(1);
+    expect(nextSegmentIndex("ArrowDown", 1, COUNT)).toBe(2);
+    expect(nextSegmentIndex("ArrowRight", 3, COUNT)).toBe(0);
+  });
+
+  it("moves back with ArrowLeft/ArrowUp and wraps at the start", () => {
+    expect(nextSegmentIndex("ArrowLeft", 2, COUNT)).toBe(1);
+    expect(nextSegmentIndex("ArrowUp", 1, COUNT)).toBe(0);
+    expect(nextSegmentIndex("ArrowLeft", 0, COUNT)).toBe(3);
+  });
+
+  it("jumps to the ends with Home/End", () => {
+    expect(nextSegmentIndex("Home", 2, COUNT)).toBe(0);
+    expect(nextSegmentIndex("End", 1, COUNT)).toBe(COUNT - 1);
+  });
+
+  it("returns the same index for any other key (a no-op the caller ignores)", () => {
+    expect(nextSegmentIndex("Enter", 2, COUNT)).toBe(2);
+    expect(nextSegmentIndex("a", 0, COUNT)).toBe(0);
+    expect(nextSegmentIndex("Tab", 3, COUNT)).toBe(3);
   });
 });
