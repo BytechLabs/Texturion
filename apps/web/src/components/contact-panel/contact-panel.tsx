@@ -8,7 +8,8 @@ import { toast } from "sonner";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
-import { AttachmentsPreviewRow } from "@/components/thread/attachments-gallery";
+import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
+import { AttachmentsClump } from "@/components/thread/attachments-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { cn } from "@/lib/utils";
 
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 import { TasksChecklist } from "./tasks-checklist";
@@ -54,7 +56,8 @@ function onApiError(error: unknown, fallback: string) {
 }
 
 /** An elevated section card (mockup .panel): a white card with the panel shadow
- * and a bold section head, holding the section's content. */
+ * and a bold section head, holding the section's content. Reserved for the
+ * things people act on — Tasks and Attachments — so weight tracks importance. */
 function PanelSection({
   label,
   children,
@@ -65,6 +68,29 @@ function PanelSection({
   return (
     <section className="rounded-app-card border border-app-line bg-app-white p-3.5">
       <h3 className="mb-2.5 text-[13px] font-bold text-app-ink">{label}</h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The QUIET tier (#6 declutter): look-up-occasionally metadata (Consent, Tags,
+ * prior Conversations) gets no card chrome — just a small uppercase label over
+ * its content. Two label weights (bold-card vs quiet-uppercase) replace the old
+ * six-identical-cards monotony, so the eye lands on identity + actions first.
+ */
+function QuietGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+        {label}
+      </h3>
       {children}
     </section>
   );
@@ -91,12 +117,13 @@ function consentLine(
 
 /**
  * The context panel (APP-LAYOUT-V2 §1.5 — Missive-style Details, trimmed to the
- * calm core): Contact (name inline-edit, number+copy, address, notes) · Consent
- * history · Tags · a Tasks-checklist mount point (filled by the later tasks
- * wave) · a quiet "View all attachments (N)" row that opens the single gallery
- * surface (§5.2 — NOT a panel section) · prior conversations · a quiet opt-out
- * danger zone. Default-closed and toggled from the thread header; the gallery
- * has one entry point so this row only links to it, never duplicates it.
+ * calm core), tiered for personality + scannability (#6): an IDENTITY card
+ * (app-ava avatar + inline-edit name + number+copy + address + notes) · a quiet
+ * Consent group (actionable only when opted-out) · a Tasks-checklist card · the
+ * AttachmentsClump card (an iMessage-style grid that opens the single gallery
+ * surface, §5.2 — one entry point, never a second gallery) · a quiet Tags group
+ * · a quiet prior-Conversations group · a quiet opt-out danger zone.
+ * Default-closed and toggled from the thread header.
  */
 export function ContactPanel({
   conversation,
@@ -155,38 +182,57 @@ export function ContactPanel({
   };
 
   return (
-    // §1.5: a CALM surface — 20px padding, 32px between sections, labels
-    // stone-500, auto-saving fields. Progressive disclosure: the thread stays
-    // the hero; this detail lives in the toggled panel.
+    // §1.5 / #6: a CALM, TIERED surface. Weight tracks importance: an identity
+    // card (avatar + name + number + address + notes) and two action cards
+    // (Tasks, Attachments) carry card chrome; look-up metadata (Consent, Tags,
+    // Conversations) is a quiet uppercase-label group. Two label weights, not
+    // six identical cards — the eye lands on who-this-is first. Progressive
+    // disclosure: the thread stays the hero; this detail lives in the panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="space-y-3 p-3.5">
-        {/* Contact — name, number + copy, address, notes. Calm hairline card. */}
-        <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5">
-          <InlineTextField
-            contactId={contact.id}
-            field="name"
-            value={contact.name}
-            label="Contact name"
-            placeholder="Add a name"
-          />
-          <div className="flex items-center gap-1 px-2">
-            <span className="select-all text-sm tabular-nums text-muted-foreground">
-              {phone}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={copyNumber}
-              aria-label={copied ? "Number copied" : "Copy number"}
-            >
-              {copied ? (
-                <Check className="size-3 text-success" strokeWidth={1.75} />
-              ) : (
-                <Copy className="size-3" strokeWidth={1.75} />
+      <div className="space-y-5 p-4">
+        {/* IDENTITY — the panel's one anchor of personality (#6): a colored
+            app-ava avatar + the editable name and number up top, then address
+            and notes under a hairline. Who this is, in one card. */}
+        <section className="rounded-app-card border border-app-line bg-app-white p-3.5">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-petrol-deep",
+                avatarColorClass(contact.id),
               )}
-            </Button>
+            >
+              {avatarInitials(contactDisplayName(contact))}
+            </span>
+            <div className="min-w-0 flex-1">
+              <InlineTextField
+                contactId={contact.id}
+                field="name"
+                value={contact.name}
+                label="Contact name"
+                placeholder="Add a name"
+                className="text-[15px] font-semibold"
+              />
+              <div className="flex items-center gap-1 px-2">
+                <span className="select-all text-sm tabular-nums text-muted-foreground">
+                  {phone}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={copyNumber}
+                  aria-label={copied ? "Number copied" : "Copy number"}
+                >
+                  {copied ? (
+                    <Check className="size-3 text-success" strokeWidth={1.75} />
+                  ) : (
+                    <Copy className="size-3" strokeWidth={1.75} />
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="pt-2">
+          <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
             <InlineTextField
               contactId={contact.id}
               field="address"
@@ -194,19 +240,20 @@ export function ContactPanel({
               label="Contact address"
               placeholder="Add an address"
             />
-          </div>
-          <div className="px-2 pt-2">
-            <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+            <div className="px-2">
+              <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+            </div>
           </div>
         </section>
 
-        {/* Consent history (D3/D4) — plain language, with the opt-out state. */}
-        <PanelSection label="Consent">
+        {/* Consent history (D3/D4) — quiet metadata about the person, unless
+            they're opted out (then it carries the actionable revoke). */}
+        <QuietGroup label="Consent">
           <p className="px-2 text-[13px] text-muted-foreground">
             {consentLine(contact, memberName)}
           </p>
           {contact.opted_out && (
-            <div className="flex items-center gap-2 px-2 pt-1">
+            <div className="flex items-center gap-2 px-2 pt-1.5">
               <Badge variant="destructive">Opted out</Badge>
               <button
                 type="button"
@@ -224,44 +271,45 @@ export function ContactPanel({
               </button>
             </div>
           )}
-        </PanelSection>
+        </QuietGroup>
 
-        {/* Tags on this conversation. */}
-        <PanelSection label="Tags">
-          <ConversationTags conversation={conversation} />
-        </PanelSection>
-
-        {/* Tasks checklist for this conversation (D17/TASKS.md T5.2). Checking a
-            row calls the source message's PATCH /v1/messages/:id {done} — the
-            derived-completion path (T2) — striking the message through in the
-            thread via the one message.status broadcast. `active` gates the
-            fetch to when the panel is open. */}
+        {/* Tasks checklist (D17/TASKS.md T5.2) — an action surface, so it keeps
+            card weight. Checking a row calls the source message's PATCH
+            /v1/messages/:id {done} (derived completion, T2), striking the
+            message through in the thread via the one message.status broadcast.
+            `active` gates the fetch to when the panel is open. */}
         <PanelSection label="Tasks">
           <TasksChecklist conversationId={conversation.id} active={active} />
         </PanelSection>
 
-        {/* §1.5: the attachments gallery is NOT a panel section — just a quiet
-            row (recent thumbnails + count) that opens the single gallery. */}
-        <AttachmentsPreviewRow
+        {/* §1.5 / §5.2: the attachments clump — a titled card of recent thumbs
+            that opens the single gallery surface (one entry point, never a
+            second gallery). Renders nothing while empty. */}
+        <AttachmentsClump
           conversationId={conversation.id}
           onOpenGallery={onOpenGallery}
           enabled={active}
         />
 
-        {/* Prior conversations with this contact. */}
-        <PanelSection label="Conversations">
+        {/* Tags on this conversation — quiet. */}
+        <QuietGroup label="Tags">
+          <ConversationTags conversation={conversation} />
+        </QuietGroup>
+
+        {/* Prior conversations with this contact — quiet. */}
+        <QuietGroup label="Conversations">
           <PriorConversations
             phoneE164={contact.phone_e164}
             currentConversationId={conversation.id}
           />
-        </PanelSection>
+        </QuietGroup>
       </div>
 
       {/* §3.3 quiet danger zone: opting out is routine and reversible, so it
           sits alone, neutral (stone-500) until hovered — no red scare-styling.
           The confirm dialog still guards the actual action. */}
       {!contact.opted_out && (
-        <div className="mt-auto border-t border-border p-5">
+        <div className="mt-auto border-t border-app-line p-4">
           <button
             type="button"
             onClick={() => setConfirmOptOut(true)}

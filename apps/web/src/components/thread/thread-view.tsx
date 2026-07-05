@@ -328,13 +328,14 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       {/* Mobile contact sheet (G6). */}
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
         <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto p-0">
-          <SheetHeader className="border-b border-border">
+          {/* The panel's own identity hero is the visible header now (#6), so
+              the Sheet's title is sr-only — it still names the dialog for AT,
+              without repeating the contact name a scroll above itself. */}
+          <SheetHeader className="sr-only">
             <SheetTitle>
               {contactDisplayName(conversation.contact)}
             </SheetTitle>
-            <SheetDescription className="sr-only">
-              Contact details
-            </SheetDescription>
+            <SheetDescription>Contact details</SheetDescription>
           </SheetHeader>
           <ContactPanel
             conversation={conversation}

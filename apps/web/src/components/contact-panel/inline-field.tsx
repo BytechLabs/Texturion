@@ -20,12 +20,16 @@ export function InlineTextField({
   value,
   label,
   placeholder,
+  className,
 }: {
   contactId: string;
   field: "name" | "address";
   value: string | null;
   label: string;
   placeholder: string;
+  /** Extra classes for both the read button and the edit input (e.g. the
+   * hero name's larger type). Additive via cn(); color/size overrides win. */
+  className?: string;
 }) {
   const update = useUpdateContact(contactId);
   const [editing, setEditing] = useState(false);
@@ -63,6 +67,7 @@ export function InlineTextField({
         className={cn(
           "w-full truncate rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
           value ? "text-foreground" : "text-muted-foreground",
+          className,
         )}
       >
         {value || placeholder}
@@ -84,7 +89,10 @@ export function InlineTextField({
         }
       }}
       aria-label={label}
-      className="w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className={cn(
+        "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        className,
+      )}
     />
   );
 }

@@ -161,13 +161,15 @@ the conversation.
   user-selectable Fixed/Float preference knob** in MVP (a power-user setting the ICP won't touch).
   User-selectable dock modes are a documented **fast-follow** (like the gallery date-scrubber, §5.2).
 - **One panel, sectioned, trimmed to the calm core** (don't scatter metadata *and* don't over-stuff):
-  Contact (name inline-edit, number+copy, address) · Consent history (plain-language, D3/D4) · Tags ·
-  **Tasks checklist** for this conversation (D17/TASKS.md — checkable; checking calls the source
-  message's `PATCH /v1/messages/:id {done}`, striking it through in the thread). **The Attachments
-  gallery is NOT a panel section** — the panel shows only a quiet **"View all attachments (N)"** row
-  (up to 3-4 recent thumbnails) that opens the single gallery surface (§5.2). One entry point, not
-  two. Calm surface: 20–24px padding, 32px between sections, labels `stone-500`, auto-saving fields
-  (APP-UI-ELEVATION §3.3).
+  Tiered for personality + scannability (#6): an **identity card** (app-ava avatar + inline-edit name
+  + number+copy + address + notes) · a quiet **Consent** group (plain-language D3/D4; actionable only
+  when opted-out) · a **Tasks checklist** card (D17/TASKS.md — checkable; checking calls the source
+  message's `PATCH /v1/messages/:id {done}`, striking it through in the thread) · the **Attachments
+  clump** and quiet **Tags** / prior **Conversations** groups. **The Attachments gallery is NOT a
+  panel section** — the clump is an iMessage-style grid of up to four recent thumbnails (images AND
+  files) that opens the single gallery surface (§5.2). One entry point, not two. Weight tracks
+  importance: identity + action cards carry card chrome, look-up metadata is a quiet uppercase-label
+  group — two label weights, not six identical cards. Auto-saving fields (APP-UI-ELEVATION §3.3).
 - Slide in 200ms ease-out, backdrop fade; ESC and outside-click close (APP-UI-ELEVATION §4).
 
 ### 1.6 Responsive collapse

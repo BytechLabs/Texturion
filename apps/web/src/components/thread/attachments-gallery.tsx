@@ -327,7 +327,60 @@ function GallerySkeleton() {
  * second gallery — one entry point, one surface. Fetches lazily (only when the
  * panel is open) and renders nothing while empty so the panel stays calm.
  */
-export function AttachmentsPreviewRow({
+/**
+ * One clump tile (#6): a rounded thumbnail for an image, or a filetype glyph
+ * for a file / an image whose signed URL failed to load. An optional "+N"
+ * scrim rides the last visible tile when more attachments exist beyond the
+ * four shown. Decorative — the whole clump is one button, so tiles are hidden
+ * from assistive tech.
+ */
+function ClumpTile({
+  item,
+  overflowLabel,
+}: {
+  item: GalleryItem;
+  overflowLabel?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const isFile = item.kind !== "image" || failed;
+  return (
+    <span className="relative aspect-square overflow-hidden rounded-[10px] border border-app-line bg-app-line-soft">
+      {isFile ? (
+        <span className="flex size-full items-center justify-center text-app-muted">
+          <FileText className="size-5" strokeWidth={1.5} aria-hidden />
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.url}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="size-full object-cover"
+        />
+      )}
+      {overflowLabel && (
+        <span
+          aria-hidden
+          className="absolute inset-0 flex items-center justify-center bg-app-ink/55 text-[13px] font-semibold text-white"
+        >
+          {overflowLabel}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * §1.5 / #6: the attachments "clump" — a titled context-panel card showing up
+ * to four recent attachment thumbnails (any kind — images AND files, unlike
+ * the old images-only preview row) in a calm iMessage-style grid. The whole
+ * card is ONE button that opens the single gallery surface (§5.2 — one entry
+ * point; this never duplicates the gallery). Renders nothing while
+ * empty/loading/errored so the panel stays quiet.
+ */
+export function AttachmentsClump({
   conversationId,
   onOpenGallery,
   enabled = true,
@@ -338,42 +391,51 @@ export function AttachmentsPreviewRow({
 }) {
   const gallery = useAttachmentGallery(conversationId, enabled);
   const items = useMemo(() => flattenPages(gallery.data), [gallery.data]);
-  const images = useMemo(() => items.filter((i) => i.kind === "image"), [items]);
   const hasMore = gallery.hasNextPage ?? false;
 
   if (gallery.isPending || gallery.isError || items.length === 0) return null;
 
-  // "N" is honest: the count loaded so far, with "+" when more pages remain.
+  // Honest counts: the header shows the total loaded so far ("+" when more
+  // pages remain); the last tile's "+N" is the DIFFERENT, narrower fact —
+  // how many are hidden beyond the four shown — so the two are allowed to
+  // read differently (they answer different questions).
   const countLabel = `${items.length}${hasMore ? "+" : ""}`;
-  const thumbs = images.slice(0, 4);
+  const shown = items.slice(0, 4);
+  const hiddenBeyondShown = items.length - shown.length;
+  const overflowLabel =
+    hiddenBeyondShown > 0
+      ? `+${hiddenBeyondShown}${hasMore ? "+" : ""}`
+      : undefined;
 
   return (
     <button
       type="button"
       onClick={onOpenGallery}
-      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-150 ease-out hover:bg-secondary/60"
+      aria-label={`View all attachments (${countLabel})`}
+      className="block w-full rounded-app-card border border-app-line bg-app-white p-3.5 text-left transition-colors duration-150 ease-out hover:bg-app-stone-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      <span className="flex-1 text-sm text-foreground">
-        View all attachments{" "}
-        <span className="tabular-nums text-muted-foreground">
-          ({countLabel})
+      <div className="mb-2.5 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-[13px] font-bold text-app-ink">
+          <Images
+            className="size-3.5 text-app-muted"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          Attachments
+        </h3>
+        <span className="tabular-nums text-[12px] text-app-muted">
+          {countLabel}
         </span>
-      </span>
-      {thumbs.length > 0 && (
-        <span className="flex shrink-0 -space-x-1.5">
-          {thumbs.map((item) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={item.id}
-              src={item.url}
-              alt=""
-              aria-hidden
-              loading="lazy"
-              className="size-7 rounded-md border border-background object-cover"
-            />
-          ))}
-        </span>
-      )}
+      </div>
+      <div aria-hidden className="grid grid-cols-4 gap-1.5">
+        {shown.map((item, i) => (
+          <ClumpTile
+            key={item.id}
+            item={item}
+            overflowLabel={i === shown.length - 1 ? overflowLabel : undefined}
+          />
+        ))}
+      </div>
     </button>
   );
 }
