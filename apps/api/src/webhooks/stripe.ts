@@ -3,6 +3,7 @@ import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
 import { recordAndSendGraceNotice } from "../billing/grace";
+import { moduleForPrice, type PlanModule } from "../billing/modules";
 import {
   mirrorSubscriptionStatus,
   planForLicensedPrice,
@@ -249,6 +250,30 @@ async function handleCheckoutCompleted(
       .is("registration_fee_paid_at", null);
     if (feeError) {
       throw new Error(`registration fee stamp failed: ${feeError.message}`);
+    }
+  }
+
+  // #12 plan builder: enable the modules the customer purchased, derived from
+  // the subscription's line items so a redelivery re-upserts the same set. This
+  // only ever ENABLES (re-clearing disabled_at) — it never auto-disables, so a
+  // grandfathered module without a paid line item is left on. Explicit removal
+  // is a separate action.
+  const purchasedModules = subscription.items.data
+    .map((item) => (item.price ? moduleForPrice(env, item.price.id) : null))
+    .filter((module): module is PlanModule => module !== null);
+  if (purchasedModules.length > 0) {
+    const nowIso = new Date().toISOString();
+    const { error: moduleError } = await db.from("company_modules").upsert(
+      purchasedModules.map((module) => ({
+        company_id: companyId,
+        module,
+        enabled_at: nowIso,
+        disabled_at: null,
+      })),
+      { onConflict: "company_id,module" },
+    );
+    if (moduleError) {
+      throw new Error(`module enablement failed: ${moduleError.message}`);
     }
   }
 

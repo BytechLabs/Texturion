@@ -342,6 +342,30 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.has("line_items[2][price]")).toBe(false);
   });
 
+  it("plan-builder modules add one flat licensed line each, de-duped (#12)", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+      checkoutSessionEndpoint(),
+    ]);
+    const response = await post(
+      "/v1/billing/checkout",
+      // A repeated module must not double-bill.
+      { plan: "starter", modules: ["mms", "voice", "mms"] },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
+    // [0] licensed, [1] metered, then one line per unique module.
+    expect(form.get("line_items[2][price]")).toBe(env.STRIPE_MODULE_MMS_PRICE_ID);
+    expect(form.get("line_items[2][quantity]")).toBe("1");
+    expect(form.get("line_items[3][price]")).toBe(
+      env.STRIPE_MODULE_VOICE_PRICE_ID,
+    );
+    expect(form.get("line_items[3][quantity]")).toBe("1");
+    // No fourth module line (the duplicate 'mms' collapsed).
+    expect(form.has("line_items[4][price]")).toBe(false);
+  });
+
   it("resubscribe after cancellation: allowed, reuses the Stripe customer, no second fee", async () => {
     const harness = makeHarness([
       companyEndpoint(

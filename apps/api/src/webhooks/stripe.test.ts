@@ -77,6 +77,7 @@ function subscriptionFixture(
     licensed?: string;
     metered?: string;
     cancelAtPeriodEnd?: boolean;
+    modulePriceIds?: string[];
   } = {},
 ) {
   const {
@@ -85,6 +86,7 @@ function subscriptionFixture(
     licensed = env.STRIPE_STARTER_PRICE_ID,
     metered = env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     cancelAtPeriodEnd = false,
+    modulePriceIds = [],
   } = overrides;
   return {
     id,
@@ -114,6 +116,14 @@ function subscriptionFixture(
             recurring: { interval: "month", meter: "mtr_1" },
           },
         },
+        ...modulePriceIds.map((priceId, i) => ({
+          id: `si_module_${i}`,
+          object: "subscription_item",
+          quantity: 1,
+          current_period_start: PERIOD_START,
+          current_period_end: PERIOD_END,
+          price: { id: priceId, object: "price", recurring: { interval: "month" } },
+        })),
       ],
     },
   };
@@ -374,6 +384,49 @@ describe("§9 event → state table", () => {
     // §4.1 step 5c / §9: the paid checkout submits the 10DLC registration
     // (R1, or the §4.4 post-grace campaign reactivation) — never manual.
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+  });
+
+  it("checkout.session.completed enables the purchased plan-builder modules (#12)", async () => {
+    const moduleUpserts: unknown[] = [];
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          modulePriceIds: [
+            env.STRIPE_MODULE_MMS_PRICE_ID!,
+            env.STRIPE_MODULE_VOICE_PRICE_ID!,
+          ],
+        }),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+      endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
+        moduleUpserts.push(call.json());
+        return [];
+      }),
+    ]);
+
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // One upsert carrying both purchased modules, each enabled (disabled_at null).
+    expect(moduleUpserts).toHaveLength(1);
+    const rows = moduleUpserts[0] as {
+      company_id: string;
+      module: string;
+      disabled_at: string | null;
+    }[];
+    expect(rows.map((r) => r.module).sort()).toEqual(["mms", "voice"]);
+    expect(rows.every((r) => r.company_id === COMPANY_ID)).toBe(true);
+    expect(rows.every((r) => r.disabled_at === null)).toBe(true);
   });
 
   it("checkout.session.completed fires the checkout_completed PostHog event (§12 step 18)", async () => {

@@ -11,6 +11,7 @@ import {
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
+import { MODULE_CATALOG, modulePrice, PLAN_MODULES } from "../billing/modules";
 import {
   owesUsRegistration,
   registrationDraftComplete,
@@ -22,7 +23,11 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 
-const planBodySchema = z.object({ plan: z.enum(PLAN_IDS) });
+const planBodySchema = z.object({
+  plan: z.enum(PLAN_IDS),
+  // #12 plan builder: opt-in module add-ons selected at checkout.
+  modules: z.array(z.enum(PLAN_MODULES)).optional(),
+});
 
 interface BillingCompany {
   id: string;
@@ -114,6 +119,8 @@ billingRoutes.post("/checkout", async (c) => {
     );
   }
   const { plan } = parsed.data;
+  // De-dupe the selected modules (order-independent; a repeat is not an error).
+  const selectedModules = [...new Set(parsed.data.modules ?? [])];
 
   const company = await fetchCompany(db, c.get("companyId"));
 
@@ -156,6 +163,22 @@ billingRoutes.post("/checkout", async (c) => {
   // AND has never paid the fee — at most once per company, ever (SPEC §2, §9).
   if (owesRegistration && company.registration_fee_paid_at === null) {
     lineItems.push({ price: env.STRIPE_US_FEE_PRICE_ID, quantity: 1 });
+  }
+
+  // #12 plan-builder modules: one flat licensed line item per selected add-on.
+  // A module whose Stripe price isn't provisioned in this environment is
+  // rejected rather than silently dropped (the customer would be under-charged
+  // and think they bought it). Enablement is written on checkout.completed.
+  for (const module of selectedModules) {
+    const price = modulePrice(env, module);
+    if (!price) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+      );
+    }
+    lineItems.push({ price, quantity: 1 });
   }
 
   const session = await getStripe(env).checkout.sessions.create({

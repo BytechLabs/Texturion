@@ -98,3 +98,11 @@ export function modulePrice(env: Env, module: PlanModule): string | null {
       return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
   }
 }
+
+/** Which module a Stripe price id belongs to; null for a non-module price. */
+export function moduleForPrice(env: Env, priceId: string): PlanModule | null {
+  for (const module of PLAN_MODULES) {
+    if (modulePrice(env, module) === priceId) return module;
+  }
+  return null;
+}
