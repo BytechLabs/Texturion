@@ -619,6 +619,57 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
   });
 
+  it("downgrade preserves purchased add-on modules in the period-end phase (#12)", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activePro()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          licensed: env.STRIPE_PRO_PRICE_ID,
+          metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
+          moduleItems: [
+            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
+          ],
+        }),
+      ),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
+      endpoint("HEAD", /\/rest\/v1\/company_members/, () => countResponse(3)),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_schedules$/, () => ({
+        id: "sub_sched_1",
+        object: "subscription_schedule",
+        current_phase: { start_date: PERIOD_START, end_date: PERIOD_END },
+        phases: [{ start_date: PERIOD_START, end_date: PERIOD_END }],
+      })),
+      endpoint(
+        "POST",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
+      ),
+    ]);
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    const update = harness.callsTo(
+      "POST",
+      /subscription_schedules\/sub_sched_1/,
+    )[0].form();
+    // Phase 2 = base Starter pair + the preserved voice module, so the add-on
+    // keeps being billed instead of being silently dropped at period end.
+    expect(update.get("phases[1][items][0][price]")).toBe(
+      env.STRIPE_STARTER_PRICE_ID,
+    );
+    expect(update.get("phases[1][items][1][price]")).toBe(
+      env.STRIPE_STARTER_OVERAGE_PRICE_ID,
+    );
+    expect(update.get("phases[1][items][2][price]")).toBe(
+      env.STRIPE_MODULE_VOICE_PRICE_ID,
+    );
+    expect(update.get("phases[1][items][2][quantity]")).toBe("1");
+  });
+
   it("downgrade reuses an existing schedule instead of creating one", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),

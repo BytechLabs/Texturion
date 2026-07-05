@@ -60,6 +60,15 @@ export const INBOUND_FORWARDED_STATE = "mctb_inbound_fwd";
 /** Telnyx dial ring window before we declare the forward unanswered. */
 export const FORWARD_TIMEOUT_SECS = 20;
 
+/**
+ * #12 hard ceiling on a SINGLE forwarded call's billable duration. The
+ * period voice cap (companyOverVoiceBudget) is a pre-answer boundary check, so
+ * a call that answers just under the cap could otherwise run unbounded and blow
+ * the period allowance on its own. Telnyx auto-ends the leg at this limit,
+ * bounding any one call's cost. 1h is far above a real business call.
+ */
+export const MAX_FORWARDED_CALL_SECS = 60 * 60;
+
 interface CallPayload {
   call_control_id?: string;
   call_session_id?: string;
@@ -273,6 +282,9 @@ async function handleInboundInitiated(
       to: company.forward_to_cell,
       from: toE164, // present the business number to the owner's cell
       timeout_secs: FORWARD_TIMEOUT_SECS,
+      // #12: cap a single forwarded call's billable length (Telnyx ends the leg
+      // at this limit) so one long call can't overrun the period voice cap.
+      time_limit_secs: MAX_FORWARDED_CALL_SECS,
       answering_machine_detection: "detect_beep",
       client_state: encodeClientState(INBOUND_FORWARDED_STATE),
       target_leg_client_state: callerE164

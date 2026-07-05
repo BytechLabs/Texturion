@@ -746,7 +746,10 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
 });
 
 describe("POST /v1/messages/:id/retry (§7)", () => {
-  function retryStubs(row: Partial<MessageRow>) {
+  function retryStubs(
+    row: Partial<MessageRow>,
+    options: { mmsEnabled?: boolean; withAttachment?: boolean } = {},
+  ) {
     const message = messageRow({
       id: MESSAGE_ID,
       company_id: COMPANY_ID,
@@ -764,13 +767,31 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     );
     const base = sendStubs({
       view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      mmsEnabled: options.mmsEnabled,
     });
     const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
+    // A stored-media retry: message_attachments returns one row (wins over the
+    // base's empty attachments stub because it's listed first).
+    const attachments = options.withAttachment
+      ? stubRoute(restMatch(env, "GET", "message_attachments"), () => [
+          {
+            id: "att-retry-1",
+            content_type: "image/jpeg",
+            size_bytes: 4,
+            storage_path: `${COMPANY_ID}/${MESSAGE_ID}/0`,
+          },
+        ])
+      : null;
     return {
       base,
       lookup,
       optOuts,
-      all: [lookup.route, optOuts.route, ...base.all],
+      all: [
+        ...(attachments ? [attachments.route] : []),
+        lookup.route,
+        optOuts.route,
+        ...base.all,
+      ],
     };
   }
 
@@ -817,6 +838,24 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
         (call.body as Record<string, unknown>).telnyx_message_id === TELNYX_ID,
     );
     expect(persisted).toBeDefined();
+  });
+
+  it("a picture retry without the Picture messages add-on is a 409 (#12)", async () => {
+    const stubs = retryStubs(
+      { status: "failed", telnyx_message_id: null, error_detail: "boom" },
+      { withAttachment: true, mmsEnabled: false },
+    );
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    // Blocked before requeue + Telnyx — no re-send, no MMS charge.
+    expect(
+      stubs.base.persist.calls.filter(
+        (call) => (call.body as Record<string, unknown>).status === "queued",
+      ),
+    ).toHaveLength(0);
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
   it("409s a failed row that already has a carrier id (40300-style)", async () => {

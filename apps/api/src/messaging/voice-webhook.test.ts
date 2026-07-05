@@ -258,6 +258,10 @@ describe("handleCallEvent — inbound call.initiated", () => {
     });
     // Ring timeout is set so a rang-out forward computes MISSED.
     expect((transfer!.body as { timeout_secs?: number }).timeout_secs).toBeGreaterThan(0);
+    // #12: a per-call duration ceiling bounds one call's cost (1h).
+    expect(
+      (transfer!.body as { time_limit_secs?: number }).time_limit_secs,
+    ).toBe(60 * 60);
   });
 
   it("never answers when no forward is configured (rings out; hangup is the signal)", async () => {

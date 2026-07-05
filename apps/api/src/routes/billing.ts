@@ -12,7 +12,12 @@ import {
   type PlanId,
 } from "../billing/plans";
 import { enabledModules } from "../billing/company-modules";
-import { MODULE_CATALOG, modulePrice, PLAN_MODULES } from "../billing/modules";
+import {
+  MODULE_CATALOG,
+  moduleForPrice,
+  modulePrice,
+  PLAN_MODULES,
+} from "../billing/modules";
 import {
   owesUsRegistration,
   registrationDraftComplete,
@@ -352,6 +357,13 @@ billingRoutes.post("/change-plan", async (c) => {
         items: [
           { price: starterPrices.licensed, quantity: 1 },
           { price: starterPrices.metered },
+          // #12: carry the company's purchased add-on modules through the
+          // downgrade. Modules are plan-agnostic, so without this Stripe would
+          // drop them at period end while company_modules stays enabled —
+          // handing the customer the paid capability for $0 (and us the cost).
+          ...subscription.items.data
+            .filter((item) => moduleForPrice(env, item.price.id) !== null)
+            .map((item) => ({ price: item.price.id, quantity: 1 })),
         ],
       },
     ],

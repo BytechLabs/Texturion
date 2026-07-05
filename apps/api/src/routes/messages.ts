@@ -358,6 +358,33 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
     );
   }
 
+  // Stored outbound media, loaded BEFORE the requeue so the #12 mms gate can
+  // block a picture re-send cleanly (never leaving the row half-requeued).
+  const attachmentRows = unwrap<
+    (AttachmentSummary & { storage_path: string })[]
+  >(
+    await db
+      .from("message_attachments")
+      .select("id,content_type,size_bytes,storage_path")
+      .eq("company_id", companyId)
+      .eq("message_id", message.id)
+      .order("storage_path", { ascending: true }),
+    "attachments lookup",
+  );
+
+  // #12 plan builder: re-sending a picture requires the mms module too — same
+  // gate as the send route, so a company that turned the add-on off can't
+  // re-incur the Telnyx MMS charge by retrying an old failed picture send.
+  if (
+    attachmentRows.length > 0 &&
+    !(await isModuleEnabled(db, companyId, "mms"))
+  ) {
+    throw new ApiError(
+      "conflict",
+      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
+    );
+  }
+
   // Same row, new Telnyx call (§7): back to queued, error columns cleared.
   const requeued = unwrap<MessageRow[]>(
     await db
@@ -371,17 +398,6 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   if (!requeued) throw new Error(`message ${message.id} vanished during retry`);
 
   // Re-mint signed URLs for any stored outbound media (24 h TTL, §8).
-  const attachmentRows = unwrap<
-    (AttachmentSummary & { storage_path: string })[]
-  >(
-    await db
-      .from("message_attachments")
-      .select("id,content_type,size_bytes,storage_path")
-      .eq("company_id", companyId)
-      .eq("message_id", message.id)
-      .order("storage_path", { ascending: true }),
-    "attachments lookup",
-  );
   const mediaUrls = await signedMediaUrls(
     db,
     attachmentRows.map((row) => row.storage_path),
