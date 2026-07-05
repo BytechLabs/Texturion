@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { avatarInitials } from "@/components/shell/avatar-color";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
+import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
@@ -139,30 +140,36 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
 function TaskRow({ task }: { task: ForYouTask }) {
   const router = useRouter();
   const complete = useCompleteForYouTask();
+  // #11: play the 150ms slide+fade closure BEFORE the optimistic mutation
+  // splices the row out, so a completed task leaves calmly instead of blinking
+  // away. Reduced motion runs the mutation immediately (no in-between frames).
+  const { leaving, leave } = useLeaveTransition();
 
   const onComplete = () => {
-    complete.mutate(
-      { task, done: true },
-      {
-        onError: (e) =>
-          toast.error(
-            e instanceof ApiError ? e.message : "Couldn't complete the task.",
-          ),
-        onSuccess: () =>
-          undoableToast({
-            message: "Task completed",
-            onUndo: () =>
-              complete.mutate(
-                { task, done: false },
-                {
-                  onError: (e) =>
-                    toast.error(
-                      e instanceof ApiError ? e.message : "Couldn't undo.",
-                    ),
-                },
-              ),
-          }),
-      },
+    leave(() =>
+      complete.mutate(
+        { task, done: true },
+        {
+          onError: (e) =>
+            toast.error(
+              e instanceof ApiError ? e.message : "Couldn't complete the task.",
+            ),
+          onSuccess: () =>
+            undoableToast({
+              message: "Task completed",
+              onUndo: () =>
+                complete.mutate(
+                  { task, done: false },
+                  {
+                    onError: (e) =>
+                      toast.error(
+                        e instanceof ApiError ? e.message : "Couldn't undo.",
+                      ),
+                  },
+                ),
+            }),
+        },
+      ),
     );
   };
 
@@ -173,7 +180,12 @@ function TaskRow({ task }: { task: ForYouTask }) {
       : "Open task";
 
   return (
-    <div className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0">
+    <div
+      className={cn(
+        "flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0",
+        leaving && "app-motion-row-leave",
+      )}
+    >
       {/* A calm checkbox: hairline square → petrol-filled check on complete. */}
       <button
         type="button"
