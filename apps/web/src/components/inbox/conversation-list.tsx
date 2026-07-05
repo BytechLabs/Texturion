@@ -1,7 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,7 @@ import {
   usePinnedConversations,
 } from "@/lib/api/conversations";
 import type { ConversationFilters } from "@/lib/api/filters";
+import type { ConversationListItem } from "@/lib/api/types";
 import { flattenPages } from "@/lib/api/pagination";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -67,6 +68,53 @@ function useFlipRows(
   }, [offsets, rowElements]);
 }
 
+/**
+ * #11 exit animation: a leaving row (one an external status/spam/assign change
+ * dropped from this filter) is captured as a "ghost" at its last on-screen
+ * offset and rendered for 150ms playing the leave keyframe, while the real rows
+ * FLIP up to close the gap. Ghosts live OUTSIDE the virtualizer's row set, so
+ * the live render is never touched — worst case a ghost is skipped (today's
+ * instant snap). Mirrors useFlipRows: rows + offsets are params, so their
+ * per-render identity is expected (not a stale-closure hazard).
+ */
+type RowGhost = { id: string; row: ConversationListItem; top: number };
+function useRowExit(
+  rows: ConversationListItem[],
+  offsets: Map<string, number>,
+): RowGhost[] {
+  const lastRows = useRef<Map<string, ConversationListItem>>(new Map());
+  const lastOffsets = useRef<Map<string, number>>(new Map());
+  const [ghosts, setGhosts] = useState<RowGhost[]>([]);
+
+  useLayoutEffect(() => {
+    const current = new Map(rows.map((row) => [row.id, row]));
+    if (!prefersReducedMotion()) {
+      const leaving: RowGhost[] = [];
+      for (const [id, row] of lastRows.current) {
+        // Only rows that were actually on screen (had an offset) can ghost.
+        const top = lastOffsets.current.get(id);
+        if (!current.has(id) && top !== undefined) leaving.push({ id, row, top });
+      }
+      if (leaving.length > 0) {
+        setGhosts((g) => [
+          ...g,
+          ...leaving.filter((l) => !g.some((x) => x.id === l.id)),
+        ]);
+        for (const gh of leaving) {
+          window.setTimeout(
+            () => setGhosts((x) => x.filter((y) => y.id !== gh.id)),
+            150,
+          );
+        }
+      }
+    }
+    lastRows.current = current;
+    lastOffsets.current = offsets;
+  }, [rows, offsets]);
+
+  return ghosts;
+}
+
 export function ConversationList({
   filters,
   hasUrlFilters,
@@ -111,6 +159,7 @@ export function ConversationList({
     if (row) offsets.set(row.id, item.start);
   }
   useFlipRows(rowElements, offsets);
+  const ghosts = useRowExit(rows, offsets);
 
   // Infinite scroll: fetch the next cursor page as the end approaches.
   const lastIndex = virtualItems[virtualItems.length - 1]?.index ?? 0;
@@ -180,6 +229,23 @@ export function ConversationList({
             </div>
           );
         })}
+        {/* #11: leaving ghosts — a snapshot of the just-removed row fading out
+            in place. Non-interactive, aria-hidden (the real row is already gone
+            from the a11y tree). */}
+        {ghosts.map((ghost) => (
+          <div
+            key={`ghost-${ghost.id}`}
+            aria-hidden
+            className="app-motion-row-leave pointer-events-none absolute inset-x-0 top-0"
+            style={{ transform: `translateY(${ghost.top}px)` }}
+          >
+            <ConversationRow
+              conversation={ghost.row}
+              active={false}
+              spamView={filters.is_spam === true}
+            />
+          </div>
+        ))}
       </div>
       {query.isFetchingNextPage && (
         <p className="p-3 text-center text-xs text-muted-foreground">
