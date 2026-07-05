@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { buildThreadItems, type ThreadItem } from "./clusters";
 import { MessageBubble } from "./message-bubble";
+import { PinnedBanner, sortPinned } from "./pinned-banner";
 import { DayDivider, SystemLine } from "./system-line";
 import { ThreadFilterBar } from "./thread-filter-bar";
 import {
@@ -66,6 +67,9 @@ export function MessageList({
     () => flattenPages(messagesQuery.data).slice().sort(byChronology),
     [messagesQuery.data],
   );
+  // #3: pinned messages surfaced in the banner above the scroll (from loaded
+  // pages), newest-pin-first.
+  const pinnedMessages = useMemo(() => sortPinned(messages), [messages]);
 
   // §4.3: the done/undone timeline lines join the LIVE message body by id.
   // Built from the loaded message set — a cache-miss degrades to "a message"
@@ -153,6 +157,22 @@ export function MessageList({
       setNewWhileScrolledUp(false);
     },
     [],
+  );
+
+  // #3: jump to a pinned message from the banner — scroll the virtualizer to
+  // the cluster that holds it. A no-op if the message isn't in the current
+  // (possibly filtered) view; the row is still rendered so its Pinned chip
+  // marks it once on screen.
+  const scrollToMessage = useCallback(
+    (messageId: string) => {
+      const index = items.findIndex(
+        (item) =>
+          item.kind === "cluster" &&
+          item.messages.some((m) => m.id === messageId),
+      );
+      if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+    },
+    [items, virtualizer],
   );
 
   // Anchored prepend: remember total size + scrollTop before older pages
@@ -275,6 +295,13 @@ export function MessageList({
           <ThreadFilterBar value={filter} onChange={onFilterChange} />
         </div>
       </div>
+      {pinnedMessages.length > 0 && (
+        <div className="shrink-0 px-4 pb-1 md:px-6">
+          <div className="mx-auto w-full max-w-[42rem]">
+            <PinnedBanner messages={pinnedMessages} onJump={scrollToMessage} />
+          </div>
+        </div>
+      )}
       <div
         ref={scrollRef}
         onScroll={onScroll}
