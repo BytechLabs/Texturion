@@ -75,7 +75,7 @@ export function SearchResults({ q }: { q: string }) {
             <Link
               key={hit.id}
               href={`/inbox/${hit.id}`}
-              className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
+              className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">
@@ -118,7 +118,7 @@ export function SearchResults({ q }: { q: string }) {
             <Link
               key={contact.id}
               href={`/inbox/new?contact=${contact.id}`}
-              className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60"
+              className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
             >
               <span className="truncate text-sm font-medium text-foreground">
                 {contactDisplayName(contact)}

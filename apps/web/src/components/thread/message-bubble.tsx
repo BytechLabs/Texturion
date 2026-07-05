@@ -60,7 +60,7 @@ export function DeliveryState({
               onClick={() => retry.mutate(message.id)}
               disabled={retry.isPending}
               // tap-target: ≥44px hit area on mobile (G11) without visual bloat.
-              className="tap-target font-medium underline-offset-2 hover:underline disabled:opacity-50"
+              className="tap-target rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
             >
               {retry.isPending ? "Retrying…" : "Retry"}
             </button>
@@ -127,7 +127,7 @@ function DoneBadge({ message }: { message: Message }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary"
+          className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           tabIndex={0}
         >
           <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />

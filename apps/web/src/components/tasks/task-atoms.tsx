@@ -30,6 +30,9 @@ export function TaskDoneCheckbox({
       role="checkbox"
       aria-checked={task.done}
       aria-label={task.done ? "Mark not done" : "Mark done"}
+      // Guard against a double-submit while the derived PATCH is in flight —
+      // matching the for-you TaskRow checkbox, the same message-done write (#4).
+      disabled={done.isPending}
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -41,7 +44,7 @@ export function TaskDoneCheckbox({
         });
       }}
       className={cn(
-        "tap-target flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ease-out",
+        "tap-target flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50",
         task.done
           ? "border-primary bg-primary text-primary-foreground"
           : "border-input text-transparent hover:border-primary/60",

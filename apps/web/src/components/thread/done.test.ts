@@ -7,6 +7,7 @@ import {
   doneToggleLabel,
   isDone,
   isUnsentOutbound,
+  shouldPopDone,
 } from "./done";
 
 describe("isDone", () => {
@@ -50,6 +51,22 @@ describe("doneToggleLabel", () => {
   it("flips between mark done / not done", () => {
     expect(doneToggleLabel(false)).toBe("Mark done");
     expect(doneToggleLabel(true)).toBe("Mark not done");
+  });
+});
+
+describe("shouldPopDone (#4 check pop)", () => {
+  it("pops only on the not-done → done transition", () => {
+    expect(shouldPopDone(false, true)).toBe(true);
+  });
+
+  it("never pops on mount (prev seeded to current) or a no-op re-render", () => {
+    // Seed = current state on first render: done stays done, open stays open.
+    expect(shouldPopDone(true, true)).toBe(false);
+    expect(shouldPopDone(false, false)).toBe(false);
+  });
+
+  it("never pops on undone (done → not-done)", () => {
+    expect(shouldPopDone(true, false)).toBe(false);
   });
 });
 

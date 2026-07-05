@@ -67,6 +67,19 @@ export function doneToggleLabel(done: boolean): string {
 }
 
 /**
+ * #4 micro-polish: whether the done toggle should fire its signature check pop
+ * (the app-check-cascade scale, in message-actions). TRUE only on the
+ * not-done → done transition a user drives in-session — FALSE on mount (the
+ * caller seeds `prev` to the current state), on undone (done → not-done), and
+ * on any no-op re-render. This keeps already-done messages still as they
+ * scroll into view; the pop is the reward for completing, and nothing else.
+ * The caller still gates on prefersReducedMotion() and WAAPI availability.
+ */
+export function shouldPopDone(prevDone: boolean, nextDone: boolean): boolean {
+  return nextDone && !prevDone;
+}
+
+/**
  * The badge tooltip: "Done · {name} · {time}". `memberName` resolves
  * done_by_user_id via the members list; an unresolvable id (deactivated
  * member cache miss, optimistic patch before /me settles) degrades to

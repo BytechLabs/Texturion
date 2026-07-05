@@ -325,8 +325,12 @@ export function MessageList({
                         <div
                           key={message.id}
                           className={cn(
+                            // The house arrival motion (app-message-in: 200ms
+                            // fade + 4px rise on --ease-out, auto-zeroed under
+                            // reduced-motion) — one source of truth instead of
+                            // a parallel tailwindcss-animate vocabulary (#4).
                             message.id === recentArrivalId &&
-                              "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
+                              "app-motion-message-in",
                           )}
                         >
                           <MessageBubble
@@ -347,15 +351,19 @@ export function MessageList({
       </div>
 
       {newWhileScrolledUp && !atBottom && (
-        <button
-          type="button"
-          onClick={() => scrollToBottom("smooth")}
-          className={cn(
-            "absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-transform duration-150 ease-out hover:bg-primary/90",
-          )}
-        >
-          New message <ArrowDown className="size-3.5" strokeWidth={1.75} />
-        </button>
+        // Centering lives on the wrapper: the pill's own transform is spent by
+        // the app-message-in keyframe (fade + 4px rise), so it can't also hold
+        // the -translate-x-1/2. The pill now eases in instead of hard-cutting
+        // into existence (#4).
+        <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={() => scrollToBottom("smooth")}
+            className="app-motion-message-in flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors duration-150 ease-out hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            New message <ArrowDown className="size-3.5" strokeWidth={1.75} />
+          </button>
+        </div>
       )}
 
       {/* Incoming messages announced politely for screen readers (G11). */}

@@ -83,7 +83,7 @@ export function FilterBar({
               onClick={() => onChange(applySegment(filters, id))}
               className={cn(
                 // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
-                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out md:min-h-[28px]",
+                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 md:min-h-[28px]",
                 selected
                   ? "bg-app-white font-semibold text-app-ink"
                   : "font-medium text-app-muted hover:text-app-ink",
@@ -185,7 +185,7 @@ function SearchField({
           type="button"
           onClick={() => setSearch("")}
           aria-label="Clear search"
-          className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+          className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <X className="size-3.5" strokeWidth={1.75} />
         </button>
@@ -251,7 +251,7 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${label} filter`}
-        className="tap-target rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+        className="tap-target rounded-full p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <X className="size-3" strokeWidth={1.75} />
       </button>
@@ -300,7 +300,7 @@ function FilterPopover({
         <button
           type="button"
           aria-label="Add filter"
-          className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
+          className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
           Filter

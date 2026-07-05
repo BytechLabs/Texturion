@@ -1,7 +1,14 @@
 "use client";
 
-import { CircleCheck, Copy, ListChecks, MoreHorizontal, RotateCw } from "lucide-react";
-import { useState } from "react";
+import {
+  Circle,
+  CircleCheck,
+  Copy,
+  ListChecks,
+  MoreHorizontal,
+  RotateCw,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -19,9 +26,15 @@ import {
 } from "@/components/ui/popover";
 import { useRetryMessage, useSetMessageDone } from "@/lib/api/messages";
 import type { Message } from "@/lib/api/types";
+import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-import { doneToggleLabel, isDone, isUnsentOutbound } from "./done";
+import {
+  doneToggleLabel,
+  isDone,
+  isUnsentOutbound,
+  shouldPopDone,
+} from "./done";
 import { MakeTaskForm } from "./make-task-form";
 
 /** Telnyx error for a send blocked by the profile-level opt-out list. */
@@ -38,13 +51,23 @@ function isRetryable(message: Message): boolean {
 }
 
 /**
- * The APP-LAYOUT-V2 §4.1 done toggle: a quiet circle-check at the bubble's
- * edge, VERTICALLY CENTERED to the bubble (the row centers it, §4.1). Desktop —
+ * The APP-LAYOUT-V2 §4.1 done toggle: a quiet check at the bubble's edge,
+ * VERTICALLY CENTERED to the bubble (the row centers it, §4.1). Desktop —
  * revealed on message hover/focus, `stone-400` → petrol on hover; mobile —
  * subtle-always. aria-pressed toggle with "Mark done" / "Mark not done";
- * 150ms ease-out. AUDITABLE: the click hits the real PATCH /v1/messages/:id
- * done path, which writes the conversation_events message_done/undone row that
- * renders in the timeline (§4.2).
+ * 150ms ease-out.
+ *
+ * #4 micro-polish: the two states are now visually distinct BEYOND color —
+ * not-done shows a HOLLOW circle (an empty checkbox inviting the tick), done
+ * shows a FILLED circle-check. And completing a message earns the house
+ * signature motion (the app-check-cascade pop: scale 0.8 → 1.12 → 1) — fired
+ * only on the user's done TRANSITION (not on mount, so already-done messages
+ * don't pop as they scroll into view), and skipped under reduced-motion via
+ * the WAAPI guard (globals.css only zeroes CSS animations, §G11 / lib/motion).
+ *
+ * AUDITABLE: the click hits the real PATCH /v1/messages/:id done path, which
+ * writes the conversation_events message_done/undone row that renders in the
+ * timeline (§4.2).
  */
 function DoneToggle({
   message,
@@ -55,6 +78,33 @@ function DoneToggle({
 }) {
   const setDone = useSetMessageDone(conversationId);
   const done = isDone(message);
+  const iconRef = useRef<SVGSVGElement>(null);
+  const wasDone = useRef(done);
+
+  useEffect(() => {
+    // The signature check pop, fired ONLY when this message flips
+    // not-done → done during the session — never on initial mount (wasDone
+    // seeds to the current state), so scrolling through a thread of already-
+    // done messages stays still. Mirrors the app-check-cascade keyframe.
+    if (
+      shouldPopDone(wasDone.current, done) &&
+      iconRef.current &&
+      typeof iconRef.current.animate === "function" &&
+      !prefersReducedMotion()
+    ) {
+      iconRef.current.animate(
+        [
+          { transform: "scale(0.8)" },
+          { transform: "scale(1.12)", offset: 0.6 },
+          { transform: "scale(1)" },
+        ],
+        { duration: 200, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+      );
+    }
+    wasDone.current = done;
+  }, [done]);
+
+  const Icon = done ? CircleCheck : Circle;
 
   return (
     <button
@@ -73,7 +123,7 @@ function DoneToggle({
           "md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
       )}
     >
-      <CircleCheck aria-hidden className="size-4" strokeWidth={1.75} />
+      <Icon ref={iconRef} aria-hidden className="size-4" strokeWidth={1.75} />
     </button>
   );
 }

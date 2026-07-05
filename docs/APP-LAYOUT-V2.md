@@ -307,11 +307,16 @@ the segment hint is a passive text line, not a control.
 
 ### 4.1 The affordance (Gmail right-edge reveal, adapted to a bubble)
 
-- **Desktop:** on message hover, a quiet **circle-check + overflow (⋯)** appears at the bubble's
+- **Desktop:** on message hover, a quiet **mark-done circle + overflow (⋯)** appears at the bubble's
   **right edge, vertically centered to the bubble** (`stone-400`, petrol on hover). Two controls
   max — resist a Gmail-style four-button cluster (keep it calm); the overflow holds the rest.
 - **Mobile:** an always-visible **subtle circle** on the bubble's action row (D14 mobile spec), same
   vertical centering.
+- **The two states are distinct beyond color** (#4): not-done is a **hollow circle** (an empty box
+  inviting the tick); done is a **filled circle-check**. Completing a message earns the house
+  signature motion — the `app-check-cascade` pop (scale 0.8 → 1.12 → 1) fired **only** on the
+  user's not-done → done transition (never on mount, so scrolling a done thread stays still), and
+  skipped under `prefers-reduced-motion` via the WAAPI guard (`lib/motion`).
 - Applies to inbound, outbound, and notes alike (D14). 150ms transition, `aria-pressed` toggle,
   SR labels "Mark done" / "Mark not done."
 - Done visual (unchanged, D14): `line-through` + 55% opacity + a small **petrol check badge** with
