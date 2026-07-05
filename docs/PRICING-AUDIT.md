@@ -1,6 +1,6 @@
 # Pricing model audit & redesign proposal (#12)
 
-**Status:** audit complete · protection layer COMPLETE (see §9) · plan builder (monetization) next
+**Status:** COMPLETE — protection layer + modular plan builder shipped, adversarially reviewed (see §9)
 **Cost basis dated:** 2026‑07‑04 (provider list prices; see sources inline)
 **Core invariant to enforce:** _we must never pay a provider more for a tenant than that tenant pays us._
 
@@ -252,15 +252,35 @@ Storage, and Canada are opt-in modules. Shipped:
   requires the voice module; a migration grandfathers mctb-only companies so no
   existing voice user is bitten. (`76ab721`)
 
-Remaining plan-builder follow-ups (revenue enforcement, not cost protection):
+Plan-builder follow-ups — ALL shipped:
 
-- **Canada-number gate (`regions_ca`)** — needs a regional-model call: Canada is
-  a HOME region for country='CA' companies (grandfathered + always included, so
-  NEVER gated for them) but an ADD-ON for a US company reaching into Canada. So
-  the gate should fire only on provisioning/porting a CA number for a country=
-  'US' company. Confirm before wiring, since mis-modeling would block CA signups.
-- **extra_storage** budget bump (enabling the module raises the storage budget).
-- Voice-webhook safety net (skip forwarding if the module was later disabled).
-- Post-signup module management (settings add/remove via a subscription-item
-  change, mirrored to `company_modules`) + a read-only "your plan includes" on
-  the billing page.
+- **Post-signup management** — GET/POST /v1/billing/modules add/remove a Stripe
+  subscription item (prorated) + mirror company_modules; disabling voice clears
+  forward_to_cell + mctb_enabled. Settings "Add-ons" card (Switch per module).
+  (`a8d7942`, `9bfec0f`)
+- **MMS + voice gates** — outbound MMS + turning on forwarding require their
+  module (grandfathered). (`db42299`, `76ab721`)
+- **extra_storage** — effectiveStorageBudgets grows both pools by 10 GB when on;
+  threaded through the attachment gate, MMS drop, alerts, and usage. (`1b10699`)
+- **regions_ca** — inert in the single-region model (numbers fixed to the
+  company's country), so hidden from the picker; backend scaffolding kept for
+  future multi-region. (`9bfec0f`)
+- **Voice disable safety net** — handled by module-disable clearing the voice
+  settings (no per-call check needed).
+
+### Adversarial review (`d25aaa7`)
+
+A 5-dimension adversarial review of the whole #12 diff confirmed + fixed three
+real cost holes: MMS retry bypassed the gate; a plan downgrade dropped paid
+module line items while leaving them enabled; a single forwarded call could run
+unbounded past the voice cap (now `time_limit_secs`-capped at 1h).
+
+### Documented residuals (bounded, low-risk)
+
+- **Raw Telnyx inbound receive** — upstream, only stoppable by suspending a
+  flooded number (an ops/abuse call, not a silent drop).
+- **Voice cap concurrency** — the cap is a pre-answer boundary check with
+  post-hangup accounting, so N simultaneous calls can each pass while under the
+  sum. Bounded by simultaneous inbound-call volume to one number (self-limiting)
+  and by the per-call 1h ceiling; a true fix needs an in-flight reservation
+  (deferred — the catastrophic single-call case is already capped).
