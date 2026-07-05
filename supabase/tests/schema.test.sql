@@ -22,7 +22,7 @@ declare
     'messages','message_attachments','conversation_events','tags',
     'conversation_tags','opt_outs','usage_events','webhook_events','templates',
     'push_subscriptions','notification_prefs','usage_alerts','grace_notices',
-    'port_requests','call_records'];
+    'port_requests','call_records','company_modules'];
   missing text;
   no_rls  text;
 begin
