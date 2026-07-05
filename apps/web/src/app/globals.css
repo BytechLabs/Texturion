@@ -154,13 +154,28 @@
 :root {
   --motion-micro: 150ms; /* hover / focus / fill change */
   --motion-panel: 200ms; /* overlay / panel slide / message arrival */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* calm ease-out, no overshoot */
 
   /* §2.3 — editorial whitespace on the calm surfaces (settings, onboarding,
      auth, empty states, contact panel). The inbox/thread stay dense and do not
      consume these; calm-surface components read them for consistent rhythm. */
   --space-section: 2rem; /* 32px — desktop section spacing on calm surfaces */
   --space-card: 1.5rem; /* 24px — calm-surface card / panel padding */
+}
+
+/*
+ * §2.5 motion binding (#11): bind Tailwind's easing + default transition
+ * timing to the calm house curve, so every primitive/overlay that animates on
+ * `transition-*`/`ease-out` (button, input, select, checkbox, dropdown, dialog,
+ * …) reads the house ease instead of the framework's cubic-bezier(0.4,0,0.2,1)
+ * default. Non-inline @theme so it also emits `--ease-out` as a :root var — the
+ * app-message-in / app-row-leave keyframes reference `var(--ease-out)`. Duration
+ * stays 150ms (= --motion-micro, and Tailwind's own default), so only the curve
+ * changes. Marketing is a separate stylesheet and keeps its literal timing.
+ */
+@theme {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  --default-transition-duration: 150ms;
 }
 
 @theme inline {
