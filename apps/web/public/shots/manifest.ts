@@ -36,7 +36,7 @@ export const shots = {
     theme: "light",
     frame: "browser",
     alt: "Loonext shared inbox showing a list of customer text conversations with New, Open, Waiting and Closed statuses, unread markers and an assignee avatar.",
-    placeholder: "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAAAwAwCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAW+socMwAAP7vv/SupHgAAA==",
+    placeholder: "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoUAA0AA4BaJZwAA7wJvcIAAP70fAX7mtQcdvZXiGbqyIAA",
   },
   "inbox-list-dark": {
     src: "/shots/inbox-list-dark.webp",
@@ -46,7 +46,7 @@ export const shots = {
     theme: "dark",
     frame: "browser",
     alt: "Loonext shared inbox showing a list of customer text conversations with New, Open, Waiting and Closed statuses, unread markers and an assignee avatar.",
-    placeholder: "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAAAwAwCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAW+so6CcAAP7ul6gtGLXCsAAA",
+    placeholder: "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACwAgCdASoUAA0ALrV2u12jqampiYC0SzgAB3gSz/AA/vLAy5M3yPRurHVcHowX341AAA==",
   },
   "thread-open-light": {
     src: "/shots/thread-open-light.webp",
@@ -56,7 +56,7 @@ export const shots = {
     theme: "light",
     frame: "browser",
     alt: "An open customer conversation in Loonext with inbound and outbound texts, a photo the customer sent, an internal team note, delivery states, and one message marked done.",
-    placeholder: "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAABQAwCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAW+n9uIx5AAD+78K2uvgpe+B1ptjat4gU3JAgbOAA",
+    placeholder: "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAABQAwCdASoUAA0APu1iqk2ppaQiMAgBMB2JZwAAW+jCRd7sAAD+8c+DKvRnCFi75Z+23+XsN8SyoZe5c0wjt8OFx+wfyDBDdgYxD6UT9ZMbAzAA",
   },
   "thread-open-dark": {
     src: "/shots/thread-open-dark.webp",
@@ -66,7 +66,7 @@ export const shots = {
     theme: "dark",
     frame: "browser",
     alt: "An open customer conversation in Loonext with inbound and outbound texts, a photo the customer sent, an internal team note, delivery states, and one message marked done.",
-    placeholder: "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAACQAwCdASoUAA0APu1iqU2ppaQiMAgBMB2JZ2HgFX/gUIS2iaoAAP7wWU79A01t5VtS/hps4sWLmRakNF1cWyifBEDW1QALTAdCAB6oEgAAAA==",
+    placeholder: "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAACQAwCdASoUAA0APu1kqk4ppaQiMAgBMB2JZwAAW+j/Bmg3BmAAAP7r83f76SDGqii1erb9WFg+YKmkHnFNSbQXndKYS+9tMqarkOPeBeAAAA==",
   },
   "contact-panel-light": {
     src: "/shots/contact-panel-light.webp",
@@ -76,7 +76,7 @@ export const shots = {
     theme: "light",
     frame: "browser",
     alt: "A Loonext conversation with the contact details panel open, showing the customer's name, number, consent record, address and notes beside the message thread.",
-    placeholder: "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABwAwCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAW+qh+DzTAAAA/u+z4/AlXjiiAAAAAA==",
+    placeholder: "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAAAwAwCdASoUAA0APu1iqU2ppaQiMAgBMB2JZwAAXAXK+IAgAP7xz0n93o+hiRR0Y8Jkp70N/BbrvVS8yS2/Zrv24sXQyBCkMHAAAA==",
   },
   "contact-panel-dark": {
     src: "/shots/contact-panel-dark.webp",
@@ -86,7 +86,7 @@ export const shots = {
     theme: "dark",
     frame: "browser",
     alt: "A Loonext conversation with the contact details panel open, showing the customer's name, number, consent record, address and notes beside the message thread.",
-    placeholder: "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAAAwAwCdASoUAA0APu1iqU2ppaOiMAgBMB2JZ19qADcAkeUwAP7wWO4e3P4p1jFYRZNEN4+K0IZ9I9RwAAA=",
+    placeholder: "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAAAQAwCdASoUAA0APu1iqU2ppaQiMAgBMB2JZQAAeuwSQAAA/u/I8HxeQl7wBKUmWbEosM6pxPH9hQmJtkaoMP9VXb38LNuAAAA=",
   },
   "mobile-inbox-light": {
     src: "/shots/mobile-inbox-light.webp",
@@ -96,7 +96,7 @@ export const shots = {
     theme: "light",
     frame: "phone",
     alt: "The Loonext inbox on a phone: a full-screen list of customer text conversations with statuses and unread markers, sized for one-handed use.",
-    placeholder: "data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAADwBACdASoUACsAPulipk2pJaOiMAqpIB0JZxFAAAHRp5waIkg3RzxG1QSdqiJUhUAA/u/jD5Ibt2q+t1USuclml7MspQo1SoPvFzU9OxldrERvd/Cn+3anxkBLUxz7+gxrm8cax8VwQ3QekZJ7R8K1tIxbCu74NmdwGW7lKczMQHGq+8X+k+RSXE/lQAAA",
+    placeholder: "data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAAAwBACdASoUACsAPu1eqU2ppKQiMBqqqTAdiWkAAFNRiudCAodRXEErwgAA/vCBLddsZgbZaGO4TO2jUZu610CjxaMtZMgLBJRhQUVw6p1PNaPQ20VS+xYe5ZUW6rQDtiS1qGGz6+t0ppCJzrlLSipxJeSz2vT/WZgivBgBYCBDePE/lQAAAA==",
   },
   "mobile-inbox-dark": {
     src: "/shots/mobile-inbox-dark.webp",
@@ -106,7 +106,7 @@ export const shots = {
     theme: "dark",
     frame: "phone",
     alt: "The Loonext inbox on a phone: a full-screen list of customer text conversations with statuses and unread markers, sized for one-handed use.",
-    placeholder: "data:image/webp;base64,UklGRqoAAABXRUJQVlA4IJ4AAABwBQCdASoUACsAPu1oqU6ppiOiKqwBMB2JZwAAPZA8rzWihs+V/e5OqAQZ32qMuU8wLzCkAP7w7OwshrwNtYgJQiZVShTlAMInSheKz66menGHiwI4AGKAEA+wPipTLGzRnhcWNdqLh+dY3NpVb/jheWOLFewaKd8wMQDmlO23+hxiAX0Ofb8qDmySlUk/45AcWk45YPwt5PHwJ6AAAA==",
+    placeholder: "data:image/webp;base64,UklGRp4AAABXRUJQVlA4IJIAAABwBACdASoUACsAPuVYp02pJKOiNVv4ASAciWcA0BgwHfqv1huLrBi2ZzWQAAD+8EEiq5+BLxj/0XG+0kBnAHyuTfARuuRmBw466ycxe/oL5HOkDMUlMRnrKl6Ald+GHkQaAg9Fosa71gD7+37nvavyIMHLBE/6ziNyTaiu9n6u4WRPPQTmCwlLpYUy2HEa/P5UAA==",
   },
   "mobile-thread-light": {
     src: "/shots/mobile-thread-light.webp",
@@ -116,7 +116,7 @@ export const shots = {
     theme: "light",
     frame: "phone",
     alt: "A customer text conversation on a phone in Loonext, showing inbound and outbound messages, a photo, and delivery states in a full-screen thread.",
-    placeholder: "data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAACQBACdASoUACsAPu1kqE2ppaOiMAgBMB2JZwAAhEXuUr5nOibwHtvZ41G5gAAA/vBkASjDUbc2IG4rkW07DnrXrKu9q82RM78TIOxJnx93EXWoZxtLLDbv/rJhMfZTBmrMre0gLjNeBK79fgObAhXEkAqxEAZrNCDnE7suy4I7CtghaAg2GSIAAXD4KgAA",
+    placeholder: "data:image/webp;base64,UklGRqoAAABXRUJQVlA4IJ4AAABwBACdASoUACsAPu1iqE2ppaOiMAgBMB2JZQDI1B4XW23u55ul+dYA8uA6AAD+8eCjR9VMCXwYzJqDXl1OhoVKp90eD3PllzjsatQYI3DtAJcYlonOixqNmVrC+xkVnZWB6dmAu4FuZOGk5x/2zPlnZgaC2maCMhfjXbEYR+2bN+2iSFzSEzEfSPguhXP8bD9d38cnehcxrNoUkAAAAA==",
   },
   "mobile-thread-dark": {
     src: "/shots/mobile-thread-dark.webp",
@@ -126,7 +126,7 @@ export const shots = {
     theme: "dark",
     frame: "phone",
     alt: "A customer text conversation on a phone in Loonext, showing inbound and outbound messages, a photo, and delivery states in a full-screen thread.",
-    placeholder: "data:image/webp;base64,UklGRqwAAABXRUJQVlA4IKAAAABQBgCdASoUACsAPuVkqE2pJiQiNVgIASAciUAaBxVvYACYMXlRVI0EU84NYiMblpU58HaoljtomqTOIAD+8rExSnxPSNvwRI14GFy5QHzPFfK9/5VPcHmFpiYzr/gvdIbaCVi6UHD0sUN2Ge73yzLmjZVPRG5EQbxhZ8XGyxfSM5YEmyBii6WKw8YMAGsDViZOEIVmxuiujHHckuLgAAAA",
+    placeholder: "data:image/webp;base64,UklGRqgAAABXRUJQVlA4IJwAAAAQBgCdASoUACsAPulmo02pJiMiMBqtUSAdCWUA0MwWU33vgandlmmeq4OfzH87O1RjcHCn/LOT1QAA/u6dHy0XmmaODzjtAV0kQW//8Lye7pSiXeAdYFQ8Oo1ZS+pRxj5u5i9e97LGP2AyRUy33xjK/kzSdD3IkhiigCy251oLVd4pi1gDYXlgDouGSRDiAVdzvxCZ6KZ56CnIAAA=",
   },
   "onboarding-setting-up-light": {
     src: "/shots/onboarding-setting-up-light.webp",
@@ -136,7 +136,7 @@ export const shots = {
     theme: "light",
     frame: "browser",
     alt: "The Loonext onboarding screen the moment a new business number is revealed, in 36-point type with a copy button, above a checklist confirming the number is live and the inbox is ready.",
-    placeholder: "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAgCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAeyAA/vCTzM+79TWqtjO7Q0RwAAA=",
+    placeholder: "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAgCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAeyAA/vCo7agIMQ81yAAAAA==",
   },
   "onboarding-setting-up-dark": {
     src: "/shots/onboarding-setting-up-dark.webp",
@@ -146,7 +146,7 @@ export const shots = {
     theme: "dark",
     frame: "browser",
     alt: "The Loonext onboarding screen the moment a new business number is revealed, in 36-point type with a copy button, above a checklist confirming the number is live and the inbox is ready.",
-    placeholder: "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAADQAgCdASoUAA0APu1iqU2ppaQiMAgBMB2JaQAAe/QAAP7woeBn38qPPAERTr1zi5AAAA==",
+    placeholder: "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAADQAgCdASoUAA0APu1iqU2ppaOiMAgBMB2JaQAAe/QAAP7woeBn38qPPAERT4hu80KAAA==",
   },
 } as const satisfies Record<string, Shot>;
 

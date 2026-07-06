@@ -38,7 +38,10 @@ const REPO_ROOT = resolve(WEB_ROOT, "..", "..");
 const SHOTS_DIR = join(WEB_ROOT, "public", "shots");
 const WORK_DIR = join(REPO_ROOT, ".next-shots"); // gitignored (.next-*)
 
-const BASE = process.env.SHOTS_BASE_URL ?? "http://127.0.0.1:3100";
+// MUST match the API's APP_ORIGIN exactly (http://localhost:3100): the API's
+// CORS allowlist is an exact-string check, so capturing from 127.0.0.1 makes
+// every data fetch fail CORS and the shots come out with empty inboxes.
+const BASE = process.env.SHOTS_BASE_URL ?? "http://localhost:3100";
 const OWNER = { email: "owner@loonext.test", password: "devseed1" };
 
 // sharp lives in apps/web/node_modules; resolve it relative to this script
@@ -143,12 +146,15 @@ const SHOTS = [
 
 async function login(page) {
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-  // Already authenticated (storageState reused) → straight to the app.
-  if (/\/inbox/.test(page.url())) return;
+  // Already authenticated (storageState reused) → straight to the app. Post-auth
+  // the D23 landing gate lands on /for-you first, so accept either surface.
+  if (/\/(for-you|inbox)/.test(page.url())) return;
   await page.getByLabel("Email").fill(OWNER.email);
-  await page.getByLabel("Password").fill(OWNER.password);
+  // exact: the reveal-password toggle's aria-label ("Show password") also
+  // contains "Password", so a loose match resolves to two elements.
+  await page.getByLabel("Password", { exact: true }).fill(OWNER.password);
   await page.getByRole("button", { name: /^log in$/i }).click();
-  await page.waitForURL(/\/inbox/, { timeout: 20_000 });
+  await page.waitForURL(/\/(for-you|inbox)/, { timeout: 20_000 });
 }
 
 async function gotoInbox(page) {
@@ -247,6 +253,15 @@ async function capture(browser, storageState, shot, theme, outPng) {
   await context.addInitScript((t) => {
     try {
       localStorage.setItem("theme", t);
+    } catch {}
+    // Belt-and-suspenders: `devIndicators:false` already removes the dev badge,
+    // but hide the Next portal host outright so a future Next default can never
+    // bake the "N" badge / build overlay into a committed product shot.
+    try {
+      const style = document.createElement("style");
+      style.textContent =
+        "nextjs-portal,[data-nextjs-toast],#__next-build-watcher{display:none !important}";
+      document.documentElement.appendChild(style);
     } catch {}
   }, theme);
 

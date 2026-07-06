@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Hide the `next dev` indicator (the floating "N" badge). It's dev-only, but
+  // the marketing screenshots are captured against the running dev server
+  // (apps/web/scripts/capture-shots.mjs), so leaving it on baked the badge into
+  // committed product shots. Off means every capture is clean chrome.
+  devIndicators: false,
   // Barrel-import optimization (iteration-4 Lighthouse fix): the marketing +
   // app code imports named exports from the `lucide-react` and `radix-ui`
   // META-packages in 98 / 19 files. Without this, a barrel import can pull far
