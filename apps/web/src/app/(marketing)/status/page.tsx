@@ -50,11 +50,16 @@ export default function StatusPage() {
               aria-hidden="true"
             />
             <div>
+              {/* Honest framing: this banner is NOT wired to a live health
+                  check yet (the live page is being stood up — see below), so it
+                  states the true fact ("no incidents") rather than asserting a
+                  real-time "all systems operational" it can't verify. */}
               <p className="font-medium text-foreground">
-                All systems operational
+                No incidents to report
               </p>
               <p className="text-sm text-muted-foreground">
-                No incidents reported.
+                Nothing&apos;s gone wrong — and you&apos;ll see it here first if
+                it does.
               </p>
             </div>
           </div>

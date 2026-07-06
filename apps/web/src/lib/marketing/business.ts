@@ -29,8 +29,12 @@ export const SECURITY_EMAIL = "security@loonext.app";
 /** Privacy contact for /legal/privacy. */
 export const PRIVACY_EMAIL = "privacy@loonext.app";
 
-/** Support-response SLA (BLUEPRINT §14 placeholder until ops confirms). */
-export const SUPPORT_SLA = "We reply within 1 business day.";
+/**
+ * Support-response expectation (BLUEPRINT §14). Phrased as a norm, not a hard
+ * SLA: a solo-run support desk shouldn't publish a guarantee it can't always
+ * honor, so "usually" keeps it honest and non-binding.
+ */
+export const SUPPORT_SLA = "We usually reply within one business day.";
 
 /**
  * The footer/legal identity line. Renders the real entity + address once ops

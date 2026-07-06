@@ -207,7 +207,15 @@ export function Pricing() {
           </tfoot>
         </table>
         <p className="font-body-mkt mt-3 text-sm leading-[1.5] text-[color:var(--ink-55)]">
-          Competitor figures are their published per-seat rates.
+          Competitor figures are each tool&apos;s published per-seat pricing as
+          of July 2026;{" "}
+          <Link
+            href="/compare"
+            className="underline decoration-[color:var(--rule-light)] underline-offset-2 hover:text-[color:var(--ink-70)]"
+          >
+            see the full comparisons
+          </Link>{" "}
+          for sources.
         </p>
       </Reveal>
 
