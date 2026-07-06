@@ -10,6 +10,7 @@ import {
   hasPaid,
   owesUsRegistration,
   pathForLocation,
+  previousStepHref,
   resolveOnboardingLocation,
   setupComplete,
   stepAllowed,
@@ -443,6 +444,34 @@ describe("applicableSteps / stepProgress", () => {
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
     expect(stepProgress("business", us)).toEqual({ index: 3, total: 5 });
+  });
+});
+
+describe("previousStepHref (honest Back navigation)", () => {
+  it("returns null on plan for CA-no-US — the only steps behind are the locked name/number (the reported 'Back does nothing')", () => {
+    const caOnly = snapshot({ company: { country: "CA", usTexting: false } });
+    expect(previousStepHref("plan", caOnly)).toBeNull();
+  });
+
+  it("walks back to the nearest EDITABLE step for a US company", () => {
+    const us = snapshot({ company: {} });
+    // plan → texting (editable while owing US registration), texting → business.
+    expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
+    expect(previousStepHref("texting", us)).toBe("/onboarding/business");
+  });
+
+  it("returns null on business once the company exists — name/number are locked", () => {
+    expect(previousStepHref("business", snapshot({ company: {} }))).toBeNull();
+  });
+
+  it("still allows Back to number pre-company (name/number editable until creation)", () => {
+    const draftUs = snapshot({ company: null, draft: COMPLETE_DRAFT });
+    expect(previousStepHref("business", draftUs)).toBe("/onboarding/number");
+    expect(previousStepHref("number", draftUs)).toBe("/onboarding/name");
+  });
+
+  it("returns null on the first step", () => {
+    expect(previousStepHref("name", snapshot({ company: null }))).toBeNull();
   });
 });
 

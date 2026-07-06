@@ -28,6 +28,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { handleCheckoutCompleted } from "../webhooks/stripe";
 
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
@@ -38,6 +39,10 @@ const planBodySchema = z.object({
 const moduleBodySchema = z.object({
   module: z.enum(PLAN_MODULES),
   enabled: z.boolean(),
+});
+
+const confirmCheckoutSchema = z.object({
+  sessionId: z.string().min(1),
 });
 
 interface BillingCompany {
@@ -214,6 +219,55 @@ billingRoutes.post("/checkout", async (c) => {
     throw new Error(`Stripe checkout session ${session.id} returned no URL.`);
   }
   return c.json({ url: session.url });
+});
+
+/**
+ * POST /v1/billing/confirm-checkout — the resilience nudge for the return from
+ * hosted Checkout (SPEC §9). The success_url lands the browser on
+ * /onboarding/setting-up?session_id=…; the setting-up screen posts that id
+ * here. We retrieve the session, verify it belongs to THIS company and is paid,
+ * then apply the EXACT same activation as the `checkout.session.completed`
+ * webhook (handleCheckoutCompleted) — fully idempotent, so a later webhook /
+ * sweeper delivery is a harmless no-op.
+ *
+ * Why this exists: activation must not hang solely on the async webhook. A
+ * delayed, dropped, or (in local dev, without `stripe listen`) never-forwarded
+ * webhook otherwise strands a paying customer as `incomplete` — the app then
+ * bounces /for-you → /onboarding/plan and the setting-up screen sits forever on
+ * "Confirming your payment". This route flips the company active the moment the
+ * customer returns from Checkout. Owner/admin only (this group requires admin).
+ */
+billingRoutes.post("/confirm-checkout", async (c) => {
+  const env = getEnv(c.env);
+  const parsed = confirmCheckoutSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return errorResponse(c, "validation_failed", "Body must be { sessionId }.");
+  }
+
+  const companyId = c.get("companyId");
+  const session = await getStripe(env).checkout.sessions.retrieve(
+    parsed.data.sessionId,
+  );
+  // Authz: only act on a session created for THIS company (checkout sets
+  // client_reference_id = company id). Never activate off a foreign session.
+  if (session.client_reference_id !== companyId) {
+    return errorResponse(
+      c,
+      "forbidden",
+      "That checkout session isn't for this company.",
+    );
+  }
+  if (session.payment_status !== "paid") {
+    // Still settling on Stripe's side — the setting-up poller retries.
+    return c.json({ confirmed: false });
+  }
+
+  // Apply activation in the background so a slow Telnyx provisioning call never
+  // stalls the response; handleCheckoutCompleted is idempotent with the webhook.
+  c.executionCtx.waitUntil(handleCheckoutCompleted(env, session));
+  return c.json({ confirmed: true });
 });
 
 /**

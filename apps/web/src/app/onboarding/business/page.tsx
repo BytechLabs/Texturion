@@ -41,7 +41,7 @@ import { CA_REGION_NAMES, US_REGION_NAMES } from "../area-codes";
 import { clearOnboardingDraft } from "../local-draft";
 import { normalizeNanpPhone, normalizeWebsite } from "../normalize";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { stepProgress } from "../steps";
+import { previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 import { TCR_VERTICALS, VERTICAL_OPTIONS } from "../verticals";
 
@@ -264,7 +264,7 @@ export default function BusinessIdentityPage() {
   if (brandLocked) {
     return (
       <StepShell
-        backHref="/onboarding/number"
+        backHref={previousStepHref("business", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
         title="Tell us about your business"
@@ -358,7 +358,7 @@ export default function BusinessIdentityPage() {
 
   return (
     <StepShell
-      backHref="/onboarding/number"
+      backHref={previousStepHref("business", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
       title="Tell us about your business"

@@ -88,6 +88,24 @@ export function useOnboardingCheckout() {
   });
 }
 
+/**
+ * POST /v1/billing/confirm-checkout — activate the subscription off the session
+ * id Stripe returns to the success_url, without waiting on the webhook. Returns
+ * `{ confirmed }`; idempotent server-side. Used by the setting-up screen so a
+ * just-paid company flips active immediately (and, in local dev without
+ * `stripe listen`, at all).
+ */
+export function useConfirmCheckout() {
+  return useMutation({
+    mutationFn: (input: { companyId: string; sessionId: string }) =>
+      apiFetch<{ confirmed: boolean }>("/v1/billing/confirm-checkout", {
+        method: "POST",
+        companyId: input.companyId,
+        body: { sessionId: input.sessionId },
+      }),
+  });
+}
+
 /** POST /v1/registration/otp — sole-prop 6-digit code (422 wrong/expired). */
 export function useOnboardingVerifyOtp() {
   const queryClient = useQueryClient();

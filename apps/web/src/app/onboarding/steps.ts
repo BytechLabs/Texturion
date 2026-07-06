@@ -302,3 +302,29 @@ export function pathForLocation(location: OnboardingLocation): string {
   if (location.kind === "setting-up") return "/onboarding/setting-up";
   return `/onboarding/${location.step}`;
 }
+
+/**
+ * The destination for a step's Back link: the nearest PRECEDING applicable step
+ * the guard would actually let the user render, or null when nothing editable
+ * sits behind this one.
+ *
+ * Why not just hardcode the previous step: `name` and `number` LOCK the moment
+ * the company is created (stepAllowed → false once `company !== null`, because
+ * name/country/area code are fixed at creation). A back link pointing straight
+ * at a locked step makes the guard bounce the user forward again — the reported
+ * "Back does nothing on /onboarding/plan" (CA-no-US, whose only preceding steps
+ * are the locked name/number). Resolving to a genuinely-allowed step, or hiding
+ * the Back link when there is none, keeps G7's "back is always honest".
+ */
+export function previousStepHref(
+  step: WizardStep,
+  snapshot: OnboardingSnapshot,
+): string | null {
+  const steps = applicableSteps(snapshot);
+  const at = steps.indexOf(step);
+  if (at <= 0) return null;
+  for (let i = at - 1; i >= 0; i -= 1) {
+    if (stepAllowed(steps[i], snapshot)) return `/onboarding/${steps[i]}`;
+  }
+  return null;
+}

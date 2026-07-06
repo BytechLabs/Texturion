@@ -188,7 +188,7 @@ function subscriptionPlan(
  * resubscribes; CA companies with US texting off are a no-op inside
  * submitRegistration.
  */
-async function handleCheckoutCompleted(
+export async function handleCheckoutCompleted(
   env: Env,
   session: Stripe.Checkout.Session,
 ): Promise<void> {

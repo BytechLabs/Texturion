@@ -423,6 +423,66 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
   });
 });
 
+describe("POST /v1/billing/confirm-checkout (webhook-independent activation)", () => {
+  function sessionRetrieveEndpoint(
+    session: Record<string, unknown>,
+  ): StubEndpoint {
+    return endpoint(
+      "GET",
+      /api\.stripe\.com\/v1\/checkout\/sessions\/[^/?]+$/,
+      () => ({ id: "cs_x", object: "checkout.session", ...session }),
+    );
+  }
+
+  it("422 when the body carries no sessionId", async () => {
+    const harness = makeHarness([]);
+    const response = await post("/v1/billing/confirm-checkout", {}, harness);
+    expect(response.status).toBe(422);
+  });
+
+  it("403 for a member — owner/admin only", async () => {
+    const harness = makeHarness([]);
+    const response = await post(
+      "/v1/billing/confirm-checkout",
+      { sessionId: "cs_x" },
+      harness,
+      "member",
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it("403 when the session belongs to a different company (never activate off a foreign session)", async () => {
+    const harness = makeHarness([
+      sessionRetrieveEndpoint({
+        client_reference_id: "00000000-0000-0000-0000-000000000000",
+        payment_status: "paid",
+      }),
+    ]);
+    const response = await post(
+      "/v1/billing/confirm-checkout",
+      { sessionId: "cs_x" },
+      harness,
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it("returns { confirmed: false } while the session has not settled to paid", async () => {
+    const harness = makeHarness([
+      sessionRetrieveEndpoint({
+        client_reference_id: COMPANY_ID,
+        payment_status: "unpaid",
+      }),
+    ]);
+    const response = await post(
+      "/v1/billing/confirm-checkout",
+      { sessionId: "cs_x" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ confirmed: false });
+  });
+});
+
 describe("POST /v1/billing/portal", () => {
   it("409 before any checkout (no Stripe customer)", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);

@@ -21,7 +21,7 @@ import { ApiError } from "@/lib/api/error";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { stepProgress } from "../steps";
+import { previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
 /**
@@ -107,7 +107,7 @@ export default function TextingDetailsPage() {
   if (campaignLocked) {
     return (
       <StepShell
-        backHref="/onboarding/business"
+        backHref={previousStepHref("texting", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
         title="How customers hear from you"
@@ -149,7 +149,7 @@ export default function TextingDetailsPage() {
 
   return (
     <StepShell
-      backHref="/onboarding/business"
+      backHref={previousStepHref("texting", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
       title="How customers hear from you"

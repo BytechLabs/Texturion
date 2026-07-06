@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Circle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { PORT_STATE_COPY } from "@/components/porting/copy";
 import { REGISTRATION_COPY } from "@/components/registration/copy";
@@ -14,6 +14,7 @@ import { NumberReveal } from "@/components/ui/number-reveal";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import {
+  useConfirmCheckout,
   useOnboardingResendOtp,
   useOnboardingVerifyOtp,
 } from "@/lib/api/onboarding";
@@ -338,6 +339,9 @@ function SettingUp() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const checkoutSuccess = searchParams.get("checkout") === "success";
+  const sessionId = searchParams.get("session_id");
+  const confirmCheckout = useConfirmCheckout();
+  const confirmInFlight = useRef(false);
 
   useProvisioningEvents(state.companyId);
   // A port-in signup replaces the provisioning row (PORTING.md §8.1) — the
@@ -363,14 +367,55 @@ function SettingUp() {
     if (redirectTo) router.replace(redirectTo);
   }, [redirectTo, router]);
 
-  // Quiet fallback for the two moments with no Broadcast signal: the
-  // checkout webhook hasn't run yet (no company update event exists) and the
-  // window before the phone_numbers row's first status UPDATE. Realtime
-  // drives everything else.
+  // Resilience nudge: on the return from Checkout, actively confirm the session
+  // so the subscription flips active WITHOUT waiting on the webhook (delayed in
+  // prod, never forwarded in local dev). Retries on a 4s cadence until paid;
+  // the endpoint is idempotent and owner/admin-only, and a ref keeps at most
+  // one request in flight. Once `confirming` clears (paid), the interval tears
+  // down. This is what stops the setting-up screen sitting forever on
+  // "Confirming your payment" and /for-you bouncing back to /onboarding/plan.
+  const isOwnerAdmin = state.role === "owner" || state.role === "admin";
+  const shouldConfirm =
+    state.status === "ready" && confirming && sessionId !== null && isOwnerAdmin;
+  const confirmMutateAsync = confirmCheckout.mutateAsync;
+  useEffect(() => {
+    const cid = state.companyId;
+    if (!shouldConfirm || !cid || !sessionId) return;
+    let cancelled = false;
+    const run = async () => {
+      if (confirmInFlight.current) return;
+      confirmInFlight.current = true;
+      try {
+        await confirmMutateAsync({ companyId: cid, sessionId });
+        if (!cancelled) {
+          void queryClient.invalidateQueries({
+            queryKey: keys.company(cid),
+            refetchType: "active",
+          });
+        }
+      } catch {
+        // Best-effort — the 4s poll and (in prod) the webhook remain backstops.
+      } finally {
+        confirmInFlight.current = false;
+      }
+    };
+    void run();
+    const timer = setInterval(() => void run(), 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [shouldConfirm, state.companyId, sessionId, confirmMutateAsync, queryClient]);
+
+  // Quiet fallback for the moments with no Broadcast signal: the checkout
+  // webhook hasn't run yet (no company update event exists) and the window
+  // before the phone_numbers row's first status UPDATE. Poll until an ACTIVE
+  // number exists so a missed broadcast (or a local dev provisioning nudge)
+  // still converges the checklist; realtime drives everything else.
   const needsNudge =
     state.status === "ready" &&
     company !== null &&
-    (confirming || company.numbers.length === 0);
+    (confirming || !company.numbers.some((n) => n.status === "active"));
   const companyId = state.companyId;
   useEffect(() => {
     if (!needsNudge || !companyId) return;

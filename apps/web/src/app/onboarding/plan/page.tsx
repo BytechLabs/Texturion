@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { owesUsRegistration, stepProgress } from "../steps";
+import { owesUsRegistration, previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
 /**
@@ -151,7 +151,7 @@ function PlanStep() {
 
   return (
     <StepShell
-      backHref={owes ? "/onboarding/texting" : "/onboarding/number"}
+      backHref={previousStepHref("plan", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
       title="Pick your plan"
