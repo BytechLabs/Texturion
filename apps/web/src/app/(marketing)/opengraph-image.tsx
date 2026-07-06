@@ -180,29 +180,21 @@ export default function OpengraphImage() {
             justifyContent: "space-between",
           }}
         >
-          {/* Wordmark with bubble mark; "Text" carries signal-aqua, the
+          {/* Wordmark with the loon mark; "ext" carries signal-aqua, the
               interactive-light color on dark grounds (petrol is too dim
               against ink-11pm for small type). */}
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <div
-              style={{
-                width: 60,
-                height: 60,
-                borderRadius: 15,
-                backgroundColor: PETROL,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: WHITE,
-                fontSize: 36,
-                fontWeight: 700,
-              }}
-            >
-              J
-            </div>
+            <svg width={60} height={60} viewBox="0 0 512 512">
+              <rect width="512" height="512" rx="128" ry="128" fill={PETROL} />
+              <path
+                fill={WHITE}
+                d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"
+              />
+              <circle cx="300" cy="198" r="15" fill={PETROL} />
+            </svg>
             <div style={{ display: "flex", fontSize: 38, fontWeight: 700 }}>
-              <span style={{ color: MOONLIGHT }}>Job</span>
-              <span style={{ color: SIGNAL_AQUA }}>Text</span>
+              <span style={{ color: MOONLIGHT }}>Loon</span>
+              <span style={{ color: SIGNAL_AQUA }}>ext</span>
             </div>
           </div>
 

@@ -76,25 +76,17 @@ export default function PricingOpengraphImage() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 14,
-                  backgroundColor: PETROL,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: WHITE,
-                  fontSize: 34,
-                  fontWeight: 600,
-                }}
-              >
-                J
-              </div>
+              <svg width={56} height={56} viewBox="0 0 512 512">
+                <rect width="512" height="512" rx="128" ry="128" fill={PETROL} />
+                <path
+                  fill={WHITE}
+                  d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"
+                />
+                <circle cx="300" cy="198" r="15" fill={PETROL} />
+              </svg>
               <div style={{ display: "flex", fontSize: 34, fontWeight: 600 }}>
-                <span style={{ color: STONE_900 }}>Job</span>
-                <span style={{ color: PETROL }}>Text</span>
+                <span style={{ color: STONE_900 }}>Loon</span>
+                <span style={{ color: PETROL }}>ext</span>
               </div>
             </div>
 
