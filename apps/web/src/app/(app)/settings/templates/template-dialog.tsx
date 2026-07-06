@@ -26,9 +26,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useCreateTemplate, useUpdateTemplate } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
+import { previewAwayMessage, SAMPLE_FIRST_NAME } from "@/lib/settings/away-preview";
 import { cn } from "@/lib/utils";
 
 // Mirrors the API template schema (apps/api/src/routes/templates.ts):
@@ -48,6 +50,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+/**
+ * The merge variables offered in the editor. These resolve server-side at send
+ * time (apps/api merge.ts → @loonext/shared applyMergeFields), so a saved body
+ * stores the raw {token}; the preview below shows what actually ships.
+ */
+const TEMPLATE_VARIABLES: { token: string; label: string }[] = [
+  { token: "first_name", label: "First name" },
+  { token: "business_name", label: "Business name" },
+];
+
 /** Create/edit dialog for saved replies (G8 Templates; RHF + zod per G12). */
 export function TemplateDialog({
   open,
@@ -61,6 +73,7 @@ export function TemplateDialog({
 }) {
   const create = useCreateTemplate();
   const update = useUpdateTemplate();
+  const company = useCompany();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -77,6 +90,21 @@ export function TemplateDialog({
   const body = form.watch("body");
   const estimate = estimateSegments(body);
   const busy = create.isPending || update.isPending;
+
+  // Append a {token} to the draft (one space if the draft doesn't end in one),
+  // keeping RHF's dirty/validation state in sync.
+  function insertVariable(token: string) {
+    const current = form.getValues("body");
+    const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
+    form.setValue("body", `${current}${sep}{${token}}`, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
+
+  // Exactly the send-time substitution, with a sample first name + the real
+  // company name, so the preview equals what the customer receives.
+  const preview = previewAwayMessage(body, company.data?.name ?? "your business");
 
   function onSubmit(values: FormValues) {
     const onError = (cause: unknown) =>
@@ -163,6 +191,45 @@ export function TemplateDialog({
                 </FormItem>
               )}
             />
+
+            {/* Available variables — tap to insert; they fill in per contact at
+                send time. */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Variables — tap to insert
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {TEMPLATE_VARIABLES.map((v) => (
+                  <button
+                    key={v.token}
+                    type="button"
+                    onClick={() => insertVariable(v.token)}
+                    className="rounded-md border border-border bg-secondary px-2 py-1 text-xs transition-colors hover:bg-secondary/70 focus-visible:outline-2 focus-visible:outline-ring"
+                    title={`Insert {${v.token}}`}
+                  >
+                    <code className="text-foreground">{`{${v.token}}`}</code>
+                    <span className="ml-1.5 text-muted-foreground">{v.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live preview — the exact send-time substitution (sample name +
+                your business name), so what you see is what ships. */}
+            {body.trim() !== "" && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Preview (for {SAMPLE_FIRST_NAME})
+                </p>
+                <div
+                  aria-live="polite"
+                  className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
+                >
+                  {preview}
+                </div>
+              </div>
+            )}
+
             {form.formState.errors.root && (
               <p role="alert" className="text-sm text-destructive">
                 {form.formState.errors.root.message}

@@ -413,7 +413,7 @@ export function CommandPalette() {
               <CommandItem
                 key={template.id}
                 value={`template-${template.id}`}
-                onSelect={() => go("/templates")}
+                onSelect={() => go("/settings/templates")}
               >
                 <MessageSquareText className="size-4" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate">

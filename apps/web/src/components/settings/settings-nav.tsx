@@ -74,12 +74,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Star,
   },
   {
-    // Issue #8: Templates live in Settings only (route stays top-level).
     slug: "templates",
     label: "Templates",
     description: "Saved replies your team can send in one tap",
     icon: MessageSquareText,
-    href: "/templates",
   },
   {
     slug: "usage",
