@@ -310,7 +310,7 @@ describe("handleCallEvent — inbound call.initiated", () => {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
-      voiceSecondsStub(100 * 60), // 100 of the 500 included minutes
+      voiceSecondsStub(100 * 60), // 100 of the 300 included minutes
       action,
     );
 
@@ -342,7 +342,7 @@ describe("handleCallEvent — inbound call.initiated", () => {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
-      voiceSecondsStub(500 * 60), // exactly at the 500-minute allowance
+      voiceSecondsStub(300 * 60), // exactly at the 300-minute allowance
       action,
       reject,
     );

@@ -38,14 +38,21 @@ export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
  * forwarded call runs two billable Telnyx legs (~$0.012/min combined), and
  * there is no voice-overage billing yet, so every included minute is a cost we
  * eat — this allowance is therefore ALSO our max per-company voice exposure per
- * period (allowance × cost). Sized to mirror the segment quota for an easy
- * mental model; the 80% owner alert + the hard cap (voice-webhook.ts) are the
- * real protection, and these numbers are placeholders to retune when the opt-in
- * voice module adds metered overage. Kept as a constant so tuning is one edit.
+ * period (allowance × cost), enforced by the cap-and-drop in voice-webhook.ts
+ * with an 80% owner alert before it.
+ *
+ * COST FLOOR (cost-protection mandate): the voice module is a FLAT $8/mo
+ * regardless of plan, so the cap must match what $8 covers — NOT the text
+ * segment quota. Mirroring the quota (2500 on Pro) meant 2500 × $0.012 = $30 of
+ * voice cost against $8 of revenue: a structural −$22/mo loss on every heavy
+ * Pro user. Capping BOTH plans at 300 min bounds the cost at 300 × $0.012 =
+ * $3.60, leaving the $8 module ~$4.40 (≈55%) gross before Stripe fees, so it
+ * can never sell below cost. Retune upward only alongside metered voice
+ * overage (then this becomes the included allowance, not the hard ceiling).
  */
 export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
-  starter: 500,
-  pro: 2500,
+  starter: 300,
+  pro: 300,
 };
 
 /**

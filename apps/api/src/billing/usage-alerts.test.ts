@@ -176,11 +176,11 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(state.ledger).toEqual(new Set(["attachment_storage:80"]));
   });
 
-  it("voice minutes at 100% (starter: 500 min = 30000 s) sends both call-forwarding alerts", async () => {
+  it("voice minutes at 100% (300 min = 18000 s) sends both call-forwarding alerts", async () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      voiceSeconds: 500 * 60,
+      voiceSeconds: 300 * 60,
     };
     const { harness, done } = run(state);
     await done;
@@ -197,7 +197,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      voiceSeconds: 100 * 60, // 100 of 500 min
+      voiceSeconds: 100 * 60, // 100 of 300 min
     };
     const { harness, done } = run(state);
     await done;

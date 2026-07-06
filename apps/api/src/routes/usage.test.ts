@@ -111,7 +111,7 @@ describe("GET /v1/usage", () => {
         attachment_budget_bytes: STARTER_BUDGET,
         mms_budget_bytes: STARTER_BUDGET,
       },
-      voice: { used_minutes: 61, included_minutes: 500 },
+      voice: { used_minutes: 61, included_minutes: 300 },
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
