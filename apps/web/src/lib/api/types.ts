@@ -717,13 +717,19 @@ export const PLAN_MODULE_IDS = [
 ] as const;
 export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 
-/** Plan-builder add-on card copy (mirrors the API MODULE_CATALOG). */
+/**
+ * Plan-builder add-on card copy (mirrors the API MODULE_CATALOG). `detail` is a
+ * concrete quantity line kept in sync with apps/api/src/billing/plans.ts —
+ * voice = PLAN_VOICE_MINUTES (300), extra_storage = EXTRA_STORAGE_BYTES (10 GB).
+ */
 export interface PlanModuleCard {
   id: PlanModule;
   label: string;
   blurb: string;
   /** Human monthly price, e.g. "$5". */
   price: string;
+  /** Concrete quantity line; omitted where there's no honest number to state. */
+  detail?: string;
 }
 
 export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
@@ -738,12 +744,14 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
     label: "Call forwarding",
     blurb: "Forward calls to your cell and text back the ones you miss.",
     price: "$8",
+    detail: "300 forwarded minutes a month included.",
   },
   {
     id: "extra_storage",
     label: "Extra storage",
     blurb: "More room for files on notes and saved picture messages.",
     price: "$5",
+    detail: "Adds 10 GB to each storage pool (files and pictures).",
   },
   {
     id: "regions_ca",

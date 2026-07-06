@@ -4,6 +4,7 @@ import {
   Check,
   CheckSquare,
   ChevronsUpDown,
+  Copy,
   Inbox as InboxIcon,
   PanelLeft,
   Search,
@@ -12,6 +13,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
@@ -30,10 +33,54 @@ import {
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
+import { useNumbers } from "@/lib/api/numbers";
+import { formatPhone } from "@/lib/format/phone";
+
 import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
+
+/**
+ * One active business number + a copy button, in the sidebar's number strip.
+ * The number itself is the useful thing (not "1 number active"); copy writes
+ * the raw E.164 and flips to a check for a beat. Kept OUTSIDE the workspace
+ * switcher trigger so it never nests a button inside a button.
+ */
+function SidebarNumberRow({ e164 }: { e164: string }) {
+  const [copied, setCopied] = useState(false);
+  const label = formatPhone(e164);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(e164);
+      setCopied(true);
+      toast.success("Number copied.");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access.");
+    }
+  };
+  return (
+    <div className="flex items-center gap-1.5 text-[12px]">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-petrol" />
+      <span className="min-w-0 flex-1 truncate tabular-nums text-app-ink">
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label={`Copy ${label}`}
+        className="grid size-6 shrink-0 place-items-center rounded-[6px] text-app-muted-2 outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {copied ? (
+          <Check className="size-3.5" strokeWidth={2} aria-hidden />
+        ) : (
+          <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
+        )}
+      </button>
+    </div>
+  );
+}
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
@@ -204,9 +251,15 @@ export function Sidebar({
   const { membership, memberships, switchCompany, displayName, role } =
     useActiveCompany();
   const counts = useNavCounts();
+  const numbers = useNumbers();
 
   const multi = memberships.length > 1;
-  const numbersActive = counts.numbers;
+  // The company's live business numbers — active + actually provisioned. Drives
+  // the copyable number strip under the workspace tile.
+  const activeNumbers = (numbers.data?.data ?? []).filter(
+    (n): n is typeof n & { number_e164: string } =>
+      n.status === "active" && Boolean(n.number_e164),
+  );
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   const logo = (
@@ -221,16 +274,8 @@ export function Sidebar({
   const companyTileExpanded = (
     <>
       {logo}
-      <span className="min-w-0 flex-1 text-left">
-        <span className="block truncate text-[14px] font-semibold leading-[1.15] text-app-ink">
-          {membership.name}
-        </span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-app-muted-2">
-          <span aria-hidden className="size-1.5 rounded-full bg-app-petrol" />
-          {numbersActive === 1
-            ? "1 number active"
-            : `${numbersActive} numbers active`}
-        </span>
+      <span className="min-w-0 flex-1 truncate text-left text-[14px] font-semibold leading-[1.15] text-app-ink">
+        {membership.name}
       </span>
       {multi && (
         <ChevronsUpDown
@@ -240,6 +285,25 @@ export function Sidebar({
         />
       )}
     </>
+  );
+
+  // The copyable number strip (expanded only) — sits BELOW the brand cell,
+  // outside the switcher trigger so its copy buttons never nest in a button.
+  const numbersStrip = !collapsed && (
+    <div className="shrink-0 border-b border-app-line px-3 py-2">
+      {activeNumbers.length > 0 ? (
+        <div className="space-y-1">
+          {activeNumbers.map((n) => (
+            <SidebarNumberRow key={n.id} e164={n.number_e164} />
+          ))}
+        </div>
+      ) : (
+        <span className="flex items-center gap-1.5 text-[11.5px] text-app-muted-2">
+          <span aria-hidden className="size-1.5 rounded-full bg-app-muted-2" />
+          Setting up your number…
+        </span>
+      )}
+    </div>
   );
 
   const workspaceMenu = (
@@ -343,6 +407,8 @@ export function Sidebar({
             </div>
           )}
         </div>
+
+        {numbersStrip}
 
         {/* Nav area: search + focus nav. */}
         <div

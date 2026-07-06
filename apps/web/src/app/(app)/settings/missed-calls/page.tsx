@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useModules } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { previewMissedCallText } from "@/lib/settings/away-preview";
@@ -256,18 +258,37 @@ function ForwardCard({
 
 export default function MissedCallsSettingsPage() {
   const company = useCompany();
+  const modules = useModules();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
+  // Missed-call text-back and forward-to-cell are both call features, gated by
+  // the "Call forwarding" (voice) add-on — disabling it clears both settings
+  // server-side. Reflect that gate here with a link straight to the add-on.
+  const voiceEnabled =
+    (modules.data?.modules ?? []).find((m) => m.id === "voice")?.enabled ?? false;
 
   return (
     <SettingsPage
       title="Missed calls"
       description="Turn a missed call into a booked job with one automatic text."
     >
-      {company.isPending ? (
+      {company.isPending || modules.isPending ? (
         <MissedCallsSkeleton />
       ) : company.isError ? (
         <LoadError onRetry={() => company.refetch()} />
+      ) : !voiceEnabled ? (
+        <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
+          Ringing your cell and texting back missed calls need the{" "}
+          <span className="font-medium text-foreground">Call forwarding</span>{" "}
+          add-on —{" "}
+          <Link
+            href="/settings/billing"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            turn it on in Settings › Billing
+          </Link>
+          .
+        </div>
       ) : (
         <div className="space-y-6">
           {/* A text-enabled landline's calls ring the owner's existing

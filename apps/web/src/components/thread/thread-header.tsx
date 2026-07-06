@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   Ban,
-  Check,
   ChevronDown,
   Copy,
   Images,
@@ -62,15 +61,14 @@ function onApiError(error: unknown, fallback: string) {
 
 /**
  * G5 thread header (decluttered per issue #2): back (mobile), contact name
- * (tap → contact panel) with a copy-number button beside the number, Call,
- * Done (close/reopen), the status select, the assignee select, an Info toggle
- * (desktop) for the contact panel, and a lean overflow (spam / attachments /
- * opt-out).
+ * (tap → contact panel) with a copy-number button beside the number, Call, the
+ * status select (the single status control), the assignee select, an Info
+ * toggle (desktop) for the contact panel, and a lean overflow (spam /
+ * attachments / opt-out).
  *
- * Removed: the redundant close/reopen + "View contact" overflow items (the Done
- * button, the status dropdown, and the name/Info toggle already cover those),
- * and the dedicated "Ask for a review" action — reviews are sent from a saved
- * template now (the review link lives in Settings → Reviews).
+ * Removed: the redundant Done/Reopen bar button — "Closed" is one option in the
+ * status dropdown, so the bar button just duplicated it — and the dedicated
+ * "Ask for a review" action.
  */
 export function ThreadHeader({
   conversation,
@@ -98,7 +96,6 @@ export function ThreadHeader({
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id) ?? "Teammate"
     : null;
-  const closed = conversation.status === "closed";
   const phone = conversation.contact.phone_e164;
 
   const copyPhone = async () => {
@@ -115,28 +112,6 @@ export function ThreadHeader({
     update.mutate(
       { status },
       { onError: (e) => onApiError(e, "Couldn't update the status.") },
-    );
-  };
-
-  // §4/§5: close / reopen / assign / mark-spam are routine and reversible —
-  // do them instantly, then offer a 5s "Undo" toast (no confirm gauntlet).
-  const closeOrReopen = () => {
-    const wasClosed = conversation.status === "closed";
-    const prev = conversation.status;
-    update.mutate(
-      { status: wasClosed ? "open" : "closed" },
-      {
-        onError: (e) => onApiError(e, "Couldn't update the status."),
-        onSuccess: () =>
-          undoableToast({
-            message: wasClosed ? "Conversation reopened" : "Conversation closed",
-            onUndo: () =>
-              update.mutate(
-                { status: prev },
-                { onError: (e) => onApiError(e, "Couldn't undo.") },
-              ),
-          }),
-      },
     );
   };
 
@@ -262,19 +237,8 @@ export function ThreadHeader({
           </a>
         </Button>
 
-        {/* Done — the app's completion gesture (close / reopen). */}
-        <button
-          type="button"
-          onClick={closeOrReopen}
-          disabled={update.isPending}
-          aria-label={closed ? "Reopen conversation" : "Mark done"}
-          className="inline-flex h-[34px] items-center gap-1.5 rounded-app-ctrl border border-app-petrol bg-app-petrol px-3 text-[13px] font-semibold text-white transition-[background,border-color] duration-150 ease-out hover:border-app-petrol-deep hover:bg-app-petrol-deep disabled:opacity-50"
-        >
-          <Check className="size-[17px] text-white" strokeWidth={2.2} />
-          {closed ? "Reopen" : "Done"}
-        </button>
-
-        {/* Status: inline pill dropdown. */}
+        {/* Status: inline pill dropdown — the one status control (the redundant
+            Done/Reopen bar button was removed; "Closed" lives in this menu). */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

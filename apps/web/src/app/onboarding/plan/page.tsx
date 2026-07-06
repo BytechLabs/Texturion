@@ -265,6 +265,11 @@ function PlanStep() {
                     <span className="mt-0.5 block text-[13px] text-muted-foreground">
                       {mod.blurb}
                     </span>
+                    {mod.detail ? (
+                      <span className="mt-1 block text-[13px] font-medium text-foreground/80">
+                        {mod.detail}
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               );

@@ -13,6 +13,7 @@
  * `company-modules.ts` reads it, checkout writes it.
  */
 import type { Env } from "../env";
+import { EXTRA_STORAGE_BYTES, PLAN_VOICE_MINUTES } from "./plans";
 
 /** The toggleable modules (mirrors the company_modules.module CHECK). */
 export const PLAN_MODULES = [
@@ -29,6 +30,12 @@ export interface ModuleSpec {
   label: string;
   /** One-line plain-language description for the plan-builder card. */
   blurb: string;
+  /**
+   * A concrete, quantifiable line ("300 forwarded minutes a month") sourced
+   * from the plan constants, so the add-on cards say what you actually get.
+   * Omitted where there is no honest number to state yet.
+   */
+  detail?: string;
   /** Monthly add-on price in cents (the licensed Stripe price). */
   monthlyCents: number;
   /** The capability this module gates, for the "why is this off?" copy. */
@@ -52,6 +59,7 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     label: "Call forwarding",
     blurb:
       "Forward calls from your business number to your cell, and text back the ones you miss.",
+    detail: `${PLAN_VOICE_MINUTES.starter} forwarded minutes a month included.`,
     monthlyCents: 800,
     gates: "forwarding incoming calls",
     priceEnvKey: "STRIPE_MODULE_VOICE_PRICE_ID",
@@ -61,6 +69,7 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     label: "Extra storage",
     blurb:
       "More room for files on notes and saved picture messages, on top of your plan's included storage.",
+    detail: `Adds ${EXTRA_STORAGE_BYTES / 1024 ** 3} GB to each storage pool (files and pictures).`,
     monthlyCents: 500,
     gates: "extra file + picture storage",
     priceEnvKey: "STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID",

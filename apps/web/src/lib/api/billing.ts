@@ -16,6 +16,8 @@ export interface BillingModule {
   id: PlanModule;
   label: string;
   blurb: string;
+  /** Concrete quantity line ("300 forwarded minutes a month"); null if none. */
+  detail: string | null;
   monthly_cents: number;
   enabled: boolean;
   available: boolean;

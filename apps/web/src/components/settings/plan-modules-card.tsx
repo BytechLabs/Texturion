@@ -66,6 +66,11 @@ export function PlanModulesCard() {
                     <p className="mt-0.5 text-[13px] text-muted-foreground">
                       {mod.blurb}
                     </p>
+                    {mod.detail ? (
+                      <p className="mt-1 text-[13px] font-medium text-foreground/80">
+                        {mod.detail}
+                      </p>
+                    ) : null}
                   </div>
                   <Switch
                     checked={mod.enabled}

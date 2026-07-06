@@ -443,6 +443,7 @@ billingRoutes.get("/modules", async (c) => {
       id,
       label: MODULE_CATALOG[id].label,
       blurb: MODULE_CATALOG[id].blurb,
+      detail: MODULE_CATALOG[id].detail ?? null,
       monthly_cents: MODULE_CATALOG[id].monthlyCents,
       enabled: enabled.has(id),
       available: modulePrice(env, id) !== null,
