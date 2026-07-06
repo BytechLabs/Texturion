@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { safeNextPath } from "@/lib/auth/redirects";
@@ -130,8 +131,7 @@ function LoginForm() {
                   </Link>
                 </div>
                 <FormControl>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     autoComplete="current-password"
                     {...field}
                   />
