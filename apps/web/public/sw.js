@@ -19,7 +19,7 @@
 "use strict";
 
 /** Bump when the precache list or offline.html changes. */
-const SHELL_CACHE = "loonext-shell-v1";
+const SHELL_CACHE = "loonext-shell-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
 
@@ -99,9 +99,14 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
+        // Drop EVERY prior cache but the current shell — including this app's
+        // own superseded versions and the pre-rename `jobtext-shell-*` caches a
+        // long-lived install may still hold (a stale offline.html that still
+        // said "JobText"). The origin is single-tenant, so a blanket sweep is
+        // safe and keeps no ghosts around.
         Promise.all(
           keys
-            .filter((key) => key.startsWith("loonext-") && key !== SHELL_CACHE)
+            .filter((key) => key !== SHELL_CACHE)
             .map((key) => caches.delete(key)),
         ),
       )
