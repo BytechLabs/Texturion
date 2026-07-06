@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowLeft, Send, X } from "lucide-react";
+import { ArrowLeft, FileText, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { SegmentMeterLabel, useAutoGrow } from "@/components/thread/composer";
+import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -94,10 +95,22 @@ export function NewConversation() {
 
   // --- Draft -----------------------------------------------------------------
   const [body, setBody] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [quietHours, setQuietHours] = useState<{
     localTime: string | null;
   } | null>(null);
   const textareaRef = useAutoGrow(body);
+
+  // Insert a saved reply's body into the draft (one space if the draft doesn't
+  // already end in one), then refocus the field. Merge tokens resolve
+  // server-side at send, so the raw body is inserted as-is.
+  const insertTemplate = (templateBody: string) => {
+    setBody((current) => {
+      const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
+      return `${current}${sep}${templateBody}`;
+    });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   // --- Sending number ----------------------------------------------------------
   const activeNumbers = (company.data?.numbers ?? []).filter(
@@ -361,7 +374,25 @@ export function NewConversation() {
 
         {/* Message */}
         <div className="space-y-1.5">
-          <Label htmlFor="compose-body">Message</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="compose-body">Message</Label>
+            {/* Saved-reply (template) picker — same one as the in-thread
+                composer; also opens on "/" in an empty draft. */}
+            <TemplatePicker
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onInsert={insertTemplate}
+            >
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
+                Saved reply
+              </button>
+            </TemplatePicker>
+          </div>
           <textarea
             id="compose-body"
             ref={textareaRef}
@@ -372,9 +403,14 @@ export function NewConversation() {
                 event.preventDefault();
                 if (canSend) submit(false);
               }
+              // "/" in an empty draft opens the saved-reply picker (G5).
+              if (event.key === "/" && body === "") {
+                event.preventDefault();
+                setPickerOpen(true);
+              }
             }}
             rows={3}
-            placeholder="Write your text…"
+            placeholder="Write your text…  (/ for a saved reply)"
             className="min-h-20 w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-[15px]"
           />
           <div className="flex items-center justify-between">
