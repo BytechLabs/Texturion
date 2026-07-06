@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTasks } from "@/lib/api/tasks";
+import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
@@ -25,12 +25,46 @@ import { toTaskFilters, type TaskPageState } from "../task-view-url";
  */
 export function ListView({ state }: { state: TaskPageState }) {
   const filters = toTaskFilters(state);
-  const query = useTasks(filters);
-  const tasks = flattenPages(query.data);
+  // The Open / Done tabs pin a status → one paginated query with "Load more".
+  // The statusless tabs (All, Mine, an assignee chip) must show open AND done —
+  // the frozen /v1/tasks route has no "all statuses" mode (a bare request pins
+  // status=open), so, exactly like the Board, we union two status-scoped
+  // drain-all queries. Both hook sets are always called (rules of hooks); the
+  // inactive pair is disabled so it never fires a request.
+  const hasStatus = Boolean(filters.status);
+  const single = useTasks(filters, { enabled: hasStatus });
+  const openQuery = useAllTasks(
+    { ...filters, status: "open" },
+    { enabled: !hasStatus },
+  );
+  const doneQuery = useAllTasks(
+    { ...filters, status: "done" },
+    { enabled: !hasStatus },
+  );
 
-  if (query.isPending) return <ListSkeleton />;
+  const isPending = hasStatus
+    ? single.isPending
+    : openQuery.isPending || doneQuery.isPending;
+  const isError = hasStatus
+    ? single.isError
+    : openQuery.isError || doneQuery.isError;
 
-  if (query.isError) {
+  // Union open+done for statusless tabs (dedup by id; active tasks first, then
+  // done), or the single paginated list for a pinned status.
+  let tasks: Task[];
+  if (hasStatus) {
+    tasks = flattenPages(single.data);
+  } else {
+    const byId = new Map<string, Task>();
+    for (const t of flattenPages(openQuery.data)) byId.set(t.id, t);
+    for (const t of flattenPages(doneQuery.data)) if (!byId.has(t.id)) byId.set(t.id, t);
+    const merged = [...byId.values()];
+    tasks = [...merged.filter((t) => !t.done), ...merged.filter((t) => t.done)];
+  }
+
+  if (isPending) return <ListSkeleton />;
+
+  if (isError) {
     return (
       <p className="px-1 py-8 text-sm text-muted-foreground">
         We couldn&apos;t load your tasks. Check your connection and try again.
@@ -57,15 +91,17 @@ export function ListView({ state }: { state: TaskPageState }) {
           <TaskRow key={task.id} task={task} />
         ))}
       </ul>
-      {query.hasNextPage && (
+      {/* Only the pinned-status tabs paginate; the statusless union drains all
+          pages (useAllTasks), so it has nothing more to load. */}
+      {hasStatus && single.hasNextPage && (
         <div className="flex justify-center py-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => query.fetchNextPage()}
-            disabled={query.isFetchingNextPage}
+            onClick={() => single.fetchNextPage()}
+            disabled={single.isFetchingNextPage}
           >
-            {query.isFetchingNextPage ? "Loading…" : "Load more"}
+            {single.isFetchingNextPage ? "Loading…" : "Load more"}
           </Button>
         </div>
       )}

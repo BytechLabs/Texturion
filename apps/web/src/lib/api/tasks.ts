@@ -102,7 +102,10 @@ export function fetchTask(
  * created-sorted otherwise — the route mints the matching cursor shape, so the
  * page just follows `next_cursor`.
  */
-export function useTasks(filters: TaskListFilters = {}) {
+export function useTasks(
+  filters: TaskListFilters = {},
+  options?: { enabled?: boolean },
+) {
   const companyId = useCompanyId();
   return useInfiniteQuery({
     queryKey: keys.tasks.list(companyId, filters),
@@ -110,6 +113,7 @@ export function useTasks(filters: TaskListFilters = {}) {
       fetchTasksPage(companyId, filters, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -125,8 +129,11 @@ export function useTasks(filters: TaskListFilters = {}) {
  */
 const MAX_TASK_PAGES = 40; // 40 × 25 = 1000 tasks; a hard upper bound.
 
-export function useAllTasks(filters: TaskListFilters = {}) {
-  const query = useTasks(filters);
+export function useAllTasks(
+  filters: TaskListFilters = {},
+  options?: { enabled?: boolean },
+) {
+  const query = useTasks(filters, options);
   const {
     hasNextPage,
     isFetchingNextPage,
