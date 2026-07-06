@@ -1,4 +1,4 @@
-# JobText Marketing — Visual Identity v3 (BINDING, supersedes v2 on type + imagery)
+# Loonext Marketing — Visual Identity v3 (BINDING, supersedes v2 on type + imagery)
 
 **Why:** v2 swapped in Fraunces and generic stock photos — but a font swap isn't personality,
 and stock photography isn't an *owned* identity. v3 defines a distinctive, ownable look with real

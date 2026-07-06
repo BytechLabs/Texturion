@@ -1,4 +1,4 @@
-# JobText Marketing — Art & Frame Inventory
+# Loonext Marketing — Art & Frame Inventory
 
 **Status: reference for placement tracks.** This lists every reusable visual component in
 `apps/web/src/components/marketing/frame/**` (device frames + texture/depth) and
@@ -52,7 +52,7 @@ Device chrome and background depth for framing screenshots AND live-DOM product 
 
 | Component | Intended use | Key props |
 |---|---|---|
-| **`BrowserFrame`** | Desktop screenshots + live-DOM inbox/thread renders. Minimal stone browser chrome, **petrol leftmost dot**, `jobtext.app/inbox` URL slot ("it's just the web"). Feature heroes, bento tiles, deep-dive. | `url?` (default `jobtext.app/inbox`), `flat?` (drop shadow), `className`, `contentClassName` |
+| **`BrowserFrame`** | Desktop screenshots + live-DOM inbox/thread renders. Minimal stone browser chrome, **petrol leftmost dot**, `loonext.app/inbox` URL slot ("it's just the web"). Feature heroes, bento tiles, deep-dive. | `url?` (default `loonext.app/inbox`), `flat?` (drop shadow), `className`, `contentClassName` |
 | **`PhoneFrame`** | Mobile screenshots + live-DOM dark-band thread. Neutral rounded bezel (stone ring, 28px), **no Apple/Android chrome** (honest PWA story). Optional web-push banner. | `pushBanner?: { title, body }`, `flat?`, `className`, `contentClassName` |
 | **`GlowFrame`** | Wrap a `BrowserFrame`/`PhoneFrame` (or any node) with a contained petrol glow + gentle **settle-tilt** (capped ±2°, eases flat on scroll-in). The hero/feature-hero depth moment. **The one client island** in the set. | `tilt?` (deg, default 1.5, `0` disables), `glow?: "soft"｜"hero"｜"none"`, `className` |
 | **`Texture`** | Faint section-background depth (dot-grid / line-grid / topographic). Tiny inline SVG tile + edge-fade mask. Kills the "empty" feeling; one or two per section max. | `variant?: "dots"｜"grid"｜"topo"`, `fade?: "radial"｜"top"｜"bottom"｜"none"`, `opacity?`, `className` |
@@ -90,7 +90,7 @@ traces to SPEC/COPY** (VISUALS §6).
 
 | Component | Shows | Data source | Intended surfaces | Extra props |
 |---|---|---|---|---|
-| **`MissedTextMoney`** | Coins/bars: an amber "at risk" coin stack vs the flat `$29` petrol JobText coin. Visualises the calculator's live output — invents no default, asserts no industry stat. | The calculator's user-entered `monthly` (COPY §H8) | §3.7 calculator | `monthly: number` (required), `className` |
+| **`MissedTextMoney`** | Coins/bars: an amber "at risk" coin stack vs the flat `$29` petrol Loonext coin. Visualises the calculator's live output — invents no default, asserts no industry stat. | The calculator's user-entered `monthly` (COPY §H8) | §3.7 calculator | `monthly: number` (required), `className` |
 | **`FirstWeekTimeline`** | The honest US wait as a designed rail: **Day 0 live** → amber **"~3–7 business days" carrier review** → **Approved**. Win-first. | SPEC §4.1 checkout copy; COPY §H5 | Home §3.5 (SVG twin of the DOM version), `/pricing`, `/features/compliance` | `className`, `title` |
 | **`HowItWorksFlow`** | Three numbered petrol circles + glyphs joined by a dashed petrol connector: Pick your number → Invite the crew → Text customers. | COPY §H5 | Home §3.5; onboarding-explainer surfaces | `className`, `title` |
 | **`CoverageMapNA`** | Simplified US + Canada silhouettes with a petrol coverage wash + two location pins — local numbers in both countries. Stylized motif (AK/HI omitted by design, not a territory guarantee). | SPEC §1 ICP (US + Canada) | Home Canada beat; `/canada`; `/features/business-number` | `className`, `title` |

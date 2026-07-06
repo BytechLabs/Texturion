@@ -1,4 +1,4 @@
-# JobText App Layout V2 — the UX overhaul (BINDING)
+# Loonext App Layout V2 — the UX overhaul (BINDING)
 
 **Status: BINDING.** Same authority as `docs/DESIGN.md` and `docs/APP-UI-ELEVATION.md`. This
 spec **elevates** the app's *structure and core interactions* the way `APP-UI-ELEVATION.md`
@@ -225,7 +225,7 @@ hides the active filter.
 
 ### 2.3 Layer 3 — a compact `+ Filter` command popover (reuse Cmd-K, don't invent a menu)
 
-- A small **`+ Filter`** button opens a lightweight **cmdk command popover** (JobText already ships
+- A small **`+ Filter`** button opens a lightweight **cmdk command popover** (Loonext already ships
   cmdk with shadcn — reuse *that* surface, do not build a second menu). It lists filter properties
   (assignee / tag / unread / spam) with the matching count per option (Linear). Picking one adds a
   chip (Layer 2) and updates the URL.
@@ -247,7 +247,7 @@ active secondary filters are visible as chips; every filter dimension round-trip
 ## 3. Composer rebuild — Google-Messages pill (supersedes DESIGN.md G5 composer)
 
 The reference the decision names is Google Messages' Material-3 composer. Adopt its **anatomy** and
-its **derive-send-state-from-content** rule; keep JobText's deliberate-send stance and accent budget.
+its **derive-send-state-from-content** rule; keep Loonext's deliberate-send stance and accent budget.
 
 ### 3.1 Anatomy (docked to the thread's bottom, never scrolls away)
 
@@ -399,7 +399,7 @@ enum-addition list is pinned in `docs/TASKS.md` T8.
 
 ## 5. In-thread filter + attachments gallery (new; pure read-views over existing data)
 
-Both are read-only views over data JobText already stores (D7): notes are `messages` rows
+Both are read-only views over data Loonext already stores (D7): notes are `messages` rows
 (`direction='note'`), events are `conversation_events`, media is `message_attachments` (+ task
 attachments per TASKS.md). No new storage, no new write paths.
 

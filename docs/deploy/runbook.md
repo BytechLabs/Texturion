@@ -1,6 +1,6 @@
-# JobText — Production Deploy Runbook
+# Loonext — Production Deploy Runbook
 
-Operator runbook to stand up and deploy JobText. Two Cloudflare Workers: **`jobtext-api`** (Hono API + crons) and **`jobtext-web`** (Next.js via OpenNext). Backing services: Supabase, Telnyx, Stripe, Resend, Sentry.
+Operator runbook to stand up and deploy Loonext. Two Cloudflare Workers: **`loonext-api`** (Hono API + crons) and **`loonext-web`** (Next.js via OpenNext). Backing services: Supabase, Telnyx, Stripe, Resend, Sentry.
 
 Read `env-and-secrets.md` alongside this — it is the authoritative variable inventory. Every command/setting below is traceable to code (`file:line`).
 
@@ -35,15 +35,15 @@ Both Workers pin:
 Run the **checked-in idempotent setup script** once per Stripe mode (test, then live). It finds-or-creates the Meter, Products, and Prices and prints the exact env lines (`apps/api/scripts/stripe-setup.ts:1-20,165-171`):
 
 ```
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @jobtext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
 ```
 
 It creates (`stripe-setup.ts:39-163`):
 - **Billing Meter** `sms_segments` — sum aggregation, customer mapping by `stripe_customer_id`, value from `value` (`:49-55`).
-- **Products** (SaaS tax code `txcd_10103000`): `JobText Starter`, `JobText Pro`, `US texting registration` (`:25,73-77,102-107`).
+- **Products** (SaaS tax code `txcd_10103000`): `Loonext Starter`, `Loonext Pro`, `US texting registration` (`:25,73-77,102-107`).
 - **Prices**: Starter licensed $29/mo (`:110-116`); Starter overage graduated 0–500 @ $0 then $0.03 (`:119-130`); Pro licensed $79/mo (`:133-139`); Pro overage graduated 0–2,500 @ $0 then $0.025 (`:144-155`); US registration $29 one-time (`:158-163`). All `tax_behavior: exclusive`.
 
-Copy the 6 printed lines (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) into the api secrets. Re-running is safe (idempotent by `event_name` / `metadata.jobtext_catalog` / `lookup_key`, `:39-98`).
+Copy the 6 printed lines (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) into the api secrets. Re-running is safe (idempotent by `event_name` / `metadata.loonext_catalog` / `lookup_key`, `:39-98`).
 
 ### 1c. Stripe — webhook endpoint
 Create a webhook endpoint pointing at **`${API_ORIGIN}/webhooks/stripe`** (route mounted at `apps/api/src/index.ts:129`). Copy its **signing secret** `whsec_...` → `STRIPE_WEBHOOK_SECRET`. Also create a **restricted key** `rk_live_...` for the runtime (scope in `env-and-secrets.md` §Stripe).
@@ -55,9 +55,9 @@ Create a webhook endpoint pointing at **`${API_ORIGIN}/webhooks/stripe`** (route
 4. The API auto-creates a per-company **messaging profile** during number provisioning and sets its webhook URL + failover URL to **`${API_ORIGIN}/webhooks/telnyx`** (`apps/api/src/telnyx/provisioning.ts:22-23`, `apps/api/src/telnyx/wizard.ts:141`). No manual profile is required, but the account must permit US/CA geo and 10DLC.
 
 ### 1e. Resend
-1. Verify the sending domain (e.g. `jobtext.app`).
+1. Verify the sending domain (e.g. `loonext.app`).
 2. Create an API key `re_...` → `RESEND_API_KEY`.
-3. Set `RESEND_FROM` to `JobText <notifications@jobtext.app>` (the domain must be verified) (`apps/api/src/email/resend.ts:35`).
+3. Set `RESEND_FROM` to `Loonext <notifications@loonext.app>` (the domain must be verified) (`apps/api/src/email/resend.ts:35`).
 
 ### 1f. Sentry
 Create a project, copy the **DSN** → `SENTRY_DSN` (`apps/api/src/observability/sentry.ts:117-125`). No web-side Sentry exists.
@@ -78,14 +78,14 @@ Product analytics is one optional secret: a PostHog Cloud US **Project API key**
 
 ## 2. Set API Worker secrets (before first deploy)
 
-CI does **NOT** set these — `deploy.yml` only runs `wrangler deploy` (`deploy.yml:58-62`). Set all 21 required manually, once, on `jobtext-api` (plus `POSTHOG_API_KEY` if you use analytics). Fastest path is a bulk put:
+CI does **NOT** set these — `deploy.yml` only runs `wrangler deploy` (`deploy.yml:58-62`). Set all 21 required manually, once, on `loonext-api` (plus `POSTHOG_API_KEY` if you use analytics). Fastest path is a bulk put:
 
 ```
 # from apps/api, with a filled .dev.vars-style file of KEY=VALUE lines (do NOT commit it)
-pnpm --filter @jobtext/api exec wrangler secret bulk ./secrets.prod.json
+pnpm --filter @loonext/api exec wrangler secret bulk ./secrets.prod.json
 ```
 
-Or one at a time: `pnpm --filter @jobtext/api exec wrangler secret put SUPABASE_URL` (repeat). The full required set (all from `apps/api/src/env.ts:22-74`):
+Or one at a time: `pnpm --filter @loonext/api exec wrangler secret put SUPABASE_URL` (repeat). The full required set (all from `apps/api/src/env.ts:22-74`):
 
 ```
 SUPABASE_URL SUPABASE_SECRET_KEY SUPABASE_JWKS_URL
@@ -116,7 +116,7 @@ Set these **8 required** repo/environment secrets so CI + Deploy work (`.github/
 
 > **Optional secrets (the deploy job passes both into the web build):**
 > - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`) — only needed if you enable Supabase Auth captcha (§1a step 5), but then it is **required first**: enable captcha in the Supabase dashboard only **after** this secret is set and the web Worker redeployed, or every email/password signup/login/reset breaks (the built pages send no `captchaToken`).
-> - `NEXT_PUBLIC_APP_ORIGIN` (`deploy.yml:27-30`) — the D27 marketing/app host split (`apps/web/src/env.ts:11-16`, `apps/web/src/lib/hosts.ts`). Production value `https://app.jobtext.app` (must equal the api `APP_ORIGIN` secret). When set, the middleware serves only marketing on `jobtext.app` (+ `www` → apex canonicalization) and only the product on the app origin; blank = no gating (dev/CI). Requires `jobtext.app`, `www.jobtext.app`, and `app.jobtext.app` all attached as custom domains on the one web Worker (§6). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
+> - `NEXT_PUBLIC_APP_ORIGIN` (`deploy.yml:27-30`) — the D27 marketing/app host split (`apps/web/src/env.ts:11-16`, `apps/web/src/lib/hosts.ts`). Production value `https://app.loonext.app` (must equal the api `APP_ORIGIN` secret). When set, the middleware serves only marketing on `loonext.app` (+ `www` → apex canonicalization) and only the product on the app origin; blank = no gating (dev/CI). Requires `loonext.app`, `www.loonext.app`, and `app.loonext.app` all attached as custom domains on the one web Worker (§6). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 ---
 
@@ -127,8 +127,8 @@ Trigger: `Deploy` runs on `workflow_run` of `CI` completing successfully on `mai
 1. **Checkout** the exact `head_sha` that passed CI (`:32-34`).
 2. **Install** `pnpm install --frozen-lockfile` (`:43-44`).
 3. **Push DB migrations**: `supabase link --project-ref <ref>` then `supabase db push` (`:50-56`).
-4. **Deploy api**: `pnpm --filter @jobtext/api exec wrangler deploy` (`:58-59`) → `wrangler deploy` (`apps/api/package.json:8`).
-5. **Deploy web**: `pnpm --filter @jobtext/web run deploy` (`:61-62`) → `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (`apps/web/package.json:10`).
+4. **Deploy api**: `pnpm --filter @loonext/api exec wrangler deploy` (`:58-59`) → `wrangler deploy` (`apps/api/package.json:8`).
+5. **Deploy web**: `pnpm --filter @loonext/web run deploy` (`:61-62`) → `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (`apps/web/package.json:10`).
 
 CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset` via the root `db:test:ci` script (delegates to `db:test:all` — `ci.yml:22-32`, `package.json:30-31`), then typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy --dry-run` for api (`ci.yml:58-77`).
 
@@ -138,12 +138,12 @@ CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset`
 supabase link --project-ref <SUPABASE_PROJECT_REF>
 supabase db push
 # api
-pnpm --filter @jobtext/api exec wrangler deploy
+pnpm --filter @loonext/api exec wrangler deploy
 # web (build inlines NEXT_PUBLIC_* — must be in the shell env;
 # add NEXT_PUBLIC_TURNSTILE_SITE_KEY=... only if Supabase captcha is enabled,
 # and NEXT_PUBLIC_APP_ORIGIN=... for the D27 host split in production)
 NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... NEXT_PUBLIC_API_URL=... \
-  pnpm --filter @jobtext/web run deploy
+  pnpm --filter @loonext/web run deploy
 ```
 
 ---
@@ -180,7 +180,7 @@ Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions); mapped to jobs in `
 
 `API_ORIGIN`, `APP_ORIGIN` (api secrets) and `NEXT_PUBLIC_API_URL` (web) must all agree with the actual deployed Worker URLs, or webhooks/CORS/links break.
 
-**Custom domains (D27):** the ONE `jobtext-web` Worker carries **three** custom domains — `jobtext.app`, `www.jobtext.app`, and `app.jobtext.app`; `jobtext-api` carries `api.jobtext.app`. With the optional `NEXT_PUBLIC_APP_ORIGIN` secret set (§3), the middleware serves only marketing on the apex (+ `www` → apex) and only the product on `app.` (`apps/web/src/lib/hosts.ts`). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
+**Custom domains (D27):** the ONE `loonext-web` Worker carries **three** custom domains — `loonext.app`, `www.loonext.app`, and `app.loonext.app`; `loonext-api` carries `api.loonext.app`. With the optional `NEXT_PUBLIC_APP_ORIGIN` secret set (§3), the middleware serves only marketing on the apex (+ `www` → apex) and only the product on `app.` (`apps/web/src/lib/hosts.ts`). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 ---
 

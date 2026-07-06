@@ -110,7 +110,7 @@ GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on ma
 ### Monorepo layout (D13)
 
 ```
-jobtext/
+loonext/
 ├── apps/
 │   ├── web/            # Next.js 15 + Tailwind + shadcn/ui (OpenNext → CF Worker)
 │   └── api/            # Hono Worker: /v1, /webhooks, cron handlers
@@ -209,8 +209,8 @@ One Telnyx **messaging profile per company** (D2) — isolates opt-out lists, th
 ```
 S1. Ensure messaging profile:
     POST /v2/messaging_profiles { name: company_id, webhook_url:
-      https://api.jobtext.app/webhooks/telnyx, webhook_failover_url:
-      https://api.jobtext.app/webhooks/telnyx,   ← same route; enables Telnyx's
+      https://api.loonext.app/webhooks/telnyx, webhook_failover_url:
+      https://api.loonext.app/webhooks/telnyx,   ← same route; enables Telnyx's
       whitelisted_destinations: ['US','CA'] }      3+3 delivery attempts (§7)
     Store companies.telnyx_messaging_profile_id. Skip if already set.
 S2. Search: GET /v2/available_phone_numbers
@@ -266,7 +266,7 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 
 | Operation | Telnyx call |
 |---|---|
-| Create brand (standard & sole-prop) | `POST /v2/10dlc/brand` (payload includes `webhookURL` + `webhookFailoverURL` = `https://api.jobtext.app/webhooks/telnyx`) |
+| Create brand (standard & sole-prop) | `POST /v2/10dlc/brand` (payload includes `webhookURL` + `webhookFailoverURL` = `https://api.loonext.app/webhooks/telnyx`) |
 | Brand status (poller) | `GET /v2/10dlc/brand/{brandId}` |
 | Sole-prop OTP: trigger / resend | `POST /v2/10dlc/brand/{brandId}/smsOtp` |
 | Sole-prop OTP: verify | `PUT /v2/10dlc/brand/{brandId}/smsOtp { otpPin }` |
@@ -777,7 +777,7 @@ create trigger on_auth_user_created after insert or update on auth.users
 | `rate_limited` | 429 | Per-company or per-IP limit |
 
 - **`POST /v1/messages/send` and `POST /v1/conversations` require an `Idempotency-Key` header** (client UUID). The message row is inserted **before** the Telnyx call; a concurrent/duplicate request returns the existing row (and, on `POST /v1/conversations`, the existing conversation) with `200`.
-- **CORS:** `apps/api` serves CORS for the exact web origin **`https://app.jobtext.app` only** — allow methods `GET, POST, PATCH, PUT, DELETE`; allow headers `Authorization, X-Company-Id, Idempotency-Key, Content-Type`. No wildcard origins. `/webhooks/*` routes send **no** CORS headers.
+- **CORS:** `apps/api` serves CORS for the exact web origin **`https://app.loonext.app` only** — allow methods `GET, POST, PATCH, PUT, DELETE`; allow headers `Authorization, X-Company-Id, Idempotency-Key, Content-Type`. No wildcard origins. `/webhooks/*` routes send **no** CORS headers.
 
 ### Routes
 

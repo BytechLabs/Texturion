@@ -1,8 +1,8 @@
-# Marketing-site craft research — patterns for JobText
+# Marketing-site craft research — patterns for Loonext
 
 **Status:** research input for the marketing-site build. Verified against the live web on 2026-07-02
 (WebFetch of each homepage + 2026 trend roundups). This is a pattern catalog, not a spec — but the
-"Fit for JobText" verdicts are argued against the binding brand facts in `docs/DESIGN.md` (warm stone
+"Fit for Loonext" verdicts are argued against the binding brand facts in `docs/DESIGN.md` (warm stone
 neutrals, petrol #0F766E, Inter, calm, border-first, shadows only on overlays) and the ICP (plumbers,
 landscapers, cleaners, salons, HVAC — buyers on phones, not developers).
 
@@ -28,7 +28,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   instead of photos.
 - Footer: 6 tight columns + one-line brand restatement ("Linear – The system for product
   development").
-- **Fit for JobText:** steal the *structure* (job-named sections, screenshot-anchored, few quotes,
+- **Fit for Loonext:** steal the *structure* (job-named sections, screenshot-anchored, few quotes,
   one closing band, one-line footer tagline). **Avoid** the dark-theme-with-glow aesthetic wholesale
   — it codes "developer tool / severe software" and fights a warm-stone brand for tradespeople. The
   one borrowable visual move: a *single* soft petrol light-glow behind the hero screenshot on a
@@ -41,9 +41,9 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   case studies, developer section, final CTA.
 - Pattern: **light page, one contained area of gradient energy**; everything else is whitespace,
   crisp type, and restrained cards. Trust through order.
-- **Fit:** the best structural model for a calm brand. JobText's version of the gradient wave =
+- **Fit:** the best structural model for a calm brand. Loonext's version of the gradient wave =
   a warm stone→teal-50 ambient wash behind the hero, never full-spectrum rainbow. Stripe's
-  metrics-band pattern maps to JobText proof points (flat pricing math, "texting live in Canada
+  metrics-band pattern maps to Loonext proof points (flat pricing math, "texting live in Canada
   instantly").
 
 ### Vercel (vercel.com) — dark monochrome + luminescent accents
@@ -52,7 +52,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 - Tab-based feature explorers; heavy black/white with glow.
 - **Fit:** avoid the aesthetic (developer-coded, cold). Steal: **one concrete number per proof
   section** and the discipline of a 2-CTA hero (primary + quiet secondary "Talk to sales" — for
-  JobText: "Start texting" + "See pricing", never "Contact sales", which is the anti-Podium point).
+  Loonext: "Start texting" + "See pricing", never "Contact sales", which is the anti-Podium point).
 
 ### Resend (resend.com) — light page, photographic hero atmosphere
 - Hero: "Email for developers" + light-ray/floor-texture photographic background with gradient
@@ -61,8 +61,8 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   12+ short founder quotes in a carousel. Closing band: "Email reimagined. Available today."
   Footer includes a real street address (trust signal).
 - **Fit:** the light-atmospheric-hero technique is the single most transferable "beauty" move for
-  JobText: warm light rays / soft petrol luminance over stone-50. And Resend's "show the artifact"
-  = JobText showing a **real SMS thread** (customer bubble in, teal-50 reply out, internal amber
+  Loonext: warm light rays / soft petrol luminance over stone-50. And Resend's "show the artifact"
+  = Loonext showing a **real SMS thread** (customer bubble in, teal-50 reply out, internal amber
   note) — the marketing hero should literally be the app's thread UI, which DESIGN.md already makes
   beautiful. Physical address in footer is cheap trust for an SMB audience.
 
@@ -70,7 +70,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 - Sub: "…launch faster, scale easier, and stay focused on building your business." Single CTA
   ("Start building for free"). Real UI components rendered on the page; logos + long testimonial
   wall; closing "Start now, no strings attached."
-- **Fit:** "no strings attached" closing register is exactly JobText's month-to-month weapon.
+- **Fit:** "no strings attached" closing register is exactly Loonext's month-to-month weapon.
   Component-as-hero → render the real inbox row/thread as live-feeling HTML (not a flat PNG) so it
   crisps on every DPI and can animate a message arriving.
 
@@ -90,8 +90,8 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   Clean light layout, feature sections with human names ("Space for the different sides of you"),
   4 tweet testimonials, closing "Enter _your_ new home on the internet."
 - Dia: "A browser you won't dread opening" — feeling-first headline, mascot illustration, playful.
-- **Fit:** testimonial-as-hero-headline is a proven move once JobText has one great customer quote
-  ("JobText got the crew off my personal cell" — that shape). Dia's mascot/sticker energy: avoid —
+- **Fit:** testimonial-as-hero-headline is a proven move once Loonext has one great customer quote
+  ("Loonext got the crew off my personal cell" — that shape). Dia's mascot/sticker energy: avoid —
   too whimsical for "this thing respects my time." The *feeling-first* headline register ("a
   business number you won't dread") is worth testing, though clarity-first likely wins for this ICP.
 
@@ -99,8 +99,8 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 - "Your favorite crypto wallet." Phone mockups everywhere, seamless state animations, 12 tweet
   quotes ("Friends of Family"), FAQ section, praised specifically for "web2 delightful UI/UX".
 - **Fit:** phone-mockup framing is *directly* relevant (SMS is a phone product): show the app in a
-  neutral rounded device frame — but JobText must show **both** the customer's native Messages side
-  and the team's JobText inbox side (the two-phones / phone+laptop pairing tells the whole story).
+  neutral rounded device frame — but Loonext must show **both** the customer's native Messages side
+  and the team's Loonext inbox side (the two-phones / phone+laptop pairing tells the whole story).
   Family's animation extravagance: dial down to DESIGN.md's 150–200ms ease-out ethic. Keep the FAQ
   section idea — perfect home for the honest 10DLC timeline, segment explanation, number porting.
 
@@ -109,7 +109,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   Light page with gradient-image dark blocks; "How it works" 3-step; day-3/day-7 timeline section;
   a real customer *email* screenshot as testimonial; footer sign-off "Designed by the beach."
 - **Fit:** hyper-specific claims beat adjectives for skeptical tradespeople: "Your number in 60
-  seconds. Canadian texting works immediately." A "first week with JobText" timeline section maps
+  seconds. Canadian texting works immediately." A "first week with Loonext" timeline section maps
   1:1 to the activation flow (day 0 number live → first customer text → invite the crew). A
   personality sign-off in the footer ("Built for the trades", "No sales calls, ever") is cheap charm.
 
@@ -118,7 +118,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   sections like "Time management, simplified", "Work and life, playing nice"; small illustration
   moments (the cat) as breathing room.
 - **Fit:** two-word mood headlines are risky for an unknown brand (Notion can afford ambiguity;
-  JobText cannot). Steal the *rhythm*: short section headlines in plain speech + one gentle
+  Loonext cannot). Steal the *rhythm*: short section headlines in plain speech + one gentle
   illustration moment max (e.g., a small line-drawn truck) as warmth, not decoration.
 
 ### Jobber (getjobber.com) — the ICP's native visual language (same buyer!)
@@ -127,8 +127,8 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   Concrete stat band ("29 million+ jobs completed", "12 hours+ saved"). Benefit pillars ("Win
   Jobs", "Work Smarter"). Industry vertical links (Plumbing, HVAC, Cleaning) in the footer.
 - **Fit:** this is what the *buyer already trusts*: real faces, real business names, stars,
-  concrete numbers, plain verbs. JobText should marry Jobber's trust grammar with Linear/Stripe's
-  visual craft (Jobber's page is effective but visually generic — JobText can beat it on beauty).
+  concrete numbers, plain verbs. Loonext should marry Jobber's trust grammar with Linear/Stripe's
+  visual craft (Jobber's page is effective but visually generic — Loonext can beat it on beauty).
   Per-trade landing pages (/for/plumbers, /for/salons) are a proven pattern here and cheap with
   one template.
 
@@ -145,13 +145,13 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 | Specific-number hook in sub | Amie ("Within 47 seconds") | **Adopt**: "Number in ~60 seconds. Canada texts instantly. US activates in 1–3 business days — we handle it." Honesty as a design element. |
 | Abstract gradient hero art | Stripe wave, Vercel glow | Avoid as the main event; keep energy behind the product shot, not instead of it. |
 | Mascot/illustration hero | Dia | Avoid — undermines "respects my time." |
-| Interactive hero toy | Raycast keyboard | Adapt: an **animated live thread** (messages arriving, a teammate assigning) is JobText's equivalent — the product is inherently a conversation, which animates naturally. |
+| Interactive hero toy | Raycast keyboard | Adapt: an **animated live thread** (messages arriving, a teammate assigning) is Loonext's equivalent — the product is inherently a conversation, which animates naturally. |
 
 ### Product-screenshot framing
 - **The 2026 consensus** (SaaSFrame, Framiq, stan.vision roundups): real UI screenshots, not
   illustrations; "dark background makes screenshots pop" is the Linear branch; the light branch
   (Stripe/Notion/Resend) uses whitespace + subtle borders.
-- For JobText (light, border-first brand): **1px stone-200 border + 10px radius + very soft petrol
+- For Loonext (light, border-first brand): **1px stone-200 border + 10px radius + very soft petrol
   ambient glow (blurred teal at low opacity) on stone-50** — the app's own card language, dialed up
   one notch. No heavy drop shadows (violates border-first rule), no aggressive 3D tilt (Linear-era
   perspective tilts now read dated and dev-flavored; a ≤2° settle-on-scroll is the tasteful max).
@@ -172,9 +172,9 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   (Jeton-style awwwards fintech). Wrong audience, heavy on a truck's LTE connection.
 
 ### Interactive embeds
-- Live demos convert (NitroPack's "enter URL, run test"; Amplitude's embedded demo). JobText
+- Live demos convert (NitroPack's "enter URL, run test"; Amplitude's embedded demo). Loonext
   equivalents that exist today and stay honest:
-  1. **Pricing math toggle** — team-size slider showing JobText flat $29/$79 vs "$19/user"
+  1. **Pricing math toggle** — team-size slider showing Loonext flat $29/$79 vs "$19/user"
      competitors climbing past it at 2+ users. Interactive proof of the flat-pricing weapon.
   2. **Segment/usage explainer** — type a message, see "1 segment"; playful, honest, reuses the
      app's real segment estimator from packages/shared.
@@ -184,7 +184,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 ### Gradient & light on calm palettes
 - Proven light-site moves: Stripe (one contained gradient region), Resend (photographic light rays
   over light background), Amie (gradient imagery inside contained blocks).
-- JobText recipe: stone-50 base; **one** hero ambient wash (radial teal-50→transparent, or warm
+- Loonext recipe: stone-50 base; **one** hero ambient wash (radial teal-50→transparent, or warm
   light-ray photo treatment à la Resend in stone/amber tones); teal-50 tint panels for feature
   cards; a single stone-950 dark band mid-page. Never: rainbow gradients, purple/indigo (the
   "generic SaaS" the petrol accent was chosen against), glowing gradient borders (Linear-look
@@ -194,7 +194,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
 - Marketing sites run display sizes the app never uses. Consensus scale on the studied sites:
   hero ~56–72px desktop / ~36–40px mobile, tight leading (~1.1), section heads 32–40px, body
   17–18px. Weight restraint (Linear/Stripe use 500–600 heads, not 800 black).
-- JobText: **Inter stays** (same brand), add display sizes on top of DESIGN.md's scale with
+- Loonext: **Inter stays** (same brand), add display sizes on top of DESIGN.md's scale with
   `-0.02em` tracking on ≥36px, weights capped at 600. Tabular numerals for every price and stat
   (brand rule, and prices are the argument). Sentence case everywhere including headlines —
   Jobber/Stripe title-case reads corporate; sentence case reads human, matches G10 voice.
@@ -202,7 +202,7 @@ real, flat team pricing, month-to-month, honest US carrier-registration timeline
   the "same brand, dialed up" mandate.
 
 ### Section rhythm (composite of Linear + Stripe + stan.vision's conversion framework)
-Recommended order for JobText's homepage:
+Recommended order for Loonext's homepage:
 1. Hero: outcome headline, honest-timeline sub, price-forward CTA, live thread visual
 2. Trust strip: real business names/faces (Jobber grammar) or plain "built for" trade list pre-launch
 3. Problem→solution: "your personal cell is the business number" → shared inbox (split-screen
@@ -227,15 +227,15 @@ section with ≤2 sentences of body copy.
 ### Footer design
 - Best patterns: Linear's one-line brand restatement; Resend's real street address; Raycast's
   newsletter; Jobber's industry links; Amie's personality sign-off; Clerk's llms.txt link.
-- JobText footer: 3–4 modest columns (Product/Pricing, Compare [vs Podium, vs Heymarket, vs Quo],
-  Trades [/for/plumbers…], Company/Legal incl. AUP), a one-line restatement ("JobText — the shared
+- Loonext footer: 3–4 modest columns (Product/Pricing, Compare [vs Podium, vs Heymarket, vs Quo],
+  Trades [/for/plumbers…], Company/Legal incl. AUP), a one-line restatement ("Loonext — the shared
   text inbox for your crew"), physical/legal address, and a quiet honest sign-off ("Month to month.
   No sales calls, ever."). Skip the 25-column Stripe megafooter — small product, small footer.
 
 ### Dark sections in light sites
 - Raycast is the reference: dark bands for *emphasis moments*, light for explanation. Amie/Resend
   use gradient-image blocks as contained "energy" instead.
-- JobText: exactly **one** stone-950 band using the app's real dark tokens (teal-500 accent) — it
+- Loonext: exactly **one** stone-950 band using the app's real dark tokens (teal-500 accent) — it
   reads as "same product at night in the truck," which is literally true and on-ICP. More than one
   dark band tips the page into developer-tool territory.
 

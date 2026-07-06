@@ -25,13 +25,13 @@ Requires Node >= 22 and pnpm 9.
 
 ```
 pnpm install
-pnpm --filter @jobtext/web dev      # Next.js dev server
-pnpm --filter @jobtext/api dev      # wrangler dev (needs apps/api/.dev.vars — see .dev.vars.example)
+pnpm --filter @loonext/web dev      # Next.js dev server
+pnpm --filter @loonext/api dev      # wrangler dev (needs apps/api/.dev.vars — see .dev.vars.example)
 pnpm typecheck                      # tsc across all packages
 pnpm lint                           # eslint across all packages
 pnpm test                           # vitest across all packages
-pnpm --filter @jobtext/web build    # next build
-pnpm --filter @jobtext/web preview  # OpenNext build + local Workers preview
+pnpm --filter @loonext/web build    # next build
+pnpm --filter @loonext/web preview  # OpenNext build + local Workers preview
 ```
 
 Environment:

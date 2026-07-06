@@ -1,4 +1,4 @@
-# JobText Marketing — Reference Craft Bar (BINDING ADDENDUM)
+# Loonext Marketing — Reference Craft Bar (BINDING ADDENDUM)
 
 **Status: BINDING.** Same authority as ART-DIRECTION.md, HERO-CONCEPT.md, BLUEPRINT.md, VISUALS.md,
 and CONVERSION.md: implement, don't re-litigate. This doc is the **craft addendum** — it does not
@@ -66,7 +66,7 @@ band after band. Every reference actively defeats this. So must we.
 
 ---
 
-## 2. Transferable craft (numbered, each mapped to WHERE in JobText it applies)
+## 2. Transferable craft (numbered, each mapped to WHERE in Loonext it applies)
 
 Each item: the technique, the reference it comes from, **where in our site it lands**, and how it
 reconciles with the Dispatch Desk identity + our perf gates. "ADOPT" = ship it in iter 5. "ALREADY

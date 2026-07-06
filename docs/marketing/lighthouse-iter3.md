@@ -10,12 +10,12 @@ items. Owned files touched: `components/marketing/home/hero.tsx`,
 ```bash
 # 1. Build the web app into an ISOLATED dist dir so the production build does not
 #    collide with a concurrently-running `next dev` that shares the default .next
-#    (JOBTEXT_DIST_DIR is read by apps/web/next.config.ts; no effect when unset).
+#    (LOONEXT_DIST_DIR is read by apps/web/next.config.ts; no effect when unset).
 cd apps/web
-JOBTEXT_DIST_DIR=.next-prod pnpm build
+LOONEXT_DIST_DIR=.next-prod pnpm build
 
 # 2. Serve the built output on an isolated port.
-JOBTEXT_DIST_DIR=.next-prod pnpm exec next start -p 3200
+LOONEXT_DIST_DIR=.next-prod pnpm exec next start -p 3200
 
 # 3. Real Lighthouse audit (Lighthouse 12.8.2, headless Chrome).
 npx -y lighthouse@12 http://localhost:3200/ \
@@ -26,7 +26,7 @@ npx -y lighthouse@12 http://localhost:3200/ \
 # (repeat for http://localhost:3200/pricing, and without --preset=desktop for mobile)
 ```
 
-> `JOBTEXT_DIST_DIR` is a small, optional build-output override added to
+> `LOONEXT_DIST_DIR` is a small, optional build-output override added to
 > `apps/web/next.config.ts`. It exists so a production build can run alongside a
 > live dev server (unavoidable in this multi-track workspace). It is inert when
 > unset, so CI/production are unaffected. **`.next-prod` is a transient build dir
@@ -77,7 +77,7 @@ requires. `render-blocking-resources: 0 ms`, `server-response-time: 20 ms`,
 
 The hero now renders the **two-phones signature moment**: a customer's plain text
 on a generic Messages phone (left) materializing on the right as a structured
-JobText conversation (assign, note, status, delivery, tag). It stayed within
+Loonext conversation (assign, note, status, delivery, tag). It stayed within
 budget because of three deliberate choices:
 
 1. **No raster, anywhere.** Both phones, the photo tiles, and the materialization
@@ -180,5 +180,5 @@ are hygiene.
   composition + a Strict-Mode-safe, CLS-safe, reduced-motion-safe player.
 - `components/marketing/thread-demo/thread-frame.tsx` — browser-chrome URL contrast.
 - `components/marketing/thread-demo/thread-deep-dive.tsx` — honesty-label contrast.
-- `next.config.ts` — optional `JOBTEXT_DIST_DIR` build-output override (inert unless
+- `next.config.ts` — optional `LOONEXT_DIST_DIR` build-output override (inert unless
   set; enables building beside a live dev server).

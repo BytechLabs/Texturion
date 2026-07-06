@@ -1,4 +1,4 @@
-# JobText Marketing: Design Direction (BINDING, single source of truth)
+# Loonext Marketing: Design Direction (BINDING, single source of truth)
 
 "Quiet daylight" (v3). Supersedes both the "Caught" direction and the "Open all night" nocturne
 (v2, rejected at review: dark grounds, glow effects, the sticky demo stage, and the clock-rail

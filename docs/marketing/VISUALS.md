@@ -1,4 +1,4 @@
-# JobText Marketing — Visual Art Direction (BINDING)
+# Loonext Marketing — Visual Art Direction (BINDING)
 
 **Why this exists:** the site currently has no images, illustrations, or infographics — only
 text and a few live-DOM widgets. It reads empty. Calm ≠ bare. Every marketing page from here

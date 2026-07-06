@@ -214,7 +214,7 @@ Shipped (main):
 
 ### Protection layer: COMPLETE for every cost center we amplify
 
-Every cost center where JobText controls the amplified spend is now bounded:
+Every cost center where Loonext controls the amplified spend is now bounded:
 outbound (un-defeatable hard ceiling + rate limit), auto-reply + missed-call
 (send cap), MMS media + attachment storage (cap-and-drop / 409 + alerts), voice
 (cap-and-drop + alerts), 10DLC campaign (deactivation is state-gated + retried

@@ -1,8 +1,8 @@
-# JobText — Feature Gaps: the small features worth adding
+# Loonext — Feature Gaps: the small features worth adding
 
 Owner: product. Decided 2026-07-03 (revised after critique). Lens: what a plumber /
 HVAC / landscaper / cleaner / electrician / salon owner actually needs from a shared
-SMS inbox that JobText does **not** provide today. Grounded in the current-audit
+SMS inbox that Loonext does **not** provide today. Grounded in the current-audit
 (verified in `apps/api/src`), the competitor scan, the trades ICP, and a compliance
 pass. Every option honors the product's one hard constraint: **lowest possible
 upkeep — reuse Supabase / Telnyx / Stripe / Workers-cron, add no new vendor.**
@@ -14,14 +14,14 @@ compliance note, and a verdict — **BUILD-NOW**, **FAST-FOLLOW**, or **SKIP**.
 **What changed in this revision (read this first):**
 - **Text-to-pay was moved out of BUILD-NOW** to the top FAST-FOLLOW slot. The old
   "reuse existing Stripe — no new vendor" claim does **not** survive the
-  on-behalf-of-merchant test: our Stripe wiring collects *JobText's own* subscription
-  revenue into *JobText's own* bank account. Routing a customer's $180 into the
+  on-behalf-of-merchant test: our Stripe wiring collects *Loonext's own* subscription
+  revenue into *Loonext's own* bank account. Routing a customer's $180 into the
   *plumber's* bank account is **Stripe Connect** — per-merchant KYC onboarding,
   payouts, merchant-routed refunds/disputes, and 1099-K reporting. That is the
   single largest, highest-*ongoing*-upkeep item on the list, not a cheap send-action.
   It stays near-term and monetizable, but as its own project. **The disqualifying
   test, stated once so it's reusable: "reuse existing Stripe" only holds for money
-  that lands in JobText's account. The moment money must land in the customer's
+  that lands in Loonext's account. The moment money must land in the customer's
   account, it's Connect, and it's a project.**
 - **BUILD-NOW is now three**: missed-call text-back, after-hours auto-reply, review
   link. This trio genuinely reuses existing machinery and is retention-load-bearing.
@@ -107,19 +107,19 @@ Each is small and on-stack.
 ### 0. Keep your existing business number
 
 **What it is (customer language):** "I've had the same number on my truck, my yard
-signs, and my Google listing for ten years. I'm not printing new trucks. Put JobText
+signs, and my Google listing for ten years. I'm not printing new trucks. Put Loonext
 on *my* number."
 
 **The job it serves — this is the adopt-vs-churn decider.** An established owner will
 **not** hand his customers a new number to get a texting inbox. If MCTB, after-hours,
 and review all fire from a number his callers don't recognize, they're worthless — and
-a 50-year-old owner reads "here's your new JobText number" as "lose my customers" and
+a 50-year-old owner reads "here's your new Loonext number" as "lose my customers" and
 walks. This is a **bigger adopt driver than any single feature #1–#3**, and it was
 effectively missing before. It is Step 0 of the build for a reason: every feature is
 dead until his number is on our rails.
 
 **Lowest-upkeep build — two Telnyx-native paths, no new vendor:**
-- **(a) Port-in:** port the company's existing business line to Telnyx so JobText owns
+- **(a) Port-in:** port the company's existing business line to Telnyx so Loonext owns
   SMS **and** voice on the number they already advertise.
 - **(b) Text-enable-my-landline:** for owners who won't port (or whose voice must stay
   on their current carrier), host **SMS on the existing landline/number** and leave
@@ -291,10 +291,10 @@ way.)*
 ### 4. Text-to-pay (Stripe **Connect**) — **FAST-FOLLOW (top of the list)**
 The only "get paid" path, currently zero coverage, and genuinely monetizable — but it is
 **its own project, not a Step-2 send-action.** The disqualifying detail: our existing
-Stripe wiring collects *JobText's own* subscription revenue into *JobText's own* bank
+Stripe wiring collects *Loonext's own* subscription revenue into *Loonext's own* bank
 account. Routing a customer's $180 into the *plumber's* bank account is **Stripe Connect
 (Express connected accounts)**, which competitors (Podium, Weave) run for exactly this
-reason. A plain Payment Link would deposit the customer's money into *JobText* — wrong,
+reason. A plain Payment Link would deposit the customer's money into *Loonext* — wrong,
 and a money-transmission/liability problem.
 
 **Real shape (scope it honestly):**
@@ -312,7 +312,7 @@ and a money-transmission/liability problem.
   instead of a bare, memo-less line.
 - **Position it as "collect a deposit / get paid on the spot," NOT replace-your-invoicing**,
   and state in the copy that **it does not sync to QuickBooks** (point owners at Stripe's
-  own QuickBooks connector as their reconciliation path — JobText does not build AR). Set
+  own QuickBooks connector as their reconciliation path — Loonext does not build AR). Set
   that expectation up front or the owner takes one payment, hits month-end, and turns it off.
 
 **Why fast-follow, not skip:** high value, directly monetizable, strong reason-to-switch —
@@ -384,13 +384,13 @@ import (D20) actually generates merge complaints** — until then it's speculati
 ### 13. Appointment-reminder *engine* — **SKIP (conscious no)**
 Flagged so it's a decision, not an oversight. A full reminder engine (auto reminders +
 smart yes/no confirmation reading) needs a scheduling/calendar system we don't have and
-shouldn't build — the ICP runs off Jobber / Housecall Pro / Google Calendar, not a JobText
+shouldn't build — the ICP runs off Jobber / Housecall Pro / Google Calendar, not a Loonext
 calendar. **The 90% is already covered by Scheduled Send (#5):** let them schedule a manual
 "confirming your 2pm tomorrow." Building the engine breaks the low-upkeep rule and turns us
 into an appointment product. Do not build.
 
 ### Search — already global; do not re-touch
-**No.** JobText already ships **command-K global search with FTS + trigram** across the
+**No.** Loonext already ships **command-K global search with FTS + trigram** across the
 inbox (verified in current-audit). It is already the prominent, global entry point. No gap
 here — making it "more global" is motion without value. Leave it.
 

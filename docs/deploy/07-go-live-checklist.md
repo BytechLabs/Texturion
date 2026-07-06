@@ -23,35 +23,35 @@ prerequisites flagged by the marketing/legal docs.
       email/password signup/login/reset breaks ([06](./06-env-reference.md) §B).
 - [ ] Stripe **live** catalog created; 6 IDs captured; Tax active; portal + dunning
       (→ cancel) configured; webhook endpoint at
-      `https://api.jobtext.app/webhooks/stripe` with the **7** events; `whsec_`
+      `https://api.loonext.app/webhooks/stripe` with the **7** events; `whsec_`
       captured ([03](./03-stripe.md)).
 - [ ] Telnyx live V2 API key + webhook public key captured; **Call-Control (voice)
       application created** with webhook + failover URL =
-      `https://api.jobtext.app/webhooks/telnyx` and its id captured as
+      `https://api.loonext.app/webhooks/telnyx` and its id captured as
       `TELNYX_VOICE_CONNECTION_ID`; account has US/CA + 10DLC
       and funded balance ([04](./04-telnyx.md)).
 - [ ] Resend sending domain verified; `RESEND_FROM` on that domain. Sentry DSN
       captured. VAPID pair generated ([05](./05-workers-deploy.md) §1).
-- [ ] All **21** required API Worker secrets set on `jobtext-api` (+ optional
+- [ ] All **21** required API Worker secrets set on `loonext-api` (+ optional
       `POSTHOG_API_KEY` if you use analytics); `GET
-      https://api.jobtext.app/health` → `{"ok":true}` ([05](./05-workers-deploy.md) §2).
+      https://api.loonext.app/health` → `{"ok":true}` ([05](./05-workers-deploy.md) §2).
 - [ ] All **8** required GitHub Actions secrets set — including
       `NEXT_PUBLIC_API_URL`, which Deploy now reads
       (`.github/workflows/deploy.yml:22`) — plus the optional two:
       `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`, **required before
       enabling Supabase captcha**) and `NEXT_PUBLIC_APP_ORIGIN`
       (`deploy.yml:27-30`, activates the D27 host split; production value
-      `https://app.jobtext.app`) ([05](./05-workers-deploy.md) §5).
-- [ ] Both Workers deployed; custom domains bound — `app.jobtext.app`,
-      `jobtext.app`, **and** `www.jobtext.app` all on the one `jobtext-web`
-      Worker (D27), `api.jobtext.app` on `jobtext-api`; `app.` loads,
+      `https://app.loonext.app`) ([05](./05-workers-deploy.md) §5).
+- [ ] Both Workers deployed; custom domains bound — `app.loonext.app`,
+      `loonext.app`, **and** `www.loonext.app` all on the one `loonext-web`
+      Worker (D27), `api.loonext.app` on `loonext-api`; `app.` loads,
       `api./health` OK ([05](./05-workers-deploy.md) §3–§4,
       [01](./01-accounts-and-domain.md) §2).
 - [ ] D27 host split verified (with `NEXT_PUBLIC_APP_ORIGIN` set):
-      `jobtext.app/login` 308s to `app.jobtext.app/login`, `www.jobtext.app`
-      canonicalizes to `jobtext.app`, and a marketing path on `app.jobtext.app`
-      308s back to `jobtext.app` (`apps/web/src/lib/hosts.ts`).
-- [ ] Cron triggers visible on `jobtext-api` (Cloudflare → Worker → Triggers) — all 9
+      `loonext.app/login` 308s to `app.loonext.app/login`, `www.loonext.app`
+      canonicalizes to `loonext.app`, and a marketing path on `app.loonext.app`
+      308s back to `loonext.app` (`apps/web/src/lib/hosts.ts`).
+- [ ] Cron triggers visible on `loonext-api` (Cloudflare → Worker → Triggers) — all 9
       ([05](./05-workers-deploy.md) §6).
 
 ---
@@ -70,7 +70,7 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
       (`docs/marketing/BLUEPRINT.md:980-981`, `docs/marketing/COPY.md:393-394`).
 - [ ] **Support-response SLA** for `/contact` (placeholder "we reply within 1
       business day" until confirmed) (`docs/marketing/BLUEPRINT.md:983-984`).
-- [ ] **Status page live** — stand up `status.jobtext.app` on a hosted provider
+- [ ] **Status page live** — stand up `status.loonext.app` on a hosted provider
       (Instatus / BetterStack free tier) and link it in the footer; a
       deliverability-gated SMS product cannot launch without one
       (`docs/marketing/BLUEPRINT.md:984-985,1050`).
@@ -86,7 +86,7 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 > **Automated coverage (D31).** The cross-vendor spine of the three golden paths —
 > (1) US sole-prop signup → paid checkout → provision → 10DLC registration gate →
 > approval → US send, (2) CA-only instant send, (3) cancel → grace → day-30 release —
-> now runs green in CI as a **hermetic full-stack E2E** (the real `jobtext-api` Worker
+> now runs green in CI as a **hermetic full-stack E2E** (the real `loonext-api` Worker
 > against real local Supabase, Telnyx + Stripe faked at their HTTP boundary and advanced
 > by the same signed webhooks production receives; `apps/api/e2e/*.e2e.ts`, the `e2e` job
 > in `.github/workflows/ci.yml`). That covers the server/state-machine wiring
@@ -97,7 +97,7 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 Run against **Stripe test mode** and a **Telnyx sandbox number** before flipping to
 live. Use two real phones (or one phone + the Telnyx test tooling).
 
-1. **Sign up** — create an account at `https://app.jobtext.app`. Confirm the signup
+1. **Sign up** — create an account at `https://app.loonext.app`. Confirm the signup
    CAPTCHA (Turnstile) appears (it renders only when the build had
    `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set) and the Supabase invite/confirmation email arrives via
    Resend. Confirm the app can call the API (a `/v1/me`-class request returns 200, not
@@ -140,7 +140,7 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 - [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account (and
       `TELNYX_VOICE_CONNECTION_ID` to a Call-Control app created in that account);
       confirm 10DLC approval.
-- [ ] Re-hit `https://api.jobtext.app/health` → `{"ok":true}`.
+- [ ] Re-hit `https://api.loonext.app/health` → `{"ok":true}`.
 - [ ] Repeat the smoke test's send/receive with a **live** number and a real card
       (small amount), then refund.
 

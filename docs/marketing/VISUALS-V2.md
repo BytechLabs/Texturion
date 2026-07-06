@@ -1,4 +1,4 @@
-# JobText Marketing — Visual Language v2 (BINDING, supersedes VISUALS.md art rules)
+# Loonext Marketing — Visual Language v2 (BINDING, supersedes VISUALS.md art rules)
 
 **Why:** the hand-built SVG/CSS "art" and the custom infographics read as inconsistent and
 amateur, and Inter-only has no personality. This doc reverses that. It supersedes VISUALS.md

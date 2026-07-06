@@ -145,13 +145,13 @@ Supabase Auth sends invite/signup/reset emails (e.g. `inviteUserByEmail`) via a
 **custom SMTP = Resend** (`SPEC.md:100,832,1065`). This is separate from the API
 Worker's own Resend usage.
 
-1. In **Resend**: verify your sending domain (e.g. `jobtext.app`) — add the DNS
+1. In **Resend**: verify your sending domain (e.g. `loonext.app`) — add the DNS
    records Resend gives you, wait for verification.
 2. In Resend, create an **SMTP** credential (or use the API-key-as-SMTP-password
    flow Resend documents) and note host/port/username/password.
 3. Supabase → **Project Settings → Authentication → SMTP Settings** → enable custom
    SMTP, enter the Resend SMTP host/port/credentials, and set the **sender** to an
-   address **at the verified Resend domain** (e.g. `notifications@jobtext.app`).
+   address **at the verified Resend domain** (e.g. `notifications@loonext.app`).
 
 > The API Worker's transactional email (billing notices, etc.) uses the Resend
 > **REST API** with `RESEND_API_KEY` + `RESEND_FROM` — configured in

@@ -1,4 +1,4 @@
-# JobText — App Features V2 (build-ready detail)
+# Loonext — App Features V2 (build-ready detail)
 
 Companion to `docs/DECISIONS.md` **D17–D22**. This is the *how* for the smaller features the product
 owner has already decided — the decisions are binding; this doc refines execution. It assumes the
@@ -28,7 +28,7 @@ those decisions delegate to "small features."
 | Google | Google Cloud OAuth 2.0 **Web** client | Authorized redirect URI = `https://<project>.supabase.co/auth/v1/callback`; client id+secret into Supabase dashboard → Auth → Google |
 | Apple | **Services ID** (the OAuth client), a **Sign-in-with-Apple Key** (.p8), the **Team ID** | Supabase dashboard → Auth → Apple: Client IDs = Services ID; Supabase mints Apple's short-lived client-secret JWT from the key |
 
-Add every JobText origin (prod + preview) to the Supabase **redirect allow list**. No provider secret ever
+Add every Loonext origin (prod + preview) to the Supabase **redirect allow list**. No provider secret ever
 reaches the browser — frontend still gets only `NEXT_PUBLIC_SUPABASE_URL` + publishable key (D8).
 
 ### 1.3 The OAuth flow (PKCE + server callback — the `@supabase/ssr` requirement)
@@ -48,7 +48,7 @@ Button → supabase.auth.signInWithOAuth({
 - On `exchangeCodeForSession` error, redirect to `/login?error=oauth` with a calm inline message.
 
 ### 1.4 OAuth → company-link (the real integration)
-After Supabase creates `auth.users` and the D7 trigger fills `profiles.display_name`, JobText routes on
+After Supabase creates `auth.users` and the D7 trigger fills `profiles.display_name`, Loonext routes on
 its own tenancy (`company_members`, D8) — identically for password and OAuth users:
 
 ```
@@ -69,7 +69,7 @@ first authenticated request → GET /me
 - `supabase.auth.updateUser({ email })` from the browser.
 - Keep Supabase **"Secure email change" ON** → confirmation is emailed to **both** the current and the new
   address; the change commits only when confirmed. UI copy: "We've emailed both your old and new address —
-  confirm from each to finish." JobText reads email from `auth.users`, so no app-side mirror to reconcile.
+  confirm from each to finish." Loonext reads email from `auth.users`, so no app-side mirror to reconcile.
 - OAuth-only users (no password) can still set/confirm an email this way.
 
 ### 1.6 Password change (Settings → Account)

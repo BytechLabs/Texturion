@@ -45,7 +45,7 @@ values can only be finalized once the API custom domain exists.
 
 1. Get a secret key with catalog write (`sk_live_...`)
    (`apps/api/scripts/stripe-setup.ts:6,28-35`).
-2. Run `STRIPE_SECRET_KEY=sk_live_... pnpm --filter @jobtext/api stripe:setup`
+2. Run `STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup`
    once per mode — creates the `sms_segments` meter, 3 products, 6 prices,
    idempotently (`apps/api/scripts/stripe-setup.ts:39-163`).
 3. Capture the six printed stdout lines → the six `STRIPE_*` id/name secrets
@@ -56,7 +56,7 @@ values can only be finalized once the API custom domain exists.
    fine for runtime — see [env-and-secrets.md](./env-and-secrets.md) §Stripe).
 6. **After the API domain exists** (the `API_ORIGIN` value — see
    [runbook.md](./runbook.md) §1c): register webhook endpoint
-   `https://api.jobtext.app/webhooks/stripe` with the 7 events the handler
+   `https://api.loonext.app/webhooks/stripe` with the 7 events the handler
    switches on (`apps/api/src/webhooks/stripe.ts:124-138`); copy its signing
    secret → `STRIPE_WEBHOOK_SECRET` (`env.ts:36`).
 7. Set failed-payment action to **cancel subscription** after Smart-Retry
@@ -90,7 +90,7 @@ values can only be finalized once the API custom domain exists.
 ## Resend → yields `RESEND_API_KEY`, `RESEND_FROM`
 
 1. Add + **verify the sending domain** (DKIM/SPF DNS records). `RESEND_FROM`
-   must be an address at this domain, e.g. `JobText <notifications@jobtext.app>`
+   must be an address at this domain, e.g. `Loonext <notifications@loonext.app>`
    (`apps/api/src/env.ts:42-43`, `.dev.vars.example:18`). Unverified domain → every
    send throws (`apps/api/src/email/resend.ts:43-50`).
 2. Create an API key `re_...` → `RESEND_API_KEY`
@@ -118,10 +118,10 @@ values can only be finalized once the API custom domain exists.
 Not a third-party vendor account beyond Cloudflare, but these config values must
 be decided with the custom domains (see [runbook.md](./runbook.md) §6):
 
-- `APP_ORIGIN` = web Worker public origin, e.g. `https://app.jobtext.app` — CORS
+- `APP_ORIGIN` = web Worker public origin, e.g. `https://app.loonext.app` — CORS
   allow-origin (exact match) + all user-facing email links
   (`apps/api/src/index.ts:75`, `env.ts:39`).
-- `API_ORIGIN` = api Worker public origin, e.g. `https://api.jobtext.app` — built
+- `API_ORIGIN` = api Worker public origin, e.g. `https://api.loonext.app` — built
   into the Telnyx webhook callback URL (`apps/api/src/telnyx/wizard.ts:140-142`,
   `env.ts:41`).
 - `NEXT_PUBLIC_API_URL` = same as `API_ORIGIN`, inlined into the web bundle at
@@ -136,10 +136,10 @@ be decided with the custom domains (see [runbook.md](./runbook.md) §6):
 - `NEXT_PUBLIC_APP_ORIGIN` (optional) = same as `APP_ORIGIN`, inlined into the
   web bundle to activate the **D27 marketing/app host split**
   (`apps/web/src/env.ts:11-16`, `apps/web/src/lib/hosts.ts`): marketing only on
-  `jobtext.app` (+ `www` → apex), the product only on `app.jobtext.app`; blank =
+  `loonext.app` (+ `www` → apex), the product only on `app.loonext.app`; blank =
   no gating (dev/CI). Deploy reads the optional GitHub secret of the same name
-  (`deploy.yml:27-30`). Requires `jobtext.app`, `www.jobtext.app`, and
-  `app.jobtext.app` all attached as custom domains on the **one** web Worker.
+  (`deploy.yml:27-30`). Requires `loonext.app`, `www.loonext.app`, and
+  `app.loonext.app` all attached as custom domains on the **one** web Worker.
   Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 ## Web Push (self-generated) → yields `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`

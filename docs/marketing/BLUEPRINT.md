@@ -1,4 +1,4 @@
-# JobText Marketing Site — BLUEPRINT
+# Loonext Marketing Site — BLUEPRINT
 
 **Status: BINDING.** This is the plan iterations 2–10 build from. Same authority as SPEC.md and
 DECISIONS.md: implement, don't re-litigate. Inputs: SPEC.md §1–2, docs/DECISIONS.md (D2–D5, D11,
@@ -7,14 +7,14 @@ D12, D14), docs/DESIGN.md (G1–G12), and the three research docs in this folder
 Copy lives in `COPY.md` (home, pricing, plumbers — final quality). Everything sold here exists
 in SPEC v2. Nothing here is a placeholder.
 
-Domain: **https://jobtext.app** (marketing at root; the app lives at `/inbox` etc. in the same
+Domain: **https://loonext.app** (marketing at root; the app lives at `/inbox` etc. in the same
 `apps/web` Worker under a `(marketing)` route group — LOOP-STATE iteration 2).
 
 ---
 
 ## 0. The argument
 
-JobText sells one sentence: **every customer text lands in one inbox the whole crew can see —
+Loonext sells one sentence: **every customer text lands in one inbox the whole crew can see —
 for one flat price, month to month, with no sales call between you and a working number.**
 
 Messaging hierarchy (rank-ordered; every page leads with #1 or #2 and lands at least three):
@@ -46,14 +46,14 @@ The page has **one** engineered spectacle, and everything else supports it: **th
 two-phones live inbox thread is the hero.** It is the frame a plumber screenshots and sends to
 his brother-in-law. It is the product's entire argument in one moving object — a customer's
 plain text on the left materializes as an assignable, notable, taggable conversation in the
-JobText inbox on the right, playing on the app's real motion grammar. It is inherently on-brand
+Loonext inbox on the right, playing on the app's real motion grammar. It is inherently on-brand
 because it *is* the app. There is no separate "hero screenshot" competing with it (§3.1). Every
 iteration protects this moment first; if a trade-off must be made, it is made in the moment's
 favor.
 
 ### 0.2 The one expressive device (binding — "dialed up" must actually be dialed)
 
-Calm is not timid. JobText earns one bold, on-brand expressive gesture and commits to it: the
+Calm is not timid. Loonext earns one bold, on-brand expressive gesture and commits to it: the
 **honest-timeline "first week" as an oversized design object** (V2, promoted onto the home page,
 §3.5). The honest US wait is a core weapon; rendering it *large and beautiful* — not buried on a
 sub-page — turns the brand's biggest apparent liability into its signature confidence move.
@@ -88,7 +88,7 @@ The **numeral display** row is the one weight/scale escalation the marketing sit
 the app — reserved for the two expressive moments only (§0.2): the `$29` in the truth bar and
 the day-count numerals in the first-week timeline. It renders in petrol at true display scale,
 tabular numerals, and is never used for prose. This is deliberate: a 132px tabular numeral in
-petrol is JobText's signature graphic device, and because it appears exactly twice, it reads as
+petrol is Loonext's signature graphic device, and because it appears exactly twice, it reads as
 intentional art, not decoration.
 
 Rules: sentence case everywhere including H1s. Weight never exceeds 600. Self-hosted Inter
@@ -144,7 +144,7 @@ reuse those exact primitives. Split:
   app's no-card-shadow rule, allowed only on framed product visuals — plus the §1.2 glow on the
   hero only.
 - Desktop shots get a minimal stone-toned browser-chrome hint (three dots + a neutral URL bar
-  reading `jobtext.app/inbox`) — quietly reinforces "it's just the web, no download."
+  reading `loonext.app/inbox`) — quietly reinforces "it's just the web, no download."
 - Phone shots use a neutral rounded frame (stone-200 ring, 28px radius). **No Apple/Android
   device chrome** — platform-neutral keeps the PWA story honest.
 - Max settle-tilt on scroll: 2°. No 3D perspective stacks (reads dated/dev-flavored).
@@ -188,7 +188,7 @@ reuse those exact primitives. Split:
 | Route | Page | Priority | Primary query target |
 |---|---|---|---|
 | `/` | Home | Iter 2 | shared text inbox for business, business texting for small teams |
-| `/pricing` | Pricing | Iter 2 | jobtext pricing, business texting pricing |
+| `/pricing` | Pricing | Iter 2 | loonext pricing, business texting pricing |
 | `/features/shared-inbox` | Shared inbox | Iter 4 | shared sms inbox, team text inbox |
 | `/features/business-number` | Your business number | Iter 4 | business phone number for texting, second number for business texting |
 | `/features/compliance` | Compliance built in | Iter 4 | 10dlc registration for small business, business texting compliance |
@@ -200,9 +200,9 @@ reuse those exact primitives. Split:
 | `/for/hvac` | HVAC | Iter 4 | hvac customer texting |
 | `/for/salons` | Salons | Iter 4 | salon text messaging |
 | `/for/contractors` | Contractors | Iter 5 | contractor texting app |
-| `/compare/podium` | JobText vs Podium | Iter 5 | podium alternative, podium pricing |
-| `/compare/heymarket` | JobText vs Heymarket | Iter 5 | heymarket alternative, heymarket pricing |
-| `/compare/quo` | JobText vs Quo | Iter 5 | quo alternative, quo per user pricing |
+| `/compare/podium` | Loonext vs Podium | Iter 5 | podium alternative, podium pricing |
+| `/compare/heymarket` | Loonext vs Heymarket | Iter 5 | heymarket alternative, heymarket pricing |
+| `/compare/quo` | Loonext vs Quo | Iter 5 | quo alternative, quo per user pricing |
 | `/legal/terms` | Terms of service | Iter 2 | — |
 | `/legal/privacy` | Privacy policy | Iter 2 | — |
 | `/legal/aup` | Acceptable use policy | Iter 2 | — |
@@ -211,7 +211,7 @@ reuse those exact primitives. Split:
 | `/legal/refunds` | 30-day guarantee | Iter 3 | — |
 | `/security` | Security | Iter 3 | — |
 | `/contact` | Contact | Iter 2 | — |
-| `status.jobtext.app` | Status (hosted, not built) | Iter 2 | — |
+| `status.loonext.app` | Status (hosted, not built) | Iter 2 | — |
 
 **Decisions locked here:**
 
@@ -221,7 +221,7 @@ reuse those exact primitives. Split:
   differentiator), responsible-disclosure contact. It also feeds the sub-processor page.
 - **/legal/messaging: yes.** TCR campaign vetting checks the brand site for opt-in/opt-out
   language, message frequency, and "message and data rates may apply." This page is both
-  compliance evidence for JobText's own brand registration and a template customers can adapt
+  compliance evidence for Loonext's own brand registration and a template customers can adapt
   (Heymarket publishes one; we match).
 - **30-day money-back guarantee: adopted.** Paid-first means no "no credit card required" line;
   the market-standard substitute (SimpleTexting, Salesmsg both run one) is a guarantee. Ours is
@@ -242,10 +242,10 @@ reuse those exact primitives. Split:
   fast-follow. The missed-text calculator is demoted to a small home breather (§3.7), not a
   headline widget.
 - **/status: yes, hosted (not custom-built).** Every serious competitor ships a public status
-  page (teardown line 191 names it in the launch baseline), and JobText hard-gates outbound on
+  page (teardown line 191 names it in the launch baseline), and Loonext hard-gates outbound on
   carrier approval and sells trust-through-honesty — "is it down or is it me?" is a daily question
   for exactly this product. Use a hosted provider (Instatus/BetterStack free tier) at
-  `status.jobtext.app`, linked in the footer "Company & legal" column, iteration 2 scope. It does
+  `status.loonext.app`, linked in the footer "Company & legal" column, iteration 2 scope. It does
   not need a custom build, but it must exist and be linked before launch. Shipping a
   deliverability-dependent SMS product with no status page while the whole pitch is "we're the
   honest ones" is a self-inflicted trust hole.
@@ -303,7 +303,7 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
 - **The centerpiece (this replaces the old static screenshot):** a **live HTML/CSS** animated
   object built from the app's real thread primitives (§1.3). The customer's plain text sits in a
   generic Messages-style bubble on the **left phone**; the same message materializes on the
-  **right** as an assignable, notable, taggable JobText conversation. Beats arrive on the app's
+  **right** as an assignable, notable, taggable Loonext conversation. Beats arrive on the app's
   real motion grammar (200ms fade + 4px rise, §1.5): the amber internal note drops in, "Priya
   assigned this to Dale" animates as an event line, and Dale's teal-50 reply lands with a
   Delivered check. That single animated object is the entire pitch. Script shares COPY.md §H4's
@@ -312,7 +312,7 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   your whole crew can see."** (Alternates recorded in COPY.md for A/B later.) Sub carries: local
   number + flat $29 + month to month + no sales calls. CTAs: primary **"Get your number"** →
   /signup; secondary **"See pricing"** → /pricing (never "Book a demo", never "Contact sales").
-  **No defensive caption** — the browser-chrome `jobtext.app/inbox` hint (§1.3) already says
+  **No defensive caption** — the browser-chrome `loonext.app/inbox` hint (§1.3) already says
   "this is real" without a sentence apologizing for it (per the honesty-labeling finding; confidence
   is shown, not asserted). The one honesty label lives on the §3.4 deep-dive demo, not here.
 - **Truth line (under CTAs, 13px stone-500):** the US/CA timing sentence — positioning weapon #5
@@ -506,7 +506,7 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   you." Rendered as live DOM or the S10 crop; sits beside the cards as the section's product
   visual so the back half isn't text-only.
 - **Crew-size flat-vs-per-user slider (moved onto the home page — the converting interaction):**
-  drag 1→10 people and watch the "typical per-user tool" line climb past JobText's flat line.
+  drag 1→10 people and watch the "typical per-user tool" line climb past Loonext's flat line.
   This makes weapon #1 physically undeniable. <10KB island, tabular numerals, `aria-live`. The
   per-user comparison figure is labeled and dated and links to /compare/quo for the sourced math
   (per §13.7 — no bare unverified competitor number). This replaces the generic missed-text
@@ -523,7 +523,7 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   product does — **interleaved into one med-density section** so the tail of the page never
   stacks look-alike text bands (§1.4 finding). Canada leads (it's the weapon); compliance
   follows as the "and here's how the rules are handled" beat.
-- **Layout — Canada beat:** left-aligned H2 + two sentences + link "How JobText works in Canada
+- **Layout — Canada beat:** left-aligned H2 + two sentences + link "How Loonext works in Canada
   →". Instead of three flat text chips, a small **city→area-code widget visual** (or the
   province-chip visual with the "(416) — Toronto" hint) — a real product visual, not a text list
   (finding). One small maple-leaf lucide icon in petrol; tasteful, not flag-waving.
@@ -551,9 +551,9 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   a top-3 buyer question and moves UP to the first cluster** (finding: it was buried at #8 out of
   10, framed cheerfully, and read like a hidden gotcha for a business whose whole identity is a
   phone number). It is answered with the real workaround, not a dead-end "not yet": forward your
-  existing number to your new JobText number (carrier call-forwarding for voice) and move
+  existing number to your new Loonext number (carrier call-forwarding for voice) and move
   customers to the new number once — "your old number keeps ringing; new texts come to your
-  JobText number, here's how." Also covered: no app download; whole-crew $29 with the honest
+  Loonext number, here's how." Also covered: no app download; whole-crew $29 with the honest
   capacity math (not "never touch the limit" — see below); what counts as a text (pinned to the
   segment definition); why US takes about a week; Canada; photos; overages; cancellation &
   30-day number grace; the $29 registration fee.
@@ -638,7 +638,7 @@ same bar, from scratch, per trade.
 
 **Honesty guard for these pages:** no "automated reminders," no "missed-call text-back," no
 scheduling features — reminders and confirmations are things you *send* (fast, with saved
-replies), not things JobText sends for you. Copy must always attribute the action to the user.
+replies), not things Loonext sends for you. Copy must always attribute the action to the user.
 
 ---
 
@@ -646,7 +646,7 @@ replies), not things JobText sends for you. Copy must always attribute the actio
 
 Structure (Quo's proven template, turned honest): "Who each is for" intro that **concedes
 genuinely** (Podium: reviews/payments platform breadth; Heymarket: enterprise workflows, SOC 2,
-integrations; Quo: it's a full phone system with calling — JobText is texting only, and says
+integrations; Quo: it's a full phone system with calling — Loonext is texting only, and says
 so) → side-by-side table (verified rows only) → **"What you'll actually pay"** math block,
 every competitor price stamped **"as of July 2026"** with a visible last-checked date →
 switching-objections FAQ (6) → CTA.
@@ -711,7 +711,7 @@ page is the market's only Canada-first story; keep it concrete, not patriotic.
   taxes ("plus sales tax where it applies — Stripe calculates it at checkout") · "that's the
   whole list." Below it, the timeline card using the SPEC checkout copy nearly verbatim.
   This out-discloses Quo (the current market bar) on its own device.
-- **Crew-size slider (interactive):** 1–10 people → JobText flat price line vs "typical
+- **Crew-size slider (interactive):** 1–10 people → Loonext flat price line vs "typical
   per-user texting tools" line ($19/user, labeled and dated, linking to /compare/quo for the
   named math). Output in tabular numerals. <10KB island.
 - **Segment counter (interactive):** textarea → "1 text (142 characters, plain)" using the real
@@ -804,12 +804,12 @@ build-time blur placeholders via static imports. Static tiles ≤40KB each. **No
 - **V3 Flat-vs-per-user chart** — flat petrol line vs climbing stone line over 1–10 seats;
   static SVG twin of the crew-size slider (now on the **home page** §3.9 and /pricing) for no-JS
   and OG use. The climbing line is labeled with its dated per-user source (§13.7).
-- **V4 Two-phones diagram** — customer's generic messages app ↔ JobText inbox, neutral frames,
+- **V4 Two-phones diagram** — customer's generic messages app ↔ Loonext inbox, neutral frames,
   for /features/shared-inbox.
 
 ### 10.3 Logo, favicon, OG
 
-- Wordmark: "JobText" Inter 600, stone-900 (white on dark), with the app's mark — a rounded
+- Wordmark: "Loonext" Inter 600, stone-900 (white on dark), with the app's mark — a rounded
   speech-bubble tile in petrol containing a white "J". Favicon: bubble mark at 32/180/512 +
   maskable (already the PWA icon; reuse, don't redesign).
 - OG images: 1200×630, stone-50 background, petrol left rule, Inter 600 title (≤2 lines),
@@ -824,13 +824,13 @@ build-time blur placeholders via static imports. Static tiles ≤40KB each. **No
 
 ### 11.1 Metadata
 
-- `metadataBase: https://jobtext.app`; root layout `title.template: "%s · JobText"`.
-- Home (absolute): **"JobText — Shared text inbox for your crew | $29/mo flat"**;
+- `metadataBase: https://loonext.app`; root layout `title.template: "%s · Loonext"`.
+- Home (absolute): **"Loonext — Shared text inbox for your crew | $29/mo flat"**;
   description leads with flat pricing + month to month + US/Canada.
 - Every marketing page: static `metadata` export (zero runtime cost), `alternates.canonical`,
   hand-written unique descriptions (no templating), `viewport` as separate export.
 - Title patterns: features "Shared inbox for business texting"; industries "Texting software
-  for plumbers"; comparisons "JobText vs Podium: pricing & honest differences (2026)".
+  for plumbers"; comparisons "Loonext vs Podium: pricing & honest differences (2026)".
 
 ### 11.2 JSON-LD (official Next pattern: inline `<script type="application/ld+json">` in server
 components, `JSON.stringify(...).replace(/</g,'\\u003c')`, typed via `schema-dts`)
@@ -917,10 +917,10 @@ Four columns + brand block:
 2. **Who it's for:** the six trades.
 3. **Compare:** vs Podium, vs Heymarket, vs Quo.
 4. **Company & legal:** Terms, Privacy, Acceptable use, SMS policy, Sub-processors, Refunds,
-   Security, **Status** (`status.jobtext.app`, hosted — §2), **Contact** (→ /contact, a real
+   Security, **Status** (`status.loonext.app`, hosted — §2), **Contact** (→ /contact, a real
    page, not a bare mailto — §2). Still no chat widget, no phone in the footer.
 
-Brand block: wordmark + one-line restatement **"JobText — the shared text inbox for your
+Brand block: wordmark + one-line restatement **"Loonext — the shared text inbox for your
 crew."** + legal entity name and mailing address (§9 blocker) + sign-off line **"Month to
 month. No sales calls, ever."** + copyright. Full footer copy in COPY.md §F.
 
@@ -981,7 +981,7 @@ widget §3.10); (d) /pricing, legal set, /contact, SEO plumbing; (e) hosted /sta
    real names for the home founder-signed line (§3.12) — ship the sentence without names rather
    than fabricate**; refund guarantee wording + one-line Stripe refund runbook (§2); **real
    support-response SLA for /contact** ("we reply within 1 business day" placeholder until
-   confirmed); **stand up `status.jobtext.app` on a hosted provider (Instatus/BetterStack free
+   confirmed); **stand up `status.loonext.app` on a hosted provider (Instatus/BetterStack free
    tier) and link it in the footer before launch (§2).**
 4. Screenshot capture (§10.1) is gated on the UI wave + seed script; build the seed script as
    part of iteration 3. **Note: the hero has no raster (§3.1) — capture priority is the static

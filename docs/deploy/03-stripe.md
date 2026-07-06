@@ -27,15 +27,15 @@ key** (`sk_...`, needs Products/Prices/Meters write):
 
 ```bash
 # test mode
-STRIPE_SECRET_KEY=sk_test_... pnpm --filter @jobtext/api stripe:setup
+STRIPE_SECRET_KEY=sk_test_... pnpm --filter @loonext/api stripe:setup
 
 # live mode (do this when going to production)
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @jobtext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
 ```
 
 (The script is `node --experimental-strip-types scripts/stripe-setup.ts`,
 `apps/api/package.json:12`.) It is **find-or-create**: the meter is keyed by
-`event_name`, products by `metadata.jobtext_catalog`, prices by `lookup_key`, so
+`event_name`, products by `metadata.loonext_catalog`, prices by `lookup_key`, so
 re-running is safe and only reprints IDs (`apps/api/scripts/stripe-setup.ts:39-98`).
 
 ### What it creates
@@ -56,8 +56,8 @@ re-running is safe and only reprints IDs (`apps/api/scripts/stripe-setup.ts:39-9
 
 | Product | Catalog key |
 |---------|-------------|
-| `JobText Starter` | `starter` |
-| `JobText Pro` | `pro` |
+| `Loonext Starter` | `starter` |
+| `Loonext Pro` | `pro` |
 | `US texting registration` | `us_registration` |
 
 **Prices** — all `tax_behavior: exclusive`
@@ -100,7 +100,7 @@ price ID to stamp `registration_fee_paid_at`
 
 Stripe dashboard → **Developers → Webhooks → Add endpoint**.
 
-- **Endpoint URL:** `https://api.jobtext.app/webhooks/stripe`
+- **Endpoint URL:** `https://api.loonext.app/webhooks/stripe`
   (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:129`,
   handled at `apps/api/src/webhooks/stripe.ts:33`). This route is **outside** the
   JWT/CORS chain — the HMAC signature is the authentication.
@@ -125,7 +125,7 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
 > You can only get the final URL after the API Worker's custom domain is live
 > ([05](./05-workers-deploy.md) §4). Create the endpoint then, and set
 > `STRIPE_WEBHOOK_SECRET` **before** relying on webhook processing. In test mode,
-> `stripe listen --forward-to https://api.jobtext.app/webhooks/stripe` works too.
+> `stripe listen --forward-to https://api.loonext.app/webhooks/stripe` works too.
 
 ---
 

@@ -1,8 +1,8 @@
-# JobText — Number Porting (Port-In) Build Spec
+# Loonext — Number Porting (Port-In) Build Spec
 
 **Status: authoritative for the porting feature.** Implements decision **D16** in `docs/DECISIONS.md`.
 This spec adds **number transfer (port-in)** — a business brings its existing US/Canada number to
-JobText instead of getting a new one — to the paid-first onboarding, the per-company messaging
+Loonext instead of getting a new one — to the paid-first onboarding, the per-company messaging
 profile, and the 10DLC registration model already built (SPEC v2 §4.1–§4.4). It **reuses** the
 provisioning saga and the registration state machine; it does not fork them.
 
@@ -20,7 +20,7 @@ messaging profile + the collected port data) but does **NOT** confirm it — con
 post-payment step that is **hard-gated on the LOA + invoice being attached** (§3.5 / §4 P5 / §6). The
 customer uploads those documents (only possible post-payment, §3.2) and then triggers `POST /:id/submit`,
 which confirms the order. The number stays **live on the old carrier** until the **FOC (Firm Order Commitment)
-cutover date**; JobText texting on it works only after **messaging** finishes porting (a step separate
+cutover date**; Loonext texting on it works only after **messaging** finishes porting (a step separate
 from voice). We create the per-company messaging profile up front, submit 10DLC brand+campaign at
 payment time (so the campaign is **approved before** cutover — the load-bearing sequencing rule), and
 gate all texting on the ported number until its messaging port is `ported` AND (for US) the campaign is
@@ -47,9 +47,9 @@ Two **orthogonal** sub-tracks run under a single port order and each has its own
   `activation-in-progress` is a V2-only transitional value between `foc-date-confirmed` and `ported`.
 - **Messaging track** — `messaging_port_status`: `not_applicable → pending → activating → ported | exception`.
   Messaging is **separate from voice** and must be explicitly enabled (§4). `ported` here is what
-  unlocks JobText texting. Track via the `porting_order.messaging_changed` webhook.
+  unlocks Loonext texting. Track via the `porting_order.messaging_changed` webhook.
 
-**Readiness rule (the gate JobText cares about):** a ported number is usable for JobText inbound/outbound
+**Readiness rule (the gate Loonext cares about):** a ported number is usable for Loonext inbound/outbound
 only when `messaging_port_status = 'ported'`. Voice-`ported`-but-messaging-not-`ported` is the ~10% of
 numbers that take an extra 1–2 business days; the UI says so plainly (§8).
 
@@ -99,7 +99,7 @@ create type port_messaging_status as enum (
   'not_applicable',        -- messaging enablement not set (should never happen for us; we always enable)
   'pending',               -- messaging enabled but FOC not yet reached
   'activating',            -- voice ported; Telnyx verifying messaging activation
-  'ported',                -- messaging live on Telnyx  → JobText texting works
+  'ported',                -- messaging live on Telnyx  → Loonext texting works
   'exception'              -- messaging failed to auto-port; Telnyx escalating with losing carrier
 );
 
@@ -318,7 +318,7 @@ body: {
   "phone_number_configuration": {
     "messaging_profile_id": "<companies.telnyx_messaging_profile_id>",   -- NOTE the exact field name
     "connection_id":        "<optional>",
-    "tags":                 ["jobtext","company:<company_id>"]
+    "tags":                 ["loonext","company:<company_id>"]
   },
   "messaging": { "enable_messaging": true },                -- SMS is SEPARATE; must be explicit
   "documents": {
@@ -473,7 +473,7 @@ P6. On messaging_port_status → 'ported' (porting_order.messaging_changed):
        telnyx_phone_number_id = (lookupOwnedNumber(phone_e164) — the number is now Telnyx-owned).
     b. assignNumbersToCampaign() (§3.7 / R3) — assign to the approved campaign.
     c. port_requests.ported_at = now.
-    d. Resend email "Your number is live on JobText" (owner + admins); PostHog `port_completed`.
+    d. Resend email "Your number is live on Loonext" (owner + admins); PostHog `port_completed`.
     e. if wants_bridge_number and a bridge exists: email nudging the owner they can now release it.
 ```
 
@@ -680,7 +680,7 @@ After `POST /v1/companies`, the wizard presents **"How do you want your business
 - **"Get a new number"** (default) → existing area-code picker → existing flow, unchanged.
 - **"Bring my existing number"** → the **port wizard**:
   1. **Number + portability check** — enter the number → `POST /v1/port-requests/check`. Green "Yes, this
-     number can move to JobText" or a plain rejection (toll-free / not US/CA / not portable) with the
+     number can move to Loonext" or a plain rejection (toll-free / not US/CA / not portable) with the
      fallback offer to get a new number instead. **No commitment yet.**
   2. **Who's your current carrier & account** — `entity_name`, `auth_person_name`, `account_number`,
      `pin_passcode` (label: "port-out PIN / passcode — your current carrier can give you this"),
@@ -692,7 +692,7 @@ After `POST /v1/companies`, the wizard presents **"How do you want your business
      address.
   5. **Timing + the honest window** — requested FOC date (optional) and the **expectation copy** (§9),
      shown before payment.
-  6. **Tide-me-over? (opt-in, default OFF)** — checkbox: "Give me a temporary JobText number to text from
+  6. **Tide-me-over? (opt-in, default OFF)** — checkbox: "Give me a temporary Loonext number to text from
      while my number transfers. You can release it once your number arrives." → sets
      `wants_bridge_number`.
   7. The registration wizard (§4.1 step 3) runs as normal for US / CA-with-US-texting companies — brand +
@@ -709,9 +709,9 @@ today — guaranteeing the campaign is approved before the FOC cutover.
 **Checkout page copy for a port (shown before payment, replaces the §4.1 new-number checkout copy):**
 
 > "Bringing your number over usually takes a few business days to about two weeks (US) — Canada is often
-> faster. Your number keeps working on your current carrier the whole time and switches to JobText on the
-> transfer date. Texting through JobText starts once the switch completes — we'll show you exactly where
-> it is and email you at each step. Receiving and sending on JobText works the moment the transfer
+> faster. Your number keeps working on your current carrier the whole time and switches to Loonext on the
+> transfer date. Texting through Loonext starts once the switch completes — we'll show you exactly where
+> it is and email you at each step. Receiving and sending on Loonext works the moment the transfer
 > finishes; texting US numbers also needs carrier registration (typically 3–7 business days), which we
 > start now so it's ready by the time your number arrives."
 
@@ -726,8 +726,8 @@ the existing Realtime broadcast on `phone_numbers`/(new) `port_requests` updates
 |---|---|---|
 | 1. Submitted | `draft` / `in-process` / `submitted` | "We've sent the transfer request to your current carrier." |
 | 2. Date confirmed | `foc-date-confirmed` / `activation-in-progress` | "Your carrier confirmed the switch-over date: **{foc_date}**." |
-| 3. Number switched | `ported` (voice) + `messaging_port_status` `pending`/`activating` | "Your number moved to JobText — turning on texting now." |
-| 4. Texting live | `messaging_port_status='ported'` (→ number `active`) | "Done — text your customers from JobText." |
+| 3. Number switched | `ported` (voice) + `messaging_port_status` `pending`/`activating` | "Your number moved to Loonext — turning on texting now." |
+| 4. Texting live | `messaging_port_status='ported'` (→ number `active`) | "Done — text your customers from Loonext." |
 | ⚠ Needs a fix | `exception` / `messaging_port_status='exception'` | rejection_reason + "Fix and resubmit" button → `PUT` + `resubmit` |
 
 The card also shows the **bridge number** (if any) with a "Release temporary number" action once step 4
@@ -743,14 +743,14 @@ false urgency, no "instant."
 
 | State | Copy |
 |---|---|
-| Portability check OK (pre-pay) | "Good news — {number} can move to JobText. It'll keep working on your current carrier until the switch-over date." |
-| Portability check fails | "We can't transfer {number} to JobText — {reason}. You can start with a new local number instead, and forward your old one for now." |
+| Portability check OK (pre-pay) | "Good news — {number} can move to Loonext. It'll keep working on your current carrier until the switch-over date." |
+| Portability check fails | "We can't transfer {number} to Loonext — {reason}. You can start with a new local number instead, and forward your old one for now." |
 | Submitted (`in-process`/`submitted`) | "Transfer in progress. We've sent the request to your current carrier — they usually respond within a couple of business days. Your number still works on your old carrier for now." |
 | Exception (fixable) | "Your carrier flagged something on the transfer: {rejection_reason}. Fix it and resubmit — it usually takes a couple of minutes, and there's no fee to try again." + **Fix and resubmit** |
-| FOC confirmed | "Locked in. Your number switches to JobText on **{foc_date}**. Nothing works differently until then; we'll email you when it switches." |
-| Number switched, messaging activating | "Your number moved to JobText. We're turning on texting now — usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready." |
+| FOC confirmed | "Locked in. Your number switches to Loonext on **{foc_date}**. Nothing works differently until then; we'll email you when it switches." |
+| Number switched, messaging activating | "Your number moved to Loonext. We're turning on texting now — usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready." |
 | Messaging exception | "Your number moved over, but texting is taking a bit longer — your old provider hasn't released the texting routing yet. We're escalating with the carrier on your behalf; this usually clears within a business day or two and there's nothing you need to do." (Verified: Telnyx's Messaging Ops team auto-escalates the NetNumber-ID release; the customer does NOT contact the old provider here. Contrast the "10DLC assignment failed post-port" row below, which IS customer-actionable — a different failure.) |
-| Texting live (`ported`) | "🎉 Your number is live on JobText — text your customers straight from here." |
+| Texting live (`ported`) | "🎉 Your number is live on Loonext — text your customers straight from here." |
 | 10DLC assignment failed post-port | "One more step: ask your previous texting provider to remove {number} from their carrier campaign, then we'll finish connecting it. We'll retry automatically once they do." |
 | US registration still pending at cutover | (existing §4.4 banner) "US texting activates in ~3–7 business days (carrier approval). Receiving texts and texting Canadian numbers already work." |
 | Bridge number available | "Your temporary number {bridge} is ready so you can text today. When your real number finishes transferring, you can release the temporary one." |
@@ -771,7 +771,7 @@ Replace the current call-forwarding-workaround answer with the honest porting st
   > "Yes — bring the number your customers already know. When you sign up, choose **Bring my number**,
   > tell us your current carrier details, and upload a recent bill. Your number keeps working on your
   > current carrier while it transfers — usually a few business days to about two weeks in the US, often
-  > faster in Canada — and switches to JobText on the transfer date. Texting through JobText starts the
+  > faster in Canada — and switches to Loonext on the transfer date. Texting through Loonext starts the
   > moment the switch finishes, and we show you exactly where the transfer is the whole way. Prefer to
   > start texting today? Grab a new local number now and transfer your old one alongside it. Transfers are
   > free."
@@ -783,7 +783,7 @@ Replace the current call-forwarding-workaround answer with the honest porting st
   and old-carrier-until-switch reality; no "instant port" claim).
 
 - **Business-number feature page + compare pages** — add a real **"Bring your number"** capability line
-  ("Keep the number on your trucks — transfer it to JobText, free") replacing any "new number only" /
+  ("Keep the number on your trucks — transfer it to Loonext, free") replacing any "new number only" /
   "porting coming soon" language. The compare tables (`docs/marketing/BLUEPRINT.md` competitor rows) gain
   a "bring your existing number" row where relevant.
 

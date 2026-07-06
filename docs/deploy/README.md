@@ -1,11 +1,11 @@
-# JobText — Production Deploy Runbook
+# Loonext — Production Deploy Runbook
 
-The operator's authoritative guide to standing up and deploying **JobText** in
-production. JobText is two Cloudflare Workers plus five backing SaaS vendors:
+The operator's authoritative guide to standing up and deploying **Loonext** in
+production. Loonext is two Cloudflare Workers plus five backing SaaS vendors:
 
-- **`jobtext-web`** — Next.js 15, deployed to Cloudflare Workers via the
+- **`loonext-web`** — Next.js 15, deployed to Cloudflare Workers via the
   `@opennextjs/cloudflare` adapter (`apps/web/wrangler.jsonc:3`, `apps/web/package.json:10`).
-- **`jobtext-api`** — Hono API + scheduled cron jobs, deployed with `wrangler deploy`
+- **`loonext-api`** — Hono API + scheduled cron jobs, deployed with `wrangler deploy`
   (`apps/api/wrangler.jsonc:3`, `apps/api/package.json:8`).
 - **Supabase** (Postgres 17, Auth, Storage), **Telnyx** (SMS/MMS + 10DLC),
   **Stripe** (billing + usage metering), **Resend** (transactional email +
@@ -17,8 +17,8 @@ invented. Where a value is genuinely the operator's choice (domain names,
 account emails) it is marked **PLACEHOLDER** with a worked example.
 
 > **Running example used throughout** (replace with your real values):
-> web = `https://app.jobtext.app`, api = `https://api.jobtext.app`,
-> marketing root = `https://jobtext.app`, Supabase project ref = `abcdefghijklmnop`.
+> web = `https://app.loonext.app`, api = `https://api.loonext.app`,
+> marketing root = `https://loonext.app`, Supabase project ref = `abcdefghijklmnop`.
 
 ---
 
@@ -61,7 +61,7 @@ operator walkthrough — start here.**
 | **Resend** | Any (with a verified sending domain) | Transactional email + Supabase Auth custom SMTP | [02](./02-supabase.md) §7 |
 | **Sentry** | Any (Team+) | API Worker error tracking (DSN only) | [06](./06-env-reference.md) |
 | **PostHog** | Optional (Cloud US) | Product analytics in the API Worker via the optional `POSTHOG_API_KEY` secret — silent no-op when unset, `distinct_id` = company_id only (`apps/api/src/analytics/posthog.ts`). | [06](./06-env-reference.md) §E |
-| **Domain registrar** | — | Register `jobtext.app` (or your domain); DNS delegated to Cloudflare | [01](./01-accounts-and-domain.md) |
+| **Domain registrar** | — | Register `loonext.app` (or your domain); DNS delegated to Cloudflare | [01](./01-accounts-and-domain.md) |
 | **Status page** (Instatus / BetterStack free) | — | Launch blocker per marketing (`docs/marketing/BLUEPRINT.md:984`) | [07](./07-go-live-checklist.md) |
 
 ### Toolchain (local operator machine)
@@ -72,7 +72,7 @@ operator walkthrough — start here.**
 - **Supabase CLI** (`supabase/setup-cli@v1` in CI — `.github/workflows/deploy.yml:46-48`).
 - **Stripe CLI** (optional, for testing webhooks locally).
 - A **Linux or WSL** shell for the web deploy — the OpenNext Cloudflare build must
-  run on Linux/WSL (`SPEC.md:88,96`), so run the `jobtext-web` deploy from CI or WSL,
+  run on Linux/WSL (`SPEC.md:88,96`), so run the `loonext-web` deploy from CI or WSL,
   not native Windows.
 - `pnpm install --frozen-lockfile` from the repo root before any deploy
   (`.github/workflows/deploy.yml:43-44`).
@@ -81,14 +81,14 @@ operator walkthrough — start here.**
 
 1. **GitHub Actions secrets** — consumed by CI/Deploy (`.github/workflows/*`):
    Cloudflare auth, Supabase link/push, the web build's `NEXT_PUBLIC_*`. See [05](./05-workers-deploy.md) §5.
-2. **`jobtext-api` Worker encrypted secrets** — the **21 required** (+ optional
+2. **`loonext-api` Worker encrypted secrets** — the **21 required** (+ optional
    `POSTHOG_API_KEY`) runtime bindings validated at startup
    (`apps/api/src/env.ts:22-74`). Set with `wrangler secret put` **before the
    first deploy** — CI does *not* set them (`.github/workflows/deploy.yml:58-62`).
    The `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` rate-limiting bindings are
    the two non-secret bindings — declared in `apps/api/wrangler.jsonc:23-53`,
    deployed with the Worker. See [05](./05-workers-deploy.md) §2.
-3. **`jobtext-web` build-time public vars** — the three required `NEXT_PUBLIC_*`
+3. **`loonext-web` build-time public vars** — the three required `NEXT_PUBLIC_*`
    (plus two optional: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` for Supabase Auth captcha
    and `NEXT_PUBLIC_APP_ORIGIN` for the D27 marketing/app host split)
    inlined at `next build` (`apps/web/src/env.ts:3-17`). See [06](./06-env-reference.md).

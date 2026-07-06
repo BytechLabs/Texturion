@@ -1,4 +1,4 @@
-# JobText — Design System & UX Decisions
+# Loonext — Design System & UX Decisions
 
 Binding design decisions for the web app. Same authority as DECISIONS.md: implement, don't
 re-litigate. The buyer is a plumber, landscaper, cleaner, or salon owner — often on a phone,
@@ -195,9 +195,9 @@ Left-nav settings layout (mobile: stacked list → detail pages). Sections:
 - Web Push (VAPID): notification = contact name + snippet, tap → deep-link to thread.
   In-page toast (bottom-left, quiet) when a new message arrives in a conversation you're
   NOT viewing; none when viewing (the message just appears).
-- Unread favicon dot + `(3) Inbox — JobText` title count.
+- Unread favicon dot + `(3) Inbox — Loonext` title count.
 - PWA: manifest (name, petrol theme-color, maskable icon), service worker (push + offline
-  app-shell fallback page that says "You're offline — JobText needs a connection"), iOS
+  app-shell fallback page that says "You're offline — Loonext needs a connection"), iOS
   meta tags. Installability matters for the truck.
 
 ## G10. Voice & microcopy

@@ -1,4 +1,4 @@
-# JobText Marketing — Conversion & Clarity Doctrine (BINDING)
+# Loonext Marketing — Conversion & Clarity Doctrine (BINDING)
 
 User directive: "Don't confuse the customer. MAXIMUM CONVERSION. Interactive. Beautiful."
 Binding for all loop iterations, equal authority to VISUALS.md. When richness/honesty/detail
@@ -26,7 +26,7 @@ for $29). One headline, one subhead, one primary button. No competing messages.
   money-back guarantee.") so clicking feels safe.
 
 ## 3. Don't confuse — tame the honest complexity
-JobText's honest-but-complex truths (US 10DLC registration wait, message segments, opt-out
+Loonext's honest-but-complex truths (US 10DLC registration wait, message segments, opt-out
 compliance, the first-month fee) must be present but NEVER confusing:
 - **Progressive disclosure.** Lead with the simple benefit; put the mechanism behind a "how
   this works" reveal, a tooltip, or a dedicated page — not inline in the hero.
@@ -51,7 +51,7 @@ Benefit-first, never feature-first. Customer's problem before our solution.
 
 ## 5. Interactivity that converts (not gimmicks)
 Every interactive element must move the visitor toward signup by making value tangible:
-- **Missed-text calculator** → ends on "That's $X/month walking away. JobText is $29." → CTA.
+- **Missed-text calculator** → ends on "That's $X/month walking away. Loonext is $29." → CTA.
 - **Crew-size / pricing slider** → visibly proves flat team pricing beats per-seat as the team
   grows → CTA.
 - **Live inbox demo** → proves the product is real and simple → "This is your inbox. Start for

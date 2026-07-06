@@ -1,6 +1,6 @@
 # Research: Next.js 15 marketing-site engineering, SEO, and legal pages (verified 2026-07-02)
 
-Scope: everything the JobText marketing site needs to score ~100 Lighthouse, rank, and be
+Scope: everything the Loonext marketing site needs to score ~100 Lighthouse, rank, and be
 legally complete for a US/Canada SMS SaaS. All claims below were verified against live
 primary sources on 2026-07-02 (Google/web.dev/Next.js docs, peer legal pages). Where SEO
 blogs contradicted primary sources, the primary source wins and the contradiction is noted.
@@ -33,7 +33,7 @@ weights are TBT (~30%), LCP (~25%), CLS (~25%) — so near-zero JS on marketing 
 ## 2. Metadata API (Next.js 15 App Router)
 
 - **Root layout** owns the defaults: `metadataBase` (required for absolute OG/twitter URLs
-  — set to the production origin), `title: { template: '%s · JobText', default: 'JobText —
+  — set to the production origin), `title: { template: '%s · Loonext', default: 'Loonext —
   the shared text inbox for your whole crew' }`, sitewide `description`, `openGraph`
   defaults (siteName, locale `en_US`/`en_CA`, type website), `twitter.card:
   'summary_large_image'`, icons.
@@ -42,7 +42,7 @@ weights are TBT (~30%), LCP (~25%), CLS (~25%) — so near-zero JS on marketing 
   `description`. Reserve `generateMetadata()` for the dynamic segments (industry pages,
   comparison pages) where title/description come from a data map.
 - `title.absolute` overrides the template — use it on the homepage only (homepage should
-  not be "Home · JobText").
+  not be "Home · Loonext").
 - **Canonical** via `alternates: { canonical: '/pricing' }` on every page (relative paths
   resolve against `metadataBase`). Prevents dupe-content ambiguity when UTM/ref params hit
   the pages.
@@ -85,7 +85,7 @@ Per-type verdicts, verified against Google's live docs:
 - **WebSite** — ship on the homepage (name + url; helps sitelinks name display).
 - **SoftwareApplication / WebApplication** — Google's doc (updated Dec 2025) requires
   `name`, `offers.price`, **and `aggregateRating` OR `review`** for the rich result.
-  JobText has no third-party reviews yet. **Do not fabricate a rating — self-serving or
+  Loonext has no third-party reviews yet. **Do not fabricate a rating — self-serving or
   invented aggregateRating violates Google's guidelines and risks a manual action.**
   Ship `SoftwareApplication` with `applicationCategory: 'BusinessApplication'`,
   `operatingSystem: 'Web'`, and a real `offers` array ($29/$79, `priceCurrency: 'USD'`)
@@ -116,7 +116,7 @@ Per-type verdicts, verified against Google's live docs:
 - One canonical host (apex or www, pick one, 301 the other at the Cloudflare layer);
   `metadataBase` must match it.
 
-## 6. LCP strategy for the hero (JobText-specific)
+## 6. LCP strategy for the hero (Loonext-specific)
 
 **Critical local constraint:** SPEC §3 sets `images.unoptimized = true` in `apps/web`
 (no Cloudflare image resizing — cost decision). That kills next/image's automatic
@@ -179,11 +179,11 @@ one variable, mass AI text, aggregation without added context. Sites doing
 template-with-variable-substitution lost 30–80% traffic in 2025–26 updates. What survives:
 pages built on **real, differentiated data where each page answers a distinct query**.
 
-For JobText this is genuinely low-risk and high-fit:
+For Loonext this is genuinely low-risk and high-fit:
 
 - **Industry pages (5, not 500):** `/industries/plumbers|landscapers|cleaners|salons|hvac`.
   Five hand-finished pages is editorial content, not "scale." Make each one earn its
-  slot with content only JobText has: industry-specific saved-reply templates (real
+  slot with content only Loonext has: industry-specific saved-reply templates (real
   product feature — show 4–6 actual templates per trade), the industry's texting moments
   (quote follow-up, on-my-way, review ask — within what the product does today), an
   industry-tuned FAQ, and the same honest registration-timeline framing. Shared skeleton
@@ -191,7 +191,7 @@ For JobText this is genuinely low-risk and high-fit:
 - **Comparison pages:** `/compare/podium|heymarket|textline|quo` (high-intent queries).
   2026 best practice: don't declare yourself the winner everywhere — recommend each
   product for the situations it genuinely fits, address **total cost** (flat team pricing
-  vs per-seat math is JobText's strongest honest angle), date every competitor price
+  vs per-seat math is Loonext's strongest honest angle), date every competitor price
   ("as of July 2026") and re-verify quarterly. Trademark law: nominative fair use covers
   naming competitors — use their name in text only as needed, no logos-as-branding, nothing
   implying endorsement, facts not implications. Honest comparison *is* the brand voice.
@@ -208,9 +208,9 @@ Peer inventory (fetched live 2026-07-02):
 | **Textline** (`textline.com/legal/*`) | Privacy, Terms, Security/compliance, **DPA**, **Sub-processors list**, government-data-request policy; DPO contact |
 | **Heymarket** (`heymarket.com/tos|aup|privacy`) | ToS, **AUP** (express consent, **explicit ban on purchased/harvested lists**, SHAFT+ restricted content, immediate opt-out honor, suspension rights), Privacy, BAA, SMS-compliance hub |
 | **Quo (ex-OpenPhone)** (`quo.com/fair-use`) | Terms, Privacy, **Fair Use Policy** (fraud, regulated industries incl. cannabis/payday/crypto, spam, harassment; reserves volume limits) |
-| **Telnyx** (upstream, `telnyx.com/acceptable-use-policy`) | AUP banning SHAFT-type content, spam, spoofing, deceptive traffic — JobText's own AUP must be at least as strict so enforcement can flow down |
+| **Telnyx** (upstream, `telnyx.com/acceptable-use-policy`) | AUP banning SHAFT-type content, spam, spoofing, deceptive traffic — Loonext's own AUP must be at least as strict so enforcement can flow down |
 
-JobText's checklist:
+Loonext's checklist:
 
 1. **Terms of Service** — month-to-month, cancel anytime (this is a positioning weapon;
    the ToS must actually say it), plan limits, outbound-segment billing + overage cap,
@@ -233,8 +233,8 @@ JobText's checklist:
      shared with or sold to third parties or affiliates for marketing/promotional
      purposes**, plus message-frequency and "message and data rates may apply"
      disclosures. TCR campaign vetting checks the brand website's privacy policy for
-     this — JobText registers its own brand (sole-prop OTP texts) *and* auto-submits
-     customers' campaigns, so JobText's own site must pass the same check it asks of
+     this — Loonext registers its own brand (sole-prop OTP texts) *and* auto-submits
+     customers' campaigns, so Loonext's own site must pass the same check it asks of
      customers. (Fast-follow content idea: a help-doc template customers can adapt for
      their own sites — Heymarket publishes exactly this.)
 3. **Acceptable Use / Messaging Policy** (D4 already requires signup-time acceptance):
@@ -245,7 +245,7 @@ JobText's checklist:
    marketing); opt-outs honored immediately (the product enforces STOP automatically —
    say so); no spoofing/fraud/harassment; suspension/termination rights. Must be at least
    as strict as Telnyx's AUP.
-4. **Sub-processor list** — cheap, peer-verified trust page. JobText's is short and
+4. **Sub-processor list** — cheap, peer-verified trust page. Loonext's is short and
    honest: Telnyx (SMS/MMS, numbers, 10DLC), Stripe (payments/tax), Supabase (database,
    auth, file storage — AWS us-east-1), Cloudflare (hosting/CDN), Resend (transactional
    email), Sentry (error monitoring, PII-scrubbed), PostHog (product analytics, no message
@@ -253,7 +253,7 @@ JobText's checklist:
 5. **Nice-to-have at launch, standard among peers:** a short security page (RLS,
    encrypted at rest/in transit, PII-scrubbed monitoring — only claim what SPEC supports);
    DPA available on request (full self-serve DPA can wait).
-6. **CASL applies to JobText's own marketing** (emails/texts to prospects): consent,
+6. **CASL applies to Loonext's own marketing** (emails/texts to prospects): consent,
    sender identification, working unsubscribe. And in marketing copy: the product "helps
    you follow CASL/TCPA rules" (STOP handling, consent attestation, identification
    footer are real features) — never "makes you compliant." Peers uniformly hedge the

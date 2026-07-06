@@ -1,11 +1,11 @@
-# JobText — Customer-Lens Gap Analysis (trades daily reality)
+# Loonext — Customer-Lens Gap Analysis (trades daily reality)
 
 Researched 2026-07-03. Lens: what a plumber / HVAC / landscaper / cleaner / salon owner
-actually needs day-to-day from a business texting tool that JobText does not provide today.
+actually needs day-to-day from a business texting tool that Loonext does not provide today.
 Grounded in the trade (reviews/forums/trade sources + competitor behavior), constrained to
-JobText's lowest-upkeep rule (reuse Supabase / Telnyx / Stripe / Workers-cron; no new vendors).
+Loonext's lowest-upkeep rule (reuse Supabase / Telnyx / Stripe / Workers-cron; no new vendors).
 
-## What JobText already ships (so we don't re-list it as a gap)
+## What Loonext already ships (so we don't re-list it as a gap)
 Shared SMS inbox, assignment/ownership, internal notes, conversation tags pre-seeded as a
 pipeline (Quote sent / Scheduled / Won / Lost), saved replies ("/" templates), MMS both
 directions (photo triage), message-done + promote-to-Task (list/board/calendar/**map**),
@@ -20,8 +20,8 @@ get-paid) are not served at all.
 ### 1. Never miss a lead — CALLS, not just texts  [LOAD-BEARING]
 The ICP's number is on trucks/yard signs/Google; customers **call** it. 62% of calls to local
 service businesses go unanswered at peak; ~41% of weekend calls go unanswered; callers rarely
-leave voicemail — they dial the next plumber. JobText today only catches texts to that number;
-a call to the same Telnyx number is a dead end. This is the single biggest hole and JobText's
+leave voicemail — they dial the next plumber. Loonext today only catches texts to that number;
+a call to the same Telnyx number is a dead end. This is the single biggest hole and Loonext's
 own D11 already names **missed-call text-back** "the headline differentiator for v1.x" — it is
 deferred, not absent by design. Feasible on-stack: Telnyx numbers can do voice ($0.002/min,
 native voicemail beta + call-forwarding + transcription), so an unanswered inbound call fires
@@ -30,7 +30,7 @@ in the same shared thread. Turns a lost call into a live text conversation. Noth
 
 ### 2. Respond fast even after hours  [LOAD-BEARING for retention]
 A 9pm "no hot water" must get *an instant acknowledgement*, then a human in the morning. Today
-JobText's answer is "it waits safely in the inbox" — honest, but the customer hears silence and
+Loonext's answer is "it waits safely in the inbox" — honest, but the customer hears silence and
 may text a competitor who auto-replies. Every FSM/texting rival has an **after-hours / instant
 auto-reply** (business-hours-aware). Feasible with a Workers-cron/business-hours check +
 one auto-send on first inbound outside hours; reuses `companies.timezone` (D15) and quiet-hours
@@ -51,31 +51,31 @@ calling, and the trade confirms slots by text constantly. The right-sized gaps: 
 confirmation that's a feature, not a manual template** — set day/time once, it renders a clean
 confirmation and (optionally) a reminder; (b) **appointment reminders + "on my way" as
 first-class actions**, since reminders cut no-shows ~35% and every rival automates them while
-JobText leaves them as canned text. The Task `due_at` + calendar view already exists — a reminder
+Loonext leaves them as canned text. The Task `due_at` + calendar view already exists — a reminder
 is a cron over `due_at`, not a new system.
 
 ### 5. Get PAID  [LOAD-BEARING — currently zero coverage]
-This is the biggest *category* gap: JobText has Stripe wired for its own billing but gives the
+This is the biggest *category* gap: Loonext has Stripe wired for its own billing but gives the
 tradesperson **no way to collect money from their customer over text**. "Text-to-pay" is now
 table-stakes in the trade (25–30% of some tools' invoices get paid over text; it beats email 3:1).
 Feasible on-stack with **Stripe Payment Links / Connect** (already the payment vendor): owner sets
-an amount → JobText mints a payment link → sends it in-thread → webhook marks paid. Deposits before
+an amount → Loonext mints a payment link → sends it in-thread → webhook marks paid. Deposits before
 a truck rolls, balance on completion. No new vendor, and it's the feature most likely to make a
 $29/mo tool feel like it prints money.
 
 ### 6. Get a REVIEW  [LOAD-BEARING for a small shop's survival]
 Reviews are existential for local trades, and SMS review requests beat email 3:1 and routinely
-*double* Google review volume. JobText ships this only as saved-reply #6 ("a Google review goes a
+*double* Google review volume. Loonext ships this only as saved-reply #6 ("a Google review goes a
 long way: {link}") — a human must paste a link and remember to send it. The gap is **automation +
 the link itself**: store the company's Google review deep-link once (free — Place ID →
 `search.google.com/local/writereview?placeid=…`, or the `g.page/r` short link; no vendor), then
-offer a one-tap "Ask for a review" that fires when a job/message is marked **done** (JobText
+offer a one-tap "Ask for a review" that fires when a job/message is marked **done** (Loonext
 already has message-done + Task-done as the trigger). Best practice is to send ~90–120 min after
 completion — a short cron delay, not a new pipeline.
 
 ### 7. Coordinate the crew  [MOSTLY COVERED — small edges]
 Assignment, internal notes, /for-you queue, tasks, and the Map view already serve this well; it's
-JobText's strongest area. Remaining small edges: **@mentions** in notes (flagged as "if/when it
+Loonext's strongest area. Remaining small edges: **@mentions** in notes (flagged as "if/when it
 ships" in D24 — the crew wants to tag a specific tech, not just assign the whole thread) and a
 light **on-call / who-gets-after-hours-pings** rule so evening notifications hit one person, not
 everyone (copy already promises "only the on-call tech gets buzzed" but there's no on-call setting
@@ -92,10 +92,10 @@ behind it — a promise the product doesn't yet keep).
   voice *reception*, not a full IVR.
 
 ## Why these are the right calls
-JobText's marketing is honest that it "doesn't do voice calls, mass text blasts, or review
+Loonext's marketing is honest that it "doesn't do voice calls, mass text blasts, or review
 management" (COPY §H8) — but three of those four honest-omissions (missed-call catch, review asks,
 and by extension text-to-pay) are exactly the trade's money jobs, and all three are buildable on the
-**existing** Telnyx/Stripe/Workers stack with no new vendor. The pattern of the real gap: JobText
+**existing** Telnyx/Stripe/Workers stack with no new vendor. The pattern of the real gap: Loonext
 nailed the *shared-inbox* job and turned the trade's daily texts into *templates a human sends*; the
 retention unlock is turning the four money-jobs (catch the call, reply instantly, get paid, get the
 review) from manual templates into **automated, on-stack features**.

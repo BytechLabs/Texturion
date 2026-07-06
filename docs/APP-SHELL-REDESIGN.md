@@ -1,4 +1,4 @@
-# JobText App Shell Redesign (BINDING)
+# Loonext App Shell Redesign (BINDING)
 
 The app reads as bland and ugly, and the left text-sidebar is the worst of it. This resets the
 app's look toward modern and crafted, and replaces the sidebar. Supersedes the sidebar/shell parts

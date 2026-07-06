@@ -1,6 +1,6 @@
 # Photography credits & license
 
-The JobText marketing site uses real, licensed photography (VISUALS-V2 §2): warm,
+The Loonext marketing site uses real, licensed photography (VISUALS-V2 §2): warm,
 authentic tradespeople and service-business photos. **Source: Unsplash**
 (<https://unsplash.com>), all photographer-contributed under the standard
 **Unsplash License** — free for commercial use, no attribution required. None of

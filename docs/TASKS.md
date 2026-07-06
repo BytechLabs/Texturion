@@ -1,4 +1,4 @@
-# JobText — Tasks (D17) Build Specification
+# Loonext — Tasks (D17) Build Specification
 
 **Status: BINDING.** Same authority as `SPEC.md` and `docs/DECISIONS.md`. This document is the
 single source of truth for the **Tasks** feature (Decision **D17**) plus the two thread-view
@@ -37,7 +37,7 @@ completion flag.
 - **Every task promotes a real message.** `message_id` is **NOT NULL** (D17: "promote a message to a
   Task"). **Standalone (message-less) tasks are OUT of MVP** — see T0.1.
 
-Two archetypes exist in the field: (A) *the message/conversation is the task* — JobText already
+Two archetypes exist in the field: (A) *the message/conversation is the task* — Loonext already
 ships this as D14; (B) *a task is a linked first-class entity with its own assignee/due/notes* —
 Missive subtasks, Front linked tasks, Linear issue-from-Slack, Intercom convert-to-ticket. **D17 adds
 archetype B as a strictly additive metadata layer over A. It never replaces A, and — crucially — it

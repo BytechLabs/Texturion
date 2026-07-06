@@ -1,6 +1,6 @@
 # Marketing screenshots — index & provenance
 
-**All shots in `apps/web/public/shots/` are real captures of the running JobText
+**All shots in `apps/web/public/shots/` are real captures of the running Loonext
 app** (the actual Next.js UI talking to the real API and a seeded local
 Supabase), showing obviously-demo data for **"Mike's Plumbing"**. No mockups, no
 stock, no invented capabilities. This file is the honest record of what exists,
@@ -116,10 +116,10 @@ pnpm db:reset                 # clean migrations state
 node --experimental-strip-types scripts/dev-seed.ts
 
 # 3. API worker (real .dev.vars from .dev.vars.example — local Supabase + fakes)
-pnpm --filter @jobtext/api exec wrangler dev --port 8787
+pnpm --filter @loonext/api exec wrangler dev --port 8787
 
 # 4. Web app (in another shell; .env.local → local Supabase + the wrangler API)
-pnpm --filter @jobtext/web exec next dev --port 3100
+pnpm --filter @loonext/web exec next dev --port 3100
 
 # 5. Chromium for Playwright (once)
 pnpm dlx playwright install chromium
@@ -128,7 +128,7 @@ pnpm dlx playwright install chromium
 node apps/web/scripts/capture-shots.mjs
 ```
 
-The script signs in as `owner@jobtext.test` / `devseed1`, drives each surface,
+The script signs in as `owner@loonext.test` / `devseed1`, drives each surface,
 captures 2× light+dark, downscales to WebP+AVIF at the display width, and
 rewrites `manifest.ts`. Raster work happens in `.next-shots/` (gitignored via
 `.next-*/`) and is cleaned up on exit. **Kill the two dev servers yourself when

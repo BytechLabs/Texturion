@@ -19,8 +19,8 @@ You should already have (from [02](./02-supabase.md)–[04](./04-telnyx.md)):
 - `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID` (the
   Call-Control application id from [04](./04-telnyx.md) §1).
 - Resend key + verified `RESEND_FROM`; Sentry DSN.
-- The two chosen origins: `APP_ORIGIN=https://app.jobtext.app`,
-  `API_ORIGIN=https://api.jobtext.app` (PLACEHOLDERS).
+- The two chosen origins: `APP_ORIGIN=https://app.loonext.app`,
+  `API_ORIGIN=https://api.loonext.app` (PLACEHOLDERS).
 - Optionally a PostHog project API key (`POSTHOG_API_KEY`) — analytics are a
   silent no-op without it ([06](./06-env-reference.md) §E).
 
@@ -45,7 +45,7 @@ bytes).
 CI does **not** set these — `deploy.yml` only runs `wrangler deploy`
 (`.github/workflows/deploy.yml:58-62`). The Worker validates all 21 at startup and
 `/health` re-validates, naming any missing key (`apps/api/src/env.ts:22-74,89-105`,
-`apps/api/src/index.ts:88-92`). Set every one on `jobtext-api`. A 22nd,
+`apps/api/src/index.ts:88-92`). Set every one on `loonext-api`. A 22nd,
 `POSTHOG_API_KEY`, is **optional** — set it only if you want product analytics
 (`apps/api/src/env.ts:65`).
 
@@ -56,7 +56,7 @@ Create a local, **uncommitted** JSON of `KEY: value` pairs (e.g.
 
 ```bash
 # from the repo root; do NOT commit secrets.prod.json
-pnpm --filter @jobtext/api exec wrangler secret bulk ./secrets.prod.json
+pnpm --filter @loonext/api exec wrangler secret bulk ./secrets.prod.json
 ```
 
 ### Option B — one at a time
@@ -64,7 +64,7 @@ pnpm --filter @jobtext/api exec wrangler secret bulk ./secrets.prod.json
 Each command prompts for the value (paste, Enter):
 
 ```bash
-cd apps/api   # or prefix each with: pnpm --filter @jobtext/api exec
+cd apps/api   # or prefix each with: pnpm --filter @loonext/api exec
 
 pnpm exec wrangler secret put SUPABASE_URL
 pnpm exec wrangler secret put SUPABASE_SECRET_KEY
@@ -118,23 +118,23 @@ descriptions and formats are in [06 — env reference](./06-env-reference.md).
 
 CI/Deploy does this automatically on merge to `main` (§5). To deploy **manually**:
 
-### API Worker (`jobtext-api`)
+### API Worker (`loonext-api`)
 
 ```bash
-pnpm --filter @jobtext/api exec wrangler deploy
+pnpm --filter @loonext/api exec wrangler deploy
 ```
 
 This runs `wrangler deploy` (`apps/api/package.json:8`), which also **registers the
 cron triggers** (§6) — no dashboard action needed.
 
-### Web Worker (`jobtext-web`) — MUST build on Linux/WSL
+### Web Worker (`loonext-web`) — MUST build on Linux/WSL
 
 ```bash
 # The NEXT_PUBLIC_* vars are inlined at build time and MUST be in the shell env.
 NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
-NEXT_PUBLIC_API_URL=https://api.jobtext.app \
-  pnpm --filter @jobtext/web run deploy
+NEXT_PUBLIC_API_URL=https://api.loonext.app \
+  pnpm --filter @loonext/web run deploy
 ```
 
 `run deploy` = `opennextjs-cloudflare build && opennextjs-cloudflare deploy`
@@ -155,8 +155,8 @@ Worker → **Settings → Domains & Routes → Add Custom Domain**, or `wrangler
 
 | Worker | Custom domain(s) |
 |--------|------------------|
-| `jobtext-api` | `api.jobtext.app` |
-| `jobtext-web` | `app.jobtext.app` **and** `jobtext.app` **and** `www.jobtext.app` — all three on the one Worker (D27) |
+| `loonext-api` | `api.loonext.app` |
+| `loonext-web` | `app.loonext.app` **and** `loonext.app` **and** `www.loonext.app` — all three on the one Worker (D27) |
 
 Adding a custom domain creates the proxied DNS record automatically (see
 [01](./01-accounts-and-domain.md) §3). With the optional `NEXT_PUBLIC_APP_ORIGIN`
@@ -164,8 +164,8 @@ build var set (§5), the middleware enforces the D27 host split across those thr
 hostnames: marketing only on the apex (`www` → apex), the product only on `app.`
 (`apps/web/src/lib/hosts.ts`). After this, confirm:
 
-- `https://api.jobtext.app/health` returns `{"ok":true}` (`apps/api/src/index.ts:88-92`).
-- `https://app.jobtext.app` loads the app.
+- `https://api.loonext.app/health` returns `{"ok":true}` (`apps/api/src/index.ts:88-92`).
+- `https://app.loonext.app` loads the app.
 
 The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildcard**
 (`apps/api/src/index.ts:75`); the Telnyx/Stripe webhook URLs derive from `API_ORIGIN`.
@@ -184,7 +184,7 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `ci.yml:43`, `deploy.yml:21` |
 | `NEXT_PUBLIC_API_URL` | web build — `deploy.yml:22` (set to your API origin) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` *(optional)* | web build — `deploy.yml:23-26` (only if Supabase captcha is enabled; see below) |
-| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.jobtext.app`, blank = no split) |
+| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.loonext.app`, blank = no split) |
 | `SUPABASE_ACCESS_TOKEN` | migrations — `deploy.yml:52` |
 | `SUPABASE_DB_PASSWORD` | migrations — `deploy.yml:53` |
 | `SUPABASE_PROJECT_REF` | migrations — `deploy.yml:55` |
@@ -192,7 +192,7 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 ### RESOLVED — `NEXT_PUBLIC_API_URL` is now wired into CI/Deploy
 
 The previously documented gap is closed. `ci.yml` builds with a **fixed
-placeholder** (`https://api.jobtext.app`, `.github/workflows/ci.yml:44-47`) — safe
+placeholder** (`https://api.loonext.app`, `.github/workflows/ci.yml:44-47`) — safe
 because `apps/web/src/env.ts` only requires a syntactically valid URL and the CI
 build artifact is never deployed. `deploy.yml` rebuilds with the real value from
 the `NEXT_PUBLIC_API_URL` GitHub secret (`.github/workflows/deploy.yml:22`) — set
@@ -220,8 +220,8 @@ var and fails.
   1. Checkout the exact `head_sha` that passed CI.
   2. `pnpm install --frozen-lockfile`.
   3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
-  4. `pnpm --filter @jobtext/api exec wrangler deploy` (API Worker).
-  5. `pnpm --filter @jobtext/web run deploy` (OpenNext build + deploy).
+  4. `pnpm --filter @loonext/api exec wrangler deploy` (API Worker).
+  5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
 
 ---
 
@@ -264,21 +264,21 @@ Operational details in [08 — operations](./08-operations.md).
 
 ## 8. Register the live webhook URLs back into the vendors
 
-Now that `api.jobtext.app` is live:
+Now that `api.loonext.app` is live:
 
 - **Stripe:** create/confirm the webhook endpoint at
-  `https://api.jobtext.app/webhooks/stripe` with the 7 events, and set its `whsec_`
+  `https://api.loonext.app/webhooks/stripe` with the 7 events, and set its `whsec_`
   as `STRIPE_WEBHOOK_SECRET` (re-run the relevant `wrangler secret put`). See
   [03](./03-stripe.md) §3.
 - **Telnyx:** messaging needs nothing registered — the webhook URL is set
   **programmatically** per messaging profile from `API_ORIGIN`
   (`apps/api/src/telnyx/wizard.ts:140-142`). Just confirm `API_ORIGIN` on the
-  Worker is `https://api.jobtext.app`, and that the **Call-Control application's**
+  Worker is `https://api.loonext.app`, and that the **Call-Control application's**
   webhook + failover URL (entered once in the portal, [04](./04-telnyx.md) §1)
-  point at the same live `https://api.jobtext.app/webhooks/telnyx`. See
+  point at the same live `https://api.loonext.app/webhooks/telnyx`. See
   [04](./04-telnyx.md) §3.
 
 After changing any secret, redeploy is **not** required for secret pickup, but
-re-hit `GET https://api.jobtext.app/health` to confirm validation passes.
+re-hit `GET https://api.loonext.app/health` to confirm validation passes.
 
 Next: [06 — env reference](./06-env-reference.md).

@@ -1,9 +1,9 @@
-# JobText App UI Elevation — "Wealthsimple-grade: beautiful, clean, easy"
+# Loonext App UI Elevation — "Wealthsimple-grade: beautiful, clean, easy"
 
 **Status: BINDING.** Same authority as `docs/DESIGN.md`. This spec elevates the **look and feel**
 of the authenticated web app (inbox list, conversation thread + composer, contacts, onboarding,
 auth, settings) to the interaction *quality* of Wealthsimple — calm, clean, effortless,
-friendly-premium, a complex domain made to feel simple — **while keeping JobText's own identity:
+friendly-premium, a complex domain made to feel simple — **while keeping Loonext's own identity:
 warm stone neutrals, petrol `#0F766E`, Inter, border-first, mobile-first.** We adopt
 Wealthsimple's *principles and craft, not its palette.*
 
@@ -29,7 +29,7 @@ never slow. **Calm ≠ empty. Calm = nothing fights for attention while you get 
 
 ## 1. The bar
 
-**Wealthsimple-grade for JobText means:** the conversation and the customer are the only bright,
+**Wealthsimple-grade for Loonext means:** the conversation and the customer are the only bright,
 heavy things on any screen; everything else — nav, meta, timestamps, system chrome — recedes into
 quiet warm stone. Hierarchy comes from **type weight + size + a soft near-black**, never from boxes,
 shadows, or a second color. The petrol accent is spent like it costs money: **at most one petrol
@@ -75,7 +75,7 @@ already correct in DESIGN.md/`globals.css`, it is restated as a *lock*, not a ch
 
 ### 2.1 Color — the "Dune duo" + a scarce accent
 
-- **Never pure black.** `--foreground` (`stone-900`) on `--background` (`stone-50`) is JobText's
+- **Never pure black.** `--foreground` (`stone-900`) on `--background` (`stone-50`) is Loonext's
   white+Dune duo — already a warm near-black in `globals.css`. **Lock: no `#000` text, no `#000`
   border, no pure-black shadow anywhere in the app.** Marketing's one product-shadow exception does
   not apply to the app.
@@ -92,7 +92,7 @@ already correct in DESIGN.md/`globals.css`, it is restated as a *lock*, not a ch
   only. Enforce **one petrol element per visual region.** Everything else that used petrol as
   emphasis becomes stone or a quiet tint. Focus rings (`--ring`, petrol) are exempt — they only
   appear on the focused element.
-- **Encouraging green, sparingly.** Map Wealthsimple's positive-money green to JobText's
+- **Encouraging green, sparingly.** Map Wealthsimple's positive-money green to Loonext's
   `--success` (`emerald-600`), used *only* for genuine positives: "You're live", "Delivered", a
   completed onboarding check, done. Never as a general accent.
 - **Status pills stay tinted-and-quiet** (information, not color). Standardize their tokens so no pill
@@ -115,7 +115,7 @@ already correct in DESIGN.md/`globals.css`, it is restated as a *lock*, not a ch
   | **hero line** (the "warm display moment") | 28–30px / 1.2, `-0.01em` tracking | 600 | **one per big screen only** |
   | **emotional number** | **32–36px / 1.1**, tabular, `-0.01em` | 600 | **three moments only** |
 - **The "warm display moment" without a new font.** Wealthsimple pairs a warm serif with a clean
-  sans; JobText stays Inter-only and gets the same *effect* by rendering **the one hero line per big
+  sans; Loonext stays Inter-only and gets the same *effect* by rendering **the one hero line per big
   screen** (the onboarding question, the activation caption, the empty-state headline) in the hero row
   above — slightly larger Inter, tighter tracking, extra air around it. This is an app-local treatment,
   **not** the marketing `.display-hero` utility. Everything else stays in the functional ladder.

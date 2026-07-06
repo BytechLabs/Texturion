@@ -1,4 +1,4 @@
-# JobText — "For You" Home + Task Views (BINDING)
+# Loonext — "For You" Home + Task Views (BINDING)
 
 Complements docs/TASKS.md and docs/APP-LAYOUT-V2.md (written by the app-v2 spec pass). These
 are product-owner decisions added 2026-07-02 answering: where do crew members see what to focus

@@ -8,7 +8,7 @@ basics.
 
 ## 1. Cron jobs — what runs and how to verify
 
-Nine cron triggers on `jobtext-api`, registered automatically on `wrangler deploy`
+Nine cron triggers on `loonext-api`, registered automatically on `wrangler deploy`
 (`apps/api/wrangler.jsonc:11-21`), mapped to jobs at `apps/api/src/index.ts:157-198`.
 Jobs sharing a trigger run **sequentially but fail independently**; if any fails the
 whole run rejects (as an `AggregateError`) so Sentry records it
@@ -28,9 +28,9 @@ whole run rejects (as an `AggregateError`) so Sentry records it
 
 ### Verify the crons
 
-- **Cloudflare dashboard** → `jobtext-api` → **Triggers → Cron Triggers**: all 9
+- **Cloudflare dashboard** → `loonext-api` → **Triggers → Cron Triggers**: all 9
   expressions listed with last-run status.
-- **Live logs:** `pnpm --filter @jobtext/api exec wrangler tail` and watch a
+- **Live logs:** `pnpm --filter @loonext/api exec wrangler tail` and watch a
   `*/5` window, or Cloudflare → Worker → Logs.
 - **Sanity checks in data:** after an hour, `usage_events.stripe_reported_at` should
   be non-null for reported rows; `webhook_events` should have no rows with
@@ -74,7 +74,7 @@ email with the hosted invoice link; no state change
   (`apps/api/src/observability/sentry.ts:117-125`) — message bodies never reach
   Sentry. Watch for: the `*/5` sweeper's 5th-attempt alerts, cron `AggregateError`s,
   and Resend/Telnyx/Stripe call failures.
-- **`/health`** — `GET https://api.jobtext.app/health` re-runs env validation; a 500
+- **`/health`** — `GET https://api.loonext.app/health` re-runs env validation; a 500
   naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`). Good
   target for an uptime monitor / the status page.
 - **PostHog** — optional product analytics (`POSTHOG_API_KEY`,
@@ -89,7 +89,7 @@ email with the hosted invoice link; no state change
 ## 4. Storage — allowance, caps, and accounting (D30)
 
 Supabase Pro includes **100 GB** of storage; beyond it the marginal cost is
-~$0.021/GB-month (`SPEC.md:1157-1162`, `docs/DECISIONS.md` D30). JobText's
+~$0.021/GB-month (`SPEC.md:1157-1162`, `docs/DECISIONS.md` D30). Loonext's
 storage splits into two arms that are governed **differently on purpose**:
 
 - **Generic (note/task) attachments — a budgeted allowance, enforced at upload.**
@@ -190,7 +190,7 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 5. **CORS failures in the browser** — `APP_ORIGIN` on the Worker must exactly equal
    the web origin, no trailing slash mismatch (`apps/api/src/index.ts:75`).
 6. **Rollback** — deploys are per-Worker; redeploy the previous commit
-   (`pnpm --filter @jobtext/api exec wrangler deploy` / the web deploy) or use
+   (`pnpm --filter @loonext/api exec wrangler deploy` / the web deploy) or use
    Cloudflare's version rollback. Migrations are **forward-only** — never `db push` a
    destructive change without a reviewed migration.
 7. **Escalation** — Sentry issue → identify the failing call (Supabase / Stripe /

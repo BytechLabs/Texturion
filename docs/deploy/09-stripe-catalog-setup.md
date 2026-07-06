@@ -32,7 +32,7 @@ Source: `apps/api/src/billing/stripe.ts:25` constructs the client from
 From the repo, with the key in the environment:
 
 ```
-STRIPE_SECRET_KEY=sk_live_... pnpm --filter @jobtext/api stripe:setup
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
 ```
 
 (Exact invocation from the script header: `apps/api/scripts/stripe-setup.ts:6`.)
@@ -41,7 +41,7 @@ The script is **find-or-create idempotent** — reruns reuse existing objects an
 just reprint the ids (`apps/api/scripts/stripe-setup.ts:16-19`). Idempotency
 keys:
 - Meter keyed by `event_name` (`stripe-setup.ts:44`).
-- Products keyed by `metadata.jobtext_catalog` (`stripe-setup.ts:68`).
+- Products keyed by `metadata.loonext_catalog` (`stripe-setup.ts:68`).
 - Prices keyed by `lookup_key` (`stripe-setup.ts:86-90`).
 
 ### What it creates
@@ -65,19 +65,19 @@ The meter's payload keys are load-bearing: the usage reporter sends exactly
 
 | catalog key | name | Source |
 |---|---|---|
-| `starter` | `JobText Starter` | `stripe-setup.ts:102` |
-| `pro` | `JobText Pro` | `stripe-setup.ts:103` |
+| `starter` | `Loonext Starter` | `stripe-setup.ts:102` |
+| `pro` | `Loonext Pro` | `stripe-setup.ts:103` |
 | `us_registration` | `US texting registration` | `stripe-setup.ts:104-107` |
 
 **Six Prices** (all `tax_behavior: exclusive` — tax added on top):
 
 | lookup_key | Product | Shape | Source |
 |---|---|---|---|
-| `jobtext_starter_licensed` | Starter | $29.00/mo flat (`unit_amount: 2900`, recurring monthly) | `stripe-setup.ts:110-116` |
-| `jobtext_starter_overage` | Starter | metered, graduated: 0–500 @ $0, then $0.03/seg (`unit_amount: 3`); bound to the meter | `stripe-setup.ts:119-130` |
-| `jobtext_pro_licensed` | Pro | $79.00/mo flat (`unit_amount: 7900`) | `stripe-setup.ts:133-139` |
-| `jobtext_pro_overage` | Pro | metered, graduated: 0–2,500 @ $0, then $0.025/seg (`unit_amount_decimal: "2.5"`); bound to the meter | `stripe-setup.ts:144-155` |
-| `jobtext_us_registration` | US registration | $29.00 one-time (`unit_amount: 2900`, no recurring) | `stripe-setup.ts:158-163` |
+| `loonext_starter_licensed` | Starter | $29.00/mo flat (`unit_amount: 2900`, recurring monthly) | `stripe-setup.ts:110-116` |
+| `loonext_starter_overage` | Starter | metered, graduated: 0–500 @ $0, then $0.03/seg (`unit_amount: 3`); bound to the meter | `stripe-setup.ts:119-130` |
+| `loonext_pro_licensed` | Pro | $79.00/mo flat (`unit_amount: 7900`) | `stripe-setup.ts:133-139` |
+| `loonext_pro_overage` | Pro | metered, graduated: 0–2,500 @ $0, then $0.025/seg (`unit_amount_decimal: "2.5"`); bound to the meter | `stripe-setup.ts:144-155` |
+| `loonext_us_registration` | US registration | $29.00 one-time (`unit_amount: 2900`, no recurring) | `stripe-setup.ts:158-163` |
 
 The metered prices use `usage_type: metered` + `meter: <meter.id>` and carry
 **no quantity** at checkout — the metered line item is added with no `quantity`
@@ -131,7 +131,7 @@ This can only be done once the API custom domain exists (the `API_ORIGIN` value
 — see [runbook.md](./runbook.md) §1/§6). The endpoint URL is:
 
 ```
-https://api.jobtext.app/webhooks/stripe
+https://api.loonext.app/webhooks/stripe
 ```
 
 The route is mounted at `/webhooks/stripe`, outside the JWT/CORS chain — the

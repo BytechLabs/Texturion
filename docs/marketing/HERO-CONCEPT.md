@@ -1,4 +1,4 @@
-# JobText Marketing — Hero Concept (BINDING, build-ready)
+# Loonext Marketing — Hero Concept (BINDING, build-ready)
 
 **Status: BINDING.** The build-ready spec for the home page's one signature moment. Same
 authority as BLUEPRINT.md §3.1 and §0.1, which it supersedes on hero *mechanics* (the "two-phones
@@ -69,7 +69,7 @@ primitives, sitting in the §3.2 morning-light atmosphere. Two states:
   petrol **"FILED"** stamp presses in (150ms scale+fade, §5).
 - The chosen assignee's avatar **flies to the row's meta line**; a tabular ticket-meta line
   resolves: **`#0119 · filed · Dale · 2:14 PM`.**
-- The raw gray bubble **re-renders as a clean JobText conversation**: the inbound white card, an
+- The raw gray bubble **re-renders as a clean Loonext conversation**: the inbound white card, an
   **amber internal note** ("heard a hiss — send Dale, it's the tankless" — only if the visitor
   added one, otherwise a pre-seeded one drops), and **Dale's `teal-50` reply** landing with a
   **Delivered ✓**.
@@ -205,7 +205,7 @@ the floor.
 | **Launch gate** | Re-run a **real mobile** Lighthouse pass; hold 100/100/100/100 on home. |
 
 **Honesty guard (BLUEPRINT §13.6, VISUALS §6):** the **visitor's own tap** does the assigning and
-filing — accurate, because a human assigns. The animation must **never imply automation JobText
+filing — accurate, because a human assigns. The animation must **never imply automation Loonext
 lacks** (no auto-reply, no auto-schedule, no missed-call text-back). The single honesty label
 *"Demo — scripted conversation, real interface"* lives on the §3.4 deep-dive, not here — the hero
 shows confidence, not a defensive caption (BLUEPRINT §3.1). Seed data is Reyes Plumbing / the

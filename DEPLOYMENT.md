@@ -1,13 +1,13 @@
-# JobText — What you need to deploy
+# Loonext — What you need to deploy
 
 The one-page answer to *"what do I have to provide to run this in production."*
 Every command, secret, and dashboard step is detailed in **[docs/deploy/](docs/deploy/README.md)** —
 start with `docs/deploy/README.md` and work the numbered `01`–`08` pages in order.
 This page is the shopping list; the runbook is the recipe.
 
-JobText is **two Cloudflare Workers + five SaaS vendors**, no other servers.
-`jobtext-web` (Next.js via OpenNext) serves the marketing site and the app;
-`jobtext-api` (Hono) serves `/v1/*`, `/webhooks/*`, and the cron jobs.
+Loonext is **two Cloudflare Workers + five SaaS vendors**, no other servers.
+`loonext-web` (Next.js via OpenNext) serves the marketing site and the app;
+`loonext-api` (Hono) serves `/v1/*`, `/webhooks/*`, and the cron jobs.
 
 ---
 
@@ -22,7 +22,7 @@ JobText is **two Cloudflare Workers + five SaaS vendors**, no other servers.
 | **Resend** | Any, with a **verified sending domain** | Transactional email + Supabase Auth SMTP | free tier fine |
 | **Sentry** | Any (Team+) | API error tracking (DSN only) | free tier fine |
 | **PostHog** | *Optional*, Cloud US | Product analytics (silent no-op if unset) | free tier fine |
-| **Domain registrar** | — | `jobtext.app` (or yours), DNS delegated to Cloudflare | ~$12/yr |
+| **Domain registrar** | — | `loonext.app` (or yours), DNS delegated to Cloudflare | ~$12/yr |
 | **Status page** | Instatus / BetterStack free | Launch blocker (deliverability-gated SMS product) | free tier fine |
 
 **Fixed platform cost ≈ $30/mo** (Cloudflare $5 + Supabase $25); everything else scales with usage.
@@ -31,24 +31,24 @@ JobText is **two Cloudflare Workers + five SaaS vendors**, no other servers.
 
 ## 2. Secrets & config — the three surfaces (do not conflate)
 
-### (a) `jobtext-api` Worker secrets — **21 required + 1 optional**
+### (a) `loonext-api` Worker secrets — **21 required + 1 optional**
 Set with `wrangler secret put` **before the first deploy** (CI does not set them).
 Full table with sources in [docs/deploy/06-env-reference.md](docs/deploy/06-env-reference.md) §A.
 
 - **Supabase (3):** `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`
 - **Telnyx (3):** `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID`
-- **Stripe (8):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the 6 catalog IDs printed by `pnpm --filter @jobtext/api stripe:setup` (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`)
+- **Stripe (8):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the 6 catalog IDs printed by `pnpm --filter @loonext/api stripe:setup` (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`)
 - **Email/errors/push (5):** `RESEND_API_KEY`, `RESEND_FROM`, `SENTRY_DSN`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (VAPID pair: `npx web-push generate-vapid-keys`, once forever)
 - **Origins (2):** `APP_ORIGIN`, `API_ORIGIN`
 - **Optional (1):** `POSTHOG_API_KEY` — unset = analytics off
 
-### (b) `jobtext-api` Worker bindings (not secrets, live in `wrangler.jsonc`)
+### (b) `loonext-api` Worker bindings (not secrets, live in `wrangler.jsonc`)
 Two Workers rate-limiting bindings, deployed with the Worker — **nothing to put**, but each
 `namespace_id` must be **unique within your Cloudflare account** (change if it collides):
 `SEND_RATE_LIMITER` (namespace 1001, 1 msg/s per company) and `VERIFY_RATE_LIMITER`
 (namespace 1002, verification-code throttle).
 
-### (c) `jobtext-web` build vars — **3 required + 2 optional** (`NEXT_PUBLIC_*`, inlined at build)
+### (c) `loonext-web` build vars — **3 required + 2 optional** (`NEXT_PUBLIC_*`, inlined at build)
 - **Required:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`
 - **Optional:** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (signup captcha), `NEXT_PUBLIC_APP_ORIGIN` (marketing/app host split)
 
@@ -63,9 +63,9 @@ Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_
 
 - **Supabase → Auth → enable an ES256 (asymmetric) JWT signing key.** Without it every `/v1/*` request 401s — the API verifies tokens ES256-only against the project JWKS.
 - **Supabase → Auth → custom SMTP = Resend**, and (optional) **Attack Protection → CAPTCHA = Turnstile.** ⚠️ If you enable the captcha setting, the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` secret must be set and the web redeployed **first**, or all email/password auth breaks.
-- **Telnyx → create one Call-Control (voice) application**, webhook + failover both `https://api.jobtext.app/webhooks/telnyx`; its id becomes `TELNYX_VOICE_CONNECTION_ID`.
-- **Stripe → webhook endpoint** `https://api.jobtext.app/webhooks/stripe` (7 events); enable **Tax**; configure the **customer portal** and **dunning → cancel**.
-- **Cloudflare → attach three custom domains to `jobtext-web`** (`jobtext.app`, `www.jobtext.app`, `app.jobtext.app`) and `api.jobtext.app` to `jobtext-api`.
+- **Telnyx → create one Call-Control (voice) application**, webhook + failover both `https://api.loonext.app/webhooks/telnyx`; its id becomes `TELNYX_VOICE_CONNECTION_ID`.
+- **Stripe → webhook endpoint** `https://api.loonext.app/webhooks/stripe` (7 events); enable **Tax**; configure the **customer portal** and **dunning → cancel**.
+- **Cloudflare → attach three custom domains to `loonext-web`** (`loonext.app`, `www.loonext.app`, `app.loonext.app`) and `api.loonext.app` to `loonext-api`.
 
 ---
 
@@ -91,7 +91,7 @@ a support-response SLA, a live status page, and the published legal set (Terms, 
 
 ## 6. Toolchain to run the deploy
 
-Node ≥ 22, pnpm, wrangler (bundled dev dep), Supabase CLI. The `jobtext-web` (OpenNext) build must
+Node ≥ 22, pnpm, wrangler (bundled dev dep), Supabase CLI. The `loonext-web` (OpenNext) build must
 run on **Linux or WSL**, not native Windows — deploy web from CI or WSL. `pnpm install --frozen-lockfile`
 from the repo root first.
 

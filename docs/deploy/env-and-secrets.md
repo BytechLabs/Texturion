@@ -1,4 +1,4 @@
-# JobText — Environment & Secrets Surface
+# Loonext — Environment & Secrets Surface
 
 The complete env/secrets inventory for both Workers. Every entry is traceable to code (`file:line`). Nothing here is invented — if a value is not read by the code, it is not listed.
 
@@ -6,12 +6,12 @@ Two deploy artifacts:
 
 | Worker | wrangler name | main entry | reads secrets via |
 | --- | --- | --- | --- |
-| **api** (Hono) | `jobtext-api` (`apps/api/wrangler.jsonc:3`) | `src/index.ts` (`apps/api/wrangler.jsonc:4`) | Worker encrypted secrets (`wrangler secret put`) — validated by zod in `apps/api/src/env.ts:22-74` — plus the `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` bindings from `wrangler.jsonc` (§1a) |
-| **web** (Next.js / OpenNext) | `jobtext-web` (`apps/web/wrangler.jsonc:4`) | `.open-next/worker.js` (`apps/web/wrangler.jsonc:5`) | `NEXT_PUBLIC_*` build-time inlined vars only — `apps/web/src/env.ts:3-17` |
+| **api** (Hono) | `loonext-api` (`apps/api/wrangler.jsonc:3`) | `src/index.ts` (`apps/api/wrangler.jsonc:4`) | Worker encrypted secrets (`wrangler secret put`) — validated by zod in `apps/api/src/env.ts:22-74` — plus the `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` bindings from `wrangler.jsonc` (§1a) |
+| **web** (Next.js / OpenNext) | `loonext-web` (`apps/web/wrangler.jsonc:4`) | `.open-next/worker.js` (`apps/web/wrangler.jsonc:5`) | `NEXT_PUBLIC_*` build-time inlined vars only — `apps/web/src/env.ts:3-17` |
 
 ---
 
-## 1. API Worker secrets (`jobtext-api`)
+## 1. API Worker secrets (`loonext-api`)
 
 Every one of these is a **Worker encrypted secret** in production (`wrangler secret put <NAME>`), and a `.dev.vars` line locally. The zod schema in `apps/api/src/env.ts` requires all of them except the optional `POSTHOG_API_KEY`; a missing/invalid one makes the Worker fail loudly on first request or first cron (`apps/api/src/env.ts:89-105`, and `/health` re-validates at `apps/api/src/index.ts:88-92`). `wrangler.jsonc` `"vars": {}` is empty on purpose — no plaintext config lives there (`apps/api/wrangler.jsonc:50`).
 
@@ -55,7 +55,7 @@ The canonical local template is `apps/api/.dev.vars.example` (lines 4-32).
 | Var | What it is | Where the operator gets it | Secret? |
 | --- | --- | --- | --- |
 | `RESEND_API_KEY` | Resend REST key (`re_...`), bearer on `POST https://api.resend.com/emails` (`apps/api/src/email/resend.ts:15,30`). Fixture: `apps/api/src/test/support.ts:22`. | Resend dashboard → API Keys. | **Secret.** `env.ts:37` |
-| `RESEND_FROM` | The `from` header, e.g. `JobText <notifications@jobtext.app>` (`apps/api/src/email/resend.ts:35`; fixture `test/support.ts:26`; note `env.ts:42`). | Operator-chosen; the domain must be a **verified sending domain** in Resend. | Secret (config value). `env.ts:43` |
+| `RESEND_FROM` | The `from` header, e.g. `Loonext <notifications@loonext.app>` (`apps/api/src/email/resend.ts:35`; fixture `test/support.ts:26`; note `env.ts:42`). | Operator-chosen; the domain must be a **verified sending domain** in Resend. | Secret (config value). `env.ts:43` |
 
 ### Sentry
 
@@ -73,8 +73,8 @@ The canonical local template is `apps/api/.dev.vars.example` (lines 4-32).
 
 | Var | What it is | Where the operator gets it | Secret? |
 | --- | --- | --- | --- |
-| `APP_ORIGIN` | The web app's public origin, e.g. `https://app.jobtext.app` (fixture `test/support.ts:24`). Used as the **CORS allow-origin** (exact match, no wildcard — `apps/api/src/index.ts:75`), for all user-facing links in emails/notifications/billing return URLs (e.g. `routes/billing.ts:171-172,199`, `billing/grace.ts:28`, `notifications/inbound.ts:145`), and as the VAPID `sub` contact URI (`notifications/webpush.ts:232`). | Operator-chosen; must equal the web Worker's public URL exactly. | Secret (config). `env.ts:39` |
-| `API_ORIGIN` | This API Worker's own public origin, e.g. `https://api.jobtext.app` (fixture `test/support.ts:25`). Used to build the **Telnyx webhook callback URL** `${API_ORIGIN}/webhooks/telnyx` (`apps/api/src/telnyx/wizard.ts:141`), set on the messaging profile during provisioning (`telnyx/provisioning.ts:22-23`). | Operator-chosen; must equal the api Worker's public URL exactly. | Secret (config). `env.ts:41` |
+| `APP_ORIGIN` | The web app's public origin, e.g. `https://app.loonext.app` (fixture `test/support.ts:24`). Used as the **CORS allow-origin** (exact match, no wildcard — `apps/api/src/index.ts:75`), for all user-facing links in emails/notifications/billing return URLs (e.g. `routes/billing.ts:171-172,199`, `billing/grace.ts:28`, `notifications/inbound.ts:145`), and as the VAPID `sub` contact URI (`notifications/webpush.ts:232`). | Operator-chosen; must equal the web Worker's public URL exactly. | Secret (config). `env.ts:39` |
+| `API_ORIGIN` | This API Worker's own public origin, e.g. `https://api.loonext.app` (fixture `test/support.ts:25`). Used to build the **Telnyx webhook callback URL** `${API_ORIGIN}/webhooks/telnyx` (`apps/api/src/telnyx/wizard.ts:141`), set on the messaging profile during provisioning (`telnyx/provisioning.ts:22-23`). | Operator-chosen; must equal the api Worker's public URL exactly. | Secret (config). `env.ts:41` |
 
 ### Web Push (VAPID)
 
@@ -94,7 +94,7 @@ Two api bindings are **not** secrets and never touch `wrangler secret put`. Both
 
 ---
 
-## 2. Web Worker vars (`jobtext-web`)
+## 2. Web Worker vars (`loonext-web`)
 
 The **only** environment values the browser bundle receives (`apps/web/src/env.ts:40-41`, `.env.example:4-14`). All are `NEXT_PUBLIC_*` → **inlined at build time** by `next build` (`apps/web/src/env.ts:19-21`), so they must be present in the environment of the build step (CI sets them for the web build; see the deploy pipeline). They are **not secrets** — they ship to every browser. Three are required; the Turnstile site key and the app origin are optional.
 
@@ -102,9 +102,9 @@ The **only** environment values the browser bundle receives (`apps/web/src/env.t
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL for the browser Supabase client and the SSR middleware client (`apps/web/src/env.ts:23`, `apps/web/src/middleware.ts:18`). | Supabase dashboard → Project Settings → API → Project URL (same value as api's `SUPABASE_URL`). | **Public.** Build-time inlined. `env.ts:4` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The `sb_publishable_...` key (the browser-safe anon-equivalent). Distinct from the api's `sb_secret_` key. Used in the browser and middleware Supabase clients (`apps/web/src/env.ts:24-25`, `apps/web/src/middleware.ts:19`). | Supabase dashboard → Project Settings → API keys → **Publishable key** (`sb_publishable_...`). | **Public.** Build-time inlined. `env.ts:5` |
-| `NEXT_PUBLIC_API_URL` | Base URL of the api Worker the browser calls, e.g. `https://api.jobtext.app` (validated as a URL, `apps/web/src/env.ts:6`). Should equal the api's `API_ORIGIN`. | Operator-chosen; the api Worker's public URL. | **Public.** Build-time inlined. `env.ts:6` |
+| `NEXT_PUBLIC_API_URL` | Base URL of the api Worker the browser calls, e.g. `https://api.loonext.app` (validated as a URL, `apps/web/src/env.ts:6`). Should equal the api's `API_ORIGIN`. | Operator-chosen; the api Worker's public URL. | **Public.** Build-time inlined. `env.ts:6` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | **OPTIONAL.** Cloudflare Turnstile **site** key. When set, signup/login/reset-password render the Turnstile widget and pass its `captchaToken` to Supabase Auth; when unset the auth pages behave as before (`apps/web/src/env.ts:7-10,27-29`, `apps/web/src/components/auth/turnstile.tsx`). The Turnstile **secret** key never enters the app — it goes in the Supabase dashboard (Auth → Attack Protection → CAPTCHA). A blank value means "not configured". | Cloudflare dashboard → Turnstile → your widget → Site key. Needed only if you enable Supabase Auth captcha. | **Public** (site keys are public by design). Build-time inlined. `env.ts:10` |
-| `NEXT_PUBLIC_APP_ORIGIN` | **OPTIONAL.** The app portal origin (production: `https://app.jobtext.app`; must equal the api's `APP_ORIGIN`). Activates the D27 marketing/app host split: the middleware's first gate serves **only** marketing pages on `jobtext.app` (app-surface paths 308 to the app origin; `www` canonicalizes to the apex) and **only** the product on this origin (`apps/web/src/env.ts:11-16,30`, `apps/web/src/lib/hosts.ts`, `docs/DECISIONS.md` D27). Blank/unset (dev, CI, previews) = no gating. Requires `jobtext.app`, `www.jobtext.app`, and `app.jobtext.app` all attached to the one web Worker. Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged. | Operator-chosen; the app hostname on the web Worker. | **Public.** Build-time inlined. `env.ts:16` |
+| `NEXT_PUBLIC_APP_ORIGIN` | **OPTIONAL.** The app portal origin (production: `https://app.loonext.app`; must equal the api's `APP_ORIGIN`). Activates the D27 marketing/app host split: the middleware's first gate serves **only** marketing pages on `loonext.app` (app-surface paths 308 to the app origin; `www` canonicalizes to the apex) and **only** the product on this origin (`apps/web/src/env.ts:11-16,30`, `apps/web/src/lib/hosts.ts`, `docs/DECISIONS.md` D27). Blank/unset (dev, CI, previews) = no gating. Requires `loonext.app`, `www.loonext.app`, and `app.loonext.app` all attached to the one web Worker. Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged. | Operator-chosen; the app hostname on the web Worker. | **Public.** Build-time inlined. `env.ts:16` |
 
 > **Publishable vs secret Supabase keys:** web uses the **publishable** key (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`), api uses the **secret** key (`SUPABASE_SECRET_KEY`, `sb_secret_...`). Never put the secret key in any `NEXT_PUBLIC_*` var — it would ship to every browser.
 
@@ -124,7 +124,7 @@ The pipeline is `CI` → (on success, main) → `Deploy` (`.github/workflows/dep
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ci.yml:43`, `deploy.yml:21` | Inlined into the web build. |
 | `NEXT_PUBLIC_API_URL` | `deploy.yml:22` | Inlined into the **deployed** web build; set to the API origin. CI builds with a fixed placeholder instead (`ci.yml:44-47`) — the CI artifact is never deployed. |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **(optional)** | `deploy.yml:23-26` | Turnstile site key for the deployed web build (§2). Blank/unset = no captcha widget. **Must be set (and web redeployed) BEFORE enabling Supabase Auth captcha**, or every email/password signup/login/reset fails captcha verification. |
-| `NEXT_PUBLIC_APP_ORIGIN` **(optional)** | `deploy.yml:27-30` | App origin for the D27 host split (§2). Blank/unset = no host split; production value `https://app.jobtext.app`. |
+| `NEXT_PUBLIC_APP_ORIGIN` **(optional)** | `deploy.yml:27-30` | App origin for the D27 host split (§2). Blank/unset = no host split; production value `https://app.loonext.app`. |
 | `SUPABASE_ACCESS_TOKEN` | `deploy.yml:52` | `supabase link` / `db push` auth. |
 | `SUPABASE_DB_PASSWORD` | `deploy.yml:53` | DB password for migration push. |
 | `SUPABASE_PROJECT_REF` | `deploy.yml:55` | `supabase link --project-ref`. |

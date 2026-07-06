@@ -1,4 +1,4 @@
-# JobText Marketing — Art Direction (BINDING)
+# Loonext Marketing — Art Direction (BINDING)
 
 **Status: BINDING.** Same authority as BLUEPRINT.md, VISUALS.md, and CONVERSION.md: implement,
 don't re-litigate. This is the distinctive identity system iteration 5 builds the whole
@@ -57,7 +57,7 @@ Everything below is the system that decision produces.
 
 ## 1. The big idea / the soul
 
-**JobText is the front desk your trade never had.** The whole site is built like a warm,
+**Loonext is the front desk your trade never had.** The whole site is built like a warm,
 beautifully-typeset **job ledger** — the physical intake pad a busy shop keeps by the phone,
 where every customer text becomes a job ticket that gets claimed, assigned, and closed out where
 the whole crew can see it.
@@ -87,7 +87,7 @@ sentence-case (DESIGN.md G10, CONVERSION.md §3).
 
 One grammar, repeated until it becomes the brand fingerprint. This is the Stripe-wave /
 Linear-arrow / Resend-gradient discipline: **pick one motif, repeat it everywhere, so a varied
-page still reads as ONE designed thing.** For JobText that motif is the **job ticket** and its
+page still reads as ONE designed thing.** For Loonext that motif is the **job ticket** and its
 partner, the **ledger spine**.
 
 ### 2.1 The ticket (every surface wears it)
@@ -238,7 +238,7 @@ nowhere else.
 
 ### 4.2 The numeral-display device — the signature graphic (used EXACTLY twice)
 
-The one weight/scale escalation over the app. A **132px tabular petrol numeral** is JobText's
+The one weight/scale escalation over the app. A **132px tabular petrol numeral** is Loonext's
 signature graphic device, and it appears **exactly twice** so it reads as intentional art, not
 decoration (BLUEPRINT §0.2):
 
@@ -421,7 +421,7 @@ richness fights clarity, **clarity wins**):
    ~40% who never interact — plus no-JS and reduced-motion — still get the entire pitch. **Test on
    a fresh non-designer before anything else ships.**
 5. **Honesty is absolute** (BLUEPRINT §13, VISUALS §6): no fake logos, counts, testimonials,
-   badges, or stock. The stamp/ticket must never imply automation JobText lacks (no auto-reply,
+   badges, or stock. The stamp/ticket must never imply automation Loonext lacks (no auto-reply,
    no auto-schedule) — the *visitor's own tap* does the filing, which is accurate (a human
    assigns). Every infographic number traces to SPEC or user input. Warmth and proof come from
    verifiable truths (transparent $29, the owned $58→$29 first-month math, the security strip, the

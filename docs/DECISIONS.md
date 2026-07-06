@@ -1,4 +1,4 @@
-# JobText — Product Owner Decision Log
+# Loonext — Product Owner Decision Log
 
 Binding decisions for SPEC v2 and the build. Each decision resolves findings from the
 spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research briefs
@@ -325,7 +325,7 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
 
 **Supersedes the D15-era "porting is a fast-follow / forward-your-number workaround" posture.**
 Number transfer (port-in) is now a **shipped MVP capability**: a business can bring its existing
-US or Canadian number to JobText instead of getting a new one. This is the honest answer to the
+US or Canadian number to Loonext instead of getting a new one. This is the honest answer to the
 top-3 buyer objection ("can I keep the number on my trucks and my Google listing?") — a real port,
 not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the binding product calls:
 
@@ -353,13 +353,13 @@ not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the bindi
 
 - **The port window is handled honestly, and we DO NOT auto-provision a bridge number.**
   A port takes days to weeks; the number stays live on the **old carrier** until the FOC
-  (Firm Order Commitment) cutover date, and **JobText inbound/outbound on that number only works
+  (Firm Order Commitment) cutover date, and **Loonext inbound/outbound on that number only works
   after the messaging port completes** (voice `ported` → messaging `ported`, separate step). We set
   this expectation loudly at checkout and render the live port state in-app (state machine below).
-  We **do not silently buy a temporary JobText number** during the port (it would confuse the ICP —
+  We **do not silently buy a temporary Loonext number** during the port (it would confuse the ICP —
   two numbers, unclear which to give customers — and undercut the whole "keep your number" promise).
   Instead we offer an **explicit, opt-in "tide-me-over number"** the owner can choose in the port
-  wizard: a checkbox "Give me a temporary JobText number to text from while my number transfers"
+  wizard: a checkbox "Give me a temporary Loonext number to text from while my number transfers"
   → provisions a normal new number via the existing saga, which the owner later releases (or keeps,
   paying for a 2nd number on Pro) after the port completes. Default is **off** — most customers
   simply wait for the FOC date, which the copy makes safe and predictable. This keeps the default
@@ -409,7 +409,7 @@ not carrier call-forwarding. The full build spec is `docs/PORTING.md`; the bindi
   (`docs/marketing/COPY.md` §H12 Q "can I keep my number", and the BLUEPRINT.md FAQ note that
   frames it as call-forwarding) is **replaced** with the honest porting story: "Yes — bring your
   number. It keeps working on your old carrier while it transfers (usually a few days to two weeks
-  for US, faster in Canada), and moves to JobText on the switch-over date. We'll tell you exactly
+  for US, faster in Canada), and moves to Loonext on the switch-over date. We'll tell you exactly
   where it is the whole way." The business-number feature page and the compare pages gain a real
   **"Bring your number"** capability line (replacing any "new number only" / "porting coming soon"
   framing). The honesty rule is kept: we state the multi-day/week window and the old-carrier-until-
@@ -532,7 +532,7 @@ talks to Supabase Auth directly (`@supabase/ssr`), the Worker never brokers logi
   redirect URI = the Supabase project's `…/auth/v1/callback`); Apple via an Apple **Services ID** (the
   OAuth client), a Sign-in-with-Apple **Key**, and the **Team ID** — registered in the Supabase dashboard
   Apple provider (Client IDs = the Services ID; Apple's client secret is a short-lived JWT Supabase mints
-  from the key). Both providers list JobText's production + preview origins in the Auth **redirect allow
+  from the key). Both providers list Loonext's production + preview origins in the Auth **redirect allow
   list**. No secrets ship to the browser (D8): the frontend still only gets `NEXT_PUBLIC_SUPABASE_URL` +
   publishable key.
 - **PKCE flow with a server callback route (required for `@supabase/ssr`):** the "Continue with Google/
@@ -543,7 +543,7 @@ talks to Supabase Auth directly (`@supabase/ssr`), the Worker never brokers logi
   `apps/web`**, not a Worker/API auth route — it is the one and only OAuth server touchpoint and does not
   violate "no Worker auth route" (D8).
 - **OAuth → company-link flow (the real integration work).** Supabase creates the `auth.users` row; the
-  `profiles` trigger (D7) fills `display_name` from the OAuth identity. JobText's tenancy is separate
+  `profiles` trigger (D7) fills `display_name` from the OAuth identity. Loonext's tenancy is separate
   (`company_members`, D8), so after any first sign-in the app routes on membership, identically for
   password and OAuth users:
   - **Invited user (email matches an open `invites` row):** the existing invite-accept path binds
@@ -561,7 +561,7 @@ talks to Supabase Auth directly (`@supabase/ssr`), the Worker never brokers logi
 - **Email change (Settings → Account):** `supabase.auth.updateUser({ email })` from the browser. Leave
   Supabase **"Secure email change" ON** — it emails a confirmation to **both** the current and the new
   address, and the change only commits when confirmed. UI states it plainly ("Confirm from both your old
-  and new inbox"). On commit, Supabase updates `auth.users.email`; JobText reads email from there, so no
+  and new inbox"). On commit, Supabase updates `auth.users.email`; Loonext reads email from there, so no
   app mirror to reconcile. OAuth-only users (no password) can still set/confirm an email this way.
 - **Password change (Settings → Account):** `supabase.auth.updateUser({ password })`. Leave **"Secure
   password change" ON** — Supabase requires **reauthentication only if the session is older than 24h**;
@@ -765,7 +765,7 @@ after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1
   (`reconcileVoiceEnablement`) that binds any ACTIVE un-bound number of a feature-on company — covering
   enable-before-active (the normal onboarding order), numbers added/ported later, and transient failures
   of (a). **Hosted numbers are never voice-bound** — their voice deliberately stays on the owner's
-  carrier, so missed-call text-back requires a JobText-carried (provisioned or ported) number; the UI says
+  carrier, so missed-call text-back requires a Loonext-carried (provisioned or ported) number; the UI says
   so plainly.
 - **The text-back rides the shared auto-send machinery**: `claim_missed_call_text` (SECURITY DEFINER RPC)
   atomically threads the caller (same D7 rules as an inbound text — contact upsert, reopen-within-30d,
@@ -801,8 +801,8 @@ after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1
 
 ## D27. Marketing/app host split — one Worker, two hostnames, middleware-enforced
 
-**Decision:** the landing site and the product are SEPARATED at the hostname level — `jobtext.app`
-(+ `www`) serves ONLY the marketing pages, `app.jobtext.app` serves ONLY the product (app, auth,
+**Decision:** the landing site and the product are SEPARATED at the hostname level — `loonext.app`
+(+ `www`) serves ONLY the marketing pages, `app.loonext.app` serves ONLY the product (app, auth,
 onboarding) — WITHOUT adding a deploy surface. Both hostnames attach to the ONE existing web Worker
 (D1's two-Worker architecture is unchanged), and the split is enforced by the session middleware's
 first gate (`lib/hosts.ts`, a pure tested function).
@@ -821,9 +821,9 @@ first gate (`lib/hosts.ts`, a pure tested function).
   changes. A malformed value disables the split rather than breaking requests.
 - **No component knows about hostnames.** Marketing pages keep linking to the app with relative
   paths (`/login`, `/signup` — `APP_LINKS`); the middleware hop makes them land on the app origin.
-  `SITE_URL` (`https://jobtext.app`) remains the canonical base for sitemap/SEO/JSON-LD, which never
+  `SITE_URL` (`https://loonext.app`) remains the canonical base for sitemap/SEO/JSON-LD, which never
   emit app paths; robots.txt keeps disallowing the app surfaces.
-- **Operator step:** attach `jobtext.app`, `www.jobtext.app`, and `app.jobtext.app` as custom
+- **Operator step:** attach `loonext.app`, `www.loonext.app`, and `app.loonext.app` as custom
   domains on the web Worker, set the `NEXT_PUBLIC_APP_ORIGIN` GitHub Actions secret, and keep
   Supabase/auth/Stripe return URLs on `APP_ORIGIN` (unchanged — they always pointed at the app host).
 - **Consistency:** D1 (still exactly two Workers), SPEC §10 (auth middleware unchanged, the host gate
@@ -916,7 +916,7 @@ accounting:
 ## D31. Launch pass (SPEC §12 step 19) — a hermetic golden-path E2E, faked vendors, in CI
 
 **Decision:** step 19's "both golden paths recorded green in CI against test-mode vendors" ships as a
-**hermetic full-stack E2E harness**: the REAL `jobtext-api` Worker (`app.fetch`) against the REAL
+**hermetic full-stack E2E harness**: the REAL `loonext-api` Worker (`app.fetch`) against the REAL
 local Supabase, with Telnyx and Stripe **faked at their HTTP boundary** and their state machines
 advanced by the **same signed webhooks production receives**. No external network, no live vendor
 keys, deterministic in CI.

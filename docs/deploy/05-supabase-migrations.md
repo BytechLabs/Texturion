@@ -76,7 +76,7 @@ via committed local config.)
 
 Signup is protected by **Cloudflare Turnstile via Supabase Auth's captcha
 setting**, because Supabase Auth traffic goes browser → `<project>.supabase.co`
-directly and is not behind JobText's Cloudflare zone (`SPEC.md:1052`).
+directly and is not behind Loonext's Cloudflare zone (`SPEC.md:1052`).
 
 Two halves:
 

@@ -1,4 +1,4 @@
-# JobText Marketing Copy Deck — v1 (final quality)
+# Loonext Marketing Copy Deck — v1 (final quality)
 
 **Status: BINDING copy for iterations 2+.** Covers the home page, the pricing page, and
 /for/plumbers (the master template for the other five trade pages). Voice per DESIGN.md G10:
@@ -34,7 +34,7 @@ Every customer text, in one inbox your whole crew can see.
 - The shared text inbox for service crews.
 
 **Sub:**
-JobText gives your business its own local number for texting. Everyone on the team can read,
+Loonext gives your business its own local number for texting. Everyone on the team can read,
 reply, assign, and close conversations — from any phone. One flat price for the whole crew:
 $29 a month. No contracts, no sales calls. Ever.
 
@@ -45,7 +45,7 @@ Day one: your number is live and receiving texts, and texting Canadian customers
 away. Texting US customers turns on in about a week, once the phone companies approve you — we
 file everything the minute you pay.
 
-**Hero image caption:** *(none — cut. The `jobtext.app/inbox` browser-chrome hint says it's real.
+**Hero image caption:** *(none — cut. The `loonext.app/inbox` browser-chrome hint says it's real.
 Confidence is shown, not asserted.)*
 
 ---
@@ -181,7 +181,7 @@ shared inbox, where anyone can pick it up.
 **H2:** Built for the truck, not the desk.
 
 **Body:**
-JobText works on every phone your crew already carries — no download, no app store, no IT
+Loonext works on every phone your crew already carries — no download, no app store, no IT
 day. Open the link, add it to your home screen, and it behaves like an app: push notifications
 when a customer texts, one-handed replies from the job site, and a dark mode that doesn't blind
 you at 6am.
@@ -212,7 +212,7 @@ only multiplying what you type; we don't quote industry stats we can't stand beh
 **Formula line (always visible):** {missed} × {rate} × {value} × 4.33 weeks
 
 **Closer:**
-JobText can't answer your phone. But customers who won't leave a voicemail will text — and a
+Loonext can't answer your phone. But customers who won't leave a voicemail will text — and a
 text in a shared inbox gets answered by whoever's free, not whoever's phone it is. That's $29
 a month against the number above.
 
@@ -256,8 +256,8 @@ For crews up to ten — and a second number.
 **Guarantee line:** 30-day money-back guarantee — full refund, including the registration fee.
 
 **Crew-size slider (moved to the home page — the converting interaction):**
-Slide from 1 to 10 people and watch a typical per-user tool climb past JobText's flat line.
-- JobText: **${29|79}/mo** — flat, whatever your crew size
+Slide from 1 to 10 people and watch a typical per-user tool climb past Loonext's flat line.
+- Loonext: **${29|79}/mo** — flat, whatever your crew size
 - Typical per-user tool at $19/user/mo (monthly billing): **${n × 19}/mo** — and climbing
 *(Per-user figure is the published monthly Starter seat price of a leading tool as of July 2026;
 see the sourced math on our comparison pages.)*
@@ -276,21 +276,21 @@ see the sourced math on our comparison pages.)*
 
 **Lead:** Business texting in the US and Canada comes with real rules — registering your business
 with the phone companies, honoring opt-outs, recording consent. Most tools hand you a compliance
-homework packet. JobText just does it.
+homework packet. Loonext just does it.
 
 **Proof points:**
 - **Registration, filed for you.** We register your business with the US phone companies
   automatically at signup. You answer a few plain questions; we handle the forms, the follow-ups,
   and the resubmission if anything bounces.
 - **STOP means stop, instantly.** When a customer texts STOP, they're opted out on the spot —
-  and JobText blocks any future send to that number until they opt back in. No accidents.
+  and Loonext blocks any future send to that number until they opt back in. No accidents.
 - **Consent, on the record.** Starting a new conversation asks one question: did this customer
   ask you to text them? That answer is recorded, with a name and a date.
 - **Your business, identified.** The first text to a new contact automatically ends with your
   business name and "Reply STOP to opt out" — what US and Canadian rules expect, written for
   you.
 
-**Closer:** JobText helps you follow the rules — TCPA in the US, CASL in Canada — without
+**Closer:** Loonext helps you follow the rules — TCPA in the US, CASL in Canada — without
 becoming a compliance department. And if you *start* a new conversation late at night, we'll
 quietly check first: "It's 9:14pm where this customer is. Send anyway?" (Replies to a customer
 who already texted you are never held up.)
@@ -302,13 +302,13 @@ who already texted you are never held up.)
 **H2:** In Canada? You can text customers today.
 
 **Body:** The US phone-company registration doesn't apply to Canadian businesses texting Canadian
-customers — so on JobText, Canadian crews are texting the same day they sign up. Local numbers
+customers — so on Loonext, Canadian crews are texting the same day they sign up. Local numbers
 in every province, CASL-aware consent records, and a privacy policy that tells you plainly
 where your data lives.
 
 **Chips:** Local Canadian numbers · Texting works day one · Plain-English privacy
 
-**Link:** How JobText works in Canada
+**Link:** How Loonext works in Canada
 
 ---
 
@@ -317,16 +317,16 @@ where your data lives.
 **H2:** Fair questions, straight answers.
 
 **Q: What's my number — and can I keep the one that's on my trucks and my Google listing?**
-A: JobText gives you a new local number in the area code you choose, and today it can't take
+A: Loonext gives you a new local number in the area code you choose, and today it can't take
 over your existing number — number porting is on our list, and we won't pretend it's here before
 it is. Here's what to do in the meantime so you don't lose the number you've built up: **forward
-your existing number to your new JobText number** (your phone carrier does this for calls in a
-couple of minutes), and start putting your JobText number on new signs, quotes, and your
-listing. Your old number keeps ringing and forwarding; new texts come to JobText, where the
+your existing number to your new Loonext number** (your phone carrier does this for calls in a
+couple of minutes), and start putting your Loonext number on new signs, quotes, and your
+listing. Your old number keeps ringing and forwarding; new texts come to Loonext, where the
 whole crew can see them. When porting ships, moving the number over will be one step.
 
 **Q: Do we need to download an app?**
-A: No. JobText runs in the browser on any phone or computer. Add it to your home screen and it
+A: No. Loonext runs in the browser on any phone or computer. Add it to your home screen and it
 works like an app — push notifications included. Your crew is set up in the time it takes to
 open a link.
 
@@ -334,7 +334,7 @@ open a link.
 A: Yes — $29 a month for up to 3 people on Starter, $79 for up to 10 on Pro. We don't charge per
 user. One thing to know up front for US shops: there's also a one-time $29 fee to register with
 the phone companies, so your first month is $58 and every month after is $29. A 6-person crew on
-a typical per-user tool runs $90 to $114 a month; on JobText it's $79, flat.
+a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.
 
 **Q: What counts as one of my 500 texts?**
 A: Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts
@@ -346,7 +346,7 @@ and it's 3¢ a text, with a cap you set.
 
 **Q: Why does texting US customers take about a week?**
 A: The phone companies require every business that texts to register first — it's an industry
-rule, not a JobText rule, and every provider has to do it. Approval usually lands in 3–7 business
+rule, not a Loonext rule, and every provider has to do it. Approval usually lands in 3–7 business
 days (about a week). We file yours the minute you pay and email you the moment it's approved.
 The whole time, receiving texts already works, and if you're in Canada you can text Canadian
 customers right away.
@@ -391,7 +391,7 @@ if it's not for you. Month to month, the whole time.
 **Microcopy:** $29/mo flat · Month to month · 30-day money-back guarantee
 
 **Founder line (real names from ops — ship without names rather than invent them):**
-We're {Founder} and {Founder}, and we built JobText because we watched small shops run their
+We're {Founder} and {Founder}, and we built Loonext because we watched small shops run their
 whole business off one person's cell. No sales team, no investors leaning on us to upsell you —
 just the two of us and a tool we'd want to use. Email us anytime; a real person answers.
 
@@ -403,14 +403,14 @@ error logs, and it's stored in the United States. The details are on our securit
 
 ## §F Footer
 
-**Brand line:** JobText — the shared text inbox for your crew.
+**Brand line:** Loonext — the shared text inbox for your crew.
 
 **Column heads:** Product · Who it's for · Compare · Company & legal
 
 **Product:** Shared inbox · Your business number · Compliance built in · Templates & tags ·
-Pricing · Security · JobText in Canada
+Pricing · Security · Loonext in Canada
 **Who it's for:** Plumbers · Landscapers · Cleaners · HVAC · Salons · Contractors
-**Compare:** JobText vs Podium · JobText vs Heymarket · JobText vs Quo
+**Compare:** Loonext vs Podium · Loonext vs Heymarket · Loonext vs Quo
 **Company & legal:** Terms of service · Privacy policy · Acceptable use · SMS messaging
 policy · Sub-processors · 30-day guarantee · Security · Status · Contact us
 
@@ -419,14 +419,14 @@ launch; never fabricated, never omitted.
 
 **Sign-off:** Month to month. No sales calls, ever.
 
-**Copyright:** © 2026 JobText. All rights reserved.
+**Copyright:** © 2026 Loonext. All rights reserved.
 
 ---
 
 # PRICING PAGE (§PR)
 
 **Meta title:** Pricing — $29/mo flat for the whole crew
-**Meta description:** JobText pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro
+**Meta description:** Loonext pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro
 $79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day
 money-back guarantee. No per-user fees, no quote calls.
 
@@ -472,7 +472,7 @@ For crews up to ten — and a second number.
 
 **Slider label:** People on your crew: {n}
 **Output rows:**
-- JobText: **${29|79}/mo** — flat
+- Loonext: **${29|79}/mo** — flat
 - Typical per-user tool at $19/user/mo: **${n × 19}/mo** — and climbing
 
 **Footnote:** The $19/user figure is the published monthly Starter seat price of a leading
@@ -510,7 +510,7 @@ you're approved.
 **Lead:** A 3-person crew sending 500 single-segment texts a month, at published prices as of
 July 2026 (every number below cites its source in our comparison pages):
 
-| | JobText Starter | Heymarket Standard | Quo | Podium |
+| | Loonext Starter | Heymarket Standard | Quo | Podium |
 |---|---|---|---|---|
 | Monthly software | $29 flat | $49/user/mo × 3 = $147 | $19/user/mo × 3 = $57 (monthly billing) | Not published |
 | The 500 texts | Included | ~$15 (3¢/segment × 500) | Not included — metered at 1¢/segment (~$5) | Not published |
@@ -542,7 +542,7 @@ parts if >1}
 
 **H2:** Try it for a month, on us if it's not for you.
 
-**Body:** If JobText isn't right for your crew, email us within 30 days of signing up and
+**Body:** If Loonext isn't right for your crew, email us within 30 days of signing up and
 we'll refund your first invoice in full — subscription and registration fee included. No
 "minus credits used," no forms, no retention call. We'd rather have your trust than your $29.
 
@@ -553,7 +553,7 @@ we'll refund your first invoice in full — subscription and registration fee in
 **Q: Is there a free trial?**
 A: No — and here's why. A texting number can't really be "free": the moment we give you one, the
 phone companies charge for it, and free numbers attract spammers, which wrecks message delivery
-for everyone. So JobText is paid from day one, with a 30-day full money-back guarantee instead.
+for everyone. So Loonext is paid from day one, with a 30-day full money-back guarantee instead.
 You get a real trial; we keep the network clean.
 
 **Q: Do texts customers send me count against my 500?**
@@ -583,7 +583,7 @@ A: For now, yes — your card is charged in USD and your bank converts it. CAD b
 coming; until it's real, we won't pretend otherwise.
 
 **Q: What am I not getting at these prices?**
-A: JobText is a shared texting inbox — it doesn't do voice calls, mass text blasts, or review
+A: Loonext is a shared texting inbox — it doesn't do voice calls, mass text blasts, or review
 management. If you need those, a bigger platform might fit better; our comparison pages say so
 honestly.
 
@@ -623,7 +623,7 @@ new customer you can't answer or a scheduled one asking where you are. Voicemail
 Callbacks slip. And every quote, address, and "yes please book me" lives on one personal
 phone that goes home with one person.
 
-Texting fixes half of that on its own — customers would rather text than call anyway. JobText
+Texting fixes half of that on its own — customers would rather text than call anyway. Loonext
 fixes the other half: the texts stop belonging to one phone and start belonging to the
 business.
 
@@ -719,7 +719,7 @@ A: Yes — photos and videos of the drip, the drain, the mystery valve all land 
 conversation, free to receive. Your crew sees them before anyone rolls a truck.
 
 **Q: My techs aren't tech people. Will they use it?**
-A: If they can text, they can use JobText — it looks like texting. They open a link on their
+A: If they can text, they can use Loonext — it looks like texting. They open a link on their
 own phone, and they're in. Nothing to install, no training day.
 
 **Q: What about texts that come in at night?**

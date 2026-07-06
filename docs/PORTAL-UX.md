@@ -1,4 +1,4 @@
-# JobText Portal — Definitive UX/UI Spec
+# Loonext Portal — Definitive UX/UI Spec
 
 **Status:** Binding build direction. Supersedes prior shell explorations.
 **Winner:** `triage` (Focus / triage home) — grafted with the best ideas from `command`, `jobs`, and `hybrid`.
