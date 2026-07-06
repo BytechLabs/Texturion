@@ -8,7 +8,6 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -61,7 +60,7 @@ import { TCR_VERTICALS, VERTICAL_OPTIONS } from "../verticals";
 const EIN_RE = /^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/;
 const CONTACT_PHONE_RE = /^\+?[0-9()\-. ]{10,20}$/;
 
-function buildSchema(country: "US" | "CA", needsAup: boolean) {
+function buildSchema(country: "US" | "CA") {
   const einName = country === "US" ? "EIN" : "Business Number";
   const sinName = country === "US" ? "SSN" : "SIN";
   return z
@@ -91,7 +90,6 @@ function buildSchema(country: "US" | "CA", needsAup: boolean) {
         .trim()
         .regex(CONTACT_PHONE_RE, "Enter a phone number carriers can reach you at."),
       vertical: z.enum(TCR_VERTICALS),
-      aup: z.boolean(),
     })
     .superRefine((v, ctx) => {
       if (v.hasEin === "yes") {
@@ -151,13 +149,6 @@ function buildSchema(country: "US" | "CA", needsAup: boolean) {
           message: "That doesn't look like a web address.",
         });
       }
-      if (needsAup && v.aup !== true) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["aup"],
-          message: "You need to agree before continuing.",
-        });
-      }
     });
 }
 
@@ -179,7 +170,6 @@ const EMPTY_VALUES: FormValues = {
   email: "",
   phone: "",
   vertical: "PROFESSIONAL",
-  aup: false,
 };
 
 function asString(value: unknown): string {
@@ -197,11 +187,7 @@ export default function BusinessIdentityPage() {
 
   const country: "US" | "CA" =
     state.company?.country ?? state.draft.country ?? "US";
-  const needsAup = state.company === null;
-  const schema = useMemo(
-    () => buildSchema(country, needsAup),
-    [country, needsAup],
-  );
+  const schema = useMemo(() => buildSchema(country), [country]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -246,7 +232,6 @@ export default function BusinessIdentityPage() {
         vertical: TCR_VERTICALS.includes(data.vertical as never)
           ? (data.vertical as FormValues["vertical"])
           : "PROFESSIONAL",
-        aup: false,
       });
     })();
   }, [ready, seeded, brandRow, form]);
@@ -331,7 +316,6 @@ export default function BusinessIdentityPage() {
           requested_area_code: state.draft.areaCode ?? "",
           ...(country === "CA" ? { us_texting_enabled: true } : {}),
           ...(timezone ? { timezone } : {}),
-          aup_accepted: true,
         });
         companyId = company.id;
         writeCompanyCookie(company.id);
@@ -716,33 +700,6 @@ export default function BusinessIdentityPage() {
               </FormItem>
             )}
           />
-
-          {needsAup ? (
-            <FormField
-              control={form.control}
-              name="aup"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-start gap-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value === true}
-                        onCheckedChange={(checked) =>
-                          field.onChange(checked === true)
-                        }
-                        className="mt-0.5"
-                      />
-                    </FormControl>
-                    <FormLabel className="text-sm font-normal leading-snug text-muted-foreground">
-                      I&apos;ll only text customers who asked to hear from us
-                      — no spam, no purchased lists.
-                    </FormLabel>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ) : null}
 
           {formError ? (
             <p role="alert" className="text-sm text-destructive">

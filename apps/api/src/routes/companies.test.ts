@@ -109,27 +109,6 @@ describe("POST /v1/companies (company-exempt)", () => {
     });
   });
 
-  it("422s without AUP acceptance (missing or false)", async () => {
-    stubFetch(jwksRoute(auth), supabaseStub(env).route);
-    for (const aup of [undefined, false]) {
-      const res = await apiRequest(
-        app,
-        env,
-        await auth.token(),
-        "/v1/companies",
-        {
-          method: "POST",
-          companyId: null,
-          body: { ...validBody, requested_area_code: "212", aup_accepted: aup },
-        },
-      );
-      expect(res.status).toBe(422);
-      expect(await res.json()).toEqual({
-        error: { code: "validation_failed", message: expect.any(String) },
-      });
-    }
-  });
-
   it("422s when the area code is not US/CA-assigned or mismatches the country", async () => {
     stubFetch(jwksRoute(auth), supabaseStub(env).route);
     const cases = [

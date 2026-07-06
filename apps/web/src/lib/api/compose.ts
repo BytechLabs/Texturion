@@ -9,16 +9,16 @@ import type { ComposeResult } from "./types";
 
 /**
  * POST /v1/conversations — outbound-first compose (SPEC §5/§7, G5):
- * exactly one of contact_id | phone_e164, consent attestation REQUIRED,
- * quiet_hours_confirmed only after the user confirms the G5 dialog (the API
- * answers 409 `quiet_hours_confirmation_required` when it's needed).
+ * exactly one of contact_id | phone_e164; consent is attested implicitly
+ * server-side now (the visible checkbox was removed), so no consent flag is
+ * sent. quiet_hours_confirmed only after the user confirms the G5 dialog (the
+ * API answers 409 `quiet_hours_confirmation_required` when it's needed).
  */
 export interface ComposeInput {
   contact_id?: string;
   phone_e164?: string;
   phone_number_id: string;
   body: string;
-  consent_attested: true;
   quiet_hours_confirmed?: boolean;
 }
 

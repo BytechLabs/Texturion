@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -45,7 +44,6 @@ export default function NumberStepPage() {
   const [query, setQuery] = useState("");
   const [areaCode, setAreaCode] = useState<string | null>(null);
   const [usTexting, setUsTexting] = useState(true);
-  const [aupAccepted, setAupAccepted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
 
@@ -128,11 +126,7 @@ export default function NumberStepPage() {
     }
 
     // CA, Canadian customers only: no registration wizard — create the
-    // company here (AUP is part of the create call, SPEC §4.1 step 2).
-    if (!aupAccepted) {
-      setFormError("You need to agree to the texting rules before continuing.");
-      return;
-    }
+    // company here (SPEC §4.1 step 2).
     // D15: the creating browser's timezone rides along silently.
     const timezone = browserTimezone();
     try {
@@ -142,7 +136,6 @@ export default function NumberStepPage() {
         requested_area_code: selected.code,
         us_texting_enabled: false,
         ...(timezone ? { timezone } : {}),
-        aup_accepted: true,
       });
       writeCompanyCookie(company.id);
       // The next step's guard resolves the company through GET /v1/me —
@@ -368,27 +361,6 @@ export default function NumberStepPage() {
               turn it on later in Settings.
             </p>
           </fieldset>
-        ) : null}
-
-        {/* CA-no-US new-number path creates the company HERE, so the AUP is
-            collected here. The port path defers company creation to its timing
-            sub-step, where it collects the AUP instead. */}
-        {mode === "new" && skipsRegistration ? (
-          <label className="flex items-start gap-2 text-sm text-muted-foreground">
-            <Checkbox
-              checked={aupAccepted}
-              onCheckedChange={(checked) => {
-                setAupAccepted(checked === true);
-                if (checked === true) setFormError(null); // clear AUP error
-              }}
-              className="mt-0.5"
-              aria-label="Agree to the texting rules"
-            />
-            <span>
-              I&apos;ll only text customers who asked to hear from us — no
-              spam, no purchased lists.
-            </span>
-          </label>
         ) : null}
 
         {formError ? (

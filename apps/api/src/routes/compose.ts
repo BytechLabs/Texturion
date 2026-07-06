@@ -52,8 +52,11 @@ const composeSchema = z
     body: z.string().max(4096).refine((value) => value.trim().length > 0, {
       message: "body must not be empty.",
     }),
-    // D4: the one mandatory checkbox — "This customer asked us to text them".
-    consent_attested: z.literal(true),
+    // D4: consent is now attested implicitly on compose (the visible "asked us
+    // to text them" checkbox was removed as friction). The attestation is still
+    // recorded on the contact + audit event so the opt-in trail stays intact;
+    // the field is accepted for back-compat but no longer gates the send.
+    consent_attested: z.literal(true).optional(),
     quiet_hours_confirmed: z.boolean().optional(),
   })
   .refine(

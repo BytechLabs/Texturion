@@ -27,8 +27,6 @@ export interface CreateCompanyInput {
   us_texting_enabled?: boolean;
   /** D15: the creating browser's IANA zone, captured silently at onboarding. */
   timezone?: string;
-  /** AUP gate (SPEC §4.1) — anything but literal true is 422. */
-  aup_accepted: true;
 }
 
 /**

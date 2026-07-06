@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 
 import { portabilityFailCopy, portabilityOkCopy } from "@/components/porting/copy";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateCompany } from "@/lib/api/companies";
@@ -40,7 +39,6 @@ export default function PortNumberPage() {
   const createCompany = useCreateCompany();
 
   const [raw, setRaw] = useState("");
-  const [aupAccepted, setAupAccepted] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PortabilityCheck | null>(null);
@@ -73,10 +71,6 @@ export default function PortNumberPage() {
       setError("Enter your 10-digit US or Canadian number.");
       return;
     }
-    if (!aupAccepted && !companyId) {
-      setError("Agree to the texting rules to continue.");
-      return;
-    }
     setBusy(true);
     try {
       // Create the company on first pass (idempotent for our purposes: the
@@ -91,7 +85,6 @@ export default function PortNumberPage() {
           requested_area_code: areaCodeOf(e164),
           us_texting_enabled: country === "CA" ? draft.usTexting !== false : true,
           ...(timezone ? { timezone } : {}),
-          aup_accepted: true,
         });
         writeCompanyCookie(company.id);
         await queryClient.invalidateQueries({ queryKey: keys.me });
@@ -152,24 +145,6 @@ export default function PortNumberPage() {
             transferred here.
           </p>
         </div>
-
-        {!companyId ? (
-          <label className="flex items-start gap-2 text-sm text-muted-foreground">
-            <Checkbox
-              checked={aupAccepted}
-              onCheckedChange={(checked) => {
-                setAupAccepted(checked === true);
-                if (checked === true) setError(null);
-              }}
-              className="mt-0.5"
-              aria-label="Agree to the texting rules"
-            />
-            <span>
-              I&apos;ll only text customers who asked to hear from us — no spam,
-              no purchased lists.
-            </span>
-          </label>
-        ) : null}
 
         {result?.portable ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-success/30 bg-success/5 px-4 py-3">

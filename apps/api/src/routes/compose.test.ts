@@ -277,30 +277,12 @@ const VALID_BODY = {
   phone_e164: "+16135551000",
   phone_number_id: NUMBER_ID,
   body: "Hi! Following up on your quote.",
-  consent_attested: true,
 };
 
 describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
-  it("422s without consent_attested", async () => {
-    const stubs = composeStubs();
-    stubFetch(...stubs.all);
-    const { consent_attested, ...rest } = VALID_BODY;
-    void consent_attested;
-
-    const response = await postCompose(rest);
-    expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
-    expect(stubs.gateRpc.calls).toHaveLength(0);
-  });
-
-  it("422s with consent_attested false — only literal true passes", async () => {
-    const stubs = composeStubs();
-    stubFetch(...stubs.all);
-
-    const response = await postCompose({ ...VALID_BODY, consent_attested: false });
-    expect(response.status).toBe(422);
-  });
-
+  // The visible consent checkbox was removed; compose no longer requires a
+  // consent flag and attests the contact implicitly (auto-attest), so the audit
+  // trail (consent_source='attested' + the consent_attested event) still fills.
   it("creates the contact attested and records the consent_attested event", async () => {
     const stubs = composeStubs();
     stubFetch(...stubs.all);

@@ -8,7 +8,6 @@ import { toast } from "sonner";
 
 import { SegmentMeterLabel, useAutoGrow } from "@/components/thread/composer";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -57,10 +56,11 @@ type Recipient =
 
 /**
  * /inbox/new — the G5 outbound-first compose flow: contact search + raw
- * number with live E.164 formatting, the D4 consent checkbox, first-message
- * footer preview, segment meter, quiet-hours dialog driven by the API's
+ * number with live E.164 formatting, first-message footer preview, segment
+ * meter, quiet-hours dialog driven by the API's
  * `quiet_hours_confirmation_required` code (409; matched structurally, never
- * by message text).
+ * by message text). Consent is attested implicitly server-side now (the visible
+ * checkbox was removed).
  */
 export function NewConversation() {
   const router = useRouter();
@@ -94,7 +94,6 @@ export function NewConversation() {
 
   // --- Draft -----------------------------------------------------------------
   const [body, setBody] = useState("");
-  const [consent, setConsent] = useState(false);
   const [quietHours, setQuietHours] = useState<{
     localTime: string | null;
   } | null>(null);
@@ -150,19 +149,17 @@ export function NewConversation() {
     destinationE164 !== null &&
     destinationE164 !== undefined &&
     body.trim() !== "" &&
-    consent &&
     numberId !== null &&
     banner === null;
 
   const submit = (quietConfirmed: boolean) => {
-    if (!destinationE164 || numberId === null || !consent) return;
+    if (!destinationE164 || numberId === null) return;
     const inputBody: ComposeInput = {
       ...(recipient?.kind === "contact"
         ? { contact_id: recipient.contact.id }
         : { phone_e164: destinationE164 }),
       phone_number_id: numberId,
       body,
-      consent_attested: true,
       ...(quietConfirmed ? { quiet_hours_confirmed: true } : {}),
     };
     start.mutate(inputBody, {
@@ -395,18 +392,6 @@ export function NewConversation() {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Consent attestation (D4) — mandatory. */}
-        <div className="flex items-start gap-2">
-          <Checkbox
-            id="compose-consent"
-            checked={consent}
-            onCheckedChange={(checked) => setConsent(checked === true)}
-          />
-          <Label htmlFor="compose-consent" className="font-normal leading-snug">
-            This customer asked us to text them
-          </Label>
         </div>
 
         {banner && <ComposerBannerCard banner={banner} />}

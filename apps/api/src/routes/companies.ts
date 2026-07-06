@@ -43,8 +43,10 @@ const createSchema = z.object({
   // D15: onboarding sends the browser's IANA zone; validated below against
   // the runtime's timezone database (a zod enum cannot express it).
   timezone: z.string().trim().min(1).max(100).optional(),
-  // The AUP gate (SPEC §4.1 step 1): anything but literal true is 422.
-  aup_accepted: z.literal(true),
+  // AUP acceptance is implicit now (the create RPC stamps aup_accepted_at
+  // unconditionally); the field is accepted for back-compat but no longer gates
+  // creation — the visible checkbox was removed as needless signup friction.
+  aup_accepted: z.literal(true).optional(),
 });
 
 /** A weekday open/close window; both HH:MM. Full shape checked below. */

@@ -10,7 +10,6 @@ import { z } from "zod";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -29,10 +28,6 @@ const schema = z.object({
   name: z.string().trim().min(1, "Enter your name."),
   email: z.email("Enter your email address."),
   password: z.string().min(8, "Use at least 8 characters."),
-  // SPEC §4.1 step 1: the signup screen requires AUP acceptance.
-  aup: z.literal(true, {
-    error: "You need to agree before signing up.",
-  }),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -184,30 +179,6 @@ export default function SignupPage() {
                     {...field}
                   />
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="aup"
-            render={({ field }) => (
-              <FormItem>
-                <div className="flex items-start gap-2">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value === true}
-                      onCheckedChange={(checked) =>
-                        field.onChange(checked === true)
-                      }
-                      className="mt-0.5"
-                    />
-                  </FormControl>
-                  <FormLabel className="text-sm font-normal leading-snug text-muted-foreground">
-                    I&apos;ll only text customers who asked to hear from us —
-                    no spam, no purchased lists.
-                  </FormLabel>
-                </div>
                 <FormMessage />
               </FormItem>
             )}
