@@ -74,6 +74,8 @@ function cleanup(): void {
       and event_id like 'smoke-${h.runId}%';
     delete from public.phone_numbers where company_id = '${COMPANY_ID}';
     delete from public.company_members where company_id = '${COMPANY_ID}';
+    delete from public.egress_events where company_id = '${COMPANY_ID}';
+    delete from public.inbound_notification_days where company_id = '${COMPANY_ID}';
     delete from public.companies where id = '${COMPANY_ID}';
     delete from public.profiles where user_id = '${OWNER_ID}';
     delete from auth.users where id = '${OWNER_ID}';

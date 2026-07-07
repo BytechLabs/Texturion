@@ -183,6 +183,8 @@ function cleanup(): void {
       ('${DELETE_EVENT_ID}', '${RESUB_EVENT_ID}', '${SECOND_DELETE_EVENT_ID}');
     delete from public.phone_numbers where company_id = '${COMPANY_ID}';
     delete from public.company_members where company_id = '${COMPANY_ID}';
+    delete from public.egress_events where company_id = '${COMPANY_ID}';
+    delete from public.inbound_notification_days where company_id = '${COMPANY_ID}';
     delete from public.companies where id = '${COMPANY_ID}';
     delete from public.profiles where user_id = '${OWNER_ID}';
     delete from auth.users where id = '${OWNER_ID}';
