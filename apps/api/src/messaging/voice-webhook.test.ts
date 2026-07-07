@@ -47,7 +47,7 @@ function forwardState(caller: string): string {
 }
 
 /** phone_numbers resolution by dialed number. */
-function numberStub(): Stub {
+function numberStub(status = "active"): Stub {
   return stubRoute(
     restMatch(
       env,
@@ -55,7 +55,7 @@ function numberStub(): Stub {
       "phone_numbers",
       (url) => url.searchParams.get("select")?.includes("company_id") ?? false,
     ),
-    () => [{ id: NUMBER_ID, company_id: COMPANY_ID }],
+    () => [{ id: NUMBER_ID, company_id: COMPANY_ID, status }],
   );
 }
 
@@ -67,6 +67,7 @@ function numberStub(): Stub {
 function companyStubs(
   forward: string | null,
   voice?: { plan: "starter" | "pro"; currentPeriodStart: string },
+  subscriptionStatus = "active",
 ): Stub[] {
   return [
     stubRoute(
@@ -85,6 +86,7 @@ function companyStubs(
           forward_to_cell: forward,
           plan: voice?.plan ?? null,
           current_period_start: voice?.currentPeriodStart ?? null,
+          subscription_status: subscriptionStatus,
         },
       ],
     ),
@@ -362,6 +364,46 @@ describe("handleCallEvent — inbound call.initiated", () => {
     // Its untagged hangup will flow through the normal missed path (text-back).
     expect(reject.calls).toHaveLength(1);
     expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("never forwards for a canceled (non-active subscription) company (#43)", async () => {
+    const action = telnyxCallAction();
+    serve(numberStub(), ...companyStubs(CELL, undefined, "canceled"), action);
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+      }),
+    );
+
+    // A canceled company in its 30-day grace has forward_to_cell configured
+    // but must NOT run two billable Telnyx legs on our dollar: no answer, no
+    // transfer, no reject — the call rings out and the hangup is the missed
+    // signal (where the text-back's own subscription gate applies).
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("never forwards on a suspended number even when the company row reads active (#43)", async () => {
+    const action = telnyxCallAction();
+    serve(numberStub("suspended"), ...companyStubs(CELL), action);
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+      }),
+    );
+
     expect(action.calls).toHaveLength(0);
   });
 });

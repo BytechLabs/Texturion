@@ -17,7 +17,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { effectiveStorageBudgets } from "../billing/company-modules";
 import type { PlanId } from "../billing/plans";
+import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
+import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { maybeSendAwayReply } from "./away-reply";
@@ -30,6 +32,15 @@ import {
   mediaStoragePath,
 } from "./media";
 import type { TelnyxEvent, ThreadResult } from "./types";
+
+/**
+ * The threading RPC's return with the #39 additive key: `notification_alert`
+ * is 80/100 exactly once per (company, UTC day) when this claim crossed that
+ * percentage of the daily inbound-notification allowance, else null/absent.
+ */
+type InboundThreadResult = ThreadResult & {
+  notification_alert?: number | null;
+};
 
 /** message.received entry point (dispatched from /webhooks/telnyx, §7). */
 export async function handleInboundMessage(
@@ -78,7 +89,7 @@ export async function handleInboundMessage(
     p_telnyx_message_id: telnyxMessageId,
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
-  const threaded = data as ThreadResult | null;
+  const threaded = data as InboundThreadResult | null;
   if (!threaded?.message_id || !threaded.conversation_id) {
     throw new Error("thread_inbound_message returned no message");
   }
@@ -130,10 +141,30 @@ export async function handleInboundMessage(
     });
   }
 
+  // #39 notification-budget owner alert: the threading RPC meters won §8
+  // claims per (company, UTC day) in the inbound_notification_days ledger and
+  // reports each 80%/100% threshold crossing EXACTLY ONCE (stamped under the
+  // counter row's lock), so this send can never duplicate — the same
+  // ledger-first shape as the usage-alerts emails. Sent BEFORE the member
+  // fan-out so a notify failure can never eat the one-shot alert.
+  if (
+    threaded.notification_alert === 80 ||
+    threaded.notification_alert === 100
+  ) {
+    await sendNotificationBudgetAlert(
+      env,
+      db,
+      number.company_id,
+      threaded.notification_alert,
+    );
+  }
+
   // Notification pipeline (§8), last per the §7 dispatch order. The RPC
   // decided the debounced trigger and stamped last_notified_at atomically;
   // `notify` is true at most once per claim, so duplicates and sweeper
-  // replays never re-send.
+  // replays never re-send. Past the #39 daily budget the RPC reports
+  // notify=false (cap-and-drop — the message row above is already durable;
+  // only the email/push fan-out is shed, never queued).
   if (threaded.created && threaded.notify === true) {
     await notifyInboundMessage(
       env,
@@ -146,6 +177,74 @@ export async function handleInboundMessage(
       db,
     );
   }
+}
+
+/** Minimal paragraph HTML for the plain-text alert copy (usage-alerts style). */
+function alertHtml(text: string): string {
+  const escaped = text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`;
+}
+
+/**
+ * #39 owner alert for the daily inbound-notification budget: warn at 80%,
+ * state the drop plainly at 100%. Operational email to the owner + active
+ * admins (bypasses notification_prefs, like every billing/usage alert). The
+ * exactly-once guarantee lives in the RPC's ledger stamp — this helper only
+ * renders and sends.
+ */
+async function sendNotificationBudgetAlert(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  threshold: 80 | 100,
+): Promise<void> {
+  const { data: companies, error } = await db
+    .from("companies")
+    .select("name")
+    .eq("id", companyId)
+    .limit(1);
+  if (error) {
+    throw new Error(`company name lookup failed: ${error.message}`);
+  }
+  const name =
+    (companies?.[0] as { name: string } | undefined)?.name ?? "Your company";
+
+  const to = await billingRecipients(env, companyId, db);
+  if (to.length === 0) return;
+
+  const inboxUrl = `${env.APP_ORIGIN}/inbox`;
+  const copy =
+    threshold === 100
+      ? {
+          subject: `${name} has reached today's new-text alert limit`,
+          text:
+            `Hi,\n\n${name}'s team has been alerted about an unusually large ` +
+            `number of new text conversations today and has reached the daily ` +
+            `limit on new-text alerts. Email and push alerts for new texts are ` +
+            `paused until tomorrow so a message flood can't run up costs — ` +
+            `every text still lands in your Loonext inbox as normal.\n\n` +
+            `Open your inbox: ${inboxUrl}\n\n— Loonext`,
+        }
+      : {
+          subject: `${name} is nearing today's new-text alert limit`,
+          text:
+            `Hi,\n\n${name}'s team has been alerted about an unusually large ` +
+            `number of new text conversations today. If this keeps up, email ` +
+            `and push alerts for new texts will pause until tomorrow (every ` +
+            `text still lands in your Loonext inbox as normal). If you aren't ` +
+            `expecting this volume, check your inbox for spam threads.\n\n` +
+            `Open your inbox: ${inboxUrl}\n\n— Loonext`,
+        };
+
+  await sendEmail(env, {
+    to,
+    subject: copy.subject,
+    text: copy.text,
+    html: alertHtml(copy.text),
+  });
 }
 
 /**
@@ -245,8 +344,15 @@ async function companyOverMmsStorageBudget(
     .select("plan")
     .eq("id", companyId)
     .limit(1);
+  if (companyError) {
+    // #37 fail closed: an unreadable budget must never read as "under budget"
+    // — throw (matching the usage lookup below) so the webhook ledger keeps
+    // the row unprocessed and the §11 sweeper retries the idempotent
+    // pipeline. Media is only ever fetched once the budget is KNOWN good.
+    throw new Error(`company plan lookup failed: ${companyError.message}`);
+  }
   const plan = (companies?.[0] as { plan: PlanId | null } | undefined)?.plan;
-  if (companyError || !plan) return false;
+  if (!plan) return false;
 
   const { data: usage, error: usageError } = await db.rpc("api_storage_usage", {
     p_company_id: companyId,

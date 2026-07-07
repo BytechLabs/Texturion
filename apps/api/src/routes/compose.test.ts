@@ -576,7 +576,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 });
 
 describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
-  const PIXEL = btoa("\x89PNG\r\n\x1a\n fake image bytes");
+  const PIXEL = btoa("\xff\xd8\xff\xe0 fake image bytes");
 
   it("uploads to Storage, records the attachment, sends signed media_urls", async () => {
     const stubs = composeStubs({

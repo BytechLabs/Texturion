@@ -120,7 +120,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- T5. Expected triggers exist: 16 moddatetime, auth sync, 6 broadcast.
+-- T5. Expected triggers exist: 17 moddatetime, auth sync, 6 broadcast.
 --     Plus the realtime.messages topic-authorization policy.
 -- ===========================================================================
 do $$
@@ -134,11 +134,12 @@ begin
   where ns.nspname = 'public' and tg.tgname = 'set_updated_at' and not tg.tgisinternal;
   -- 13 base tables + port_requests (D16, 20260702030000_number_porting.sql)
   -- + tasks (D17/TASKS.md T1.1, 20260702060000)
-  -- + notification_reads (D24 read-model, 20260702070000_appv2_for_you_notifications.sql).
+  -- + notification_reads (D24 read-model, 20260702070000_appv2_for_you_notifications.sql)
+  -- + inbound_notification_days (#39 email budget, 20260707150000_inbound_notification_budget.sql).
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n <> 16 then
-    raise exception 'T5 FAILED: expected 16 set_updated_at triggers, found %', n;
+  if n <> 17 then
+    raise exception 'T5 FAILED: expected 17 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n
@@ -170,7 +171,7 @@ begin
   if n <> 1 then
     raise exception 'T5 FAILED: company_topic_read policy missing on realtime.messages';
   end if;
-  raise notice 'T5 PASSED: 16 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
+  raise notice 'T5 PASSED: 17 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
 end $$;
 
 -- ===========================================================================

@@ -158,6 +158,7 @@ interface McTbCompany {
   forward_to_cell: string | null;
   plan: PlanId | null;
   current_period_start: string | null;
+  subscription_status: string;
 }
 
 /** Call-Control entry point (dispatched from /webhooks/telnyx). */
@@ -192,16 +193,24 @@ export async function handleCallEvent(
 async function resolveNumber(
   db: SupabaseClient,
   toE164: string,
-): Promise<{ companyId: string; phoneNumberId: string } | null> {
+): Promise<{
+  companyId: string;
+  phoneNumberId: string;
+  status: string;
+} | null> {
   const { data, error } = await db
     .from("phone_numbers")
-    .select("id,company_id")
+    .select("id,company_id,status")
     .eq("number_e164", toE164)
     .neq("status", "released")
     .limit(1);
   if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
-  const row = (data ?? [])[0] as { id: string; company_id: string } | undefined;
-  return row ? { companyId: row.company_id, phoneNumberId: row.id } : null;
+  const row = (data ?? [])[0] as
+    | { id: string; company_id: string; status: string }
+    | undefined;
+  return row
+    ? { companyId: row.company_id, phoneNumberId: row.id, status: row.status }
+    : null;
 }
 
 /**
@@ -230,7 +239,7 @@ async function handleInboundInitiated(
 
   const { data: companyRows, error: companyError } = await db
     .from("companies")
-    .select("id,forward_to_cell,plan,current_period_start")
+    .select("id,forward_to_cell,plan,current_period_start,subscription_status")
     .eq("id", resolved.companyId)
     .limit(1);
   if (companyError) {
@@ -240,6 +249,21 @@ async function handleInboundInitiated(
   // No forward target → leave the call ringing (never answer into dead air);
   // the inbound leg's call.hangup is the missed signal (handleTerminalCallEvent).
   if (!company?.forward_to_cell) return;
+
+  // #43 suspended-tenant gate: a suspended number (canceled → 30-day grace,
+  // D6) or a non-live subscription gets NO forwarding — answering + dialing
+  // runs two billable Telnyx legs with zero revenue, a cost the SMS side
+  // already blocks via the SQL send gate's subscription_status = 'active'
+  // check, mirrored here. The call rings out exactly like the no-forward
+  // case; its untagged hangup flows through handleTerminalCallEvent as a
+  // missed call, where the text-back's own claim RPC applies the same
+  // subscription gate. Inbound SMS storage stays live throughout (D6).
+  if (
+    resolved.status === "suspended" ||
+    company.subscription_status !== "active"
+  ) {
+    return;
+  }
 
   // #12 voice cap-and-drop: over the plan's forwarding-minute allowance → do
   // NOT forward (forwarding runs two billable legs and there's no voice-overage

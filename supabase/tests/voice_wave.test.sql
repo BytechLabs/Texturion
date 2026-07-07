@@ -545,4 +545,135 @@ begin
   raise notice 'VW-18 PASSED: bump_text_enablement_counter increments atomically and stops at the cap';
 end $$;
 
+-- ===========================================================================
+-- VW-19. #39 inbound-notification budget substrate (ingest-hardening batch —
+--        tested here with the voice-wave fixtures): inbound_notification_days
+--        exists with the (company_id, day) PK, a non-negative counter, the
+--        one-shot warned_at/capped_at stamps, and RLS enabled (service-role
+--        only, like webhook_events/call_records).
+-- ===========================================================================
+do $$
+declare n int; has_rls boolean; pk text;
+begin
+  select count(*) into n from information_schema.tables
+   where table_schema='public' and table_name='inbound_notification_days';
+  if n <> 1 then raise exception 'VW-19 FAILED: inbound_notification_days table missing'; end if;
+
+  select relrowsecurity into has_rls from pg_class
+   where oid = 'public.inbound_notification_days'::regclass;
+  if not has_rls then raise exception 'VW-19 FAILED: RLS not enabled on inbound_notification_days'; end if;
+
+  select string_agg(a.attname, ',' order by k.ordinality) into pk
+  from pg_constraint c
+  join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality) on true
+  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+  where c.conrelid = 'public.inbound_notification_days'::regclass and c.contype = 'p';
+  if pk <> 'company_id,day' then
+    raise exception 'VW-19 FAILED: PK is % (want company_id,day)', pk;
+  end if;
+
+  foreach pk in array array['notify_count','warned_at','capped_at'] loop
+    perform 1 from information_schema.columns
+     where table_schema='public' and table_name='inbound_notification_days' and column_name=pk;
+    if not found then raise exception 'VW-19 FAILED: column % missing', pk; end if;
+  end loop;
+
+  raise notice 'VW-19 PASSED: inbound_notification_days present + RLS on + PK(company_id, day)';
+end $$;
+
+-- ===========================================================================
+-- VW-20. #39 cap-and-drop inside thread_inbound_message: every won §8 claim
+--        spends one unit of the daily allowance (200/day, warn at 160); the
+--        80% and 100% crossings are reported EXACTLY ONCE via the additive
+--        notification_alert key; past the ceiling claims DROP (notify=false)
+--        while the message row itself is always stored. Distinct callers so
+--        every claim is a "new conversation" §8 trigger.
+-- ===========================================================================
+do $$
+declare res jsonb; cnt int; warned timestamptz; capped timestamptz; today date;
+begin
+  today := (now() at time zone 'utc')::date;
+
+  -- (a) First claim of the day: notify=true, no alert, counter row at 1.
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660001', 'hi', 'tx-vw20-1');
+  if (res->>'notify')::boolean is not true then
+    raise exception 'VW-20 FAILED: first claim expected notify=true, got %', res;
+  end if;
+  if res->>'notification_alert' is not null then
+    raise exception 'VW-20 FAILED: first claim expected no alert, got %', res;
+  end if;
+  select notify_count into cnt from public.inbound_notification_days
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  if cnt <> 1 then raise exception 'VW-20 FAILED: counter expected 1, got %', cnt; end if;
+
+  -- (b) Cross 80% (160 of 200): the warn is reported once and stamped.
+  update public.inbound_notification_days set notify_count = 159
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660002', 'hi', 'tx-vw20-2');
+  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 80 then
+    raise exception 'VW-20 FAILED: 160th claim expected notify + alert 80, got %', res;
+  end if;
+  select warned_at into warned from public.inbound_notification_days
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  if warned is null then raise exception 'VW-20 FAILED: warned_at not stamped'; end if;
+
+  -- (c) The next claim past 80% must NOT re-alert (one-shot stamp).
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660003', 'hi', 'tx-vw20-3');
+  if res->>'notification_alert' is not null then
+    raise exception 'VW-20 FAILED: 161st claim re-alerted: %', res;
+  end if;
+
+  -- (d) The ceiling-th claim (200) still DELIVERS and carries the 100 alert.
+  update public.inbound_notification_days set notify_count = 199
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660004', 'hi', 'tx-vw20-4');
+  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 100 then
+    raise exception 'VW-20 FAILED: 200th claim expected notify + alert 100, got %', res;
+  end if;
+  select capped_at into capped from public.inbound_notification_days
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  if capped is null then raise exception 'VW-20 FAILED: capped_at not stamped'; end if;
+
+  -- (e) Past the ceiling: the claim DROPS (notify=false, no re-alert) but the
+  --     inbound message row is still durable (inbound is never dropped, D6).
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660005', 'hi', 'tx-vw20-5');
+  if (res->>'notify')::boolean is not false then
+    raise exception 'VW-20 FAILED: 201st claim expected notify=false, got %', res;
+  end if;
+  if res->>'notification_alert' is not null then
+    raise exception 'VW-20 FAILED: 201st claim re-alerted: %', res;
+  end if;
+  perform 1 from public.messages where telnyx_message_id='tx-vw20-5' and direction='inbound';
+  if not found then raise exception 'VW-20 FAILED: capped claim dropped the MESSAGE, not just the alert'; end if;
+
+  -- (f) Dropped claims keep counting (the ledger stays honest under a flood).
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660006', 'hi', 'tx-vw20-6');
+  if (res->>'notify')::boolean is not false then
+    raise exception 'VW-20 FAILED: 202nd claim expected notify=false, got %', res;
+  end if;
+  select notify_count into cnt from public.inbound_notification_days
+   where company_id='facade00-0000-4000-8000-000000000002' and day=today;
+  if cnt <> 202 then raise exception 'VW-20 FAILED: counter expected 202, got %', cnt; end if;
+
+  raise notice 'VW-20 PASSED: daily notification budget counts, warns once, caps once, and drops past the ceiling';
+end $$;
+
 rollback;

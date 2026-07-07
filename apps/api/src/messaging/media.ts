@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ApiError } from "../http/errors";
+import { sniffContentType } from "../routes/core/attachments";
 import type { AttachmentSummary } from "./types";
 
 export const MMS_BUCKET = "mms-media";
@@ -65,7 +66,12 @@ const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 /**
  * Decode and validate the outbound media array per the SPEC §7 422 rules:
  * max 3 items, `content_type` ∈ jpeg|png|gif (already zod-enforced by the
- * route schema), each decoded payload ≤ 1 MB and valid base64.
+ * route schema), each decoded payload ≤ 1 MB and valid base64 — and the
+ * decoded BYTES must sniff to exactly the declared type (D19 §2.3 applied to
+ * this ingress). jpeg/png/gif all carry distinctive magic, so unlike the
+ * generic attachment path this is a strict equality check: a renamed
+ * executable, an unknown blob, or a byte/declaration mismatch is 422'd before
+ * anything reaches Storage or gets a 24 h signed URL minted for Telnyx.
  */
 export function decodeOutboundMedia(
   items: { content_type: string; base64: string }[],
@@ -111,10 +117,18 @@ export function decodeOutboundMedia(
     if (binary.length === 0) {
       throw new ApiError("validation_failed", `media[${index}] is empty.`);
     }
-    return {
-      contentType,
-      bytes: Uint8Array.from(binary, (char) => char.charCodeAt(0)),
-    };
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    // #35 byte sniff: the declared type must match the bytes' magic exactly.
+    // Every allowed outbound type has a distinctive signature, so a null
+    // sniff (no known magic) is a rejection here — stricter than the generic
+    // attachment path, which must trust magic-less office/text formats.
+    if (sniffContentType(bytes) !== contentType) {
+      throw new ApiError(
+        "validation_failed",
+        `media[${index}] bytes do not match the declared ${contentType}.`,
+      );
+    }
+    return { contentType, bytes };
   });
 }
 
