@@ -46,6 +46,8 @@ import {
 } from "@/lib/contacts/csv-import";
 import type { ImportResult } from "@/lib/api/types";
 
+import { decideWizardDismissal } from "./import-wizard-dismissal";
+
 const FIELD_LABELS: Record<ImportField, string> = {
   phone: "Phone (required)",
   name: "Name",
@@ -110,8 +112,14 @@ export function ImportWizard({
     setResult(null);
   }
 
+  // While the import request is in flight, dismissal is swallowed (issue
+  // #57): closing would wipe dataRows/mapping and the finished import's
+  // skipped-rows report could never be rebuilt. The dialog stays open until
+  // the request settles and the summary is shown.
   function close(next: boolean) {
-    if (!next) reset();
+    const decision = decideWizardDismissal(next, importContacts.isPending);
+    if (!decision.propagate) return;
+    if (decision.reset) reset();
     onOpenChange(next);
   }
 
@@ -169,7 +177,16 @@ export function ImportWizard({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent
+        className="max-h-[85svh] overflow-y-auto sm:max-w-2xl"
+        showCloseButton={!importContacts.isPending}
+        onInteractOutside={(event) => {
+          if (importContacts.isPending) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (importContacts.isPending) event.preventDefault();
+        }}
+      >
         {step === "upload" && (
           <>
             <DialogHeader>
@@ -361,7 +378,11 @@ export function ImportWizard({
               </p>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("map")}>
+              <Button
+                variant="outline"
+                disabled={importContacts.isPending}
+                onClick={() => setStep("map")}
+              >
                 Back
               </Button>
               <Button
@@ -373,6 +394,12 @@ export function ImportWizard({
                   : `Import ${summary.ready.toLocaleString()} contacts`}
               </Button>
             </DialogFooter>
+            {importContacts.isPending && (
+              <p role="status" className="text-xs text-muted-foreground">
+                Importing your contacts — this window stays open until it
+                finishes so the summary and skipped rows aren&apos;t lost.
+              </p>
+            )}
           </>
         )}
 
