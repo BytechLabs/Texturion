@@ -1,0 +1,12 @@
+-- The Reviews feature was removed from the product (owner: "we don't need
+-- that"). The settings page, its nav entry, and the {review_link} merge token
+-- are gone; this drops the last DB artifact — the companies.google_review_link
+-- column that {review_link} resolved from.
+--
+-- A NEW migration (never edits a shipped one, D7/D14). Mirrors
+-- 20260704060000_drop_claim_review_request.sql, which dropped the one-tap
+-- review-ask function. The 'review_requested' conversation_event_type enum
+-- VALUE stays — Postgres cannot drop enum values, and historical
+-- conversation_events rows of that type remain readable audit history
+-- (system-line.tsx renders unknown event types as null).
+alter table public.companies drop column if exists google_review_link;

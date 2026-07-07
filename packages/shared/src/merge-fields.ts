@@ -9,7 +9,6 @@
  * Supported tokens (case-sensitive, curly-brace delimited):
  *   {first_name}     — the first whitespace-delimited token of the contact name.
  *   {business_name}  — the company name.
- *   {review_link}    — the company's stored Google review link (Step 2).
  *
  * DEGRADE GRACEFULLY (Step 0a): an unknown token, or a supported token whose
  * value is null/empty, is dropped CLEANLY — the literal `{first_name}` never
@@ -24,15 +23,12 @@ export interface MergeFieldValues {
   contactName?: string | null;
   /** Company name → {business_name}. */
   businessName?: string | null;
-  /** Company google_review_link → {review_link}. */
-  reviewLink?: string | null;
 }
 
 /** The literal tokens this substituter understands. */
 export const MERGE_FIELD_TOKENS = [
   "first_name",
   "business_name",
-  "review_link",
 ] as const;
 
 export type MergeFieldToken = (typeof MERGE_FIELD_TOKENS)[number];
@@ -60,8 +56,6 @@ function resolveToken(token: string, values: MergeFieldValues): string {
       return firstName(values.contactName);
     case "business_name":
       return (values.businessName ?? "").trim();
-    case "review_link":
-      return (values.reviewLink ?? "").trim();
     default:
       // Unknown token: drop it (never render the literal braces).
       return "";

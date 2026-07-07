@@ -22,27 +22,37 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
+import {
+  decodeOutboundMedia,
+  MMS_SEGMENTS,
+  signedMediaUrls,
+  uploadOutboundMedia,
+} from "../messaging/media";
 import { applySendMergeFields } from "../messaging/merge";
 import {
-  appendIdentificationFooter,
-  conversationHasInbound,
+  companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
   runPreSendGates,
-  stampFirstIdentification,
 } from "../messaging/send";
-import type { MessageRow } from "../messaging/types";
+import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
   insertConversationEvents,
   type ConversationEventRow,
 } from "./core/events";
 import { normalizeNanpPhone } from "./core/phone";
 import { isUniqueViolation, parseJsonBody, unwrap } from "./core/http";
-import { requireIdempotencyKey } from "./messages";
+import {
+  loadAttachments,
+  mediaItemSchema,
+  messageJson,
+  requireIdempotencyKey,
+} from "./messages";
 
 const composeSchema = z
   .object({
@@ -58,6 +68,10 @@ const composeSchema = z
     // the field is accepted for back-compat but no longer gates the send.
     consent_attested: z.literal(true).optional(),
     quiet_hours_confirmed: z.boolean().optional(),
+    // #12 outbound MMS: same shape/limits as POST /v1/messages/send — ≤3
+    // jpeg/png/gif items, ≤1 MB each (decoded + byte-checked server-side). The
+    // send is gated on the opt-in "mms" module below (cost-protection).
+    media: z.array(mediaItemSchema).min(1).max(3).optional(),
   })
   .refine(
     (value) => (value.contact_id === undefined) !== (value.phone_e164 === undefined),
@@ -73,7 +87,6 @@ interface ContactRow {
   phone_e164: string;
   name: string | null;
   consent_source: string | null;
-  first_identification_sent_at: string | null;
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -82,7 +95,7 @@ type Db = ReturnType<typeof getDb>;
  * Resolve + attest the target contact (§5): existing contacts are
  * resurrected (deleted_at cleared) and attested when they carry no consent
  * yet (inbound_sms consent is never downgraded); new contacts are created
- * attested. Returns the contact with its PRE-SEND footer state.
+ * attested.
  */
 async function resolveAttestedContact(
   db: Db,
@@ -98,8 +111,7 @@ async function resolveAttestedContact(
     consent_at: new Date().toISOString(),
     consent_attested_by: args.userId,
   };
-  const columns =
-    "id,phone_e164,name,consent_source,first_identification_sent_at";
+  const columns = "id,phone_e164,name,consent_source";
 
   if (args.contactId) {
     const rows = unwrap<ContactRow[]>(
@@ -237,6 +249,7 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   const userId = c.get("userId");
   const idempotencyKey = requireIdempotencyKey(c);
   const body = await parseJsonBody(c, composeSchema);
+  let media = body.media ? decodeOutboundMedia(body.media) : [];
   const db = getDb(env);
 
   // Idempotent replay (§7): the same key returns the existing conversation
@@ -260,7 +273,14 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
         .limit(1),
       "conversation lookup",
     )[0];
-    return c.json({ conversation, message: stripTsv(replay) }, 200);
+    const attachments = await loadAttachments(db, companyId, [replay.id]);
+    return c.json(
+      {
+        conversation,
+        message: messageJson(replay, attachments.get(replay.id) ?? []),
+      },
+      200,
+    );
   }
 
   // Sending number: must belong to the company and be usable.
@@ -280,13 +300,11 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     throw new ApiError("conflict", "This number is not ready to send yet.");
   }
 
-  // Company (footer business name — §5; google_review_link for {review_link}).
-  const company = unwrap<
-    { id: string; name: string; google_review_link: string | null }[]
-  >(
+  // Company (business name — merge fields + audit).
+  const company = unwrap<{ id: string; name: string }[]>(
     await db
       .from("companies")
-      .select("id,name,google_review_link")
+      .select("id,name")
       .eq("id", companyId)
       .limit(1),
     "company lookup",
@@ -321,6 +339,29 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
 
   // §7 gate order: subscription → destination → registration.
   await runPreSendGates(env, companyId, destination);
+
+  // #12 plan builder: sending pictures is the opt-in "Picture messages" add-on
+  // (mirrors POST /v1/messages/send). A company that opted out gets a clear
+  // upgrade prompt instead of a silent Telnyx MMS charge — this gate is
+  // MANDATORY (cost-protection) and runs BEFORE any contact/conversation row is
+  // created, so a blocked picture compose leaves nothing behind. Text-only
+  // composes never consult it. (Incoming pictures are always free.)
+  if (media.length > 0 && !(await isModuleEnabled(db, companyId, "mms"))) {
+    throw new ApiError(
+      "conflict",
+      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
+    );
+  }
+
+  // #12 MMS cap-and-drop, pre-checked at the route: over the plan's included
+  // pictures this period the PHOTO is dropped here — before the estimate, the
+  // upload, and the attachment rows — so the send degrades to text-only
+  // everywhere (meter, segments, thread) while the customer's message still
+  // goes out. Cap the cost, never the text. dispatchOutbound keeps a TOCTOU
+  // backstop.
+  if (media.length > 0 && (await companyOverMmsCap(db, companyId))) {
+    media = [];
+  }
 
   // Quiet hours (soft, §5): 8pm–8am destination local time needs an explicit
   // confirmation; unknown local time (non-geographic code) skips the check.
@@ -370,23 +411,17 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
 
   // Step 0a merge-fields: applied server-side at SEND time, reusing the contact
   // + company already loaded here (no extra query). Unknown/empty tokens degrade
-  // cleanly. Runs BEFORE the §5 footer + the estimate.
+  // cleanly. Runs BEFORE the estimate.
   const merged = applySendMergeFields(body.body, {
     contactName: contact.name,
     businessName: company.name,
-    reviewLink: company.google_review_link,
   });
 
-  // §5 footer: first outbound-first message ever sent to this contact —
-  // an appended-to thread that contains inbound traffic is a reply, never
-  // decorated.
-  const footerNeeded =
-    contact.first_identification_sent_at === null &&
-    (created ||
-      !(await conversationHasInbound(db, companyId, conversation.id as string)));
-  const text = footerNeeded
-    ? appendIdentificationFooter(merged, company.name)
-    : merged;
+  const text = merged;
+
+  // §9/§10 estimate: MMS meters (and pre-checks) as 3 segments.
+  const segmentsEstimate =
+    media.length > 0 ? MMS_SEGMENTS : estimateSegments(text).segments;
 
   const { message, existing } = await gateOutboundSend(db, {
     companyId,
@@ -394,15 +429,18 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     senderUserId: userId,
     body: text,
     idempotencyKey,
-    segmentsEstimate: estimateSegments(text).segments,
+    segmentsEstimate,
   });
   if (existing) {
     // Concurrent duplicate replay landed between our fast-path and the RPC.
-    return c.json({ conversation, message: stripTsv(message) }, 200);
-  }
-
-  if (footerNeeded) {
-    await stampFirstIdentification(db, companyId, contact.id);
+    const attachments = await loadAttachments(db, companyId, [message.id]);
+    return c.json(
+      {
+        conversation,
+        message: messageJson(message, attachments.get(message.id) ?? []),
+      },
+      200,
+    );
   }
 
   // Audit trail (§5): attestation always recorded; quiet-hours confirmation
@@ -427,22 +465,30 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   }
   await insertConversationEvents(db, events);
 
+  // §8 outbound media: upload each validated item to Storage and mint the 24h
+  // signed URLs Telnyx fetches from. Runs after the queued row exists (the
+  // path needs message.id) and before the dispatch that references the URLs.
+  let mediaUrls: string[] = [];
+  let attachments: AttachmentSummary[] = [];
+  if (media.length > 0) {
+    const uploaded = await uploadOutboundMedia(db, {
+      companyId,
+      messageId: message.id,
+      items: media,
+    });
+    attachments = uploaded.summaries;
+    mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
+  }
+
   const sent = await dispatchOutbound(env, db, message, {
     from: number.number_e164,
     to: destination,
     text,
-    mediaUrls: [],
+    mediaUrls,
   });
 
   return c.json(
-    { conversation, message: stripTsv(sent) },
+    { conversation, message: messageJson(sent, attachments) },
     created ? 201 : 200,
   );
 });
-
-/** Drop the generated tsvector column from RPC-returned rows. */
-function stripTsv(row: MessageRow): Record<string, unknown> {
-  const clone = { ...(row as MessageRow & { body_tsv?: unknown }) };
-  delete clone.body_tsv;
-  return clone;
-}

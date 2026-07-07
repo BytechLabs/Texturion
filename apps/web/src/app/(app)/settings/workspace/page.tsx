@@ -7,7 +7,6 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { FooterPreview } from "@/components/settings/footer-preview";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
 import {
   LoadError,
@@ -89,7 +88,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
   return (
     <SettingsCard
       title="Company name"
-      description="Shown to your customers — it signs the first text you send them."
+      description="The name your customers know you by — used on your carrier registration and available as a {business_name} field in your texts."
     >
       <div className="space-y-4">
         {canEdit ? (
@@ -138,7 +137,6 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
             {form.formState.errors.root.message}
           </p>
         )}
-        <FooterPreview businessName={canEdit ? name : company.name} />
       </div>
     </SettingsCard>
   );

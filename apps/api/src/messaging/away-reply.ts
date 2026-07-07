@@ -33,7 +33,6 @@ interface AwaySettings {
   away_enabled: boolean;
   away_message: string | null;
   name: string;
-  google_review_link: string | null;
 }
 
 interface ConvSendSlice {
@@ -63,7 +62,7 @@ export async function maybeSendAwayReply(
   const { data: companyRows, error: companyError } = await db
     .from("companies")
     .select(
-      "timezone,business_hours,away_enabled,away_message,name,google_review_link",
+      "timezone,business_hours,away_enabled,away_message,name",
     )
     .eq("id", args.companyId)
     .limit(1);
@@ -120,7 +119,6 @@ export async function maybeSendAwayReply(
   const body = applySendMergeFields(message, {
     contactName: slice.contactName,
     businessName: settings.name,
-    reviewLink: settings.google_review_link,
   });
 
   await guardedAutoSend(env, db, {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_REVIEW_MESSAGE,
   previewAwayMessage,
   previewMissedCallText,
   SAMPLE_FIRST_NAME,
@@ -17,12 +16,6 @@ describe("previewAwayMessage", () => {
     ).toBe(
       `Hi ${SAMPLE_FIRST_NAME}, thanks for texting Ace HVAC. Reply URGENT for a no-heat emergency.`,
     );
-  });
-
-  it("drops {review_link} cleanly when no link is supplied", () => {
-    expect(
-      previewAwayMessage("Thanks {first_name} — review: {review_link}", "Ace"),
-    ).toBe(`Thanks ${SAMPLE_FIRST_NAME} — review:`);
   });
 
   it("degrades an empty message to empty", () => {
@@ -46,12 +39,5 @@ describe("previewMissedCallText", () => {
     expect(
       previewMissedCallText("Hi {first_name}, we missed your call.", "Ace"),
     ).toBe("Hi, we missed your call.");
-  });
-});
-
-describe("DEFAULT_REVIEW_MESSAGE (suggested review template)", () => {
-  it("uses only supported merge fields", () => {
-    expect(DEFAULT_REVIEW_MESSAGE).toContain("{business_name}");
-    expect(DEFAULT_REVIEW_MESSAGE).toContain("{review_link}");
   });
 });

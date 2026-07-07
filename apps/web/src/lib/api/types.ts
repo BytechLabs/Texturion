@@ -163,8 +163,6 @@ export interface CompanyView {
   business_hours: BusinessHours;
   away_enabled: boolean;
   away_message: string | null;
-  /** FEATURE-GAPS Step 2 — Google review deep-link (null until set). */
-  google_review_link: string | null;
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;
@@ -504,7 +502,6 @@ export interface Contact {
   consent_source: ConsentSource | null;
   consent_at: string | null;
   consent_attested_by: string | null;
-  first_identification_sent_at: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -615,6 +612,14 @@ export interface UsageVoice {
   included_minutes: number;
 }
 
+/** #12 outbound picture messages embedded in GET /v1/usage. */
+export interface UsageMms {
+  /** Outbound picture messages sent this period (accepted by the carrier). */
+  used_messages: number;
+  /** Included outbound picture messages for the plan (0 pre-checkout). */
+  included_messages: number;
+}
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 export interface Usage {
   period_start: string | null;
@@ -632,6 +637,8 @@ export interface Usage {
   storage: UsageStorage;
   /** #12: call-forwarding minutes used vs the plan allowance. */
   voice: UsageVoice;
+  /** #12: outbound picture messages used vs the plan allowance. */
+  mms: UsageMms;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
@@ -720,7 +727,8 @@ export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 /**
  * Plan-builder add-on card copy (mirrors the API MODULE_CATALOG). `detail` is a
  * concrete quantity line kept in sync with apps/api/src/billing/plans.ts —
- * voice = PLAN_VOICE_MINUTES (300), extra_storage = EXTRA_STORAGE_BYTES (10 GB).
+ * mms = PLAN_MMS_INCLUDED (150), voice = PLAN_VOICE_MINUTES (300),
+ * extra_storage = EXTRA_STORAGE_BYTES (10 GB).
  */
 export interface PlanModuleCard {
   id: PlanModule;
@@ -738,6 +746,7 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
     label: "Picture messages",
     blurb: "Send photos in your texts. Incoming photos are always free.",
     price: "$5",
+    detail: "150 picture messages a month included.",
   },
   {
     id: "voice",

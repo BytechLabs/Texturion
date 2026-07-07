@@ -1,9 +1,9 @@
 /**
  * Server-side canonical merge-field application for the send path
  * (FEATURE-GAPS Step 0a). Applied at SEND time to composed messages, saved
- * replies pasted into the composer, the away-reply, and the review ask — all of
- * them — so {first_name}/{business_name}/{review_link} resolve from the SAME
- * canonical substituter the web composer previews with (@loonext/shared).
+ * replies pasted into the composer, and the away-reply — all of them — so
+ * {first_name}/{business_name} resolve from the SAME canonical substituter the
+ * web composer previews with (@loonext/shared).
  *
  * It reuses the contact + company already loaded on the send path (no extra
  * query per send): callers pass the fields they already hold. Unknown/empty
@@ -16,7 +16,6 @@ import { applyMergeFields } from "@loonext/shared";
 export interface MergeContext {
   contactName?: string | null;
   businessName?: string | null;
-  reviewLink?: string | null;
 }
 
 /**
@@ -27,6 +26,5 @@ export function applySendMergeFields(body: string, ctx: MergeContext): string {
   return applyMergeFields(body, {
     contactName: ctx.contactName ?? null,
     businessName: ctx.businessName ?? null,
-    reviewLink: ctx.reviewLink ?? null,
   });
 }

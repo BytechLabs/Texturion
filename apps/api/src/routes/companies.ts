@@ -78,8 +78,6 @@ const patchSchema = z
     // Owner-authored away text; null clears it. Max 1000 for a comfortable
     // multi-line emergency-aware message.
     away_message: z.string().trim().max(1000).nullable().optional(),
-    // FEATURE-GAPS Step 2 — Google review deep-link; null clears it.
-    google_review_link: z.string().trim().max(2000).nullable().optional(),
     // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
     // owner-authored (null clears it); forward_to_cell is an optional E.164 cell
     // (null clears it), validated against the NANP table below.
@@ -95,31 +93,11 @@ const patchSchema = z
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
       "away_message" in body ||
-      "google_review_link" in body ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
       "forward_to_cell" in body,
     { message: "Provide at least one field to update." },
   );
-
-/** A stored review link must be an absolute http(s) URL (Gate-2 hygiene). */
-function assertValidReviewLink(link: string): void {
-  let url: URL;
-  try {
-    url = new URL(link);
-  } catch {
-    throw new ApiError(
-      "validation_failed",
-      "google_review_link must be a valid URL.",
-    );
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new ApiError(
-      "validation_failed",
-      "google_review_link must be an http(s) URL.",
-    );
-  }
-}
 
 /** D15: reject anything the runtime's IANA database does not know. */
 function assertValidTimezone(timezone: string): void {
@@ -221,15 +199,6 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       body.away_message && body.away_message.length > 0
         ? body.away_message
         : null;
-  }
-  // FEATURE-GAPS Step 2: Google review link.
-  if ("google_review_link" in body) {
-    if (body.google_review_link && body.google_review_link.length > 0) {
-      assertValidReviewLink(body.google_review_link);
-      patch.google_review_link = body.google_review_link;
-    } else {
-      patch.google_review_link = null;
-    }
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

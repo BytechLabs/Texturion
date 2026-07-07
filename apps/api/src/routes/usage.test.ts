@@ -54,6 +54,9 @@ const INBOUND_USED = 200;
 /** #12: voice seconds the api_period_voice_seconds RPC stub reports (3660 = 61 min). */
 const VOICE_SECONDS = 3660;
 
+/** #12: outbound MMS the api_period_outbound_mms RPC stub reports. */
+const MMS_USED = 42;
+
 function usageStub(
   company: Record<string, unknown>,
   used: number,
@@ -71,6 +74,7 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
+  sb.on("POST", "/rest/v1/rpc/api_period_outbound_mms", () => MMS_USED);
   // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage off.
   sb.on("GET", "/rest/v1/company_modules", () => []);
   return sb;
@@ -112,6 +116,7 @@ describe("GET /v1/usage", () => {
         mms_budget_bytes: STARTER_BUDGET,
       },
       voice: { used_minutes: 61, included_minutes: 300 },
+      mms: { used_messages: MMS_USED, included_messages: 150 },
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
@@ -208,6 +213,7 @@ describe("GET /v1/usage", () => {
         mms_budget_bytes: 0,
       },
       voice: { used_minutes: 0, included_minutes: 0 },
+      mms: { used_messages: 0, included_messages: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
     expect(
@@ -218,6 +224,9 @@ describe("GET /v1/usage", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_storage_usage")).toHaveLength(0);
     expect(
       sb.find("POST", "/rest/v1/rpc/api_period_voice_seconds"),
+    ).toHaveLength(0);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_period_outbound_mms"),
     ).toHaveLength(0);
   });
 });

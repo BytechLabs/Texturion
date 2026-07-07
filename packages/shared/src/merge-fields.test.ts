@@ -15,13 +15,12 @@ describe("applyMergeFields — substitution", () => {
     ).toBe("Hi Dana, on my way!");
   });
 
-  it("substitutes {business_name} and {review_link}", () => {
+  it("substitutes {business_name}", () => {
     expect(
-      applyMergeFields("Thanks from {business_name}: {review_link}", {
+      applyMergeFields("Thanks from {business_name}", {
         businessName: "Ace Plumbing",
-        reviewLink: "https://g.page/r/abc",
       }),
-    ).toBe("Thanks from Ace Plumbing: https://g.page/r/abc");
+    ).toBe("Thanks from Ace Plumbing");
   });
 
   it("handles a single-word name", () => {
@@ -69,14 +68,6 @@ describe("applyMergeFields — graceful degradation", () => {
     ).toBe("Call");
   });
 
-  it("drops an empty {review_link} without leaving a double space", () => {
-    expect(
-      applyMergeFields("Review us here: {review_link} — thanks!", {
-        reviewLink: "",
-      }),
-    ).toBe("Review us here: — thanks!");
-  });
-
   it("drops unknown tokens without rendering the literal braces", () => {
     expect(
       applyMergeFields("Hi {first_name}, your {gizmo} is ready", {
@@ -87,15 +78,12 @@ describe("applyMergeFields — graceful degradation", () => {
 
   it("degrades multiple missing tokens at once", () => {
     expect(
-      applyMergeFields("{first_name} — {business_name}: {review_link}", {}),
-    ).toBe("—:");
+      applyMergeFields("{first_name} — {business_name}", {}),
+    ).toBe("—");
   });
 
   it("never emits a literal supported token even when all values absent", () => {
-    const out = applyMergeFields(
-      "{first_name} {business_name} {review_link}",
-      {},
-    );
+    const out = applyMergeFields("{first_name} {business_name}", {});
     for (const token of MERGE_FIELD_TOKENS) {
       expect(out).not.toContain(`{${token}}`);
     }
@@ -105,7 +93,7 @@ describe("applyMergeFields — graceful degradation", () => {
 describe("hasMergeFields", () => {
   it("detects supported tokens", () => {
     expect(hasMergeFields("Hi {first_name}")).toBe(true);
-    expect(hasMergeFields("Link: {review_link}")).toBe(true);
+    expect(hasMergeFields("Business: {business_name}")).toBe(true);
   });
 
   it("ignores unknown tokens and brace-free text", () => {

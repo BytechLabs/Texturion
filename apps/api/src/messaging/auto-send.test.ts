@@ -138,7 +138,7 @@ describe("guardedAutoSend — successful claim reuses dispatchOutbound", () => {
     const outcome = await run({ claim, telnyx, persist });
     expect(outcome.sent).toBe(true);
     expect(telnyx.calls).toHaveLength(1);
-    // The auto-reply body (not a footer-decorated variant) went to Telnyx.
+    // The auto-reply body went to Telnyx verbatim.
     expect(telnyx.calls[0].body).toMatchObject({
       from: "+16135550100",
       to: "+16135551000",

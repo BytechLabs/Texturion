@@ -5,6 +5,7 @@ import { useCompanyId } from "@/lib/company/provider";
 import { threadUpsertMessages, type ThreadData } from "./cache";
 import { apiFetch } from "./client";
 import { keys } from "./keys";
+import type { OutboundMedia } from "./messages";
 import type { ComposeResult } from "./types";
 
 /**
@@ -20,6 +21,8 @@ export interface ComposeInput {
   phone_number_id: string;
   body: string;
   quiet_hours_confirmed?: boolean;
+  /** #12 outbound MMS — ≤3 jpeg/png/gif items, ≤1 MB each (§7). */
+  media?: OutboundMedia[];
 }
 
 export function useStartConversation() {

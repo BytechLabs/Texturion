@@ -51,7 +51,7 @@ export interface DraftAttachment {
   previewUrl: string;
 }
 
-function fileToBase64(file: File): Promise<string> {
+export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("read failed"));

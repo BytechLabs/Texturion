@@ -190,12 +190,11 @@ export async function sendMissedCallText(
   // A throw here is caught by the webhook dispatch and lands on the ledger.
   await runPreSendGates(env, args.companyId, args.callerE164);
 
-  // Merge fields into the owner-authored booking-forward message (no review
-  // link relevant here; contact name is unknown for a brand-new caller).
+  // Merge fields into the owner-authored booking-forward message (contact name
+  // is unknown for a brand-new caller).
   const body = applySendMergeFields(template, {
     contactName: null,
     businessName: settings.name,
-    reviewLink: null,
   });
 
   const segments = Math.max(1, estimateSegments(body).segments);

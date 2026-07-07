@@ -72,7 +72,6 @@ function awayDisabledStub() {
         away_enabled: false,
         away_message: null,
         name: "Test Co",
-        google_review_link: null,
       },
     ],
   );

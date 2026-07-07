@@ -13,8 +13,8 @@ export const COMPANY_COLUMNS =
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +
-  // FEATURE-GAPS Step 1 & 2: after-hours away settings + review link.
-  "business_hours,away_enabled,away_message,google_review_link," +
+  // FEATURE-GAPS Step 1: after-hours away settings.
+  "business_hours,away_enabled,away_message," +
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   "mctb_enabled,mctb_message,forward_to_cell," +
   "created_at,updated_at";

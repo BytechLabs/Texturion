@@ -6,7 +6,8 @@
  *     overage_segments, cap_segments, projected_overage_cents,
  *     history: [{ month: 'YYYY-MM', segments }],
  *     storage: { attachments_bytes, mms_bytes },
- *     voice: { used_minutes, included_minutes } }
+ *     voice: { used_minutes, included_minutes },
+ *     mms: { used_messages, included_messages } }
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
  * SPEC §2). `history` is the last 6 calendar months (oldest first, zero-
  * filled) for the G8 "6-month history bars". `storage` (D30) is the
@@ -28,6 +29,7 @@ import { errorResponse } from "../http/errors";
 import { unwrap } from "./core/http";
 import {
   PLAN_INCLUDED_SEGMENTS,
+  PLAN_MMS_INCLUDED,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -86,6 +88,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
         mms_budget_bytes: 0,
       },
       voice: { used_minutes: 0, included_minutes: 0 },
+      mms: { used_messages: 0, included_messages: 0 },
     });
   }
 
@@ -149,6 +152,18 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     ),
   );
 
+  // #12: outbound picture messages already sent this period — the same
+  // period-count RPC the send-time cap-and-drop and usage-alert arm read.
+  const mmsUsed = Number(
+    unwrap<number | string>(
+      await db.rpc("api_period_outbound_mms", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      "mms usage count",
+    ),
+  );
+
   const included = PLAN_INCLUDED_SEGMENTS[company.plan];
   const overage = Math.max(0, used - included);
   const multiplier =
@@ -177,6 +192,10 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     voice: {
       used_minutes: Math.floor(voiceSeconds / 60),
       included_minutes: PLAN_VOICE_MINUTES[company.plan],
+    },
+    mms: {
+      used_messages: mmsUsed,
+      included_messages: PLAN_MMS_INCLUDED[company.plan],
     },
   });
 });

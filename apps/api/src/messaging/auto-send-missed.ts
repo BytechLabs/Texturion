@@ -60,8 +60,8 @@ interface ClaimResult {
 
 /**
  * Run a missed-call text-back through the guard. `body` is ALREADY merge-field-
- * applied and footer-free (reply-exempt). On a successful claim the returned
- * `message` is a 'queued' row the caller dispatches via dispatchOutbound.
+ * applied and goes out verbatim. On a successful claim the returned `message`
+ * is a 'queued' row the caller dispatches via dispatchOutbound.
  */
 export async function guardedMissedCallText(
   env: Env,

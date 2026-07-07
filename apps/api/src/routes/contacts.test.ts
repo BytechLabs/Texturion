@@ -57,7 +57,6 @@ function contactRow(overrides: Record<string, unknown> = {}) {
     consent_source: null,
     consent_at: null,
     consent_attested_by: null,
-    first_identification_sent_at: null,
     deleted_at: null,
     created_at: "2026-07-01T09:00:00+00:00",
     updated_at: "2026-07-01T09:00:00+00:00",

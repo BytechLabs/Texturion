@@ -6,8 +6,7 @@
  *        Idempotency-Key. Gate order exactly per §7: membership (middleware)
  *        → subscription active (402) → destination US/CA (422) →
  *        per-destination registration (403) → opt-out (403) → rate/cap
- *        (429/402) via gate_outbound_send → insert → Telnyx. §5 footer on the
- *        first outbound-first message to a contact, exactly once. Media: max
+ *        (429/402) via gate_outbound_send → insert → Telnyx. Media: max
  *        3 × ≤1 MB jpeg/png/gif base64 (422), uploaded to Storage, 24 h
  *        signed media_urls.
  *   POST /v1/messages/:id/retry   re-send a `failed` outbound ONLY while
@@ -49,12 +48,10 @@ import {
 } from "../messaging/media";
 import { applySendMergeFields } from "../messaging/merge";
 import {
-  appendIdentificationFooter,
-  conversationHasInbound,
+  companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
   runPreSendGates,
-  stampFirstIdentification,
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
@@ -82,7 +79,8 @@ export function requireIdempotencyKey(c: Context): string {
   return key;
 }
 
-const mediaItemSchema = z.object({
+/** Shared outbound-media item shape — reused by the compose route (§7). */
+export const mediaItemSchema = z.object({
   content_type: z.enum(OUTBOUND_MEDIA_TYPES),
   base64: z.string().min(1),
 });
@@ -121,10 +119,9 @@ interface ConversationSendView {
     id: string;
     phone_e164: string;
     name: string | null;
-    first_identification_sent_at: string | null;
   };
   phone_numbers: { id: string; number_e164: string | null; status: string };
-  companies: { id: string; name: string; google_review_link: string | null };
+  companies: { id: string; name: string };
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -140,9 +137,9 @@ async function loadSendView(
       .from("conversations")
       .select(
         "id,contact_id,phone_number_id," +
-          "contacts(id,phone_e164,name,first_identification_sent_at)," +
+          "contacts(id,phone_e164,name)," +
           "phone_numbers(id,number_e164,status)," +
-          "companies(id,name,google_review_link)",
+          "companies(id,name)",
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)
@@ -202,7 +199,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const idempotencyKey = requireIdempotencyKey(c);
   const body = await parseJsonBody(c, sendSchema);
-  const media = body.media ? decodeOutboundMedia(body.media) : [];
+  let media = body.media ? decodeOutboundMedia(body.media) : [];
 
   const db = getDb(env);
   const view = await loadSendView(db, companyId, body.conversation_id);
@@ -228,25 +225,36 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
     );
   }
 
+  // #12 MMS cap-and-drop, pre-checked at the route: over the plan's included
+  // pictures this period the PHOTO is dropped here — before the estimate, the
+  // upload, and the attachment rows — so the send degrades to text-only
+  // everywhere (meter, segments, thread) while the customer's message still
+  // goes out. Cap the cost, never the text. dispatchOutbound keeps a TOCTOU
+  // backstop.
+  if (media.length > 0 && (await companyOverMmsCap(db, companyId))) {
+    // Media-only send: with the photo dropped there is no text to degrade to,
+    // and the empty body would die downstream as a generic 422. Refuse clearly
+    // instead (409, matching the add-on gate above) — nothing is written
+    // before this point.
+    if (body.body.trim().length === 0) {
+      throw new ApiError(
+        "conflict",
+        "All included picture messages for this billing period have been used — the photo can't be sent until the period resets, or add words to send it as a text.",
+      );
+    }
+    media = [];
+  }
+
   // Step 0a merge-fields: applied server-side at SEND time to the composed body
   // (and to any saved-reply text the composer pasted in), reusing the contact +
   // company already loaded here — no extra query. Unknown/empty tokens degrade
-  // cleanly. Runs BEFORE the §5 footer + the segment estimate so both see the
-  // substituted text.
+  // cleanly. Runs BEFORE the segment estimate so it sees the substituted text.
   const merged = applySendMergeFields(body.body, {
     contactName: view.contacts.name,
     businessName: view.companies.name,
-    reviewLink: view.companies.google_review_link,
   });
 
-  // §5 first-message identification: only the first OUTBOUND-FIRST message
-  // ever sent to the contact; replies to inbound threads are never decorated.
-  const footerNeeded =
-    view.contacts.first_identification_sent_at === null &&
-    !(await conversationHasInbound(db, companyId, view.id));
-  const text = footerNeeded
-    ? appendIdentificationFooter(merged, view.companies.name)
-    : merged;
+  const text = merged;
 
   // §9/§10 estimate: MMS meters (and pre-checks) as 3 segments.
   const segmentsEstimate =
@@ -272,10 +280,6 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
     }
     const attachments = await loadAttachments(db, companyId, [message.id]);
     return c.json(messageJson(message, attachments.get(message.id) ?? []), 200);
-  }
-
-  if (footerNeeded) {
-    await stampFirstIdentification(db, companyId, view.contacts.id);
   }
 
   let mediaUrls: string[] = [];
@@ -375,6 +379,9 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   // #12 plan builder: re-sending a picture requires the mms module too — same
   // gate as the send route, so a company that turned the add-on off can't
   // re-incur the Telnyx MMS charge by retrying an old failed picture send.
+  // No route-level cap pre-check here: the attachment rows already exist from
+  // the original send (nothing to mis-record), so an over-cap retry relies on
+  // dispatchOutbound's strip and simply goes out text-only.
   if (
     attachmentRows.length > 0 &&
     !(await isModuleEnabled(db, companyId, "mms"))

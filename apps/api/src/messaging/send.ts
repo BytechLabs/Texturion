@@ -3,15 +3,17 @@
  * POST /v1/messages/send and POST /v1/conversations:
  *
  *   pre-gates (subscription → US/CA destination → per-destination
- *   registration, in exactly the §7 order) → §5 first-message footer →
- *   gate_outbound_send RPC (atomic opt-out / rate / cap checks + the
- *   insert-before-call queued row) → Telnyx POST /v2/messages → persist
- *   telnyx_message_id, or status='failed' + surfaced error on API failure.
+ *   registration, in exactly the §7 order) → gate_outbound_send RPC
+ *   (atomic opt-out / rate / cap checks + the insert-before-call queued
+ *   row) → Telnyx POST /v2/messages → persist telnyx_message_id, or
+ *   status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
+import { isModuleEnabled } from "../billing/company-modules";
+import { PLAN_MMS_INCLUDED, type PlanId } from "../billing/plans";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
@@ -55,52 +57,6 @@ export async function runPreSendGates(
       "registration_pending",
       "Texting Canadian numbers is not enabled for this company yet.",
     );
-  }
-}
-
-/** The SPEC §5 identification footer, exactly once per contact. */
-export function appendIdentificationFooter(
-  body: string,
-  businessName: string,
-): string {
-  const footer = `— ${businessName}. Reply STOP to opt out`;
-  return body.length > 0 ? `${body}\n${footer}` : footer;
-}
-
-/**
- * True when the conversation contains an inbound message — replies to
- * inbound conversations are never decorated with the §5 footer.
- */
-export async function conversationHasInbound(
-  db: SupabaseClient,
-  companyId: string,
-  conversationId: string,
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("messages")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("conversation_id", conversationId)
-    .eq("direction", "inbound")
-    .limit(1);
-  if (error) throw new Error(`inbound-message lookup failed: ${error.message}`);
-  return (data ?? []).length > 0;
-}
-
-/** Stamp contacts.first_identification_sent_at exactly once (SPEC §5). */
-export async function stampFirstIdentification(
-  db: SupabaseClient,
-  companyId: string,
-  contactId: string,
-): Promise<void> {
-  const { error } = await db
-    .from("contacts")
-    .update({ first_identification_sent_at: new Date().toISOString() })
-    .eq("company_id", companyId)
-    .eq("id", contactId)
-    .is("first_identification_sent_at", null);
-  if (error) {
-    throw new Error(`first_identification stamp failed: ${error.message}`);
   }
 }
 
@@ -296,6 +252,50 @@ async function captureFirstOutboundSent(
 }
 
 /**
+ * #12 MMS cap: has the company already SENT its plan's included outbound picture
+ * messages this period? Mirrors voice-webhook.ts companyOverVoiceBudget. Exported
+ * so the send/compose routes pre-check it BEFORE uploading media or recording
+ * attachment rows (an over-cap send must degrade to text-only everywhere: no
+ * attachment rows to over-count the meter, no MMS segment estimate, no photo
+ * rendered as sent). No plan / no live period → not over (a pre-checkout company
+ * has no allowance and no numbers to send from). Reads the period-count RPC over
+ * the outbound messages the company has already had accepted by Telnyx this
+ * period.
+ */
+export async function companyOverMmsCap(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  // Module off → over-cap (media stripped). No legitimate path sends media with
+  // the module off (routes 409 first), so this only closes the hole for a
+  // future caller — fail-safe: never an uncapped MMS charge.
+  if (!(await isModuleEnabled(db, companyId, "mms"))) return true;
+
+  const { data: companyRows, error: companyError } = await db
+    .from("companies")
+    .select("plan,current_period_start")
+    .eq("id", companyId)
+    .is("deleted_at", null)
+    .limit(1);
+  if (companyError) {
+    throw new Error(`company lookup failed: ${companyError.message}`);
+  }
+  const company = (companyRows ?? [])[0] as
+    | { plan: PlanId | null; current_period_start: string | null }
+    | undefined;
+  if (!company?.plan || !company.current_period_start) return false;
+
+  const { data, error } = await db.rpc("api_period_outbound_mms", {
+    p_company_id: companyId,
+    p_since: company.current_period_start,
+  });
+  if (error) {
+    throw new Error(`mms usage lookup failed: ${error.message}`);
+  }
+  return Number(data) >= PLAN_MMS_INCLUDED[company.plan];
+}
+
+/**
  * The send-lifecycle tail (SPEC §8): Telnyx call → persist telnyx_message_id
  * on success, or status='failed' + error columns on API failure (retryable
  * via POST /v1/messages/:id/retry while telnyx_message_id IS NULL, §7).
@@ -308,6 +308,14 @@ async function captureFirstOutboundSent(
  * a denial persists a retryable failure on the row (failed + no Telnyx id,
  * §7 retry rules) and throws the stable §7 `rate_limited` code. Local
  * dev/tests have no binding → the gate is skipped.
+ *
+ * The #12 MMS cap-and-drop backstop also lives here (the one choke point every
+ * MMS send funnels through): when this send carries a picture but the company
+ * has already sent its plan's included outbound MMS this period (or the mms
+ * module is off), the media is STRIPPED and the send goes out text-only —
+ * cap-and-drop the (cost-incurring) photo, never the customer's message. The
+ * owner was warned at 80% by the mms arm of the usage-alerts cron. Text-only
+ * sends short-circuit the lookup and pay nothing.
  */
 export async function dispatchOutbound(
   env: Env,
@@ -333,7 +341,30 @@ export async function dispatchOutbound(
     }
   }
 
-  const result = await telnyxCreateMessage(env, args);
+  // TOCTOU backstop: the routes pre-check companyOverMmsCap and drop media
+  // BEFORE uploading/recording attachments, so this strip is normally
+  // unreachable. When it does fire (cap crossed between the pre-check and
+  // here), the already-recorded attachment rows make the period meter
+  // over-count this text-only send — by design, the fail-safe direction.
+  let mediaUrls = args.mediaUrls;
+  if (mediaUrls.length > 0 && (await companyOverMmsCap(db, message.company_id))) {
+    mediaUrls = [];
+    // Media-only TOCTOU edge: nothing left to send — Telnyx rejects empty text.
+    if (args.text.trim().length === 0) {
+      await persistMessagePatch(db, message, {
+        status: "failed",
+        error_code: "conflict",
+        error_detail:
+          "All included picture messages for this billing period have been used.",
+      });
+      throw new ApiError(
+        "conflict",
+        "All included picture messages for this billing period have been used — the photo can't be sent until the period resets, or add words to send it as a text.",
+      );
+    }
+  }
+
+  const result = await telnyxCreateMessage(env, { ...args, mediaUrls });
 
   const patch = result.ok
     ? { telnyx_message_id: result.telnyxMessageId }

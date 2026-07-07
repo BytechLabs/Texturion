@@ -1,12 +1,20 @@
 "use client";
 
-import { ArrowLeft, FileText, Send, X } from "lucide-react";
+import { ArrowLeft, FileText, ImagePlus, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { SegmentMeterLabel, useAutoGrow } from "@/components/thread/composer";
+import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
+import {
+  admitFiles,
+  AttachmentChips,
+  fileToBase64,
+  SegmentMeterLabel,
+  useAutoGrow,
+  type DraftAttachment,
+} from "@/components/thread/composer";
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,12 +39,12 @@ import { useCompany } from "@/lib/api/companies";
 import { useStartConversation, type ComposeInput } from "@/lib/api/compose";
 import { useContact, useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
+import type { OutboundMedia } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Contact } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
-import { useActiveCompany } from "@/lib/company/provider";
+import { isFilePaste } from "@/lib/attachments/clipboard";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { identificationFooter } from "@/lib/settings/footer-preview";
 
 import {
   destinationCountry,
@@ -57,8 +65,8 @@ type Recipient =
 
 /**
  * /inbox/new — the G5 outbound-first compose flow: contact search + raw
- * number with live E.164 formatting, first-message footer preview, segment
- * meter, quiet-hours dialog driven by the API's
+ * number with live E.164 formatting, saved-reply template picker, image
+ * attachments, segment meter, quiet-hours dialog driven by the API's
  * `quiet_hours_confirmation_required` code (409; matched structurally, never
  * by message text). Consent is attested implicitly server-side now (the visible
  * checkbox was removed).
@@ -66,7 +74,6 @@ type Recipient =
 export function NewConversation() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { membership } = useActiveCompany();
   const company = useCompany();
   const usage = useUsage();
   const start = useStartConversation();
@@ -100,6 +107,35 @@ export function NewConversation() {
     localTime: string | null;
   } | null>(null);
   const textareaRef = useAutoGrow(body);
+
+  // --- Attachments (§7 outbound MMS: ≤3 photos ≤1 MB each) -------------------
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs are revoked when a chip is removed or the composer unmounts —
+  // a successful send navigates away (unmount), which frees the previews.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  useEffect(
+    () => () => {
+      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
+    },
+    [],
+  );
+
+  const removeAttachment = (id: string) => {
+    setAttachments((current) => {
+      const found = current.find((a) => a.id === id);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return current.filter((a) => a.id !== id);
+    });
+  };
+
+  // D28 intake — the attach button, dropped files, and pasted images all funnel
+  // through the shared admitFiles (count/type/size validation + G10 copy).
+  const admitIncoming = (files: FileList) =>
+    setAttachments((cur) => admitFiles(cur, files));
+  const drop = useFileDrop(admitIncoming);
 
   // Insert a saved reply's body into the draft (one space if the draft doesn't
   // already end in one), then refocus the field. Merge tokens resolve
@@ -147,16 +183,6 @@ export function NewConversation() {
         })
       : null;
 
-  // First-message footer preview (G5/§5): raw numbers are new contacts;
-  // existing contacts show it until their first identification went out.
-  const footerNeeded =
-    recipient === null ||
-    recipient.kind === "number" ||
-    recipient.contact.first_identification_sent_at === null;
-  // One footer mirror for the whole app (lib/settings/footer-preview mirrors
-  // the API's appendIdentificationFooter, which composes with company.name).
-  const footerText = identificationFooter(membership.name);
-
   const canSend =
     !start.isPending &&
     destinationE164 !== null &&
@@ -165,8 +191,25 @@ export function NewConversation() {
     numberId !== null &&
     banner === null;
 
-  const submit = (quietConfirmed: boolean) => {
+  const submit = async (quietConfirmed: boolean) => {
     if (!destinationE164 || numberId === null) return;
+    // Read the staged photos into base64 up front. Attachments are never
+    // cleared here, so they survive a quiet-hours 409 — the dialog's re-submit
+    // (submit(true)) carries the same media.
+    let media: OutboundMedia[] | undefined;
+    try {
+      if (attachments.length > 0) {
+        media = await Promise.all(
+          attachments.map(async (a) => ({
+            content_type: a.file.type as OutboundMedia["content_type"],
+            base64: await fileToBase64(a.file),
+          })),
+        );
+      }
+    } catch {
+      toast.error("Couldn't read that photo. Try attaching it again.");
+      return;
+    }
     const inputBody: ComposeInput = {
       ...(recipient?.kind === "contact"
         ? { contact_id: recipient.contact.id }
@@ -174,6 +217,7 @@ export function NewConversation() {
       phone_number_id: numberId,
       body,
       ...(quietConfirmed ? { quiet_hours_confirmed: true } : {}),
+      ...(media ? { media } : {}),
     };
     start.mutate(inputBody, {
       onSuccess: ({ conversation }) => {
@@ -213,7 +257,9 @@ export function NewConversation() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col" {...drop.handlers}>
+      {/* D28: dropped photos land anywhere on the panel (validated by admitFiles). */}
+      <DropOverlay active={drop.active} />
       <header className="flex items-center gap-2 border-b border-border px-2 py-2 md:px-4">
         <Button
           asChild
@@ -376,23 +422,49 @@ export function NewConversation() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="compose-body">Message</Label>
-            {/* Saved-reply (template) picker — same one as the in-thread
-                composer; also opens on "/" in an empty draft. */}
-            <TemplatePicker
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-              onInsert={insertTemplate}
-            >
+            <div className="flex items-center gap-1">
+              {/* Attach up to 3 photos (§7 outbound MMS) — the shared admitFiles
+                  enforces count/type/size; this is just the entry point. */}
               <button
                 type="button"
-                onClick={() => setPickerOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                onClick={() => fileRef.current?.click()}
+                disabled={attachments.length >= 3}
+                aria-label="Attach a photo"
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-45"
               >
-                <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
-                Saved reply
+                <ImagePlus className="size-3.5" strokeWidth={1.75} aria-hidden />
+                Photo
               </button>
-            </TemplatePicker>
+              {/* Saved-reply (template) picker — same one as the in-thread
+                  composer; also opens on "/" in an empty draft. */}
+              <TemplatePicker
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                onInsert={insertTemplate}
+              >
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
+                  Saved reply
+                </button>
+              </TemplatePicker>
+            </div>
           </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif"
+            multiple
+            hidden
+            onChange={(event) => {
+              if (event.target.files) admitIncoming(event.target.files);
+              event.target.value = "";
+            }}
+          />
+          <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
           <textarea
             id="compose-body"
             ref={textareaRef}
@@ -401,13 +473,20 @@ export function NewConversation() {
             onKeyDown={(event) => {
               if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                 event.preventDefault();
-                if (canSend) submit(false);
+                if (canSend) void submit(false);
               }
               // "/" in an empty draft opens the saved-reply picker (G5).
               if (event.key === "/" && body === "") {
                 event.preventDefault();
                 setPickerOpen(true);
               }
+            }}
+            onPaste={(event) => {
+              // A genuine file paste (screenshot, copied image) stages the photo;
+              // a rich-text/Office copy keeps its normal text paste (finding #10).
+              if (!isFilePaste(event.clipboardData)) return;
+              event.preventDefault();
+              admitIncoming(event.clipboardData.files);
             }}
             rows={3}
             placeholder="Write your text…  (/ for a saved reply)"
@@ -417,24 +496,13 @@ export function NewConversation() {
             <span aria-hidden />
             <SegmentMeterLabel text={body} />
           </div>
-          {footerNeeded && (
-            <div className="space-y-0.5 px-1">
-              {/* G5 wants this quiet, but the footer text is real content the
-                  sender must read — stone-400 was 2.48:1. muted-foreground is
-                  quiet yet clears AA (4.61:1 light / 7.63:1 dark). */}
-              <p className="text-[13px] text-muted-foreground">{footerText}</p>
-              <p className="text-[11px] text-muted-foreground">
-                Added to your first message to this contact
-              </p>
-            </div>
-          )}
         </div>
 
         {banner && <ComposerBannerCard banner={banner} />}
 
         <div className="flex items-center justify-end gap-2">
           <Button
-            onClick={() => submit(false)}
+            onClick={() => void submit(false)}
             disabled={!canSend}
             aria-keyshortcuts="Control+Enter Meta+Enter"
           >
@@ -465,7 +533,7 @@ export function NewConversation() {
             <Button
               onClick={() => {
                 setQuietHours(null);
-                submit(true);
+                void submit(true);
               }}
               disabled={start.isPending}
             >

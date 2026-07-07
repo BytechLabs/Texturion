@@ -2,9 +2,10 @@
  * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms): when a company
  * crosses 80% or 100% of a budget, email the owner + active admins — exactly
  * once per (company, period, metric, threshold), gated by the `usage_alerts`
- * ledger PK. Four metrics: outbound `segments` vs the plan's INCLUDED quota
+ * ledger PK. Five metrics: outbound `segments` vs the plan's INCLUDED quota
  * (never the cap); `mms_storage` + `attachment_storage` vs their #12 storage
- * budgets; `voice_minutes` vs the plan's call-forwarding allowance. Runs from
+ * budgets; `voice_minutes` vs the plan's call-forwarding allowance; and
+ * `mms_messages` vs the plan's included outbound picture messages. Runs from
  * the hourly cron right after the usage re-reporter (§11
  * idempotency style: work is selected by state — sums vs the ledger — never by
  * "last run" bookkeeping), so re-runs and overlaps can never double-send.
@@ -13,6 +14,7 @@ import { billingRecipients } from "./recipients";
 import { effectiveStorageBudgets } from "./company-modules";
 import {
   PLAN_INCLUDED_SEGMENTS,
+  PLAN_MMS_INCLUDED,
   PLAN_VOICE_MINUTES,
   type PlanId,
 } from "./plans";
@@ -34,7 +36,8 @@ export type UsageAlertMetric =
   | "segments"
   | "mms_storage"
   | "attachment_storage"
-  | "voice_minutes";
+  | "voice_minutes"
+  | "mms_messages";
 
 interface ActiveCompanyRow {
   id: string;
@@ -171,6 +174,42 @@ function voiceAlertCopy(
       `call-forwarding minutes included in your plan this billing period. Once ` +
       `they're used up, new incoming calls stop forwarding to your cell (callers ` +
       `get your missed-call text instead). Move to a larger plan to avoid that.\n\n` +
+      `See usage: ${usageUrl}\n\n— Loonext`,
+  };
+}
+
+/**
+ * #12 picture-message alert copy. Over the allowance, new sends drop the PICTURE
+ * and go out text-only (the customer still gets the message) — the copy says so
+ * plainly so a busy shop upgrades before its photos stop going through.
+ */
+function mmsAlertCopy(
+  company: ActiveCompanyRow,
+  threshold: UsageAlertThreshold,
+  includedMessages: number,
+  usedMessages: number,
+  env: Env,
+): { subject: string; text: string } {
+  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (threshold === 100) {
+    return {
+      subject: `${company.name} has used all its included picture messages`,
+      text:
+        `Hi,\n\n${company.name} has sent all ${includedMessages} picture ` +
+        `messages included in your plan this billing period. New picture sends ` +
+        `now go out as text only — the message still reaches your customer, but ` +
+        `without the photo — so your messaging bill can't run past your plan. ` +
+        `Move to a larger plan to keep sending pictures.\n\n` +
+        `See usage: ${usageUrl}\n\n— Loonext`,
+    };
+  }
+  return {
+    subject: `${company.name} is nearing its picture-message limit`,
+    text:
+      `Hi,\n\n${company.name} has sent ${usedMessages} of the ${includedMessages} ` +
+      `picture messages included in your plan this billing period. Once they're ` +
+      `used up, new picture sends go out as text only (the message still reaches ` +
+      `your customer, without the photo). Move to a larger plan to avoid that.\n\n` +
       `See usage: ${usageUrl}\n\n— Loonext`,
   };
 }
@@ -360,6 +399,30 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
               Math.floor(usedVoiceSeconds / 60),
               env,
             ),
+          );
+        }
+      }
+
+      // #12 mms arm: warn before the hard cap (send.ts) starts stripping the
+      // picture off new sends. Counts the outbound MMS already accepted this
+      // period — the same RPC the send-time cap and GET /v1/usage read.
+      const { data: mmsUsed, error: mmsError } = await db.rpc(
+        "api_period_outbound_mms",
+        { p_company_id: company.id, p_since: company.current_period_start },
+      );
+      if (mmsError) {
+        throw new Error(`mms usage failed: ${mmsError.message}`);
+      }
+      const usedMms = Number(mmsUsed);
+      const includedMms = PLAN_MMS_INCLUDED[company.plan];
+      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+        if (usedMms * 100 >= includedMms * threshold) {
+          await recordAndSendAlert(
+            env,
+            company,
+            "mms_messages",
+            threshold,
+            mmsAlertCopy(company, threshold, includedMms, usedMms, env),
           );
         }
       }

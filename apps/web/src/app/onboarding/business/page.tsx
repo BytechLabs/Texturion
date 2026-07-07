@@ -45,7 +45,7 @@ import { useWizardStepGuard } from "../use-onboarding-state";
 import { TCR_VERTICALS, VERTICAL_OPTIONS } from "../verticals";
 
 /**
- * G7 step 3 — business identity. Feeds the SMS footer + 10DLC registration:
+ * G7 step 3 — business identity. Feeds 10DLC registration:
  * the form writes the brand draft under the canonical Telnyx payload keys
  * (SPEC §4.4 mapping; validated server-side by apps/api/src/telnyx/wizard.ts).
  * The EIN yes/no branch is the standard-vs-sole-proprietor XOR; every field

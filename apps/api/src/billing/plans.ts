@@ -56,6 +56,29 @@ export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
 };
 
 /**
+ * #12 outbound picture messages (MMS) included per period, before the hard cap.
+ * The base plan gates WHETHER a company can send MMS (the "Picture messages"
+ * module, modules.ts); this bounds HOW MANY it sends, because every outbound
+ * MMS costs ~$0.025 (Telnyx $0.015 base + up to $0.01 T-Mobile carrier) and
+ * there is no MMS-overage billing yet — so every included message is a cost we
+ * eat, and this allowance is ALSO our max per-company MMS exposure per period,
+ * enforced by the cap-and-drop in messaging/send.ts (strip the media, keep the
+ * text) with an 80% owner alert before it.
+ *
+ * COST FLOOR (cost-protection mandate): the mms module is a FLAT $5/mo, so the
+ * cap must match what $5 covers. At 150/mo the cost is 150 × $0.025 = $3.75
+ * against $5 of revenue, leaving ~$1.25 (≈25%) gross before Stripe fees, so the
+ * $5 module can never sell below cost — where an uncapped shop texting job
+ * photos daily would go unbounded-negative. Flat across plans (not the text
+ * segment quota) because the module price is flat. Retune upward only alongside
+ * metered MMS overage (then this becomes the included allowance, not the ceiling).
+ */
+export const PLAN_MMS_INCLUDED: Record<PlanId, number> = {
+  starter: 150,
+  pro: 150,
+};
+
+/**
  * D30: per-company budget for the generic `attachments` bucket (note-borne
  * files), enforced at POST /v1/attachments as an atomic company-wide
  * sum(size_bytes) over LIVE rows (claim_attachment_storage). Starter 5 GB,

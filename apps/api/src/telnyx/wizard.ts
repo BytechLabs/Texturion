@@ -185,10 +185,11 @@ export function buildBrandPayload(
 
 /**
  * Representative Google review deep link declared in the campaign's sample
- * content (FEATURE-GAPS Step 0c). The manual review ask (routes/review.ts)
- * merges the company's own `google_review_link` — this domain/path shape —
- * into `{review_link}`; a campaign that never declared that content gets its
- * review sends silently carrier-filtered regardless of consent.
+ * content (FEATURE-GAPS Step 0c). Legacy declared 10DLC content: the Reviews
+ * feature is gone (DECISIONS D32) — nothing in the product merges a review
+ * link into messages anymore. Deliberately kept so already-approved campaigns
+ * never need re-vetting; owners who still send review asks paste their link
+ * by hand, and this keeps that traffic declared.
  */
 export const REVIEW_SAMPLE_LINK =
   "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4";
@@ -203,12 +204,12 @@ export const TCR_UPDATE_SAMPLE_MAX_LENGTH = 255;
 
 /**
  * The registered review-ask sample message (sample3, Step 0c): brand name in
- * the body + the review deep-link domain visible. Owners send review asks from
- * a saved template ({review_link} merges from the company's stored link), so
- * the campaign must keep declaring review-URL content — keep this sample
- * representative of the suggested template (web DEFAULT_REVIEW_MESSAGE in
- * apps/web/src/lib/settings/away-preview.ts) so registration matches what the
- * number actually emits.
+ * the body + the review deep-link domain visible. Legacy declared 10DLC
+ * campaign content (the Reviews feature was removed — DECISIONS D32),
+ * deliberately kept so approved campaigns don't go back through vetting:
+ * over-declaring content is harmless, and owners who ask for reviews now
+ * paste their link into an ordinary message, so the number can still emit
+ * review-URL traffic this sample keeps declared.
  *
  * Guaranteed ≤ {@link TCR_UPDATE_SAMPLE_MAX_LENGTH} (255) chars total — the
  * business name is truncated so the fixed copy + link always fit — because

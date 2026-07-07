@@ -53,10 +53,9 @@ interface ClaimResult {
 
 /**
  * Run an auto-message through the guard. `from`/`to` are the sending number and
- * destination; `body` is ALREADY merge-field-applied and footer-free (a
- * reply-exempt send carries no §5 identification footer). `triggerBody` is the
- * inbound text that triggered this auto-send — a STOP/HELP/START keyword short-
- * circuits before any DB write.
+ * destination; `body` is ALREADY merge-field-applied and goes out verbatim.
+ * `triggerBody` is the inbound text that triggered this auto-send — a
+ * STOP/HELP/START keyword short-circuits before any DB write.
  */
 export async function guardedAutoSend(
   env: Env,

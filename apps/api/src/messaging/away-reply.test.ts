@@ -48,7 +48,6 @@ function awayCompanyStub(overrides: {
   away_enabled?: boolean;
   away_message?: string | null;
   business_hours?: unknown;
-  google_review_link?: string | null;
 } = {}): Stub {
   return stubRoute(
     restMatch(
@@ -67,7 +66,6 @@ function awayCompanyStub(overrides: {
             ? overrides.away_message
             : "Hi {first_name}, thanks for texting {business_name}. For an emergency reply URGENT.",
         name: "Ace Plumbing",
-        google_review_link: overrides.google_review_link ?? null,
       },
     ],
   );

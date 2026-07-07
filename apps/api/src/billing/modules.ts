@@ -13,7 +13,11 @@
  * `company-modules.ts` reads it, checkout writes it.
  */
 import type { Env } from "../env";
-import { EXTRA_STORAGE_BYTES, PLAN_VOICE_MINUTES } from "./plans";
+import {
+  EXTRA_STORAGE_BYTES,
+  PLAN_MMS_INCLUDED,
+  PLAN_VOICE_MINUTES,
+} from "./plans";
 
 /** The toggleable modules (mirrors the company_modules.module CHECK). */
 export const PLAN_MODULES = [
@@ -50,6 +54,7 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     label: "Picture messages",
     blurb:
       "Send photos and images in your texts. (Incoming pictures are always received.)",
+    detail: `${PLAN_MMS_INCLUDED.starter} picture messages a month included.`,
     monthlyCents: 500,
     gates: "sending picture (MMS) messages",
     priceEnvKey: "STRIPE_MODULE_MMS_PRICE_ID",

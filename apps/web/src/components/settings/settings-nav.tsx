@@ -11,7 +11,6 @@ import {
   Phone,
   PhoneMissed,
   ShieldCheck,
-  Star,
   UserRound,
   Users,
   type LucideIcon,
@@ -65,13 +64,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Missed calls",
     description: "Text back when a call goes unanswered",
     icon: PhoneMissed,
-  },
-  {
-    // FEATURE-GAPS Step 2 — Google review link.
-    slug: "reviews",
-    label: "Reviews",
-    description: "Your Google review link for texts and templates",
-    icon: Star,
   },
   {
     slug: "templates",

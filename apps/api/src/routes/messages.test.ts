@@ -2,8 +2,8 @@
  * POST /v1/messages/send + retry + GET /v1/conversations/:id/messages suite
  * (SPEC §5, §7, §8, §10): the full gate-order matrix (each gate returns its
  * §7 code, in order), idempotent send (same key twice → one Telnyx call),
- * footer exactly-once, the MMS validation matrix + storage upload flow, and
- * the §7 retry rules. Real middleware chain (JWT + company context), real
+ * the MMS validation matrix + storage upload flow, and the §7 retry rules.
+ * Real middleware chain (JWT + company context), real
  * product code, fetch-edge stubs only.
  */
 import { Hono } from "hono";
@@ -74,11 +74,9 @@ afterEach(() => {
 });
 
 function sendView(overrides: Partial<{
-  first_identification_sent_at: string | null;
   phone_e164: string;
   number_status: string;
   contact_name: string | null;
-  google_review_link: string | null;
 }> = {}) {
   return {
     id: CONVERSATION_ID,
@@ -88,8 +86,6 @@ function sendView(overrides: Partial<{
       id: CONTACT_ID,
       phone_e164: overrides.phone_e164 ?? "+16135551000",
       name: overrides.contact_name ?? null,
-      first_identification_sent_at:
-        overrides.first_identification_sent_at ?? null,
     },
     phone_numbers: {
       id: NUMBER_ID,
@@ -99,45 +95,36 @@ function sendView(overrides: Partial<{
     companies: {
       id: COMPANY_ID,
       name: "Acme Plumbing",
-      google_review_link: overrides.google_review_link ?? null,
     },
   };
 }
 
 interface SendStubs {
   conversationView: Stub;
-  inboundCheck: Stub;
   gateRpc: Stub;
-  footerStamp: Stub;
   telnyx: Stub;
   persist: Stub;
   attachmentsLookup: Stub;
   upload: Stub;
   attachmentInsert: Stub;
   sign: Stub;
+  companyPlan: Stub;
+  mmsCount: Stub;
   all: FetchRoute[];
 }
 
 function sendStubs(options: {
   view?: ReturnType<typeof sendView>;
-  hasInbound?: boolean;
   gate?: (call: { body: unknown }) => unknown;
   /** #12: whether the Picture messages (mms) module is enabled (default true). */
   mmsEnabled?: boolean;
+  /** #12: outbound MMS already sent this period (cap pre-check; default 0). */
+  mmsUsed?: number;
 } = {}): SendStubs {
   const view = options.view ?? sendView();
   const conversationView = stubRoute(
     restMatch(env, "GET", "conversations"),
     () => [view],
-  );
-  const inboundCheck = stubRoute(
-    restMatch(
-      env,
-      "GET",
-      "messages",
-      (url) => url.searchParams.get("direction") === "eq.inbound",
-    ),
-    () => (options.hasInbound ? [{ id: "some-inbound" }] : []),
   );
   const gateRpc = stubRoute(
     rpcMatch(env, "gate_outbound_send"),
@@ -155,15 +142,6 @@ function sendStubs(options: {
           existing: false,
         };
       }),
-  );
-  const footerStamp = stubRoute(
-    restMatch(
-      env,
-      "PATCH",
-      "contacts",
-      (url) => url.searchParams.get("first_identification_sent_at") === "is.null",
-    ),
-    () => new Response(null, { status: 204 }),
   );
   const telnyx = stubRoute(
     (url, request) =>
@@ -204,27 +182,37 @@ function sendStubs(options: {
     restMatch(env, "GET", "company_modules"),
     () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
   );
+  // #12 MMS cap-and-drop reads made by companyOverMmsCap when a send carries
+  // media — at the route pre-check AND again at dispatchOutbound's backstop
+  // (stubs answer every match, so the double read is fine): the company's plan
+  // + period, then the period MMS count. Default count 0 → under cap, so media
+  // is forwarded untouched.
+  const companyPlan = stubRoute(restMatch(env, "GET", "companies"), () => [
+    { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
+  ]);
+  const mmsCount = stubRoute(
+    rpcMatch(env, "api_period_outbound_mms"),
+    () => options.mmsUsed ?? 0,
+  );
 
   return {
     conversationView,
-    inboundCheck,
     gateRpc,
-    footerStamp,
     telnyx,
     persist,
     attachmentsLookup,
     upload,
     attachmentInsert,
     sign,
+    companyPlan,
+    mmsCount,
     all: [
       jwksRoute(auth),
       companyMembersRoute(env, [
         { id: "11111111-0000-4000-8000-000000000011", role: "member" },
       ]),
       conversationView.route,
-      inboundCheck.route,
       gateRpc.route,
-      footerStamp.route,
       telnyx.route,
       persist.route,
       attachmentsLookup.route,
@@ -232,6 +220,8 @@ function sendStubs(options: {
       attachmentInsert.route,
       sign.route,
       modulesLookup.route,
+      companyPlan.route,
+      mmsCount.route,
     ],
   };
 }
@@ -388,7 +378,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
 describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () => {
   it("queues, calls Telnyx with from/to/text, persists the telnyx id", async () => {
     const stubs = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      view: sendView(),
     });
     stubFetch(...stubs.all);
 
@@ -435,7 +425,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
     const key = crypto.randomUUID();
     let calls = 0;
     const stubs = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      view: sendView(),
       gate: (call) => {
         calls += 1;
         const params = call.body as { p_body: string };
@@ -487,7 +477,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
 
   it("surfaces a Telnyx API failure on the row: status failed + detail (§8)", async () => {
     const stubs = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      view: sendView(),
     });
     const failingTelnyx = stubRoute(
       (url, request) =>
@@ -505,7 +495,6 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
         { id: "11111111-0000-4000-8000-000000000011", role: "member" },
       ]),
       stubs.conversationView.route,
-      stubs.inboundCheck.route,
       stubs.gateRpc.route,
       failingTelnyx.route,
       stubs.persist.route,
@@ -528,9 +517,13 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
   });
 });
 
-describe("POST /v1/messages/send — §5 footer exactly-once", () => {
-  it("appends the footer on the first outbound-first message and stamps the contact", async () => {
-    const stubs = sendStubs(); // first_identification_sent_at null, no inbound
+describe("POST /v1/messages/send — no identification footer", () => {
+  // The enforced first-message identification/opt-out auto-append
+  // ("— {Business}. Reply STOP to opt out") was removed: the platform no
+  // longer decorates any outbound. Inbound STOP handling (gate_outbound_send /
+  // recipient_opted_out) is separate and unaffected — see the gate-order suite.
+  it("sends the body verbatim — never appends a business/STOP line", async () => {
+    const stubs = sendStubs(); // brand-new contact — nothing to decorate
     stubFetch(...stubs.all);
 
     const response = await postSend({
@@ -539,42 +532,16 @@ describe("POST /v1/messages/send — §5 footer exactly-once", () => {
     });
     expect(response.status).toBe(201);
 
-    const expected = "On our way!\n— Acme Plumbing. Reply STOP to opt out";
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: expected });
-    expect(stubs.telnyx.calls[0].body).toMatchObject({ text: expected });
-    expect(stubs.footerStamp.calls).toHaveLength(1);
-    expect(stubs.footerStamp.calls[0].url.searchParams.get("id")).toBe(
-      `eq.${CONTACT_ID}`,
-    );
-  });
-
-  it("never decorates once the contact is stamped", async () => {
-    const stubs = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
-    });
-    stubFetch(...stubs.all);
-
-    await postSend({ conversation_id: CONVERSATION_ID, body: "Again" });
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: "Again" });
-    expect(stubs.footerStamp.calls).toHaveLength(0);
-  });
-
-  it("never decorates replies to inbound conversations", async () => {
-    const stubs = sendStubs({ hasInbound: true });
-    stubFetch(...stubs.all);
-
-    await postSend({ conversation_id: CONVERSATION_ID, body: "Reply" });
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: "Reply" });
-    expect(stubs.footerStamp.calls).toHaveLength(0);
+    // The exact body reaches the gate and Telnyx — no footer, no contact stamp.
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: "On our way!" });
+    expect(stubs.telnyx.calls[0].body).toMatchObject({ text: "On our way!" });
   });
 });
 
 describe("POST /v1/messages/send — merge-fields (Step 0a)", () => {
   it("substitutes {first_name}/{business_name} server-side at send time", async () => {
-    // Reply thread (hasInbound) so the footer never masks the merge output.
     const stubs = sendStubs({
       view: sendView({ contact_name: "Dana Whitfield" }),
-      hasInbound: true,
     });
     stubFetch(...stubs.all);
 
@@ -589,28 +556,9 @@ describe("POST /v1/messages/send — merge-fields (Step 0a)", () => {
     expect(stubs.telnyx.calls[0].body).toMatchObject({ text: expected });
   });
 
-  it("substitutes {review_link} from the company link", async () => {
-    const stubs = sendStubs({
-      view: sendView({
-        contact_name: "Sam",
-        google_review_link: "https://g.page/r/xyz",
-      }),
-      hasInbound: true,
-    });
-    stubFetch(...stubs.all);
-
-    await postSend({
-      conversation_id: CONVERSATION_ID,
-      body: "Review us: {review_link}",
-    });
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({
-      p_body: "Review us: https://g.page/r/xyz",
-    });
-  });
-
   it("drops an unknown/empty token cleanly (no literal braces on the wire)", async () => {
     // No contact name → {first_name} degrades gracefully.
-    const stubs = sendStubs({ view: sendView({ contact_name: null }), hasInbound: true });
+    const stubs = sendStubs({ view: sendView({ contact_name: null }) });
     stubFetch(...stubs.all);
 
     await postSend({
@@ -672,7 +620,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
 
   it("uploads to Storage, records attachments, and sends signed media_urls", async () => {
     const stubs = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      view: sendView(),
     });
     stubFetch(...stubs.all);
 
@@ -732,6 +680,61 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
     expect(stubs.telnyx.calls).toHaveLength(0);
   });
 
+  it("at the MMS cap the photo is dropped and the text still sends (#12)", async () => {
+    const stubs = sendStubs({ mmsUsed: 150 }); // the starter plan's full allowance
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "photo attached",
+      media: [{ content_type: "image/jpeg", base64: PIXEL }],
+    });
+    // Cap-and-drop the PHOTO, keep the TEXT: the send still succeeds.
+    expect(response.status).toBe(201);
+
+    // Dropped at the route pre-check: text segment estimate, no upload, no
+    // attachment rows — the meter can't over-count a text-only send.
+    expect(stubs.mmsCount.calls.length).toBeGreaterThanOrEqual(1);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_segments_estimate: 1,
+    });
+    expect(stubs.upload.calls).toHaveLength(0);
+    expect(stubs.attachmentInsert.calls).toHaveLength(0);
+
+    // Telnyx got the text with no media_urls.
+    expect(stubs.telnyx.calls).toHaveLength(1);
+    expect(
+      (stubs.telnyx.calls[0].body as { media_urls?: unknown }).media_urls,
+    ).toBeUndefined();
+
+    const body = (await response.json()) as { attachments: unknown[] };
+    expect(body.attachments).toEqual([]);
+  });
+
+  it("at the MMS cap a media-only send is a clear 409 with nothing written (#12)", async () => {
+    const stubs = sendStubs({ mmsUsed: 150 }); // the starter plan's full allowance
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      media: [{ content_type: "image/jpeg", base64: PIXEL }],
+    });
+    // No text to degrade to — refuse with the cap message, never a generic 422.
+    expect(response.status).toBe(409);
+    const payload = (await response.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(payload.error.code).toBe("conflict");
+    expect(payload.error.message).toContain("billing period");
+
+    // Blocked at the pre-check — no message row, no upload, no attachment
+    // rows, no Telnyx call.
+    expect(stubs.gateRpc.calls).toHaveLength(0);
+    expect(stubs.upload.calls).toHaveLength(0);
+    expect(stubs.attachmentInsert.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
   it("a text-only send never consults the module gate (#12)", async () => {
     const stubs = sendStubs({ mmsEnabled: false });
     stubFetch(...stubs.all);
@@ -766,7 +769,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
       () => [message],
     );
     const base = sendStubs({
-      view: sendView({ first_identification_sent_at: "2026-06-01T00:00:00Z" }),
+      view: sendView(),
       mmsEnabled: options.mmsEnabled,
     });
     const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);

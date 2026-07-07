@@ -55,8 +55,7 @@ import { parseVCards } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
-  "consent_attested_by,first_identification_sent_at,deleted_at,created_at," +
-  "updated_at";
+  "consent_attested_by,deleted_at,created_at,updated_at";
 
 const createSchema = z.object({
   phone_e164: z.string().trim().min(1).max(32),

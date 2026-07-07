@@ -16,15 +16,15 @@ begin;
 
 -- ===========================================================================
 -- SF-1. companies gains business_hours (jsonb NOT NULL default '{}'),
---       away_enabled (bool NOT NULL default false), away_message (text NULL),
---       google_review_link (text NULL).
+--       away_enabled (bool NOT NULL default false), away_message (text NULL).
+--       (google_review_link was dropped with the Reviews feature —
+--       20260705010000_drop_google_review_link.sql.)
 -- ===========================================================================
 do $$
 declare
   bh_type    text; bh_null boolean; bh_default text;
   ae_type    text; ae_null boolean; ae_default text;
   am_null    boolean;
-  grl_null   boolean;
 begin
   select data_type, is_nullable='YES', column_default
     into bh_type, bh_null, bh_default
@@ -50,11 +50,6 @@ begin
   where table_schema='public' and table_name='companies' and column_name='away_message';
   if am_null is null then raise exception 'SF-1 FAILED: companies.away_message missing'; end if;
   if not am_null then raise exception 'SF-1 FAILED: away_message must be NULLable'; end if;
-
-  select is_nullable='YES' into grl_null from information_schema.columns
-  where table_schema='public' and table_name='companies' and column_name='google_review_link';
-  if grl_null is null then raise exception 'SF-1 FAILED: companies.google_review_link missing'; end if;
-  if not grl_null then raise exception 'SF-1 FAILED: google_review_link must be NULLable'; end if;
 
   raise notice 'SF-1 PASSED: companies send-features columns present with correct types/defaults';
 end $$;

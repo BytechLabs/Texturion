@@ -431,46 +431,6 @@ describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2
     });
   });
 
-  it("stores a valid google_review_link and rejects a non-URL (Step 2)", async () => {
-    const sb = stubWithRole("admin");
-    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
-    stubFetch(jwksRoute(auth), sb.route);
-
-    const ok = await apiRequest(app, env, await auth.token(), "/v1/company", {
-      method: "PATCH",
-      companyId: COMPANY_ID,
-      body: { google_review_link: "https://g.page/r/ace/review" },
-    });
-    expect(ok.status).toBe(200);
-    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
-      google_review_link: "https://g.page/r/ace/review",
-    });
-
-    const bad = await apiRequest(app, env, await auth.token(), "/v1/company", {
-      method: "PATCH",
-      companyId: COMPANY_ID,
-      body: { google_review_link: "not a url" },
-    });
-    expect(bad.status).toBe(422);
-    expect(await errorCodeOf(bad)).toBe("validation_failed");
-  });
-
-  it("clears google_review_link with null", async () => {
-    const sb = stubWithRole("admin");
-    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
-    stubFetch(jwksRoute(auth), sb.route);
-
-    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
-      method: "PATCH",
-      companyId: COMPANY_ID,
-      body: { google_review_link: null },
-    });
-    expect(res.status).toBe(200);
-    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
-      google_review_link: null,
-    });
-  });
-
   it("403s a plain member trying to change away settings", async () => {
     const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);
