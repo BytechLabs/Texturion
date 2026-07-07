@@ -68,8 +68,9 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             href={SIGNUP_HREF}
             onClick={onNavigate}
             className="nxh-btn nxh-btn-lg nxh-focus w-full"
+            aria-label="Start — create your Loonext account"
           >
-            Start
+            Start now
           </Link>
         </SheetClose>
       </div>

@@ -26,13 +26,20 @@ import { Container } from "./ui/container";
 interface FooterLinkItem {
   label: string;
   href: string;
+  /** Descriptive accessible name when the visible label alone is generic
+      (Lighthouse `link-text`, #69) — e.g. the one-word "Start" CTA. */
+  ariaLabel?: string;
 }
 
 /* Copy deck order first (Pricing · Start · FAQ), then the preserved product
    routes from the old footer inventory. */
 const PRODUCT: FooterLinkItem[] = [
   { label: "Pricing", href: LIVE_ROUTES.pricing },
-  { label: "Start", href: APP_LINKS.signup },
+  {
+    label: "Start now",
+    href: APP_LINKS.signup,
+    ariaLabel: "Start — create your Loonext account",
+  },
   { label: "FAQ", href: "/#faq" },
   { label: "Shared inbox", href: LIVE_ROUTES.featuresSharedInbox },
   { label: "Your business number", href: LIVE_ROUTES.featuresBusinessNumber },
@@ -106,14 +113,14 @@ const CSS = `
 `;
 
 /** Footer link; internal routes go through next/link, mailto stays <a>. */
-function FooterLink({ label, href }: FooterLinkItem) {
+function FooterLink({ label, href, ariaLabel }: FooterLinkItem) {
   const cls = "nxft-link font-body-mkt text-sm";
   return href.startsWith("/") ? (
-    <Link href={href} className={cls}>
+    <Link href={href} className={cls} aria-label={ariaLabel}>
       {label}
     </Link>
   ) : (
-    <a href={href} className={cls}>
+    <a href={href} className={cls} aria-label={ariaLabel}>
       {label}
     </a>
   );

@@ -75,8 +75,9 @@ export function Nav() {
           <Link
             href={SIGNUP_HREF}
             className="nxh-btn nxh-focus hidden sm:inline-flex"
+            aria-label="Start — create your Loonext account"
           >
-            Start
+            Start now
           </Link>
 
           {/* Mobile hamburger → full white sheet. Plain button (not the shadcn

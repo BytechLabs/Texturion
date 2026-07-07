@@ -1,5 +1,8 @@
 # Lighthouse & performance audit — iteration 3 (HERO + PERFORMANCE track)
 
+> **SUPERSEDED (2026-07-07):** this baseline audits the retired two-phones hero.
+> The current launch-candidate baseline is [lighthouse-2026-07-07.md](lighthouse-2026-07-07.md).
+
 **Scope:** the two-phones signature hero (BLUEPRINT §0.1 / §3.1) was rebuilt; this
 documents the performance baseline after that change and the concrete remediation
 items. Owned files touched: `components/marketing/home/hero.tsx`,
