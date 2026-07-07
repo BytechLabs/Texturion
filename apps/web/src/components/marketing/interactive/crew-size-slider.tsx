@@ -48,13 +48,13 @@ export function CrewSizeSlider() {
   const perUserWidth = Math.max(6, (perUser / maxPerUser) * 100);
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
       <label
         htmlFor={sliderId}
-        className="flex items-baseline justify-between text-[14px] font-medium text-foreground"
+        className="flex items-baseline justify-between text-[14px] font-medium text-[color:var(--day-ink)]"
       >
         <span>People on your crew</span>
-        <span className="text-2xl font-semibold tabular-nums text-primary">
+        <span className="text-2xl font-semibold tabular-nums text-[color:var(--petrol)]">
           {seats}
         </span>
       </label>
@@ -67,9 +67,9 @@ export function CrewSizeSlider() {
         value={seats}
         onChange={(e) => setSeats(Number(e.target.value))}
         aria-valuetext={`${seats} ${seats === 1 ? "person" : "people"}`}
-        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
+        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[rgba(11,43,38,0.06)] accent-[color:var(--petrol)]"
       />
-      <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+      <div className="mt-1 flex justify-between text-[11px] tabular-nums text-[color:var(--ink-55)]">
         <span>1</span>
         <span>10</span>
       </div>
@@ -78,19 +78,19 @@ export function CrewSizeSlider() {
         {/* Loonext, flat line */}
         <div>
           <div className="flex items-baseline justify-between text-[14px]">
-            <span className="font-medium text-foreground">
+            <span className="font-medium text-[color:var(--day-ink)]">
               Loonext {loonext.plan}
             </span>
             <span className="tabular-nums">
-              <span className="font-semibold text-primary">
+              <span className="font-semibold text-[color:var(--petrol)]">
                 {usd(loonext.price)}
               </span>
-              <span className="text-muted-foreground">/mo, flat</span>
+              <span className="text-[color:var(--ink-55)]">/mo, flat</span>
             </span>
           </div>
-          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-secondary">
+          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[rgba(11,43,38,0.06)]">
             <div
-              className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+              className="h-full rounded-full bg-[color:var(--petrol)] transition-[width] duration-200 ease-out"
               style={{ width: `${loonextWidth}%` }}
             />
           </div>
@@ -99,21 +99,21 @@ export function CrewSizeSlider() {
         {/* Per-user, climbing line */}
         <div>
           <div className="flex items-baseline justify-between text-[14px]">
-            <span className="font-medium text-foreground">
+            <span className="font-medium text-[color:var(--day-ink)]">
               Typical per-user tool
             </span>
             <span className="tabular-nums">
-              <span className="font-semibold text-stone-700 dark:text-stone-300">
+              <span className="font-semibold text-[color:var(--ink)]">
                 {usd(perUser)}
               </span>
-              <span className="text-muted-foreground">
+              <span className="text-[color:var(--ink-55)]">
                 /mo{seats > 1 ? ", and climbing" : ""}
               </span>
             </span>
           </div>
-          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-secondary">
+          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[rgba(11,43,38,0.06)]">
             <div
-              className="h-full rounded-full bg-stone-400 transition-[width] duration-200 ease-out dark:bg-stone-500"
+              className="h-full rounded-full bg-[color:var(--ink-55)] transition-[width] duration-200 ease-out"
               style={{ width: `${perUserWidth}%` }}
             />
           </div>
@@ -121,9 +121,9 @@ export function CrewSizeSlider() {
       </div>
 
       {savings > 0 && (
-        <p className="mt-5 text-[15px] text-foreground">
+        <p className="mt-5 text-[15px] text-[color:var(--day-ink)]">
           At {seats} people, that&apos;s{" "}
-          <span className="font-semibold tabular-nums text-primary">
+          <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
             {usd(savings)} less a month
           </span>{" "}
           with Loonext, {usd(loonext.price)} flat instead of {seats} ×{" "}
@@ -134,19 +134,19 @@ export function CrewSizeSlider() {
       {/* Every interactive ends in a conversion nudge (CONVERSION §5). */}
       <a
         href="/signup"
-        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
+        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
       >
         Start for {usd(loonext.price)} flat →
       </a>
 
-      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
         Per-user figure is a leading tool&apos;s published monthly seat price
         (${PER_USER_MONTHLY}/user/mo) as of July 2026, and that tool bills
         texting separately, so real totals run higher.{" "}
         {/* The dated per-user figure is sourced in full on the Quo comparison. */}
         <a
           href={LIVE_ROUTES.compareQuo}
-          className="font-medium text-primary underline-offset-2 hover:underline"
+          className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
         >
           See the sourced math
         </a>

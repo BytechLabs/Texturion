@@ -49,10 +49,10 @@ function Field({
     <div>
       <label
         htmlFor={id}
-        className="flex items-baseline justify-between text-[14px] font-medium text-foreground"
+        className="flex items-baseline justify-between text-[14px] font-medium text-[color:var(--day-ink)]"
       >
         <span>{label}</span>
-        <span className="tabular-nums text-primary">
+        <span className="tabular-nums text-[color:var(--petrol)]">
           {prefix}
           {value.toLocaleString("en-US")}
           {suffix}
@@ -66,7 +66,7 @@ function Field({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
+        className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[rgba(11,43,38,0.06)] accent-[color:var(--petrol)]"
       />
       <input
         type="number"
@@ -79,7 +79,7 @@ function Field({
           if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
         aria-label={`${label} (exact value)`}
-        className="mt-2 w-full rounded-md border border-input bg-background px-3 py-1.5 text-[14px] tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="mt-2 w-full rounded-md border border-[color:var(--hairline)] bg-white px-3 py-1.5 text-[14px] tabular-nums text-[color:var(--day-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
       />
     </div>
   );
@@ -95,7 +95,7 @@ export function MissedTextCalculator() {
   const monthly = Math.round(weekly * WEEKS_PER_MONTH);
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
       <div className="grid gap-5">
         <Field
           label="Calls or texts you miss in a week"
@@ -125,24 +125,24 @@ export function MissedTextCalculator() {
         />
       </div>
 
-      <div className="mt-6 rounded-lg bg-primary/5 p-4">
-        <p aria-live="polite" className="text-[15px] text-foreground">
+      <div className="mt-6 rounded-lg bg-[color:var(--petrol-12)] p-4">
+        <p aria-live="polite" className="text-[15px] text-[color:var(--day-ink)]">
           That&apos;s about{" "}
-          <span className="font-semibold tabular-nums text-primary">
+          <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
             {usd(monthly)} a month
           </span>{" "}
           in work that went somewhere else.
         </p>
-        {/* Formula always visible, we show our work (§3.8). --graphite (not
-            muted-foreground, which was 4.45:1 on this petrol-tinted panel). */}
-        <p className="mt-2 font-mono text-[13px] tabular-nums text-[color:var(--graphite)]">
+        {/* Formula always visible, we show our work (§3.8). --graphite (8.3:1 on
+            this petrol-tinted panel); the figure sits in Martian Mono (§3). */}
+        <p className="mt-2 font-mono-mkt text-[13px] tabular-nums text-[color:var(--graphite)]">
           {missed} × {ratePct}% × {usd(value)} × 4.33 weeks
         </p>
       </div>
 
-      <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-4 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
         Your numbers, not ours, change any of them. That&apos;s{" "}
-        <span className="font-medium text-foreground">$29 a month</span> against
+        <span className="font-medium text-[color:var(--day-ink)]">$29 a month</span> against
         the figure above.
       </p>
     </div>

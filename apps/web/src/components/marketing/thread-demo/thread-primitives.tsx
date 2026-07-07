@@ -4,11 +4,13 @@
  *
  * The app's real MessageBubble / SystemLine / StatusPill depend on TanStack
  * Query, member hooks, and signed-URL fetches; they cannot render on a static
- * marketing route. These primitives reproduce the exact tokens, inbound white
- * card + stone border, outbound teal-50/teal-900, amber dashed internal note
- * with a lock, centered 12px system lines, delivery states with Check /
- * CheckCheck, so the two visual sets are identical (BLUEPRINT §1.3), while
- * staying self-contained enough to hydrate as a sub-15KB island.
+ * marketing route. These primitives reproduce the thread grammar in the v3
+ * "Quiet daylight" palette so they read as one surface with the restyled kit
+ * (night/kit.tsx): inbound #F0F4F2 bubble with --day-ink text, outbound petrol
+ * bubble with white text, a white dashed internal note in --ink-55 with a lock,
+ * centered --ink-55 system lines, and delivery states with Check / CheckCheck,
+ * while staying self-contained enough to hydrate as a sub-15KB island. Light
+ * only (DESIGN-DIRECTION): no dark variants, the marketing surface never flips.
  */
 
 import { Check, CheckCheck, ImageIcon, Lock } from "lucide-react";
@@ -42,7 +44,7 @@ export function DemoAvatar({
   return (
     <span
       className={cn(
-        "inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-medium text-primary",
+        "inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[color:var(--petrol-12)] text-[9px] font-medium text-[color:var(--petrol)]",
         className,
       )}
       aria-hidden
@@ -52,12 +54,13 @@ export function DemoAvatar({
   );
 }
 
-/** Status pill, the G4 tints, matched to components/inbox/status-pill.tsx. */
+/** Status pill, the v3 quiet tints matched to night/kit.tsx: New/Open live in
+ *  the petrol family, Waiting/Closed in the neutral family. No loud fills. */
 const PILL_STYLES = {
-  new: "bg-primary/10 text-teal-800 dark:bg-primary/15 dark:text-primary",
-  open: "bg-info/10 text-sky-700 dark:bg-info/15 dark:text-info",
-  waiting: "bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning",
-  closed: "bg-secondary text-stone-600 dark:text-muted-foreground",
+  new: "bg-[color:var(--petrol-12)] text-[color:var(--petrol)]",
+  open: "bg-[color:var(--petrol-12)] text-[color:var(--petrol)]",
+  waiting: "bg-[rgba(11,43,38,0.06)] text-[color:var(--ink-55)]",
+  closed: "bg-[rgba(11,43,38,0.06)] text-[color:var(--ink-55)]",
 } as const;
 
 const PILL_LABELS = {
@@ -93,8 +96,7 @@ function PhotoThumb({ label, outbound }: { label: string; outbound?: boolean }) 
     <div
       className={cn(
         "flex size-28 flex-col items-center justify-center gap-1 rounded-lg border text-center",
-        "border-border bg-gradient-to-br from-stone-100 to-stone-200 text-stone-500",
-        "dark:from-stone-800 dark:to-stone-900 dark:text-stone-400",
+        "border-[color:var(--hairline)] bg-[#F0F4F2] text-[color:var(--ink-55)]",
         outbound && "self-end",
       )}
       role="img"
@@ -109,7 +111,7 @@ function PhotoThumb({ label, outbound }: { label: string; outbound?: boolean }) 
 /** Delivery-state line (G5): Sending… → Sent ✓ → Delivered ✓✓. */
 function DeliveryLine({ time, state }: { time: string; state: DeliveryState }) {
   return (
-    <span className="text-[12px] text-muted-foreground">
+    <span className="text-[12px] text-[color:var(--ink-55)]">
       <span>{time}</span>
       <span aria-hidden> · </span>
       {state === "sending" && <span>Sending…</span>}
@@ -128,20 +130,21 @@ function DeliveryLine({ time, state }: { time: string; state: DeliveryState }) {
   );
 }
 
-/** Inbound customer bubble, white card, 1px stone border, left. */
+/** Inbound customer bubble: #F0F4F2 fill, --day-ink text, left (v3 §5). */
 export function InboundBubble({ beat }: { beat: InboundBeat }) {
   return (
     <div className="flex w-full flex-col items-start gap-1">
       {beat.photo && <PhotoThumb label={beat.photo.label} />}
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] border border-border bg-card px-3 py-2 text-[15px] leading-normal text-card-foreground md:max-w-[80%]">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] bg-[#F0F4F2] px-3 py-2 text-[15px] leading-normal text-[color:var(--day-ink)] md:max-w-[80%]">
         {beat.body}
       </div>
-      <span className="text-[12px] text-muted-foreground">{beat.time}</span>
+      <span className="text-[12px] text-[color:var(--ink-55)]">{beat.time}</span>
     </div>
   );
 }
 
-/** Outbound business bubble, teal-50/teal-900, right, with a delivery state. */
+/** Outbound business bubble: petrol fill, white text, right, with a delivery
+ *  state (v3 §5). */
 export function OutboundBubble({
   beat,
   state,
@@ -153,7 +156,7 @@ export function OutboundBubble({
   return (
     <div className="flex w-full flex-col items-end gap-1">
       {beat.photo && <PhotoThumb label={beat.photo.label} outbound />}
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] bg-teal-50 px-3 py-2 text-[15px] leading-normal text-teal-900 dark:bg-teal-950 dark:text-teal-100 md:max-w-[80%]">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] bg-[color:var(--petrol)] px-3 py-2 text-[15px] leading-normal text-white md:max-w-[80%]">
         {beat.body}
       </div>
       <DeliveryLine time={beat.time} state={state} />
@@ -161,27 +164,28 @@ export function OutboundBubble({
   );
 }
 
-/** Internal note, amber-50 dashed card, lock + "Internal note" (G5). */
+/** Internal note: white dashed card, lock + "Internal note", --ink-55 — the
+ *  customer-invisible register, matched to kit's NoteRow (G5). */
 export function NoteBubble({ beat }: { beat: NoteBeat }) {
   return (
     <div className="flex w-full flex-col items-end gap-1">
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-[15px] leading-normal text-stone-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100 md:max-w-[80%]">
-        <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-amber-800 dark:text-warning">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] border border-dashed border-[color:var(--hairline)] bg-white px-3 py-2 text-[15px] leading-normal text-[color:var(--day-ink)] md:max-w-[80%]">
+        <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-[color:var(--ink-55)]">
           <Lock className="size-3" strokeWidth={1.75} aria-hidden />
           Internal note · {beat.by}
         </span>
         {beat.body}
       </div>
-      <span className="text-[12px] text-muted-foreground">{beat.time}</span>
+      <span className="text-[12px] text-[color:var(--ink-55)]">{beat.time}</span>
     </div>
   );
 }
 
 /** Centered system/event line (G5): "Priya assigned this to Dale". */
 export function EventLine({ beat }: { beat: EventBeat }) {
+  // --ink-55 (#587068, 4.9:1 on the white/paper card), the sanctioned v3 meta
+  // voice; never diluted with opacity (that dropped the old value below AA).
   return (
-    // Full muted-foreground (stone-500, 4.79:1 on the white card), NOT /80: the
-    // opacity dilution dropped it to 3.28:1 and failed the color-contrast audit.
-    <p className="py-1 text-center text-xs text-muted-foreground">{beat.text}</p>
+    <p className="py-1 text-center text-xs text-[color:var(--ink-55)]">{beat.text}</p>
   );
 }

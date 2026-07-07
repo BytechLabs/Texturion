@@ -15,30 +15,30 @@ import { MapPin, Search } from "lucide-react";
 
 export function CityAreaCodeWidgetStatic() {
   return (
-    <div className="rounded-[10px] border border-border bg-card p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
-      <p className="text-[14px] font-medium text-foreground">
+    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+      <p className="text-[14px] font-medium text-[color:var(--day-ink)]">
         Find your local area code
       </p>
       <div className="relative mt-2">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[color:var(--ink-55)]"
           strokeWidth={1.75}
           aria-hidden
         />
         {/* Inert input, the interactive island replaces it with a real combobox. */}
-        <div className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-[15px] text-foreground">
+        <div className="w-full rounded-md border border-[color:var(--hairline)] bg-white py-2 pl-9 pr-3 text-[15px] text-[color:var(--day-ink)]">
           Toronto
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-lg bg-primary/5 p-4">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <div className="mt-4 flex items-center gap-3 rounded-lg bg-[color:var(--petrol-12)] p-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-[color:var(--petrol)]">
           <MapPin className="size-5" strokeWidth={1.75} aria-hidden />
         </span>
         <div className="min-w-0">
-          <p className="text-[15px] text-foreground">
+          <p className="text-[15px] text-[color:var(--day-ink)]">
             A{" "}
-            <span className="font-semibold tabular-nums text-primary">
+            <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
               (416)
             </span>{" "}
             number for <span className="font-medium">Toronto</span>
@@ -54,12 +54,12 @@ export function CityAreaCodeWidgetStatic() {
 
       <a
         href="/signup"
-        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
+        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
       >
         Get your (416) number →
       </a>
 
-      <p className="mt-3 text-[12px] text-muted-foreground">
+      <p className="mt-3 text-[12px] text-[color:var(--ink-55)]">
         Real numbering data, the same table the app uses to pick your number.
       </p>
     </div>

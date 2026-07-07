@@ -85,7 +85,7 @@ function Row({ row }: { row: Row }) {
       <span
         className={cn(
           "size-2 shrink-0 rounded-full",
-          row.unread ? "bg-primary" : "bg-transparent",
+          row.unread ? "bg-[color:var(--porch-amber)]" : "bg-transparent",
         )}
         aria-hidden
       />
@@ -93,20 +93,20 @@ function Row({ row }: { row: Row }) {
         <div className="flex items-center gap-2">
           <p
             className={cn(
-              "truncate text-[14px] text-foreground",
+              "truncate text-[14px] text-[color:var(--day-ink)]",
               row.unread ? "font-semibold" : "font-medium",
             )}
           >
             {row.name}
           </p>
-          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+          <span className="shrink-0 text-[11px] tabular-nums text-[color:var(--ink-55)]">
             {row.number}
           </span>
         </div>
-        <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-[color:var(--ink-55)]">
           {row.note && (
             <StickyNote
-              className="size-3 shrink-0 text-amber-600 dark:text-warning"
+              className="size-3 shrink-0 text-[color:var(--ink-55)]"
               strokeWidth={1.75}
               aria-hidden
             />
@@ -115,7 +115,7 @@ function Row({ row }: { row: Row }) {
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-[11px] tabular-nums text-muted-foreground">
+        <span className="text-[11px] tabular-nums text-[color:var(--ink-55)]">
           {row.time}
         </span>
         <div className="flex items-center gap-1.5">
@@ -133,46 +133,46 @@ export function InboxListVisual({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[10px] border border-border bg-card shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
+        "overflow-hidden rounded-[10px] border border-[color:var(--hairline)] bg-white shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
         className,
       )}
     >
       {/* Browser-chrome hint, "it's just the web" (BLUEPRINT §1.3). */}
-      <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
+      <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-3 py-2">
         <div className="flex gap-1.5" aria-hidden>
-          <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
-          <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
-          <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
+          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
+          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
+          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
         </div>
-        {/* stone-500 (not stone-400) so this quiet URL hint still clears WCAG
-            AA 4.5:1 on white (G11), matches the corrected thread-frame.tsx
-            primitive. Reads as a muted chrome hint, not body text. */}
-        <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+        {/* --ink-55 (4.9:1 on white) so this quiet URL hint clears WCAG AA and
+            reads petrol-cast, matching the corrected thread-frame.tsx primitive.
+            A muted chrome hint, not body text. */}
+        <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-[color:var(--ink-55)]">
           loonext.app/inbox
         </div>
       </div>
 
       {/* Filter segments, matches G4 "Open | Mine | All | Closed". */}
-      <div className="flex items-center gap-1 border-b border-border px-3 py-2">
+      <div className="flex items-center gap-1 border-b border-[color:var(--hairline)] px-3 py-2">
         {["Open", "Mine", "All", "Closed"].map((seg, i) => (
           <span
             key={seg}
             className={cn(
               "rounded-md px-2.5 py-1 text-[12px] font-medium",
               i === 0
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground",
+                ? "bg-[#F0F4F2] text-[color:var(--day-ink)]"
+                : "text-[color:var(--ink-55)]",
             )}
           >
             {seg}
           </span>
         ))}
-        <span className="ml-auto text-[12px] text-muted-foreground">
+        <span className="ml-auto text-[12px] text-[color:var(--ink-55)]">
           3 open · 1 waiting
         </span>
       </div>
 
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-[color:var(--hairline)]">
         {ROWS.map((row) => (
           <Row key={row.number} row={row} />
         ))}

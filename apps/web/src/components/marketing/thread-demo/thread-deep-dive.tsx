@@ -170,13 +170,12 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
               />
             ))}
           </div>
-          <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5">
+          <div className="flex flex-col gap-2 border-t border-[color:var(--hairline)] px-3 py-2.5">
             <div className="flex items-center justify-between gap-2">
               {/* The ONE load-bearing honesty label (panel resolution). Muted
-                  per §3.4, but stone-500/400 (not stone-400/500) so it clears
-                  WCAG AA 4.5:1 in both themes (G11), a Lighthouse
-                  color-contrast finding; a load-bearing label must be legible. */}
-              <span className="text-[13px] text-stone-500 dark:text-stone-400">
+                  per §3.4 but --ink-55 (4.9:1 on white) so it clears WCAG AA;
+                  a load-bearing label must stay legible. */}
+              <span className="text-[13px] text-[color:var(--ink-55)]">
                 Demo, scripted conversation, real interface.
               </span>
               {!reduced &&
@@ -184,7 +183,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   <button
                     type="button"
                     onClick={restart}
-                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
                   >
                     <RotateCcw className="size-3.5" strokeWidth={1.75} aria-hidden />
                     Play it again
@@ -193,7 +192,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   <button
                     type="button"
                     onClick={advance}
-                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary/5 px-3 py-1 text-[13px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[color:var(--petrol-12)] px-3 py-1 text-[13px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
                   >
                     {revealed === 1 ? (
                       <>
@@ -212,7 +211,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
             {/* Inline CTA, closes the mid-page dead zone (§3.4), secondary weight. */}
             <a
               href="/signup"
-              className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
+              className="text-[13px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
             >
               Get your number →
             </a>

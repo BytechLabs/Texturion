@@ -7,7 +7,9 @@
  * what turns on at the end, the same win-first frame as the home first-week
  * timeline, scoped to the registration flow.
  *
- * Server component, pure DOM, matches the amber registration banner tokens.
+ * Server component, pure DOM. The "in review" state carries the sanctioned
+ * review-pending amber via the v3 --marker tokens (as the home first-week
+ * timeline does), not raw Tailwind amber; everything else is petrol-cast.
  */
 
 import { Check, Clock, Loader2 } from "lucide-react";
@@ -44,7 +46,7 @@ function StepDot({ state }: { state: StepState }) {
   if (state === "done") {
     return (
       <span
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--petrol)] text-white"
         aria-hidden
       >
         <Check className="size-4" strokeWidth={2.5} />
@@ -54,7 +56,7 @@ function StepDot({ state }: { state: StepState }) {
   if (state === "active") {
     return (
       <span
-        className="flex size-7 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-warning"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--marker)] bg-[color:var(--marker-40)] text-[color:var(--day-ink)]"
         aria-hidden
       >
         <Loader2 className="size-4 animate-spin motion-reduce:animate-none" strokeWidth={2} />
@@ -63,7 +65,7 @@ function StepDot({ state }: { state: StepState }) {
   }
   return (
     <span
-      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground"
+      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--hairline)] bg-[rgba(11,43,38,0.06)] text-[color:var(--ink-55)]"
       aria-hidden
     >
       <span className="size-1.5 rounded-full bg-current" />
@@ -79,15 +81,15 @@ export function RegistrationStepperVisual({
   return (
     <div
       className={cn(
-        "rounded-[10px] border border-border bg-card p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)] sm:p-6",
+        "rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)] sm:p-6",
         className,
       )}
     >
       <div className="flex items-center justify-between">
-        <p className="text-[14px] font-semibold text-foreground">
+        <p className="text-[14px] font-semibold text-[color:var(--day-ink)]">
           US texting registration
         </p>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-warning">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--marker)] bg-[color:var(--marker-40)] px-2.5 py-1 text-[12px] font-medium text-[color:var(--day-ink)]">
           <Clock className="size-3.5" strokeWidth={1.75} aria-hidden />
           In review
         </span>
@@ -102,7 +104,9 @@ export function RegistrationStepperVisual({
                 <span
                   className={cn(
                     "my-1 w-px flex-1",
-                    step.state === "done" ? "bg-primary/40" : "bg-border",
+                    step.state === "done"
+                      ? "bg-[color:var(--petrol-24)]"
+                      : "bg-[color:var(--hairline)]",
                   )}
                   aria-hidden
                 />
@@ -113,13 +117,13 @@ export function RegistrationStepperVisual({
                 className={cn(
                   "text-[14px] font-semibold",
                   step.state === "upcoming"
-                    ? "text-muted-foreground"
-                    : "text-foreground",
+                    ? "text-[color:var(--ink-55)]"
+                    : "text-[color:var(--day-ink)]",
                 )}
               >
                 {step.title}
               </p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
+              <p className="mt-0.5 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
                 {step.detail}
               </p>
             </div>
@@ -127,7 +131,7 @@ export function RegistrationStepperVisual({
         ))}
       </ol>
 
-      <p className="mt-2 rounded-lg bg-secondary/60 px-3 py-2 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-2 rounded-lg bg-[rgba(11,43,38,0.06)] px-3 py-2 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
         Receiving texts and texting Canadian numbers already work, this only
         gates US-bound texting.
       </p>

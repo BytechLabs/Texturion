@@ -159,8 +159,8 @@ export function ThreadDemo({
         </div>
 
         {!hideControls && (
-          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-            <span className="text-[12px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 border-t border-[color:var(--hairline)] px-3 py-2">
+            <span className="text-[12px] text-[color:var(--ink-55)]">
               {player.complete
                 ? "That's the whole conversation."
                 : player.playing
@@ -185,7 +185,7 @@ function ThreadControls({
       <button
         type="button"
         onClick={player.replay}
-        className="tap-target inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="tap-target inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
       >
         <RotateCcw className="size-3.5" strokeWidth={1.75} aria-hidden />
         Play it again
@@ -197,7 +197,7 @@ function ThreadControls({
       type="button"
       onClick={player.playing ? player.pause : player.play}
       aria-label={player.playing ? "Pause the demo" : "Play the demo"}
-      className="tap-target inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="tap-target inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
     >
       {player.playing ? (
         <>

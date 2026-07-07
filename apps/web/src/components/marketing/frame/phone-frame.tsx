@@ -11,8 +11,8 @@
  * screen (the dark-band / PWA moment, BLUEPRINT §3.8), the same banner grammar
  * the app uses for incoming-message toasts (petrol "J" mark + title + snippet).
  *
- * Themeable (stone-200 ring → stone-800 on dark), reduced-motion safe, zero-CLS.
- * Server component.
+ * Light-only v3 surface (--paper-edge ring, white screen), reduced-motion safe,
+ * zero-CLS. Server component.
  */
 
 import { cn } from "@/lib/utils";
@@ -41,27 +41,27 @@ export function PhoneFrame({
   return (
     <div
       className={cn(
-        "relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[28px] border-[6px] border-stone-200 bg-card dark:border-stone-800",
+        "relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[28px] border-[6px] border-[color:var(--paper-edge)] bg-white",
         !flat && AMBIENT_SHADOW,
         className,
       )}
     >
       {/* Neutral speaker pill, a "phone" hint, not a specific device's notch. */}
       <div className="flex justify-center pt-2" aria-hidden>
-        <span className="h-1 w-10 rounded-full bg-stone-200 dark:bg-stone-700" />
+        <span className="h-1 w-10 rounded-full bg-[rgba(11,43,38,0.12)]" />
       </div>
 
       {pushBanner && (
-        <div className="absolute inset-x-2 top-4 z-10 rounded-xl border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur">
+        <div className="absolute inset-x-2 top-4 z-10 rounded-xl border border-[color:var(--hairline)] bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-[10px] font-semibold text-primary-foreground">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[color:var(--petrol)] text-[10px] font-semibold text-white">
               J
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-semibold text-foreground">
+              <p className="truncate text-[11px] font-semibold text-[color:var(--day-ink)]">
                 {pushBanner.title}
               </p>
-              <p className="truncate text-[11px] text-muted-foreground">
+              <p className="truncate text-[11px] text-[color:var(--ink-55)]">
                 {pushBanner.body}
               </p>
             </div>

@@ -98,7 +98,9 @@ export function ComparisonTable({
               <span className="block text-[15px] font-semibold text-[color:var(--petrol)]">
                 Loonext
               </span>
-              <span className="font-mono-mkt mt-0.5 block text-[12px] font-normal text-[color:var(--graphite)]">
+              {/* A descriptor sub-label, NOT a table figure, so Public Sans per
+                  §3 (mono is figures/prices/timestamps only), not Martian Mono. */}
+              <span className="font-body-mkt mt-0.5 block text-[12px] font-normal text-[color:var(--graphite)]">
                 shared text inbox
               </span>
             </th>

@@ -16,8 +16,8 @@
  * is no pop-in. `images.unoptimized` is on (Cloudflare), so a plain `<img>` is
  * correct, we sized the files ourselves at capture time.
  *
- * Server component. Wrap in <GlowFrame> at the call site for the hero/feature
- * depth moment; most inline shots sit flat and calm (VISUALS §1A).
+ * Server component. Every shot sits flat and calm on the v3 light surface; pass
+ * `flat` to drop even the ambient frame shadow (VISUALS §1A).
  */
 
 import { BrowserFrame } from "@/components/marketing/frame/browser-frame";

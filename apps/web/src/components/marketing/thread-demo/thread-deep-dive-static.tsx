@@ -65,13 +65,13 @@ export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
           framing="desktop"
           bodyClassName="flex max-h-[420px] flex-col gap-3 overflow-y-auto px-3 py-4"
           footer={
-            <div className="flex flex-col gap-2 border-t border-border px-3 py-2.5">
-              <span className="text-[13px] text-stone-500 dark:text-stone-400">
+            <div className="flex flex-col gap-2 border-t border-[color:var(--hairline)] px-3 py-2.5">
+              <span className="text-[13px] text-[color:var(--ink-55)]">
                 Demo, scripted conversation, real interface.
               </span>
               <a
                 href="/signup"
-                className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
+                className="text-[13px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
               >
                 Get your number →
               </a>

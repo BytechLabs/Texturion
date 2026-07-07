@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 function DoneBadge({ label }: { label: string }) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary"
+      className="inline-flex items-center gap-1 rounded-full bg-[color:var(--petrol-12)] px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--petrol)]"
       title={label}
     >
       <CircleCheck aria-hidden className="size-3" strokeWidth={2} />
@@ -140,8 +140,8 @@ export function TradeThread({
         })}
       </div>
 
-      <div className="border-t border-border px-3 py-2">
-        <span className="text-[12px] text-muted-foreground">
+      <div className="border-t border-[color:var(--hairline)] px-3 py-2">
+        <span className="text-[12px] text-[color:var(--ink-55)]">
           Example, real interface. Tap any message to mark it done; the whole
           crew sees what&apos;s handled.
         </span>

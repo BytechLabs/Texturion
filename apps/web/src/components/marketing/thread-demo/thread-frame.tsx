@@ -21,19 +21,18 @@ import { DemoAvatar, DemoStatusPill } from "./thread-primitives";
 
 const AMBIENT_SHADOW = "shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]";
 
-/** The stone browser-chrome hint (three dots + neutral URL bar). */
+/** The browser-chrome hint (three dots + neutral URL bar), v3 hairlines. */
 function BrowserChrome({ url = "loonext.app/inbox" }: { url?: string }) {
   return (
-    <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
+    <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-3 py-2">
       <div className="flex gap-1.5" aria-hidden>
-        <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
-        <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
-        <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
+        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
+        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
+        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
       </div>
-      {/* stone-500 (not stone-400) so this quiet URL hint still clears WCAG AA
-          4.5:1 on white (G11), a Lighthouse color-contrast finding. Reads as a
-          muted chrome hint, not body text. */}
-      <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+      {/* --ink-55 (4.9:1 on white) so this quiet URL hint clears WCAG AA and
+          reads petrol-cast, not warm stone. A muted chrome hint, not body. */}
+      <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-[color:var(--ink-55)]">
         {url}
       </div>
     </div>
@@ -55,19 +54,19 @@ function ThreadHeader({
   showBack?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+    <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] px-3 py-2.5">
       {showBack && (
         <ChevronLeft
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-5 shrink-0 text-[color:var(--ink-55)]"
           strokeWidth={1.75}
           aria-hidden
         />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold leading-tight text-foreground">
+        <p className="truncate text-[14px] font-semibold leading-tight text-[color:var(--day-ink)]">
           {name}
         </p>
-        <p className="truncate text-[12px] tabular-nums text-muted-foreground">
+        <p className="truncate text-[12px] tabular-nums text-[color:var(--ink-55)]">
           {number}
         </p>
       </div>
@@ -75,7 +74,7 @@ function ThreadHeader({
       {assignee && <DemoAvatar name={assignee} className="size-6 text-[10px]" />}
       {!assignee && (
         <Info
-          className="size-4 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-[color:var(--ink-55)]"
           strokeWidth={1.75}
           aria-hidden
         />
@@ -108,22 +107,22 @@ export function ThreadFrame({
     return (
       <div
         className={cn(
-          "relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[28px] border-[6px] border-stone-200 bg-card dark:border-stone-800",
+          "relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[28px] border-[6px] border-[color:var(--paper-edge)] bg-white",
           AMBIENT_SHADOW,
           className,
         )}
       >
         {pushBanner && (
-          <div className="absolute inset-x-2 top-2 z-10 rounded-xl border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur">
+          <div className="absolute inset-x-2 top-2 z-10 rounded-xl border border-[color:var(--hairline)] bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
             <div className="flex items-center gap-2">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-[10px] font-semibold text-primary-foreground">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[color:var(--petrol)] text-[10px] font-semibold text-white">
                 J
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-semibold text-foreground">
+                <p className="truncate text-[11px] font-semibold text-[color:var(--day-ink)]">
                   {pushBanner.title}
                 </p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-[11px] text-[color:var(--ink-55)]">
                   {pushBanner.body}
                 </p>
               </div>
@@ -145,7 +144,7 @@ export function ThreadFrame({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[10px] border border-border bg-card",
+        "overflow-hidden rounded-[10px] border border-[color:var(--hairline)] bg-white",
         AMBIENT_SHADOW,
         className,
       )}

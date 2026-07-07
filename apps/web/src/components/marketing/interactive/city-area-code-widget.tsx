@@ -114,16 +114,16 @@ export function CityAreaCodeWidget() {
   };
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
       <label
         htmlFor="area-code-city"
-        className="text-[14px] font-medium text-foreground"
+        className="text-[14px] font-medium text-[color:var(--day-ink)]"
       >
         Find your local area code
       </label>
       <div className="relative mt-2">
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[color:var(--ink-55)]"
           strokeWidth={1.75}
           aria-hidden
         />
@@ -149,7 +149,7 @@ export function CityAreaCodeWidget() {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           onBlur={() => setOpen(false)}
-          className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-[15px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="w-full rounded-md border border-[color:var(--hairline)] bg-white py-2 pl-9 pr-3 text-[15px] text-[color:var(--day-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
         />
         {open && results.length > 0 && (
           <ul
@@ -157,7 +157,7 @@ export function CityAreaCodeWidget() {
             ref={listRef}
             role="listbox"
             aria-label="Matching cities and area codes"
-            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg"
+            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-[color:var(--hairline)] bg-white py-1 shadow-lg"
           >
             {results.map((r, i) => {
               const active = i === activeIndex;
@@ -175,11 +175,11 @@ export function CityAreaCodeWidget() {
                   onMouseEnter={() => setActiveIndex(i)}
                   className={cn(
                     "flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left text-[14px]",
-                    active && "bg-accent",
+                    active && "bg-[#F0F4F2]",
                   )}
                 >
-                  <span className="truncate text-foreground">{r.city}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                  <span className="truncate text-[color:var(--day-ink)]">{r.city}</span>
+                  <span className="shrink-0 tabular-nums text-[color:var(--ink-55)]">
                     ({r.areaCode}) · {r.country}
                   </span>
                 </li>
@@ -191,17 +191,17 @@ export function CityAreaCodeWidget() {
 
       <div
         aria-live="polite"
-        className="mt-4 flex items-center gap-3 rounded-lg bg-primary/5 p-4"
+        className="mt-4 flex items-center gap-3 rounded-lg bg-[color:var(--petrol-12)] p-4"
       >
         {selected ? (
           <>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-[color:var(--petrol)]">
               <MapPin className="size-5" strokeWidth={1.75} aria-hidden />
             </span>
             <div className="min-w-0">
-              <p className="text-[15px] text-foreground">
+              <p className="text-[15px] text-[color:var(--day-ink)]">
                 A{" "}
-                <span className="font-semibold tabular-nums text-primary">
+                <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
                   ({selected.areaCode})
                 </span>{" "}
                 number for{" "}
@@ -237,13 +237,13 @@ export function CityAreaCodeWidget() {
       {selected && (
         <a
           href="/signup"
-          className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-primary underline-offset-2 hover:underline"
+          className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
         >
           Get your ({selected.areaCode}) number →
         </a>
       )}
 
-      <p className={cn("mt-3 text-[12px] text-muted-foreground")}>
+      <p className={cn("mt-3 text-[12px] text-[color:var(--ink-55)]")}>
         Real numbering data, the same table the app uses to pick your number.
       </p>
     </div>

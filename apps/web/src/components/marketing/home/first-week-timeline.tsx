@@ -16,7 +16,9 @@ export function FirstWeekTimeline() {
       <div className="grid gap-8 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-12">
         {/* Day 0 as art, the numeral escalation. */}
         <div className="text-center lg:text-left">
-          <p className="font-mono-mkt text-[13px] font-medium text-[color:var(--graphite)]">
+          {/* Unit label over the numeral, NOT a figure, so Public Sans per §3
+              (the "0" below carries the mono/display figure, not this label). */}
+          <p className="font-body-mkt text-[13px] font-medium text-[color:var(--graphite)]">
             Day
           </p>
           <p className="display-numeral text-[color:var(--petrol)]">0</p>

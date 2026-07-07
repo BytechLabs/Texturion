@@ -10,8 +10,9 @@
  *
  * The soft ambient shadow is the marketing exception to the app's no-card-shadow
  * rule (BLUEPRINT §1.3), allowed only on framed product visuals; opt out with
- * `flat` for inline calm shots. Themeable (stone-50 chrome → stone-900 on dark),
- * reduced-motion safe (no motion here), zero-CLS (children own their box).
+ * `flat` for inline calm shots. Light-only v3 surface (white card, --paper-2
+ * chrome, hairline rules), reduced-motion safe (no motion here), zero-CLS
+ * (children own their box).
  *
  * Server component.
  */
@@ -43,21 +44,22 @@ export function BrowserFrame({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[10px] border border-border bg-card",
+        "overflow-hidden rounded-[10px] border border-[color:var(--hairline)] bg-white",
         !flat && AMBIENT_SHADOW,
         className,
       )}
     >
       {/* Chrome bar, three dots (leftmost petrol) + a neutral URL slot. */}
-      <div className="flex items-center gap-2 border-b border-border bg-stone-50 px-3 py-2 dark:bg-stone-900">
+      <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-3 py-2">
         <div className="flex gap-1.5" aria-hidden>
-          {/* Leftmost dot is the brand petrol (VISUALS §1B); the rest are stone. */}
-          <span className="size-2.5 rounded-full bg-primary" />
-          <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
-          <span className="size-2.5 rounded-full bg-stone-300 dark:bg-stone-700" />
+          {/* Leftmost dot is the brand petrol (VISUALS §1B); the rest neutral. */}
+          <span className="size-2.5 rounded-full bg-[color:var(--petrol)]" />
+          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
+          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
         </div>
-        {/* stone-500 (not 400) so the quiet hint clears WCAG AA 4.5:1 on white (G11). */}
-        <div className="mx-auto flex max-w-[62%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+        {/* --ink-55 (4.9:1 on white) so the quiet hint clears WCAG AA and reads
+            petrol-cast, not warm stone. */}
+        <div className="mx-auto flex max-w-[62%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-[color:var(--ink-55)]">
           {url}
         </div>
       </div>

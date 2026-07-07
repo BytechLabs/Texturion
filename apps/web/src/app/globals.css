@@ -357,7 +357,7 @@
 /* ==========================================================================
    APP-ELEVATION additions (APP-UI-ELEVATION.md §2.2, §2.5, §4) — the calm base
    for the AUTHENTICATED app. Distinct from the MARKETING-ONLY block below: the
-   app never imports .display-* / .marketing-glow / [data-reveal], and marketing
+   app never imports .display-* / panel-card / [data-reveal], and marketing
    never imports these. Both surfaces share only the base tokens above.
    ========================================================================== */
 

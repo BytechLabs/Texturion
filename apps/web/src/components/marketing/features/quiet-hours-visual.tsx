@@ -19,35 +19,35 @@ export function QuietHoursVisual({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "mx-auto max-w-sm rounded-2xl border border-border bg-card p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
+        "mx-auto max-w-sm rounded-2xl border border-[color:var(--hairline)] bg-white p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
         className,
       )}
     >
       <span
-        className="flex size-10 items-center justify-center rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-warning"
+        className="flex size-10 items-center justify-center rounded-full bg-[color:var(--petrol-12)] text-[color:var(--petrol)]"
         aria-hidden
       >
         <Moon className="size-5" strokeWidth={1.75} />
       </span>
 
-      <p className="mt-4 text-[16px] font-semibold text-foreground">
+      <p className="mt-4 text-[16px] font-semibold text-[color:var(--day-ink)]">
         It&apos;s 9:14 PM for this customer.
       </p>
-      <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
         You&apos;re starting a new conversation late in their evening. Send
         anyway, or wait until morning?
       </p>
 
       <div className="mt-5 flex gap-3">
-        <span className="flex-1 rounded-lg border border-border bg-background px-4 py-2 text-center text-[14px] font-medium text-foreground">
+        <span className="flex-1 rounded-lg border border-[color:var(--hairline)] bg-white px-4 py-2 text-center text-[14px] font-medium text-[color:var(--ink-70)]">
           Wait
         </span>
-        <span className="flex-1 rounded-lg bg-primary px-4 py-2 text-center text-[14px] font-medium text-primary-foreground">
+        <span className="flex-1 rounded-lg bg-[color:var(--petrol)] px-4 py-2 text-center text-[14px] font-medium text-white">
           Send anyway
         </span>
       </div>
 
-      <p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">
+      <p className="mt-4 text-[12px] leading-relaxed text-[color:var(--ink-70)]">
         Only when you <em>start</em> a late-night conversation, replies are
         never held up.
       </p>
