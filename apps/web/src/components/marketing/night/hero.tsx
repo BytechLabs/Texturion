@@ -119,12 +119,9 @@ export function NightHero() {
                 </InBubble>
 
                 {/* The reply: static bubble, ticks step once from 700ms (after
-                    the inbound has settled), delivered by 1.5s. The append
-                    slot carries the page's ONLY dash — the product's literal
-                    auto-append line, UI truth. */}
+                    the inbound has settled), delivered by 1.5s. */}
                 <OutBubble
                   style={{ "--nx-tick-delay": "700ms" } as React.CSSProperties}
-                  append="— Reyes Plumbing. Reply STOP to opt out."
                 >
                   Not too late. Shut the cold valve on top of the tank if you
                   can reach it. We can be there at 8 tomorrow morning.

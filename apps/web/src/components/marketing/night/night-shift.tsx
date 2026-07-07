@@ -26,9 +26,7 @@ import { Section } from "@/components/marketing/ui/section";
  * finished scene.
  */
 
-/* Copy (deck S3). Times + step captions are the deck's beats, verbatim. The
-   auto-append line in the reply holds the page's ONLY dash: the product's
-   literal appended string, UI truth reproduced faithfully (deck note 2). */
+/* Copy (deck S3). Times + step captions are the deck's beats, verbatim. */
 const STEPS = [
   {
     time: "9:47 PM",
@@ -80,11 +78,9 @@ function ThreadCard() {
           </InBubble>
 
           {/* Ticks step queued -> sent -> delivered once the card reveals;
-              450ms lets the reveal rise seat first. The append slot is the
-              product's literal auto-appended line (the page's only dash). */}
+              450ms lets the reveal rise seat first. */}
           <OutBubble
             style={{ "--nx-tick-delay": "450ms" } as React.CSSProperties}
-            append={<>&mdash; Reyes Plumbing. Reply STOP to opt out.</>}
           >
             Not too late. Shut the cold valve on top of the tank if you can
             reach it. We can be there at 8 tomorrow morning.

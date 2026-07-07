@@ -1,21 +1,21 @@
 /**
- * Consent + first-message-footer visual (features track), /features/compliance.
+ * Consent-attestation visual (features track), /features/compliance + /canada.
  *
  * A live-DOM render of the app's new-conversation compose flow (DESIGN.md G5):
  * the mandatory consent checkbox ("This customer asked us to text them",
- * SPEC §5 consent attestation) and the auto-appended first-message footer
- * preview (", {Business}. Reply STOP to opt out", SPEC §5 first-message
- * identification). It makes two abstract compliance features concrete: consent
- * is recorded, and identification is written for you.
+ * SPEC §5 consent attestation) and the record it writes on the contact, who
+ * attested and when. It makes an abstract compliance feature concrete: consent
+ * isn't a vibe, it's a row with a name and a date.
  *
- * Server component, static DOM, matches the composer + footer-preview tokens.
+ * Server component, static DOM, matches the composer tokens. Numbers are in
+ * the 555-01XX safe fictional range (G10).
  */
 
 import { Check, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export function ConsentFooterVisual({ className }: { className?: string }) {
+export function ConsentVisual({ className }: { className?: string }) {
   return (
     <div
       className={cn(
@@ -51,17 +51,18 @@ export function ConsentFooterVisual({ className }: { className?: string }) {
         </span>
       </label>
 
-      {/* Composer with the first-message footer preview (SPEC §5). */}
-      <div className="mt-3 rounded-lg border border-border bg-background p-3">
-        <p className="text-[15px] leading-normal text-foreground">
-          Hi Karen, it&apos;s Dale from Reyes Plumbing, following up on your
-          water heater.
-        </p>
-        <p className="mt-2 border-t border-dashed border-border pt-2 text-[13px] text-muted-foreground">
-          , Reyes Plumbing &amp; Heating. Reply STOP to opt out.
-          <span className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <ShieldCheck className="size-3" strokeWidth={1.75} aria-hidden />
-            Added to your first message to this contact
+      {/* The record the checkbox writes, as it lives on the contact (SPEC §5). */}
+      <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-border bg-background p-3">
+        <span
+          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+          aria-hidden
+        >
+          <ShieldCheck className="size-3.5" strokeWidth={1.75} />
+        </span>
+        <p className="text-[13px] leading-snug text-foreground">
+          Consent on file
+          <span className="mt-0.5 block text-[12px] text-muted-foreground">
+            Attested by Dale · today, 2:41 PM
           </span>
         </p>
       </div>

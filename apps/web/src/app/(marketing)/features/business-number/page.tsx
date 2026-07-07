@@ -207,8 +207,8 @@ export default function BusinessNumberPage() {
           for texting the day you sign up, no US carrier registration to wait
           on, because that requirement doesn&apos;t apply to a Canadian business
           texting Canadian customers. Local numbers are available across every
-          province, and CASL-aware consent and identification are handled for you
-          from the first message.
+          province, and CASL-aware consent recording and opt-out enforcement are
+          built in from the first message.
         </p>
         <p>
           Want to text US customers later too? You can enable that any time; the

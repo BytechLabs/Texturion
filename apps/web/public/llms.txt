@@ -35,7 +35,7 @@ Website: https://loonext.app
 - Registration with the US phone companies is filed automatically at signup.
 - STOP opt-outs are honored instantly; future sends to opted-out numbers are blocked.
 - Consent is recorded (name and date) when you start a conversation.
-- Your business name and a "Reply STOP to opt out" line are added to the first text automatically.
+- A quiet-hours check nudges you before starting a late-night conversation (8pm–8am in the customer's local time), never on replies.
 - Helps you follow the rules (TCPA in the US, CASL in Canada). It does not make you compliant on its own, and it does not send marketing blasts.
 
 ## What Loonext does NOT do

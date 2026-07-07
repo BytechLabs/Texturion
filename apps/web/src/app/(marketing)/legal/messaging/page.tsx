@@ -71,11 +71,7 @@ export default function MessagingPolicyPage() {
         <p>
           Consent is per-business. Agreeing to hear from one business never
           opts you into messages from any other business, and consent cannot be
-          bought, sold, or transferred between businesses. When a business
-          starts a text conversation with you (rather than replying to a text
-          or call you initiated), the first message includes the
-          business&apos;s name and a &quot;Reply STOP to opt out&quot; line,
-          added by Loonext automatically — and STOP works on{" "}
+          bought, sold, or transferred between businesses. And STOP works on{" "}
           <em>any</em> message, whoever started the conversation (section 3).
         </p>
       </LegalSectionBlock>

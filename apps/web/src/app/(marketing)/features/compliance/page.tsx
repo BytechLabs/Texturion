@@ -4,14 +4,13 @@
  * "business texting compliance".
  *
  * Everything here traces to SPEC §4 (registration state machine, checkout copy)
- * and §5 (opt-out model, consent attestation, quiet hours, first-message
- * identification, records retention). Framed as a BENEFIT and stated honestly:
- * the US 3–7 business-day wait is a feature, Canada is instant, STOP is handled
- * automatically, quiet-hours only fires when you START a late-night conversation
- * (never on replies). NEVER "makes you compliant", "helps you follow the
- * rules." Links /legal/aup + /legal/privacy (the standalone SMS messaging policy
- * ships a later iteration; until then the AUP carries the opt-in/opt-out plain
- * language). buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
+ * and §5 (opt-out model, consent attestation, quiet hours, records retention).
+ * Framed as a BENEFIT and stated honestly: the US 3–7 business-day wait is a
+ * feature, Canada is instant, STOP is handled automatically, quiet-hours only
+ * fires when you START a late-night conversation (never on replies). Loonext
+ * does NOT alter or append to message content, never claim it does. NEVER
+ * "makes you compliant", "helps you follow the rules." Links /legal/aup +
+ * /legal/privacy. buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
  */
 
 import {
@@ -19,8 +18,8 @@ import {
   FileCheck2,
   MessageSquareOff,
   Moon,
-  Signature,
   UserCheck,
+  UserX,
 } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -37,7 +36,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { Display } from "@/components/marketing/display";
 import { RegistrationStepperVisual } from "@/components/marketing/features/registration-stepper-visual";
-import { ConsentFooterVisual } from "@/components/marketing/features/consent-footer-visual";
+import { ConsentVisual } from "@/components/marketing/features/consent-visual";
 import { OptOutVisual } from "@/components/marketing/features/opt-out-visual";
 import { QuietHoursVisual } from "@/components/marketing/features/quiet-hours-visual";
 import { FirstWeekTimeline } from "@/components/marketing/home/first-week-timeline";
@@ -48,7 +47,7 @@ const PATH = "/features/compliance";
 export const metadata: Metadata = buildMetadata({
   title: "Compliance built in, we handle the carrier paperwork",
   description:
-    "10DLC registration, opt-outs, consent, and sender ID handled for you. STOP is honored automatically. Helps you follow TCPA and CASL. Flat $29/mo.",
+    "10DLC registration, opt-outs, and consent records handled for you. STOP is honored automatically. Helps you follow TCPA and CASL. Flat $29/mo.",
   path: PATH,
 });
 
@@ -70,7 +69,7 @@ export default function CompliancePage() {
             <Display.Mark>handled</Display.Mark>.
           </>
         }
-        sub="Business texting in the US and Canada comes with real rules, registering with the phone companies, honoring opt-outs, recording consent, identifying your business. Most tools hand you a homework packet. Loonext files the paperwork, enforces the opt-outs, and writes the footers, so you can get back to the job."
+        sub="Business texting in the US and Canada comes with real rules, registering with the phone companies, honoring opt-outs, recording consent. Most tools hand you a homework packet. Loonext files the paperwork, enforces the opt-outs, and keeps the records, so you can get back to the job."
         truthChips={[
           "10DLC registration, filed for you",
           "STOP honored automatically",
@@ -141,11 +140,11 @@ export default function CompliancePage() {
         </p>
       </FeatureSection>
 
-      {/* Section 3, consent + identification. */}
+      {/* Section 3, consent. */}
       <FeatureSection
-        eyebrow="Consent & identification"
-        heading="Consent recorded, your name on every first text."
-        visual={<ConsentFooterVisual />}
+        eyebrow="Consent"
+        heading="Consent recorded, with a name and a date."
+        visual={<ConsentVisual />}
         wash
       >
         <p>
@@ -157,12 +156,11 @@ export default function CompliancePage() {
           one tap, and it keeps you honest without a compliance binder.
         </p>
         <p>
-          The first text you ever send a new contact automatically ends with your
-          business name and &ldquo;Reply STOP to opt out&rdquo;, the sender
-          identification that US and Canadian rules expect, written for you and
-          previewed in the composer before you send. Later messages in that
-          conversation aren&apos;t decorated; the footer is added once, where the
-          rules want it.
+          The record lives on the contact: how the consent came to be, who
+          attested it, and when. Customers who text you first are recorded as
+          having consented automatically, and opt-outs are stamped the same way.
+          If a question ever comes up later, the answer is a lookup, not a
+          memory.
         </p>
       </FeatureSection>
 
@@ -209,9 +207,9 @@ export default function CompliancePage() {
             body: "Starting a new conversation records consent with a name and a date, so your declared opt-in is truthful.",
           },
           {
-            icon: Signature,
-            title: "Sender identification",
-            body: "Your business name and a STOP line are appended to the first text to any new contact, automatically.",
+            icon: UserX,
+            title: "Plain-language opt-outs",
+            body: "A 'Mark opted out' action honors requests in the customer's own words, 'stop texting me' counts, keyword or not.",
           },
           {
             icon: Moon,
@@ -233,7 +231,7 @@ export default function CompliancePage() {
           {
             term: "We help you follow the rules, we don't make you 'compliant.'",
             detail:
-              "Loonext handles the mechanics: registration, opt-outs, consent records, identification. Following the law (TCPA in the US, CASL in Canada) also depends on how you use it, you still have to only text people who agreed to hear from you. We give you the tools and the guardrails; the honest word is 'helps.'",
+              "Loonext handles the mechanics: registration, opt-outs, consent records. Following the law (TCPA in the US, CASL in Canada) also depends on how you use it, you still have to only text people who agreed to hear from you. We give you the tools and the guardrails; the honest word is 'helps.'",
           },
           {
             term: "The US wait is the carriers', and it's real.",
@@ -324,18 +322,18 @@ export default function CompliancePage() {
           },
           {
             q: "Does Loonext add anything to my messages?",
-            a: "Only to the very first text you send a brand-new contact: your business name and a 'Reply STOP to opt out' line, which the rules expect for identification. The composer previews it before you send, and it's not added to later messages in the conversation.",
+            a: "No. What you write is exactly what your customer receives. The guardrails act on the send instead of the text: starting a new conversation requires the consent attestation, a send to an opted-out number is rejected, and a late-night first text gets the quiet-hours check.",
           },
           {
             q: "Are you saying Loonext makes me legally compliant?",
-            a: "No, we say it helps you follow the rules, and we mean the difference. Loonext handles registration, opt-outs, consent records, and identification, but staying within TCPA and CASL also depends on you only texting people who agreed to hear from you. We give you the tooling and the guardrails; we don't claim to absolve you of the rules.",
+            a: "No, we say it helps you follow the rules, and we mean the difference. Loonext handles registration, opt-outs, and consent records, but staying within TCPA and CASL also depends on you only texting people who agreed to hear from you. We give you the tooling and the guardrails; we don't claim to absolve you of the rules.",
           },
         ]}
       />
 
       <FeatureCta
         heading="Let us handle the carrier paperwork."
-        sub="Registration filed for you, opt-outs enforced, consent recorded, your business identified, so you can text customers back without becoming a compliance department."
+        sub="Registration filed for you, opt-outs enforced, consent recorded, so you can text customers back without becoming a compliance department."
       />
     </>
   );

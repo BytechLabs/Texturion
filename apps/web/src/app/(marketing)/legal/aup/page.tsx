@@ -105,11 +105,10 @@ export default function AupPage() {
 
       <LegalSectionBlock id="identification" heading="6. Identify yourself">
         <p>
-          Your business must be identifiable in your messages. Loonext adds your
-          business name and a &quot;Reply STOP to opt out&quot; line to your first
-          message to a new contact automatically; don&apos;t remove or obscure
-          your identity in later messages, and don&apos;t impersonate another
-          business.
+          Your business must be identifiable in your messages. When you start a
+          conversation with a new contact, include your business name so the
+          recipient knows who is texting them. Don&apos;t hide or obscure your
+          identity, and don&apos;t impersonate another business or person.
         </p>
       </LegalSectionBlock>
 

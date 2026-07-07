@@ -431,14 +431,11 @@ export function TickMeta({ className, ...rest }: NightRest) {
 }
 
 /** Outbound bubble: petrol fill, white text, right-aligned, TickMeta
- *  underneath, and the optional muted auto-append slot INSIDE the bubble (the
- *  product literally appends it to the message — UI truth). `glow` is a
- *  legacy prop — accepted, INERT. */
+ *  underneath. `glow` is a legacy prop — accepted, INERT. */
 export function OutBubble({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inert legacy prop (v3): accepted, ignored
   glow: _glow = true,
   ticks = true,
-  append,
   as: Tag = "li",
   className,
   children,
@@ -446,8 +443,6 @@ export function OutBubble({
 }: {
   glow?: boolean;
   ticks?: boolean;
-  /** e.g. the literal "— Reyes Plumbing. Reply STOP to opt out." line. */
-  append?: React.ReactNode;
 } & AsProp &
   NightRest) {
   return (
@@ -457,12 +452,6 @@ export function OutBubble({
     >
       <span className="block rounded-xl bg-[color:var(--petrol)] px-3.5 py-2.5 text-left text-sm leading-[1.45] text-white">
         {children}
-        {append != null ? (
-          /* v3 spec §5: the append line is white at 90% opacity, 12px. */
-          <span className="mt-1.5 block text-[0.75rem] leading-snug text-white/90">
-            {append}
-          </span>
-        ) : null}
       </span>
       {ticks ? <TickMeta /> : null}
     </Tag>

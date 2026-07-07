@@ -23,7 +23,7 @@ import { Display, MarkerCheck } from "@/components/marketing/display";
 import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
-import { ConsentFooterVisual } from "@/components/marketing/features/consent-footer-visual";
+import { ConsentVisual } from "@/components/marketing/features/consent-visual";
 import { PhotoFrame } from "@/components/marketing/photo-frame";
 import { Photo } from "@/components/marketing/photo";
 import { Button } from "@/components/ui/button";
@@ -175,25 +175,23 @@ export default function CanadaPage() {
       <FeatureSection
         eyebrow="CASL-aware"
         heading="Built to help you follow CASL, not to promise you're covered."
-        visual={<ConsentFooterVisual />}
+        visual={<ConsentVisual />}
         wash
       >
         <p>
           CASL is Canada&apos;s anti-spam law, and Loonext is built with it in
           mind. Consent is recorded when you start a conversation, one checkbox
           confirming the customer asked you to text them, saved with a name and a
-          date. Your first text to a new contact automatically ends with your
-          business name and a &ldquo;Reply STOP to opt out&rdquo; line, which is
-          the sender identification CASL expects. And when a customer texts STOP,
-          they&apos;re opted out instantly, with any future send to that number
-          blocked.
+          date. And when a customer texts STOP, they&apos;re opted out instantly,
+          with any future send to that number blocked before it ever leaves the
+          app.
         </p>
         <p>
           We&apos;re careful with the words here: Loonext <em>helps you follow</em>{" "}
           CASL, it doesn&apos;t make you &ldquo;CASL-compliant,&rdquo; because
           staying within the law also depends on you only texting people who
-          actually agreed to hear from you. We give you the consent records, the
-          identification, and the opt-out enforcement; you bring the honest list.
+          actually agreed to hear from you. We give you the consent records and
+          the opt-out enforcement; you bring the honest list.
         </p>
       </FeatureSection>
 
@@ -368,7 +366,7 @@ export default function CanadaPage() {
           {
             label: "Compliance built in",
             href: "/features/compliance",
-            hint: "Consent, opt-outs, and identification handled, the CASL mechanics, in depth.",
+            hint: "Consent and opt-outs handled, the CASL mechanics, in depth.",
           },
           {
             label: "Texting for cleaners",
@@ -397,7 +395,7 @@ export default function CanadaPage() {
           },
           {
             q: "Does Loonext make me CASL-compliant?",
-            a: "It helps you follow CASL, that's the honest phrasing. Loonext records consent, adds your business identification to first messages, and enforces opt-outs, which are the mechanics CASL cares about. Staying compliant also depends on you only texting people who agreed to hear from you, which is on you, not the tool.",
+            a: "It helps you follow CASL, that's the honest phrasing. Loonext records consent and enforces opt-outs, which are the mechanics CASL cares about. Staying compliant also depends on you only texting people who agreed to hear from you, which is on you, not the tool.",
           },
           {
             q: "Where is my data stored?",

@@ -108,10 +108,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           When a business starts a conversation with a new contact, Loonext
-          records that consent was attested, a name and a date, and
-          automatically adds the business&apos;s identity and a &quot;Reply STOP
-          to opt out&quot; line to the first message. When someone texts STOP,
-          the opt-out is recorded and future sends to that number are blocked.
+          records that consent was attested, a name and a date. When someone
+          texts STOP, the opt-out is recorded and future sends to that number
+          are blocked.
         </p>
       </LegalSectionBlock>
 
