@@ -725,10 +725,11 @@ export const PLAN_MODULE_IDS = [
 export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 
 /**
- * Plan-builder add-on card copy (mirrors the API MODULE_CATALOG). `detail` is a
- * concrete quantity line kept in sync with apps/api/src/billing/plans.ts —
- * mms = PLAN_MMS_INCLUDED (150), voice = PLAN_VOICE_MINUTES (300),
- * extra_storage = EXTRA_STORAGE_BYTES (10 GB).
+ * Plan-builder add-on card display shape. The SOURCE OF TRUTH for add-on
+ * copy/prices is the API catalog — GET /v1/billing/modules
+ * (apps/api/src/billing/modules.ts MODULE_CATALOG) — and settings already
+ * renders from it; `planModuleCardFromApi` in lib/settings/module-billing.ts
+ * projects an API row into this shape.
  */
 export interface PlanModuleCard {
   id: PlanModule;
@@ -740,6 +741,25 @@ export interface PlanModuleCard {
   detail?: string;
 }
 
+/**
+ * #59: hand-kept mirror of the API MODULE_CATALOG
+ * (apps/api/src/billing/modules.ts). It is read by every surface that cannot
+ * (or does not yet) call GET /v1/billing/modules:
+ *   - the onboarding plan builder (app/onboarding/plan/page.tsx) — could
+ *     migrate to `useModules` + `planModuleCardFromApi`;
+ *   - the marketing /pricing "Build your plan" strip
+ *     (components/marketing/plan-addons.tsx) and the night pricing section
+ *     (components/marketing/night/pricing.tsx), plus their tests — these are
+ *     static, UNAUTHENTICATED pages that can never call the authed API, so
+ *     this mirror survives even after onboarding migrates.
+ * Only the settings billing card renders from GET /v1/billing/modules today.
+ * WHEN RETUNING A PRICE OR QUANTITY you must edit modules.ts/plans.ts AND
+ * this list — there is no runtime link. The real fix (#59's recommendation)
+ * is moving the catalog to packages/shared and importing it from both apps;
+ * until that lands, do NOT delete this constant. Values as of 2026-07-07:
+ * mms $5 / PLAN_MMS_INCLUDED 150, voice $8 / PLAN_VOICE_MINUTES 300,
+ * extra_storage $5 / EXTRA_STORAGE_BYTES 10 GB, regions_ca $5.
+ */
 export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   {
     id: "mms",
