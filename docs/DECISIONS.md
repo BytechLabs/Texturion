@@ -983,3 +983,39 @@ keys, deterministic in CI.
 - **Consequence:** one-per-job suppression and the review-specific quiet-hours interplay went
   with the first removal; nothing review-shaped is left — a link an owner types is an ordinary
   message subject to the ordinary compose gates.
+
+## D33. Launch-audit hardening wave 1 — egress metering, module reconcile, retry/sweeper atomicity (2026-07-07)
+
+Owner decisions resolving the pre-deploy audit's P0/P1 wave (GitHub issues #15–#22, #35, #37,
+#39, #41, #43, #44, #46, #47, #52, #53; commits c27ef21, 4d2213a, 3a60af0, 6880133). The
+cost-protection mandate (cap-and-drop, alert BEFORE the cap, fail closed) governs all of these.
+
+- **Signed-URL egress is a metered cost center (#16).** Downloads hit Supabase directly, so the
+  MINT is the meterable moment: every signed-URL mint (attachments `/url` route AND the
+  conversation gallery) atomically claims the object's `size_bytes` via `claim_signed_url_egress`
+  against a derived per-period allowance of **4× the company's combined effective storage
+  budgets** (Starter 40 GB, Pro 200 GB, grows with `extra_storage`; the PRICING-AUDIT "egress ≈ 4×
+  storage" sizing). Over the allowance the mint returns 402 `usage_cap_reached`; accounting
+  errors THROW (no URL). 80%/100% owner alerts ride the existing ledgered usage-alerts cron
+  (`egress` arm). Worst-case maxed Pro tenant ≈ $18/mo egress against $79 revenue — inside margin.
+- **Uploads claim budget BEFORE Storage writes (#15),** with orphan-object + ghost-row sweep
+  passes as the crash-window backstop on the 15-min sweep cadence.
+- **Module state mirrors Stripe, both directions (#17).** `company_modules` reconciles against
+  the live subscription items on every subscription webhook and the daily reconcile; a module
+  absent from the paid subscription is disabled (voice disable clears forwarding config).
+  Cancel-then-resubscribe can no longer keep unpaid modules. Module toggles are
+  schedule-aware (#18) and 409 on canceled subscriptions (#44); `regions_ca` is refused at
+  checkout/toggle until it actually ships (#41).
+- **A reconcile-discovered missed cancellation enters the same suspend → grace → release
+  machinery as the webhook path (#21)** — churned numbers always stop renting.
+- **Send-path atomicity (#19, #20, #46, #47):** retry requeue is a SQL claim (one winner);
+  crashes between queued-insert and dispatch fail the row immediately
+  (`persistSendInterruption`, send + compose) with the `fail_stuck_outbound_sends` cron as
+  backstop; retries re-run the number-status, rate, and cap gates.
+- **Webhook sweeper rows are claimed per-event (#22)** (attempts CAS + `claimed_at`) so
+  overlapping cron runs cannot double-process; Stripe duplicate-identifier meter errors count
+  as success (#53).
+- **Ingest fail-closed posture (#35, #37, #39, #43):** suspended companies get no call
+  forwarding; MMS budget-lookup errors skip media (never download unaccounted bytes); inbound
+  notification emails have a per-company daily ceiling with a one-time owner alert; outbound MMS
+  media is byte-sniffed against its declared type.
