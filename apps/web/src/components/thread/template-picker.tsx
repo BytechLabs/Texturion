@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   Command,
   CommandEmpty,
@@ -48,11 +50,27 @@ export function TemplatePicker({
           <CommandInput placeholder="Search saved replies…" autoFocus />
           <CommandList>
             <CommandEmpty>
-              {templates.isPending
-                ? "Loading saved replies…"
-                : templates.isError
-                  ? "Couldn't load saved replies."
-                  : "No saved replies yet. Create them under Templates."}
+              {templates.isPending ? (
+                "Loading saved replies…"
+              ) : templates.isError ? (
+                "Couldn't load saved replies."
+              ) : rows.length === 0 ? (
+                // #66: templates live under Settings now — one human line plus
+                // the actual door, never a dead end (APP-UI-ELEVATION §5).
+                <span className="flex flex-col items-center gap-1.5">
+                  No saved replies yet.
+                  <Link
+                    href="/settings/templates"
+                    onClick={() => onOpenChange(false)}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Create one in Settings › Templates
+                  </Link>
+                </span>
+              ) : (
+                // Rows exist but the search matched none.
+                "No saved replies match."
+              )}
             </CommandEmpty>
             {rows.length > 0 && (
               <CommandGroup heading="Saved replies">

@@ -12,6 +12,7 @@ import {
   listApplyConversation,
   listPatchConversation,
   listSetUnread,
+  snippetFromMessage,
   threadUpsertMessages,
   type ConversationListData,
   type ThreadData,
@@ -305,10 +306,13 @@ export function useCreateNote(conversationId: string) {
         keys.thread(companyId, conversationId),
         (thread) => threadUpsertMessages(thread, [{ ...note, attachments: note.attachments ?? [] }]),
       );
-      // Notes move thread activity forward (routes/conversations.ts).
+      // Notes move thread activity forward (routes/conversations.ts) and are
+      // the newest thread line — patch the inbox preview too (#55), so the list
+      // snippet stays correct even when realtime is down.
       patchConversationLists(queryClient, companyId, (list) =>
         listPatchConversation(list, conversationId, {
           last_message_at: note.created_at,
+          last_message: snippetFromMessage(note),
         }),
       );
     },

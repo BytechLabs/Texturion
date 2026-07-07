@@ -13,8 +13,11 @@ import {
   fileToBase64,
   SegmentMeterLabel,
   useAutoGrow,
+  useDroppedPhotoNotice,
+  useMmsGate,
   type DraftAttachment,
 } from "@/components/thread/composer";
+import { photosDropped } from "@/components/thread/mms-gate";
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +48,7 @@ import type { Contact } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { cn } from "@/lib/utils";
 
 import {
   destinationCountry,
@@ -58,6 +62,11 @@ import {
   looksLikePhoneInput,
   normalizeNanpInput,
 } from "./e164";
+import {
+  clampActiveIndex,
+  nextRecipientIndex,
+  recipientOptionId,
+} from "./recipient-combobox";
 
 type Recipient =
   | { kind: "contact"; contact: Contact }
@@ -77,11 +86,18 @@ export function NewConversation() {
   const company = useCompany();
   const usage = useUsage();
   const start = useStartConversation();
+  // #62/#23 — the SAME add-on gate and cap-and-drop notice as the in-thread
+  // composer, so both compose surfaces behave identically.
+  const mms = useMmsGate();
+  const notifyDroppedPhotos = useDroppedPhotoNotice();
 
   // --- Recipient -------------------------------------------------------------
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [input, setInput] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  // #63 combobox active option (-1 = none): Arrow keys move it, Enter picks
+  // it, aria-activedescendant announces it. Reset on typing / select / close.
+  const [activeIndex, setActiveIndex] = useState(-1);
   const isPhone = looksLikePhoneInput(input);
   const displayInput = isPhone ? formatNanpAsYouType(input) : input;
   const contacts = useContacts(isPhone ? "" : input.trim());
@@ -99,6 +115,14 @@ export function NewConversation() {
   const prefillId = searchParams.get("contact");
 
   const typedE164 = isPhone ? normalizeNanpInput(input) : null;
+
+  // #63 — combobox geometry: the listbox is the contact matches followed by
+  // the optional "Text <number>" row; `active` clamps a stale index when the
+  // result set shrinks under the caret.
+  const listboxId = "compose-to-results";
+  const optionCount = contactRows.length + (typedE164 ? 1 : 0);
+  const listOpen = searchOpen && input.trim() !== "";
+  const active = clampActiveIndex(activeIndex, optionCount);
 
   // --- Draft -----------------------------------------------------------------
   const [body, setBody] = useState("");
@@ -133,8 +157,15 @@ export function NewConversation() {
 
   // D28 intake — the attach button, dropped files, and pasted images all funnel
   // through the shared admitFiles (count/type/size validation + G10 copy).
-  const admitIncoming = (files: FileList) =>
+  // #62: without the Picture messages add-on nothing stages — the pointer
+  // toast explains instead of a post-send 409 dead end.
+  const admitIncoming = (files: FileList) => {
+    if (mms.gated) {
+      mms.explain();
+      return;
+    }
     setAttachments((cur) => admitFiles(cur, files));
+  };
   const drop = useFileDrop(admitIncoming);
 
   // Insert a saved reply's body into the draft (one space if the draft doesn't
@@ -220,7 +251,14 @@ export function NewConversation() {
       ...(media ? { media } : {}),
     };
     start.mutate(inputBody, {
-      onSuccess: ({ conversation }) => {
+      onSuccess: ({ conversation, message }) => {
+        // #23: over the included-MMS cap the API strips the photos and still
+        // answers 2xx — the returned row coming back without attachments is
+        // the only signal. The global toaster keeps the notice alive across
+        // the navigation into the new thread.
+        if (photosDropped(media?.length ?? 0, message)) {
+          notifyDroppedPhotos(media?.length ?? 0);
+        }
         router.push(`/inbox/${conversation.id}`);
       },
       onError: (error) => {
@@ -246,6 +284,7 @@ export function NewConversation() {
     setRecipient({ kind: "contact", contact });
     setInput("");
     setSearchOpen(false);
+    setActiveIndex(-1);
   };
 
   const confirmTypedNumber = () => {
@@ -253,7 +292,14 @@ export function NewConversation() {
       setRecipient({ kind: "number", e164: typedE164 });
       setInput("");
       setSearchOpen(false);
+      setActiveIndex(-1);
     }
+  };
+
+  /** #63: pick the option the active index points at (contacts, then number). */
+  const selectOption = (index: number) => {
+    if (index < contactRows.length) selectContact(contactRows[index]);
+    else confirmTypedNumber();
   };
 
   return (
@@ -332,30 +378,80 @@ export function NewConversation() {
                 value={displayInput}
                 autoComplete="off"
                 placeholder="Search contacts or type a number"
+                role="combobox"
+                aria-expanded={listOpen}
+                aria-controls={listOpen ? listboxId : undefined}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  listOpen && active >= 0
+                    ? recipientOptionId(listboxId, active)
+                    : undefined
+                }
                 onChange={(event) => {
                   setInput(event.target.value);
                   setSearchOpen(true);
+                  // Typing changes the result set — nothing is active until
+                  // the arrows say so (Enter keeps its typed-number fallback).
+                  setActiveIndex(-1);
                 }}
                 onFocus={() => setSearchOpen(true)}
                 onKeyDown={(event) => {
+                  // #63 WAI-ARIA combobox keyboard contract: ArrowUp/Down
+                  // move the active option (opening the list if needed),
+                  // Enter picks it, Escape closes. Plain typing — and
+                  // Home/End, which belong to the textbox caret in an
+                  // editable combobox — falls through.
+                  const next = nextRecipientIndex(
+                    event.key,
+                    active,
+                    optionCount,
+                  );
+                  if (next !== null) {
+                    event.preventDefault();
+                    setSearchOpen(true);
+                    setActiveIndex(next);
+                    return;
+                  }
                   if (event.key === "Enter") {
                     event.preventDefault();
+                    if (listOpen && active >= 0) {
+                      selectOption(active);
+                      return;
+                    }
+                    // No active option: the pre-#63 fallbacks — a complete
+                    // typed number confirms; a single match selects itself.
                     if (typedE164) confirmTypedNumber();
                     else if (contactRows.length === 1)
                       selectContact(contactRows[0]);
                   }
-                  if (event.key === "Escape") setSearchOpen(false);
+                  if (event.key === "Escape") {
+                    setSearchOpen(false);
+                    setActiveIndex(-1);
+                  }
                 }}
                 aria-label="Recipient — search contacts or type a phone number"
               />
-              {searchOpen && input.trim() !== "" && (
-                <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover">
-                  {contactRows.map((contact) => (
+              {listOpen && (
+                <div
+                  id={listboxId}
+                  role="listbox"
+                  aria-label="Recipient matches"
+                  className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover"
+                >
+                  {contactRows.map((contact, index) => (
                     <button
                       key={contact.id}
                       type="button"
+                      id={recipientOptionId(listboxId, index)}
+                      role="option"
+                      aria-selected={index === active}
+                      tabIndex={-1}
                       onClick={() => selectContact(contact)}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60"
+                      onMouseMove={() => setActiveIndex(index)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+                        index === active && "bg-secondary/60",
+                      )}
                     >
                       <span className="truncate font-medium">
                         {contactDisplayName(contact)}
@@ -368,14 +464,25 @@ export function NewConversation() {
                   {typedE164 && (
                     <button
                       type="button"
+                      id={recipientOptionId(listboxId, contactRows.length)}
+                      role="option"
+                      aria-selected={contactRows.length === active}
+                      tabIndex={-1}
                       onClick={confirmTypedNumber}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-primary transition-colors duration-150 ease-out hover:bg-secondary/60"
+                      onMouseMove={() => setActiveIndex(contactRows.length)}
+                      className={cn(
+                        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-primary transition-colors duration-150 ease-out hover:bg-secondary/60",
+                        contactRows.length === active && "bg-secondary/60",
+                      )}
                     >
                       Text {formatPhone(typedE164)}
                     </button>
                   )}
                   {contactRows.length === 0 && !typedE164 && (
-                    <p className="px-3 py-2 text-sm text-muted-foreground">
+                    <p
+                      role="presentation"
+                      className="px-3 py-2 text-sm text-muted-foreground"
+                    >
                       {isPhone
                         ? "Keep typing — a US or Canada number has 10 digits."
                         : contacts.isPending && input.trim().length > 0
@@ -424,10 +531,15 @@ export function NewConversation() {
             <Label htmlFor="compose-body">Message</Label>
             <div className="flex items-center gap-1">
               {/* Attach up to 3 photos (§7 outbound MMS) — the shared admitFiles
-                  enforces count/type/size; this is just the entry point. */}
+                  enforces count/type/size; this is just the entry point. #62:
+                  without the mms add-on the click explains + points at the
+                  add-on instead of opening the picker (same as the thread
+                  composer). */}
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
+                onClick={
+                  mms.gated ? mms.explain : () => fileRef.current?.click()
+                }
                 disabled={attachments.length >= 3}
                 aria-label="Attach a photo"
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-45"
@@ -492,8 +604,18 @@ export function NewConversation() {
             placeholder="Write your text…  (/ for a saved reply)"
             className="min-h-20 w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-[15px]"
           />
-          <div className="flex items-center justify-between">
-            <span aria-hidden />
+          <div className="flex items-start justify-between gap-2">
+            {/* #56: a new conversation can't open photo-only — POST
+                /v1/conversations requires words (unlike in-thread sends).
+                Name the reason instead of leaving Send silently dead. */}
+            {attachments.length > 0 && body.trim() === "" ? (
+              <p className="text-xs text-muted-foreground">
+                Add a short message — the first text in a new conversation
+                can&apos;t be photo-only.
+              </p>
+            ) : (
+              <span aria-hidden />
+            )}
             <SegmentMeterLabel text={body} />
           </div>
         </div>

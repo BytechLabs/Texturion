@@ -11,6 +11,7 @@ import {
   detailPatchMessage,
   doneMutationPatch,
   pinMutationPatch,
+  snippetFromMessage,
   threadPatchMessage,
   threadUpsertMessages,
   type ThreadData,
@@ -20,7 +21,13 @@ import { listApplyConversation } from "./cache";
 import { patchConversationLists } from "./conversations";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
-import type { ConversationDetail, Me, Message, Page } from "./types";
+import type {
+  ConversationDetail,
+  ConversationListItem,
+  Me,
+  Message,
+  Page,
+} from "./types";
 
 /** Outbound media item (SPEC §7: ≤3 items, ≤1 MB decoded, jpeg/png/gif). */
 export interface OutboundMedia {
@@ -53,6 +60,26 @@ export function useMessages(conversationId: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
   });
+}
+
+/**
+ * #55 — the fresh list row after the viewer's own send: bump the sort key,
+ * replace the preview snippet (the realtime handler does the same via
+ * `snippetFromMessage`; without it the row jumps to the top still previewing
+ * the customer's OLD message whenever the broadcast round-trip is down), and
+ * clear the unread dot — the sender has plainly read the thread they just
+ * replied in. Pure so it's unit-testable next to the cache reducers it feeds.
+ */
+export function sentConversationPatch(
+  row: ConversationListItem,
+  message: Message,
+): ConversationListItem {
+  return {
+    ...row,
+    last_message_at: message.created_at,
+    last_message: snippetFromMessage(message),
+    unread: false,
+  };
 }
 
 /**
@@ -93,7 +120,7 @@ export function useSendMessage(conversationId: string) {
         if (!row) return list;
         return listApplyConversation(
           list,
-          { ...row, last_message_at: message.created_at },
+          sentConversationPatch(row, message),
           filters,
         );
       });
