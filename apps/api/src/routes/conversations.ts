@@ -28,6 +28,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { assertEgressWithinAllowance } from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -884,6 +885,16 @@ conversationsRoutes.get(
             id: pageRows[pageRows.length - 1].id,
           })
         : null;
+
+    // #16: claim the page's egress (per-bucket subtotals, one shared pool)
+    // BEFORE any signing — over the allowance the page 402s usage_cap_reached
+    // and nothing is signed; a claim error signs nothing (fail closed). NULL
+    // sizes claim 0, matching the /v1/attachments/:id/url route's posture.
+    await assertEgressWithinAllowance(
+      db,
+      companyId,
+      pageRows.map((row) => ({ bucket: row.bucket, sizeBytes: row.size_bytes })),
+    );
 
     // Sign each item's object (short-lived) — the single authorize+sign point.
     const data = await Promise.all(

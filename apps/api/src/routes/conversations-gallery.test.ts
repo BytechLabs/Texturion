@@ -30,6 +30,9 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONV_ID = "aaaaaaaa-1111-4222-8333-444444444444";
+const PERIOD_START = "2026-07-01T00:00:00+00:00";
+// Starter: 4 × (5 GB attachments + 5 GB MMS) — see egressAllowanceBytes (#16).
+const STARTER_EGRESS_ALLOWANCE = 4 * 10 * 1024 * 1024 * 1024;
 
 let auth: TestAuth;
 const app = buildTestApp(conversationsRoutes);
@@ -51,6 +54,16 @@ function memberStub(): SupabaseStub {
   );
   // The conversation existence gate (findConversation).
   sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
+  // #16 egress-claim stubs every non-empty page needs (mirrors the
+  // egressStubs helper in routes/attachments.test.ts).
+  sb.on("GET", "/rest/v1/companies", () => [
+    { plan: "starter", current_period_start: PERIOD_START },
+  ]);
+  sb.on("GET", "/rest/v1/company_modules", () => []);
+  sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
+    const p = call.body as { p_bytes: number };
+    return { allowed: true, used_bytes: p.p_bytes };
+  });
   return sb;
 }
 
@@ -160,6 +173,114 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     expect(signPaths).toContain(
       `/storage/v1/object/sign/attachments/${COMPANY_ID}/task/t1/uuid-quote.pdf`,
     );
+
+    // #16: the page's egress was claimed as per-bucket subtotals against the
+    // shared pool, and every claim landed BEFORE the first sign call.
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
+    expect(claims.map((call) => call.body)).toEqual(
+      expect.arrayContaining([
+        {
+          p_company_id: COMPANY_ID,
+          p_since: PERIOD_START,
+          p_bucket: "mms-media",
+          p_bytes: 4096,
+          p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+        },
+        {
+          p_company_id: COMPANY_ID,
+          p_since: PERIOD_START,
+          p_bucket: "attachments",
+          p_bytes: 10240, // 8192 + 2048 — the generic arm's summed page bytes
+          p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+        },
+      ]),
+    );
+    expect(claims).toHaveLength(2);
+    const order = sb.calls.map((call) => call.path);
+    expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress")).toBeLessThan(
+      order.findIndex((path) => path.startsWith("/storage/v1/object/sign/")),
+    );
+  });
+
+  it("402s usage_cap_reached over the egress allowance — nothing is signed (#16)", async () => {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      {
+        id: "10000000-0000-4000-8000-000000000001",
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        content_type: "image/jpeg",
+        size_bytes: 4096,
+        created_at: "2026-07-02T09:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", current_period_start: PERIOD_START },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
+      allowed: false,
+      used_bytes: STARTER_EGRESS_ALLOWANCE,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("usage_cap_reached");
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("signs nothing when the egress claim errors (fail closed, #16)", async () => {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      {
+        id: "10000000-0000-4000-8000-000000000001",
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        content_type: "image/jpeg",
+        size_bytes: 4096,
+        created_at: "2026-07-02T09:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", current_period_start: PERIOD_START },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(500);
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
   });
 
   it("paginates: over the limit yields a next_cursor pointing at the last item", async () => {

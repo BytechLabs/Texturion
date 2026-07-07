@@ -1,7 +1,10 @@
 -- D30 storage accounting assertion suite — api_storage_usage(p_company_id)
 -- (supabase/migrations/20260704050000_storage_accounting.sql): the exact
 -- per-company stored-bytes sums behind the POST /v1/attachments budget gate
--- and the GET /v1/usage `storage` arm.
+-- and the GET /v1/usage `storage` arm. Extended (SA-7..SA-11) with the #15/#16
+-- storage-cost hardening (20260707120000_storage_egress_and_orphans.sql): the
+-- atomic signed-URL egress claim + period sum, the widened usage_alerts
+-- `egress` metric, and the orphan-object / ghost-row anti-join scans.
 --
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
@@ -302,6 +305,205 @@ begin
   end if;
 
   raise notice 'SA-6 PASSED: atomic budget claim holds the boundary, no overshoot';
+end $$;
+
+-- ===========================================================================
+-- Storage cost hardening (20260707120000_storage_egress_and_orphans.sql).
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- SA-7 [#16]. The four new functions carry the api_*/claim_* security posture:
+--       SECURITY DEFINER, empty search_path, EXECUTE denied to end-user roles
+--       and granted to service_role only.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  fn_name text; fn regprocedure; is_secdef boolean; cfg text[];
+begin
+  foreach fn_name in array array[
+    'claim_signed_url_egress', 'api_period_egress_bytes',
+    'api_orphan_attachment_objects', 'api_ghost_attachment_rows'
+  ] loop
+    select p.oid::regprocedure, p.prosecdef, p.proconfig
+      into fn, is_secdef, cfg
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.proname=fn_name;
+    if fn is null then raise exception 'SA-7 FAILED: public.% missing', fn_name; end if;
+    if not is_secdef then raise exception 'SA-7 FAILED: % must be SECURITY DEFINER', fn_name; end if;
+    if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
+      raise exception 'SA-7 FAILED: % must pin an empty search_path (got %)', fn_name, cfg;
+    end if;
+    if has_function_privilege('anon', fn, 'execute')
+       or has_function_privilege('authenticated', fn, 'execute') then
+      raise exception 'SA-7 FAILED: anon/authenticated must not EXECUTE %', fn_name;
+    end if;
+    if not has_function_privilege('service_role', fn, 'execute') then
+      raise exception 'SA-7 FAILED: service_role must EXECUTE %', fn_name;
+    end if;
+  end loop;
+  raise notice 'SA-7 PASSED: egress/orphan function security posture';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SA-8 [#16]. claim_signed_url_egress is the atomic mint-time egress claim:
+--       re-sum + insert under a per-company advisory lock; exactly-at boundary
+--       allowed, one byte over rejected (nothing written), a second boundary
+--       claim rejected (no overshoot), a zero-byte claim at the cap rejected.
+--       Uses company B (no other egress fixtures touch it) and a tiny limit.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000002';
+  v_since timestamptz := now() - interval '1 day';
+  v_r jsonb; v_total int8;
+begin
+  -- 600 of 1000 already minted this window.
+  insert into public.egress_events (company_id, bucket, bytes, created_at)
+  values (v_company, 'attachments', 600, now() - interval '1 hour');
+
+  -- Exactly-at boundary: 600 + 400 = 1000 <= 1000 → allowed, row written.
+  v_r := public.claim_signed_url_egress(v_company, v_since, 'attachments', 400, 1000);
+  if (v_r->>'allowed')::boolean is not true or (v_r->>'used_bytes')::int8 <> 1000 then
+    raise exception 'SA-8 FAILED: at-boundary claim: %', v_r;
+  end if;
+
+  -- One byte over: rejected, nothing written, used_bytes reports the total.
+  v_r := public.claim_signed_url_egress(v_company, v_since, 'mms-media', 1, 1000);
+  if (v_r->>'allowed')::boolean is not false or (v_r->>'used_bytes')::int8 <> 1000 then
+    raise exception 'SA-8 FAILED: over-boundary claim: %', v_r;
+  end if;
+
+  -- A second boundary-sized claim (the TOCTOU scenario): rejected too.
+  v_r := public.claim_signed_url_egress(v_company, v_since, 'attachments', 400, 1000);
+  if (v_r->>'allowed')::boolean is not false then
+    raise exception 'SA-8 FAILED: second boundary claim overshot: %', v_r;
+  end if;
+
+  -- Even a ZERO-byte claim is refused only when it would exceed — at exactly
+  -- the cap, 1000 + 0 <= 1000 → allowed (a NULL-size legacy MMS row still
+  -- downloads at the boundary but not past it).
+  v_r := public.claim_signed_url_egress(v_company, v_since, 'mms-media', 0, 1000);
+  if (v_r->>'allowed')::boolean is not true then
+    raise exception 'SA-8 FAILED: zero-byte claim at the cap: %', v_r;
+  end if;
+
+  -- Ledger total is exactly the boundary; the rejected claims wrote nothing.
+  select coalesce(sum(bytes),0)::int8 into v_total
+    from public.egress_events where company_id = v_company;
+  if v_total <> 1000 then
+    raise exception 'SA-8 FAILED: ledger total = % (want 1000 — no overshoot)', v_total;
+  end if;
+
+  raise notice 'SA-8 PASSED: atomic egress claim holds the boundary';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SA-9 [#16]. api_period_egress_bytes: window- and tenant-scoped sum (rows
+--       before p_since and other companies' rows are excluded; empty → 0).
+-- ---------------------------------------------------------------------------
+do $$
+declare v int8;
+begin
+  -- Company A: one row inside the window, one before it, plus B's SA-8 rows.
+  insert into public.egress_events (company_id, bucket, bytes, created_at) values
+    ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', 'attachments', 250, now() - interval '1 hour'),
+    ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', 'mms-media',   999, now() - interval '10 days');
+
+  v := public.api_period_egress_bytes('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now() - interval '1 day');
+  if v <> 250 then
+    raise exception 'SA-9 FAILED: window sum = % (want 250: in-window, own-company only)', v;
+  end if;
+  v := public.api_period_egress_bytes('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now() - interval '30 days');
+  if v <> 1249 then
+    raise exception 'SA-9 FAILED: wide-window sum = % (want 1249)', v;
+  end if;
+
+  raise notice 'SA-9 PASSED: api_period_egress_bytes window + tenant scoping';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SA-10 [#16]. usage_alerts accepts the new 'egress' metric (the alert cron's
+--       sixth arm) and still rejects an unknown metric.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now(), 'egress', 80);
+
+  begin
+    insert into public.usage_alerts (company_id, period_start, metric, threshold)
+    values ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now(), 'bogus', 80);
+    raise exception 'SA-10 FAILED: unknown metric was accepted';
+  exception when check_violation then
+    null; -- expected
+  end;
+
+  raise notice 'SA-10 PASSED: usage_alerts egress metric allowed, unknown rejected';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SA-11 [#15]. The orphan/ghost anti-joins:
+--       api_orphan_attachment_objects returns attachments-bucket objects older
+--       than the cutoff with NO attachments row (live OR soft-deleted rows
+--       both anchor their object); api_ghost_attachment_rows returns LIVE rows
+--       older than the cutoff with NO object (soft-deleted and young rows are
+--       excluded). Fixtures write storage.objects directly (postgres-owned
+--       test session; the Worker only ever reads via the RPCs).
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000001';
+  v_owner   uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000006';
+  v_convo   uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000005';
+  v_names text[]; v_ids uuid[];
+begin
+  -- Storage objects: an aged orphan (returned), a fresh orphan (grace window),
+  -- an aged object WITH a live row, an aged object WITH a soft-deleted row
+  -- (still anchored — pass 1 owns it), and an aged orphan in ANOTHER bucket.
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('attachments', 'sa11/orphan-old',    now() - interval '1 hour'),
+    ('attachments', 'sa11/orphan-fresh',  now()),
+    ('attachments', 'sa11/anchored-live', now() - interval '1 hour'),
+    ('attachments', 'sa11/anchored-soft', now() - interval '1 hour'),
+    ('mms-media',   'sa11/other-bucket',  now() - interval '1 hour');
+  insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, size_bytes)
+  values (v_company, 'note', v_owner, v_convo, 'sa11/anchored-live', 10);
+  insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, size_bytes, deleted_at)
+  values (v_company, 'note', v_owner, v_convo, 'sa11/anchored-soft', 10, now());
+
+  -- Generous limit: a local dev bucket may hold unrelated aged orphans; the
+  -- sa11/ filter isolates this suite's fixtures.
+  select coalesce(array_agg(name), '{}') into v_names
+    from public.api_orphan_attachment_objects(now() - interval '15 minutes', 10000) as name
+   where name like 'sa11/%';
+  if v_names <> array['sa11/orphan-old'] then
+    raise exception 'SA-11 FAILED: orphan objects = % (want {sa11/orphan-old})', v_names;
+  end if;
+
+  -- Ghost rows: an aged live row with no object (returned), an aged
+  -- soft-deleted row with no object (pass-1 territory, excluded), a fresh live
+  -- row with no object (grace window, excluded); anchored-live has its object.
+  insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, size_bytes, created_at)
+  values (v_company, 'note', v_owner, v_convo, 'sa11/ghost-old', 10, now() - interval '1 hour');
+  insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, size_bytes, created_at, deleted_at)
+  values (v_company, 'note', v_owner, v_convo, 'sa11/soft-no-object', 10, now() - interval '1 hour', now());
+  insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, size_bytes)
+  values (v_company, 'note', v_owner, v_convo, 'sa11/ghost-fresh', 10);
+
+  select coalesce(array_agg(a.id), '{}') into v_ids
+    from public.api_ghost_attachment_rows(now() - interval '15 minutes', 10000) as gid
+    join public.attachments a on a.id = gid
+   where a.storage_path like 'sa11/%';
+  if array_length(v_ids, 1) is distinct from 1
+     or not exists (
+       select 1 from public.attachments a
+       where a.id = v_ids[1] and a.storage_path = 'sa11/ghost-old'
+     ) then
+    raise exception 'SA-11 FAILED: ghost rows matched paths % (want exactly sa11/ghost-old)',
+      (select array_agg(a.storage_path) from public.attachments a where a.id = any(v_ids));
+  end if;
+
+  raise notice 'SA-11 PASSED: orphan-object and ghost-row anti-joins';
 end $$;
 
 rollback;

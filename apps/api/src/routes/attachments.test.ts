@@ -2,12 +2,16 @@
  * Attachment routes (SPEC §7; D19 / D28 / D30 / APP-FEATURES-V2 §2):
  *   - GET /v1/attachments/:id/url — signed URL for BOTH the generic (note and
  *     legacy task) attachments table AND the MMS message_attachments table
- *     (the MMS path is kept intact), plus membership scoping / 404.
+ *     (the MMS path is kept intact), plus membership scoping / 404, plus the
+ *     #16 egress claim: every mint atomically claims the object's size_bytes
+ *     against the plan-derived monthly allowance BEFORE signing (402
+ *     usage_cap_reached over the allowance; a claim error mints nothing).
  *   - POST /v1/attachments — NOTES-ONLY upload (D28: owner_type='task' is a
  *     422 — task attachments are a derived read view now): owner-ownership +
  *     company scoping, size/type/byte-sniff gates, per-owner soft cap, the
- *     D30 company-wide storage budget (409 over budget), Storage upload, row
- *     insert, audit event.
+ *     D30 company-wide storage budget claimed FIRST (#15: 409 over budget
+ *     writes nothing anywhere), Storage upload with claim release on failure,
+ *     audit event.
  *   - GET /v1/attachments — list a single owner's live attachments (note OR
  *     task — legacy task rows keep reading).
  *   - DELETE /v1/attachments/:id — soft-delete, note or legacy task.
@@ -87,11 +91,43 @@ function uploadForm(
 }
 
 describe("GET /v1/attachments/:id/url", () => {
-  it("mints a short-lived signed URL for a generic (task/note) attachment", async () => {
+  /** Company billing-period anchor the #16 egress window is keyed on. */
+  const PERIOD_START = "2026-07-01T00:00:00+00:00";
+  /** Starter egress allowance: 4 × (5 GB attachments + 5 GB MMS) = 40 GB. */
+  const STARTER_EGRESS_ALLOWANCE = 4 * 10 * 1024 * 1024 * 1024;
+
+  /**
+   * The #16 egress-claim stubs every successful mint needs: the company's
+   * plan + period anchor and the atomic claim_signed_url_egress RPC (which
+   * mimics the SQL: usedBytes + p_bytes vs p_limit_bytes).
+   */
+  function egressStubs(
+    sb: SupabaseStub,
+    options: { usedBytes?: number; periodStart?: string | null } = {},
+  ) {
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        plan: "starter",
+        current_period_start:
+          options.periodStart === undefined ? PERIOD_START : options.periodStart,
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
+      const p = call.body as { p_bytes: number; p_limit_bytes: number };
+      const used = options.usedBytes ?? 0;
+      if (used + p.p_bytes > p.p_limit_bytes) {
+        return { allowed: false, used_bytes: used };
+      }
+      return { allowed: true, used_bytes: used + p.p_bytes };
+    });
+  }
+
+  it("mints a short-lived signed URL for a generic (task/note) attachment, claiming egress first", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
-      { storage_path: `${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf` },
+      { storage_path: `${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`, size_bytes: 2048 },
     ]);
+    egressStubs(sb);
     sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
       signedURL: `/object/sign/attachments/${COMPANY_ID}/task/x?token=sig`,
     }));
@@ -120,15 +156,31 @@ describe("GET /v1/attachments/:id/url", () => {
     );
     // Generic TTL is 300s (D19 §2.5).
     expect(sign.body).toMatchObject({ expiresIn: 300 });
+
+    // #16: the mint claimed the object's bytes against the plan-derived
+    // allowance, keyed on the billing period, BEFORE the sign call.
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    expect(claim.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_since: PERIOD_START,
+      p_bucket: "attachments",
+      p_bytes: 2048,
+      p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+    });
+    const order = sb.calls.map((call) => call.path);
+    expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress")).toBeLessThan(
+      order.findIndex((path) => path.startsWith("/storage/v1/object/sign/")),
+    );
   });
 
-  it("falls back to the MMS message_attachments arm (kept intact), 1-hour TTL", async () => {
+  it("falls back to the MMS message_attachments arm (kept intact), 1-hour TTL; a NULL size claims 0", async () => {
     const sb = stubWithRole("member");
     // No generic row → fall through to the MMS table.
     sb.on("GET", "/rest/v1/attachments", () => []);
     sb.on("GET", "/rest/v1/message_attachments", () => [
-      { storage_path: `mms-media/${COMPANY_ID}/msg-1/0` },
+      { storage_path: `mms-media/${COMPANY_ID}/msg-1/0`, size_bytes: null },
     ]);
+    egressStubs(sb);
     sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
       signedURL: `/object/sign/mms-media/${COMPANY_ID}/msg-1/0?token=sig`,
     }));
@@ -157,6 +209,90 @@ describe("GET /v1/attachments/:id/url", () => {
       `/storage/v1/object/sign/mms-media/${COMPANY_ID}/msg-1/0`,
     );
     expect(sign.body).toMatchObject({ expiresIn: 3600 });
+    // MMS media draws on the same egress pool; a legacy NULL size claims 0.
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    expect(claim.body).toMatchObject({ p_bucket: "mms-media", p_bytes: 0 });
+  });
+
+  it("402s usage_cap_reached over the egress allowance — no URL is signed (#16)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
+        size_bytes: 25 * 1024 * 1024,
+      },
+    ]);
+    // Allowance already fully spent → the claim refuses the mint.
+    egressStubs(sb, { usedBytes: STARTER_EGRESS_ALLOWANCE });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    expect(body.error.code).toBe("usage_cap_reached");
+    expect(body.error.message).toContain("40 GB");
+    // Cap-and-drop: over the allowance, NOTHING is signed.
+    expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
+  });
+
+  it("mints NO URL when the egress claim errors (fail closed, #16)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`, size_bytes: 64 },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", current_period_start: PERIOD_START },
+    ]);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(500);
+    expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
+  });
+
+  it("falls back to the current UTC calendar month when the company has no billing period", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`, size_bytes: 64 },
+    ]);
+    egressStubs(sb, { periodStart: null });
+    sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
+      signedURL: `/object/sign/attachments/x?token=sig`,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    const now = new Date();
+    expect((claim.body as { p_since: string }).p_since).toBe(
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString(),
+    );
   });
 
   it("404s an attachment in neither table (company scoping) and malformed ids", async () => {
@@ -175,8 +311,9 @@ describe("GET /v1/attachments/:id/url", () => {
       );
       expect(res.status, id).toBe(404);
     }
-    // No Storage call for a miss.
+    // No Storage call and no egress claim for a miss.
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(0);
   });
 
   it("403s a non-member before touching anything", async () => {
@@ -280,8 +417,15 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(ownerLookup.url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
-    // Storage upload happened BEFORE the claim (upload-first ordering), keyed
-    // {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
+    // #15 claim-first ordering: the budget claim precedes the Storage upload,
+    // so a rejected claim can never orphan an object.
+    const order = sb.calls.map((call) => call.path);
+    expect(order.indexOf("/rest/v1/rpc/claim_attachment_storage")).toBeLessThan(
+      order.findIndex((path) =>
+        path.startsWith("/storage/v1/object/attachments/"),
+      ),
+    );
+    // Upload keyed {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
     const upload = sb.find("POST", /^\/storage\/v1\/object\/attachments\//)[0];
     expect(upload.path).toMatch(
       new RegExp(
@@ -545,10 +689,10 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
 
   // -------------------------------------------------------------------------
   // D30: the company-wide storage budget (Starter 5 GB / Pro 25 GB over live
-  // generic rows), now enforced by the ATOMIC claim_attachment_storage RPC
-  // (fixes the check-then-write TOCTOU). Under and exactly-at fit; one byte
-  // over is a 409 conflict. The Worker uploads to Storage FIRST, then claims —
-  // so an over-budget upload leaves an orphaned object for the D19 sweep.
+  // generic rows), enforced by the ATOMIC claim_attachment_storage RPC (fixes
+  // the check-then-write TOCTOU). Under and exactly-at fit; one byte over is a
+  // 409 conflict. #15: the Worker claims FIRST, then uploads — a rejected
+  // claim writes NOTHING anywhere (no orphaned object).
   // -------------------------------------------------------------------------
   const STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
 
@@ -601,12 +745,36 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(body.error.message).toBe(
       "Your 5 GB of file storage is full — delete some files to free space.",
     );
-    // Upload-first ordering: the object WAS written (it's now an orphan the D19
-    // sweep reclaims), but the atomic claim rejected → no row, no audit event.
+    // #15 claim-first ordering: the rejected claim wrote NOTHING — no Storage
+    // object (the old orphan hole), no row, no audit event.
     expect(
       sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("releases the claimed row when the Storage upload fails (#15 — no budget held for absent bytes)", async () => {
+    const sb = stubWithRole("member");
+    uploadStubs(sb, { storedBytes: 1024 });
+    // The upload blows up AFTER the claim landed.
+    sb.on(
+      "POST",
+      /^\/storage\/v1\/object\/attachments\//,
+      () =>
+        new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+          status: 500,
+        }),
+    );
+    sb.on("DELETE", "/rest/v1/attachments", () => []);
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(500);
+
+    // The claimed row was released (scoped hard-delete by company + id)…
+    const release = sb.find("DELETE", "/rest/v1/attachments")[0];
+    expect(release.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(release.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
+    // …and no audit event was written for the failed upload.
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 

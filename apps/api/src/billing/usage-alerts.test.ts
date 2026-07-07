@@ -33,6 +33,8 @@ interface UsageState {
   voiceSeconds?: number;
   /** api_period_outbound_mms (default 0 → no mms alerts). */
   mmsMessages?: number;
+  /** api_period_egress_bytes (default 0 → no egress alerts). */
+  egressBytes?: number;
 }
 
 function usageEndpoints(state: UsageState): StubEndpoint[] {
@@ -59,6 +61,11 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       "POST",
       /\/rest\/v1\/rpc\/api_period_outbound_mms/,
       () => state.mmsMessages ?? 0,
+    ),
+    endpoint(
+      "POST",
+      /\/rest\/v1\/rpc\/api_period_egress_bytes/,
+      () => state.egressBytes ?? 0,
     ),
     // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage
     // off → base budgets, so the storage thresholds are unchanged.
@@ -236,6 +243,52 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(harness)).toHaveLength(0);
   });
 
+  it("egress at 100% (starter: 40 GB allowance) sends both download alerts (#16)", async () => {
+    // Starter allowance = 4 × (5 GB attachments + 5 GB MMS) = 40 GB.
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      egressBytes: 40 * GB,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const subjects = sentEmails(harness).map((email) => email.subject);
+    expect(subjects).toHaveLength(2);
+    expect(subjects[0]).toContain("nearing its file-download limit");
+    expect(subjects[1]).toContain("used all its included file downloads");
+    expect(state.ledger).toEqual(new Set(["egress:80", "egress:100"]));
+
+    // Converged: the next run is a pure no-op.
+    const again = run(state);
+    await again.done;
+    expect(sentEmails(again.harness)).toHaveLength(0);
+  });
+
+  it("egress at exactly 80% (starter: 32 of 40 GB) sends only the 80% download alert", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      egressBytes: 32 * GB,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toContain("nearing its file-download limit");
+    expect(state.ledger).toEqual(new Set(["egress:80"]));
+  });
+
+  it("egress below 80% sends nothing", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      egressBytes: 31 * GB,
+    };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(0);
+  });
+
   it("segment and storage metrics never collide at the same threshold", async () => {
     // Over on segments (100%) AND over on MMS storage (100%): four distinct
     // alerts, one per (metric, threshold) — the metric axis keeps the two 80s
@@ -287,6 +340,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_outbound_mms/, () => 0),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
       endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };

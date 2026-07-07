@@ -16,7 +16,11 @@ import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { app, CRON_JOBS } from "./index";
-import { reportUnreportedUsage, sweepWebhookEvents } from "./messaging/crons";
+import {
+  failStuckOutboundSends,
+  reportUnreportedUsage,
+  sweepWebhookEvents,
+} from "./messaging/crons";
 import { composeRoutes } from "./routes/compose";
 import { conversationsRoutes } from "./routes/conversations";
 import { pollPortRequests } from "./telnyx/porting";
@@ -413,7 +417,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
   });
 
   it("each schedule dispatches to the §11 job(s), by identity", () => {
-    expect(CRON_JOBS["*/5 * * * *"]).toEqual([sweepWebhookEvents]);
+    expect(CRON_JOBS["*/5 * * * *"]).toEqual([
+      sweepWebhookEvents,
+      failStuckOutboundSends,
+    ]);
     expect(CRON_JOBS["*/15 * * * *"]).toEqual([
       reconcileNumbers,
       retryCampaignAssignments,

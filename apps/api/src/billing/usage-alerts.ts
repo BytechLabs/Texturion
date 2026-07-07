@@ -1,17 +1,19 @@
 /**
- * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms): when a company
- * crosses 80% or 100% of a budget, email the owner + active admins — exactly
- * once per (company, period, metric, threshold), gated by the `usage_alerts`
- * ledger PK. Five metrics: outbound `segments` vs the plan's INCLUDED quota
- * (never the cap); `mms_storage` + `attachment_storage` vs their #12 storage
- * budgets; `voice_minutes` vs the plan's call-forwarding allowance; and
- * `mms_messages` vs the plan's included outbound picture messages. Runs from
- * the hourly cron right after the usage re-reporter (§11
- * idempotency style: work is selected by state — sums vs the ledger — never by
- * "last run" bookkeeping), so re-runs and overlaps can never double-send.
+ * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms; #16 egress arm):
+ * when a company crosses 80% or 100% of a budget, email the owner + active
+ * admins — exactly once per (company, period, metric, threshold), gated by the
+ * `usage_alerts` ledger PK. Six metrics: outbound `segments` vs the plan's
+ * INCLUDED quota (never the cap); `mms_storage` + `attachment_storage` vs
+ * their #12 storage budgets; `voice_minutes` vs the plan's call-forwarding
+ * allowance; `mms_messages` vs the plan's included outbound picture messages;
+ * and `egress` vs the #16 signed-URL download allowance. Runs from the hourly
+ * cron right after the usage re-reporter (§11 idempotency style: work is
+ * selected by state — sums vs the ledger — never by "last run" bookkeeping),
+ * so re-runs and overlaps can never double-send.
  */
 import { billingRecipients } from "./recipients";
 import { effectiveStorageBudgets } from "./company-modules";
+import { egressAllowanceBytes } from "../attachments/egress";
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_MMS_INCLUDED,
@@ -37,7 +39,8 @@ export type UsageAlertMetric =
   | "mms_storage"
   | "attachment_storage"
   | "voice_minutes"
-  | "mms_messages";
+  | "mms_messages"
+  | "egress";
 
 interface ActiveCompanyRow {
   id: string;
@@ -210,6 +213,47 @@ function mmsAlertCopy(
       `picture messages included in your plan this billing period. Once they're ` +
       `used up, new picture sends go out as text only (the message still reaches ` +
       `your customer, without the photo). Move to a larger plan to avoid that.\n\n` +
+      `See usage: ${usageUrl}\n\n— Loonext`,
+  };
+}
+
+/**
+ * #16 download (egress) alert copy. Over the allowance, minting new download
+ * links is refused until the period resets — files stay stored and safe; only
+ * the download door pauses. The copy says exactly that so nobody fears data
+ * loss when a link stops working.
+ */
+function egressAlertCopy(
+  company: ActiveCompanyRow,
+  threshold: UsageAlertThreshold,
+  allowanceBytes: number,
+  usedBytes: number,
+  env: Env,
+): { subject: string; text: string } {
+  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  const allowance = formatGb(allowanceBytes);
+  const used = formatGb(usedBytes);
+  if (threshold === 100) {
+    return {
+      subject: `${company.name} has used all its included file downloads this period`,
+      text:
+        `Hi,\n\n${company.name} has downloaded ${allowance} of files and ` +
+        `pictures this billing period — the full download allowance included ` +
+        `with your plan's storage. New downloads are paused until your next ` +
+        `period starts so the bill can't grow past your plan; everything stays ` +
+        `safely stored in the meantime. If you're hitting this in normal use, ` +
+        `just reply to this email.\n\n` +
+        `See usage: ${usageUrl}\n\n— Loonext`,
+    };
+  }
+  return {
+    subject: `${company.name} is nearing its file-download limit for this period`,
+    text:
+      `Hi,\n\n${company.name} has downloaded ${used} of the ${allowance} of ` +
+      `files and pictures included with your plan's storage this billing ` +
+      `period. When it's used up, new downloads pause until the next period ` +
+      `starts (everything stays safely stored). If you're hitting this in ` +
+      `normal use, just reply to this email.\n\n` +
       `See usage: ${usageUrl}\n\n— Loonext`,
   };
 }
@@ -423,6 +467,32 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
             "mms_messages",
             threshold,
             mmsAlertCopy(company, threshold, includedMms, usedMms, env),
+          );
+        }
+      }
+
+      // #16 egress arm: warn before the hard cap (routes/attachments.ts) starts
+      // refusing signed download URLs. The allowance is derived from the SAME
+      // effective storage budgets read above (4× their combined size — one
+      // source of truth in attachments/egress.ts, shared with the mint route),
+      // and the sum is the same RPC window the atomic claim enforces.
+      const { data: egressBytes, error: egressError } = await db.rpc(
+        "api_period_egress_bytes",
+        { p_company_id: company.id, p_since: company.current_period_start },
+      );
+      if (egressError) {
+        throw new Error(`egress usage failed: ${egressError.message}`);
+      }
+      const usedEgress = Number(egressBytes);
+      const egressAllowance = egressAllowanceBytes({ attachmentBytes, mmsBytes });
+      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+        if (usedEgress * 100 >= egressAllowance * threshold) {
+          await recordAndSendAlert(
+            env,
+            company,
+            "egress",
+            threshold,
+            egressAlertCopy(company, threshold, egressAllowance, usedEgress, env),
           );
         }
       }

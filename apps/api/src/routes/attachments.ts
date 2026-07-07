@@ -8,14 +8,17 @@
  *        `file`. Verifies membership (middleware) + that the owner note
  *        belongs to the caller's company; enforces the 25 MB ceiling, the
  *        MIME allow-list, and re-checks content-type FROM THE BYTES (never
- *        trusts the client); enforces the soft per-owner cap of 10. Streams the
- *        bytes to the private `attachments` bucket with the sb_secret_ key,
- *        THEN atomically claims the D30 company-wide storage budget
+ *        trusts the client); enforces the soft per-owner cap of 10. Atomically
+ *        claims the D30 company-wide storage budget FIRST
  *        (claim_attachment_storage: a per-company advisory-lock re-sum + insert
  *        vs the plan's 5/25 GB) — the claim is the sole budget authority (no
- *        check-then-write TOCTOU). Over budget → 409 `conflict` and the
- *        just-uploaded object is orphaned for the D19 sweep. On success writes a
- *        note_attachment_added event and returns the row (201).
+ *        check-then-write TOCTOU). Over budget → 409 `conflict` with NOTHING
+ *        written anywhere (#15: a rejected upload can never orphan a Storage
+ *        object). Only an allowed claim streams the bytes to the private
+ *        `attachments` bucket with the sb_secret_ key; an upload failure
+ *        releases the claimed row (and the #15 sweep passes reclaim any crash
+ *        window). On success writes a note_attachment_added event and returns
+ *        the row (201).
  *   GET  /v1/attachments        M — list a single owner's live attachments
  *        (`?owner_type=&owner_id=`, note OR task — legacy task rows keep
  *        reading), company-scoped { data }.
@@ -24,7 +27,10 @@
  *        `message_attachments` (the MMS path is kept intact): the id is looked
  *        up in the generic `attachments` table first, then falls back to
  *        `message_attachments` — one route, three sources (D19: "there is no
- *        /v1/task-attachments/:id/url").
+ *        /v1/task-attachments/:id/url"). Every mint atomically claims the
+ *        object's size_bytes against the company's #16 monthly egress
+ *        allowance (attachments/egress.ts) BEFORE signing — over the allowance
+ *        → 402 `usage_cap_reached`; a claim error mints nothing (fail closed).
  *   DELETE /v1/attachments/:id  M — soft-delete a live generic row (note or
  *        legacy task — D28 keeps the delete door open so space can be freed).
  *
@@ -35,6 +41,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import {
+  assertEgressWithinAllowance,
+  companyPlanRow,
+} from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import { effectiveStorageBudgets } from "../billing/company-modules";
 import { type PlanId } from "../billing/plans";
@@ -118,16 +128,7 @@ async function companyStorageBudget(
   db: Db,
   companyId: string,
 ): Promise<{ plan: PlanId; budgetBytes: number }> {
-  const companies = unwrap<{ plan: PlanId | null }[]>(
-    await db
-      .from("companies")
-      .select("plan")
-      .eq("id", companyId)
-      .is("deleted_at", null)
-      .limit(1),
-    "company plan lookup",
-  );
-  const plan: PlanId = companies[0]?.plan ?? "starter";
+  const { plan } = await companyPlanRow(db, companyId);
   // #12: the effective budget includes the extra_storage add-on when enabled.
   const { attachmentBytes } = await effectiveStorageBudgets(db, companyId, plan);
   return { plan, budgetBytes: attachmentBytes };
@@ -261,23 +262,15 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     fileName,
   });
 
-  // Upload to Storage FIRST, then claim-or-reject. Reordering makes the atomic
-  // claim the sole budget authority: the old check-then-write summed live bytes
-  // and inserted separately, so N concurrent uploads all read the same pre-insert
-  // sum and overshot by up to N×25 MB. Now claim_attachment_storage re-sums AND
-  // inserts under a per-company advisory xact lock — the (N+1)th upload at the
-  // budget gets allowed=false with no overshoot. On reject the just-uploaded
-  // object is orphaned and falls to the existing D19 sweep (never blocks the user).
-  const upload = await db.storage
-    .from(ATTACHMENTS_BUCKET)
-    .upload(objectPath, bytes.slice().buffer, {
-      contentType: declaredType,
-      upsert: false, // a fresh uuid per upload — never overwrite
-    });
-  if (upload.error) {
-    throw new Error(`attachment upload failed (${objectPath}): ${upload.error.message}`);
-  }
-
+  // Claim the budget FIRST, then upload (#15 — the reverse ordering was a cost
+  // hole: a rejected claim left the just-uploaded object orphaned forever, and
+  // a member at budget could loop 25 MB uploads into unaccounted provider
+  // spend). claim_attachment_storage re-sums AND inserts under a per-company
+  // advisory xact lock, so it stays the sole budget authority (no
+  // check-then-write TOCTOU, no N×25 MB overshoot) — and a rejection now
+  // writes NOTHING anywhere. Only an allowed claim touches Storage; an upload
+  // failure releases the claimed row below, and the #15 sweep passes
+  // (sweepDeletedAttachments) garbage-collect any crash window in between.
   const { data: claimData, error: claimError } = await db.rpc(
     "claim_attachment_storage",
     {
@@ -298,7 +291,7 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   }
   const claim = parseStorageClaim(claimData);
   if (!claim.allowed) {
-    // Over budget — the uploaded object is orphaned; the D19 sweep reclaims it.
+    // Over budget — nothing was written (no row, no object).
     const budgetGb = Math.round(budgetBytes / (1024 * 1024 * 1024));
     throw new ApiError(
       "conflict",
@@ -306,6 +299,29 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     );
   }
   if (!claim.attachment) throw new Error("claim_attachment_storage returned no row");
+
+  const upload = await db.storage
+    .from(ATTACHMENTS_BUCKET)
+    .upload(objectPath, bytes.slice().buffer, {
+      contentType: declaredType,
+      upsert: false, // a fresh uuid per upload — never overwrite
+    });
+  if (upload.error) {
+    // Release the claim: the row must not hold D30 budget for bytes that never
+    // landed. A failed release is reclaimed by the ghost-row sweep pass (#15),
+    // so this is best-effort — the upload error is what surfaces either way.
+    const release = await db
+      .from("attachments")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("id", claim.attachment.id as string);
+    if (release.error) {
+      console.error(
+        `attachment claim release failed (${objectPath}): ${release.error.message}`,
+      );
+    }
+    throw new Error(`attachment upload failed (${objectPath}): ${upload.error.message}`);
+  }
   // The RPC returns the FULL row (to_jsonb) — project to the API shape so
   // storage_path (and other internal columns) never leak in the response.
   const full = claim.attachment;
@@ -439,10 +455,10 @@ attachmentsRoutes.get(
     const db = getDb(getEnv(c.env));
 
     // Generic (note/task) arm first — the D19 table. Only live rows.
-    const generic = unwrap<{ storage_path: string }[]>(
+    const generic = unwrap<{ storage_path: string; size_bytes: number | null }[]>(
       await db
         .from("attachments")
-        .select("storage_path")
+        .select("storage_path,size_bytes")
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
@@ -450,21 +466,29 @@ attachmentsRoutes.get(
       "generic attachment lookup",
     );
     if (generic[0]) {
+      // #16: claim the egress BEFORE signing — over the allowance, no URL.
+      await assertEgressWithinAllowance(db, companyId, [
+        { bucket: ATTACHMENTS_BUCKET, sizeBytes: generic[0].size_bytes },
+      ]);
       return c.json(await signObject(db, ATTACHMENTS_BUCKET, generic[0].storage_path, ATTACHMENT_SIGNED_URL_TTL_SECONDS));
     }
 
     // Fall back to the MMS arm (message_attachments / mms-media) — kept intact.
     // company_id lives on message_attachments so no join is needed.
-    const mms = unwrap<{ storage_path: string }[]>(
+    const mms = unwrap<{ storage_path: string; size_bytes: number | null }[]>(
       await db
         .from("message_attachments")
-        .select("storage_path")
+        .select("storage_path,size_bytes")
         .eq("company_id", companyId)
         .eq("id", id)
         .limit(1),
       "mms attachment lookup",
     );
     if (mms[0]) {
+      // #16: MMS media downloads draw on the same per-company egress pool.
+      await assertEgressWithinAllowance(db, companyId, [
+        { bucket: MMS_BUCKET, sizeBytes: mms[0].size_bytes },
+      ]);
       // storage_path may carry the legacy `mms-media/` prefix (SPEC §6) — strip it.
       const objectPath = mms[0].storage_path.replace(/^mms-media\//, "");
       return c.json(await signObject(db, MMS_BUCKET, objectPath, MMS_TTL_SECONDS));
