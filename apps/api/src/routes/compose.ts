@@ -8,7 +8,12 @@
  *
  *   • consent attestation REQUIRED (422 without) — writes
  *     consent_source='attested' (+at/+by) on the contact and a
- *     consent_attested event (§5, D4).
+ *     consent_attested event (§5, D4). Both are written together AFTER the
+ *     send passes the §7 gate (#48): a gate-rejected compose stamps nothing,
+ *     so an attested contact can never exist without its audit event.
+ *   • gate-rejected composes leave nothing behind (#48): the open
+ *     conversation created for the send is reaped while still empty (the
+ *     messages FK makes the "still empty" check atomic under concurrency).
  *   • quiet hours (soft, §5): destination local hour outside 08–20 requires
  *     quiet_hours_confirmed=true (409 `quiet_hours_confirmation_required`
  *     otherwise); confirmed sends log a quiet_hours_confirmed event.
@@ -93,25 +98,23 @@ interface ContactRow {
 type Db = ReturnType<typeof getDb>;
 
 /**
- * Resolve + attest the target contact (§5): existing contacts are
- * resurrected (deleted_at cleared) and attested when they carry no consent
- * yet (inbound_sms consent is never downgraded); new contacts are created
- * attested.
+ * Resolve the target contact (§5): existing contacts are resurrected
+ * (deleted_at cleared — the user explicitly composed to them); missing ones
+ * are created bare (no consent columns — the same posture as a CSV import).
+ * Consent is deliberately NOT stamped here (#48): attestation — the contact
+ * columns AND the consent_attested audit event, together — is recorded by
+ * {@link attestContactConsent} only after the send passes the §7 gate, so a
+ * gate-rejected compose can never leave an attested contact with no audit
+ * event.
  */
-async function resolveAttestedContact(
+async function resolveComposeContact(
   db: Db,
   args: {
     companyId: string;
-    userId: string;
     contactId?: string;
     phoneE164?: string;
   },
 ): Promise<ContactRow> {
-  const attestation = {
-    consent_source: "attested",
-    consent_at: new Date().toISOString(),
-    consent_attested_by: args.userId,
-  };
   const columns = "id,phone_e164,name,consent_source";
 
   if (args.contactId) {
@@ -129,14 +132,11 @@ async function resolveAttestedContact(
     const updated = unwrap<ContactRow[]>(
       await db
         .from("contacts")
-        .update({
-          deleted_at: null,
-          ...(contact.consent_source === null ? attestation : {}),
-        })
+        .update({ deleted_at: null })
         .eq("company_id", args.companyId)
         .eq("id", contact.id)
         .select(columns),
-      "contact attest",
+      "contact resurrect",
     )[0];
     return updated ?? contact;
   }
@@ -162,14 +162,11 @@ async function resolveAttestedContact(
     const updated = unwrap<ContactRow[]>(
       await db
         .from("contacts")
-        .update({
-          deleted_at: null,
-          ...(existing.consent_source === null ? attestation : {}),
-        })
+        .update({ deleted_at: null })
         .eq("company_id", args.companyId)
         .eq("id", existing.id)
         .select(columns),
-      "contact attest",
+      "contact resurrect",
     )[0];
     return updated ?? existing;
   }
@@ -179,15 +176,13 @@ async function resolveAttestedContact(
     .insert({
       company_id: args.companyId,
       phone_e164: phone,
-      ...attestation,
     })
     .select(columns);
   if (inserted.error) {
     if (isUniqueViolation(inserted.error)) {
-      // Concurrent create won: re-select and attest that row.
-      return resolveAttestedContact(db, {
+      // Concurrent create won: re-select that row.
+      return resolveComposeContact(db, {
         companyId: args.companyId,
-        userId: args.userId,
         phoneE164: phone,
       });
     }
@@ -196,6 +191,58 @@ async function resolveAttestedContact(
   const row = (inserted.data ?? [])[0] as ContactRow | undefined;
   if (!row) throw new Error("contact insert returned no row");
   return row;
+}
+
+/**
+ * Stamp the §5 attestation on the contact — only when it still carries no
+ * consent. The `.is("consent_source", null)` filter makes the write atomic
+ * against the inbound-webhook race (an inbound between our read and this
+ * write stamps `inbound_sms`, which is never downgraded). Called AFTER the
+ * consent_attested event insert, so a crash between the two leaves the
+ * self-healing gap (event without stamp → the next compose re-attests),
+ * never the silent one (stamp without audit event — the #48 bug).
+ */
+async function attestContactConsent(
+  db: Db,
+  args: { companyId: string; contactId: string; userId: string },
+): Promise<void> {
+  const { error } = await db
+    .from("contacts")
+    .update({
+      consent_source: "attested",
+      consent_at: new Date().toISOString(),
+      consent_attested_by: args.userId,
+    })
+    .eq("company_id", args.companyId)
+    .eq("id", args.contactId)
+    .is("consent_source", null);
+  if (error) throw new Error(`contact attest failed: ${error.message}`);
+}
+
+/**
+ * #48: best-effort reap of the open conversation a gate-rejected compose just
+ * created. `messages.conversation_id` is ON DELETE RESTRICT, so the DELETE is
+ * its own atomic "only while still empty" guard: if a concurrent compose (or
+ * an inbound) threaded a message into the row between our gate rejection and
+ * this delete, Postgres refuses with a foreign-key violation (23503) and the
+ * conversation survives — exactly right, it is no longer empty. Every failure
+ * is swallowed: the gate's typed rejection must reach the client.
+ */
+async function reapEmptyConversation(
+  db: Db,
+  companyId: string,
+  conversationId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("conversations")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("id", conversationId);
+  if (error && error.code !== "23503") {
+    console.error(
+      `compose conversation reap failed for ${conversationId}: ${error.message}`,
+    );
+  }
 }
 
 /**
@@ -378,8 +425,8 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   }
 
   // Opt-out pre-check before creating rows (the gate RPC re-checks
-  // atomically — this keeps a rejected compose from leaving an empty
-  // conversation behind).
+  // atomically). Rejections the route cannot pre-check (rate/cap/backstops)
+  // are cleaned up after the fact by reapEmptyConversation (#48).
   const optOuts = unwrap<{ id: string }[]>(
     await db
       .from("opt_outs")
@@ -397,10 +444,12 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     );
   }
 
-  // Contact upsert + attestation (§5), then conversation create-or-append.
-  const contact = await resolveAttestedContact(db, {
+  // Contact upsert (§5 — attestation deferred until the gate passes, #48),
+  // then conversation create-or-append. A gate-rejected compose leaves the
+  // bare contact row behind on purpose: a consent-less contact is inert
+  // (same as a CSV import) and may be shared with other conversations.
+  const contact = await resolveComposeContact(db, {
     companyId,
-    userId,
     contactId: body.contact_id,
     phoneE164: body.phone_e164,
   });
@@ -424,14 +473,29 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   const segmentsEstimate =
     media.length > 0 ? MMS_SEGMENTS : estimateSegments(text).segments;
 
-  const { message, existing } = await gateOutboundSend(db, {
-    companyId,
-    conversationId: conversation.id as string,
-    senderUserId: userId,
-    body: text,
-    idempotencyKey,
-    segmentsEstimate,
-  });
+  let gated: Awaited<ReturnType<typeof gateOutboundSend>>;
+  try {
+    gated = await gateOutboundSend(db, {
+      companyId,
+      conversationId: conversation.id as string,
+      senderUserId: userId,
+      body: text,
+      idempotencyKey,
+      segmentsEstimate,
+    });
+  } catch (cause) {
+    // #48: a rejected compose (rate_limited, usage_cap_reached, the gate's
+    // backstops, or an RPC failure — in every case no message row committed)
+    // must not leave the message-less open conversation it just created in
+    // the inbox, where it would clutter the list and absorb the next inbound
+    // under threading rule 2. Only a conversation THIS request created is
+    // reaped — a reused open conversation predates the request.
+    if (created) {
+      await reapEmptyConversation(db, companyId, conversation.id as string);
+    }
+    throw cause;
+  }
+  const { message, existing } = gated;
   if (existing) {
     // Concurrent duplicate replay landed between our fast-path and the RPC.
     const attachments = await loadAttachments(db, companyId, [message.id]);
@@ -444,8 +508,9 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     );
   }
 
-  // Audit trail (§5): attestation always recorded; quiet-hours confirmation
-  // recorded when it actually gated the send.
+  // Audit trail (§5): every gate-passing compose records a consent_attested
+  // event (each compose is an implicit re-attestation, D4); quiet-hours
+  // confirmation recorded when it actually gated the send.
   const events: ConversationEventRow[] = [
     {
       company_id: companyId,
@@ -472,6 +537,18 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   let attachments: AttachmentSummary[] = [];
   try {
     await insertConversationEvents(db, events);
+
+    // #48: stamp the contact's consent columns only now — after the gate
+    // passed AND the audit event is durably inserted (event-first, so a crash
+    // here can never leave the stamp without its event). Skipped when the
+    // contact already carries consent (inbound_sms is never downgraded).
+    if (contact.consent_source === null) {
+      await attestContactConsent(db, {
+        companyId,
+        contactId: contact.id,
+        userId,
+      });
+    }
 
     // §8 outbound media: upload each validated item to Storage and mint the 24h
     // signed URLs Telnyx fetches from. Runs after the queued row exists (the

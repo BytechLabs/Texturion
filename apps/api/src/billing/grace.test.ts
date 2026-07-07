@@ -1,7 +1,8 @@
 /**
  * Grace & release job suite (SPEC §9, §11): day-1/15/27 warnings gated by the
- * grace_notices ledger, day-30 release + campaign deactivation, all with the
- * clock injected as a parameter (never Date.now() buried in logic). Real
+ * grace_notices ledger, day-30 release + campaign deactivation + the released
+ * email gated by the same ledger (synthetic threshold_day 30 — #54), all with
+ * the clock injected as a parameter (never Date.now() buried in logic). Real
  * product code with only global fetch stubbed; the telnyx contract functions
  * resolve to typed doubles via the vitest alias.
  */
@@ -32,6 +33,8 @@ interface GraceState {
   ledger: Set<number>;
   nonReleasedNumbers: number;
   campaignActive: boolean;
+  /** #54: whether the company ever provisioned any number (default true). */
+  everHadNumbers?: boolean;
 }
 
 function graceEndpoints(state: GraceState): StubEndpoint[] {
@@ -47,6 +50,10 @@ function graceEndpoints(state: GraceState): StubEndpoint[] {
     }),
     endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () =>
       countResponse(state.nonReleasedNumbers),
+    ),
+    // #54: the ever-had-a-number check behind the released email.
+    endpoint("GET", /\/rest\/v1\/phone_numbers/, () =>
+      state.everHadNumbers === false ? [] : [{ id: "num-1" }],
     ),
     endpoint("GET", /\/rest\/v1\/messaging_registrations/, () =>
       state.campaignActive ? [{ id: "reg_campaign_row" }] : [],
@@ -165,7 +172,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     expect(sentEmails(secondRun.harness)).toHaveLength(0);
   });
 
-  it("day 30: releases numbers, deactivates the campaign, sends the final email", async () => {
+  it("day 30: releases numbers, deactivates the campaign, sends the ledgered final email", async () => {
     const state: GraceState = {
       ledger: new Set([1, 15, 27]),
       nonReleasedNumbers: 2,
@@ -179,11 +186,28 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     const emails = sentEmails(harness);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("has been released");
+
+    // #54: the released email is ledgered insert-first as threshold_day 30,
+    // and the insert strictly precedes the email on the wire.
+    const claim = harness
+      .callsTo("POST", /grace_notices/)
+      .find((call) => (call.json() as { threshold_day: number }).threshold_day === 30);
+    expect(claim).toBeDefined();
+    expect(claim!.json()).toEqual({
+      company_id: COMPANY_ID,
+      canceled_at: CANCELED_AT,
+      threshold_day: 30,
+    });
+    const claimIndex = harness.calls.indexOf(claim!);
+    const emailIndex = harness.calls.findIndex((call) =>
+      /api\.resend\.com/.test(call.url.href),
+    );
+    expect(claimIndex).toBeLessThan(emailIndex);
   });
 
-  it("day 31 after release: state-gated, so the release path is a no-op", async () => {
+  it("day 31 after release with the day-30 notice ledgered: full no-op", async () => {
     const state: GraceState = {
-      ledger: new Set([1, 15, 27]),
+      ledger: new Set([1, 15, 27, 30]),
       nonReleasedNumbers: 0, // released rows only
       campaignActive: false, // deactivated_at stamped
     };
@@ -192,6 +216,46 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     expect(releaseCompanyNumbers).not.toHaveBeenCalled();
     expect(deactivateCampaign).not.toHaveBeenCalled();
     expect(sentEmails(harness)).toHaveLength(0);
+  });
+
+  it("day 31, released but the email was lost (#54): the ledger sends it without re-releasing", async () => {
+    // A prior run released the numbers + deactivated the campaign, then
+    // crashed before (or during) the email — no threshold_day 30 ledger row.
+    const state: GraceState = {
+      ledger: new Set([1, 15, 27]),
+      nonReleasedNumbers: 0,
+      campaignActive: false,
+    };
+    const { harness, done } = run(state, daysAfterCancel(31));
+    await done;
+
+    expect(releaseCompanyNumbers).not.toHaveBeenCalled();
+    expect(deactivateCampaign).not.toHaveBeenCalled();
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toContain("has been released");
+
+    // …and the run after THAT is silent (overlap can never double-send).
+    const secondRun = run(state, daysAfterCancel(31.5));
+    await secondRun.done;
+    expect(sentEmails(secondRun.harness)).toHaveLength(0);
+  });
+
+  it("a canceled tenant that never had a number gets no 'released' email (#54)", async () => {
+    const state: GraceState = {
+      ledger: new Set([1, 15, 27]),
+      nonReleasedNumbers: 0,
+      campaignActive: false,
+      everHadNumbers: false,
+    };
+    const { harness, done } = run(state, daysAfterCancel(30));
+    await done;
+
+    // The day-30 notice is still claimed (one-shot), but nothing was ever
+    // released, so the email would be false — it is skipped.
+    expect(state.ledger.has(30)).toBe(true);
+    expect(sentEmails(harness)).toHaveLength(0);
+    expect(releaseCompanyNumbers).not.toHaveBeenCalled();
   });
 
   it("day 30 with a CA-only tenant (no campaign): releases numbers, skips deactivation", async () => {

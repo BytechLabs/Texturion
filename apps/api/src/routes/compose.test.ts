@@ -2,7 +2,9 @@
  * POST /v1/conversations suite (SPEC §5, §7): consent attestation required,
  * quiet-hours confirm (409 without the flag; confirmed sends logged),
  * open-conversation conflict → append + 200, idempotent replay, contact
- * attestation writes, and the shared send path.
+ * attestation writes (post-gate, paired with the audit event — #48), the
+ * gate-rejection cleanup (reap of the just-created empty conversation, #48),
+ * and the shared send path.
  */
 import { Hono } from "hono";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,6 +119,7 @@ interface ComposeStubs {
   contactPatch: Stub;
   optOuts: Stub;
   conversationInsert: Stub;
+  conversationDelete: Stub;
   openLookup: Stub;
   gateRpc: Stub;
   events: Stub;
@@ -135,6 +138,10 @@ function composeStubs(options: {
   replay?: MessageRow[];
   existingContact?: ReturnType<typeof contactRow> | null;
   conversationConflict?: boolean;
+  /** #48: gate_outbound_send rejects with this §7 error code. */
+  gateError?: string;
+  /** #48: the conversation DELETE (reap) answers with this response. */
+  deleteResponse?: () => Response | unknown;
   /** #12: whether the Picture messages (mms) module is enabled (default true). */
   mmsEnabled?: boolean;
   /** #12: outbound MMS already sent this period (cap pre-check; default 0). */
@@ -170,11 +177,13 @@ function composeStubs(options: {
     restMatch(env, "GET", "contacts"),
     () => (options.existingContact ? [options.existingContact] : []),
   );
+  // #48: new contacts are created BARE (no consent columns) — attestation is
+  // stamped post-gate by the PATCH below.
   const contactInsert = stubRoute(restMatch(env, "POST", "contacts"), () => [
-    contactRow({ consent_source: "attested" }),
+    contactRow(),
   ]);
   const contactPatch = stubRoute(restMatch(env, "PATCH", "contacts"), () => [
-    options.existingContact ?? contactRow({ consent_source: "attested" }),
+    options.existingContact ?? contactRow(),
   ]);
   const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
   const conversationInsert = stubRoute(
@@ -184,10 +193,15 @@ function composeStubs(options: {
         ? pgUniqueViolation()
         : Response.json([conversationRow()], { status: 201 }),
   );
+  const conversationDelete = stubRoute(
+    restMatch(env, "DELETE", "conversations"),
+    options.deleteResponse ?? (() => new Response(null, { status: 204 })),
+  );
   const openLookup = stubRoute(restMatch(env, "GET", "conversations"), () => [
     conversationRow(),
   ]);
   const gateRpc = stubRoute(rpcMatch(env, "gate_outbound_send"), (call) => {
+    if (options.gateError) return { error: options.gateError };
     const params = call.body as { p_body: string; p_segments_estimate: number };
     return {
       message: messageRow({
@@ -259,6 +273,7 @@ function composeStubs(options: {
     contactPatch,
     optOuts,
     conversationInsert,
+    conversationDelete,
     openLookup,
     gateRpc,
     events,
@@ -283,6 +298,7 @@ function composeStubs(options: {
       contactPatch.route,
       optOuts.route,
       conversationInsert.route,
+      conversationDelete.route,
       openLookup.route,
       gateRpc.route,
       events.route,
@@ -332,21 +348,18 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
   // The visible consent checkbox was removed; compose no longer requires a
   // consent flag and attests the contact implicitly (auto-attest), so the audit
   // trail (consent_source='attested' + the consent_attested event) still fills.
-  it("creates the contact attested and records the consent_attested event", async () => {
+  it("creates the contact bare, then attests it WITH the consent_attested event post-gate (#48)", async () => {
     const stubs = composeStubs();
     stubFetch(...stubs.all);
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(201);
 
-    // New contact created with the attestation fields (§5).
+    // New contact created BARE — no consent claim before the gate passes.
     expect(stubs.contactInsert.calls).toHaveLength(1);
-    expect(stubs.contactInsert.calls[0].body).toMatchObject({
+    expect(stubs.contactInsert.calls[0].body).toEqual({
       company_id: COMPANY_ID,
       phone_e164: "+16135551000",
-      consent_source: "attested",
-      consent_attested_by: auth.subject,
-      consent_at: expect.any(String),
     });
 
     // consent_attested event attached to the new conversation.
@@ -359,6 +372,18 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
       actor_user_id: auth.subject,
       type: "consent_attested",
     });
+
+    // The attestation columns are stamped post-gate, guarded so an inbound
+    // that raced in (`inbound_sms`) is never downgraded.
+    expect(stubs.contactPatch.calls).toHaveLength(1);
+    expect(stubs.contactPatch.calls[0].body).toMatchObject({
+      consent_source: "attested",
+      consent_attested_by: auth.subject,
+      consent_at: expect.any(String),
+    });
+    expect(
+      stubs.contactPatch.calls[0].url.searchParams.get("consent_source"),
+    ).toBe("is.null");
 
     // Outbound-first: conversation created open, body sent verbatim (no footer).
     expect(stubs.conversationInsert.calls[0].body).toMatchObject({
@@ -557,6 +582,68 @@ describe("POST /v1/conversations — destination + gate failures", () => {
     expect(await errorCode(response)).toBe("recipient_opted_out");
     expect(stubs.contactInsert.calls).toHaveLength(0);
     expect(stubs.conversationInsert.calls).toHaveLength(0);
+  });
+
+  it("a gate-rejected compose reaps the empty conversation it created (#48)", async () => {
+    const stubs = composeStubs({ gateError: "rate_limited" });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(429);
+    expect(await errorCode(response)).toBe("rate_limited");
+
+    // The just-created empty conversation was deleted (scoped to the row).
+    expect(stubs.conversationDelete.calls).toHaveLength(1);
+    const query = stubs.conversationDelete.calls[0].url.searchParams;
+    expect(query.get("id")).toBe(`eq.${CONVERSATION_ID}`);
+    expect(query.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+
+    // No consent was attested: no audit event, no contact consent stamp.
+    expect(stubs.events.calls).toHaveLength(0);
+    expect(stubs.contactPatch.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
+  it("a gate-rejected compose that REUSED an open conversation never deletes it (#48)", async () => {
+    const stubs = composeStubs({
+      gateError: "usage_cap_reached",
+      conversationConflict: true,
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(402);
+    expect(await errorCode(response)).toBe("usage_cap_reached");
+
+    // The open conversation predates this request — it must survive.
+    expect(stubs.conversationDelete.calls).toHaveLength(0);
+    expect(stubs.events.calls).toHaveLength(0);
+  });
+
+  it("a reap refused by the messages FK (concurrent append won) still surfaces the gate error (#48)", async () => {
+    const stubs = composeStubs({
+      gateError: "rate_limited",
+      // Postgres 23503: a message landed in the row between the rejection and
+      // the delete — the conversation is no longer empty and must survive.
+      deleteResponse: () =>
+        Response.json(
+          {
+            code: "23503",
+            message:
+              'update or delete on table "conversations" violates foreign key constraint',
+            details: null,
+            hint: null,
+          },
+          { status: 409 },
+        ),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(429);
+    expect(await errorCode(response)).toBe("rate_limited");
+    expect(stubs.conversationDelete.calls).toHaveLength(1);
   });
 
   it("402s when the subscription is inactive, before quiet hours or writes", async () => {
