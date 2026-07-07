@@ -26,6 +26,12 @@ STRIPE_PRO_PRICE_ID=
 STRIPE_STARTER_OVERAGE_PRICE_ID=
 STRIPE_PRO_OVERAGE_PRICE_ID=
 STRIPE_US_FEE_PRICE_ID=
+# Module add-on price ids — also printed by `stripe:setup`; schema-optional (the
+# Worker boots without them) but required to sell the add-ons (#12 plan builder).
+STRIPE_MODULE_MMS_PRICE_ID=
+STRIPE_MODULE_VOICE_PRICE_ID=
+STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID=
+STRIPE_MODULE_REGIONS_CA_PRICE_ID=
 STRIPE_SMS_METER_EVENT_NAME=sms_segments
 # OPTIONAL — PostHog Cloud project API key (SPEC §12 step 18). Leave unset to
 # disable product analytics entirely (captures become silent no-ops).

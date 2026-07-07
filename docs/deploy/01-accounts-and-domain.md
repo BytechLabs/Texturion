@@ -53,12 +53,12 @@ Why these matter in code:
 
 - **`APP_ORIGIN`** is the *exact* CORS allow-origin for the API — no wildcard
   (`apps/api/src/index.ts:75`) — and the base of every email/billing link
-  (e.g. `apps/api/src/routes/billing.ts:171,199`, `apps/api/src/webhooks/stripe.ts:412`).
+  (e.g. `apps/api/src/routes/billing.ts:216-217,293`, `apps/api/src/webhooks/stripe.ts:726`).
   Supabase/Stripe return URLs stay on `APP_ORIGIN` — the D27 split changes none
   of them.
 - **`API_ORIGIN`** is built into the Telnyx webhook callback URL
   (`${API_ORIGIN}/webhooks/telnyx`, `apps/api/src/telnyx/wizard.ts:140-142`) and the
-  Stripe webhook endpoint (`${API_ORIGIN}/webhooks/stripe`, `apps/api/src/index.ts:129`).
+  Stripe webhook endpoint (`${API_ORIGIN}/webhooks/stripe`, `apps/api/src/index.ts:128`).
 - **`NEXT_PUBLIC_API_URL`** (the web bundle's API base) must equal `API_ORIGIN`
   (`apps/web/src/env.ts:6`).
 - **`NEXT_PUBLIC_APP_ORIGIN`** (optional, web build) must equal `APP_ORIGIN` and

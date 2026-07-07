@@ -41,23 +41,27 @@ values can only be finalized once the API custom domain exists.
 9. Migrations + `mms-media` bucket + extensions are applied by `supabase db push`
    in deploy — not by hand (`.github/workflows/deploy.yml:50-56`).
 
-## Stripe → yields `STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+## Stripe → yields `STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`, `STRIPE_MODULE_MMS_PRICE_ID`, `STRIPE_MODULE_VOICE_PRICE_ID`, `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID`, `STRIPE_MODULE_REGIONS_CA_PRICE_ID`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 
 1. Get a secret key with catalog write (`sk_live_...`)
-   (`apps/api/scripts/stripe-setup.ts:6,28-35`).
+   (`apps/api/scripts/stripe-setup.ts:6,46-53`).
 2. Run `STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup`
-   once per mode — creates the `sms_segments` meter, 3 products, 6 prices,
-   idempotently (`apps/api/scripts/stripe-setup.ts:39-163`).
-3. Capture the six printed stdout lines → the six `STRIPE_*` id/name secrets
-   (`apps/api/scripts/stripe-setup.ts:165-171`, `apps/api/src/env.ts:53-59`).
+   once per mode — creates the `sms_segments` meter, 7 products, 10 prices
+   (plans, US fee, and the four #12 module add-ons), idempotently
+   (`apps/api/scripts/stripe-setup.ts:57-199`).
+3. Capture the ten printed stdout lines → the ten `STRIPE_*` id/name secrets
+   (`apps/api/scripts/stripe-setup.ts:201-210`, `apps/api/src/env.ts:53-69`).
+   The four `STRIPE_MODULE_*` ids are schema-optional but **launch-required**:
+   any one unset makes that opt-in add-on unsellable ("isn't available yet",
+   `apps/api/src/routes/billing.ts:190-200`).
 4. Enable **Stripe Tax** on the account (checkout sets `automatic_tax.enabled`
-   in code — `apps/api/src/routes/billing.ts:170`).
+   in code — `apps/api/src/routes/billing.ts:211`).
 5. Choose the runtime key → `STRIPE_SECRET_KEY` (a restricted `rk_live_...` is
    fine for runtime — see [env-and-secrets.md](./env-and-secrets.md) §Stripe).
 6. **After the API domain exists** (the `API_ORIGIN` value — see
    [runbook.md](./runbook.md) §1c): register webhook endpoint
    `https://api.loonext.app/webhooks/stripe` with the 7 events the handler
-   switches on (`apps/api/src/webhooks/stripe.ts:124-138`); copy its signing
+   switches on (`apps/api/src/webhooks/stripe.ts:139-158`); copy its signing
    secret → `STRIPE_WEBHOOK_SECRET` (`env.ts:36`).
 7. Set failed-payment action to **cancel subscription** after Smart-Retry
    exhaustion (`SPEC.md:1017`).
@@ -101,12 +105,12 @@ values can only be finalized once the API custom domain exists.
 
 1. Create a project; copy the DSN (Settings → Client Keys) → `SENTRY_DSN`. The
    Worker wraps fetch+scheduled with PII-scrubbing `beforeSend`
-   (`apps/api/src/index.ts:242`, `observability/sentry.ts:117-125`, `env.ts:38`).
+   (`apps/api/src/index.ts:244`, `observability/sentry.ts:117-125`, `env.ts:38`).
 
 ## PostHog → yields `POSTHOG_API_KEY` (OPTIONAL)
 
 1. (Optional) Create a PostHog Cloud US project; copy the **Project API key** →
-   `POSTHOG_API_KEY` (`apps/api/src/env.ts:65`). The API Worker's `capture`
+   `POSTHOG_API_KEY` (`apps/api/src/env.ts:75`). The API Worker's `capture`
    helper posts the north-star funnel events with `distinct_id` = company_id
    only — no PII (`apps/api/src/analytics/posthog.ts`).
 2. Skip entirely to run without analytics — with the key unset every capture is
@@ -126,7 +130,7 @@ be decided with the custom domains (see [runbook.md](./runbook.md) §6):
   `env.ts:41`).
 - `NEXT_PUBLIC_API_URL` = same as `API_ORIGIN`, inlined into the web bundle at
   build (`apps/web/src/env.ts:6`). Wired into the workflows: CI builds with a
-  fixed placeholder (`.github/workflows/ci.yml:44-47`) and Deploy reads the
+  fixed placeholder (`.github/workflows/ci.yml:81-92`) and Deploy reads the
   `NEXT_PUBLIC_API_URL` GitHub Actions secret (`deploy.yml:22`) — set that
   secret before relying on the automated deploy.
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (optional) = the Cloudflare **Turnstile**

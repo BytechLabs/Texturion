@@ -14,7 +14,8 @@ Both Workers pin `compatibility_date = "2026-06-01"` and
 You should already have (from [02](./02-supabase.md)–[04](./04-telnyx.md)):
 
 - Supabase URL, `sb_secret_` key, JWKS URL, publishable key; migrations applied.
-- 6 `STRIPE_*` IDs, `STRIPE_WEBHOOK_SECRET` (can be set after the webhook endpoint
+- 10 `STRIPE_*` catalog IDs (6 plan/meter + the 4 `STRIPE_MODULE_*_PRICE_ID`
+  add-on prices), `STRIPE_WEBHOOK_SECRET` (can be set after the webhook endpoint
   exists in §4), restricted `STRIPE_SECRET_KEY`.
 - `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID` (the
   Call-Control application id from [04](./04-telnyx.md) §1).
@@ -40,14 +41,24 @@ bytes).
 
 ---
 
-## 2. Set the 21 API Worker secrets (before the first deploy)
+## 2. Set the 25 API Worker secrets (before the first deploy)
 
 CI does **not** set these — `deploy.yml` only runs `wrangler deploy`
-(`.github/workflows/deploy.yml:58-62`). The Worker validates all 21 at startup and
-`/health` re-validates, naming any missing key (`apps/api/src/env.ts:22-74,89-105`,
-`apps/api/src/index.ts:88-92`). Set every one on `loonext-api`. A 22nd,
-`POSTHOG_API_KEY`, is **optional** — set it only if you want product analytics
-(`apps/api/src/env.ts:65`).
+(`.github/workflows/deploy.yml:58-62`). The Worker validates the schema at startup
+and `/health` re-validates, naming any missing key
+(`apps/api/src/env.ts:22-104,119-135`, `apps/api/src/index.ts:88-92`). Set every
+one on `loonext-api`. A 26th, `POSTHOG_API_KEY`, is **optional** — set it only if
+you want product analytics (`apps/api/src/env.ts:75`).
+
+> **The four `STRIPE_MODULE_*_PRICE_ID` secrets are launch-required even though
+> the schema marks them optional** (`apps/api/src/env.ts:64-67` — optional only
+> so the Worker can boot before the Stripe catalog exists). With any of them
+> unset, that opt-in add-on (Picture messages $5/mo, Call forwarding $8/mo,
+> Extra storage $5/mo) is refused at checkout and in the module toggle as
+> "isn't available yet" (`apps/api/src/routes/billing.ts:190-200,553-559`) —
+> skipping them silently disables sellable revenue. Set all four; `regions_ca`
+> additionally stays coming-soon in the product regardless of its price id
+> (`apps/api/src/billing/company-modules.ts:26-33`).
 
 ### Option A — bulk (recommended)
 
@@ -88,20 +99,26 @@ pnpm exec wrangler secret put STRIPE_PRO_OVERAGE_PRICE_ID
 pnpm exec wrangler secret put STRIPE_US_FEE_PRICE_ID
 pnpm exec wrangler secret put STRIPE_SMS_METER_EVENT_NAME
 
+# Module add-on prices (launch-required — modules are unsellable without them):
+pnpm exec wrangler secret put STRIPE_MODULE_MMS_PRICE_ID
+pnpm exec wrangler secret put STRIPE_MODULE_VOICE_PRICE_ID
+pnpm exec wrangler secret put STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID
+pnpm exec wrangler secret put STRIPE_MODULE_REGIONS_CA_PRICE_ID
+
 # OPTIONAL — only if you use PostHog product analytics:
 pnpm exec wrangler secret put POSTHOG_API_KEY
 ```
 
-That's the **complete set of 21 required** (`apps/api/src/env.ts:22-74`). Full
-descriptions and formats are in [06 — env reference](./06-env-reference.md).
+That's the **complete set of 25 required for launch** (`apps/api/src/env.ts:22-104`).
+Full descriptions and formats are in [06 — env reference](./06-env-reference.md).
 `wrangler.jsonc`'s `vars` is intentionally empty — every credential is a secret
-(`apps/api/wrangler.jsonc:50`).
+(`apps/api/wrangler.jsonc:64`).
 
 > **Not secrets:** the **two** rate-limiter bindings — `SEND_RATE_LIMITER` (the
 > per-company outbound limiter, limit 10 per 10 s ≈ 1 msg/s) and
 > `VERIFY_RATE_LIMITER` (the keep-your-number verification limiter, limit 3 per
 > 60 s per target number) — are Workers rate-limiting bindings declared in
-> `apps/api/wrangler.jsonc:23-53` and ship with `wrangler deploy`, nothing to
+> `apps/api/wrangler.jsonc:23-54` and ship with `wrangler deploy`, nothing to
 > `secret put`. Each `namespace_id` (`"1001"` / `"1002"`) must be unique within
 > your Cloudflare account ([06](./06-env-reference.md) §A.1).
 
@@ -138,7 +155,7 @@ NEXT_PUBLIC_API_URL=https://api.loonext.app \
 ```
 
 `run deploy` = `opennextjs-cloudflare build && opennextjs-cloudflare deploy`
-(`apps/web/package.json:10`). **The OpenNext Cloudflare build must run on Linux or
+(`apps/web/package.json:11`). **The OpenNext Cloudflare build must run on Linux or
 WSL** (`SPEC.md:88,96`) — run it from CI or a WSL shell, not native Windows. If any
 of the three required `NEXT_PUBLIC_*` are missing, the build throws
 (`apps/web/src/env.ts:3-17,22-38`). If Supabase Auth captcha is enabled, also set
@@ -180,8 +197,8 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 |--------|---------|
 | `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy.yml:18` |
 | `CLOUDFLARE_ACCOUNT_ID` | `.github/workflows/deploy.yml:19` |
-| `NEXT_PUBLIC_SUPABASE_URL` | web build — `ci.yml:42`, `deploy.yml:20` |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `ci.yml:43`, `deploy.yml:21` |
+| `NEXT_PUBLIC_SUPABASE_URL` | web build — `deploy.yml:20` (CI uses a fixed placeholder — `ci.yml:90`) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `deploy.yml:21` (CI uses a fixed placeholder — `ci.yml:91`) |
 | `NEXT_PUBLIC_API_URL` | web build — `deploy.yml:22` (set to your API origin) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` *(optional)* | web build — `deploy.yml:23-26` (only if Supabase captcha is enabled; see below) |
 | `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.loonext.app`, blank = no split) |
@@ -191,13 +208,13 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 
 ### RESOLVED — `NEXT_PUBLIC_API_URL` is now wired into CI/Deploy
 
-The previously documented gap is closed. `ci.yml` builds with a **fixed
-placeholder** (`https://api.loonext.app`, `.github/workflows/ci.yml:44-47`) — safe
-because `apps/web/src/env.ts` only requires a syntactically valid URL and the CI
-build artifact is never deployed. `deploy.yml` rebuilds with the real value from
-the `NEXT_PUBLIC_API_URL` GitHub secret (`.github/workflows/deploy.yml:22`) — set
-that secret (table above) or the automated web deploy builds against a missing
-var and fails.
+The previously documented gap is closed. `ci.yml` builds with **fixed
+placeholders for all three required `NEXT_PUBLIC_*` vars**
+(`.github/workflows/ci.yml:81-92`) — safe because `apps/web/src/env.ts` only
+validates shape and the CI build artifact is never deployed; CI reads no repo
+secrets at all. `deploy.yml` rebuilds with the real values from the GitHub
+secrets (`.github/workflows/deploy.yml:20-22`) — set them (table above) or the
+automated web deploy builds against a missing var and fails.
 
 > **Captcha ordering:** the deploy job passes the optional
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` secret into the web build
@@ -210,9 +227,10 @@ var and fails.
 
 - **CI** (`ci.yml`) runs on PRs and pushes to `main`: **all SQL suites** against a
   from-zero `supabase db reset` via the root `db:test:ci` script (which delegates
-  to `db:test:all`, `.github/workflows/ci.yml:28-32`, `package.json:30-31`), then
+  to `db:test:all`, `.github/workflows/ci.yml:31-32`, `package.json:35-36`), the
+  hermetic launch-pass E2E job (`.github/workflows/ci.yml:38-77`), then
   typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy
-  --dry-run` for the API (`.github/workflows/ci.yml:9-77`).
+  --dry-run` for the API (`.github/workflows/ci.yml:79-122`).
 - **Deploy** (`deploy.yml`) runs on `workflow_run` of a **successful CI on `main`**,
   concurrency group `deploy-production` with no cancel-in-progress
   (`.github/workflows/deploy.yml:3-15`). Steps, in order
@@ -228,9 +246,9 @@ var and fails.
 ## 6. Cron triggers (registered on API deploy)
 
 Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions), mapped to jobs in
-`apps/api/src/index.ts:157-198`. Cloudflare registers them automatically on
+`apps/api/src/index.ts:156-200`. Cloudflare registers them automatically on
 `wrangler deploy` — no dashboard step. `scheduled()` throws on any unmapped cron
-(`apps/api/src/index.ts:213-217`).
+(`apps/api/src/index.ts:215-219`).
 
 | Cron (UTC) | Jobs |
 |------------|------|
@@ -253,7 +271,7 @@ Operational details in [08 — operations](./08-operations.md).
 - **Sentry:** DSN only. The whole Worker (fetch + scheduled) is wrapped by
   `Sentry.withSentry` with `sendDefaultPii: false`, `tracesSampleRate: 0`, and
   PII-scrubbing `beforeSend`/`beforeBreadcrumb`
-  (`apps/api/src/index.ts:242`, `apps/api/src/observability/sentry.ts:117-125`).
+  (`apps/api/src/index.ts:244`, `apps/api/src/observability/sentry.ts:117-125`).
   Setting `SENTRY_DSN` (§2) is the entire integration. **No web-side Sentry exists.**
 - **PostHog:** optional. Setting `POSTHOG_API_KEY` (§2) is the entire
   integration — the API Worker captures the north-star funnel events with

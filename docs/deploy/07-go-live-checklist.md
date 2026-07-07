@@ -21,7 +21,9 @@ prerequisites flagged by the marketing/legal docs.
       redeployed **before** enabling the Supabase captcha setting (site key in
       the build; secret key in the Supabase dashboard) — otherwise every
       email/password signup/login/reset breaks ([06](./06-env-reference.md) §B).
-- [ ] Stripe **live** catalog created; 6 IDs captured; Tax active; portal + dunning
+- [ ] Stripe **live** catalog created; all **10** IDs captured (6 plan/meter +
+      the 4 `STRIPE_MODULE_*_PRICE_ID` add-on prices — without the module IDs
+      every opt-in add-on is unsellable); Tax active; portal + dunning
       (→ cancel) configured; webhook endpoint at
       `https://api.loonext.app/webhooks/stripe` with the **7** events; `whsec_`
       captured ([03](./03-stripe.md)).
@@ -32,9 +34,19 @@ prerequisites flagged by the marketing/legal docs.
       and funded balance ([04](./04-telnyx.md)).
 - [ ] Resend sending domain verified; `RESEND_FROM` on that domain. Sentry DSN
       captured. VAPID pair generated ([05](./05-workers-deploy.md) §1).
-- [ ] All **21** required API Worker secrets set on `loonext-api` (+ optional
-      `POSTHOG_API_KEY` if you use analytics); `GET
-      https://api.loonext.app/health` → `{"ok":true}` ([05](./05-workers-deploy.md) §2).
+- [ ] All **25** launch-required API Worker secrets set on `loonext-api` —
+      including the 4 `STRIPE_MODULE_*_PRICE_ID` secrets, which `/health` does
+      **not** check (they are schema-optional so the Worker can boot before the
+      catalog exists) — plus optional `POSTHOG_API_KEY` if you use analytics;
+      `GET https://api.loonext.app/health` → `{"ok":true}`
+      ([05](./05-workers-deploy.md) §2). Confirm the modules are actually
+      sellable: `GET /v1/billing/modules` must report `available: true` for
+      `mms`, `voice`, and `extra_storage` (`regions_ca` stays `false` — coming
+      soon by design, `apps/api/src/billing/company-modules.ts:26-33`). The
+      endpoint is authenticated (`Authorization: Bearer <Supabase access
+      token>` + `X-Company-Id`, `apps/api/src/index.ts:63,79`) — easiest to run
+      during the §C smoke test, right after the first signup, from the app's
+      session (DevTools → copy the request headers off any `/v1/*` call).
 - [ ] All **8** required GitHub Actions secrets set — including
       `NEXT_PUBLIC_API_URL`, which Deploy now reads
       (`.github/workflows/deploy.yml:22`) — plus the optional two:
@@ -105,13 +117,15 @@ live. Use two real phones (or one phone + the Telnyx test tooling).
 2. **Pay in Stripe (test)** — start checkout, pay with `4242 4242 4242 4242`. Confirm
    Stripe fires `checkout.session.completed` and the endpoint returns 2xx (Stripe →
    Webhooks → the endpoint → recent deliveries). Confirm the company flips to
-   `active` (`apps/api/src/webhooks/stripe.ts:187-232`). If the company owes US
+   `active` (`apps/api/src/webhooks/stripe.ts:256-304`). If the company owes US
    registration, confirm the $29 fee line was charged and
-   `registration_fee_paid_at` stamped (`apps/api/src/webhooks/stripe.ts:238-250`).
+   `registration_fee_paid_at` stamped (`apps/api/src/webhooks/stripe.ts:310-326`).
+   If a module add-on was selected at checkout, confirm its `company_modules`
+   row was written (`apps/api/src/webhooks/stripe.ts:328-340`).
 3. **Number provisions** — confirm a local number is ordered automatically and the
    messaging profile is created with the webhook URL
    (`apps/api/src/telnyx/provisioning.ts:143-211`). Confirm the 10DLC brand/campaign
-   submission starts (`apps/api/src/webhooks/stripe.ts:271`).
+   submission starts (`apps/api/src/webhooks/stripe.ts:378`).
 4. **Send + receive a real text** — send an outbound SMS from the app to your test
    phone; reply from the phone. Confirm the inbound arrives
    (`message.received` → `apps/api/src/messaging/dispatch.ts:21-23`) and appears in the
@@ -123,7 +137,7 @@ live. Use two real phones (or one phone + the Telnyx test tooling).
 6. **Cancel → grace** — cancel the subscription in Stripe (or let dunning exhaust).
    Confirm `customer.subscription.deleted` sets `subscription_status = canceled`,
    suspends the numbers, and sends the day-1 grace notice
-   (`apps/api/src/webhooks/stripe.ts:321-349`). Confirm outbound is blocked while
+   (`apps/api/src/webhooks/stripe.ts:630`). Confirm outbound is blocked while
    inbound still works, and that the `0 14 * * *` grace cron would release on day 30
    ([08](./08-operations.md)).
 
@@ -134,9 +148,11 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 
 ## D. Flip to production
 
-- [ ] Re-run `stripe:setup` in **live** mode; swap the 6 `STRIPE_*` IDs,
-      `STRIPE_SECRET_KEY` (live restricted key), and `STRIPE_WEBHOOK_SECRET` (live
-      endpoint) on the Worker.
+- [ ] Re-run `stripe:setup` in **live** mode; swap **all 10** `STRIPE_*` catalog
+      IDs — the 6 plan/meter IDs **and** the 4 `STRIPE_MODULE_*_PRICE_ID` add-on
+      prices (a module ID left on its test-mode price makes every live checkout
+      that selects that add-on fail at Stripe) — plus `STRIPE_SECRET_KEY` (live
+      restricted key) and `STRIPE_WEBHOOK_SECRET` (live endpoint) on the Worker.
 - [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account (and
       `TELNYX_VOICE_CONNECTION_ID` to a Call-Control app created in that account);
       confirm 10DLC approval.

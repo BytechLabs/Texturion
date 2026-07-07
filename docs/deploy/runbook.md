@@ -8,8 +8,8 @@ Read `env-and-secrets.md` alongside this — it is the authoritative variable in
 
 ## 0. Prerequisites / toolchain
 
-- **Node ≥ 22**, **pnpm ≥ 9** (`package.json:6-8`; CI uses node 22, `.github/workflows/ci.yml:55`).
-- **wrangler ^4.106.0** (`apps/api/package.json:31`, `apps/web/package.json:55`).
+- **Node ≥ 22**, **pnpm ≥ 9** (`package.json:6-8`; CI uses node 22, `.github/workflows/ci.yml:48,100`).
+- **wrangler ^4.106.0** (`apps/api/package.json:32`, `apps/web/package.json:61`).
 - **Supabase CLI** (`supabase/setup-cli@v1`, `deploy.yml:46-48`).
 - Cloudflare account + API token with Workers deploy permission.
 - `pnpm install --frozen-lockfile` (`deploy.yml:43-44`).
@@ -32,21 +32,21 @@ Both Workers pin:
 5. **(Optional) signup captcha = Cloudflare Turnstile.** Create a Turnstile widget in the Cloudflare dashboard. The **secret** key goes into Supabase (Authentication → Attack Protection → CAPTCHA, provider Turnstile); the **site** key becomes the optional `NEXT_PUBLIC_TURNSTILE_SITE_KEY` web build var (`apps/web/src/env.ts:10`) — when set, signup/login/reset render Turnstile and pass the `captchaToken` to Supabase Auth. **Ordering matters:** get the site key into the deployed web build (the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub secret, §3) **before** enabling captcha in the Supabase dashboard — with captcha enforced and no site key in the build, every email/password signup/login/reset fails (no token is ever sent).
 
 ### 1b. Stripe — create the catalog
-Run the **checked-in idempotent setup script** once per Stripe mode (test, then live). It finds-or-creates the Meter, Products, and Prices and prints the exact env lines (`apps/api/scripts/stripe-setup.ts:1-20,165-171`):
+Run the **checked-in idempotent setup script** once per Stripe mode (test, then live). It finds-or-creates the Meter, Products, and Prices and prints the exact env lines (`apps/api/scripts/stripe-setup.ts:1-20,201-210`):
 
 ```
 STRIPE_SECRET_KEY=sk_live_... pnpm --filter @loonext/api stripe:setup
 ```
 
-It creates (`stripe-setup.ts:39-163`):
-- **Billing Meter** `sms_segments` — sum aggregation, customer mapping by `stripe_customer_id`, value from `value` (`:49-55`).
-- **Products** (SaaS tax code `txcd_10103000`): `Loonext Starter`, `Loonext Pro`, `US texting registration` (`:25,73-77,102-107`).
-- **Prices**: Starter licensed $29/mo (`:110-116`); Starter overage graduated 0–500 @ $0 then $0.03 (`:119-130`); Pro licensed $79/mo (`:133-139`); Pro overage graduated 0–2,500 @ $0 then $0.025 (`:144-155`); US registration $29 one-time (`:158-163`). All `tax_behavior: exclusive`.
+It creates (`stripe-setup.ts:57-199`):
+- **Billing Meter** `sms_segments` — sum aggregation, customer mapping by `stripe_customer_id`, value from `value` (`:67-73`).
+- **Products** (SaaS tax code `txcd_10103000`): `Loonext Starter`, `Loonext Pro`, `US texting registration`, and the four module add-on products `Loonext — Picture messages` / `Call forwarding` / `Extra storage` / `Canada numbers` (`:26,91-95,120-125,186-190`).
+- **Prices**: Starter licensed $29/mo (`:128-134`); Starter overage graduated 0–500 @ $0 then $0.03 (`:137-148`); Pro licensed $79/mo (`:151-157`); Pro overage graduated 0–2,500 @ $0 then $0.025 (`:162-173`); US registration $29 one-time (`:176-181`); module add-ons flat monthly — Picture messages $5, Call forwarding $8, Extra storage $5, Canada numbers $5 (`:34-44,183-199`). All `tax_behavior: exclusive`.
 
-Copy the 6 printed lines (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) into the api secrets. Re-running is safe (idempotent by `event_name` / `metadata.loonext_catalog` / `lookup_key`, `:39-98`).
+Copy the **10 printed lines** — the 6 plan/meter ids (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) **and** the 4 module price ids (`STRIPE_MODULE_MMS_PRICE_ID`, `STRIPE_MODULE_VOICE_PRICE_ID`, `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID`, `STRIPE_MODULE_REGIONS_CA_PRICE_ID`) — into the api secrets. The module ids are schema-optional but launch-required: unset, that add-on is refused at checkout as "isn't available yet" (`apps/api/src/env.ts:64-67`, `apps/api/src/routes/billing.ts:190-200`). Re-running is safe (idempotent by `event_name` / `metadata.loonext_catalog` / `lookup_key`, `:57-116`).
 
 ### 1c. Stripe — webhook endpoint
-Create a webhook endpoint pointing at **`${API_ORIGIN}/webhooks/stripe`** (route mounted at `apps/api/src/index.ts:129`). Copy its **signing secret** `whsec_...` → `STRIPE_WEBHOOK_SECRET`. Also create a **restricted key** `rk_live_...` for the runtime (scope in `env-and-secrets.md` §Stripe).
+Create a webhook endpoint pointing at **`${API_ORIGIN}/webhooks/stripe`** (route mounted at `apps/api/src/index.ts:128`). Copy its **signing secret** `whsec_...` → `STRIPE_WEBHOOK_SECRET`. Also create a **restricted key** `rk_live_...` for the runtime (scope in `env-and-secrets.md` §Stripe).
 
 ### 1d. Telnyx
 1. Create a **V2 API Key** (Account → API Keys) → `TELNYX_API_KEY`.
@@ -72,20 +72,20 @@ npx web-push generate-vapid-keys
 → `VAPID_PUBLIC_KEY` (65-byte P-256 point, base64url) and `VAPID_PRIVATE_KEY` (32-byte scalar) (`apps/api/src/env.ts:44-50`, `.dev.vars.example:19`). Rotating invalidates all push subscriptions.
 
 ### 1h. PostHog (optional)
-Product analytics is one optional secret: a PostHog Cloud US **Project API key** → `POSTHOG_API_KEY` (`apps/api/src/env.ts:65`). Unset, every capture is a silent no-op (`apps/api/src/analytics/posthog.ts:31`); `distinct_id` is always the company_id, never PII.
+Product analytics is one optional secret: a PostHog Cloud US **Project API key** → `POSTHOG_API_KEY` (`apps/api/src/env.ts:75`). Unset, every capture is a silent no-op (`apps/api/src/analytics/posthog.ts:31`); `distinct_id` is always the company_id, never PII.
 
 ---
 
 ## 2. Set API Worker secrets (before first deploy)
 
-CI does **NOT** set these — `deploy.yml` only runs `wrangler deploy` (`deploy.yml:58-62`). Set all 21 required manually, once, on `loonext-api` (plus `POSTHOG_API_KEY` if you use analytics). Fastest path is a bulk put:
+CI does **NOT** set these — `deploy.yml` only runs `wrangler deploy` (`deploy.yml:58-62`). Set all 25 launch-required manually, once, on `loonext-api` (plus `POSTHOG_API_KEY` if you use analytics). Fastest path is a bulk put:
 
 ```
 # from apps/api, with a filled .dev.vars-style file of KEY=VALUE lines (do NOT commit it)
 pnpm --filter @loonext/api exec wrangler secret bulk ./secrets.prod.json
 ```
 
-Or one at a time: `pnpm --filter @loonext/api exec wrangler secret put SUPABASE_URL` (repeat). The full required set (all from `apps/api/src/env.ts:22-74`):
+Or one at a time: `pnpm --filter @loonext/api exec wrangler secret put SUPABASE_URL` (repeat). The full launch-required set (all from `apps/api/src/env.ts:22-104`):
 
 ```
 SUPABASE_URL SUPABASE_SECRET_KEY SUPABASE_JWKS_URL
@@ -98,11 +98,13 @@ VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY
 STRIPE_STARTER_PRICE_ID STRIPE_PRO_PRICE_ID
 STRIPE_STARTER_OVERAGE_PRICE_ID STRIPE_PRO_OVERAGE_PRICE_ID
 STRIPE_US_FEE_PRICE_ID STRIPE_SMS_METER_EVENT_NAME
+STRIPE_MODULE_MMS_PRICE_ID STRIPE_MODULE_VOICE_PRICE_ID
+STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID STRIPE_MODULE_REGIONS_CA_PRICE_ID
 ```
 
-Optional 22nd: `POSTHOG_API_KEY` (§1h). **Not secrets:** two Workers `ratelimit` bindings ship with `wrangler deploy` and never touch `secret put` — `SEND_RATE_LIMITER` (per-company outbound limiter, limit 10 per 10 s ≈ 1 msg/s, `namespace_id "1001"`) and `VERIFY_RATE_LIMITER` (keep-your-number verification limiter, limit 3 per 60 s per target number, `namespace_id "1002"`), both declared in `apps/api/wrangler.jsonc:23-53`. Each `namespace_id` must be account-unique.
+The four `STRIPE_MODULE_*` ids are schema-optional (`env.ts:64-67` — the Worker boots and `/health` passes without them) but **launch-required**: any one unset makes that opt-in add-on unsellable ("isn't available yet", `apps/api/src/routes/billing.ts:190-200,553-559`). Optional 26th: `POSTHOG_API_KEY` (§1h). **Not secrets:** two Workers `ratelimit` bindings ship with `wrangler deploy` and never touch `secret put` — `SEND_RATE_LIMITER` (per-company outbound limiter, limit 10 per 10 s ≈ 1 msg/s, `namespace_id "1001"`) and `VERIFY_RATE_LIMITER` (keep-your-number verification limiter, limit 3 per 60 s per target number, `namespace_id "1002"`), both declared in `apps/api/wrangler.jsonc:23-54`. Each `namespace_id` must be account-unique.
 
-Verify: after deploy, `GET ${API_ORIGIN}/health` re-runs env validation and 500s (naming missing keys) if any secret is absent (`apps/api/src/index.ts:88-92`, `env.ts:94-100`).
+Verify: after deploy, `GET ${API_ORIGIN}/health` re-runs env validation and 500s (naming missing keys) if any schema-required secret is absent (`apps/api/src/index.ts:88-92`, `env.ts:119-135`). `/health` does **not** catch missing `STRIPE_MODULE_*` ids — confirm those via `GET /v1/billing/modules` (`available: true` for `mms`/`voice`/`extra_storage`).
 
 ---
 
@@ -112,7 +114,7 @@ Set these **8 required** repo/environment secrets so CI + Deploy work (`.github/
 
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
 
-`NEXT_PUBLIC_API_URL` is wired in: the deploy job builds the web Worker with it (`deploy.yml:22`), while CI builds with a fixed placeholder (`ci.yml:44-47` — the CI artifact is never deployed), so only the Deploy-side secret is needed.
+`NEXT_PUBLIC_API_URL` is wired in: the deploy job builds the web Worker with it (`deploy.yml:22`), while CI builds with fixed placeholders for all three `NEXT_PUBLIC_*` vars and reads no repo secrets (`ci.yml:81-92` — the CI artifact is never deployed), so only the Deploy-side secrets are needed.
 
 > **Optional secrets (the deploy job passes both into the web build):**
 > - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`) — only needed if you enable Supabase Auth captcha (§1a step 5), but then it is **required first**: enable captcha in the Supabase dashboard only **after** this secret is set and the web Worker redeployed, or every email/password signup/login/reset breaks (the built pages send no `captchaToken`).
@@ -128,9 +130,9 @@ Trigger: `Deploy` runs on `workflow_run` of `CI` completing successfully on `mai
 2. **Install** `pnpm install --frozen-lockfile` (`:43-44`).
 3. **Push DB migrations**: `supabase link --project-ref <ref>` then `supabase db push` (`:50-56`).
 4. **Deploy api**: `pnpm --filter @loonext/api exec wrangler deploy` (`:58-59`) → `wrangler deploy` (`apps/api/package.json:8`).
-5. **Deploy web**: `pnpm --filter @loonext/web run deploy` (`:61-62`) → `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (`apps/web/package.json:10`).
+5. **Deploy web**: `pnpm --filter @loonext/web run deploy` (`:61-62`) → `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (`apps/web/package.json:11`).
 
-CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset` via the root `db:test:ci` script (delegates to `db:test:all` — `ci.yml:22-32`, `package.json:30-31`), then typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy --dry-run` for api (`ci.yml:58-77`).
+CI gates first (`ci.yml`): **all SQL suites** on a from-zero `supabase db reset` via the root `db:test:ci` script (delegates to `db:test:all` — `ci.yml:22-32`, `package.json:35-36`), the hermetic launch-pass E2E job (`ci.yml:38-77`), then typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy --dry-run` for api (`ci.yml:79-122`).
 
 ### Manual deploy (equivalent)
 ```
@@ -150,19 +152,19 @@ NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... NEXT_PUBLI
 
 ## 5. Cron schedule (api Worker)
 
-Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions); mapped to jobs in `apps/api/src/index.ts:157-198`. `scheduled()` fails loudly on any unmapped cron (`index.ts:213-217`). Cloudflare registers these automatically on `wrangler deploy` — no dashboard action.
+Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions); mapped to jobs in `apps/api/src/index.ts:156-200`. `scheduled()` fails loudly on any unmapped cron (`index.ts:215-219`). Cloudflare registers these automatically on `wrangler deploy` — no dashboard action.
 
 | Cron (UTC) | Jobs |
 | --- | --- |
-| `*/5 * * * *` | Webhook sweeper — replay unprocessed `webhook_events` (both providers) (`index.ts:159`). |
-| `*/15 * * * *` | `reconcileNumbers` + `retryCampaignAssignments` + `sweepDeletedAttachments` + `reconcileTextEnablement` + `reconcileVoiceEnablement` — provisioning retry/reconcile, §4.4 R3 assignment retry, deleted-attachment sweep, keep-your-number hosted-SMS order polling, missed-call voice binding (`index.ts:165-176`). |
-| `0 * * * *` | `reportUnreportedUsage` + `runUsageAlertsJob` — usage re-report then 80%/100% alerts (`index.ts:179`). |
-| `30 * * * *` | `nudgeSoleProprietorOtp` (`index.ts:181`). |
-| `20 * * * *` | `geocodeContactsJob` — contact geocoding backfill, rate-limited Nominatim (`index.ts:185`). |
-| `0 13 * * *` | `pollRegistrations` — 10DLC registration poller (daily fallback) + approved-campaign declared-content migration (`index.ts:187`, `telnyx/registration.ts:790-823`). |
-| `10 13 * * *` | `pollPortRequests` — port reconcile & resume, PORTING.md §5.2 (`index.ts:191`). |
-| `0 14 * * *` | `runGraceJob` — grace warnings + day-30 release (`index.ts:194`). |
-| `0 15 * * *` | `runSubscriptionReconcileJob` — re-mirror non-active companies from Stripe (`index.ts:197`). |
+| `*/5 * * * *` | Webhook sweeper — replay unprocessed `webhook_events` (both providers) + fail out stuck outbound sends (`index.ts:161`). |
+| `*/15 * * * *` | `reconcileNumbers` + `retryCampaignAssignments` + `sweepDeletedAttachments` + `reconcileTextEnablement` + `reconcileVoiceEnablement` — provisioning retry/reconcile, §4.4 R3 assignment retry, deleted-attachment sweep, keep-your-number hosted-SMS order polling, missed-call voice binding (`index.ts:167-178`). |
+| `0 * * * *` | `reportUnreportedUsage` + `runUsageAlertsJob` — usage re-report then 80%/100% alerts (`index.ts:181`). |
+| `30 * * * *` | `nudgeSoleProprietorOtp` (`index.ts:183`). |
+| `20 * * * *` | `geocodeContactsJob` — contact geocoding backfill, rate-limited Nominatim (`index.ts:187`). |
+| `0 13 * * *` | `pollRegistrations` — 10DLC registration poller (daily fallback) + approved-campaign declared-content migration (`index.ts:189`, `telnyx/registration.ts` `pollRegistrations`). |
+| `10 13 * * *` | `pollPortRequests` — port reconcile & resume, PORTING.md §5.2 (`index.ts:193`). |
+| `0 14 * * *` | `runGraceJob` — grace warnings + day-30 release (`index.ts:196`). |
+| `0 15 * * *` | `runSubscriptionReconcileJob` — re-mirror non-active companies from Stripe (`index.ts:199`). |
 
 `apps/api/src/mount.test.ts` asserts this list stays in lockstep with `wrangler.jsonc`.
 
@@ -172,11 +174,11 @@ Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions); mapped to jobs in `
 
 | Setting | Value | Source |
 | --- | --- | --- |
-| Stripe webhook endpoint | `${API_ORIGIN}/webhooks/stripe` | `index.ts:129` |
+| Stripe webhook endpoint | `${API_ORIGIN}/webhooks/stripe` | `index.ts:128` |
 | Telnyx webhook URL + failover (per messaging profile, auto-set) | `${API_ORIGIN}/webhooks/telnyx` | `telnyx/wizard.ts:141`, `telnyx/provisioning.ts:22-23` |
 | Telnyx Call-Control app webhook + failover (manual, once — §1d) | `${API_ORIGIN}/webhooks/telnyx` | `apps/api/src/env.ts:28-34` |
 | CORS allow-origin (API) | exactly `APP_ORIGIN` (no wildcard) | `index.ts:75` |
-| Stripe checkout return URLs | `${APP_ORIGIN}/dashboard?...`, `${APP_ORIGIN}/settings/billing` | `routes/billing.ts:171-172,199` |
+| Stripe checkout return URLs | `${APP_ORIGIN}/onboarding/setting-up?...` / `${APP_ORIGIN}/onboarding/plan?...` (checkout), `${APP_ORIGIN}/settings/billing` (portal) | `routes/billing.ts:216-217,293` |
 
 `API_ORIGIN`, `APP_ORIGIN` (api secrets) and `NEXT_PUBLIC_API_URL` (web) must all agree with the actual deployed Worker URLs, or webhooks/CORS/links break.
 

@@ -5,9 +5,15 @@ Cloudflare Worker encrypted secret / GitHub Actions secret vs a build-time publi
 value. Formats are illustrative — real values come from the vendor dashboards.
 
 - **API Worker secrets** are validated at startup by the zod schema in
-  `apps/api/src/env.ts:22-74`; a missing/invalid one fails loudly and `/health`
-  re-validates (`apps/api/src/index.ts:88-92`). There are **21 required + 1
-  optional** (`POSTHOG_API_KEY`).
+  `apps/api/src/env.ts:22-104`; a missing/invalid one fails loudly and `/health`
+  re-validates (`apps/api/src/index.ts:88-92`). There are **25 required for
+  launch + 1 optional** (`POSTHOG_API_KEY`). Four of the 25 — the
+  `STRIPE_MODULE_*_PRICE_ID` add-on price ids — are *optional in the schema*
+  (the Worker boots without them, `apps/api/src/env.ts:64-67`) but
+  **launch-required**: with any of them unset, that opt-in module is reported
+  `available: false` and refused at checkout and in the add-on toggle
+  ("isn't available yet" — `apps/api/src/routes/billing.ts:190-200,553-559`,
+  `apps/api/src/billing/modules.ts:103-114`), so it cannot be sold.
 - **Web build vars** are the `NEXT_PUBLIC_*` inlined at `next build` — three
   required plus two optional (`apps/web/src/env.ts:3-17`).
 - **GitHub Actions secrets** feed CI/Deploy (`.github/workflows/*`).
@@ -16,7 +22,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 
 ---
 
-## A. API Worker secrets (`loonext-api`) — 21 required + 1 optional
+## A. API Worker secrets (`loonext-api`) — 25 required for launch + 1 optional
 
 | Name | Secret? | Source (dashboard) | Example format |
 |------|:------:|--------------------|----------------|
@@ -41,30 +47,36 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_PRO_OVERAGE_PRICE_ID` | yes | `stripe:setup` output | `price_xxxxxxxxxxxx` |
 | `STRIPE_US_FEE_PRICE_ID` | yes | `stripe:setup` output | `price_xxxxxxxxxxxx` |
 | `STRIPE_SMS_METER_EVENT_NAME` | yes | `stripe:setup` output (always `sms_segments`) | `sms_segments` |
+| `STRIPE_MODULE_MMS_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Picture messages add-on, $5/mo | `price_xxxxxxxxxxxx` |
+| `STRIPE_MODULE_VOICE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Call forwarding add-on, $8/mo | `price_xxxxxxxxxxxx` |
+| `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Extra storage add-on, $5/mo | `price_xxxxxxxxxxxx` |
+| `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Canada numbers add-on, $5/mo. Set it now so the live flip is complete, but the module itself stays **coming soon**: the API refuses to sell `regions_ca` regardless of the price id until multi-region provisioning ships (`apps/api/src/billing/company-modules.ts:26-33`). | `price_xxxxxxxxxxxx` |
 | `POSTHOG_API_KEY` | yes — **OPTIONAL** | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |
 
 **Validation notes** (`apps/api/src/env.ts`): `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
 `SENTRY_DSN`, `APP_ORIGIN`, `API_ORIGIN` must parse as URLs (`z.url()`, lines
 23,25,38,39,41); the rest are non-empty strings (`z.string().min(1)`).
-`POSTHOG_API_KEY` is the only optional secret (`apps/api/src/env.ts:65`) — unset,
-every analytics capture is a silent no-op
+Schema-optional secrets: the four `STRIPE_MODULE_*_PRICE_ID` ids
+(`apps/api/src/env.ts:64-67` — boot succeeds, but the corresponding add-on is
+unsellable until each is set; see the header note) and `POSTHOG_API_KEY`
+(`apps/api/src/env.ts:75`) — unset, every analytics capture is a silent no-op
 (`apps/api/src/analytics/posthog.ts:31`). Set them all with `wrangler secret put`
 — see [05](./05-workers-deploy.md) §2. `wrangler.jsonc` `vars` is intentionally
-empty (`apps/api/wrangler.jsonc:50`).
+empty (`apps/api/wrangler.jsonc:64`).
 
 ### A.1 Not secrets — the two rate-limiter bindings
 
 Two Workers **rate-limiting unsafe bindings** are declared in
-`apps/api/wrangler.jsonc:23-53`, deployed with the Worker — there is nothing to
+`apps/api/wrangler.jsonc:23-54`, deployed with the Worker — there is nothing to
 `wrangler secret put`. Both are typed `optional` in the schema
-(`apps/api/src/env.ts:73,83`), so local dev/tests run without either binding and
+(`apps/api/src/env.ts:83,93`), so local dev/tests run without either binding and
 the respective gate is skipped. Each `namespace_id` must be **unique within your
 Cloudflare account** — change it if it collides with another Worker's limiter.
 
 | Binding | `namespace_id` | Config | Keyed on | Guards |
 |---------|:--:|--------|----------|--------|
-| `SEND_RATE_LIMITER` | `"1001"` | `limit: 10` / `period: 10`s | `company_id` | The per-company outbound-send choke point (≡ the SPEC's 1 msg/s average with sub-10s bursts). `wrangler.jsonc:33-37`, `env.ts:73`. |
-| `VERIFY_RATE_LIMITER` | `"1002"` | `limit: 3` / `period: 60`s | target number | The keep-your-number ownership-verification endpoints (`routes/text-enablement.ts`): requesting a code makes Telnyx SMS/CALL the target number the company has not yet proven it owns, and the verify endpoint accepts code guesses — so both are bounded per target number (3/min caps call/SMS-bombing and code brute-force). `wrangler.jsonc:48-51`, `env.ts:83`. |
+| `SEND_RATE_LIMITER` | `"1001"` | `limit: 10` / `period: 10`s | `company_id` | The per-company outbound-send choke point (≡ the SPEC's 1 msg/s average with sub-10s bursts). `wrangler.jsonc:33-37`, `env.ts:83`. |
+| `VERIFY_RATE_LIMITER` | `"1002"` | `limit: 3` / `period: 60`s | target number | The keep-your-number ownership-verification endpoints (`routes/text-enablement.ts`): requesting a code makes Telnyx SMS/CALL the target number the company has not yet proven it owns, and the verify endpoint accepts code guesses — so both are bounded per target number (3/min caps call/SMS-bombing and code brute-force). `wrangler.jsonc:48-51`, `env.ts:93`. |
 
 ---
 
@@ -107,7 +119,7 @@ browser bundle).
 > §2). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 > `NEXT_PUBLIC_API_URL` is wired into both workflows: CI builds with a fixed
-> placeholder (`.github/workflows/ci.yml:47` — the CI artifact is never
+> placeholder (`.github/workflows/ci.yml:92` — the CI artifact is never
 > deployed), Deploy reads the `NEXT_PUBLIC_API_URL` GitHub secret
 > (`.github/workflows/deploy.yml:22`).
 
@@ -115,15 +127,18 @@ browser bundle).
 
 ## C. GitHub Actions secrets (CI / Deploy) — 8 required + 2 optional
 
-Consumed by the workflows; never reach the Workers as runtime bindings.
+Consumed by the **Deploy** workflow only; never reach the Workers as runtime
+bindings. CI reads **no repo secrets** — its web build uses fixed placeholders
+for all three `NEXT_PUBLIC_*` vars (`.github/workflows/ci.yml:81-92`; the CI
+artifact is never deployed).
 
 | Name | Secret? | Source | Used at |
 |------|:------:|--------|---------|
 | `CLOUDFLARE_API_TOKEN` | yes | Cloudflare → My Profile → API Tokens (Workers + DNS edit) | `deploy.yml:18` |
 | `CLOUDFLARE_ACCOUNT_ID` | yes | Cloudflare dashboard (account ID) | `deploy.yml:19` |
-| `NEXT_PUBLIC_SUPABASE_URL` | yes (as CI secret) | Supabase Project URL | `ci.yml:42`, `deploy.yml:20` |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes (as CI secret) | Supabase publishable key | `ci.yml:43`, `deploy.yml:21` |
-| `NEXT_PUBLIC_API_URL` | yes (as CI secret) | Operator decision = API origin | `deploy.yml:22` (CI uses a fixed placeholder instead — `ci.yml:47`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | yes (as GitHub secret) | Supabase Project URL | `deploy.yml:20` (CI uses a fixed placeholder instead — `ci.yml:90`) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes (as GitHub secret) | Supabase publishable key | `deploy.yml:21` (CI uses a fixed placeholder instead — `ci.yml:91`) |
+| `NEXT_PUBLIC_API_URL` | yes (as GitHub secret) | Operator decision = API origin | `deploy.yml:22` (CI uses a fixed placeholder instead — `ci.yml:92`) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | yes (as CI secret) | Cloudflare Turnstile site key (section B) | `deploy.yml:23-26` — **must be set before enabling Supabase captcha** |
 | `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | yes (as CI secret) | App origin for the D27 host split (section B) | `deploy.yml:27-30` — blank = no host split |
 | `SUPABASE_ACCESS_TOKEN` | yes | Supabase → Account → Access Tokens (`sbp_...`) | `deploy.yml:52` |

@@ -31,13 +31,13 @@ Loonext is **two Cloudflare Workers + five SaaS vendors**, no other servers.
 
 ## 2. Secrets & config — the three surfaces (do not conflate)
 
-### (a) `loonext-api` Worker secrets — **21 required + 1 optional**
+### (a) `loonext-api` Worker secrets — **25 required for launch + 1 optional**
 Set with `wrangler secret put` **before the first deploy** (CI does not set them).
 Full table with sources in [docs/deploy/06-env-reference.md](docs/deploy/06-env-reference.md) §A.
 
 - **Supabase (3):** `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`
 - **Telnyx (3):** `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID`
-- **Stripe (8):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the 6 catalog IDs printed by `pnpm --filter @loonext/api stripe:setup` (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`)
+- **Stripe (12):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the 10 catalog IDs printed by `pnpm --filter @loonext/api stripe:setup` — the 6 plan/meter IDs (`STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID`, `STRIPE_STARTER_OVERAGE_PRICE_ID`, `STRIPE_PRO_OVERAGE_PRICE_ID`, `STRIPE_US_FEE_PRICE_ID`, `STRIPE_SMS_METER_EVENT_NAME`) plus the 4 module add-on price IDs (`STRIPE_MODULE_MMS_PRICE_ID`, `STRIPE_MODULE_VOICE_PRICE_ID`, `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID`, `STRIPE_MODULE_REGIONS_CA_PRICE_ID`). ⚠️ The 4 module IDs are *schema-optional* (the Worker boots without them) but **launch-required**: without them every opt-in add-on (Picture messages, Call forwarding, Extra storage) is refused at checkout as "isn't available yet" and cannot be sold.
 - **Email/errors/push (5):** `RESEND_API_KEY`, `RESEND_FROM`, `SENTRY_DSN`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (VAPID pair: `npx web-push generate-vapid-keys`, once forever)
 - **Origins (2):** `APP_ORIGIN`, `API_ORIGIN`
 - **Optional (1):** `POSTHOG_API_KEY` — unset = analytics off
@@ -72,11 +72,11 @@ Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_
 ## 4. Deploy order (each step consumes IDs from the last)
 
 1. Accounts + domain + Cloudflare zone → the 3 hostnames.
-2. Supabase Pro project, ES256 key, `supabase db push` (applies all **37 migrations**), keys.
-3. `stripe:setup` (catalog) → 6 IDs; webhook; Tax; portal.
+2. Supabase Pro project, ES256 key, `supabase db push` (applies **every migration** under `supabase/migrations/` — the whole directory, no manual picking), keys.
+3. `stripe:setup` (catalog) → 10 IDs (6 plan/meter + 4 module add-on prices); webhook; Tax; portal.
 4. Telnyx API key + Ed25519 public key + Call-Control voice app → 3 Telnyx values.
-5. Set all 21 API secrets + the GitHub Actions secrets; deploy both Workers; bind custom domains; register the live webhook URLs.
-6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET /api/health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
+5. Set all 25 API secrets + the GitHub Actions secrets; deploy both Workers; bind custom domains; register the live webhook URLs.
+6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET https://api.loonext.app/health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
 
 ---
 

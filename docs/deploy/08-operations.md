@@ -9,22 +9,22 @@ basics.
 ## 1. Cron jobs — what runs and how to verify
 
 Nine cron triggers on `loonext-api`, registered automatically on `wrangler deploy`
-(`apps/api/wrangler.jsonc:11-21`), mapped to jobs at `apps/api/src/index.ts:157-198`.
+(`apps/api/wrangler.jsonc:11-21`), mapped to jobs at `apps/api/src/index.ts:156-200`.
 Jobs sharing a trigger run **sequentially but fail independently**; if any fails the
 whole run rejects (as an `AggregateError`) so Sentry records it
-(`apps/api/src/index.ts:219-233`).
+(`apps/api/src/index.ts:222-235`).
 
 | Cron (UTC) | Jobs | What it does |
 |------------|------|--------------|
 | `*/5 * * * *` | `sweepWebhookEvents` | Replays `webhook_events` rows still unprocessed after 2 min, up to 5 attempts; the 5th failure raises a Sentry alert (`apps/api/src/messaging/crons.ts:25,37,81-84`). Both providers, through the same dispatch as the live routes. |
-| `*/15 * * * *` | `reconcileNumbers`, `retryCampaignAssignments`, `sweepDeletedAttachments`, `reconcileTextEnablement`, `reconcileVoiceEnablement` | Resumes stuck provisioning, adopts crash-after-buy orphans, retries §4.4 campaign number-assignments; reclaims soft-deleted attachment objects past the signed-URL grace window; polls in-flight keep-your-number hosted-SMS orders (`/v1/text-enablements`, webhooks primary); binds voice on active numbers whose company has missed-call text-back on (`apps/api/src/index.ts:165-176`, `apps/api/src/telnyx/voice.ts:160-205`). |
-| `0 * * * *` | `reportUnreportedUsage`, `runUsageAlertsJob` | Re-POSTs Stripe meter events for `usage_events` where `stripe_reported_at IS NULL`, then checks 80%/100% usage alerts (`apps/api/src/index.ts:179`, `apps/api/src/messaging/crons.ts:102`). |
-| `30 * * * *` | `nudgeSoleProprietorOtp` | Nudges sole-prop OTP outstanding ≥12h, once per submission (`apps/api/src/index.ts:181`). |
-| `20 * * * *` | `geocodeContactsJob` | Backfills contact geocoding via Nominatim (D25), rate-limited to 1 req/s, cached to `contacts.lat/lng`; skips already-geocoded and not-found rows (`apps/api/src/index.ts:185`). |
-| `0 13 * * *` | `pollRegistrations` | Daily 10DLC registration poller (fallback; webhooks are primary). Also migrates already-approved campaigns' declared content — review-ask `sample3` + description, once per campaign (`apps/api/src/index.ts:187`, `apps/api/src/telnyx/registration.ts:790-823,940-950`). |
-| `10 13 * * *` | `pollPortRequests` | Daily port reconcile & resume (PORTING.md §5.2): polls in-flight porting orders, applies missed transitions, resumes stalled sagas (webhooks primary) (`apps/api/src/index.ts:191`). |
-| `0 14 * * *` | `runGraceJob` | Grace warnings (day 1/15/27) + day-30 number release + campaign deactivation (`apps/api/src/index.ts:194`). |
-| `0 15 * * *` | `runSubscriptionReconcileJob` | Re-mirrors non-active companies from Stripe; reports stale invites (`apps/api/src/index.ts:197`). |
+| `*/15 * * * *` | `reconcileNumbers`, `retryCampaignAssignments`, `sweepDeletedAttachments`, `reconcileTextEnablement`, `reconcileVoiceEnablement` | Resumes stuck provisioning, adopts crash-after-buy orphans, retries §4.4 campaign number-assignments; reclaims soft-deleted attachment objects past the signed-URL grace window; polls in-flight keep-your-number hosted-SMS orders (`/v1/text-enablements`, webhooks primary); binds voice on active numbers whose company has missed-call text-back on (`apps/api/src/index.ts:167-178`, `apps/api/src/telnyx/voice.ts:160-205`). |
+| `0 * * * *` | `reportUnreportedUsage`, `runUsageAlertsJob` | Re-POSTs Stripe meter events for `usage_events` where `stripe_reported_at IS NULL`, then checks 80%/100% usage alerts (`apps/api/src/index.ts:181`, `apps/api/src/messaging/crons.ts:102`). |
+| `30 * * * *` | `nudgeSoleProprietorOtp` | Nudges sole-prop OTP outstanding ≥12h, once per submission (`apps/api/src/index.ts:183`). |
+| `20 * * * *` | `geocodeContactsJob` | Backfills contact geocoding via Nominatim (D25), rate-limited to 1 req/s, cached to `contacts.lat/lng`; skips already-geocoded and not-found rows (`apps/api/src/index.ts:187`). |
+| `0 13 * * *` | `pollRegistrations` | Daily 10DLC registration poller (fallback; webhooks are primary). Also migrates already-approved campaigns' declared content — review-ask `sample3` + description, once per campaign (`apps/api/src/index.ts:189`, `apps/api/src/telnyx/registration.ts` `pollRegistrations`/`updateCampaignContent`). |
+| `10 13 * * *` | `pollPortRequests` | Daily port reconcile & resume (PORTING.md §5.2): polls in-flight porting orders, applies missed transitions, resumes stalled sagas (webhooks primary) (`apps/api/src/index.ts:193`). |
+| `0 14 * * *` | `runGraceJob` | Grace warnings (day 1/15/27) + day-30 number release + campaign deactivation (`apps/api/src/index.ts:196`). |
+| `0 15 * * *` | `runSubscriptionReconcileJob` | Re-mirrors non-active companies from Stripe; reports stale invites (`apps/api/src/index.ts:199`). |
 
 ### Verify the crons
 
@@ -46,11 +46,11 @@ whole run rejects (as an `AggregateError`) so Sentry records it
 
 - **Payment fails** → `invoice.payment_failed` → company `past_due`, outbound
   texting blocked, owner+admins emailed; Stripe Smart Retries run ~8 attempts over
-  ~2 weeks (`apps/api/src/webhooks/stripe.ts:400-429`).
+  ~2 weeks (`apps/api/src/webhooks/stripe.ts:704`).
 - **Retries exhausted** → (dashboard action = **cancel**, [03](./03-stripe.md) §5) →
   `customer.subscription.deleted` → company `canceled`, `canceled_at` stamped,
   numbers **suspended** (inbound still received), grace clock starts, day-1 warning
-  sent (`apps/api/src/webhooks/stripe.ts:321-349`).
+  sent (`apps/api/src/webhooks/stripe.ts:630`).
 - **Grace period = 30 days** (`apps/api/src/billing/grace.ts:13`). The `0 14 * * *`
   cron sends warnings on **day 1 / 15 / 27** and on **day 30 releases** the numbers +
   deactivates the campaign (`apps/api/src/billing/grace.ts:8-13`). All notices go
@@ -68,7 +68,7 @@ email with the hosted invoice link; no state change
 ## 3. Monitoring
 
 - **Sentry** — the whole Worker (fetch + scheduled) is wrapped by
-  `Sentry.withSentry` (`apps/api/src/index.ts:242`). Unhandled `/v1` errors and cron
+  `Sentry.withSentry` (`apps/api/src/index.ts:244`). Unhandled `/v1` errors and cron
   failures are captured. PII is scrubbed: `sendDefaultPii:false`,
   `tracesSampleRate:0`, and `beforeSend`/`beforeBreadcrumb` scrubbers
   (`apps/api/src/observability/sentry.ts:117-125`) — message bodies never reach

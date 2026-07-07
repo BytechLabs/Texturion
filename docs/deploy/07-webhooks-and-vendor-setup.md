@@ -19,7 +19,7 @@ Call-Control (voice) events alike.
 With `API_ORIGIN=https://api.loonext.app` these are
 `https://api.loonext.app/webhooks/telnyx`
 (`apps/api/src/telnyx/wizard.ts:140-142`) and
-`https://api.loonext.app/webhooks/stripe` (`apps/api/src/index.ts:129`).
+`https://api.loonext.app/webhooks/stripe` (`apps/api/src/index.ts:128`).
 
 ---
 
@@ -182,7 +182,7 @@ One action: create a project, take its DSN.
 - The whole Worker (fetch + scheduled) is wrapped by `Sentry.withSentry` with
   `dsn: SENTRY_DSN`, `sendDefaultPii: false`, `tracesSampleRate: 0`, and PII
   scrubbing in `beforeSend`/`beforeBreadcrumb`
-  (`apps/api/src/index.ts:242`, `apps/api/src/observability/sentry.ts:117-125`).
+  (`apps/api/src/index.ts:244`, `apps/api/src/observability/sentry.ts:117-125`).
 - The scrubber redacts E.164 phone numbers everywhere and strips name-keyed
   fields, request bodies, cookies, and query strings before anything leaves the
   Worker (`apps/api/src/observability/sentry.ts:20-110`). No extra Sentry-side
@@ -204,7 +204,7 @@ never breaks the send/webhook path, `posthog.ts:49-57`).
 
 **Operator action (optional):** create a PostHog Cloud US project and set its
 Project API key as the `POSTHOG_API_KEY` Worker secret
-(`apps/api/src/env.ts:65`). With the key unset, every capture is a silent no-op
+(`apps/api/src/env.ts:75`). With the key unset, every capture is a silent no-op
 (`posthog.ts:31`) — running without PostHog is fully supported. There is no
 web-side PostHog client; the strings in marketing/legal pages are prose only.
 
