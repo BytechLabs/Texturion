@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
+import { PLAN_MODULE_CARDS } from "@/lib/api/types";
 
 /**
  * S5 — Pricing ("Quiet daylight" v3 §6 S5). Light band; the craft is in the
@@ -19,7 +20,20 @@ import { Section } from "@/components/marketing/ui/section";
  *   only motion is the standard <Reveal> rise (v3 §4).
  */
 
-/* ---- Copy (deck S5, verbatim slot by slot) -------------------------------- */
+/* ---- Copy (deck S5, verbatim slot by slot; amended by #70 — plan line
+   items say plain "texts", matching /pricing's units exactly — and by #28,
+   the one-line add-ons mention whose prices render from PLAN_MODULE_CARDS,
+   the web mirror of the API module catalog) ------------------------------- */
+
+/* #28: the sellable add-ons (regions_ca isn't purchasable yet, so it isn't
+   advertised). Labels and prices come from the catalog mirror so the line
+   can never disagree with checkout. */
+const ADDON_CARDS = PLAN_MODULE_CARDS.filter(
+  (card) => card.id !== "regions_ca",
+);
+export const ADDON_LINE = `Optional add-ons, off until you turn them on: ${ADDON_CARDS.map(
+  (card) => `${card.label.toLowerCase()} ${card.price}`,
+).join(", ")} a month. You only pay for what you turn on.`;
 
 const HONESTY_STRIP =
   "Canada texts right away. US texting turns on in about a week once carriers approve.";
@@ -31,14 +45,14 @@ type Plan = {
   cta: string;
 };
 
-const PLANS: readonly Plan[] = [
+export const PLANS: readonly Plan[] = [
   {
     name: "Starter",
     price: "$29",
     items: [
       "3 users",
       "1 local number",
-      "500 outbound segments a month",
+      "500 texts a month",
       "Inbound free, unmetered",
       "$29 one-time US carrier registration",
       "Month to month",
@@ -52,7 +66,7 @@ const PLANS: readonly Plan[] = [
     items: [
       "10 users",
       "2 local numbers",
-      "2,500 outbound segments a month",
+      "2,500 texts a month",
       "Inbound free, unmetered",
       "$29 one-time US carrier registration",
       "Month to month",
@@ -160,6 +174,14 @@ export function Pricing() {
       <Reveal className="mt-8">
         <p className="text-center text-base font-medium leading-relaxed">
           Inbound texts are free. We never meter what customers send you.
+        </p>
+      </Reveal>
+
+      {/* #28: the plan-builder promise, one calm mono line (checkable numbers
+          stay in the data voice). Full detail lives on /pricing. */}
+      <Reveal className="mx-auto mt-4 max-w-2xl">
+        <p className="font-mono-mkt text-center text-[0.8125rem] leading-[1.5] tracking-[0.02em] text-[color:var(--ink-55)]">
+          {ADDON_LINE}
         </p>
       </Reveal>
 

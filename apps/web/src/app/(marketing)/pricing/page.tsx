@@ -3,10 +3,11 @@
  * (verbatim). Pricing on its own page IS the positioning (anti-Podium): every
  * cost on one page and a buy button instead of a sales call.
  *
- * Layout order (§8): H1 + sub → two plan cards (full detail, both CTAs to
- * signup) → crew-size slider → honesty ledger (with the first-week timeline
- * card) → "what you'll actually pay elsewhere" table → segment explainer +
- * counter → guarantee block → FAQ (8) → CTA band.
+ * Layout order (§8, amended by #28): H1 + sub → two plan cards (full detail,
+ * both CTAs to signup) → "Build your plan" add-ons strip (#12 module model,
+ * the differentiator) → crew-size slider → honesty ledger (with the
+ * first-week timeline card) → "what you'll actually pay elsewhere" table →
+ * segment explainer + counter → guarantee block → FAQ (9) → CTA band.
  *
  * Reuses the shared marketing components (crew-size slider, usage-meter proof,
  * first-week timeline) rather than re-implementing them, one source of truth,
@@ -32,6 +33,7 @@ import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
+import { PlanAddons } from "@/components/marketing/plan-addons";
 import { UsageMeterProof } from "@/components/marketing/home/usage-meter-proof";
 import { FirstWeekTimeline } from "@/components/marketing/home/first-week-timeline";
 import { Button } from "@/components/ui/button";
@@ -51,13 +53,16 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "Loonext pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day money-back guarantee. No per-user fees, no quote calls.",
+    "Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500). Optional add-ons: picture messages $5, call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
 /* -------------------------------------------------------------------------- */
 /* Plan cards, everything from SPEC §2, in human words, nothing omitted (§8). */
-/* Copy verbatim from COPY §PR plan cards.                                     */
+/* Copy from COPY §PR plan cards, amended by #24: photo sending is NOT a base */
+/* feature (it's the $5/mo Picture messages add-on, apps/api/src/billing/     */
+/* modules.ts), so the cards no longer claim it. The add-ons strip below the  */
+/* cards carries the module truth.                                            */
 /* -------------------------------------------------------------------------- */
 
 interface Plan {
@@ -81,7 +86,6 @@ const PLANS: Plan[] = [
       "500 texts a month (a plain text up to 160 characters is one; the composer shows the count before you send)",
       "Receiving texts and photos: free, unlimited",
       "Extra texts: 3¢ each",
-      "Photos you send: count as 3 texts",
       "Spending cap you control (default 3× your allowance) with alerts at 80% and 100%",
       "Month to month, cancel anytime",
     ],
@@ -99,7 +103,6 @@ const PLANS: Plan[] = [
       "2,500 texts a month (same count rule; the composer always shows it before you send)",
       "Receiving texts and photos: free, unlimited",
       "Extra texts: 2.5¢ each",
-      "Photos you send: count as 3 texts",
       "Spending cap you control (default 3× your allowance) with alerts at 80% and 100%",
       "Month to month, cancel anytime",
     ],
@@ -181,6 +184,18 @@ const LEDGER: { term: string; detail: React.ReactNode }[] = [
       "3¢ each on Starter, 2.5¢ on Pro, only after your included texts run out, only up to the cap you control.",
   },
   {
+    // #24: the module prices are part of "every cost, before you pay."
+    // Prices and quantities mirror apps/api/src/billing/plans.ts +
+    // modules.ts (mms $5/150 picture messages, voice $8/300 min,
+    // extra_storage $5/10 GB); the add-ons strip above renders them from
+    // the shared catalog mirror. Each outbound MMS also meters as a flat 3
+    // segments (MMS_SEGMENTS, messaging/media.ts; DECISIONS.md D5) — that
+    // cost belongs on this page too.
+    term: "Optional add-ons, if you turn them on",
+    detail:
+      "Picture messages $5/mo (150 a month included; each one you send also counts as three texts from your allowance), call forwarding with missed-call text-back $8/mo (300 minutes included), extra storage $5/mo (10 GB more). All three are off by default, you switch them on at signup or later in settings, and you can switch them off the same way. Nothing here is required to text.",
+  },
+  {
     term: "Tax",
     detail:
       "Prices are in USD, plus sales tax where it applies, calculated at checkout. (CAD billing isn't here yet, we'd rather tell you now than surprise you at checkout.)",
@@ -188,7 +203,7 @@ const LEDGER: { term: string; detail: React.ReactNode }[] = [
   {
     term: "That's the whole list.",
     detail:
-      'No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+      'Two plans, three optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
   },
 ];
 
@@ -239,7 +254,11 @@ const COMPARE_ROWS: { label: string; cells: string[] }[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* Pricing FAQ (8). COPY §PR verbatim. NO FAQPage JSON-LD (§11.2).            */
+/* Pricing FAQ (9). COPY §PR, amended: the photo answer states the $5 add-on  */
+/* + 150 cap-and-drop truth (#24), the "not getting" answer stops denying     */
+/* voice (#24, the $8 call-forwarding add-on ships), and the keep-my-number   */
+/* question mirrors /features/business-number's verified porting answer       */
+/* (#71). NO FAQPage JSON-LD (§11.2).                                         */
 /* -------------------------------------------------------------------------- */
 
 const FAQS: { q: string; a: string }[] = [
@@ -252,8 +271,15 @@ const FAQS: { q: string; a: string }[] = [
     a: "No. Receiving texts and photos is free and unlimited on every plan. Only what you send counts.",
   },
   {
-    q: "How do photo messages count?",
-    a: "Receiving photos is free. Sending a photo counts as three texts from your allowance.",
+    // Truth: apps/api/src/billing/plans.ts PLAN_MMS_INCLUDED (150, both
+    // plans) + the cap-and-drop in messaging/send.ts. An outbound picture
+    // message meters as a FLAT 3 segments against the text allowance
+    // (MMS_SEGMENTS in messaging/media.ts, reported in messaging/status.ts;
+    // DECISIONS.md D5). The 80% warning is the owner email from
+    // billing/usage-alerts.ts; the composer reports a dropped photo right
+    // after the send (thread/mms-gate.ts).
+    q: "How do photo messages work?",
+    a: "Receiving photos is free and unlimited on every plan. Sending them is the Picture messages add-on: $5 a month with 150 picture messages included. Each one you send also counts as a flat three texts from your monthly allowance, however long the words. Past 150 in a month, the photo is dropped and your message still goes out as plain text — the account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go.",
   },
   {
     q: "What happens when I hit my allowance?",
@@ -268,12 +294,20 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes. Upgrades apply immediately. Downgrades apply at the end of your billing period. Canceling takes two clicks in billing settings, no phone call, no chat-with-retention. We hold your number for 30 days in case you change your mind.",
   },
   {
+    // Mirrors the verified porting answer on /features/business-number
+    // (free US/CA transfers, 1–7 business days, no dead air). #71.
+    q: "Can I keep my current business number?",
+    a: "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take 1 to 7 business days, and your number keeps working on your current carrier the whole time, switching to Loonext on the transfer date. Want to text sooner? Get a new local number now and transfer your old one alongside it.",
+  },
+  {
     q: "Are prices really in USD for Canadian businesses?",
     a: "For now, yes, your card is charged in USD and your bank converts it. CAD billing is coming; until it's real, we won't pretend otherwise.",
   },
   {
+    // #24/#58: no more blanket voice denial, the $8 call-forwarding module
+    // ships (apps/api/src/billing/modules.ts).
     q: "What am I not getting at these prices?",
-    a: "Loonext is a shared texting inbox, it doesn't do voice calls, mass text blasts, or review management. If you need those, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "Loonext is a shared texting inbox, not a phone system: there's no calling inside the app, no mass text blasts, and no review management. Phone calls aren't left hanging, though. The call forwarding add-on ($8/mo) sends calls on your business number to your cell and texts back the ones you miss, so the lead still lands in your inbox. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];
 
@@ -316,8 +350,14 @@ export default function PricingPage() {
         </div>
         <p className="mx-auto mt-5 max-w-4xl text-center text-[14px] text-muted-foreground">
           Upgrading from Starter to Pro takes one click and applies immediately.
+          Both plans take the same optional add-ons, listed below.
         </p>
       </Container>
+
+      {/* "Build your plan" add-ons strip (#28): the #12 module model, marketed.
+          Prices and quantities render from the shared catalog mirror
+          (PLAN_MODULE_CARDS), so this section can't drift from checkout. */}
+      <PlanAddons />
 
       {/* Crew-size slider, flat beats per-user. */}
       <Section>
@@ -543,7 +583,7 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Pricing FAQ (8), no FAQPage JSON-LD (§11.2). */}
+      {/* Pricing FAQ (9), no FAQPage JSON-LD (§11.2). */}
       <Section>
         <div className="mx-auto max-w-3xl">
           <h2 className="display-h2 text-center text-foreground">

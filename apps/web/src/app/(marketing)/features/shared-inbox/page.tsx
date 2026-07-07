@@ -231,9 +231,13 @@ export default function SharedInboxPage() {
         lead="A shared inbox is only trustworthy if you know exactly what it does and doesn't do. Here's the fine print, in plain words."
         items={[
           {
+            // #58/#24: no blanket voice denial (the $8 call-forwarding module
+            // ships) and no unqualified MMS claim (sending photos is the $5
+            // Picture messages add-on) — truth in apps/api/src/billing/
+            // modules.ts + plans.ts.
             term: "It's a texting inbox, not a phone system.",
             detail:
-              "Loonext handles SMS and MMS to and from your business number. It doesn't place or receive voice calls, and it doesn't do mass text blasts, it's built for one-to-one conversations a crew can share.",
+              "Loonext handles the texts on your business number, and incoming photos are always included; sending photos is an optional $5/mo add-on. There's no calling inside the app and no mass text blasts, it's built for one-to-one conversations a crew can share. If customers call your number, the optional call forwarding add-on ($8/mo) rings your cell and texts back the calls you miss, so the lead still lands in this inbox.",
           },
           {
             term: "Receiving is free and unlimited; sending is what counts.",
