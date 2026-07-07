@@ -1,6 +1,8 @@
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
 
+import { SECURITY_HEADERS } from "./src/lib/observability/security-headers";
+
 const nextConfig: NextConfig = {
   // Optional isolated build output dir (LOONEXT_DIST_DIR) so a production build
   // can run without colliding with a concurrently-running `next dev` that shares
@@ -34,6 +36,17 @@ const nextConfig: NextConfig = {
     // and ~150 ms FCP vs. the linked stylesheet. Pure delivery optimization: no
     // styling/token/app-surface change.
     inlineCss: true,
+  },
+  // Security response headers on every route (D8 defense in depth). The list
+  // + the proof that headers() survives the OpenNext/Workers adapter live in
+  // src/lib/observability/security-headers.ts.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [...SECURITY_HEADERS],
+      },
+    ];
   },
   async redirects() {
     return [

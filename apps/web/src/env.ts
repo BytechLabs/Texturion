@@ -14,6 +14,16 @@ const publicEnvSchema = z.object({
   // the marketing site (lib/hosts.ts). Unset (dev/CI/previews) = no gating;
   // every route stays reachable on one origin.
   NEXT_PUBLIC_APP_ORIGIN: z.url().optional(),
+  // Optional: Sentry browser DSN (D13 client observability). When set, the
+  // client instrumentation lazily loads @sentry/browser with the same PII
+  // scrubbing posture as the API Worker (lib/observability/sentry.ts);
+  // unset (dev/CI/previews) = client error reporting silently off.
+  NEXT_PUBLIC_SENTRY_DSN: z.url().optional(),
+  // Optional: PostHog project API key (D8/D12 product analytics). When set,
+  // the client instrumentation lazily loads posthog-js — sanitized pageviews
+  // + company UUIDs only, autocapture/recording off (lib/analytics/posthog.ts);
+  // unset = analytics silently off.
+  NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),
 });
 
 // NEXT_PUBLIC_* variables are inlined at build time, so each one must be
@@ -28,6 +38,8 @@ const parsed = publicEnvSchema.safeParse({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY:
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
   NEXT_PUBLIC_APP_ORIGIN: process.env.NEXT_PUBLIC_APP_ORIGIN || undefined,
+  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
+  NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
 });
 
 if (!parsed.success) {
