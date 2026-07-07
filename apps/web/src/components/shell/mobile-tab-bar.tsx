@@ -16,8 +16,9 @@ function cap(n: number): string {
 /**
  * Mobile/tablet bottom tab bar (PORTAL-UX §5, <1000px): For you · Inbox · Tasks ·
  * Contacts · More — five 44px+ LABELED touch targets with safe-area padding.
- * Labels stay visible (never bare icons). The For-you tab carries the single
- * petrol count pill; Inbox carries the muted unread count; the rest are plain.
+ * Labels stay visible (never bare icons). For-you and Inbox carry quiet stone
+ * count badges (APP-UI-ELEVATION §2.1 / issue #64: the one petrol accent in
+ * this region is the compose FAB, never a count); the rest are plain.
  */
 export function MobileTabBar() {
   const pathname = usePathname();
@@ -57,12 +58,7 @@ export function MobileTabBar() {
                 {showCount && (
                   <span
                     aria-hidden
-                    className={cn(
-                      "absolute -right-2 -top-1 flex min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-4 tabular-nums",
-                      isForYou
-                        ? "bg-app-petrol text-white"
-                        : "bg-app-line-soft text-app-muted",
-                    )}
+                    className="absolute -right-2 -top-1 flex min-w-3.5 items-center justify-center rounded-full bg-app-line-soft px-1 text-[9px] font-semibold leading-4 tabular-nums text-app-muted"
                   >
                     {cap(count)}
                   </span>

@@ -151,7 +151,7 @@ export function ConversationRow({
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-bold text-app-petrol-deep",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-petrol-deep",
           avatarColorClass(conversation.contact_id || name),
         )}
       >
@@ -162,8 +162,10 @@ export function ConversationRow({
         <span className="flex items-baseline justify-between gap-2">
           <span
             className={cn(
+              // §2.2 weight ceiling (#65): unread 600 vs read 500 — hierarchy
+              // from one weight step, never 700.
               "truncate text-[14px] text-app-ink",
-              unread ? "font-bold" : "font-semibold",
+              unread ? "font-semibold" : "font-medium",
             )}
           >
             {name}
@@ -186,10 +188,10 @@ export function ConversationRow({
         </span>
 
         <span
-          className={cn(
-            "mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45]",
-            active ? "text-[#4A544F] dark:text-app-muted" : "text-app-muted",
-          )}
+          // #61: --app-muted now clears AA on the white active card too
+          // (5.87:1), so the old hardcoded darker hex for the active row is
+          // gone — one token, both states, both themes.
+          className="mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45] text-app-muted"
         >
           {snippet?.direction === "note" && (
             <Lock

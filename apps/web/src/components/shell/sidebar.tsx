@@ -119,25 +119,24 @@ const FOCUS: NavRow[] = [
 /**
  * One nav row (PORTAL-UX §1.1): glyph + label + optional count, 36px, soft
  * radius. Active = petrol-tint fill + petrol-deep text/icon + a 3px petrol LEFT
- * edge-marker (never a heavy block, never a shadow). The count renders as a
- * muted tabular numeral EXCEPT the For-you pill, the single rationed petrol
- * accent (`petrolPill`).
+ * edge-marker (never a heavy block, never a shadow). EVERY count renders as a
+ * quiet stone tabular numeral (APP-LAYOUT-V2 §1.3, issue #64) — the §2.1
+ * one-petrol-element budget keeps the accent on the primary action (compose),
+ * so the rail never competes with it.
  *
  * Collapsed (icon rail): icon-only, the label moves to a hover/focus tooltip
- * (+ an aria-label), and the count degrades to a small dot badge (petrol for
- * For-you, muted otherwise) so the at-a-glance signal survives.
+ * (+ an aria-label), and the count degrades to a small muted dot badge so the
+ * at-a-glance signal survives.
  */
 function NavItem({
   row,
   active,
   count,
-  petrolPill,
   collapsed,
 }: {
   row: NavRow;
   active: boolean;
   count?: number;
-  petrolPill?: boolean;
   collapsed?: boolean;
 }) {
   const Icon = row.icon;
@@ -169,10 +168,7 @@ function NavItem({
             {showCount && (
               <span
                 aria-hidden
-                className={cn(
-                  "absolute right-1.5 top-1.5 size-2 rounded-full ring-2 ring-app-white",
-                  petrolPill ? "bg-app-petrol" : "bg-app-muted-2",
-                )}
+                className="absolute right-1.5 top-1.5 size-2 rounded-full bg-app-muted-2 ring-2 ring-app-white"
               />
             )}
           </Link>
@@ -205,21 +201,16 @@ function NavItem({
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{row.label}</span>
-      {showCount &&
-        (petrolPill ? (
-          <span className="grid h-[19px] min-w-5 place-items-center rounded-full bg-app-petrol px-1.5 text-[11px] font-semibold tabular-nums text-white">
-            {cap(count)}
-          </span>
-        ) : (
-          <span
-            className={cn(
-              "text-[11.5px] font-medium tabular-nums",
-              active ? "text-app-petrol-deep" : "text-app-muted",
-            )}
-          >
-            {cap(count)}
-          </span>
-        ))}
+      {showCount && (
+        <span
+          className={cn(
+            "text-[11.5px] font-medium tabular-nums",
+            active ? "text-app-petrol-deep" : "text-app-muted",
+          )}
+        >
+          {cap(count)}
+        </span>
+      )}
     </Link>
   );
 }
@@ -465,7 +456,6 @@ export function Sidebar({
                         ? counts.tasks
                         : undefined
                 }
-                petrolPill={row.href === "/for-you"}
                 collapsed={collapsed}
               />
             ))}

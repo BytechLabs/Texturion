@@ -231,6 +231,10 @@
   --color-app-ink: var(--app-ink);
   --color-app-petrol: var(--app-petrol);
   --color-app-petrol-deep: var(--app-petrol-deep);
+  /* #26: the paired ON-PETROL text color (text-app-petrol-foreground). Flips
+     with the theme so text on a petrol fill holds AA in BOTH modes — never
+     hardcode text-white on a petrol surface. */
+  --color-app-petrol-foreground: var(--app-petrol-foreground);
   --color-app-stone-0: var(--app-stone-0);
   --color-app-stone-1: var(--app-stone-1);
   --color-app-white: var(--app-white);
@@ -498,7 +502,7 @@
 
   /* Petrol brand: #0F766E primary, deep #0B4F49 for text-on-tint accents. */
   --primary: #0f766e; /* --petrol */
-  --primary-foreground: #ffffff;
+  --primary-foreground: #ffffff; /* 5.47:1 on #0f766e — AA (#26) */
 
   /* Secondary surface + tinted accent. --secondary is the soft hairline fill
      (--line-soft #F3F2EE) used for hover/segments; --accent is the petrol tint
@@ -506,8 +510,11 @@
   --secondary: #f3f2ee; /* --line-soft */
   --secondary-foreground: #1a2420;
   --muted: #f3f2ee;
-  --muted-foreground: #79837d; /* --muted */
-  --foreground-tertiary: #a6ada7; /* --faint, quiet meta */
+  /* #61: was #79837d (3.78:1 on paper — below AA). #5d6761 measures 5.87:1 on
+     white, 5.66:1 on #fbfbf9 paper, 5.24:1 on the #f3f2ee hover/chip fill —
+     AA everywhere it carries text. Kept in lockstep with --app-muted below. */
+  --muted-foreground: #5d6761;
+  --foreground-tertiary: #a6ada7; /* --faint, DECORATIVE-only meta (below AA by design) */
   --accent: #edf3f1; /* --petrol-tint, petrol-tinted fill */
   --accent-foreground: #0b4f49; /* --petrol-deep on tint */
 
@@ -543,14 +550,24 @@
   --app-ink: #1a2420;
   --app-ink-soft: #3c4742;
   --app-petrol: #0f766e;
+  /* #26: the paired foreground for ANY petrol fill (bubbles, Send, count
+     pills). White measures 5.47:1 on #0f766e and 9.42:1 on the #0b4f49 hover
+     deep — AA. The dark block flips this to near-black (see below). */
+  --app-petrol-foreground: #ffffff;
   --app-petrol-deep: #0b4f49;
   --app-stone-0: #fbfbf9; /* == --paper (kept name; components read it) */
   --app-stone-1: #f3f2ee; /* == --line-soft (hover fill) */
   --app-white: #ffffff;
   --app-line: #ecebe5;
   --app-line-soft: #f3f2ee;
-  --app-muted: #79837d;
-  --app-muted-2: #a6ada7; /* --faint */
+  /* #61: essential quiet text (snippets, chip labels). Was #79837d (3.78:1 on
+     paper). #5d6761 = 5.87:1 on white / 5.66:1 on #fbfbf9 / 5.24:1 on #f3f2ee. */
+  --app-muted: #5d6761;
+  /* #61: quiet-but-ESSENTIAL meta (row timestamps, ⌘K kbd). Was #a6ada7
+     (2.21:1 — invisible in sunlight). #67716b = 5.06:1 on white / 4.88:1 on
+     #fbfbf9 / 4.52:1 on #f3f2ee — AA on every ground it sits on. Genuinely
+     decorative marks should use --foreground-tertiary instead. */
+  --app-muted-2: #67716b;
   --app-tint: #edf3f1; /* --petrol-tint */
   --app-tint-line: #cfe4de;
   --app-amber: #b79447; /* calm amber mark (note icon) */
@@ -616,7 +633,7 @@
   --popover-foreground: #e8efeb;
 
   --primary: #2fb3a5; /* lifted petrol, AA on dark surfaces */
-  --primary-foreground: #04110e;
+  --primary-foreground: #04110e; /* 7.43:1 on #2fb3a5 — AA; white is only 2.59:1 (#26) */
 
   --secondary: #172019; /* raised fill on dark */
   --secondary-foreground: #e8efeb;
@@ -654,14 +671,20 @@
   --app-ink: #e8efeb;
   --app-ink-soft: #c3cdc8;
   --app-petrol: #2fb3a5;
+  /* #26: white on lifted petrol #2fb3a5 is 2.59:1 — the dark pair is
+     near-black: 7.43:1 on #2fb3a5 and 13.25:1 on the #a5e2d8 hover deep. */
+  --app-petrol-foreground: #04110e;
   --app-petrol-deep: #a5e2d8;
   --app-stone-0: #0e1512;
   --app-stone-1: #172019;
   --app-white: #151d1a; /* the "white" card equivalent on dark */
   --app-line: #232e29;
   --app-line-soft: #1b2521;
-  --app-muted: #96a29d;
-  --app-muted-2: #74807b;
+  --app-muted: #96a29d; /* 7.01:1 ground / 6.50:1 card / 6.33:1 hover — AA */
+  /* #61 (dark side): was #74807b — only 4.18:1 on the #151d1a card and 4.07:1
+     on the #172019 hover fill, below AA for the timestamps it carries.
+     #7d8983 = 5.09:1 ground / 4.73:1 card / 4.60:1 hover. */
+  --app-muted-2: #7d8983;
   --app-tint: #14322d;
   --app-tint-line: #1f4a43;
   --app-amber: #d9b878;
@@ -745,6 +768,32 @@
 }
 @utility app-bubble-out {
   background: var(--app-bubble-out);
+  /* #26: the bubble carries its own AA text pair (white in light, near-black
+     in dark) so callers never hardcode text-white on the petrol fill. */
+  color: var(--app-petrol-foreground);
+}
+
+/* #26 — token-level enforcement of the on-petrol text pair. Any element inside
+   the app scope that paints the petrol fill (`bg-primary` / `bg-app-petrol`)
+   gets the theme-paired foreground: #ffffff in light (5.47:1 on #0f766e),
+   #04110e in dark (7.43:1 on #2fb3a5 — white there is only 2.59:1, a WCAG AA
+   failure). Unlayered on purpose: it outranks the @layer utilities text-*
+   classes, so a stray `text-white` on a petrol fill (composer.tsx's Send,
+   filter-bar's count) can no longer ship an unreadable dark-mode pair. Elements
+   pairing `bg-primary` with `text-primary-foreground` resolve to the exact same
+   values, so this is a no-op for them. */
+.app-scope .bg-primary,
+.app-scope .bg-app-petrol {
+  color: var(--app-petrol-foreground);
+}
+
+/* #65 — APP-UI-ELEVATION §2.2 weight ceiling: 400 body / 500 emphasis /
+   600 heading, NEVER heavier. Unlayered guardrail so a stray `font-bold`
+   (700) inside the app scope renders at the 600 ceiling instead of shouting
+   over every real heading. Call sites should still say `font-semibold`; this
+   only catches regressions. Marketing (.mkt-scope) keeps its display weights. */
+.app-scope .font-bold {
+  font-weight: 600;
 }
 
 /* ==========================================================================

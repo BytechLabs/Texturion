@@ -282,13 +282,16 @@ export function MessageBubble({
               note
                 ? "border border-app-amber-line bg-app-amber-bg text-app-amber-ink [border-bottom-right-radius:5px]"
                 : outbound
-                  ? "app-bubble-out text-white [border-top-right-radius:5px]"
+                  ? // The app-bubble-out utility carries its own theme-paired
+                    // text color (#26): white on petrol in light, near-black on
+                    // the lifted petrol in dark — AA in both.
+                    "app-bubble-out [border-top-right-radius:5px]"
                   : "border border-app-line bg-app-white text-app-ink [border-top-left-radius:5px]",
             )}
           >
             {/* Amber internal-note label on the amber-tint card. */}
             {note && (
-              <span className="mb-1 flex items-center gap-1 text-[11px] font-bold text-app-amber">
+              <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
                 <Lock className="size-3" strokeWidth={1.75} aria-hidden />
                 Internal note
               </span>

@@ -111,9 +111,11 @@ export function FilterBar({
             >
               {label}
               {countLabel !== "" && (
-                // One quiet petrol count on Open only, shown when > 0, capped 9+.
+                // Quiet stone count on Open only, shown when > 0, capped 9+
+                // (issue #64 / APP-UI-ELEVATION §2.1: petrol in this region is
+                // reserved for the compose action, never a count).
                 <span
-                  className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10.5px] font-bold tabular-nums text-white"
+                  className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
                   aria-label={`${openCount > OPEN_COUNT_CAP ? `over ${OPEN_COUNT_CAP}` : openCount} open`}
                 >
                   {countLabel}
