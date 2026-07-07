@@ -1,6 +1,6 @@
 # Loonext
 
-Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number, and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
+Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number — a new one, or the number it already has, ported in free — and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
 
 Website: https://loonext.app
 
@@ -13,9 +13,21 @@ Website: https://loonext.app
 ## Pricing (USD, plus sales tax where applicable)
 - Starter, $29/mo: 3 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
 - Pro, $79/mo: 10 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving free and unlimited.
-- A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send. Sending a photo counts as three texts.
+- A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send.
 - One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever, never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.
 - Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.
+- Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro.
+
+## Optional add-on modules (opt in at signup or later, cancel monthly)
+- Picture messages (MMS), $5/mo: send photos in your texts, with 150 outgoing picture messages a month included; a photo send also counts as three texts from the plan allowance. At the cap, more photos can't be sent until the period resets — the composer says so the moment a photo doesn't go, the text part of the message still sends, and email alerts warn at 80% and 100% of the included picture messages. Receiving photos is free on every plan, with or without this module.
+- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with 300 forwarded minutes a month included — and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere.
+- Extra storage, $5/mo: adds 10 GB to each storage pool (files and pictures).
+- Canadian numbers alongside a US number: coming soon; listed in the catalog but not yet purchasable.
+
+## Keep your existing number (porting)
+- Porting in is free and self-serve for US and Canadian local numbers: choose "Bring my number" at signup, or start a port later from Settings → Numbers. Loonext handles the carrier paperwork and shows the port's status the whole way.
+- Your number keeps working on your old carrier during the transfer and switches to Loonext on a scheduled cutover date — typically 1 to 7 business days.
+- An optional temporary Loonext number is offered to text from while the port completes (off by default).
 
 ## The honest US timeline (a trust feature, stated before payment)
 - Day one: your number is live and receiving texts; texting Canadian customers works immediately.
@@ -26,21 +38,25 @@ Website: https://loonext.app
 - Internal notes (marked, never sent to the customer).
 - Saved replies (templates) via a "/" shortcut.
 - Tags for how you sell (Quote sent, Scheduled, Won, Lost).
-- Photos both ways (MMS); receiving photos is free.
+- Pictures both ways: receiving photos is free on every plan; sending photos is the $5/mo picture-messages module above.
+- After-hours auto-reply: outside your business hours, a message you wrote yourself is sent back automatically (at most once per conversation per burst, so nobody gets spammed).
+- Missed-call text-back and call forwarding via the $8/mo module above.
 - Search across every message and contact; CSV contact import with a dry-run preview.
 - Works on every phone with no download (a web app you add to your home screen; push notifications; dark mode).
 - Two numbers on Pro (two locations, or an office line and a field line), each with its own inbox.
 
 ## Compliance, handled by the product
 - Registration with the US phone companies is filed automatically at signup.
-- STOP opt-outs are honored instantly; future sends to opted-out numbers are blocked.
+- STOP opt-outs are honored instantly; future sends to opted-out numbers are blocked. A "please stop texting me" can be honored with one click, the same way.
 - Consent is recorded (name and date) when you start a conversation.
 - A quiet-hours check nudges you before starting a late-night conversation (8pm–8am in the customer's local time), never on replies.
+- Messages send exactly as typed: Loonext does not append an automatic identification or opt-out footer to your texts.
 - Helps you follow the rules (TCPA in the US, CASL in Canada). It does not make you compliant on its own, and it does not send marketing blasts.
 
 ## What Loonext does NOT do
-- No voice calls, no mass/broadcast texting, no review management, no scheduled/automated sends.
-- No number porting yet (forward your existing number in the meantime); no CAD billing yet (charged in USD).
+- No mass/broadcast texting, no scheduled campaigns or blast marketing, no review management.
+- No in-app phone calling: the call-forwarding module forwards calls to an existing phone and texts back missed callers, but calls are not made or answered inside Loonext.
+- No CAD billing yet (charged in USD).
 
 ## Security & data
 - Tenant isolation via row-level security; encryption in transit and at rest.

@@ -528,12 +528,17 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   province-chip visual with the "(416) — Toronto" hint) — a real product visual, not a text list
   (finding). One small maple-leaf lucide icon in petrol; tasteful, not flag-waving.
 - **Layout — compliance beat:** left copy; right a real screenshot (shot S8: registration stepper
-  "In review") stacked with a small crop of the consent checkbox + STOP-footer preview (shot S9).
+  "In review") stacked with a small crop of the consent checkbox (shot S9). *(The former
+  "consent checkbox + STOP-footer preview" crop is superseded — the auto-append identification
+  footer was removed, see DECISIONS D4 REVERSED; there is no footer preview to shoot.)*
 - **Compliance copy (COPY.md §H10):** four short proof points, all real product behavior:
   registration filed automatically at signup; STOP handled instantly and future sends to
-  opted-out numbers blocked; consent recorded when you *start* a conversation; first-text business
-  signature added automatically. Positioning line: "The rules are real. You shouldn't need to
-  become a compliance department to text a customer back." Never "makes you compliant" — copy says
+  opted-out numbers blocked; consent recorded when you *start* a conversation; opt-outs honored
+  however they're phrased (one click marks a contact opted out). *(The fourth point was
+  "first-text business signature added automatically" — superseded by the D4 reversal
+  (DECISIONS D4 REVERSED): no message carries an auto-appended footer, so no page may claim
+  it; §H10 already carries the replacement bullet.)* Positioning line: "The rules are real.
+  You shouldn't need to become a compliance department to text a customer back." Never "makes you compliant" — copy says
   "helps you follow the rules (TCPA in the US, CASL in Canada)." **Quiet-hours copy is scoped to
   SPEC §5:** the nudge fires only when you *start* a new late-night conversation (8pm–8am), never
   on replies — copy must say "if you start a late-night conversation, we'll check first," not
@@ -550,11 +555,12 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   and answers final in COPY.md §H12. **The "what's my number / can I keep my number" objection is
   a top-3 buyer question and moves UP to the first cluster** (finding: it was buried at #8 out of
   10, framed cheerfully, and read like a hidden gotcha for a business whose whole identity is a
-  phone number). It is answered with the real workaround, not a dead-end "not yet": forward your
-  existing number to your new Loonext number (carrier call-forwarding for voice) and move
-  customers to the new number once — "your old number keeps ringing; new texts come to your
-  Loonext number, here's how." Also covered: no app download; whole-crew $29 with the honest
-  capacity math (not "never touch the limit" — see below); what counts as a text (pinned to the
+  phone number). It is answered with real, shipped porting (DECISIONS D16 — this supersedes the
+  forwarding-workaround answer that stood here): bring your number free and self-serve, it keeps
+  working on the old carrier until the scheduled cutover (usually a few days to two weeks for US,
+  often faster in Canada), and the port's status is shown the whole way. COPY.md §H12 carries the
+  final answer; never resurrect the carrier-call-forwarding workaround. Also covered: no app
+  download; whole-crew $29 with the honest capacity math (not "never touch the limit" — see below); what counts as a text (pinned to the
   segment definition); why US takes about a week; Canada; photos; overages; cancellation &
   30-day number grace; the $29 registration fee.
 - **Tech:** **no `FAQPage` JSON-LD** (finding). The rich result has been gone since May 2026 and
@@ -606,10 +612,13 @@ Per-page angles:
 - **business-number:** local numbers, type-a-city area-code picker (interactive widget), what
   "local" does for answer rates (framed as common sense, not fake stats), **multi-number is
   real — say it:** Pro includes 2 numbers (two locations, or office + field), per-number
-  conversation threading. Also: the number is the business's, not an employee's.
+  conversation threading. **Porting is real too — say it (DECISIONS D16):** the page carries a
+  "Bring your number" capability line (free, self-serve, old number keeps working until the
+  cutover date). Also: the number is the business's, not an employee's.
 - **compliance:** the §3.10 content at full depth: opt-out enforcement, consent attestation,
-  quiet-hours nudge, auto-identification footer, registration state machine in plain words,
-  records retained. Links /legal/messaging and /legal/aup.
+  quiet-hours nudge, registration state machine in plain words, records retained. Links
+  /legal/messaging and /legal/aup. *(The "auto-identification footer" item that stood here is
+  superseded — the footer was removed, DECISIONS D4 REVERSED; the page must not claim it.)*
 - **templates-and-tags:** saved replies (with the `/` shortcut), pre-seeded pipeline tags
   (Quote sent → Scheduled → Won/Lost), search, CSV import, contact notes.
 
@@ -636,9 +645,12 @@ mapped to the trade → pricing snippet with crew-size math → 5-question trade
 The plumbers page copy in COPY.md §P is the master; iterations 4–5 write the other five to the
 same bar, from scratch, per trade.
 
-**Honesty guard for these pages:** no "automated reminders," no "missed-call text-back," no
-scheduling features — reminders and confirmations are things you *send* (fast, with saved
-replies), not things Loonext sends for you. Copy must always attribute the action to the user.
+**Honesty guard for these pages:** no "automated reminders," no scheduling features —
+reminders and confirmations are things you *send* (fast, with saved replies), not things
+Loonext sends for you. Copy must always attribute the action to the user. *(Superseded
+exception: missed-call text-back is now a real, shipped part of the $8/mo call-forwarding
+module — DECISIONS D26 — and MAY be claimed, framed as an opt-in add-on; the same goes for the
+owner-authored after-hours auto-reply. Everything else in this guard stands.)*
 
 ---
 
@@ -687,9 +699,10 @@ read as a template farm to Google exactly the way thin industry pages do; the gu
 Hero: "Canadian crews text their customers the same day they sign up." Sections: instant
 activation explained (no US-carrier registration needed for CA→CA — one plain sentence, no
 10DLC jargon); local numbers in every province (city→area-code widget with CA data);
-CASL-aware features (identification footer, consent records, STOP honored — "helps you follow
-CASL," never "CASL-compliant"); honest data-residency disclosure ("your data is processed in
-the United States" — stated, not buried); enable-US-texting-later path ($29 registration then,
+CASL-aware features (consent records, STOP honored — "helps you follow CASL," never
+"CASL-compliant"; the "identification footer" that was listed here is superseded — removed per
+DECISIONS D4 REVERSED, do not claim it); honest data-residency disclosure ("your data is
+processed in the United States" — stated, not buried); enable-US-texting-later path ($29 registration then,
 3–7 business days). USD pricing acknowledged head-on with the pricing-page line. FAQ (5). This
 page is the market's only Canada-first story; keep it concrete, not patriotic.
 
@@ -703,8 +716,10 @@ page is the market's only Canada-first story; keep it concrete, not patriotic.
 - **Plan cards:** everything from SPEC §2, in human words, nothing omitted: price, seats,
   numbers, 500/2,500 outgoing texts ("billed as segments — plain text up to 160 characters is
   one segment; the pricing table says this explicitly per SPEC's copy rule"), overage 3¢/2.5¢,
-  free unlimited receiving, photo messages count as 3, spending cap (default 3× included, you
-  control it, alerts at 80% and 100%), month to month, upgrade path.
+  free unlimited receiving, sending photos as the opt-in picture-messages add-on ($5/mo, 150
+  picture messages included, each send also meters as 3 texts — the #12 module model supersedes
+  the old "photo messages count as 3" plan-included line), spending cap (default 3× included,
+  you control it, alerts at 80% and 100%), month to month, upgrade path.
 - **Honesty ledger (the trust centerpiece):** a bordered card titled "Every cost, before you
   pay" listing: plan price · $29 one-time US registration (what it is, who pays it, never
   charged twice — Canadian companies that skip US texting never pay it) · overage rates ·
@@ -782,7 +797,7 @@ static fallbacks the server-render ships, and as the seed-data reference for the
 | S6 | Search | Search results with highlighted snippet ("water heater") | Bento 6 |
 | S7 | CSV import | Import wizard dry-run preview table | Bento 7 |
 | S8 | Registration stepper | /settings/numbers, campaign "In review" state | Compliance section |
-| S9 | Consent + footer | New-conversation compose: consent checkbox + "— Reyes Plumbing…" footer preview | Compliance section |
+| S9 | Consent | New-conversation compose: consent checkbox (the former "+ '— Reyes Plumbing…' footer preview" is superseded — the auto-append footer was removed, DECISIONS D4 REVERSED; shoot the checkbox only) | Compliance section |
 | S10 | Usage meter | Settings → Usage, petrol fill at 42%, cap control visible | **Home pricing preview (§3.9)** + /pricing |
 | S11 | Done mark | Message with strikethrough + petrol check tooltip ("Done · Priya · 2:14 PM") | Bento 8, home final-CTA visual |
 | S12–17 | Trade threads | One thread per trade (per §5 table scripts), light, desktop | Industry pages |
@@ -940,9 +955,12 @@ month. No sales calls, ever."** + copyright. Full footer copy in COPY.md §F.
 5. No dark patterns: no trials that auto-convert (we have no trial), no hidden fees, no
    cancellation friction copy. The refund policy has no asterisks.
 6. No selling roadmap: no jobs-from-messages, no native apps or app-store badges, no
-   missed-call text-back, no scheduled sends, no broadcast/bulk (we anti-sell blast marketing
-   as a compliance stance), no toll-free, no CAD billing claims. PWA is always framed as
-   "works on every phone, no download needed."
+   scheduled sends, no broadcast/bulk (we anti-sell blast marketing as a compliance stance),
+   no toll-free, no CAD billing claims. PWA is always framed as "works on every phone, no
+   download needed." *(Two items left this list because they shipped: number porting is real
+   (DECISIONS D16) and missed-call text-back ships inside the $8/mo call-forwarding module
+   (DECISIONS D26) — both may be sold as shipped, the latter always framed as an opt-in
+   add-on.)*
 7. No uncited competitor claims: every competitor price/fact carries "as of {month year}" and
    is re-verified whenever a compare page is touched. Names in text only; no competitor logos.
 8. No enterprise cosplay: no SOC 2/HIPAA badges we don't hold, no "trusted by industry
@@ -1024,8 +1042,10 @@ the one that may go.
 wants radical honesty; three self-justifying captions read apologetic. Resolved by keeping the
 **one** load-bearing label (the scripted-demo label on §3.4) and cutting the hero's "the actual
 product" caption and the "example — real interface" captions. This does NOT weaken any
-*substantive* honesty disclosure — the timeline, the first-month math, the segment definition,
-and the "not yet" on porting all stay and get louder. We removed defensive captions, not truths.
+*substantive* honesty disclosure — the timeline, the first-month math, and the segment
+definition all stay and get louder. We removed defensive captions, not truths. *(The "not yet"
+on porting that was listed here is superseded: porting shipped — DECISIONS D16 — so the honest
+disclosure is now the real port window, old-carrier-until-cutover reality, not a "not yet.")*
 
 **Segment vs text — the load-bearing number (cro-seo blocker + buyer major).** Two critics, one
 fix: human-facing figure stays "500 texts," but **every first appearance per page pins it** with

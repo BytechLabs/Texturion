@@ -165,8 +165,9 @@ shared inbox, where anyone can pick it up.
    two taps. Write them once, stop retyping them forever.
 4. **Tags that match how you sell.** Quote sent, scheduled, won, lost — ready out of the box,
    editable to fit how you actually work.
-5. **Photos, both ways.** Customers text you a picture of the problem; you text back a photo
-   of the finished job. Receiving photos is always free.
+5. **Photos, both ways.** Customers text you a picture of the problem — receiving photos is
+   always free, on every plan. Want to text back a photo of the finished job? Picture
+   messaging is a $5/mo add-on, with 150 sends a month included.
 6. **Search everything.** Every message and contact, searchable. "What did we quote the
    Nguyens in March?" takes five seconds, not a phone poll.
 7. **Contacts, imported.** Bring your customer list in with a CSV. We show you exactly what
@@ -317,13 +318,13 @@ where your data lives.
 **H2:** Fair questions, straight answers.
 
 **Q: What's my number — and can I keep the one that's on my trucks and my Google listing?**
-A: Loonext gives you a new local number in the area code you choose, and today it can't take
-over your existing number — number porting is on our list, and we won't pretend it's here before
-it is. Here's what to do in the meantime so you don't lose the number you've built up: **forward
-your existing number to your new Loonext number** (your phone carrier does this for calls in a
-couple of minutes), and start putting your Loonext number on new signs, quotes, and your
-listing. Your old number keeps ringing and forwarding; new texts come to Loonext, where the
-whole crew can see them. When porting ships, moving the number over will be one step.
+A: Either. Pick a new local number in the area code you choose — it's usually live in a minute
+or two — or bring the number your customers already know. Porting is free and self-serve:
+choose "Bring my number" at signup (or start it later from settings), answer a few questions,
+and we handle the carrier paperwork and show you where the transfer is the whole way. Your
+number keeps working on your old carrier while it moves — usually a few days to two weeks for
+US numbers, often faster in Canada — and switches to Loonext on a scheduled date. Nothing on
+your trucks or your listing has to change.
 
 **Q: Do we need to download an app?**
 A: No. Loonext runs in the browser on any phone or computer. Add it to your home screen and it
@@ -339,10 +340,10 @@ a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.
 **Q: What counts as one of my 500 texts?**
 A: Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts
 with emoji, count as more than one — and the composer shows you the count before you send, so
-there's no mystery. Sending a photo counts as three. Receiving texts and photos is always free
-and unlimited. In practice, 500 covers roughly 20 to 25 plain texts every working day for a
-2–3 person shop; if you send a lot of photos, it's closer to 150 photo-sends a month. Go over
-and it's 3¢ a text, with a cap you set.
+there's no mystery. Receiving texts and photos is always free and unlimited. In practice, 500
+covers roughly 20 to 25 plain texts every working day for a 2–3 person shop. Go over and it's
+3¢ a text, with a cap you set. (Sending photos is its own add-on — see the photos question
+below.)
 
 **Q: Why does texting US customers take about a week?**
 A: The phone companies require every business that texts to register first — it's an industry
@@ -357,8 +358,12 @@ text US numbers, you can turn that on anytime; the one-time $29 fee and the roug
 approval apply then.
 
 **Q: Can customers text us photos?**
-A: Yes. Photos come through in the conversation, full size, and receiving them is free. You can
-send photos back too — each one counts as three texts from your monthly allowance.
+A: Yes. Photos come through in the conversation, full size, and receiving them is free on every
+plan — nothing to turn on. Sending photos back is an add-on: picture messaging is $5 a month
+and includes 150 outgoing picture messages, and each photo you send also counts as three texts
+from your allowance. We email you before you run out — at 80% and again at 100% of your included
+picture messages — and if a photo can't go, the composer tells you right there; the words in
+your message still send.
 
 **Q: What happens if we go over 500 texts?**
 A: Nothing surprising. Extra texts are 3¢ each on Starter (2.5¢ on Pro), we email you at 80%
@@ -447,7 +452,7 @@ For crews of one to three.
   before you send)
 - Receiving texts and photos: free, unlimited
 - Extra texts: 3¢ each
-- Photos you send: count as 3 texts
+- Sending photos: optional add-on, $5/mo for 150 picture messages (each also counts as 3 texts)
 - Spending cap you control (default 3× your allowance) with alerts at 80% and 100%
 - Month to month, cancel anytime
 [Start with Starter]
@@ -459,7 +464,7 @@ For crews up to ten — and a second number.
 - 2,500 texts a month (same count rule; the composer always shows it before you send)
 - Receiving texts and photos: free, unlimited
 - Extra texts: 2.5¢ each
-- Photos you send: count as 3 texts
+- Sending photos: optional add-on, $5/mo for 150 picture messages (each also counts as 3 texts)
 - Spending cap you control (default 3× your allowance) with alerts at 80% and 100%
 - Month to month, cancel anytime
 [Start with Pro]
@@ -561,7 +566,11 @@ A: No. Receiving texts and photos is free and unlimited on every plan. Only what
 counts.
 
 **Q: How do photo messages count?**
-A: Receiving photos is free. Sending a photo counts as three texts from your allowance.
+A: Receiving photos is free on every plan. Sending photos is an optional add-on: $5 a month
+turns on picture messaging with 150 outgoing picture messages included, and each photo you send
+also counts as three texts from your allowance. We email you as you get close — at 80% and again
+at 100%. Past the limit, the words in your message still send and the composer tells you the
+photo didn't; photo sending comes back when your new month starts.
 
 **Q: What happens when I hit my allowance?**
 A: We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up
@@ -583,9 +592,11 @@ A: For now, yes — your card is charged in USD and your bank converts it. CAD b
 coming; until it's real, we won't pretend otherwise.
 
 **Q: What am I not getting at these prices?**
-A: Loonext is a shared texting inbox — it doesn't do voice calls, mass text blasts, or review
-management. If you need those, a bigger platform might fit better; our comparison pages say so
-honestly.
+A: Loonext is a shared texting inbox — it doesn't do mass text blasts or review management, and
+there's no phone dialer in the app (an $8/mo add-on forwards calls on your business number to a
+phone you choose and texts back the ones you miss, but you make and take the calls on that
+phone). If you need blasts, reviews, or full call handling, a bigger platform might fit better;
+our comparison pages say so honestly.
 
 ## Final CTA
 
@@ -696,19 +707,21 @@ pings, push notifications are per-person, so only the on-call tech gets buzzed.
   ran long" — right in the thread, marked internal.
 - **Works from the crawlspace.** Any phone, no app to install, one-handed. Dark mode for the
   6am starts.
-- **The rules, handled.** STOP opt-outs enforced automatically, your business name added to
-  first texts, and we register your business with the phone companies for you at signup.
+- **The rules, handled.** STOP opt-outs enforced automatically, consent recorded when you
+  start a conversation, and we register your business with the phone companies for you at
+  signup.
 
 ## Pricing snippet
 
 **H2:** $29 a month. The whole crew.
 
 **Body:** Starter covers 3 people, 1 local number, and 500 texts a month — that's roughly 20 to
-25 plain texts a working day, enough for most 2–3 person shops (photos count as three each, so a
-photo-heavy week goes faster; the composer shows the count as you type). Receiving is always
-free. Bigger crew? Pro is $79 for 10 people and 2 numbers. Month to month, 30-day money-back
-guarantee, and for US shops the only other cost is a one-time $29 to register with the phone
-companies — charged once, ever, so your first month is $58 and every month after is $29.
+25 plain texts a working day, enough for most 2–3 person shops (the composer shows the count as
+you type). Receiving texts and photos is always free; sending photos back is a $5/mo add-on
+with 150 picture messages included. Bigger crew? Pro is $79 for 10 people and 2 numbers. Month
+to month, 30-day money-back guarantee, and for US shops the only other cost is a one-time $29
+to register with the phone companies — charged once, ever, so your first month is $58 and every
+month after is $29.
 
 [See full pricing]
 
@@ -733,9 +746,9 @@ link.
 
 **Q: Do "on my way" texts eat up the 500?**
 A: Each plain on-my-way text counts as one, so 500 covers more than 20 plain texts every working
-day — the composer shows the count as you type. Photos count as three each, so a photo-heavy day
-adds up faster. Go over and it's 3¢ a text, with alerts and a spending cap so there are no
-surprise bills.
+day — the composer shows the count as you type. (If you add the picture-messages add-on, each
+photo you send counts as three, so a photo-heavy day adds up faster.) Go over and it's 3¢ a
+text, with alerts and a spending cap so there are no surprise bills.
 
 **Q: We're a licensed company — what do you need from us to register with the phone companies?**
 A: About two minutes of plain questions at signup: legal business name, address, and your EIN.
