@@ -17,7 +17,9 @@
  *          from PushSubscription.toJSON(); upsert on (user_id, endpoint) so a
  *          browser re-subscribe refreshes rotated keys. Subscriptions are
  *          per-user (§6: no company column) — the audience/prefs split
- *          happens at send time (§8).
+ *          happens at send time (§8). Capped per user (#30): a successful
+ *          subscribe silently evicts everything older than the newest
+ *          MAX_PUSH_SUBSCRIPTIONS_PER_USER rows.
  *   DELETE /v1/push-subscriptions/:id    caller's own subscription only.
  *
  *   --- D24 notifications read-model (lowest-upkeep: DERIVED, no feed table) ---
@@ -54,6 +56,17 @@ const prefsSchema = z.object({
   email_enabled: z.boolean(),
   push_enabled: z.boolean(),
 });
+
+/**
+ * #30 cap-and-drop: at most this many live push subscriptions per user. Each
+ * subscription row is one outbound Worker subrequest per notified inbound
+ * message (§8 fan-out), so an unbounded set is a paid-CPU / subrequest-budget
+ * burner and a small request-amplification primitive. A successful subscribe
+ * evicts everything older than the newest N (oldest first, silently) rather
+ * than 409ing — a browser re-subscribing after a long absence should always
+ * win, and the rows it displaces are the ones least likely to still be live.
+ */
+const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10;
 
 const subscriptionSchema = z.object({
   endpoint: z
@@ -159,6 +172,34 @@ notificationsRoutes.post(
         .select("id,endpoint,created_at"),
       "push subscription upsert",
     );
+
+    // #30 cap-and-drop: keep only the caller's newest N subscriptions. The
+    // newest-N read + delete-older-than-cutoff pair evicts ANY backlog in one
+    // bounded statement (self-healing for rows that predate the cap), and a
+    // re-subscribe upsert keeps its original created_at, so refreshing an old
+    // endpoint never evicts anything.
+    const userId = c.get("userId");
+    const newest = unwrap<{ created_at: string }[]>(
+      await db
+        .from("push_subscriptions")
+        .select("created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(MAX_PUSH_SUBSCRIPTIONS_PER_USER),
+      "push subscription cap lookup",
+    );
+    if (newest.length === MAX_PUSH_SUBSCRIPTIONS_PER_USER) {
+      unwrap<{ id: string }[]>(
+        await db
+          .from("push_subscriptions")
+          .delete()
+          .eq("user_id", userId)
+          .lt("created_at", newest[newest.length - 1].created_at)
+          .select("id"),
+        "push subscription cap eviction",
+      );
+    }
+
     return c.json(rows[0], 201);
   },
 );

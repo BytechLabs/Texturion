@@ -9,6 +9,8 @@
  *         (D15 — onboarding sends the browser's zone; DB default otherwise).
  *         Creates company + owner membership + pre-seeded pipeline tags +
  *         notification_prefs atomically (api_create_company SQL function).
+ *         Capped per user (#31): the RPC refuses a 6th owned workspace with
+ *         an { outcome: 'owner_cap' } sentinel, surfaced here as 409.
  *   GET   /v1/company    M   — company + plan/subscription/period/cap +
  *         numbers summary + registration summary.
  *   PATCH /v1/company    O/A — { name?, timezone? } (timezone IANA-validated,
@@ -144,6 +146,17 @@ companiesRoutes.post("/companies", async (c) => {
     }),
     "company create",
   );
+  // #31 abuse cap: api_create_company enforces a per-user owned-company
+  // ceiling under an advisory lock (migration 20260707160000) and reports the
+  // refusal as an { outcome: 'owner_cap', limit } sentinel instead of the
+  // company row — surface it as the SPEC §7 409 `conflict`.
+  if (company.outcome === "owner_cap") {
+    return errorResponse(
+      c,
+      "conflict",
+      `You already own ${String(company.limit)} workspaces — the most an account can create. Delete one you no longer use first.`,
+    );
+  }
   return c.json(company, 201);
 });
 

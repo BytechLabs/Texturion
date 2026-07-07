@@ -272,14 +272,53 @@ function interpretPortability(result: PortabilityResult): {
  * POST /v1/port-requests/check — owner/admin (§7). Portability check
  * (pre-payment allowed). No commitment, no DB write. Rejects toll-free /
  * non-US-CA with validation_failed.
+ *
+ * #32 hardening — every request is a live Telnyx API call, so the route now
+ * follows the guard pattern of its committing siblings: the same
+ * active-or-incomplete subscription statuses the create route accepts
+ * (onboarding checks stay allowed, a canceled/churned tenant is not a free
+ * portability oracle), plus a per-company rate limit on the reused
+ * VERIFY_RATE_LIMITER binding (3/60s) so a scripted tenant cannot burn the
+ * shared Telnyx account-level API budget.
  */
 portingRoutes.post("/check", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);
+  const db = getDb(env);
+  const companyId = c.get("companyId");
   const body = await parseJsonBody(c, checkBodySchema);
 
   const local = classifyNumber(body.phone_e164);
   if (!local.ok) {
     return errorResponse(c, "validation_failed", local.reason as string);
+  }
+
+  // #32 gate 1: same statuses the create route accepts (active, or the
+  // paid-first onboarding window while incomplete).
+  const company = await fetchCompany(db, companyId);
+  if (
+    company.subscription_status !== "active" &&
+    company.subscription_status !== "incomplete"
+  ) {
+    return errorResponse(
+      c,
+      "subscription_inactive",
+      "An active subscription is required to check whether a number can be transferred.",
+    );
+  }
+
+  // #32 gate 2: per-company rate limit (binding absent in local dev/tests →
+  // skipped, like every other VERIFY_RATE_LIMITER call site).
+  if (env.VERIFY_RATE_LIMITER) {
+    const { success } = await env.VERIFY_RATE_LIMITER.limit({
+      key: `port-check:${companyId}`,
+    });
+    if (!success) {
+      return errorResponse(
+        c,
+        "rate_limited",
+        "Too many portability checks. Wait a minute and try again.",
+      );
+    }
   }
 
   const result = await checkPortability(env, body.phone_e164);

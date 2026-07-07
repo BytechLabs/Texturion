@@ -42,6 +42,7 @@ import {
   type ConversationEventRow,
 } from "./core/events";
 import {
+  assertBodyWithinLimit,
   keysetFilter,
   orIlikeValue,
   parseCursor,
@@ -85,6 +86,15 @@ const patchSchema = z
 const IMPORT_MAX_ROWS = 2000;
 /** Chunk size for batched PostgREST calls during import. */
 const IMPORT_CHUNK = 200;
+/**
+ * #36 whole-request ceilings, checked from Content-Length BEFORE formData()
+ * buffers the body into Worker memory (SPEC §10 DoS posture — the
+ * attachments-route pattern). Each is the route's per-file text cap plus
+ * generous multipart overhead; the post-parse text-length checks remain the
+ * exact backstop for chunked requests that carry no Content-Length.
+ */
+const MAX_CSV_IMPORT_BODY_BYTES = 3 * 1024 * 1024; // 2 MB CSV + overhead
+const MAX_VCARD_IMPORT_BODY_BYTES = 6 * 1024 * 1024; // 5 MB .vcf + overhead
 
 /**
  * Reset the geocode cache (D25) when a contact's address is written, so the
@@ -462,6 +472,8 @@ contactsRoutes.post(
   "/contacts/import",
   requireRole("admin"),
   async (c) => {
+    // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
+    assertBodyWithinLimit(c, MAX_CSV_IMPORT_BODY_BYTES);
     let form: FormData;
     try {
       form = await c.req.raw.formData();
@@ -725,6 +737,8 @@ contactsRoutes.post(
   "/contacts/import-vcard",
   requireRole("admin"),
   async (c) => {
+    // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
+    assertBodyWithinLimit(c, MAX_VCARD_IMPORT_BODY_BYTES);
     let form: FormData;
     try {
       form = await c.req.raw.formData();

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registrationRoutes } from "./registration";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings } from "../env";
+import type { Bindings, RateLimiter } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   FakeRest,
@@ -24,11 +24,13 @@ const REGISTRATION_DEFAULTS = {
   data: {},
   rejection_reason: null,
   submission_count: 0,
+  reactivation_count: 0,
   submitted_at: null,
   approved_at: null,
   rejected_at: null,
   deactivated_at: null,
   otp_nudged_at: null,
+  otp_resend_count: 0,
 };
 
 const BRAND_BODY = {
@@ -100,6 +102,40 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     user_id: OWNER_ID,
     role: "owner",
     deactivated_at: null,
+  });
+  // Faithful double of bump_registration_otp_counter (#38 — the SQL itself is
+  // covered by supabase/tests/route_limits.test.sql): guarded increment of the
+  // brand row's lifetime OTP-resend budget, driven by the same FakeRest rows.
+  rest.rpc("bump_registration_otp_counter", (args) => {
+    const row = rest
+      .rows("messaging_registrations")
+      .find(
+        (r) =>
+          r.id === args.p_registration_id &&
+          r.company_id === args.p_company_id &&
+          r.kind === "brand",
+      );
+    if (!row || Number(row.otp_resend_count ?? 0) >= Number(args.p_cap)) {
+      return { allowed: false };
+    }
+    row.otp_resend_count = Number(row.otp_resend_count ?? 0) + 1;
+    return { allowed: true, count: row.otp_resend_count };
+  });
+  // Faithful double of bump_registration_counter (#40 — the SQL itself is
+  // covered by supabase/tests/registration_caps.test.sql): guarded increment
+  // of the campaign row's lifetime submission/reactivation budgets.
+  rest.rpc("bump_registration_counter", (args) => {
+    const counter = args.p_counter as string;
+    const row = rest
+      .rows("messaging_registrations")
+      .find(
+        (r) => r.id === args.p_row_id && r.company_id === args.p_company_id,
+      );
+    if (!row || Number(row[counter] ?? 0) >= Number(args.p_cap)) {
+      return { allowed: false };
+    }
+    row[counter] = Number(row[counter] ?? 0) + 1;
+    return { allowed: true, count: row[counter] };
   });
 
   const telnyx = new TelnyxMock();
@@ -346,6 +382,8 @@ describe("POST /v1/registration/submit", () => {
       kind: "campaign",
       data: CAMPAIGN_BODY,
     });
+    // #51: the brand-create path first checks for an adoptable orphan brand.
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     harness.telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
       data: { brandId: "brand-1" },
     }));
@@ -467,9 +505,78 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
     expect(res.status).toBe(409);
   });
 
-  it("resends the OTP (fresh PIN) via POST smsOtp", async () => {
+  it("resends the OTP (fresh PIN) via POST smsOtp and spends one unit of the lifetime budget (#38)", async () => {
     const harness = buildHarness();
     seedSoleProp(harness);
+    harness.telnyx.on(
+      "POST",
+      /^\/v2\/10dlc\/brand\/brand-sp\/smsOtp$/,
+      () => ({}),
+    );
+    const res = await harness.request("/v1/registration/otp/resend", {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    expect(harness.telnyx.callsTo("POST", /smsOtp$/)).toHaveLength(1);
+    const brand = harness.rest
+      .rows("messaging_registrations")
+      .find((row) => row.kind === "brand");
+    expect(brand?.otp_resend_count).toBe(1);
+  });
+
+  it("#38: 409s the resend once the lifetime budget is spent — Telnyx is never called", async () => {
+    const harness = buildHarness();
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "brand",
+      status: "submitted",
+      sole_proprietor: true,
+      telnyx_id: "brand-sp",
+      data: SOLE_PROP_BODY,
+      otp_resend_count: 10, // MAX_OTP_RESENDS already consumed
+    });
+    const res = await harness.request("/v1/registration/otp/resend", {
+      method: "POST",
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("conflict");
+    expect(harness.telnyx.calls).toHaveLength(0);
+  });
+
+  it("#38: 429s a rate-limited resend keyed on the OTP target mobile, burning no budget", async () => {
+    const harness = buildHarness();
+    seedSoleProp(harness);
+    const limiter: RateLimiter & { limit: ReturnType<typeof vi.fn> } = {
+      limit: vi.fn(async (_options: { key: string }) => ({ success: false })),
+    };
+    harness.env.VERIFY_RATE_LIMITER = limiter;
+
+    const res = await harness.request("/v1/registration/otp/resend", {
+      method: "POST",
+    });
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("rate_limited");
+    // Keyed on the sole-prop mobile the PIN is delivered to (SOLE_PROP_BODY),
+    // never the brand/company id — cancel-and-recreate can't reset it.
+    expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
+      key: "brand-otp-resend:+12125550111",
+    });
+    // A 429'd request never burns the durable budget or reaches Telnyx.
+    const brand = harness.rest
+      .rows("messaging_registrations")
+      .find((row) => row.kind === "brand");
+    expect(brand?.otp_resend_count).toBe(0);
+    expect(harness.telnyx.calls).toHaveLength(0);
+  });
+
+  it("#38: an allowed resend passes the rate limiter through to Telnyx", async () => {
+    const harness = buildHarness();
+    seedSoleProp(harness);
+    harness.env.VERIFY_RATE_LIMITER = {
+      limit: async () => ({ success: true }),
+    };
     harness.telnyx.on(
       "POST",
       /^\/v2\/10dlc\/brand\/brand-sp\/smsOtp$/,
@@ -610,6 +717,8 @@ describe("POST /v1/registration/enable-us", () => {
     });
     harness.state.role = "owner";
     seedCompleteWizard(harness);
+    // #51: the brand-create path first checks for an adoptable orphan brand.
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     harness.telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
       data: { brandId: "brand-1" },
     }));

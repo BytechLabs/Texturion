@@ -201,6 +201,10 @@ describe("POST /v1/push-subscriptions", () => {
         { status: 201 },
       ),
     );
+    // #30 cap lookup: well under the cap → no eviction.
+    sb.on("GET", "/rest/v1/push_subscriptions", () => [
+      { created_at: "2026-07-01T12:00:00+00:00" },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const body = await subscriptionBody();
@@ -232,6 +236,85 @@ describe("POST /v1/push-subscriptions", () => {
       auth: body.keys.auth,
       user_agent: "TestBrowser/1.0",
     });
+
+    // #30: under the cap, nothing is evicted.
+    expect(sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(0);
+  });
+
+  it("#30 cap-and-drop: a subscribe at the cap evicts everything older than the newest 10", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/push_subscriptions", () =>
+      Response.json(
+        [
+          {
+            id: SUB_ID,
+            endpoint: "https://push.example.net/send/device-new",
+            created_at: "2026-07-07T12:00:00+00:00",
+          },
+        ],
+        { status: 201 },
+      ),
+    );
+    // The cap lookup returns a FULL page of 10 (newest-first): the 10th row's
+    // created_at is the eviction cutoff.
+    sb.on("GET", "/rest/v1/push_subscriptions", () =>
+      Array.from({ length: 10 }, (_, i) => ({
+        created_at: `2026-07-07T${String(23 - i).padStart(2, "0")}:00:00+00:00`,
+      })),
+    );
+    sb.on("DELETE", "/rest/v1/push_subscriptions", () => [
+      { id: "dddddddd-1111-4222-8333-444444444444" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/push-subscriptions",
+      { method: "POST", companyId: COMPANY_ID, body: await subscriptionBody() },
+    );
+    expect(res.status).toBe(201);
+
+    // Cap lookup: caller-scoped, newest-first, limited to the cap.
+    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
+    expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
+    expect(lookup.url.searchParams.get("limit")).toBe("10");
+
+    // Eviction: caller-scoped delete of everything OLDER than the 10th-newest
+    // row (oldest first goes; the newest 10 survive).
+    const del = sb.find("DELETE", "/rest/v1/push_subscriptions")[0];
+    expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
+    expect(del.url.searchParams.get("created_at")).toBe(
+      "lt.2026-07-07T14:00:00+00:00",
+    );
+  });
+
+  it("#30: a partial page (under the cap) never issues an eviction", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/push_subscriptions", () =>
+      Response.json(
+        [{ id: SUB_ID, endpoint: "https://p.example.net/x", created_at: "2026-07-07T12:00:00+00:00" }],
+        { status: 201 },
+      ),
+    );
+    sb.on("GET", "/rest/v1/push_subscriptions", () =>
+      Array.from({ length: 9 }, () => ({
+        created_at: "2026-07-01T00:00:00+00:00",
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/push-subscriptions",
+      { method: "POST", companyId: COMPANY_ID, body: await subscriptionBody() },
+    );
+    expect(res.status).toBe(201);
+    expect(sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(0);
   });
 
   it("422s non-https endpoints and keys that could never be encrypted to", async () => {

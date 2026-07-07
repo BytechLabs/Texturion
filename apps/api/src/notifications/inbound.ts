@@ -186,11 +186,16 @@ export async function notifyInboundMessage(
   // WEB PUSH — payload consumed by the apps/web service worker (§8: contact
   // display name + 80-char snippet + deep link).
   if (pushUsers.length > 0) {
+    // #30 defensive bound: POST /v1/push-subscriptions caps each user at 10
+    // live rows, but a bad table state must never unbound webhook processing —
+    // newest 50 across the audience is far above any legitimate team's devices.
     const subscriptions = unwrapRows<SubscriptionRow>(
       await db
         .from("push_subscriptions")
         .select("id,user_id,endpoint,p256dh,auth")
-        .in("user_id", pushUsers),
+        .in("user_id", pushUsers)
+        .order("created_at", { ascending: false })
+        .limit(50),
       "push subscriptions lookup",
     );
     const payload = JSON.stringify({

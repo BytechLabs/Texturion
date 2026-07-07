@@ -185,6 +185,25 @@ describe("POST /v1/companies (company-exempt)", () => {
     }
   });
 
+  it("409s when the RPC reports the per-user owner cap (#31)", async () => {
+    const sb = supabaseStub(env);
+    // Migration 20260707160000: api_create_company refuses a 6th owned
+    // workspace with an { outcome: 'owner_cap', limit } sentinel.
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({
+      outcome: "owner_cap",
+      limit: 5,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212" },
+    });
+    expect(res.status).toBe(409);
+    expect(await errorCodeOf(res)).toBe("conflict");
+  });
+
   it("422s when a US company tries us_texting_enabled=false", async () => {
     stubFetch(jwksRoute(auth), supabaseStub(env).route);
     const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {

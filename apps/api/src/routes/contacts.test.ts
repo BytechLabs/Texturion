@@ -529,6 +529,33 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
     expect(noPhone.status).toBe(422);
   });
+
+  it("#36: rejects an oversized declared Content-Length BEFORE buffering the body", async () => {
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        // The declared size alone triggers the refusal — the (tiny) body is
+        // never read, so no multipart parsing and no Supabase traffic happen.
+        rawBody: "x",
+        headers: {
+          "Content-Length": String(4 * 1024 * 1024), // over the 3 MB ceiling
+          "Content-Type": "multipart/form-data; boundary=b",
+        },
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("validation_failed");
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
 });
 
 describe("opt-out mark/revoke (SPEC §5)", () => {
@@ -911,6 +938,31 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm("not a vcard") },
     );
     expect(res.status).toBe(422);
+  });
+
+  it("#36: rejects an oversized declared Content-Length BEFORE buffering the body", async () => {
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: "x",
+        headers: {
+          "Content-Length": String(7 * 1024 * 1024), // over the 6 MB ceiling
+          "Content-Type": "multipart/form-data; boundary=b",
+        },
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("validation_failed");
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 });
 

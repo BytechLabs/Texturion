@@ -235,6 +235,63 @@ describe("POST /v1/port-requests/check", () => {
     );
     expect(res.status).toBe(403);
   });
+
+  it("#32: 402s a canceled company — no free Telnyx portability oracle", async () => {
+    const harness = buildHarness({ subscription_status: "canceled" });
+    const res = await harness.request(
+      "/v1/port-requests/check",
+      jsonInit("POST", { phone_e164: PORT_E164 }),
+    );
+    expect(res.status).toBe(402);
+    expect((await res.json()) as unknown).toMatchObject({
+      error: { code: "subscription_inactive" },
+    });
+    expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(0);
+  });
+
+  it("#32: the paid-first onboarding window (incomplete) may still check", async () => {
+    const harness = buildHarness({ subscription_status: "incomplete" });
+    const res = await harness.request(
+      "/v1/port-requests/check",
+      jsonInit("POST", { phone_e164: PORT_E164 }),
+    );
+    expect(res.status).toBe(200);
+    expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(1);
+  });
+
+  it("#32: 429s a rate-limited check keyed per company — Telnyx is never called", async () => {
+    const harness = buildHarness();
+    const limit = vi.fn(async (_options: { key: string }) => ({
+      success: false,
+    }));
+    harness.env.VERIFY_RATE_LIMITER = { limit };
+
+    const res = await harness.request(
+      "/v1/port-requests/check",
+      jsonInit("POST", { phone_e164: PORT_E164 }),
+    );
+    expect(res.status).toBe(429);
+    expect((await res.json()) as unknown).toMatchObject({
+      error: { code: "rate_limited" },
+    });
+    expect(limit).toHaveBeenCalledExactlyOnceWith({
+      key: `port-check:${COMPANY_ID}`,
+    });
+    expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(0);
+  });
+
+  it("#32: an allowed check passes the rate limiter through to Telnyx", async () => {
+    const harness = buildHarness();
+    harness.env.VERIFY_RATE_LIMITER = {
+      limit: async () => ({ success: true }),
+    };
+    const res = await harness.request(
+      "/v1/port-requests/check",
+      jsonInit("POST", { phone_e164: PORT_E164 }),
+    );
+    expect(res.status).toBe(200);
+    expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

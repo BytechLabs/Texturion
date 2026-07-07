@@ -14,7 +14,7 @@ import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { parseJsonBody } from "./core/http";
+import { parseJsonBody, parseWith } from "./core/http";
 import { TelnyxApiError } from "../telnyx/client";
 import {
   fetchRegistrationRows,
@@ -292,11 +292,72 @@ registrationRoutes.post("/otp", requireRole("admin"), async (c) => {
   return c.json(await registrationResponse(db, companyId, c.get("role")));
 });
 
-/** POST /v1/registration/otp/resend — owner/admin: fresh PIN, new 24h window. */
+/**
+ * #38 lifetime resend ceiling per brand row. Each resend is a Telnyx-committing
+ * SMS PIN delivery to the registered sole-prop mobile — the same class of
+ * action the text-enablement track caps at 10 sends per order. Consumed via
+ * bump_registration_otp_counter (guarded UPDATE ... RETURNING, race-safe)
+ * AFTER the rate limiter (a 429'd request never burns budget) and BEFORE the
+ * Telnyx call (fail-closed: a Telnyx failure still counts).
+ */
+const MAX_OTP_RESENDS = 10;
+
+/**
+ * POST /v1/registration/otp/resend — owner/admin: fresh PIN, new 24h window.
+ * Bounded twice (#38, mirroring the text-enablement verification posture):
+ * VERIFY_RATE_LIMITER (3/60s) keyed on the OTP TARGET mobile bounds the rate
+ * — a wizard edit changing the number can never reset it faster than the
+ * window — and the durable per-brand lifetime counter bounds the total.
+ */
 registrationRoutes.post("/otp/resend", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
-  const brand = await requireSolePropBrand(db, c.get("companyId"));
+  const companyId = c.get("companyId");
+  const brand = await requireSolePropBrand(db, companyId);
+
+  // RATE: reuse the VERIFY_RATE_LIMITER binding (absent in local dev/tests →
+  // gate skipped, exactly like the text-enablement call sites). Keyed on the
+  // sole-prop mobile the PIN is delivered to; brand row id as the backstop
+  // key when the draft somehow lacks one.
+  if (env.VERIFY_RATE_LIMITER) {
+    const mobile = brand.data.mobilePhone;
+    const target =
+      typeof mobile === "string" && mobile.length > 0 ? mobile : brand.id;
+    const { success } = await env.VERIFY_RATE_LIMITER.limit({
+      key: `brand-otp-resend:${target}`,
+    });
+    if (!success) {
+      return errorResponse(
+        c,
+        "rate_limited",
+        "Too many verification codes requested. Wait a minute and try again.",
+      );
+    }
+  }
+
+  // LIFETIME: one unit of the brand row's durable resend budget, spent before
+  // Telnyx is called.
+  const { data: budget, error: budgetError } = await db.rpc(
+    "bump_registration_otp_counter",
+    {
+      p_registration_id: brand.id,
+      p_company_id: companyId,
+      p_cap: MAX_OTP_RESENDS,
+    },
+  );
+  if (budgetError) {
+    throw new Error(
+      `bump_registration_otp_counter failed: ${budgetError.message}`,
+    );
+  }
+  const allowed = parseWith(z.object({ allowed: z.boolean() }), budget).allowed;
+  if (!allowed) {
+    return errorResponse(
+      c,
+      "conflict",
+      "This brand has reached its verification-code limit. Contact support to finish verification.",
+    );
+  }
 
   try {
     await triggerBrandOtp(env, brand.telnyx_id as string);
