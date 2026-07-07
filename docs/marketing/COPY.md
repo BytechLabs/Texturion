@@ -286,9 +286,9 @@ homework packet. Loonext just does it.
   and Loonext blocks any future send to that number until they opt back in. No accidents.
 - **Consent, on the record.** Starting a new conversation asks one question: did this customer
   ask you to text them? That answer is recorded, with a name and a date.
-- **Your business, identified.** The first text to a new contact automatically ends with your
-  business name and "Reply STOP to opt out" — what US and Canadian rules expect, written for
-  you.
+- **Opt-outs honored, however they're said.** The rules count "please stop texting me" the
+  same as STOP — so one click marks a customer opted out, and Loonext blocks every send to
+  that number until they ask back in.
 
 **Closer:** Loonext helps you follow the rules — TCPA in the US, CASL in Canada — without
 becoming a compliance department. And if you *start* a new conversation late at night, we'll

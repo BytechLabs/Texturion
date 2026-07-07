@@ -121,9 +121,8 @@ Implemented as CSS variables in `globals.css` (shadcn/ui convention, light + dar
 - New outbound conversation (compose flow): recipient field (searches contacts, accepts raw
   number with live E.164 formatting), consent checkbox ("This customer asked us to text
   them") required for new contacts, quiet-hours dialog when applicable ("It's 9:14 PM for
-  this customer. Send anyway?" Send / Wait), first-message footer preview shown under the
-  composer ("— Mike's Plumbing. Reply STOP to opt out" in `stone-400`, labeled "Added to
-  your first message to this contact").
+  this customer. Send anyway?" Send / Wait). No footer preview — the enforced first-message
+  footer was removed (DECISIONS D4 reversal, 2026-07); messages send exactly as typed.
 
 ## G6. Contact panel / contacts
 
@@ -145,7 +144,7 @@ back always available, state persisted server-side (resumable). Flow:
 1. **Account** (`/signup`): email+password or magic link; then company name.
 2. **"Where do your customers text you?"** — country (US/CA) + area code picker (type a
    city or code; shows "(416) — Toronto" style hints from the NANP table).
-3. **Business identity** (feeds the SMS footer + registration): legal/business name,
+3. **Business identity** (feeds carrier registration): legal/business name,
    address, website (optional), "Do you have an EIN/Business Number?" → yes (enter it) /
    no ("No problem — we'll register you as a sole proprietor", last-4 SSN/SIN + mobile for
    verification). Every field has a one-line plain-English "why we ask" hint. AUP checkbox.
@@ -173,7 +172,7 @@ swaps to a green "You're live — US texting is on" toast + email already sent s
 ## G8. Settings
 
 Left-nav settings layout (mobile: stacked list → detail pages). Sections:
-- **Workspace:** company name, business identification (footer preview updates live),
+- **Workspace:** company name, business identification (used for carrier registration),
   timezone display.
 - **Team:** member rows (avatar, name, role select, deactivate), invite by email + role,
   pending invites with expiry + revoke, seat usage line ("3 of 3 seats — upgrade for more").

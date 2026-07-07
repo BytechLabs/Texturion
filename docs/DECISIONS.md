@@ -73,6 +73,13 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
   Replies are exempt. No hard block.
 - **First outbound-first message to a contact** auto-appends: `— {Business name}. Reply STOP
   to opt out` (CASL identification + CTIA). Replies to inbound are not decorated.
+  - **REVERSED (2026-07, owner direction):** the enforced auto-append is removed — no message
+    carries the identification/opt-out footer anymore, and the composer shows no footer
+    preview. `contacts.first_identification_sent_at` is no longer written (the column stays;
+    dropping it is a destructive migration for zero gain). **The compliance trade-off was
+    accepted knowingly:** first messages are no longer guaranteed to carry
+    identification/opt-out text, which can weaken 10DLC standing and invite carrier
+    filtering. Inbound STOP honoring and opt-out send-blocking (D3) are unchanged.
 - Signup requires accepting an acceptable-use policy (no SHAFT content, no purchased lists).
 
 ## D5. Pricing & packaging
@@ -952,22 +959,27 @@ keys, deterministic in CI.
   (verify → ledger → ack → `waitUntil` exercised end to end), D13 (tests land with the step), and the
   minimal-upkeep rule (no new vendor, no live keys in CI, no browser-farm dependency).
 
-## D32. One-tap review ask removed — reviews ride templates (amends FEATURE-GAPS Step 2 / Step 3)
+## D32. Reviews feature removed entirely — no review surface remains (amends FEATURE-GAPS Step 2 / Step 3)
 
-- **Removed** (owner direction, issue #2): the thread-header Star, the ⌘K "Send review request"
-  action, `POST /v1/conversations/:id/review-request`, and the `claim_review_request` RPC
-  (dropped in `20260704060000_drop_claim_review_request.sql`). The dedicated one-tap ask was a
-  second send path with its own suppression/quiet-hours plumbing for something a saved template
+- **First removal** (owner direction, issue #2): the thread-header Star, the ⌘K "Send review
+  request" action, `POST /v1/conversations/:id/review-request`, and the `claim_review_request`
+  RPC (dropped in `20260704060000_drop_claim_review_request.sql`). The dedicated one-tap ask was
+  a second send path with its own suppression/quiet-hours plumbing for something a saved template
   already does.
-- **What replaces it:** owners save a review template (the Reviews settings page now shows the
-  suggested body) — `{review_link}` still merges server-side from `companies.google_review_link`
-  on every ordinary send (compose / reply / away-reply). The column, its Settings editor, the
-  merge field, and the 10DLC campaign's registered review-sample content (sample3,
-  `embeddedLink=true`) all **stay** — the number still emits review URLs, so the carrier
-  registration must keep declaring them.
+- **Full removal** (owner direction: "remove the Reviews section completely, we don't need
+  that"): the Reviews **Settings page + nav entry**, the **`companies.google_review_link`**
+  column (dropped in `20260705010000_drop_google_review_link.sql`), and the **`{review_link}`**
+  merge token — gone from `@loonext/shared` `MERGE_FIELD_TOKENS` and from every send path
+  (compose / reply / away-reply / missed-call). No review-specific surface remains anywhere in
+  the product; an owner who wants to ask for a review pastes their link into an ordinary message
+  or saved template like any other text.
 - **Kept as history:** the `review_requested` conversation_event enum value (Postgres enum values
   are irremovable) and any historic rows; the web timeline renders unnarrated event types as
   nothing (SystemLine returns null) instead of a blank line.
-- **Consequence:** one-per-job suppression and the review-specific quiet-hours interplay are gone
-  with the endpoint; a review ask is now an ordinary message subject to the ordinary compose
-  gates.
+- **Left in place, deliberately:** the 10DLC campaign's registered review-sample content
+  (`wizard.ts` sample3, `embeddedLink=true`). Over-declaring content the number no longer
+  auto-sends is harmless to carriers and avoids re-vetting an approved campaign — a number that
+  merely *can* carry a link an owner types is not emitting undeclared content.
+- **Consequence:** one-per-job suppression and the review-specific quiet-hours interplay went
+  with the first removal; nothing review-shaped is left — a link an owner types is an ordinary
+  message subject to the ordinary compose gates.

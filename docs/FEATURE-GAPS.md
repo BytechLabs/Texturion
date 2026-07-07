@@ -244,6 +244,12 @@ stops after-hours churn — *if* the copy is the owner's, not ours.
 
 ### 3. Review-request link (one-tap Google review — **manual only, by design**)
 
+> **SUPERSEDED — the Reviews feature was removed entirely (see DECISIONS D32).** The
+> one-tap ask went first (issue #2); the owner then cut the whole surface ("remove the
+> Reviews section completely, we don't need that"). The Settings page, nav entry,
+> `companies.google_review_link` column, and the `{review_link}` merge token are all gone.
+> The rationale below is kept as history of why it was built.
+
 **What it is:** "One tap on a finished job texts the customer our Google review link —
 'Thanks for choosing us! A quick review means a lot: {link}.'"
 
@@ -327,7 +333,7 @@ Telnyx's native `send_at`. **Compliance:** single-recipient only, NOT broadcast 
 excludes bulk). A scheduled *new* outbound re-runs consent + quiet-hours **and re-checks
 the opt-out mirror at send time** (state may have changed between schedule and fire).
 
-### 6. Template merge-fields (`{first_name}`, `{business_name}`, `{review_link}`) — **FAST-FOLLOW (pulled into BUILD-NOW Step 0)**
+### 6. Template merge-fields (`{first_name}`, `{business_name}`, `{review_link}` *(removed — see DECISIONS D32)*) — **FAST-FOLLOW (pulled into BUILD-NOW Step 0)**
 Today `templates` store only `{name, body}` with no substitution, so every "Hi {first
 name}" is hand-edited on the most frequent action. **Build:** simple token substitution
 over data already loaded (contact + company). It's a **dependency of #3** (the review
@@ -411,8 +417,8 @@ last. MCTB's *only* real dependency is the Step-0b guard.
   (both Telnyx-native). Nothing else adopts until the owner's advertised number is ours.
   State the ~1–4 week port timeline + forward-during-port bridge in the product copy.
 - **0a. Merge-field substitution** in the composer/send path (`{first_name}`,
-  `{business_name}`, `{review_link}`). Small; unblocks #3's body. *(Fast-follow #6, pulled
-  forward.)*
+  `{business_name}`, `{review_link}` *(removed — see DECISIONS D32)*). Small; unblocks #3's
+  body. *(Fast-follow #6, pulled forward.)*
 - **0b. Auto-send guard** — one helper every auto-message routes through. It sends only if:
   - the contact is **not on the opt-out mirror** (mirror captures **any-reasonable-method**
     opt-outs — informal "stop texting me," email, call — not only the Telnyx STOP keyword);
@@ -460,7 +466,9 @@ last. MCTB's *only* real dependency is the Step-0b guard.
 - No-answer timeout tuned so MCTB still fires on carrier-voicemail (AMD). **Ship 2 before 2b**
   so text-back value is live before telephony plumbing. **No IVR/PBX.**
 
-**Step 3 — Review-request link (#3)**
+**Step 3 — Review-request link (#3)** — **REMOVED, see DECISIONS D32.** Shipped, then cut
+entirely (Settings page, `companies.google_review_link` column, and `{review_link}` token all
+gone). Kept here as the historical build plan:
 - Store `google_review_link` in settings; add the **manual one-tap "Ask for a review"**
   action → send saved message with `{review_link}`.
 - Enforce the **non-goal**: one ask per job, auto-suppress on reply/click, never automated.

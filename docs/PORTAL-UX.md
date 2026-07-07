@@ -60,7 +60,7 @@ A **calm, always-labeled left sidebar** (232px, white, single hairline right bor
 - **⌘K command palette** (grafted from `command`) — the real navigator. Opens over any screen. Fuses:
   - **Search** (default): conversations, contacts, tasks, templates, settings.
   - **Go to** group: `G F` For you, `G I` Inbox, `G T` Tasks, `G C` Contacts.
-  - **Context actions** when an object is focused: a chip reads `Dana Whitfield · actions apply to this conversation`, and rows run `Assign… A`, `Mark done E`, `Make a task T`, `Send template`, `Change status`, `Send review request`. Accelerator letters are **printed in the row** so the keyboard model teaches itself.
+  - **Context actions** when an object is focused: a chip reads `Dana Whitfield · actions apply to this conversation`, and rows run `Assign… A`, `Mark done E`, `Make a task T`, `Send template`, `Change status`. Accelerator letters are **printed in the row** so the keyboard model teaches itself.
 - **Search glyph** sits in each context-column header and opens the same palette in search mode (`/` focuses it).
 - **Notifications** — the bell in the member tile drives Web Push; a notifications view lives in ⌘K and Settings.
 
@@ -85,7 +85,7 @@ Every keyboard action is **also reachable by click** (rail, row-hover actions, t
 | Feature | Home | Notes |
 |---|---|---|
 | **Conversation inbox** (new/open/waiting/closed, spam, tags, assignment, unread) | `Inbox` destination → context column | Statuses = `Open · Waiting · Closed` segmented control + `Spam` filter. Tags, assignee chip, unread petrol dot render inline on each row. |
-| **For-you focus queue** | `For you` destination (default landing) | Renders `api_for_you`: **Triage** (unassigned leads to dispatch), **Waiting on you** (your open/waiting, urgency-sorted), **My tasks** (overdue/soon). Missed-call text-backs and review-ready jobs appear as typed cards inline. |
+| **For-you focus queue** | `For you` destination (default landing) | Renders `api_for_you`: **Triage** (unassigned leads to dispatch), **Waiting on you** (your open/waiting, urgency-sorted), **My tasks** (overdue/soon). Missed-call text-backs appear as typed cards inline. |
 | **Message thread** (SMS+MMS, notes, mark message Done, promote-to-Task, attachments) | Stage column when a conversation is open | Bubbles, delivery receipts, day divider, amber internal notes, inline task/stage events, per-message Done + promote actions. |
 | **Tasks** (list + board + calendar + map, detail: title/assignee/due, discussion) | `Tasks` destination | View switch in the Tasks header. Task detail opens as a **drawer** over the list (also `?task=` deep-link). Surfaced in For-You as `my_tasks` and via promote-to-task. Back-links to source conversation. |
 | **Contacts** (list, detail, import/export) | `Contacts` destination | Detail carries history + tags; reachable from a thread header's person icon. CSV import/export. |
@@ -96,7 +96,6 @@ Every keyboard action is **also reachable by click** (rail, row-hover actions, t
 | **Global search + ⌘K** | The ⌘K palette + per-column search glyph | Search-first; context actions when an object is focused. |
 | **Missed-call text-back** | Inbox/For-You **typed card** + toggle under Numbers | A real tagged conversation (`Missed call` tag, `Auto:` outbound prefix). |
 | **After-hours auto-reply** | Rule under Numbers/Settings | Posts a system reply into the thread. |
-| **One-tap review-request link** | Composer action + thread-header star + a `review-ready` For-You card | Also a ⌘K command. |
 
 **Nothing is orphaned:** every feature is a sidebar destination, a Settings section, a thread/composer action, or a typed card in the For-You batch.
 
@@ -113,7 +112,6 @@ The differentiating surface. A **single scrollable stage** of typed cards, group
   1. **Triage** — unassigned new leads + unassigned tasks to dispatch (owner/lead only). Each card: avatar, name, one-line preview, the reason chip (`New lead`, `Missed call`), and inline `Assign ▾ / Reply / Done`.
   2. **Waiting on you** — your assigned open/waiting threads, **urgency-sorted**, with overdue-task and unread pinned to the top.
   3. **My tasks** — your overdue / due-soon tasks with the source-conversation back-link.
-  4. **Ready to send a review** — `review-ready` cards (one-tap review link).
 - **Why-it's-here transparency (grafted from `command`/`triage` best-idea):** every card shows the concrete signal that placed it — `overdue task`, `unread 2h`, `waiting 3h` — never a black-box score. This is what earns owner trust.
 - **Clear-one-at-a-time:** `J`/`K` move the focus ring; `R` opens the thread inline, `E` clears, `A` assigns, `T` makes a task. Clearing a card slides it out; the count in the sidebar pill decrements live.
 - **Empty state:** a calm centered mark + `You're all caught up. New leads will show up here.` — never a spinner-shaped void.
@@ -128,7 +126,7 @@ Three-pane: sidebar · conversation list · thread (+ optional drawer).
 - Day separators group the list. Missed-call text-back is a first-class row (`Missed call` tag).
 
 **Thread (stage column):**
-- **Header:** avatar, name + status pill, meta line (`(512) 555-0148 · Main line · Assigned to you`), and actions: promote-to-Task, assign, review-request star, overflow, and the petrol **Done** button. A drawer toggle (person/info icon) opens the context drawer.
+- **Header:** avatar, name + status pill, meta line (`(512) 555-0148 · Main line · Assigned to you`), and actions: promote-to-Task, assign, overflow, and the petrol **Done** button. A drawer toggle (person/info icon) opens the context drawer.
 - **Optional job spine (grafted from `jobs`, single-accent):** a slim, dismissible stage stepper under the header — `New lead · Quoted · Scheduled · In progress · Done` — where the current stage is petrol and the rest are neutral ink hairline dots. Advancing a stage = PATCH a pipeline tag. Off by default for solo crews; on for those who want pipeline visibility. **No rainbow** — one accent only.
 - **Stream:** inbound bubbles (white, hairline, top-left clipped), outbound bubbles (petrol), day divider, delivery receipts (`✓ Delivered · 2:44 PM · Joe`), MMS attachment tiles with caption, **amber internal notes** (`internal, not sent`, distinct from customer-visible), and inline **events**: `Joe made a task · Emergency water heater · due today 5 PM`, and the auto-lifted-fact event `Address saved to job from Dana's text — 214 Marlow St` (grafted from `jobs` — a *confirmed* one-tap event, never silent parsing). A promoted message carries a small `Task` chip in its meta (grafted from `command`).
 - **Composer:** `Reply · Note` tabs (Note tab tints amber), a focus-ringed box, tools (`Templates`, `Attach`, emoji), the petrol send button, and a footer line: `Sending as Main line · (512) 555-0193 · Reply R · Done E · Next J` — naming the number on the wire and teaching the keyboard loop.
