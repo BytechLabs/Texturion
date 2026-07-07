@@ -139,6 +139,28 @@ const ALLOWED_STATUS_TRANSITIONS: Record<PortStatus, PortStatus[]> = {
   cancelled: [],
 };
 
+/**
+ * #50 — the messaging track's guarded transition table, mirroring
+ * {@link ALLOWED_STATUS_TRANSITIONS}: Telnyx retries failed webhook
+ * deliveries for hours, so a stale `messaging_changed('exception')` (or
+ * 'pending'/'activating') can land AFTER messaging already ported. Without a
+ * guard that regressed `messaging_port_status` from the terminal 'ported',
+ * overwrote `rejection_reason`, and sent a spurious "texting is delayed"
+ * email for a live number. `ported` is terminal; forward skips are allowed
+ * (webhooks can coalesce states) but `exception` is customer-visible and only
+ * leaves on real progress (activating/ported), never back to pending.
+ */
+const ALLOWED_MESSAGING_TRANSITIONS: Record<
+  PortMessagingStatus,
+  PortMessagingStatus[]
+> = {
+  not_applicable: ["pending", "activating", "ported", "exception"],
+  pending: ["activating", "ported", "exception"],
+  activating: ["ported", "exception"],
+  ported: [],
+  exception: ["activating", "ported"],
+};
+
 // ---------------------------------------------------------------------------
 // Row shape (columns the saga/webhook read — mirrors the schema track's table)
 // ---------------------------------------------------------------------------
@@ -947,6 +969,8 @@ async function applyStatusTransition(
  * Apply a `messaging_port_status` transition with its P6 / exception side
  * effects. Messaging is a separate track with its own field; `ported` is what
  * unlocks Loonext texting. Idempotent (P6 no-ops on already-active rows).
+ * Guarded by {@link ALLOWED_MESSAGING_TRANSITIONS} (#50): a late/replayed
+ * webhook can never regress the track — in particular never un-port it.
  */
 async function applyMessagingTransition(
   env: Env,
@@ -958,6 +982,11 @@ async function applyMessagingTransition(
     // Same value — still run P6 if we somehow landed on `ported` without the
     // number being active yet (webhook/cron overlap recovery).
     if (next === "ported") return runP6Completion(env, db, row);
+    return row;
+  }
+  if (!ALLOWED_MESSAGING_TRANSITIONS[row.messaging_port_status].includes(next)) {
+    // Out-of-order / replayed delivery (#50) — harmless no-op, exactly like
+    // the voice track's guard.
     return row;
   }
 

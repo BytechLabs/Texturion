@@ -504,6 +504,115 @@ describe("handlePortingEvent — §5.1 transitions", () => {
     expect(emails.filter((e) => e.subject.includes("live on Loonext"))).toHaveLength(0);
   });
 
+  // #50: the messaging track's guarded transition table — Telnyx retries
+  // failed deliveries for hours, so stale messaging_changed values can land
+  // after messaging already ported. None of them may regress the terminal
+  // state, overwrite rejection_reason, or fire a spurious "delayed" email.
+  describe("#50 messaging_port_status transition guard", () => {
+    function messagingEvent(value: string) {
+      return {
+        data: {
+          event_type: "porting_order.messaging_changed",
+          payload: { id: ORDER_ID, messaging_port_status: value },
+        },
+      };
+    }
+
+    function setupPorted() {
+      const world = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "ported",
+        messaging_port_status: "ported",
+        ported_at: new Date().toISOString(),
+      });
+      // P6 already completed: the number is live.
+      world.rest.rows("phone_numbers")[0].status = "active";
+      world.rest.rows("phone_numbers")[0].number_e164 = PORT_E164;
+      return world;
+    }
+
+    it("a late/replayed 'exception' can never un-port messaging", async () => {
+      const { env, rest, emails } = setupPorted();
+
+      await handlePortingEvent(env, messagingEvent("exception"));
+
+      expect(portRow(rest).messaging_port_status).toBe("ported");
+      expect(portRow(rest).rejection_reason).toBeNull();
+      // No spurious "texting is taking longer" email for a live number.
+      expect(emails).toHaveLength(0);
+    });
+
+    it("late 'pending' / 'activating' replays after ported are no-ops", async () => {
+      const { env, rest, emails } = setupPorted();
+
+      await handlePortingEvent(env, messagingEvent("pending"));
+      expect(portRow(rest).messaging_port_status).toBe("ported");
+
+      await handlePortingEvent(env, messagingEvent("activating"));
+      expect(portRow(rest).messaging_port_status).toBe("ported");
+      expect(emails).toHaveLength(0);
+    });
+
+    it("exception → activating (real progress) is still allowed", async () => {
+      const { env, rest } = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "ported",
+        messaging_port_status: "exception",
+      });
+
+      await handlePortingEvent(env, messagingEvent("activating"));
+      expect(portRow(rest).messaging_port_status).toBe("activating");
+    });
+
+    it("a stale 'pending' cannot hide a customer-visible exception", async () => {
+      const { env, rest } = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "ported",
+        messaging_port_status: "exception",
+        rejection_reason: "Texting routing not yet released by the losing carrier; Telnyx is escalating.",
+      });
+
+      await handlePortingEvent(env, messagingEvent("pending"));
+      expect(portRow(rest).messaging_port_status).toBe("exception");
+      expect(portRow(rest).rejection_reason).toContain("not yet released");
+    });
+
+    it("'activating' cannot regress to 'pending'", async () => {
+      const { env, rest } = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "activation-in-progress",
+        messaging_port_status: "activating",
+      });
+
+      await handlePortingEvent(env, messagingEvent("pending"));
+      expect(portRow(rest).messaging_port_status).toBe("activating");
+    });
+
+    it("the reconcile cron rides the same guard (stale remote exception after ported)", async () => {
+      // A voice-ported row whose messaging is 'exception' stays in the §5.2
+      // work-set; a remote read still reporting a STALE regression value for
+      // an already-ported messaging track must not regress it. Here: local
+      // 'exception', remote 'pending' → guarded no-op.
+      const { env, rest, telnyx } = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "ported",
+        messaging_port_status: "exception",
+        updated_at: new Date(Date.now() - 3_600_000).toISOString(),
+      });
+      telnyx.on("GET", new RegExp(`^/v2/porting_orders/${ORDER_ID}$`), () => ({
+        data: {
+          id: ORDER_ID,
+          status: { value: "ported" },
+          messaging: { messaging_port_status: "pending" },
+        },
+      }));
+
+      const summary = await pollPortRequests(env);
+      expect(summary.messagingTransitioned).toBe(0);
+      expect(portRow(rest).messaging_port_status).toBe("exception");
+    });
+  });
+
   it("acks sharing_token_expired as a no-op (never fires for our ports)", async () => {
     const { env, rest } = setup({
       telnyx_porting_order_id: ORDER_ID,

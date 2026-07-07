@@ -54,6 +54,7 @@ export interface RegistrationRow {
   data: Record<string, unknown>;
   rejection_reason: string | null;
   submission_count: number;
+  reactivation_count: number;
   submitted_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
@@ -71,7 +72,8 @@ interface RegistrationCompany {
 
 const ROW_COLUMNS =
   "id,company_id,kind,status,sole_proprietor,telnyx_id,data,rejection_reason," +
-  "submission_count,submitted_at,approved_at,rejected_at,deactivated_at,otp_nudged_at";
+  "submission_count,reactivation_count,submitted_at,approved_at,rejected_at," +
+  "deactivated_at,otp_nudged_at";
 
 const COMPANY_COLUMNS =
   "id,name,country,us_texting_enabled,subscription_status";
@@ -394,6 +396,195 @@ async function applyTransition(
 // Submission (R1/R2 + rejected-resubmit + post-grace reactivation)
 // ---------------------------------------------------------------------------
 
+/**
+ * #40 lifetime cap on review-cycle campaign submissions (R2 first submit +
+ * rejected-resubmits). Every `POST /v2/10dlc/campaignBuilder` buys a fresh
+ * ~$15 vetting + upfront campaign fee; SPEC prices exactly ONE resubmission
+ * into the $29 registration fee (D5). 3 = the initial submission + the priced
+ * resubmission + one goodwill retry; after that it is a support conversation,
+ * never silent spend.
+ */
+export const MAX_CAMPAIGN_SUBMISSIONS = 3;
+
+/**
+ * #40: the §4.4 post-grace reactivation path gets its OWN small budget — a
+ * reactivation is driven by a paying resubscribe (not by carrier rejections),
+ * so it must not drain, nor be drained by, the review budget. Each one still
+ * re-buys the campaign fee chain, so it is capped too: 4 churn-and-return
+ * cycles is generous for a legitimate tenant and bounds a churn-loop abuser.
+ */
+export const MAX_CAMPAIGN_REACTIVATIONS = 4;
+
+/** Which lifetime budget a campaign submission consumes (#40). */
+type CampaignSubmitCause = "review" | "reactivation";
+
+/**
+ * Thrown by {@link submitCampaign} when the lifetime budget for `cause` is
+ * exhausted — BEFORE any Telnyx call. The message is customer-facing:
+ * `runSubmitRegistration` folds it into a noop reason, which
+ * `POST /v1/registration/submit` surfaces as the 409 body.
+ */
+export class CampaignSubmissionCapError extends Error {
+  constructor(cause: CampaignSubmitCause) {
+    super(
+      cause === "reactivation"
+        ? "This registration has been reactivated the maximum number of times — contact support and we'll restore US texting with you."
+        : "This registration has used all of its included carrier-review submissions — contact support and we'll finish it together.",
+    );
+    this.name = "CampaignSubmissionCapError";
+  }
+}
+
+/** Minimal local copy builder (same shape/tone as telnyx/emails.ts). */
+function capEmailCopy(
+  subject: string,
+  text: string,
+): { subject: string; text: string; html: string } {
+  const escaped = text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return {
+    subject,
+    text,
+    html: `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`,
+  };
+}
+
+/** #40 alert-BEFORE-the-cap: sent when exactly one budget unit remains. */
+function campaignCapApproachingCopy(
+  companyName: string,
+  cause: CampaignSubmitCause,
+  env: Env,
+): { subject: string; text: string; html: string } {
+  if (cause === "reactivation") {
+    return capEmailCopy(
+      "Heads up: one texting reactivation left",
+      `Hi,\n\nWe've resubmitted ${companyName}'s texting registration to US ` +
+        `carriers as part of reactivating your account. Heads up: your plan ` +
+        `includes one more automatic reactivation after this one — if you ` +
+        `need more, contact support and we'll sort it out together.\n\n` +
+        `Track it: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+    );
+  }
+  return capEmailCopy(
+    "Heads up: one carrier-review submission left",
+    `Hi,\n\n${companyName}'s texting registration is with US carrier review ` +
+      `again. Heads up: your registration fee includes one more automatic ` +
+      `resubmission after this one — if carriers reject it again after that, ` +
+      `we'll pause and finish it with you through support (no extra charges ` +
+      `without your say-so).\n\n` +
+      `Track it: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+  );
+}
+
+/** #40 terminal state: submissions paused, contact support — no silent spend. */
+function campaignCapReachedCopy(
+  companyName: string,
+  cause: CampaignSubmitCause,
+  env: Env,
+): { subject: string; text: string; html: string } {
+  const what =
+    cause === "reactivation"
+      ? "reactivations of your texting registration"
+      : "carrier-review submissions for your texting registration";
+  return capEmailCopy(
+    "Your US texting registration needs our help",
+    `Hi,\n\n${companyName} has used all of its included ${what}, so we've ` +
+      `paused automatic resubmissions — nothing further will be charged. ` +
+      `Please contact support and we'll get US texting finished together.\n\n` +
+      `Details: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+  );
+}
+
+/**
+ * One-shot "budget exhausted" owner notification (#40): stamp FIRST (the §11
+ * idempotency pattern — the route, the checkout webhook, and the sweeper can
+ * all hit the exhausted budget repeatedly), then email + Sentry.
+ */
+async function notifyCampaignCapReached(
+  env: Env,
+  db: SupabaseClient,
+  company: RegistrationCompany,
+  campaign: RegistrationRow,
+  cause: CampaignSubmitCause,
+): Promise<void> {
+  const stampKey =
+    cause === "reactivation"
+      ? "reactivationCapNotifiedAt"
+      : "submissionCapNotifiedAt";
+  if (typeof campaign.data[stampKey] === "string") return;
+  Sentry.captureMessage(
+    `10DLC campaign ${cause} budget exhausted for company ${company.id} — submissions paused ('contact support' surfaced)`,
+    "error",
+  );
+  await updateRow(db, campaign.id, {
+    data: { ...campaign.data, [stampKey]: new Date().toISOString() },
+  });
+  await sendOperationalEmail(
+    env,
+    db,
+    company.id,
+    campaignCapReachedCopy(company.name, cause, env),
+  );
+}
+
+/**
+ * Atomically consume one unit of the campaign's lifetime submission budget
+ * (#40) — BEFORE the Telnyx call, so the cost path fails closed and two
+ * concurrent submitters (checkout webhook + route + sweeper replay) can never
+ * race past the cap (`bump_registration_counter` is a single guarded
+ * `UPDATE ... WHERE counter < cap RETURNING`, mirroring
+ * `bump_text_enablement_counter` — the audit's model to copy).
+ *
+ * Fires the alert-BEFORE-the-cap owner email when exactly one unit remains,
+ * and the one-shot terminal notification + {@link CampaignSubmissionCapError}
+ * once the budget is spent.
+ */
+async function consumeCampaignSubmissionBudget(
+  env: Env,
+  db: SupabaseClient,
+  company: RegistrationCompany,
+  campaign: RegistrationRow,
+  cause: CampaignSubmitCause,
+): Promise<void> {
+  const counter =
+    cause === "reactivation" ? "reactivation_count" : "submission_count";
+  const cap =
+    cause === "reactivation"
+      ? MAX_CAMPAIGN_REACTIVATIONS
+      : MAX_CAMPAIGN_SUBMISSIONS;
+  const { data, error } = await db.rpc("bump_registration_counter", {
+    p_row_id: campaign.id,
+    p_company_id: campaign.company_id,
+    p_counter: counter,
+    p_cap: cap,
+  });
+  if (error) {
+    // Cost path fails closed: no budget confirmation, no Telnyx spend.
+    throw new Error(`bump_registration_counter failed: ${error.message}`);
+  }
+  const result = (data ?? {}) as { allowed?: boolean; count?: number };
+  if (result.allowed !== true) {
+    await notifyCampaignCapReached(env, db, company, campaign, cause);
+    throw new CampaignSubmissionCapError(cause);
+  }
+  if (result.count === cap - 1) {
+    // Alert BEFORE the cap (cost-protection mandate): one unit left after the
+    // submission this consumed. Counters are monotonic, so this fires once.
+    Sentry.captureMessage(
+      `10DLC campaign ${cause} budget nearly exhausted for company ${company.id} (${result.count}/${cap})`,
+      "warning",
+    );
+    await sendOperationalEmail(
+      env,
+      db,
+      company.id,
+      campaignCapApproachingCopy(company.name, cause, env),
+    );
+  }
+}
+
 /** Sole-prop OTP trigger/resend — `POST /v2/10dlc/brand/{brandId}/smsOtp`. */
 export async function triggerBrandOtp(
   env: Env,
@@ -441,7 +632,11 @@ export async function refreshBrandFromRemote(
 }
 
 function parseBrandDraft(row: RegistrationRow): BrandDraft | null {
-  const parsed = brandDraftSchema.safeParse(row.data);
+  // Stored brand data may also carry the #51 write-ahead marker; strip the
+  // internal bookkeeping so the strict wizard schema validates what matters
+  // (mirroring how parseCampaignDraft handles numberAssignments).
+  const { brandSubmitAttemptedAt: _marker, ...wizard } = row.data;
+  const parsed = brandDraftSchema.safeParse(wizard);
   return parsed.success ? parsed.data : null;
 }
 
@@ -453,6 +648,48 @@ function parseCampaignDraft(row: RegistrationRow): CampaignDraft | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * #51 crash-after-create recovery: when a previous brand-create attempt left
+ * its write-ahead marker but no local `telnyx_id`, the brand may exist at TCR
+ * already (each POST carries a real one-time carrier fee). List the account's
+ * brands filtered by displayName and adopt the one matching this draft's
+ * displayName + EIN that no local row has claimed — mirroring provisioning's
+ * `adoptOrphanNumber` (`customer_reference` orphan adoption). Returns null
+ * when there is nothing to adopt (the prior attempt never reached Telnyx);
+ * a listing failure propagates so the caller retries later instead of
+ * blind-POSTing a possible duplicate (cost paths fail closed).
+ */
+async function adoptOrphanBrand(
+  env: Env,
+  db: SupabaseClient,
+  draft: BrandDraft,
+): Promise<string | null> {
+  const response = (await telnyxRequest<Record<string, unknown>>(env, {
+    method: "GET",
+    path: "/v2/10dlc/brand",
+    query: { displayName: draft.displayName, recordsPerPage: "50" },
+  })) as Record<string, unknown> | undefined;
+  // The 10DLC list endpoints answer `{ records: [...] }`; tolerate `data` too
+  // (same defensiveness as unwrapTendlc).
+  const raw = response?.records ?? response?.data;
+  const records = Array.isArray(raw) ? raw : [];
+  for (const item of records) {
+    if (item === null || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const brandId =
+      typeof record.brandId === "string" && record.brandId.length > 0
+        ? record.brandId
+        : null;
+    if (!brandId) continue;
+    if (record.displayName !== draft.displayName) continue;
+    if (record.ein !== draft.ein) continue;
+    // Never steal a brand some other local row already tracks.
+    if (await findRowByTelnyxId(db, "brand", brandId)) continue;
+    return brandId;
+  }
+  return null;
+}
+
 async function submitBrand(
   env: Env,
   db: SupabaseClient,
@@ -461,6 +698,7 @@ async function submitBrand(
 ): Promise<RegistrationRow> {
   const payload = buildBrandPayload(env, draft);
   let telnyxId = row.telnyx_id;
+  let current = row;
   if (telnyxId) {
     // Rejected-resubmit against the SAME brand: updating re-triggers TCR
     // validation without buying a duplicate brand registration.
@@ -470,19 +708,42 @@ async function submitBrand(
       body: payload,
     });
   } else {
-    const response = unwrapTendlc(
-      await telnyxRequest(env, {
-        method: "POST",
-        path: "/v2/10dlc/brand",
-        body: payload,
-      }),
-    );
-    telnyxId = typeof response.brandId === "string" ? response.brandId : null;
-    if (!telnyxId) throw new Error("Telnyx brand create returned no brandId");
+    // #51: no local telnyx_id does NOT prove no brand exists at TCR — a
+    // previous attempt may have crashed between the paid POST and the row
+    // update (the write-ahead marker below records that window, but a wizard
+    // re-save replaces `data` and can drop it). So ALWAYS check for an
+    // adoptable orphan before buying: one cheap GET in front of a paid create.
+    telnyxId = await adoptOrphanBrand(env, db, draft);
+    if (telnyxId) {
+      Sentry.captureMessage(
+        `10DLC brand recovery: adopted orphan brand ${telnyxId} for company ${row.company_id} (a prior create attempt never persisted its id; write-ahead marker ${typeof current.data.brandSubmitAttemptedAt === "string" ? "present" : "absent"})`,
+        "warning",
+      );
+    }
+    if (!telnyxId) {
+      // Write-ahead intent (#51, mirroring provisioning's persist-order-id-
+      // first): stamp BEFORE the paid POST so a crash in the window is
+      // recoverable via the adoption path above, never a double purchase.
+      current = await updateRow(db, current.id, {
+        data: {
+          ...current.data,
+          brandSubmitAttemptedAt: new Date().toISOString(),
+        },
+      });
+      const response = unwrapTendlc(
+        await telnyxRequest(env, {
+          method: "POST",
+          path: "/v2/10dlc/brand",
+          body: payload,
+        }),
+      );
+      telnyxId = typeof response.brandId === "string" ? response.brandId : null;
+      if (!telnyxId) throw new Error("Telnyx brand create returned no brandId");
+    }
   }
 
   const soleProprietor = isSoleProprietorDraft(draft);
-  const updated = await updateRow(db, row.id, {
+  const updated = await updateRow(db, current.id, {
     status: "submitted",
     telnyx_id: telnyxId,
     sole_proprietor: soleProprietor,
@@ -510,13 +771,20 @@ async function submitBrand(
 async function submitCampaign(
   env: Env,
   db: SupabaseClient,
+  company: RegistrationCompany,
   brand: RegistrationRow,
   campaign: RegistrationRow,
   draft: CampaignDraft,
+  cause: CampaignSubmitCause,
 ): Promise<RegistrationRow> {
   if (!brand.telnyx_id) {
     throw new Error("cannot submit campaign: brand has no Telnyx id");
   }
+  // #40: consume the lifetime budget BEFORE the paid campaignBuilder POST
+  // (fail-closed; throws CampaignSubmissionCapError once spent). The guarded
+  // RPC is also what increments submission_count / reactivation_count — the
+  // updateRow below must not touch either counter.
+  await consumeCampaignSubmissionBudget(env, db, company, campaign, cause);
   const brandDraft = parseBrandDraft(brand);
   const response = unwrapTendlc(
     await telnyxRequest(env, {
@@ -546,7 +814,8 @@ async function submitCampaign(
     telnyx_id: campaignId,
     sole_proprietor: brand.sole_proprietor,
     submitted_at: new Date().toISOString(),
-    submission_count: campaign.submission_count + 1,
+    // submission_count / reactivation_count were already consumed atomically
+    // by bump_registration_counter above (#40) — never re-set them here.
     rejection_reason: null,
     rejected_at: null,
     approved_at: null,
@@ -575,7 +844,7 @@ async function submitCampaignIfReady(
     );
     return;
   }
-  await submitCampaign(env, db, brand, campaign, draft);
+  await submitCampaign(env, db, company, brand, campaign, draft, "review");
 }
 
 export type SubmitRegistrationResult =
@@ -642,8 +911,25 @@ async function runSubmitRegistration(
     if (!draft) {
       return { action: "noop", reason: "Campaign draft data is incomplete." };
     }
-    const updated = await submitCampaign(env, db, brand, campaign, draft);
-    return { action: "campaign_reactivated", brand, campaign: updated };
+    try {
+      const updated = await submitCampaign(
+        env,
+        db,
+        company,
+        brand,
+        campaign,
+        draft,
+        "reactivation",
+      );
+      return { action: "campaign_reactivated", brand, campaign: updated };
+    } catch (cause) {
+      // #40 terminal state: budget spent → 409 'contact support' via the
+      // route's noop mapping; the one-shot owner email already went out.
+      if (cause instanceof CampaignSubmissionCapError) {
+        return { action: "noop", reason: cause.message };
+      }
+      throw cause;
+    }
   }
 
   if (brand.status === "draft" || brand.status === "rejected") {
@@ -663,8 +949,23 @@ async function runSubmitRegistration(
     if (!draft) {
       return { action: "noop", reason: "Campaign draft data is incomplete." };
     }
-    const updated = await submitCampaign(env, db, brand, campaign, draft);
-    return { action: "campaign_submitted", brand, campaign: updated };
+    try {
+      const updated = await submitCampaign(
+        env,
+        db,
+        company,
+        brand,
+        campaign,
+        draft,
+        "review",
+      );
+      return { action: "campaign_submitted", brand, campaign: updated };
+    } catch (cause) {
+      if (cause instanceof CampaignSubmissionCapError) {
+        return { action: "noop", reason: cause.message };
+      }
+      throw cause;
+    }
   }
 
   return {

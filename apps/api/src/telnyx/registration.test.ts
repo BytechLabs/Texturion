@@ -4,6 +4,8 @@ import {
   deactivateCampaign,
   getSendGates,
   handle10dlcEvent,
+  MAX_CAMPAIGN_REACTIVATIONS,
+  MAX_CAMPAIGN_SUBMISSIONS,
   nudgeSoleProprietorOtp,
   pollRegistrations,
   retryCampaignAssignments,
@@ -33,6 +35,7 @@ const REGISTRATION_DEFAULTS = {
   data: {},
   rejection_reason: null,
   submission_count: 0,
+  reactivation_count: 0,
   submitted_at: null,
   approved_at: null,
   rejected_at: null,
@@ -80,11 +83,35 @@ const CAMPAIGN_DATA = {
     "Your appointment is confirmed for tomorrow at 9am. Reply STOP to opt out.",
 };
 
+/**
+ * Faithful simulator of the 20260707170000 `bump_registration_counter` RPC
+ * (#40): a guarded increment that stops AT the cap without incrementing.
+ */
+function registerBumpRpc(rest: FakeRest) {
+  rest.rpc("bump_registration_counter", (args) => {
+    const counter = args.p_counter as string;
+    const cap = args.p_cap as number;
+    const row = rest
+      .rows("messaging_registrations")
+      .find(
+        (candidate) =>
+          candidate.id === args.p_row_id &&
+          candidate.company_id === args.p_company_id,
+      );
+    if (!row) return { allowed: false };
+    const current = (row[counter] as number) ?? 0;
+    if (current >= cap) return { allowed: false };
+    row[counter] = current + 1;
+    return { allowed: true, count: current + 1 };
+  });
+}
+
 function setup(companyOverrides: Record<string, unknown> = {}) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
   rest.table("messaging_registrations", REGISTRATION_DEFAULTS);
+  registerBumpRpc(rest);
   rest.table("phone_numbers", {
     status: "active",
     number_e164: null,
@@ -156,6 +183,8 @@ describe("submitRegistration — R1 (§4.4)", () => {
   it("submits a standard brand with the §4.4 field mapping", async () => {
     const { env, rest, telnyx } = setup();
     seedRows(rest, {}, {});
+    // #51: the create path first checks for an adoptable orphan brand.
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
       data: { brandId: "brand-1" },
     }));
@@ -194,6 +223,7 @@ describe("submitRegistration — R1 (§4.4)", () => {
   it("submits a sole-prop brand and immediately triggers the OTP (§4.2)", async () => {
     const { env, rest, telnyx } = setup();
     seedRows(rest, { data: SOLE_PROP_DATA, sole_proprietor: true }, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({ brandId: "brand-sp" }));
     telnyx.on("POST", /^\/v2\/10dlc\/brand\/brand-sp\/smsOtp$/, () => ({}));
 
@@ -955,7 +985,7 @@ describe("updateCampaignContent — Step 0c content migration", () => {
 });
 
 describe("post-grace reactivation (§4.4, §9)", () => {
-  it("resubmits against the existing brand, clears deactivated_at, bumps submission_count", async () => {
+  it("resubmits against the existing brand, clears deactivated_at, bumps reactivation_count", async () => {
     const { env, rest, telnyx } = setup();
     seedRows(
       rest,
@@ -985,7 +1015,10 @@ describe("post-grace reactivation (§4.4, §9)", () => {
     const campaign = campaignRowOf(rest);
     expect(campaign.status).toBe("submitted");
     expect(campaign.telnyx_id).toBe("camp-new");
-    expect(campaign.submission_count).toBe(2);
+    // #40: a reactivation consumes its OWN budget — the review-cycle
+    // submission_count is untouched.
+    expect(campaign.submission_count).toBe(1);
+    expect(campaign.reactivation_count).toBe(1);
     expect(campaign.deactivated_at).toBeNull();
     expect(campaign.approved_at).toBeNull();
     expect(
@@ -994,6 +1027,263 @@ describe("post-grace reactivation (§4.4, §9)", () => {
     ).toEqual({});
     // Brand row untouched (SPEC: brand row untouched).
     expect(brandRowOf(rest).status).toBe("approved");
+  });
+});
+
+describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
+  it("consuming the second-to-last review unit sends the alert-before-the-cap email", async () => {
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "rejected",
+        telnyx_id: "camp-old",
+        submission_count: MAX_CAMPAIGN_SUBMISSIONS - 2,
+        rejection_reason: "flow unclear",
+      },
+    );
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-new" },
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("campaign_submitted");
+    expect(campaignRowOf(rest).submission_count).toBe(
+      MAX_CAMPAIGN_SUBMISSIONS - 1,
+    );
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toBe(
+      "Heads up: one carrier-review submission left",
+    );
+    expect(emails[0].to).toContain("owner@acme.example");
+  });
+
+  it("blocks at the cap BEFORE any Telnyx call, one-shot email, 'contact support' reason", async () => {
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "rejected",
+        telnyx_id: "camp-old",
+        submission_count: MAX_CAMPAIGN_SUBMISSIONS,
+        rejection_reason: "flow unclear",
+      },
+    );
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("noop");
+    if (result.action === "noop") {
+      expect(result.reason).toContain("contact support");
+    }
+    // No silent spend: the paid campaignBuilder POST never happened.
+    expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
+    expect(campaignRowOf(rest).submission_count).toBe(MAX_CAMPAIGN_SUBMISSIONS);
+
+    // Terminal-state owner notification — exactly once across retries.
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toBe("Your US texting registration needs our help");
+    expect(
+      (campaignRowOf(rest).data as { submissionCapNotifiedAt?: string })
+        .submissionCapNotifiedAt,
+    ).toBeTruthy();
+
+    const again = await submitRegistration(env, COMPANY_ID);
+    expect(again.action).toBe("noop");
+    expect(emails).toHaveLength(1);
+    expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
+  });
+
+  it("reactivation consumes its OWN budget — an exhausted review budget does not block it", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "approved",
+        telnyx_id: "camp-old",
+        submission_count: MAX_CAMPAIGN_SUBMISSIONS,
+        deactivated_at: "2026-06-01T00:00:00.000Z",
+      },
+    );
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-new" },
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("campaign_reactivated");
+    const campaign = campaignRowOf(rest);
+    expect(campaign.reactivation_count).toBe(1);
+    expect(campaign.submission_count).toBe(MAX_CAMPAIGN_SUBMISSIONS);
+  });
+
+  it("blocks a reactivation at ITS cap with the same terminal state", async () => {
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "approved",
+        telnyx_id: "camp-old",
+        reactivation_count: MAX_CAMPAIGN_REACTIVATIONS,
+        deactivated_at: "2026-06-01T00:00:00.000Z",
+      },
+    );
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("noop");
+    if (result.action === "noop") {
+      expect(result.reason).toContain("contact support");
+    }
+    expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
+    expect(emails).toHaveLength(1);
+    expect(
+      (campaignRowOf(rest).data as { reactivationCapNotifiedAt?: string })
+        .reactivationCapNotifiedAt,
+    ).toBeTruthy();
+  });
+
+  it("consumes the budget BEFORE the Telnyx call (fail closed on a failed POST)", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, { status: "approved", telnyx_id: "brand-1" }, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () =>
+      telnyxError(500, "internal", "boom"),
+    );
+
+    await expect(submitRegistration(env, COMPANY_ID)).rejects.toThrow(
+      "Telnyx 500",
+    );
+    // The unit is spent even though the POST failed — a crash/retry loop can
+    // never buy more than the cap's worth of campaigns.
+    expect(campaignRowOf(rest).submission_count).toBe(1);
+    expect(campaignRowOf(rest).status).toBe("draft");
+  });
+});
+
+describe("#51 brand-create write-ahead marker + orphan adoption", () => {
+  it("stamps the write-ahead marker BEFORE the paid POST (survives a crash)", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () =>
+      telnyxError(500, "internal", "boom"),
+    );
+
+    await expect(submitRegistration(env, COMPANY_ID)).rejects.toThrow(
+      "Telnyx 500",
+    );
+    const brand = brandRowOf(rest);
+    expect(brand.telnyx_id).toBeNull();
+    expect(brand.status).toBe("draft");
+    expect(
+      (brand.data as { brandSubmitAttemptedAt?: string }).brandSubmitAttemptedAt,
+    ).toBeTruthy();
+
+    // The marker never breaks the strict wizard schema: the retry still
+    // parses the draft and reaches Telnyx again (a failed parse would have
+    // returned a 'Brand draft data is incomplete' noop instead of throwing).
+    await expect(submitRegistration(env, COMPANY_ID)).rejects.toThrow(
+      "Telnyx 500",
+    );
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(2);
+  });
+
+  it("adopts the orphan TCR brand on retry instead of buying a duplicate", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      {
+        data: {
+          ...BRAND_DATA,
+          brandSubmitAttemptedAt: "2026-07-07T00:00:00.000Z",
+        },
+      },
+      {},
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({
+      records: [
+        // A foreign brand that happens to share the display name — skipped.
+        { brandId: "brand-other", displayName: "Acme Plumbing", ein: "99-9999999" },
+        { brandId: "brand-orphan", displayName: "Acme Plumbing", ein: "12-3456789" },
+      ],
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("brand_submitted");
+    // Adopted, never re-bought.
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(0);
+    const list = telnyx.callsTo("GET", /^\/v2\/10dlc\/brand$/)[0];
+    expect(list.query.get("displayName")).toBe("Acme Plumbing");
+
+    const brand = brandRowOf(rest);
+    expect(brand.telnyx_id).toBe("brand-orphan");
+    expect(brand.status).toBe("submitted");
+    expect(brand.submission_count).toBe(1);
+  });
+
+  it("creates fresh when no unclaimed orphan matches displayName + EIN", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      {
+        data: {
+          ...BRAND_DATA,
+          brandSubmitAttemptedAt: "2026-07-07T00:00:00.000Z",
+        },
+      },
+      {},
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({
+      records: [{ brandId: "brand-other", displayName: "Other Biz", ein: "12-3456789" }],
+    }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
+      data: { brandId: "brand-fresh" },
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("brand_submitted");
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
+    expect(brandRowOf(rest).telnyx_id).toBe("brand-fresh");
+  });
+
+  it("never steals a brand another local row already claims", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, {}, {});
+    // A different company's row already tracks brand-orphan.
+    rest.insert("messaging_registrations", {
+      company_id: "99999999-9999-4999-8999-999999999999",
+      kind: "brand",
+      status: "approved",
+      telnyx_id: "brand-orphan",
+      data: {},
+    });
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({
+      records: [
+        { brandId: "brand-orphan", displayName: "Acme Plumbing", ein: "12-3456789" },
+      ],
+    }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
+      data: { brandId: "brand-fresh" },
+    }));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("brand_submitted");
+    expect(brandRowOf(rest).telnyx_id).toBe("brand-fresh");
+  });
+
+  it("fails closed when the orphan listing fails — no blind create POST", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () =>
+      telnyxError(500, "internal", "boom"),
+    );
+
+    await expect(submitRegistration(env, COMPANY_ID)).rejects.toThrow(
+      "Telnyx 500",
+    );
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(0);
+    expect(brandRowOf(rest).telnyx_id).toBeNull();
   });
 });
 
@@ -1202,6 +1492,7 @@ describe("PostHog north-star events (§12 step 18)", () => {
     const rest = new FakeRest(env);
     rest.table("companies");
     rest.table("messaging_registrations", REGISTRATION_DEFAULTS);
+    registerBumpRpc(rest);
     rest.table("phone_numbers", {
       status: "active",
       number_e164: null,
@@ -1239,6 +1530,7 @@ describe("PostHog north-star events (§12 step 18)", () => {
   it("submitRegistration fires registration_submitted with the action", async () => {
     const { env, rest, telnyx, posthog } = setupWithAnalytics();
     seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
       data: { brandId: "brand-1" },
     }));
@@ -1310,6 +1602,7 @@ describe("PostHog north-star events (§12 step 18)", () => {
   it("stays entirely silent without POSTHOG_API_KEY", async () => {
     const { env, rest, telnyx, posthog } = setupWithAnalytics(null);
     seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
     telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
       data: { brandId: "brand-1" },
     }));
