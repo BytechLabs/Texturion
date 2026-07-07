@@ -10,7 +10,12 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { dispatchOutbound } from "./send";
+import {
+  claimMessageRetry,
+  dispatchOutbound,
+  persistSendInterruption,
+  STUCK_SEND_SECONDS,
+} from "./send";
 import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env, RateLimiter } from "../env";
@@ -384,5 +389,114 @@ describe("dispatchOutbound — #12 MMS cap-and-drop", () => {
     expect(stubs.modules.calls).toHaveLength(0);
     expect(stubs.company.calls).toHaveLength(0);
     expect(stubs.mmsCount.calls).toHaveLength(0);
+  });
+});
+
+describe("claimMessageRetry — the atomic retry arbiter (#19/#20/#47)", () => {
+  function claimStubs(respond: () => unknown) {
+    const env = completeEnv();
+    const rpc = stubRoute(rpcMatch(env, "claim_message_retry"), respond);
+    stubFetch(rpc.route);
+    return { env, rpc };
+  }
+
+  const ARGS = {
+    companyId: COMPANY_ID,
+    messageId: MESSAGE_ID,
+    stuckAfterSeconds: STUCK_SEND_SECONDS,
+  };
+
+  it("returns the requeued row and passes the RPC args through", async () => {
+    const requeued = messageRow({
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      status: "queued",
+      error_code: null,
+      error_detail: null,
+    });
+    const { env, rpc } = claimStubs(() => ({ message: requeued }));
+
+    const row = await claimMessageRetry(getDb(env), ARGS);
+    expect(row).toEqual(requeued);
+    expect(rpc.calls[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_message_id: MESSAGE_ID,
+      p_stuck_after_seconds: STUCK_SEND_SECONDS,
+    });
+  });
+
+  it.each([
+    ["conflict", "conflict"],
+    ["not_found", "not_found"],
+    ["rate_limited", "rate_limited"],
+    ["usage_cap_reached", "usage_cap_reached"],
+    ["recipient_opted_out", "recipient_opted_out"],
+    ["subscription_inactive", "subscription_inactive"],
+  ] as const)("maps RPC error %s to the typed ApiError", async (rpcError, code) => {
+    const { env } = claimStubs(() => ({ error: rpcError }));
+
+    const thrown = await claimMessageRetry(getDb(env), ARGS).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(thrown).toBeInstanceOf(ApiError);
+    expect((thrown as ApiError).code).toBe(code);
+  });
+
+  it("throws (500 path) on an unknown RPC error code", async () => {
+    const { env } = claimStubs(() => ({ error: "space_weather" }));
+    await expect(claimMessageRetry(getDb(env), ARGS)).rejects.toThrow(
+      /unknown error: space_weather/,
+    );
+  });
+
+  it("throws (500 path) when the RPC returns no message row", async () => {
+    const { env } = claimStubs(() => ({}));
+    await expect(claimMessageRetry(getDb(env), ARGS)).rejects.toThrow(
+      /returned no message row/,
+    );
+  });
+});
+
+describe("persistSendInterruption (#20)", () => {
+  it("fails the row out as retryable: failed + send_interrupted", async () => {
+    const env = completeEnv();
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
+      messageRow({
+        id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        ...(call.body as Record<string, unknown>),
+      }),
+    ]);
+    stubFetch(persist.route);
+
+    await persistSendInterruption(getDb(env), message(), "upload died");
+
+    expect(persist.calls).toHaveLength(1);
+    expect(persist.calls[0].body).toEqual({
+      status: "failed",
+      error_code: "send_interrupted",
+      error_detail: "upload died",
+    });
+    expect(persist.calls[0].url.searchParams.get("id")).toBe(`eq.${MESSAGE_ID}`);
+    expect(persist.calls[0].url.searchParams.get("company_id")).toBe(
+      `eq.${COMPANY_ID}`,
+    );
+  });
+
+  it("swallows a persist failure (logged) so the ORIGINAL error propagates", async () => {
+    const env = completeEnv();
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), () =>
+      Response.json({ message: "db down" }, { status: 500 }),
+    );
+    stubFetch(persist.route);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    // Must not throw — the caller rethrows the original interruption cause;
+    // the fail-stuck sweeper cron is the durable backstop.
+    await persistSendInterruption(getDb(env), message(), "upload died");
+    expect(consoleError).toHaveBeenCalled();
   });
 });

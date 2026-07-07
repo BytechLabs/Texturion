@@ -355,6 +355,22 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
     },
   );
 
+  it("409s when the conversation's number is not active (#46)", async () => {
+    // Released numbers keep their e164 forever and old threads still
+    // reference them — status is the real gate, exactly as compose enforces.
+    const stubs = sendStubs({ view: sendView({ number_status: "released" }) });
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "hi",
+    });
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("conflict");
+    expect(stubs.gateRpc.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
   it("404s a conversation outside the company", async () => {
     const stubs = sendStubs();
     const emptyView = stubRoute(restMatch(env, "GET", "conversations"), () => []);
@@ -572,7 +588,10 @@ describe("POST /v1/messages/send — merge-fields (Step 0a)", () => {
 });
 
 describe("POST /v1/messages/send — MMS (§7, §8)", () => {
-  const PIXEL = btoa("\x89PNG\r\n\x1a\n fake image bytes");
+  // Real JPEG magic (FF D8 FF): decodeOutboundMedia sniffs the decoded bytes
+  // and 422s a byte/declaration mismatch, so fixtures must carry the magic of
+  // the type they declare.
+  const PIXEL = btoa("\xff\xd8\xff\xe0 fake image bytes");
 
   it.each([
     [
@@ -664,6 +683,31 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
     expect(body.attachments).toHaveLength(1);
   });
 
+  it("a media-upload failure fails the queued row out instead of leaving it stuck (#20)", async () => {
+    const stubs = sendStubs();
+    const failingUpload = stubRoute(storageUploadMatch(env), () =>
+      Response.json({ message: "storage down" }, { status: 500 }),
+    );
+    // failingUpload listed first so it wins over the base's happy upload stub.
+    stubFetch(failingUpload.route, ...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "photo attached",
+      media: [{ content_type: "image/jpeg", base64: PIXEL }],
+    });
+    // The request still surfaces the failure...
+    expect(response.status).toBe(500);
+    // ...but the gate-inserted row was failed out as retryable — never left
+    // 'queued' forever (undeliverable + unretryable + counting against the cap).
+    expect(stubs.persist.calls).toHaveLength(1);
+    expect(stubs.persist.calls[0].body).toMatchObject({
+      status: "failed",
+      error_code: "send_interrupted",
+    });
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
   it("without the Picture messages add-on, a media send is a 409 (#12)", async () => {
     const stubs = sendStubs({ mmsEnabled: false });
     stubFetch(...stubs.all);
@@ -751,7 +795,13 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
 describe("POST /v1/messages/:id/retry (§7)", () => {
   function retryStubs(
     row: Partial<MessageRow>,
-    options: { mmsEnabled?: boolean; withAttachment?: boolean } = {},
+    options: {
+      mmsEnabled?: boolean;
+      withAttachment?: boolean;
+      view?: ReturnType<typeof sendView>;
+      /** claim_message_retry outcome — defaults to the successful requeue. */
+      claim?: (call: { body: unknown }) => unknown;
+    } = {},
   ) {
     const message = messageRow({
       id: MESSAGE_ID,
@@ -769,10 +819,25 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
       () => [message],
     );
     const base = sendStubs({
-      view: sendView(),
+      view: options.view ?? sendView(),
       mmsEnabled: options.mmsEnabled,
     });
     const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
+    // #19/#20/#47: the atomic claim RPC — the requeue arbiter. The default
+    // respond mirrors its success shape: the SAME row back to queued with
+    // the error columns cleared.
+    const claim = stubRoute(
+      rpcMatch(env, "claim_message_retry"),
+      options.claim ??
+        (() => ({
+          message: {
+            ...message,
+            status: "queued",
+            error_code: null,
+            error_detail: null,
+          },
+        })),
+    );
     // A stored-media retry: message_attachments returns one row (wins over the
     // base's empty attachments stub because it's listed first).
     const attachments = options.withAttachment
@@ -789,10 +854,12 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
       base,
       lookup,
       optOuts,
+      claim,
       all: [
         ...(attachments ? [attachments.route] : []),
         lookup.route,
         optOuts.route,
+        claim.route,
         ...base.all,
       ],
     };
@@ -814,7 +881,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     );
   }
 
-  it("retries an API-failure row: requeue → new Telnyx call → persist", async () => {
+  it("retries an API-failure row: atomic claim → new Telnyx call → persist", async () => {
     const stubs = retryStubs({
       status: "failed",
       telnyx_message_id: null,
@@ -825,15 +892,13 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     const response = await postRetry();
     expect(response.status).toBe(200);
 
-    // Requeued (status back to queued, errors cleared) before the call.
-    const requeue = stubs.base.persist.calls.find(
-      (call) =>
-        (call.body as Record<string, unknown>).status === "queued",
-    );
-    expect(requeue?.body).toMatchObject({
-      status: "queued",
-      error_code: null,
-      error_detail: null,
+    // Requeued via the ATOMIC claim RPC (#19) with the shared #20 stuck
+    // threshold — never a bare status UPDATE.
+    expect(stubs.claim.calls).toHaveLength(1);
+    expect(stubs.claim.calls[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_message_id: MESSAGE_ID,
+      p_stuck_after_seconds: 15 * 60,
     });
     expect(stubs.base.telnyx.calls).toHaveLength(1);
     const persisted = stubs.base.persist.calls.find(
@@ -841,6 +906,83 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
         (call.body as Record<string, unknown>).telnyx_message_id === TELNYX_ID,
     );
     expect(persisted).toBeDefined();
+  });
+
+  it("retries a stuck queued row past the safety window (#20)", async () => {
+    // updated_at is the messageRow default (2026-07-01) — far older than the
+    // 15-minute stuck threshold, so the crash-orphaned row is retryable.
+    const stubs = retryStubs({
+      status: "queued",
+      telnyx_message_id: null,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(200);
+    expect(stubs.claim.calls).toHaveLength(1);
+    expect(stubs.base.telnyx.calls).toHaveLength(1);
+  });
+
+  it("409s a fresh queued row — an in-flight send is never double-dispatched", async () => {
+    const stubs = retryStubs({
+      status: "queued",
+      telnyx_message_id: null,
+      updated_at: new Date().toISOString(),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("conflict");
+    expect(stubs.claim.calls).toHaveLength(0);
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
+  });
+
+  it("a concurrent duplicate retry loses the atomic claim: 409, no Telnyx call (#19)", async () => {
+    const stubs = retryStubs(
+      { status: "failed", telnyx_message_id: null },
+      { claim: () => ({ error: "conflict" }) },
+    );
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("conflict");
+    // The loser never reaches Telnyx — exactly one send, ever.
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ["rate_limited", 429],
+    ["usage_cap_reached", 402],
+  ] as const)(
+    "re-runs the SQL rate/cap gates on retry: %s maps to %d (#47)",
+    async (code, status) => {
+      const stubs = retryStubs(
+        { status: "failed", telnyx_message_id: null },
+        { claim: () => ({ error: code }) },
+      );
+      stubFetch(...stubs.all);
+
+      const response = await postRetry();
+      expect(response.status).toBe(status);
+      expect(await errorCode(response)).toBe(code);
+      expect(stubs.base.telnyx.calls).toHaveLength(0);
+    },
+  );
+
+  it("409s when the conversation's number is no longer active (#46)", async () => {
+    const stubs = retryStubs(
+      { status: "failed", telnyx_message_id: null },
+      { view: sendView({ number_status: "released" }) },
+    );
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("conflict");
+    expect(stubs.claim.calls).toHaveLength(0);
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
   it("a picture retry without the Picture messages add-on is a 409 (#12)", async () => {
@@ -852,12 +994,8 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    // Blocked before requeue + Telnyx — no re-send, no MMS charge.
-    expect(
-      stubs.base.persist.calls.filter(
-        (call) => (call.body as Record<string, unknown>).status === "queued",
-      ),
-    ).toHaveLength(0);
+    // Blocked before the claim + Telnyx — no requeue, no re-send, no MMS charge.
+    expect(stubs.claim.calls).toHaveLength(0);
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
@@ -875,8 +1013,11 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
-  it("409s a row that is not failed", async () => {
-    const stubs = retryStubs({ status: "queued", telnyx_message_id: null });
+  it("409s a delivered row (nothing to retry)", async () => {
+    const stubs = retryStubs({
+      status: "delivered",
+      telnyx_message_id: TELNYX_ID,
+    });
     stubFetch(...stubs.all);
 
     const response = await postRetry();

@@ -11,7 +11,13 @@
  *        signed media_urls.
  *   POST /v1/messages/:id/retry   re-send a `failed` outbound ONLY while
  *        telnyx_message_id IS NULL (the API call failed before an id was
- *        assigned); carrier-finalized failures → 409 `conflict`.
+ *        assigned); carrier-finalized failures → 409 `conflict`. Also accepts
+ *        a `queued` outbound stuck without a telnyx_message_id beyond the
+ *        #20 safety window (a send that crashed before the Telnyx call).
+ *        The requeue is ATOMIC (#19/#47): the claim_message_retry RPC
+ *        re-checks eligibility, re-runs the SQL rate/cap gates, and flips
+ *        failed→queued under row locks — a concurrent duplicate retry loses
+ *        with 409, never a second Telnyx call.
  *   PATCH /v1/messages/:id        { done: boolean } — D14 done state. Any
  *        member; company-scoped 404; idempotent (marking done twice is a
  *        no-op returning the row). done=true stamps done_at +
@@ -48,10 +54,13 @@ import {
 } from "../messaging/media";
 import { applySendMergeFields } from "../messaging/merge";
 import {
+  claimMessageRetry,
   companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
+  persistSendInterruption,
   runPreSendGates,
+  STUCK_SEND_SECONDS,
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
@@ -151,6 +160,31 @@ async function loadSendView(
   return view;
 }
 
+/**
+ * #46: the conversation's sending number must be provisioned AND `active`
+ * (the same gate compose enforces). Numbers keep their e164 forever after
+ * release, and old conversations still reference them — sending from a
+ * released/suspended number would die at Telnyx with an opaque carrier error,
+ * or worse, go out from a number the company no longer pays for. Returns the
+ * usable from-number.
+ */
+function requireActiveSendingNumber(view: ConversationSendView): string {
+  const fromNumber = view.phone_numbers.number_e164;
+  if (!fromNumber) {
+    throw new ApiError(
+      "conflict",
+      "This conversation's number is still provisioning.",
+    );
+  }
+  if (view.phone_numbers.status !== "active") {
+    throw new ApiError(
+      "conflict",
+      "This conversation's number is not active, so it can't send texts.",
+    );
+  }
+  return fromNumber;
+}
+
 /** Attachment summaries for a set of message rows, keyed by message id. */
 export async function loadAttachments(
   db: Db,
@@ -203,13 +237,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
 
   const db = getDb(env);
   const view = await loadSendView(db, companyId, body.conversation_id);
-  const fromNumber = view.phone_numbers.number_e164;
-  if (!fromNumber) {
-    throw new ApiError(
-      "conflict",
-      "This conversation's number is still provisioning.",
-    );
-  }
+  const fromNumber = requireActiveSendingNumber(view);
 
   // §7 gate order: subscription → destination US/CA → registration.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
@@ -285,13 +313,27 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   let mediaUrls: string[] = [];
   let attachments: AttachmentSummary[] = [];
   if (media.length > 0) {
-    const uploaded = await uploadOutboundMedia(db, {
-      companyId,
-      messageId: message.id,
-      items: media,
-    });
-    attachments = uploaded.summaries;
-    mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
+    // #20: these steps run AFTER the gate inserted the queued row but BEFORE
+    // dispatch — a throw here used to leave the row stuck 'queued' forever
+    // (undeliverable, unretryable, still counting against the cap). Fail the
+    // row out instead so the thread shows a retryable failure immediately;
+    // the fail-stuck sweeper cron is the backstop for crashes this can't see.
+    try {
+      const uploaded = await uploadOutboundMedia(db, {
+        companyId,
+        messageId: message.id,
+        items: media,
+      });
+      attachments = uploaded.summaries;
+      mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
+    } catch (cause) {
+      await persistSendInterruption(
+        db,
+        message,
+        "The send was interrupted before reaching the carrier.",
+      );
+      throw cause;
+    }
   }
 
   const sent = await dispatchOutbound(env, db, message, {
@@ -321,12 +363,19 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   const message = rows[0];
   if (!message) throw new ApiError("not_found", "No such message.");
 
-  // §7: retry only an API-failure row — failed AND never assigned a Telnyx
-  // id. Carrier-finalized failures (40300 etc.) are not retryable.
+  // §7: retry an API-failure row — failed AND never assigned a Telnyx id
+  // (carrier-finalized failures, 40300 etc., are not retryable) — or a #20
+  // stuck-queued row: still 'queued' with no Telnyx id and untouched beyond
+  // the safety window (the send crashed before the Telnyx call). This is the
+  // cheap pre-check for a friendly 409; claim_message_retry re-asserts it
+  // ATOMICALLY below.
+  const stuckQueued =
+    message.status === "queued" &&
+    Date.parse(message.updated_at) < Date.now() - STUCK_SEND_SECONDS * 1000;
   if (
     message.direction !== "outbound" ||
-    message.status !== "failed" ||
-    message.telnyx_message_id !== null
+    message.telnyx_message_id !== null ||
+    (message.status !== "failed" && !stuckQueued)
   ) {
     throw new ApiError(
       "conflict",
@@ -335,13 +384,7 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   }
 
   const view = await loadSendView(db, companyId, message.conversation_id);
-  const fromNumber = view.phone_numbers.number_e164;
-  if (!fromNumber) {
-    throw new ApiError(
-      "conflict",
-      "This conversation's number is still provisioning.",
-    );
-  }
+  const fromNumber = requireActiveSendingNumber(view);
 
   // Gates re-run: the world may have changed since the failed attempt.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
@@ -392,23 +435,24 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
     );
   }
 
-  // Same row, new Telnyx call (§7): back to queued, error columns cleared.
-  const requeued = unwrap<MessageRow[]>(
-    await db
-      .from("messages")
-      .update({ status: "queued", error_code: null, error_detail: null })
-      .eq("id", message.id)
-      .eq("company_id", companyId)
-      .select("*"),
-    "message requeue",
-  )[0];
-  if (!requeued) throw new Error(`message ${message.id} vanished during retry`);
-
-  // Re-mint signed URLs for any stored outbound media (24 h TTL, §8).
+  // Re-mint signed URLs for any stored outbound media (24 h TTL, §8) BEFORE
+  // the atomic claim — signing has no side effects, so a signing failure
+  // never leaves the row half-requeued.
   const mediaUrls = await signedMediaUrls(
     db,
     attachmentRows.map((row) => row.storage_path),
   );
+
+  // Same row, new Telnyx call (§7). The RPC is the arbiter (#19/#20/#47):
+  // eligibility + the SQL rate/cap gates + the failed→queued flip run under
+  // row locks, so of two concurrent retries exactly ONE gets the requeued row
+  // back — the loser (and an over-cap/rate-limited retry) gets a typed error
+  // and never reaches Telnyx.
+  const requeued = await claimMessageRetry(db, {
+    companyId,
+    messageId: message.id,
+    stuckAfterSeconds: STUCK_SEND_SECONDS,
+  });
 
   const sent = await dispatchOutbound(env, db, requeued, {
     from: fromNumber,

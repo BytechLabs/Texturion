@@ -14,6 +14,7 @@ import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { ApiError, errorResponse } from "./http/errors";
 import {
+  failStuckOutboundSends,
   reportUnreportedUsage,
   sweepWebhookEvents,
 } from "./messaging/crons";
@@ -154,7 +155,10 @@ type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
  */
 export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // Webhook sweeper: replay unprocessed webhook_events (both providers).
-  "*/5 * * * *": [sweepWebhookEvents],
+  // Piggybacked on the same cadence (#20): fail out outbound rows stuck
+  // 'queued' with no telnyx_message_id (a send that crashed before the
+  // Telnyx call) so they surface as retryable failures.
+  "*/5 * * * *": [sweepWebhookEvents, failStuckOutboundSends],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
   // number-assignments. Also reclaims soft-deleted attachment objects/rows past

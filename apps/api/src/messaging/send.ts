@@ -60,6 +60,23 @@ export async function runPreSendGates(
   }
 }
 
+/**
+ * #20: how long an outbound row may sit `queued` without a telnyx_message_id
+ * before it counts as STUCK (the send crashed between the gate insert and the
+ * Telnyx call) — far beyond any Worker request's wall clock, so an in-flight
+ * dispatch is never mistaken for a crash. Shared by the retry route's
+ * eligibility pre-check, claim_message_retry, and the fail-out sweeper cron.
+ */
+export const STUCK_SEND_SECONDS = 15 * 60;
+
+/**
+ * #20: the messages.error_code a crashed-before-Telnyx send is failed out
+ * with (by the route's interruption handler or the sweeper cron). Not a
+ * carrier code — it marks the row retryable (failed + no telnyx_message_id,
+ * §7 retry rules) with a stable machine-readable reason.
+ */
+export const SEND_INTERRUPTED_ERROR_CODE = "send_interrupted";
+
 /** Error codes gate_outbound_send returns that map 1:1 onto SPEC §7 codes. */
 const GATE_ERROR_CODES = new Set([
   "subscription_inactive",
@@ -121,6 +138,54 @@ export async function gateOutboundSend(
     throw new Error("gate_outbound_send returned no message row");
   }
   return { message: result.message, existing: result.existing === true };
+}
+
+/**
+ * Invoke the claim_message_retry RPC — the atomic arbiter for
+ * POST /v1/messages/:id/retry (#19/#20/#47): eligibility re-check (failed, or
+ * queued-and-stuck beyond {@link STUCK_SEND_SECONDS}), the same SQL rate/cap
+ * gates a fresh send gets, and the failed→queued flip, all under the company
+ * + message row locks. Exactly ONE of two concurrent retries gets the row
+ * back; every other caller gets a typed ApiError (`conflict` for the loser —
+ * the §7 "not retryable" code).
+ */
+export async function claimMessageRetry(
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    messageId: string;
+    stuckAfterSeconds: number;
+  },
+): Promise<MessageRow> {
+  const { data, error } = await db.rpc("claim_message_retry", {
+    p_company_id: args.companyId,
+    p_message_id: args.messageId,
+    p_stuck_after_seconds: args.stuckAfterSeconds,
+  });
+  if (error) throw new Error(`claim_message_retry failed: ${error.message}`);
+
+  const result = data as
+    | { error?: string; message?: MessageRow }
+    | null;
+  if (result && typeof result.error === "string") {
+    if (result.error === "conflict") {
+      throw new ApiError(
+        "conflict",
+        "Only failed sends without a carrier message id can be retried.",
+      );
+    }
+    const code = result.error as GateErrorCode;
+    if (GATE_ERROR_CODES.has(code)) {
+      throw new ApiError(code, GATE_ERROR_MESSAGES[code]);
+    }
+    throw new Error(
+      `claim_message_retry returned unknown error: ${result.error}`,
+    );
+  }
+  if (!result?.message?.id) {
+    throw new Error("claim_message_retry returned no message row");
+  }
+  return result.message;
 }
 
 /**
@@ -213,6 +278,36 @@ async function persistMessagePatch(
   const row = (data ?? [])[0] as MessageRow | undefined;
   if (!row) throw new Error(`message ${message.id} vanished during send`);
   return row;
+}
+
+/**
+ * #20: fail out a gate-inserted `queued` row whose send was interrupted
+ * BEFORE the Telnyx call (media upload / signing / event-insert failure
+ * between the insert and dispatchOutbound). Without this the row sits queued
+ * forever — undeliverable, unretryable, and still counting against the
+ * period cap. Persisting `failed` + {@link SEND_INTERRUPTED_ERROR_CODE}
+ * makes it immediately retryable (§7 rules). Best-effort by design: if the
+ * persist itself fails (DB down — likely the same outage that interrupted
+ * the send), the error is logged and swallowed so the ORIGINAL failure
+ * propagates; the fail-stuck sweeper cron is the durable backstop.
+ */
+export async function persistSendInterruption(
+  db: SupabaseClient,
+  message: MessageRow,
+  detail: string,
+): Promise<void> {
+  try {
+    await persistMessagePatch(db, message, {
+      status: "failed",
+      error_code: SEND_INTERRUPTED_ERROR_CODE,
+      error_detail: detail.slice(0, 2000),
+    });
+  } catch (cause) {
+    console.error(
+      `send interruption persist failed for message ${message.id}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
 }
 
 /**

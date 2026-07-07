@@ -38,6 +38,7 @@ import {
   companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
+  persistSendInterruption,
   runPreSendGates,
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
@@ -463,21 +464,34 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
       payload: { destination_local_hour: hour },
     });
   }
-  await insertConversationEvents(db, events);
-
-  // §8 outbound media: upload each validated item to Storage and mint the 24h
-  // signed URLs Telnyx fetches from. Runs after the queued row exists (the
-  // path needs message.id) and before the dispatch that references the URLs.
+  // #20: any failure between the queued-row insert and dispatch would strand
+  // the row `queued` until the fail-stuck sweeper cron catches it — fail it
+  // immediately instead (same idiom as /messages/send) so the composer shows
+  // the failure + retry affordance right away, then rethrow.
   let mediaUrls: string[] = [];
   let attachments: AttachmentSummary[] = [];
-  if (media.length > 0) {
-    const uploaded = await uploadOutboundMedia(db, {
-      companyId,
-      messageId: message.id,
-      items: media,
-    });
-    attachments = uploaded.summaries;
-    mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
+  try {
+    await insertConversationEvents(db, events);
+
+    // §8 outbound media: upload each validated item to Storage and mint the 24h
+    // signed URLs Telnyx fetches from. Runs after the queued row exists (the
+    // path needs message.id) and before the dispatch that references the URLs.
+    if (media.length > 0) {
+      const uploaded = await uploadOutboundMedia(db, {
+        companyId,
+        messageId: message.id,
+        items: media,
+      });
+      attachments = uploaded.summaries;
+      mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
+    }
+  } catch (cause) {
+    await persistSendInterruption(
+      db,
+      message,
+      "The send was interrupted before reaching the carrier.",
+    );
+    throw cause;
   }
 
   const sent = await dispatchOutbound(env, db, message, {

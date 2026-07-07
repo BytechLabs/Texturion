@@ -659,4 +659,366 @@ begin
   raise notice 'G7 PASSED: not_found / validation_failed typed errors';
 end $$;
 
+-- ===========================================================================
+-- R1. claim_message_retry (#19): a failed API-failure row is requeued
+--     atomically (status queued, error columns cleared), and an IMMEDIATE
+--     second claim — the concurrent-duplicate loser — gets 'conflict'
+--     (the requeued row is no longer eligible), never a second requeue.
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_id uuid;
+  v_msg public.messages%rowtype;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, error_code, error_detail)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'retry me', 'failed', 1,
+     '10000000-0000-4000-8000-000000000001', null, 'network error')
+  returning id into v_id;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_id, 900);
+  if res ? 'error' then
+    raise exception 'R1 FAILED: eligible failed row rejected: %', res->>'error';
+  end if;
+  if res->'message' ? 'body_tsv' then
+    raise exception 'R1 FAILED: body_tsv leaked in the returned row';
+  end if;
+
+  select * into v_msg from public.messages where id = v_id;
+  if v_msg.status <> 'queued'
+     or v_msg.error_code is not null or v_msg.error_detail is not null then
+    raise exception 'R1 FAILED: row not requeued cleanly (status %, code %)',
+      v_msg.status, v_msg.error_code;
+  end if;
+
+  -- The loser of a concurrent duplicate: the row is queued with a fresh
+  -- updated_at now — not failed, not stuck — so the claim is a conflict.
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_id, 900);
+  if res->>'error' is distinct from 'conflict' then
+    raise exception 'R1 FAILED: duplicate claim expected conflict, got %', res;
+  end if;
+
+  raise notice 'R1 PASSED: atomic requeue; the duplicate claim loses with conflict';
+end $$;
+
+-- ===========================================================================
+-- R2. claim_message_retry eligibility: a fresh queued row (in-flight send),
+--     a failed row with a carrier id (carrier-finalized), and bad args are
+--     all typed rejections — never a requeue.
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_fresh uuid;
+  v_final uuid;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments, sent_by_user_id)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'in flight', 'queued', 1, '10000000-0000-4000-8000-000000000001')
+  returning id into v_fresh;
+
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, telnyx_message_id, error_code)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'carrier blocked', 'failed', 1,
+     '10000000-0000-4000-8000-000000000001', 'tx-r2-final', '40300')
+  returning id into v_final;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_fresh, 900);
+  if res->>'error' is distinct from 'conflict' then
+    raise exception 'R2 FAILED: fresh queued row expected conflict, got %', res;
+  end if;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_final, 900);
+  if res->>'error' is distinct from 'conflict' then
+    raise exception 'R2 FAILED: carrier-finalized failure expected conflict, got %', res;
+  end if;
+
+  -- Cross-company id is indistinguishable from missing (§10).
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000002', v_fresh, 900);
+  if res->>'error' is distinct from 'not_found' then
+    raise exception 'R2 FAILED: cross-company claim expected not_found, got %', res;
+  end if;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_fresh, 0);
+  if res->>'error' is distinct from 'validation_failed' then
+    raise exception 'R2 FAILED: zero threshold expected validation_failed, got %', res;
+  end if;
+
+  raise notice 'R2 PASSED: fresh queued / carrier-finalized / bad args rejected';
+end $$;
+
+-- ===========================================================================
+-- R3. claim_message_retry (#20a): a STUCK queued row — no telnyx id and
+--     untouched beyond the threshold (the send crashed before the Telnyx
+--     call) — is claimable, and comes back queued with error columns clear.
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_id uuid;
+  v_msg public.messages%rowtype;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, created_at, updated_at)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'crashed before telnyx', 'queued', 1,
+     '10000000-0000-4000-8000-000000000001',
+     now() - interval '1 hour', now() - interval '1 hour')
+  returning id into v_id;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_id, 900);
+  if res ? 'error' then
+    raise exception 'R3 FAILED: stuck queued row rejected: %', res->>'error';
+  end if;
+
+  select * into v_msg from public.messages where id = v_id;
+  if v_msg.status <> 'queued' or v_msg.error_code is not null then
+    raise exception 'R3 FAILED: stuck row not requeued cleanly (status %, code %)',
+      v_msg.status, v_msg.error_code;
+  end if;
+  raise notice 'R3 PASSED: a stuck queued row is claimable and requeues cleanly';
+end $$;
+
+-- ===========================================================================
+-- R4. claim_message_retry (#47): the retry re-runs Gate 3 — Rate Co sits at
+--     250 trailing-hour segments (G5), so the claim is rate_limited. The
+--     stuck-queued row is failed out FIRST, so the rejection leaves it
+--     failed + send_interrupted (visible + retryable later), never stuck.
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_id uuid;
+  v_msg public.messages%rowtype;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, created_at, updated_at)
+  values
+    ('20000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000003',
+     'outbound', 'stuck under rate pressure', 'queued', 1,
+     '10000000-0000-4000-8000-000000000001',
+     now() - interval '1 hour', now() - interval '1 hour')
+  returning id into v_id;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000003', v_id, 900);
+  if res->>'error' is distinct from 'rate_limited' then
+    raise exception 'R4 FAILED: expected rate_limited on retry, got %', res;
+  end if;
+
+  select * into v_msg from public.messages where id = v_id;
+  if v_msg.status <> 'failed' or v_msg.error_code is distinct from 'send_interrupted' then
+    raise exception 'R4 FAILED: rejected stuck row not failed out (status %, code %)',
+      v_msg.status, v_msg.error_code;
+  end if;
+  raise notice 'R4 PASSED: retry re-runs the rate gate; the stuck row is failed out';
+end $$;
+
+-- ===========================================================================
+-- R5. claim_message_retry (#47): the retry re-runs Gate 4 — Cap Co sits at
+--     its overage cap (G6), so the claim is usage_cap_reached and the FAILED
+--     row keeps its original error columns (nothing was touched).
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_id uuid;
+  v_msg public.messages%rowtype;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, error_code, error_detail)
+  values
+    ('20000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000004',
+     'outbound', 'over cap retry', 'failed', 1,
+     '10000000-0000-4000-8000-000000000001', null, 'network error')
+  returning id into v_id;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000004', v_id, 900);
+  if res->>'error' is distinct from 'usage_cap_reached' then
+    raise exception 'R5 FAILED: expected usage_cap_reached on retry, got %', res;
+  end if;
+
+  select * into v_msg from public.messages where id = v_id;
+  if v_msg.status <> 'failed' or v_msg.error_detail is distinct from 'network error' then
+    raise exception 'R5 FAILED: rejected failed row was modified (status %, detail %)',
+      v_msg.status, v_msg.error_detail;
+  end if;
+  raise notice 'R5 PASSED: retry re-runs the cap gate; the failed row is untouched';
+end $$;
+
+-- ===========================================================================
+-- R6. claim_message_retry backstops: an opted-out destination and an
+--     inactive subscription reject the claim (mirror of Gates 1-2).
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+  v_opt uuid;
+  v_sub uuid;
+begin
+  -- Opt-out mirror: conversation 5 (Active Co, +16135552005). G4 left the
+  -- pair's UNIQUE opt_outs row revoked — re-activate it (re-opt-out updates
+  -- the row, never inserts a duplicate).
+  update public.opt_outs set revoked_at = null
+   where company_id = '20000000-0000-4000-8000-000000000001'
+     and phone_e164 = '+16135552005';
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, error_detail)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000005',
+     'outbound', 'blocked', 'failed', 1,
+     '10000000-0000-4000-8000-000000000001', 'network error')
+  returning id into v_opt;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000001', v_opt, 900);
+  if res->>'error' is distinct from 'recipient_opted_out' then
+    raise exception 'R6 FAILED: expected recipient_opted_out, got %', res;
+  end if;
+
+  -- Subscription backstop: Inactive Co (past_due).
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, error_detail)
+  values
+    ('20000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002',
+     'outbound', 'no sub', 'failed', 1,
+     '10000000-0000-4000-8000-000000000001', 'network error')
+  returning id into v_sub;
+
+  res := public.claim_message_retry(
+    '20000000-0000-4000-8000-000000000002', v_sub, 900);
+  if res->>'error' is distinct from 'subscription_inactive' then
+    raise exception 'R6 FAILED: expected subscription_inactive, got %', res;
+  end if;
+
+  raise notice 'R6 PASSED: opt-out + subscription backstops hold on retry';
+end $$;
+
+-- ===========================================================================
+-- R7. fail_stuck_outbound_sends (#20b): flips EXACTLY the stale queued rows
+--     with no telnyx id to failed + send_interrupted; fresh queued rows and
+--     dispatched (id-bearing) rows are untouched. Returns the flipped count.
+-- ===========================================================================
+do $$
+declare
+  v_stuck uuid;
+  v_fresh uuid;
+  v_dispatched uuid;
+  v_count int;
+  v_msg public.messages%rowtype;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, created_at, updated_at)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'stuck forever', 'queued', 1,
+     '10000000-0000-4000-8000-000000000001',
+     now() - interval '1 hour', now() - interval '1 hour')
+  returning id into v_stuck;
+
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments, sent_by_user_id)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'fresh in flight', 'queued', 1, '10000000-0000-4000-8000-000000000001')
+  returning id into v_fresh;
+
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, segments,
+     sent_by_user_id, telnyx_message_id, created_at, updated_at)
+  values
+    ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001',
+     'outbound', 'awaiting webhook', 'queued', 1,
+     '10000000-0000-4000-8000-000000000001', 'tx-r7-dispatched',
+     now() - interval '1 hour', now() - interval '1 hour')
+  returning id into v_dispatched;
+
+  v_count := public.fail_stuck_outbound_sends(900);
+  if v_count <> 1 then
+    raise exception 'R7 FAILED: expected exactly 1 flipped row, got %', v_count;
+  end if;
+
+  select * into v_msg from public.messages where id = v_stuck;
+  if v_msg.status <> 'failed'
+     or v_msg.error_code is distinct from 'send_interrupted'
+     or v_msg.error_detail is null then
+    raise exception 'R7 FAILED: stuck row not failed out (status %, code %)',
+      v_msg.status, v_msg.error_code;
+  end if;
+
+  perform 1 from public.messages
+   where id = v_fresh and status = 'queued' and error_code is null;
+  if not found then raise exception 'R7 FAILED: fresh queued row was clobbered'; end if;
+
+  perform 1 from public.messages
+   where id = v_dispatched and status = 'queued' and telnyx_message_id = 'tx-r7-dispatched';
+  if not found then raise exception 'R7 FAILED: dispatched row was clobbered'; end if;
+
+  -- Idempotent: a second sweep finds nothing left to flip.
+  v_count := public.fail_stuck_outbound_sends(900);
+  if v_count <> 0 then
+    raise exception 'R7 FAILED: second sweep flipped % rows (want 0)', v_count;
+  end if;
+
+  raise notice 'R7 PASSED: sweeper fails out exactly the stale undispatched rows';
+end $$;
+
+-- ===========================================================================
+-- R8. Schema + grants (#22 lease column; new functions service-role-only).
+-- ===========================================================================
+do $$
+declare
+  c_type text; c_null boolean;
+  fn text; leaked text;
+begin
+  select data_type, is_nullable='YES' into c_type, c_null
+  from information_schema.columns
+  where table_schema='public' and table_name='webhook_events' and column_name='claimed_at';
+  if c_type is null then raise exception 'R8 FAILED: webhook_events.claimed_at missing'; end if;
+  if c_type <> 'timestamp with time zone' then
+    raise exception 'R8 FAILED: claimed_at is % (want timestamptz)', c_type;
+  end if;
+  if not c_null then raise exception 'R8 FAILED: claimed_at must be NULLable'; end if;
+
+  foreach fn in array array['claim_message_retry', 'fail_stuck_outbound_sends'] loop
+    select string_agg(distinct r.rolname, ',') into leaked
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral aclexplode(p.proacl) a
+    join pg_roles r on r.oid = a.grantee
+    where n.nspname='public' and p.proname=fn
+      and a.privilege_type='EXECUTE'
+      and r.rolname in ('public','anon','authenticated');
+    if leaked is not null then
+      raise exception 'R8 FAILED: % has EXECUTE leaked to %', fn, leaked;
+    end if;
+  end loop;
+
+  raise notice 'R8 PASSED: claimed_at present; retry/sweep functions service-role-only';
+end $$;
+
 rollback;

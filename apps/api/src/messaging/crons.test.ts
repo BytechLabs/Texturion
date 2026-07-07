@@ -1,15 +1,23 @@
 /**
  * Messaging cron suite (SPEC §11): the webhook sweeper replays unprocessed
- * ledger rows (telnyx AND stripe) through the real dispatchers with attempt
- * bookkeeping, and the usage re-reporter re-POSTs meter events for locally
- * unstamped usage_events rows.
+ * ledger rows (telnyx AND stripe) through the real dispatchers behind a
+ * per-row atomic claim (#22), the stuck-send sweeper fails out queued
+ * outbound rows that crashed before the Telnyx call (#20), and the usage
+ * re-reporter re-POSTs meter events for locally unstamped usage_events —
+ * treating Stripe's duplicate-identifier rejection as success (#53).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
-import { restMatch, stubRoute } from "../test/messaging-support";
+import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
-import { reportUnreportedUsage, sweepWebhookEvents } from "./crons";
+import {
+  failStuckOutboundSends,
+  isDuplicateMeterIdentifierError,
+  reportUnreportedUsage,
+  sweepWebhookEvents,
+} from "./crons";
+import { STUCK_SEND_SECONDS } from "./send";
 
 const TELNYX_ID = "40385f64-5717-4562-b3fc-2c963f66cccc";
 
@@ -23,8 +31,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * A webhook_events PATCH stub speaking the #22 claim protocol: a claim
+ * UPDATE (body carries `attempts`) answers with the claimed row when
+ * `claimWins`, else an empty set (another run owns it); every other UPDATE
+ * (processed_at stamp, last_error record) answers 204.
+ */
+function ledgerPatchStub(options: { claimWins?: boolean } = {}) {
+  return stubRoute(restMatch(env, "PATCH", "webhook_events"), (call) => {
+    const body = call.body as Record<string, unknown>;
+    if (typeof body.attempts === "number") {
+      return options.claimWins === false
+        ? []
+        : [{ event_id: call.url.searchParams.get("event_id")?.slice(3) }];
+    }
+    return new Response(null, { status: 204 });
+  });
+}
+
 describe("sweepWebhookEvents", () => {
-  it("replays an unprocessed telnyx row through the real dispatch and stamps it", async () => {
+  it("claims, replays an unprocessed telnyx row through the real dispatch, and stamps it", async () => {
     const sweepQuery = stubRoute(
       restMatch(env, "GET", "webhook_events"),
       () => [
@@ -46,30 +72,76 @@ describe("sweepWebhookEvents", () => {
     const messagePatch = stubRoute(restMatch(env, "PATCH", "messages"), () =>
       new Response(null, { status: 204 }),
     );
-    const ledgerPatch = stubRoute(restMatch(env, "PATCH", "webhook_events"), () =>
-      new Response(null, { status: 204 }),
-    );
+    const ledgerPatch = ledgerPatchStub();
     stubFetch(sweepQuery.route, messagePatch.route, ledgerPatch.route);
 
     await sweepWebhookEvents(env);
 
-    // The sweep query selects by state: unprocessed, aged 2 min, < 5 attempts.
+    // The sweep query selects by state: unprocessed, aged 2 min, < 5
+    // attempts, and not shielded by another run's live claim lease (#22).
     const query = sweepQuery.calls[0].url.searchParams;
     expect(query.get("processed_at")).toBe("is.null");
     expect(query.get("attempts")).toBe("lt.5");
     expect(query.get("received_at")).toMatch(/^lt\./);
+    expect(query.get("or")).toMatch(/claimed_at\.is\.null,claimed_at\.lt\./);
 
     // The row went through the REAL message.sent pipeline...
     expect(messagePatch.calls).toHaveLength(1);
     expect(messagePatch.calls[0].url.searchParams.get("telnyx_message_id")).toBe(
       `eq.${TELNYX_ID}`,
     );
+
+    // ...after an atomic claim (CAS on attempts + claimed_at lease)...
+    expect(ledgerPatch.calls).toHaveLength(2);
+    const claim = ledgerPatch.calls[0];
+    expect(claim.body).toMatchObject({
+      attempts: 1,
+      claimed_at: expect.any(String),
+    });
+    expect(claim.url.searchParams.get("event_id")).toBe("eq.evt-1");
+    expect(claim.url.searchParams.get("attempts")).toBe("eq.0"); // the CAS token
+    expect(claim.url.searchParams.get("processed_at")).toBe("is.null");
+    expect(claim.url.searchParams.get("or")).toMatch(
+      /claimed_at\.is\.null,claimed_at\.lt\./,
+    );
+
     // ...and was stamped processed.
-    expect(ledgerPatch.calls).toHaveLength(1);
-    expect(ledgerPatch.calls[0].body).toMatchObject({
+    expect(ledgerPatch.calls[1].body).toMatchObject({
       processed_at: expect.any(String),
     });
-    expect(ledgerPatch.calls[0].url.searchParams.get("event_id")).toBe("eq.evt-1");
+    expect(ledgerPatch.calls[1].url.searchParams.get("event_id")).toBe("eq.evt-1");
+  });
+
+  it("skips a row whose claim it loses — no dispatch, no stamp (#22)", async () => {
+    const sweepQuery = stubRoute(
+      restMatch(env, "GET", "webhook_events"),
+      () => [
+        {
+          provider: "telnyx",
+          event_id: "evt-raced",
+          event_type: "message.sent",
+          payload: {
+            data: {
+              event_type: "message.sent",
+              id: "evt-raced",
+              payload: { id: TELNYX_ID },
+            },
+          },
+          attempts: 0,
+        },
+      ],
+    );
+    const messagePatch = stubRoute(restMatch(env, "PATCH", "messages"), () =>
+      new Response(null, { status: 204 }),
+    );
+    // A concurrent run bumped attempts first: the CAS UPDATE matches 0 rows.
+    const ledgerPatch = ledgerPatchStub({ claimWins: false });
+    stubFetch(sweepQuery.route, messagePatch.route, ledgerPatch.route);
+
+    await sweepWebhookEvents(env);
+
+    expect(ledgerPatch.calls).toHaveLength(1); // the losing claim only
+    expect(messagePatch.calls).toHaveLength(0); // never dispatched
   });
 
   it("replays stripe rows through the billing dispatcher (unknown type → no-op success)", async () => {
@@ -85,19 +157,19 @@ describe("sweepWebhookEvents", () => {
         },
       ],
     );
-    const ledgerPatch = stubRoute(restMatch(env, "PATCH", "webhook_events"), () =>
-      new Response(null, { status: 204 }),
-    );
+    const ledgerPatch = ledgerPatchStub();
     stubFetch(sweepQuery.route, ledgerPatch.route);
 
     await sweepWebhookEvents(env);
-    expect(ledgerPatch.calls).toHaveLength(1);
-    expect(ledgerPatch.calls[0].body).toMatchObject({
+    // Claim, then the processed stamp.
+    expect(ledgerPatch.calls).toHaveLength(2);
+    expect(ledgerPatch.calls[0].body).toMatchObject({ attempts: 3 });
+    expect(ledgerPatch.calls[1].body).toMatchObject({
       processed_at: expect.any(String),
     });
   });
 
-  it("increments attempts and records last_error on failure", async () => {
+  it("on failure the claim already counted the attempt — only last_error is recorded", async () => {
     const sweepQuery = stubRoute(
       restMatch(env, "GET", "webhook_events"),
       () => [
@@ -119,18 +191,61 @@ describe("sweepWebhookEvents", () => {
     const messagePatch = stubRoute(restMatch(env, "PATCH", "messages"), () =>
       Response.json({ message: "db down" }, { status: 500 }),
     );
-    const ledgerPatch = stubRoute(restMatch(env, "PATCH", "webhook_events"), () =>
-      new Response(null, { status: 204 }),
-    );
+    const ledgerPatch = ledgerPatchStub();
     stubFetch(sweepQuery.route, messagePatch.route, ledgerPatch.route);
 
     await sweepWebhookEvents(env);
 
-    expect(ledgerPatch.calls).toHaveLength(1);
+    expect(ledgerPatch.calls).toHaveLength(2);
+    // The claim carried the attempt bump...
     expect(ledgerPatch.calls[0].body).toMatchObject({
       attempts: 2,
+      claimed_at: expect.any(String),
+    });
+    // ...so the failure record carries the error ONLY (no double count).
+    expect(ledgerPatch.calls[1].body).toEqual({
       last_error: expect.stringContaining("message.sent update failed"),
     });
+  });
+});
+
+describe("failStuckOutboundSends (#20)", () => {
+  it("invokes the fail-out RPC with the shared stuck threshold", async () => {
+    const rpc = stubRoute(rpcMatch(env, "fail_stuck_outbound_sends"), () => 0);
+    stubFetch(rpc.route);
+
+    await failStuckOutboundSends(env);
+
+    expect(rpc.calls).toHaveLength(1);
+    expect(rpc.calls[0].body).toEqual({
+      p_stuck_after_seconds: STUCK_SEND_SECONDS,
+    });
+  });
+
+  it("surfaces a flipped count loudly (a customer message was silently unsent)", async () => {
+    const rpc = stubRoute(rpcMatch(env, "fail_stuck_outbound_sends"), () => 2);
+    stubFetch(rpc.route);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    await failStuckOutboundSends(env);
+
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("failed out 2 stuck queued outbound message(s)"),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("throws on an RPC failure so the cron run is recorded as failed", async () => {
+    const rpc = stubRoute(rpcMatch(env, "fail_stuck_outbound_sends"), () =>
+      Response.json({ message: "boom" }, { status: 500 }),
+    );
+    stubFetch(rpc.route);
+
+    await expect(failStuckOutboundSends(env)).rejects.toThrow(
+      /fail_stuck_outbound_sends failed/,
+    );
   });
 });
 
@@ -208,5 +323,73 @@ describe("reportUnreportedUsage", () => {
 
     await reportUnreportedUsage(env);
     expect(stamp.calls).toHaveLength(0);
+  });
+
+  it("treats Stripe's duplicate-identifier rejection as success and stamps (#53)", async () => {
+    const usageQuery = stubRoute(
+      restMatch(env, "GET", "usage_events"),
+      () => [
+        {
+          id: "u-4",
+          quantity: 2,
+          meter_identifier: TELNYX_ID,
+          companies: { stripe_customer_id: "cus_123" },
+        },
+      ],
+    );
+    // The row was reported on an earlier run whose stamp UPDATE failed:
+    // Stripe now rejects the identifier reuse with an invalid_request_error
+    // (exercised through the REAL stripe-node error parsing).
+    const meter = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () =>
+        Response.json(
+          {
+            error: {
+              type: "invalid_request_error",
+              message: `An event already exists with identifier ${TELNYX_ID}.`,
+            },
+          },
+          { status: 400 },
+        ),
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "usage_events"), () =>
+      new Response(null, { status: 204 }),
+    );
+    stubFetch(usageQuery.route, meter.route, stamp.route);
+
+    await reportUnreportedUsage(env);
+
+    // Stamped — the row leaves the hourly re-report set for good.
+    expect(stamp.calls).toHaveLength(1);
+    expect(stamp.calls[0].url.searchParams.get("id")).toBe("eq.u-4");
+  });
+});
+
+describe("isDuplicateMeterIdentifierError (#53)", () => {
+  it("matches the stripe-node duplicate-identifier shape", () => {
+    expect(
+      isDuplicateMeterIdentifierError({
+        type: "StripeInvalidRequestError",
+        rawType: "invalid_request_error",
+        message: "An event already exists with identifier abc.",
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["a non-Stripe error", new Error("network down")],
+    ["a different invalid_request_error", {
+      rawType: "invalid_request_error",
+      message: "Missing required param: event_name.",
+    }],
+    ["an identifier-shaped message on a non-Stripe error", {
+      message: "identifier already exists",
+    }],
+    ["null", null],
+  ])("stays a retryable failure for %s", (_label, cause) => {
+    expect(isDuplicateMeterIdentifierError(cause)).toBe(false);
   });
 });
