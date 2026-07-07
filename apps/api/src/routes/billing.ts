@@ -11,7 +11,7 @@ import {
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
-import { enabledModules } from "../billing/company-modules";
+import { enabledModules, isSellableModule } from "../billing/company-modules";
 import {
   MODULE_CATALOG,
   moduleForPrice,
@@ -182,12 +182,14 @@ billingRoutes.post("/checkout", async (c) => {
   }
 
   // #12 plan-builder modules: one flat licensed line item per selected add-on.
-  // A module whose Stripe price isn't provisioned in this environment is
-  // rejected rather than silently dropped (the customer would be under-charged
-  // and think they bought it). Enablement is written on checkout.completed.
+  // A module that isn't sellable yet (#41: regions_ca gates nothing until
+  // multi-region provisioning ships — selling it charges $5/mo for nothing) or
+  // whose Stripe price isn't provisioned in this environment is rejected
+  // rather than silently dropped (the customer would be under-charged and
+  // think they bought it). Enablement is written on checkout.completed.
   for (const module of selectedModules) {
     const price = modulePrice(env, module);
-    if (!price) {
+    if (!isSellableModule(module) || !price) {
       return errorResponse(
         c,
         "validation_failed",
@@ -446,17 +448,71 @@ billingRoutes.get("/modules", async (c) => {
       detail: MODULE_CATALOG[id].detail ?? null,
       monthly_cents: MODULE_CATALOG[id].monthlyCents,
       enabled: enabled.has(id),
-      available: modulePrice(env, id) !== null,
+      // #41: `available` is what we can actually DELIVER and bill — an
+      // unsellable module (regions_ca until multi-region ships) reads as
+      // coming-soon here and is refused by checkout + the toggle below.
+      available: isSellableModule(id) && modulePrice(env, id) !== null,
     })),
   });
 });
+
+/**
+ * #18: rebuild the remaining phases of a subscription schedule so a module's
+ * flat price is present in (or absent from) EVERY phase — the current one
+ * (which updates the live subscription, prorated onto an immediate invoice)
+ * and the scheduled-downgrade one (so the rollover carries the new module set
+ * instead of the stale items pinned at downgrade time). Phase boundaries and
+ * the other items' prices/quantities are passed through untouched; completed
+ * phases cannot be re-supplied to Stripe and are dropped.
+ */
+async function applyModuleToSchedulePhases(
+  stripe: Stripe,
+  scheduleId: string,
+  price: string,
+  enabled: boolean,
+): Promise<void> {
+  const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] =
+    schedule.phases
+      // Stripe requires the supplied list to start at the CURRENT phase.
+      .filter((phase) => phase.end_date > nowSeconds)
+      .map((phase) => {
+        const items = phase.items
+          .map((item) => ({
+            price: typeof item.price === "string" ? item.price : item.price.id,
+            quantity: item.quantity,
+          }))
+          .filter((item) => enabled || item.price !== price)
+          .map((item) =>
+            // Metered items carry no quantity (SPEC §9) — omit, don't null.
+            item.quantity == null
+              ? { price: item.price }
+              : { price: item.price, quantity: item.quantity },
+          );
+        if (enabled && !items.some((item) => item.price === price)) {
+          items.push({ price, quantity: 1 });
+        }
+        return {
+          items,
+          start_date: phase.start_date,
+          end_date: phase.end_date,
+        };
+      });
+  await stripe.subscriptionSchedules.update(scheduleId, {
+    phases,
+    proration_behavior: "always_invoice",
+  });
+}
 
 /**
  * POST /v1/billing/modules (#12 plan builder) — turn a module on/off on an
  * existing subscription. Enabling adds the module's flat line item (prorated
  * now); disabling removes it AND clears any capability it gated (voice →
  * forward + missed-call text) so a switched-off module can never keep costing
- * us. Mirrored to `company_modules`; the subscription webhook re-mirrors too.
+ * us. Schedule-aware (#18): with a pending downgrade the change is written
+ * into the schedule's phases instead of the raw items. Mirrored to
+ * `company_modules`; the subscription webhook re-mirrors too.
  */
 billingRoutes.post("/modules", async (c) => {
   const env = getEnv(c.env);
@@ -481,8 +537,20 @@ billingRoutes.post("/modules", async (c) => {
       "No subscription yet — complete checkout first.",
     );
   }
+  // #44: a canceled (in-grace) or otherwise dead subscription cannot take
+  // item changes — Stripe rejects writes against it, which used to surface as
+  // an unhandled 500. Say what to do instead.
+  if (!hasLiveSubscription(company.subscription_status)) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your subscription is canceled — resubscribe to change add-ons.",
+    );
+  }
   const price = modulePrice(env, module);
-  if (!price) {
+  // #41: refuse to sell what we can't deliver (regions_ca until multi-region
+  // ships), and refuse a module with no provisioned price in this environment.
+  if (!isSellableModule(module) || !price) {
     return errorResponse(
       c,
       "validation_failed",
@@ -497,9 +565,26 @@ billingRoutes.post("/modules", async (c) => {
   const existingItem = subscription.items.data.find(
     (item) => item.price?.id === price,
   );
+  // #18 OWNER DECISION: a pending-downgrade subscription schedule OWNS the
+  // subscription's items. Mutating items directly on a schedule-managed
+  // subscription is rejected by Stripe (500 to the customer), and even if it
+  // landed, the schedule's pinned phase-2 item list would re-apply the OLD
+  // module set at period end — re-billing a disabled module or dropping a
+  // paid one while company_modules keeps it enabled. So when a schedule is
+  // attached we rebuild every remaining phase's item list with the module
+  // added/removed (same prices, same phase boundaries) and let Stripe prorate
+  // the current-phase change onto an immediate invoice: the toggle takes
+  // effect NOW and survives the plan change, instead of locking the customer
+  // out of add-on management until period end.
+  const scheduleId =
+    typeof subscription.schedule === "string"
+      ? subscription.schedule
+      : subscription.schedule?.id;
 
   if (enabled) {
-    if (!existingItem) {
+    if (scheduleId) {
+      await applyModuleToSchedulePhases(stripe, scheduleId, price, true);
+    } else if (!existingItem) {
       await stripe.subscriptionItems.create({
         subscription: subscription.id,
         price,
@@ -512,6 +597,9 @@ billingRoutes.post("/modules", async (c) => {
         module,
         enabled_at: new Date().toISOString(),
         disabled_at: null,
+        // An explicit purchase — from here on the subscription is the truth
+        // for this module (#17 reconcile may disable it when unpaid).
+        grandfathered: false,
       },
       { onConflict: "company_id,module" },
     );
@@ -520,7 +608,9 @@ billingRoutes.post("/modules", async (c) => {
   }
 
   // Disable: drop the line item, mark disabled, and clear the gated capability.
-  if (existingItem) {
+  if (scheduleId) {
+    await applyModuleToSchedulePhases(stripe, scheduleId, price, false);
+  } else if (existingItem) {
     await stripe.subscriptionItems.del(existingItem.id, {
       proration_behavior: "always_invoice",
     });

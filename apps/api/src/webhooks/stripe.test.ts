@@ -25,7 +25,7 @@ import {
   type StubEndpoint,
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
-import { startPortSaga } from "../test/telnyx-doubles/porting";
+import { sendPortEmail, startPortSaga } from "../test/telnyx-doubles/porting";
 import {
   provisionCompanyNumber,
   suspendCompanyNumbers,
@@ -78,6 +78,7 @@ function subscriptionFixture(
     metered?: string;
     cancelAtPeriodEnd?: boolean;
     modulePriceIds?: string[];
+    canceledAt?: number | null;
   } = {},
 ) {
   const {
@@ -87,12 +88,14 @@ function subscriptionFixture(
     metered = env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     cancelAtPeriodEnd = false,
     modulePriceIds = [],
+    canceledAt = null,
   } = overrides;
   return {
     id,
     object: "subscription",
     status,
     cancel_at_period_end: cancelAtPeriodEnd,
+    canceled_at: canceledAt,
     schedule: null,
     items: {
       object: "list",
@@ -171,6 +174,9 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
     // pending port to drive (startPendingPorts). No pending ports in the
     // billing suites — the port saga has its own dedicated suite.
     endpoint("GET", /\/rest\/v1\/port_requests/, () => []),
+    // #52 default: one-shot email claims succeed (fresh ledger). Tests that
+    // need a conflict register their own endpoint BEFORE this one.
+    endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
   ];
 }
 
@@ -627,12 +633,15 @@ describe("§9 event → state table", () => {
 
     const canceledAt = new Date(EVENT_CREATED * 1000).toISOString();
     const patches = harness.callsTo("PATCH", /companies/);
-    expect(patches).toHaveLength(1);
+    expect(patches).toHaveLength(2);
     expect(patches[0].json()).toEqual({
       subscription_status: "canceled",
-      canceled_at: canceledAt,
       cancel_at_period_end: false,
     });
+    // canceled_at is CLAIMED first-writer-wins (guarded on IS NULL) so a late
+    // redelivery after the reconcile backstop converges on ONE ledger key.
+    expect(patches[1].url.searchParams.get("canceled_at")).toBe("is.null");
+    expect(patches[1].json()).toEqual({ canceled_at: canceledAt });
     expect(suspendCompanyNumbers).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
     // Ledger row FIRST, keyed to the same canceled_at the company row got.
     expect(graceInserts).toEqual([
@@ -783,6 +792,292 @@ describe("§9 event → state table", () => {
   });
 });
 
+describe("module reconcile from the subscription's paid items (#17)", () => {
+  const moduleRow = (
+    module: string,
+    overrides: Partial<{ disabled_at: string | null; grandfathered: boolean }> = {},
+  ) => ({ module, disabled_at: null, grandfathered: false, ...overrides });
+
+  /** Companies PATCH answering the activation with embedded module rows. */
+  function companiesWithModules(rows: unknown[]): StubEndpoint {
+    return endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+      { id: COMPANY_ID, name: "Acme Plumbing", canceled_at: null, company_modules: rows },
+    ]);
+  }
+
+  it("checkout on a base-only resubscribe DISABLES stale modules and clears voice settings", async () => {
+    // The #17 leak: enable mms+voice, cancel, resubscribe base-only — the
+    // stale rows used to stay enabled (free MMS + forwarded voice) forever.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(), // base plan only — no module line items
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+      companiesWithModules([moduleRow("mms"), moduleRow("voice")]),
+      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    // Both unpaid modules disabled in one guarded update…
+    const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
+    expect(disables).toHaveLength(1);
+    expect(disables[0].url.searchParams.get("module")).toBe("in.(mms,voice)");
+    expect(disables[0].url.searchParams.get("disabled_at")).toBe("is.null");
+    expect(disables[0].json()).toEqual({ disabled_at: expect.any(String) });
+    // …nothing re-enabled…
+    expect(harness.callsTo("POST", /\/rest\/v1\/company_modules/)).toHaveLength(0);
+    // …and the voice disable cleared forwarding exactly like the manual path.
+    const companyPatches = harness.callsTo("PATCH", /companies/);
+    expect(companyPatches).toHaveLength(2); // activate, then voice clear
+    expect(companyPatches[1].json()).toEqual({
+      forward_to_cell: null,
+      mctb_enabled: false,
+    });
+  });
+
+  it("grandfathered seed modules survive a base-only checkout untouched", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+      companiesWithModules([
+        moduleRow("mms", { grandfathered: true }),
+        moduleRow("voice", { grandfathered: true }),
+      ]),
+      endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    // No company_modules traffic at all, no voice clearing — and the event
+    // fully processed (nothing threw on an unexpected write).
+    expect(
+      harness.calls.filter((call) =>
+        /\/rest\/v1\/company_modules/.test(call.url.href),
+      ),
+    ).toHaveLength(0);
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(harness.callsTo("PATCH", /webhook_events/)[0].json()).toEqual({
+      processed_at: expect.any(String),
+    });
+  });
+
+  it("customer.subscription.updated converges enables AND disables onto the paid set", async () => {
+    // Paid: mms (currently disabled row). Unpaid: voice (currently enabled).
+    const moduleUpserts: unknown[] = [];
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          modulePriceIds: [env.STRIPE_MODULE_MMS_PRICE_ID!],
+        }),
+      ),
+      companiesWithModules([
+        moduleRow("mms", { disabled_at: "2026-06-01T00:00:00.000Z" }),
+        moduleRow("voice"),
+      ]),
+      endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
+        moduleUpserts.push(call.json());
+        return [];
+      }),
+      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    // mms re-enabled with the grandfather flag cleared (it is paid now)…
+    expect(moduleUpserts).toEqual([
+      [
+        {
+          company_id: COMPANY_ID,
+          module: "mms",
+          enabled_at: expect.any(String),
+          disabled_at: null,
+          grandfathered: false,
+        },
+      ],
+    ]);
+    // …voice disabled (no paid item), forwarding cleared.
+    const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
+    expect(disables).toHaveLength(1);
+    expect(disables[0].url.searchParams.get("module")).toBe("in.(voice)");
+    const companyPatches = harness.callsTo("PATCH", /companies/);
+    expect(companyPatches[1].json()).toEqual({
+      forward_to_cell: null,
+      mctb_enabled: false,
+    });
+  });
+});
+
+describe("missed-cancellation backstop (#21)", () => {
+  const STRIPE_CANCELED_AT = 1_750_500_000;
+  const STRIPE_CANCELED_ISO = new Date(STRIPE_CANCELED_AT * 1000).toISOString();
+
+  /**
+   * Companies PATCH split on shape: the status mirror (no canceled_at filter)
+   * returns the company with canceled_at as given; the guarded canceled_at
+   * claim (filters on canceled_at=is.null) succeeds.
+   */
+  function companiesEndpoint(existingCanceledAt: string | null): StubEndpoint {
+    return endpoint("PATCH", /\/rest\/v1\/companies/, (call) =>
+      call.url.searchParams.get("canceled_at") === "is.null"
+        ? [{ id: COMPANY_ID }]
+        : [
+            {
+              id: COMPANY_ID,
+              name: "Acme Plumbing",
+              canceled_at: existingCanceledAt,
+              company_modules: [],
+            },
+          ],
+    );
+  }
+
+  it("a sync that discovers 'canceled' claims canceled_at, suspends numbers, and starts grace", async () => {
+    const graceInserts: unknown[] = [];
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      // The reconcile/webhook re-fetch finds a cancellation nobody mirrored
+      // (the deleted event was missed entirely).
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          status: "canceled",
+          canceledAt: STRIPE_CANCELED_AT,
+        }),
+      ),
+      companiesEndpoint(null),
+      endpoint("POST", /\/rest\/v1\/grace_notices/, (call) => {
+        graceInserts.push(call.json());
+        return [{ company_id: COMPANY_ID }];
+      }),
+      ...recipientEndpoints(),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    const patches = harness.callsTo("PATCH", /companies/);
+    expect(patches).toHaveLength(2);
+    // Mirror: canceled forces the pending-cancellation flag off.
+    expect(patches[0].json()).toMatchObject({
+      subscription_status: "canceled",
+      cancel_at_period_end: false,
+    });
+    // Claim: Stripe's own cancellation moment, guarded first-writer-wins.
+    expect(patches[1].url.searchParams.get("canceled_at")).toBe("is.null");
+    expect(patches[1].json()).toEqual({ canceled_at: STRIPE_CANCELED_ISO });
+    // The SAME machinery the deleted handler runs: suspend + day-1 notice.
+    expect(suspendCompanyNumbers).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+    expect(graceInserts).toEqual([
+      {
+        company_id: COMPANY_ID,
+        canceled_at: STRIPE_CANCELED_ISO,
+        threshold_day: 1,
+      },
+    ]);
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(1);
+  });
+
+  it("an already-claimed cancellation converges: no re-claim, no duplicate email", async () => {
+    const EXISTING = "2026-06-20T00:00:00.000Z";
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          status: "canceled",
+          canceledAt: STRIPE_CANCELED_AT,
+        }),
+      ),
+      companiesEndpoint(EXISTING),
+      // The grace ledger already carries day 1 for this cancellation.
+      endpoint("POST", /\/rest\/v1\/grace_notices/, () => []),
+      ...recipientEndpoints(),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    // Only the status mirror — canceled_at is never overwritten (the grace
+    // ledger keys on the one stored value).
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(suspendCompanyNumbers).toHaveBeenCalledTimes(1); // idempotent
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
+  });
+});
+
+describe("one-shot email ledger (#52)", () => {
+  it("payment-failed dunning sends once per attempt, replays never re-send", async () => {
+    const claimed = new Set<string>();
+    const buildHarness = () =>
+      makeHarness([
+        // Registered BEFORE ledgerEndpoints so this claim logic wins.
+        endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => {
+          const row = call.json() as { email_key: string };
+          if (claimed.has(row.email_key)) return [];
+          claimed.add(row.email_key);
+          return [row];
+        }),
+        ...ledgerEndpoints(),
+        endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+          subscriptionFixture({ status: "past_due" }),
+        ),
+        endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+          { id: COMPANY_ID, name: "Acme Plumbing", canceled_at: null },
+        ]),
+        ...recipientEndpoints(),
+      ]);
+
+    // First delivery of attempt 1: claimed + emailed.
+    const first = buildHarness();
+    await deliver(
+      eventOf("invoice.payment_failed", invoiceFixture({ attempt_count: 1 })),
+      first,
+    );
+    expect(first.callsTo("POST", /email_ledger/)[0].json()).toEqual({
+      company_id: COMPANY_ID,
+      email_key: "invoice_payment_failed:in_1:1",
+    });
+    expect(first.callsTo("POST", /api\.resend\.com/)).toHaveLength(1);
+
+    // A sweeper-style re-run of the same attempt: claim conflicts, no email.
+    const replay = buildHarness();
+    await deliver(
+      eventOf("invoice.payment_failed", invoiceFixture({ attempt_count: 1 })),
+      replay,
+    );
+    expect(replay.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
+
+    // Stripe's NEXT retry (a genuinely new failure) still notifies.
+    const nextAttempt = buildHarness();
+    await deliver(
+      eventOf("invoice.payment_failed", invoiceFixture({ attempt_count: 2 })),
+      nextAttempt,
+    );
+    expect(nextAttempt.callsTo("POST", /api\.resend\.com/)).toHaveLength(1);
+  });
+});
+
 describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", () => {
   const PORT_ID = "5f2b8f0a-7425-40de-944b-e07fc1f90ae8";
 
@@ -916,6 +1211,54 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
     });
     expect(harness.callsTo("PATCH", /port_requests/)).toHaveLength(0);
     expect(startPortSaga).toHaveBeenCalledTimes(1);
+  });
+
+  it("the port-documents nudge is ledgered — a handler re-run never re-emails (#52)", async () => {
+    const claimed = new Set<string>();
+    const buildHarness = () =>
+      makeHarness([
+        // Registered BEFORE ledgerEndpoints so this claim logic wins.
+        endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => {
+          const row = call.json() as { email_key: string };
+          if (claimed.has(row.email_key)) return [];
+          claimed.add(row.email_key);
+          return [row];
+        }),
+        ...portEndpoints({
+          id: PORT_ID,
+          phone_e164: "+15125550111",
+          wants_bridge_number: false,
+          bridge_number_id: null,
+          telnyx_loa_document_id: null,
+          telnyx_invoice_document_id: null,
+        }),
+        ...ledgerEndpoints(),
+        ...checkoutEndpoints(),
+      ]);
+
+    const first = buildHarness();
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture(), {
+        id: "evt_port_nudge_1",
+      }),
+      first,
+    );
+    expect(first.callsTo("POST", /email_ledger/)[0].json()).toEqual({
+      company_id: COMPANY_ID,
+      email_key: `port_documents_needed:${PORT_ID}`,
+    });
+    expect(sendPortEmail).toHaveBeenCalledTimes(1);
+
+    // A sweeper-style re-run of the handler (a LATER step failed, the whole
+    // thing replays under a fresh event): the claim conflicts, no re-send.
+    const rerun = buildHarness();
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture(), {
+        id: "evt_port_nudge_2",
+      }),
+      rerun,
+    );
+    expect(sendPortEmail).toHaveBeenCalledTimes(1);
   });
 
   it("a pending port WITHOUT the bridge opt-in starts the saga and buys nothing extra", async () => {

@@ -389,6 +389,25 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.has("line_items[4][price]")).toBe(false);
   });
 
+  it("regions_ca is not sellable: checkout refuses it server-side (#41)", async () => {
+    // The module is admittedly inert (nothing reads it yet) — selling it would
+    // charge $5/mo for nothing, so the server refuses even though a price is
+    // provisioned and the enum accepts the value.
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+    ]);
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter", modules: ["regions_ca"] },
+      harness,
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      error: { code: "validation_failed", message: expect.any(String) },
+    });
+    expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
   it("resubscribe after cancellation: allowed, reuses the Stripe customer, no second fee", async () => {
     const harness = makeHarness([
       companyEndpoint(
@@ -867,5 +886,233 @@ describe("plan-builder modules (#12)", () => {
       harness,
     );
     expect(response.status).toBe(409);
+  });
+
+  it("POST /modules is a clean 409 on a canceled subscription — no Stripe write attempted (#44)", async () => {
+    // A canceled-in-grace company keeps stripe_subscription_id + plan, so the
+    // no-subscription gate alone let the route reach Stripe (unhandled 500).
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({
+          plan: "starter",
+          subscription_status: "canceled",
+          stripe_customer_id: "cus_1",
+          stripe_subscription_id: "sub_1",
+        }),
+      ),
+    ]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "mms", enabled: true },
+      harness,
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "conflict",
+        message: expect.stringContaining("resubscribe"),
+      },
+    });
+    expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
+  it("regions_ca is not sellable: the toggle refuses it and GET reports available:false (#41)", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
+    ]);
+    const toggle = await post(
+      "/v1/billing/modules",
+      { module: "regions_ca", enabled: true },
+      harness,
+    );
+    expect(toggle.status).toBe(422);
+    expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+
+    const catalog = await get("/v1/billing/modules", harness);
+    const body = (await catalog.json()) as {
+      modules: { id: string; available: boolean }[];
+    };
+    expect(body.modules.find((m) => m.id === "regions_ca")?.available).toBe(false);
+    expect(body.modules.find((m) => m.id === "mms")?.available).toBe(true);
+  });
+});
+
+describe("plan-builder modules with a pending downgrade schedule (#18)", () => {
+  const activePro = () =>
+    companyRow({
+      plan: "pro",
+      subscription_status: "active",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+    });
+
+  // Real-clock phase boundaries: the rebuild drops COMPLETED phases (Stripe
+  // refuses re-supplied past phases), so the fixture must straddle "now".
+  const NOW_SEC = Math.floor(Date.now() / 1000);
+  const PHASE1_START = NOW_SEC - 10_000;
+  const PHASE1_END = NOW_SEC + 100_000;
+  const PHASE2_END = NOW_SEC + 200_000;
+
+  /** A change-plan downgrade schedule: Pro now, Starter at period end. */
+  function scheduleFixture(
+    moduleprices: { phase1?: string[]; phase2?: string[] } = {},
+  ) {
+    return {
+      id: "sub_sched_1",
+      object: "subscription_schedule",
+      status: "active",
+      current_phase: { start_date: PHASE1_START, end_date: PHASE1_END },
+      phases: [
+        {
+          start_date: PHASE1_START,
+          end_date: PHASE1_END,
+          items: [
+            { price: env.STRIPE_PRO_PRICE_ID, quantity: 1 },
+            { price: env.STRIPE_PRO_OVERAGE_PRICE_ID },
+            ...(moduleprices.phase1 ?? []).map((price) => ({ price, quantity: 1 })),
+          ],
+        },
+        {
+          start_date: PHASE1_END,
+          end_date: PHASE2_END,
+          items: [
+            { price: env.STRIPE_STARTER_PRICE_ID, quantity: 1 },
+            { price: env.STRIPE_STARTER_OVERAGE_PRICE_ID },
+            ...(moduleprices.phase2 ?? []).map((price) => ({ price, quantity: 1 })),
+          ],
+        },
+      ],
+    };
+  }
+
+  it("enable rebuilds EVERY phase with the module price — never a direct item write", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activePro()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          licensed: env.STRIPE_PRO_PRICE_ID,
+          metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
+          schedule: "sub_sched_1",
+        }),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () => scheduleFixture(),
+      ),
+      endpoint(
+        "POST",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
+      ),
+      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
+    ]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "voice", enabled: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ module: "voice", enabled: true });
+
+    // Stripe rejects direct item mutations on a schedule-managed subscription.
+    expect(harness.callsTo("POST", /subscription_items$/)).toHaveLength(0);
+
+    const update = harness
+      .callsTo("POST", /subscription_schedules\/sub_sched_1/)[0]
+      .form();
+    expect(update.get("proration_behavior")).toBe("always_invoice");
+    // Phase 1 (current): the Pro items pass through, voice added NOW.
+    expect(update.get("phases[0][start_date]")).toBe(String(PHASE1_START));
+    expect(update.get("phases[0][end_date]")).toBe(String(PHASE1_END));
+    expect(update.get("phases[0][items][0][price]")).toBe(env.STRIPE_PRO_PRICE_ID);
+    expect(update.get("phases[0][items][0][quantity]")).toBe("1");
+    expect(update.get("phases[0][items][1][price]")).toBe(
+      env.STRIPE_PRO_OVERAGE_PRICE_ID,
+    );
+    // Metered price still carries no quantity through the rebuild (SPEC §9).
+    expect(update.has("phases[0][items][1][quantity]")).toBe(false);
+    expect(update.get("phases[0][items][2][price]")).toBe(
+      env.STRIPE_MODULE_VOICE_PRICE_ID,
+    );
+    expect(update.get("phases[0][items][2][quantity]")).toBe("1");
+    // Phase 2 (the scheduled Starter downgrade): voice survives the rollover.
+    expect(update.get("phases[1][items][0][price]")).toBe(
+      env.STRIPE_STARTER_PRICE_ID,
+    );
+    expect(update.get("phases[1][items][2][price]")).toBe(
+      env.STRIPE_MODULE_VOICE_PRICE_ID,
+    );
+    // The DB mirror is unchanged: enabled, grandfather cleared.
+    const upserts = harness.callsTo("POST", /\/rest\/v1\/company_modules/);
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].json()).toEqual({
+      company_id: COMPANY_ID,
+      module: "voice",
+      enabled_at: expect.any(String),
+      disabled_at: null,
+      grandfathered: false,
+    });
+  });
+
+  it("disable strips the module price from EVERY phase and clears voice settings", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activePro()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          licensed: env.STRIPE_PRO_PRICE_ID,
+          metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
+          schedule: "sub_sched_1",
+          moduleItems: [
+            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
+          ],
+        }),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () =>
+          scheduleFixture({
+            phase1: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
+            phase2: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
+          }),
+      ),
+      endpoint(
+        "POST",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    const response = await post(
+      "/v1/billing/modules",
+      { module: "voice", enabled: false },
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // No direct item delete — the phase rebuild removes the price everywhere,
+    // so the stale phase-2 items can never re-bill the module at rollover.
+    expect(
+      harness.calls.filter((call) => call.method === "DELETE"),
+    ).toHaveLength(0);
+    const update = harness
+      .callsTo("POST", /subscription_schedules\/sub_sched_1/)[0]
+      .form();
+    const phasePrices = [...update.entries()]
+      .filter(([key]) => /\[items\]\[\d+\]\[price\]$/.test(key))
+      .map(([, value]) => value);
+    expect(phasePrices).not.toContain(env.STRIPE_MODULE_VOICE_PRICE_ID);
+    expect(phasePrices).toContain(env.STRIPE_PRO_PRICE_ID);
+    expect(phasePrices).toContain(env.STRIPE_STARTER_PRICE_ID);
+    // Voice capability cleared exactly like the schedule-less disable.
+    const companyPatch = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
+    expect(companyPatch).toHaveLength(1);
+    expect(companyPatch[0].json()).toEqual({
+      forward_to_cell: null,
+      mctb_enabled: false,
+    });
   });
 });

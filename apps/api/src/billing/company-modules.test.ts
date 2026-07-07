@@ -5,9 +5,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyModuleReconcile,
   effectiveStorageBudgets,
   enabledModules,
   isModuleEnabled,
+  isSellableModule,
+  planModuleReconcile,
+  SELLABLE_MODULES,
+  type CompanyModuleRow,
 } from "./company-modules";
 import {
   isPlanModule,
@@ -87,6 +92,128 @@ describe("enabledModules", () => {
     );
     const mods = await enabledModules(getDb(env), COMPANY);
     expect(mods).toEqual<PlanModule[]>(["mms", "voice"]);
+  });
+});
+
+describe("sellable modules (#41)", () => {
+  it("regions_ca is catalog-listed but not sellable until multi-region ships", () => {
+    expect(SELLABLE_MODULES).toEqual(["mms", "voice", "extra_storage"]);
+    expect(isSellableModule("regions_ca")).toBe(false);
+    expect(isSellableModule("mms")).toBe(true);
+  });
+});
+
+describe("planModuleReconcile (#17)", () => {
+  const BILLABLE: PlanModule[] = ["mms", "voice", "extra_storage"];
+  const row = (
+    module: string,
+    overrides: Partial<CompanyModuleRow> = {},
+  ): CompanyModuleRow => ({
+    module,
+    disabled_at: null,
+    grandfathered: false,
+    ...overrides,
+  });
+
+  it("enables missing, disabled, and still-grandfathered paid modules", () => {
+    const plan = planModuleReconcile(
+      [
+        row("mms"), // paid + already enabled → untouched
+        row("voice", { disabled_at: "2026-06-01T00:00:00Z" }), // paid, off → on
+        row("extra_storage", { grandfathered: true }), // paid → flag cleared
+      ],
+      ["mms", "voice", "extra_storage"],
+      BILLABLE,
+    );
+    expect(plan.enable.sort()).toEqual(["extra_storage", "voice"]);
+    expect(plan.disable).toEqual([]);
+  });
+
+  it("disables enabled billable modules with no paid line item (the resubscribe leak)", () => {
+    const plan = planModuleReconcile(
+      [row("mms"), row("voice")],
+      [], // base-only resubscribe: no module items on the new subscription
+      BILLABLE,
+    );
+    expect(plan.enable).toEqual([]);
+    expect(plan.disable.sort()).toEqual(["mms", "voice"]);
+  });
+
+  it("never disables grandfathered seeds, unbillable modules, or already-off rows", () => {
+    const plan = planModuleReconcile(
+      [
+        row("mms", { grandfathered: true }), // pre-#12 seed — protected
+        row("voice", { disabled_at: "2026-06-01T00:00:00Z" }), // already off
+        row("extra_storage"), // billable, unpaid → the ONE disable
+        row("regions_ca"), // price not configured → paid-ness unknowable
+        row("legacy_unknown"), // defensive: not a module at all
+      ],
+      [],
+      ["mms", "voice", "extra_storage"], // regions_ca not billable here
+    );
+    expect(plan.enable).toEqual([]);
+    expect(plan.disable).toEqual(["extra_storage"]);
+  });
+});
+
+describe("applyModuleReconcile (#17)", () => {
+  it("upserts enables (grandfather cleared) and guard-disables in one pass", async () => {
+    const upserts = stubRoute(restMatch(env, "POST", "company_modules"), () => []);
+    const disables = stubRoute(
+      restMatch(env, "PATCH", "company_modules"),
+      () => new Response(null, { status: 204 }),
+    );
+    const companies = stubRoute(
+      restMatch(env, "PATCH", "companies"),
+      () => new Response(null, { status: 204 }),
+    );
+    serve(upserts, disables, companies);
+
+    await applyModuleReconcile(getDb(env), COMPANY, {
+      enable: ["mms"],
+      disable: ["voice", "extra_storage"],
+    });
+
+    expect(upserts.calls).toHaveLength(1);
+    expect(upserts.calls[0].body).toEqual([
+      {
+        company_id: COMPANY,
+        module: "mms",
+        enabled_at: expect.any(String),
+        disabled_at: null,
+        grandfathered: false,
+      },
+    ]);
+    expect(disables.calls).toHaveLength(1);
+    const query = disables.calls[0].url.searchParams;
+    expect(query.get("company_id")).toBe(`eq.${COMPANY}`);
+    expect(query.get("module")).toBe("in.(voice,extra_storage)");
+    expect(query.get("disabled_at")).toBe("is.null");
+    expect(disables.calls[0].body).toEqual({ disabled_at: expect.any(String) });
+    // Disabling voice clears the forwarding capability (cost-protection).
+    expect(companies.calls).toHaveLength(1);
+    expect(companies.calls[0].body).toEqual({
+      forward_to_cell: null,
+      mctb_enabled: false,
+    });
+  });
+
+  it("a no-op plan writes nothing", async () => {
+    serve(); // any request would fail loudly as unstubbed
+    await applyModuleReconcile(getDb(env), COMPANY, { enable: [], disable: [] });
+  });
+
+  it("a non-voice disable never touches the companies row", async () => {
+    const disables = stubRoute(
+      restMatch(env, "PATCH", "company_modules"),
+      () => new Response(null, { status: 204 }),
+    );
+    serve(disables);
+    await applyModuleReconcile(getDb(env), COMPANY, {
+      enable: [],
+      disable: ["extra_storage"],
+    });
+    expect(disables.calls).toHaveLength(1);
   });
 });
 

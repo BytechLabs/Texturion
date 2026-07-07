@@ -1,6 +1,7 @@
 -- #12 plan builder — company_modules table: PK, module check, disabled_at
--- semantics, and the grandfathering query shape. Self-contained fixtures,
--- rolled back.
+-- semantics, the grandfathering query shape, the #17 grandfathered-flag
+-- reconcile predicate, and the #52 email_ledger idempotency. Self-contained
+-- fixtures, rolled back.
 
 begin;
 
@@ -86,6 +87,69 @@ begin
     raise exception 'MOD-4 FAILED: expected 2 enabled modules after disabling voice, got %', n;
   end if;
   raise notice 'MOD-4 PASSED: disabled_at excludes a module from the enabled set';
+end $$;
+
+-- ===========================================================================
+-- MOD-5. #17 grandfathered flag: defaults false for new (purchased) rows, and
+--        the reconcile's disable predicate (enabled AND NOT grandfathered)
+--        skips grandfathered seeds while catching unpaid purchases.
+-- ===========================================================================
+do $$
+declare victims text[];
+begin
+  if exists (select 1 from public.company_modules
+              where company_id = '77777777-7777-4777-8777-777000000000'
+                and grandfathered) then
+    raise exception 'MOD-5 FAILED: fresh rows must default grandfathered = false';
+  end if;
+
+  -- mms plays a protected pre-#12 seed; regions_ca a normal enabled row.
+  update public.company_modules set grandfathered = true
+   where company_id = '77777777-7777-4777-8777-777000000000' and module = 'mms';
+
+  -- The #17 reconcile disable shape: enabled, not grandfathered, no paid item.
+  select array_agg(module order by module) into victims
+    from public.company_modules
+   where company_id = '77777777-7777-4777-8777-777000000000'
+     and disabled_at is null
+     and not grandfathered;
+  if victims <> array['regions_ca'] then
+    raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected regions_ca only', victims;
+  end if;
+  raise notice 'MOD-5 PASSED: grandfathered rows are exempt from the reconcile disable predicate';
+end $$;
+
+-- ===========================================================================
+-- LEDG-1. #52 email_ledger: the (company_id, email_key) PK dedupes, and the
+--         insert-first claim shape (on conflict do nothing) returns no row on
+--         a replay — the caller then skips the send.
+-- ===========================================================================
+do $$
+declare claimed int;
+begin
+  insert into public.email_ledger (company_id, email_key)
+  values ('77777777-7777-4777-8777-777000000000', 'port_documents_needed:test');
+
+  begin
+    insert into public.email_ledger (company_id, email_key)
+    values ('77777777-7777-4777-8777-777000000000', 'port_documents_needed:test');
+    raise exception 'LEDG-1 FAILED: duplicate (company_id, email_key) accepted';
+  exception
+    when unique_violation then
+      null; -- the PK held
+  end;
+
+  with claim as (
+    insert into public.email_ledger (company_id, email_key)
+    values ('77777777-7777-4777-8777-777000000000', 'port_documents_needed:test')
+    on conflict (company_id, email_key) do nothing
+    returning 1
+  )
+  select count(*) into claimed from claim;
+  if claimed <> 0 then
+    raise exception 'LEDG-1 FAILED: a replayed claim returned a row (would re-send)';
+  end if;
+  raise notice 'LEDG-1 PASSED: email_ledger claims are insert-first idempotent';
 end $$;
 
 rollback;

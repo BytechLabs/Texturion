@@ -2,9 +2,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
-import { recordAndSendGraceNotice } from "../billing/grace";
-import { moduleForPrice, type PlanModule } from "../billing/modules";
 import {
+  applyModuleReconcile,
+  planModuleReconcile,
+  type CompanyModuleRow,
+} from "../billing/company-modules";
+import { recordAndSendGraceNotice } from "../billing/grace";
+import {
+  moduleForPrice,
+  modulePrice,
+  PLAN_MODULES,
+  type PlanModule,
+} from "../billing/modules";
+import {
+  hasLiveSubscription,
   mirrorSubscriptionStatus,
   planForLicensedPrice,
   type PlanId,
@@ -177,6 +188,60 @@ function subscriptionPlan(
 }
 
 /**
+ * #17: converge `company_modules` onto the module line items the subscription
+ * ACTUALLY carries. Runs from every entry point that mirrors subscription
+ * state (checkout completion, subscription created/updated webhooks, and —
+ * through syncSubscription — the §11 daily reconcile), so a
+ * cancel-then-resubscribe or a schedule rollover can never leave a module
+ * enabled that nobody pays for. Grandfathered seed rows are exempt (see
+ * planModuleReconcile); disabling voice clears the forwarding config exactly
+ * like the manual disable path.
+ */
+async function reconcileModulesFromSubscription(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  rows: CompanyModuleRow[],
+  subscription: Stripe.Subscription,
+): Promise<void> {
+  const paid = subscription.items.data
+    .map((item) => (item.price ? moduleForPrice(env, item.price.id) : null))
+    .filter((module): module is PlanModule => module !== null);
+  const billable = PLAN_MODULES.filter(
+    (module) => modulePrice(env, module) !== null,
+  );
+  await applyModuleReconcile(
+    db,
+    companyId,
+    planModuleReconcile(rows, paid, billable),
+  );
+}
+
+/**
+ * #52: insert-first ledger for one-shot customer emails sent from webhook
+ * processing. The `webhook_events` ledger dedupes duplicate DELIVERIES, but
+ * the sweeper replays a partially-failed handler WHOLE — claiming a
+ * `(company_id, email_key)` row before sending means a replay can never
+ * re-send an email that already went out. Same insert-first shape as
+ * `grace_notices`. Returns whether THIS call claimed the key.
+ */
+async function claimEmailOnce(
+  db: SupabaseClient,
+  companyId: string,
+  emailKey: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("email_ledger")
+    .upsert(
+      { company_id: companyId, email_key: emailKey },
+      { onConflict: "company_id,email_key", ignoreDuplicates: true },
+    )
+    .select("email_key");
+  if (error) throw new Error(`email_ledger insert failed: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/**
  * §9 `checkout.session.completed` row: `payment_status=='paid'` guard;
  * `incomplete → active`; store customer/subscription/plan/period; stamp
  * `registration_fee_paid_at` when the fee line is present; un-suspend numbers
@@ -220,7 +285,7 @@ export async function handleCheckoutCompleted(
   const plan = subscriptionPlan(env, subscription);
 
   const db = getDb(env);
-  const { error } = await db
+  const { data: activated, error } = await db
     .from("companies")
     .update({
       stripe_customer_id: customerId,
@@ -232,8 +297,15 @@ export async function handleCheckoutCompleted(
       cancel_at_period_end: subscription.cancel_at_period_end === true,
       ...(plan ? { plan } : {}),
     })
-    .eq("id", companyId);
+    .eq("id", companyId)
+    // company_modules embedded so the #17 module reconcile below needs no
+    // second read — the activation write and the module truth arrive together.
+    .select("id,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`companies activate failed: ${error.message}`);
+  const moduleRows =
+    ((activated ?? [])[0] as
+      | { company_modules?: CompanyModuleRow[] }
+      | undefined)?.company_modules ?? [];
 
   // $29 US-registration fee line present → stamp, once per company ever.
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
@@ -253,29 +325,19 @@ export async function handleCheckoutCompleted(
     }
   }
 
-  // #12 plan builder: enable the modules the customer purchased, derived from
-  // the subscription's line items so a redelivery re-upserts the same set. This
-  // only ever ENABLES (re-clearing disabled_at) — it never auto-disables, so a
-  // grandfathered module without a paid line item is left on. Explicit removal
-  // is a separate action.
-  const purchasedModules = subscription.items.data
-    .map((item) => (item.price ? moduleForPrice(env, item.price.id) : null))
-    .filter((module): module is PlanModule => module !== null);
-  if (purchasedModules.length > 0) {
-    const nowIso = new Date().toISOString();
-    const { error: moduleError } = await db.from("company_modules").upsert(
-      purchasedModules.map((module) => ({
-        company_id: companyId,
-        module,
-        enabled_at: nowIso,
-        disabled_at: null,
-      })),
-      { onConflict: "company_id,module" },
-    );
-    if (moduleError) {
-      throw new Error(`module enablement failed: ${moduleError.message}`);
-    }
-  }
+  // #12/#17 plan builder: RECONCILE company_modules to the subscription's
+  // actual module line items, derived from the re-fetched subscription so a
+  // redelivery converges on the same set. Enables what is paid for and — the
+  // #17 fix — disables what is not: a cancel-then-resubscribe-base-only used
+  // to keep every add-on (and the voice forwarding config) active for $0,
+  // forever. Grandfathered seed rows are the one deliberate exemption.
+  await reconcileModulesFromSubscription(
+    env,
+    db,
+    companyId,
+    moduleRows,
+    subscription,
+  );
 
   if (status === "active") {
     // §12 step 18 north-star: the company just flipped active on a paid
@@ -391,15 +453,25 @@ async function startPendingPorts(
     // The transfer is documents-gated (§3.5) and the LOA + bill can only be
     // uploaded now that the subscription is active — tell the customer their
     // ONE next step, or a port-only signup sits waiting on documents nobody
-    // asked for. The webhook ledger dedupes redelivery, so this sends once;
-    // skipped when both documents are already on file.
+    // asked for. Skipped when both documents are already on file. #52: the
+    // webhook ledger only dedupes duplicate deliveries — a sweeper replay of
+    // this handler (after a later Telnyx step failed) re-runs the whole thing,
+    // so the nudge is claimed through the email_ledger first and sends exactly
+    // once per port request.
     if (!port.telnyx_loa_document_id || !port.telnyx_invoice_document_id) {
-      await sendPortEmail(
-        env,
+      const claimed = await claimEmailOnce(
         db,
         companyId,
-        portDocumentsNeededCopy(port.phone_e164, env),
+        `port_documents_needed:${port.id}`,
       );
+      if (claimed) {
+        await sendPortEmail(
+          env,
+          db,
+          companyId,
+          portDocumentsNeededCopy(port.phone_e164, env),
+        );
+      }
     }
   }
 }
@@ -412,6 +484,16 @@ async function startPendingPorts(
  * Exported for the §11 daily subscription-reconcile cron
  * (src/billing/reconcile.ts), which re-mirrors non-active companies through
  * this exact same re-fetch path.
+ *
+ * Beyond the plain mirror, this path also converges the two lifecycles that
+ * used to depend on a specific event arriving:
+ * - live subscription → #17 module reconcile (see
+ *   reconcileModulesFromSubscription);
+ * - canceled subscription → #21 the SAME grace/suspend machinery the
+ *   `customer.subscription.deleted` handler runs. Without this, a missed
+ *   deletion webhook left the daily reconcile mirroring 'canceled' while the
+ *   30-day grace clock never started — the Telnyx number and 10DLC campaign
+ *   billed the founder forever and the customer never heard a word.
  */
 export async function syncSubscription(
   env: Env,
@@ -433,44 +515,98 @@ export async function syncSubscription(
       current_period_start: period.start,
       current_period_end: period.end,
       // §9: "handle cancel_at_period_end display" — a portal cancellation
-      // scheduled for period end is mirrored so the UI can announce it.
-      cancel_at_period_end: subscription.cancel_at_period_end === true,
+      // scheduled for period end is mirrored so the UI can announce it. Once
+      // the subscription IS canceled the pending flag is moot (§9 deleted
+      // row) and is forced off so the UI never announces a pending
+      // cancellation on a dead subscription.
+      cancel_at_period_end:
+        status !== "canceled" && subscription.cancel_at_period_end === true,
       ...(plan ? { plan } : {}),
     })
     .eq("stripe_subscription_id", subscriptionId)
-    .select("id,name");
+    // company_modules embedded so the #17 reconcile needs no second read;
+    // canceled_at feeds the #21 missed-cancellation backstop.
+    .select("id,name,canceled_at,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
-  return (data ?? []) as { id: string; name: string }[];
+  const companies = (data ?? []) as {
+    id: string;
+    name: string;
+    canceled_at: string | null;
+    company_modules?: CompanyModuleRow[];
+  }[];
+
+  if (status === "canceled") {
+    for (const company of companies) {
+      await startCancellationLifecycle(env, db, company, subscription);
+    }
+  } else if (hasLiveSubscription(status)) {
+    for (const company of companies) {
+      await reconcileModulesFromSubscription(
+        env,
+        db,
+        company.id,
+        company.company_modules ?? [],
+        subscription,
+      );
+    }
+  }
+  return companies.map(({ id, name }) => ({ id, name }));
 }
 
 /**
- * §9 `customer.subscription.deleted` row: `→ canceled`, `canceled_at` set,
- * numbers suspended (inbound still received), grace clock starts, day-1
- * warning sent through the `grace_notices` ledger (shared with the §11 cron,
- * so overlap can never double-send). `canceled_at` derives from the event's
- * own timestamp so every replay computes the identical ledger key.
+ * The ONE cancellation entry point (§9 deleted row / #21 reconcile backstop):
+ * claim `canceled_at`, suspend the numbers, start the grace clock with the
+ * day-1 notice. Every step is idempotent — the claim is guarded on
+ * `canceled_at IS NULL` (first writer wins; the grace ledger keys on the one
+ * stored value), number suspension only touches `status='active'` rows, and
+ * the day-1 email rides the `grace_notices` insert-first ledger — so the
+ * daily reconcile re-running this for an already-canceled company converges
+ * instead of duplicating.
  */
-async function handleSubscriptionDeleted(
+async function startCancellationLifecycle(
   env: Env,
+  db: SupabaseClient,
+  company: { id: string; name: string; canceled_at: string | null },
   subscription: Stripe.Subscription,
-  eventCreated: number,
+  fallbackEpochSeconds?: number,
 ): Promise<void> {
-  const canceledAt = new Date(eventCreated * 1000).toISOString();
-  const db = getDb(env);
-  const { data, error } = await db
-    .from("companies")
-    .update({
-      subscription_status: "canceled",
-      canceled_at: canceledAt,
-      // The pending-cancellation flag is moot once the deletion lands —
-      // `subscription_status='canceled'` + `canceled_at` are the truth now.
-      cancel_at_period_end: false,
-    })
-    .eq("stripe_subscription_id", subscription.id)
-    .select("id,name");
-  if (error) throw new Error(`cancellation mirror failed: ${error.message}`);
-  const company = (data ?? [])[0] as { id: string; name: string } | undefined;
-  if (!company) return; // unknown subscription — nothing of ours to cancel
+  let canceledAt = company.canceled_at;
+  if (!canceledAt) {
+    // Stripe carries the authoritative cancellation moment on the
+    // subscription itself; the event-timestamp fallback only matters for
+    // payloads that predate it, and drifting late merely shortens grace by
+    // the delivery lag.
+    const epochSeconds =
+      subscription.canceled_at ??
+      subscription.ended_at ??
+      fallbackEpochSeconds ??
+      Math.floor(Date.now() / 1000);
+    const claim = new Date(epochSeconds * 1000).toISOString();
+    const { data, error } = await db
+      .from("companies")
+      .update({ canceled_at: claim })
+      .eq("id", company.id)
+      .is("canceled_at", null)
+      .select("id");
+    if (error) throw new Error(`canceled_at claim failed: ${error.message}`);
+    if ((data ?? []).length > 0) {
+      canceledAt = claim;
+    } else {
+      // Lost the claim to a concurrent delivery — read the persisted truth so
+      // the grace ledger keys on the ONE stored value (never double-sends).
+      const { data: current, error: readError } = await db
+        .from("companies")
+        .select("canceled_at")
+        .eq("id", company.id)
+        .limit(1);
+      if (readError) {
+        throw new Error(`canceled_at read failed: ${readError.message}`);
+      }
+      canceledAt =
+        ((current ?? [])[0] as { canceled_at: string | null } | undefined)
+          ?.canceled_at ?? claim;
+    }
+  }
 
   await suspendCompanyNumbers(env, company.id);
   await recordAndSendGraceNotice(
@@ -478,6 +614,42 @@ async function handleSubscriptionDeleted(
     { id: company.id, name: company.name, canceled_at: canceledAt },
     1,
   );
+}
+
+/**
+ * §9 `customer.subscription.deleted` row: `→ canceled`, `canceled_at` set,
+ * numbers suspended (inbound still received), grace clock starts, day-1
+ * warning sent through the `grace_notices` ledger (shared with the §11 cron,
+ * so overlap can never double-send). Runs the SAME
+ * startCancellationLifecycle the #21 reconcile backstop uses: `canceled_at`
+ * derives from the subscription's own `canceled_at` (falling back to the
+ * event timestamp), and the first-writer-wins claim means a late deleted
+ * delivery after a reconcile-claimed cancellation converges on the one
+ * stored value instead of re-keying the grace ledger.
+ */
+async function handleSubscriptionDeleted(
+  env: Env,
+  subscription: Stripe.Subscription,
+  eventCreated: number,
+): Promise<void> {
+  const db = getDb(env);
+  const { data, error } = await db
+    .from("companies")
+    .update({
+      subscription_status: "canceled",
+      // The pending-cancellation flag is moot once the deletion lands —
+      // `subscription_status='canceled'` + `canceled_at` are the truth now.
+      cancel_at_period_end: false,
+    })
+    .eq("stripe_subscription_id", subscription.id)
+    .select("id,name,canceled_at");
+  if (error) throw new Error(`cancellation mirror failed: ${error.message}`);
+  const company = (data ?? [])[0] as
+    | { id: string; name: string; canceled_at: string | null }
+    | undefined;
+  if (!company) return; // unknown subscription — nothing of ours to cancel
+
+  await startCancellationLifecycle(env, db, company, subscription, eventCreated);
 }
 
 /** Subscription reference from a Dahlia-shape invoice (parent details). */
@@ -539,6 +711,16 @@ async function handleInvoicePaymentFailed(
   const db = getDb(env);
   const companies = await syncSubscription(env, subscriptionId, db);
   for (const company of companies) {
+    // #52: ONE dunning email per payment ATTEMPT — the key carries
+    // `attempt_count`, so each of Stripe's smart retries still notifies the
+    // customer (a distinct failure), while sweeper replays of this same event
+    // (same invoice, same attempt) never re-send.
+    const claimed = await claimEmailOnce(
+      db,
+      company.id,
+      `invoice_payment_failed:${invoice.id}:${invoice.attempt_count ?? 0}`,
+    );
+    if (!claimed) continue;
     const to = await billingRecipients(env, company.id, db);
     if (to.length === 0) continue;
     const portal = `${env.APP_ORIGIN}/settings/billing`;
