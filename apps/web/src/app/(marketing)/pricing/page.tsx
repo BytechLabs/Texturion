@@ -22,13 +22,13 @@ import {
   Check,
   CircleDollarSign,
   Clock,
-  ListChecks,
   Receipt,
 } from "lucide-react";
 import type { Metadata } from "next";
 
 import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
@@ -114,36 +114,43 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col rounded-2xl border bg-card p-6 sm:p-8",
-        plan.highlighted
-          ? "border-primary/40 ring-1 ring-primary/20"
-          : "border-border",
+        "panel-card flex h-full flex-col rounded-xl p-6 sm:p-8",
+        plan.highlighted &&
+          "ring-1 ring-[color:var(--petrol)]/25 [border-color:color-mix(in_srgb,var(--petrol)_40%,transparent)]",
       )}
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-foreground">{plan.name}</h2>
+        {/* Kept as <h2> (styled at the H3 scale) so the hero H1 → plan-name
+            heading order has no skipped level. */}
+        <h2 className="display-h3">{plan.name}</h2>
         {plan.badge && (
-          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[12px] font-medium text-teal-800 dark:text-primary">
+          <span className="rounded-full bg-[color:var(--petrol-12)] px-2.5 py-0.5 text-[12px] font-medium text-[color:var(--petrol)]">
             {plan.badge}
           </span>
         )}
       </div>
-      <div className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-[48px] font-semibold leading-none tabular-nums text-foreground">
+      {/* The price figure: Besley 700 over a 2px copper rule — copper only ever
+          touches money (§3). /mo stays in the mono data voice. */}
+      <p className="mt-4">
+        <span className="display-numeral inline-block border-b-2 border-[color:var(--copper)] pb-1.5 text-[color:var(--day-ink)]">
           {plan.price}
         </span>
-        <span className="text-[15px] text-muted-foreground">/mo</span>
-      </div>
-      <p className="mt-2 text-[14px] text-muted-foreground">{plan.tagline}</p>
+        <span className="font-mono-mkt ml-1.5 text-sm tracking-[0.02em] text-[color:var(--ink-55)]">
+          /mo
+        </span>
+      </p>
+      <p className="mt-3 text-[14px] text-[color:var(--ink-55)]">
+        {plan.tagline}
+      </p>
 
       <ul className="mt-6 flex-1 space-y-3">
         {plan.features.map((f) => (
           <li
             key={f}
-            className="flex gap-2.5 text-[14px] leading-relaxed text-foreground"
+            className="flex gap-2.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]"
           >
             <Check
-              className="mt-0.5 size-4 shrink-0 text-success"
+              className="mt-0.5 size-4 shrink-0 text-[color:var(--petrol)]"
               strokeWidth={2}
               aria-hidden
             />
@@ -325,13 +332,13 @@ export default function PricingPage() {
       />
 
       {/* Hero. H1 + sub (COPY §PR). */}
-      <Container className="pt-16 sm:pt-24">
+      <Container className="pt-28 sm:pt-32">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold text-primary">Pricing</p>
-          <h1 className="display-hero mt-2 text-foreground">
+          <Kicker>Pricing</Kicker>
+          <h1 className="display-hero mt-3 text-balance">
             One price for the whole crew. Nothing hidden.
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
             Two plans, every cost on this page, and a buy button instead of a
             sales call. If you can&apos;t find a price on a texting
             company&apos;s pricing page, that&apos;s the price talking.
@@ -348,7 +355,7 @@ export default function PricingPage() {
             </Reveal>
           ))}
         </div>
-        <p className="mx-auto mt-5 max-w-4xl text-center text-[14px] text-muted-foreground">
+        <p className="mx-auto mt-5 max-w-4xl text-center text-[14px] text-[color:var(--ink-55)]">
           Upgrading from Starter to Pro takes one click and applies immediately.
           Both plans take the same optional add-ons, listed below.
         </p>
@@ -363,7 +370,7 @@ export default function PricingPage() {
       <Section>
         <div className="mx-auto max-w-4xl">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="display-h2 text-foreground">
+            <h2 className="display-h2">
               Flat beats per-user. Slide to see by how much.
             </h2>
           </div>
@@ -380,48 +387,46 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Honesty ledger, the trust centerpiece, with the first-week timeline. */}
-      <Section
-        bleed
-        className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
-      >
+      {/* Honesty ledger, the trust centerpiece, with the first-week timeline.
+          A light band separated by hairlines and white panels (v3 §2: no
+          gradient washes), not a costume. */}
+      <Section bleed className="bg-[color:var(--first-light)] py-16 sm:py-24">
         <Container>
           <div className="mx-auto max-w-3xl">
-            <h2 className="display-h2 text-foreground">
-              Every cost, before you pay.
-            </h2>
+            <h2 className="display-h2">Every cost, before you pay.</h2>
 
             {/* Each row is a <div> whose ONLY children are <dt>/<dd> so the
                 definition-list / dlitem a11y rules pass (axe: a <dl>'s <div>
                 wrappers may contain nothing but <dt>/<dd>). The decorative
                 icon lives inside the <dt>, not as a sibling of the wrapper. */}
-            <dl className="mt-10 space-y-5 rounded-2xl border border-border bg-card p-6 sm:p-8">
+            <dl className="panel-card mt-10 space-y-5 rounded-xl p-6 sm:p-8">
               {LEDGER.map(({ term, detail }) => (
                 <div key={term}>
-                  <dt className="flex items-start gap-3.5 text-[15px] font-semibold text-foreground">
+                  <dt className="flex items-start gap-3.5 text-[15px] font-semibold text-[color:var(--day-ink)]">
                     <CircleDollarSign
-                      className="mt-0.5 size-5 shrink-0 text-primary"
+                      className="mt-0.5 size-5 shrink-0 text-[color:var(--petrol)]"
                       strokeWidth={1.75}
                       aria-hidden
                     />
                     {term}
                   </dt>
-                  <dd className="mt-1 pl-[34px] text-[14px] leading-relaxed text-muted-foreground">
+                  <dd className="mt-1 pl-[34px] text-[14px] leading-relaxed text-[color:var(--ink-70)]">
                     {detail}
                   </dd>
                 </div>
               ))}
             </dl>
 
-            {/* Timeline card (amber, with the first-week timeline). §PR. */}
-            <div className="mt-6 rounded-2xl border border-amber-300/70 bg-amber-50/50 p-5 dark:border-amber-700/40 dark:bg-amber-950/20">
+            {/* Timeline card: the honesty tint (amber-strip at 10%, §5) with
+                day-ink text. The carrier-wait truth, stated plainly. §PR. */}
+            <div className="mt-6 rounded-xl border border-[color:var(--hairline)] bg-[color:var(--amber-strip)] p-5">
               <div className="flex gap-3">
                 <Clock
-                  className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-warning"
+                  className="mt-0.5 size-5 shrink-0 text-[color:var(--day-ink)]"
                   strokeWidth={1.75}
                   aria-hidden
                 />
-                <p className="text-[14px] leading-relaxed text-foreground">
+                <p className="text-[14px] leading-relaxed text-[color:var(--day-ink)]">
                   Receiving texts works the moment your number is ready,
                   usually live in a minute or two. Texting Canadian numbers works
                   immediately. Texting US numbers turns on after the phone
@@ -448,29 +453,30 @@ export default function PricingPage() {
         </Container>
       </Section>
 
-      {/* "What you'll actually pay elsewhere", dated, per-cell sourced. */}
+      {/* "What you'll actually pay elsewhere", dated, per-cell sourced. A quiet
+          receipt: hairline rules, mono figures, no gradient, no loud fills. */}
       <Section>
         <div className="mx-auto max-w-4xl">
-          <h2 className="display-h2 text-foreground">
-            The same crew, priced elsewhere.
-          </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          <h2 className="display-h2">The same crew, priced elsewhere.</h2>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
             A 3-person crew sending 500 single-segment texts a month, at
             published prices as of July 2026 (every number below cites its source
             in our comparison pages):
           </p>
 
-          <div className="mt-8 overflow-x-auto rounded-2xl border border-border">
+          <div className="mt-8 overflow-x-auto rounded-xl border border-[color:var(--hairline)]">
             <table className="w-full min-w-[640px] border-collapse text-left text-[14px]">
               <thead>
-                <tr className="border-b border-border bg-secondary/40">
-                  <th className="p-4 font-medium text-muted-foreground" />
+                <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
+                  <th className="p-4 font-medium text-[color:var(--ink-55)]" />
                   {COMPARE_COLUMNS.map((col, i) => (
                     <th
                       key={col}
                       className={cn(
-                        "p-4 font-semibold text-foreground",
-                        i === 0 && "text-primary",
+                        "p-4 font-semibold",
+                        i === 0
+                          ? "text-[color:var(--petrol)]"
+                          : "text-[color:var(--day-ink)]",
                       )}
                     >
                       {col}
@@ -485,14 +491,14 @@ export default function PricingPage() {
                     <tr
                       key={row.label}
                       className={cn(
-                        "border-b border-border last:border-b-0",
-                        isTotal && "bg-secondary/30",
+                        "border-b border-[color:var(--hairline)] last:border-b-0",
+                        isTotal && "bg-[color:var(--paper-2)]",
                       )}
                     >
                       <th
                         scope="row"
                         className={cn(
-                          "p-4 text-left font-medium text-foreground",
+                          "p-4 text-left font-medium text-[color:var(--day-ink)]",
                           isTotal && "font-semibold",
                         )}
                       >
@@ -502,9 +508,9 @@ export default function PricingPage() {
                         <td
                           key={i}
                           className={cn(
-                            "p-4 tabular-nums text-muted-foreground",
-                            i === 0 && "font-medium text-foreground",
-                            isTotal && "font-semibold text-foreground",
+                            "font-mono-mkt p-4 tabular-nums tracking-[0.02em] text-[color:var(--ink-70)]",
+                            i === 0 && "font-medium text-[color:var(--day-ink)]",
+                            isTotal && "font-semibold text-[color:var(--day-ink)]",
                           )}
                         >
                           {cell}
@@ -517,7 +523,7 @@ export default function PricingPage() {
             </table>
           </div>
 
-          <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-4 text-[13px] leading-relaxed text-[color:var(--ink-55)]">
             Competitor prices from their public pricing pages, July 2026; each
             figure is sourced on the matching comparison page. Heymarket&apos;s
             texting total assumes 500 single-segment texts at their published
@@ -530,18 +536,16 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Text-length explainer + counter (§8, §PR). */}
-      <Section
-        bleed
-        className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
-      >
+      {/* Text-length explainer + counter (§8, §PR). Light panel band, hairline
+          separation, no gradient wash (v3 §2). */}
+      <Section bleed className="bg-[color:var(--first-light)] py-16 sm:py-24">
         <Container>
           <div className="mx-auto grid max-w-4xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
             <div>
-              <h2 className="display-h2 text-foreground">
+              <h2 className="display-h2">
                 What&apos;s a &quot;text,&quot; exactly?
               </h2>
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+              <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
                 A plain text up to 160 characters counts as one text. Longer
                 texts, or texts with emoji, count as more than one, the texting
                 networks split them behind the scenes (the technical word is
@@ -562,16 +566,16 @@ export default function PricingPage() {
 
       {/* Guarantee block (§8, §PR). */}
       <Section>
-        <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-6 sm:p-10">
+        <div className="panel-card mx-auto max-w-3xl rounded-xl p-6 sm:p-10">
           <div className="flex gap-4">
-            <span className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <span className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
               <Receipt className="size-5" strokeWidth={1.75} aria-hidden />
             </span>
             <div>
-              <h2 className="text-2xl font-semibold text-foreground">
+              <h2 className="font-display text-2xl font-bold tracking-[-0.005em] text-[color:var(--day-ink)]">
                 Try it for a month, on us if it&apos;s not for you.
               </h2>
-              <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+              <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                 If Loonext isn&apos;t right for your crew, email us within 30
                 days of signing up and we&apos;ll refund your first invoice in
                 full, subscription and registration fee included. No &quot;minus
@@ -583,24 +587,26 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Pricing FAQ (9), no FAQPage JSON-LD (§11.2). */}
+      {/* Pricing FAQ (9), no FAQPage JSON-LD (§11.2). Same +/rotate-45 glyph the
+          rest of the site uses. */}
       <Section>
         <div className="mx-auto max-w-3xl">
-          <h2 className="display-h2 text-center text-foreground">
+          <h2 className="display-h2 text-center">
             Pricing questions, straight answers.
           </h2>
-          <div className="mt-12 divide-y divide-border border-y border-border">
+          <div className="mt-12 divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
             {FAQS.map((item) => (
               <details key={item.q} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
                   {item.q}
-                  <ListChecks
-                    className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-6"
-                    strokeWidth={1.75}
+                  <span
+                    className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
                     aria-hidden
-                  />
+                  >
+                    +
+                  </span>
                 </summary>
-                <p className="pb-5 pr-8 text-[15px] leading-relaxed text-muted-foreground">
+                <p className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                   {item.a}
                 </p>
               </details>
@@ -609,24 +615,29 @@ export default function PricingPage() {
         </div>
       </Section>
 
-      {/* Final CTA band (§8, §PR). Second allowed wash. */}
+      {/* Final CTA band (§8, §PR): the ONE dark band per page (v3 §6 S7),
+          matching the home FinalCta and every subpage close. */}
       <Section
         bleed
-        className="bg-gradient-to-b from-stone-50 to-teal-50 py-16 dark:from-background dark:to-teal-950/20 sm:py-24"
+        className="relative overflow-hidden bg-[color:var(--deep)] py-16 text-[color:var(--paper)] sm:py-24"
       >
         <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-          <h2 className="display-h2 text-foreground">
+          <h2 className="font-display text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.005em] text-[color:var(--paper)] sm:text-[44px]">
             You&apos;ve seen the whole price list. That&apos;s the point.
           </h2>
           <div className="mt-8 flex justify-center">
-            <Button asChild size="lg">
+            <Button
+              asChild
+              size="lg"
+              className="bg-[color:var(--paper)] text-[color:var(--deep)] hover:bg-white"
+            >
               <Link href="/signup">
                 Start for $29
                 <ArrowRight strokeWidth={1.75} aria-hidden />
               </Link>
             </Button>
           </div>
-          <p className="mt-4 text-[13px] tabular-nums text-muted-foreground">
+          <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
             Live in minutes · Month to month · 30-day money-back guarantee
           </p>
         </div>

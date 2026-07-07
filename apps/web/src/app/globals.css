@@ -946,19 +946,6 @@
   color: var(--moonlight);
 }
 
-@utility ground-midnight {
-  /* The page's darkest point: the night-shift demo stage only. */
-  background-color: var(--ink-midnight);
-  color: var(--moonlight);
-}
-
-@utility panel-cab {
-  /* Raised surface on the night grounds: elevation is a luminance step, never
-     a drop shadow. Lit states add a 1px porch-amber rim at the call site. */
-  background-color: var(--cab-panel);
-  border: 1px solid var(--rule-dark);
-}
-
 @utility font-display {
   /* The MARKETING display face: Besley (variable 700-900), mounted in the
      (marketing) layout as --font-display, scoped to marketing DOM. HEADLINES +
@@ -1037,25 +1024,6 @@
   color: var(--ink);
 }
 
-@utility marketing-glow {
-  /* The ONE decorative radial wash per subpage, rendered BEHIND content (never
-     over LCP text). CSS gradients only, no image, no blur() filter (a large
-     blur is a paint cost; soft-stop gradients instead). Petrol low-left + a
-     porch-amber lift upper-right over the porcelain ground. Consumed by
-     GlowBackdrop. */
-  background-image:
-    radial-gradient(
-      60% 55% at 18% 82%,
-      rgba(15, 118, 110, 0.1) 0%,
-      rgba(15, 118, 110, 0) 70%
-    ),
-    radial-gradient(
-      50% 50% at 85% 12%,
-      rgba(255, 180, 84, 0.07) 0%,
-      rgba(255, 180, 84, 0) 72%
-    );
-}
-
 /* --------------------------------------------------------------------------
    The <Display> expressive-headline system (DESIGN-DIRECTION §3 signature).
    Headlines are COMPOSED, not typed: weight/optical contrast, a marker-yellow
@@ -1065,17 +1033,23 @@
    -------------------------------------------------------------------------- */
 
 @utility dsp-emph {
-  /* Composable emphasis word inside a <Display>: the light end of Besley's
-     variable range (700) against the 900 body of the headline, weight/optical
-     contrast rather than a slant. */
+  /* Composable emphasis word inside a <Display> (v3 "Quiet daylight"). Every
+     display utility now renders Besley 700, so the old "light end vs 900 body"
+     weight contrast is gone (#67: it made Emph render identically to the
+     headline). The v3-sanctioned emphasis is a genuine tonal step: the
+     emphasis word recedes to the quieter ink so the composition reads as
+     composed, not flat. Distinct at every headline size. */
   font-weight: 700;
+  color: var(--ink-55);
 }
 
 @utility dsp-emph-italic {
-  /* A restrained synthetic oblique on the emphasis weight, used sparingly on
-     short emphasis words only (the latin subset ships no italic master). */
+  /* The alternate emphasis cut: a restrained synthetic oblique (the latin
+     subset ships no italic master), for the short emphasis word a composition
+     wants slanted rather than toned. */
   font-weight: 700;
   font-style: italic;
+  color: var(--ink-55);
 }
 
 @utility dsp-accent {
@@ -1084,27 +1058,29 @@
 }
 
 @utility dsp-marker {
-  /* The marker-yellow HIGHLIGHT SWIPE behind the one promise word (§3 RATIONED
-     marker). A wobbly, hand-laid band sitting behind the glyphs, clipped to the
-     text baseline area, tilted a hair so it reads drawn, not boxed. The word
-     stays on top via position/z-index on its inner span. */
+  /* The promise-word emphasis in a composed <Display> headline (v3 "Quiet
+     daylight"). v3 §2 rations porch-amber to the single unread dot, so the old
+     amber highlighter swipe is retired; the promise word now carries a clean
+     petrol underline (petrol is THE accent, §2), the calm sibling of the copper
+     price underline. The word stays on top via position/z-index on its inner
+     span. */
   position: relative;
   display: inline-block;
   isolation: isolate;
 }
 
 @utility dsp-marker-swipe {
-  /* The band itself (a decorative ::pseudo-equivalent span the component
-     renders, so the swipe can be reduced-motion-animated independently). */
+  /* The underline itself (a decorative span the component renders, so it can be
+     reduced-motion-drawn independently). A flat petrol rule seated at the
+     baseline, no tilt, no wobble: minimal, not hand-drawn. */
   position: absolute;
-  left: -0.08em;
-  right: -0.08em;
-  top: 0.14em;
-  bottom: 0.04em;
+  left: -0.02em;
+  right: -0.02em;
+  bottom: 0.02em;
+  height: 0.09em;
   z-index: -1;
-  background: var(--marker);
-  border-radius: 3px 5px 4px 6px;
-  transform: rotate(-1.15deg);
+  background: var(--petrol);
+  border-radius: 999px;
 }
 
 @layer utilities {

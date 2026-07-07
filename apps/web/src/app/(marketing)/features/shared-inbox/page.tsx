@@ -38,6 +38,7 @@ import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
 import { Section } from "@/components/marketing/ui/section";
 import { Container } from "@/components/marketing/ui/container";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -82,10 +83,7 @@ export default function SharedInboxPage() {
       <Section>
         <Container>
           <div className="mx-auto mb-12 max-w-3xl">
-            <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-              <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-              The core idea
-            </p>
+            <Kicker>The core idea</Kicker>
             <Display as="h2" size="h2" className="mt-3">
               A text stops being one person&apos;s problem.
             </Display>

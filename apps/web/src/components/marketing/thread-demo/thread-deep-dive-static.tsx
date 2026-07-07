@@ -15,6 +15,7 @@
 import type { ThreadScript } from "./script";
 import { StaticThread } from "./static-thread";
 import { Display } from "@/components/marketing/display";
+import { Kicker } from "@/components/marketing/ui/kicker";
 
 const CAPTIONS = [
   "A text to your business number becomes a conversation everyone can see.",
@@ -29,9 +30,7 @@ export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
       {/* Left: captions (all shown, at rest). */}
       <div className="lg:sticky lg:top-28">
-        <p className="font-mono-mkt text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-          See it work
-        </p>
+        <Kicker>See it work</Kicker>
         <Display as="h2" size="h2" className="mt-3">
           What happens when a text{" "}
           <Display.Mark>lands</Display.Mark>.

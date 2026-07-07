@@ -1,15 +1,15 @@
 /**
  * Shared presentational building blocks for the three /compare/* pages
- * (BLUEPRINT §6), rebuilt to the "Caught" marketing identity (DESIGN-DIRECTION,
+ * (BLUEPRINT §6), on the v3 "Quiet daylight" identity (DESIGN-DIRECTION,
  * BINDING). These carry the *skeleton* (hero, concede block, advantages,
  * switching note, FAQ, CTA) but NO copy, every sentence is passed in per page,
  * so the three pages share zero sentences (§6 no-shared-sentences guard).
  *
- * Identity: composed <Display> headings, mono eyebrows (no numbers, no fake
- * indicators), the painted-panel paper ground with half-step-lighter ground
- * changes, marker checks on the advantage list, and the ONE deep-petrol final
- * band. The sourced comparison tables are kept verbatim and restyled to the
- * paper/petrol/hairline frame in comparison-table.tsx.
+ * Identity: composed <Display> headings, v3 <Kicker> labels (Public Sans 600,
+ * sentence case — never mono, §3), the porcelain paper ground with
+ * half-step-lighter ground changes, marker checks on the advantage list, and
+ * the ONE deep-petrol final band. The sourced comparison tables are kept
+ * verbatim and framed in comparison-table.tsx.
  *
  * Server components throughout (the compare pages have no interactivity beyond
  * native <details> and links).
@@ -20,6 +20,7 @@ import { ArrowRight, Scale } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Container } from "@/components/marketing/ui/container";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Photo } from "@/components/marketing/photo";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
@@ -56,11 +57,8 @@ export function CompareHero({
         <Container>
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:gap-16">
             <div>
-              <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-                <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-                {eyebrow}
-              </p>
-              <Display as="h1" size="hero" className="mt-5 text-balance">
+              <Kicker>{eyebrow}</Kicker>
+              <Display as="h1" size="hero" className="mt-3 text-balance">
                 {title}
               </Display>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
@@ -87,11 +85,8 @@ export function CompareHero({
     <section className="relative overflow-hidden pb-14 pt-28 sm:pb-20 sm:pt-32">
       <Container>
         <div className="mx-auto max-w-3xl text-center">
-          <p className="font-mono-mkt inline-flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-            <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-            {eyebrow}
-          </p>
-          <Display as="h1" size="hero" className="mt-5 text-balance">
+          <Kicker>{eyebrow}</Kicker>
+          <Display as="h1" size="hero" className="mt-3 text-balance">
             {title}
           </Display>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
@@ -341,11 +336,12 @@ export function CompareFaq({
             <details key={item.q} className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
                 {item.q}
-                <ArrowRight
-                  className="size-5 shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-90"
-                  strokeWidth={1.75}
+                <span
+                  className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
                   aria-hidden
-                />
+                >
+                  +
+                </span>
               </summary>
               <div className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                 {item.a}
@@ -393,7 +389,7 @@ export function CompareCta({
             </Link>
           </Button>
         </div>
-        <p className="font-mono-mkt mt-4 text-[13px] text-[color:var(--paper)]/70">
+        <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
           $29/mo flat · Month to month · 30-day money-back guarantee
         </p>
       </div>

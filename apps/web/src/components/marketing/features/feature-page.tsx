@@ -1,6 +1,6 @@
 /**
- * Feature-page building blocks (features track). BLUEPRINT §4 template, rebuilt
- * to the "Caught" marketing identity (DESIGN-DIRECTION, BINDING).
+ * Feature-page building blocks (features track). BLUEPRINT §4 template, on the
+ * v3 "Quiet daylight" identity (DESIGN-DIRECTION, BINDING).
  *
  * The four /features/* pages share this skeleton (hero -> alternating job-named
  * sections -> honest-details block -> mini-pricing strip -> page-specific FAQ ->
@@ -9,15 +9,15 @@
  *
  * Identity notes (DESIGN-DIRECTION §2-§4):
  *  - Ground, not counters. Sections are separated by GROUND changes (the pale
- *    petrol-grey --paper panel to the one deep-petrol band and back) and by
+ *    porcelain --paper to the one deep-petrol band and back) and by
  *    display-lettering rhythm. There are NO section numbers (§0).
  *  - Composed headlines. The hero and section headings are authored with the
  *    <Display> system: the page passes a ReactNode title composed with
- *    <Display.Mark> (the one marker-yellow promise word), <Display.Emph> (the
- *    Moonlight cut), and <Display.Accent> (the one petrol word). Boldness is
- *    spent here; everything else stays quiet.
- *  - True eyebrows only. The eyebrow is a mono meta label with a short petrol
- *    rule, never a number, never a fake "live" dot (§0).
+ *    <Display.Mark> (the promise word, a clean petrol underline) and
+ *    <Display.Accent> (the one petrol word). Boldness is spent here; everything
+ *    else stays quiet.
+ *  - Kickers, not eyebrows. Where a section needs a label it is a v3 <Kicker>
+ *    (Public Sans 600, sentence case, --ink-55): §3 forbids mono eyebrows.
  *  - CTA copy is "Start for $29" and keeps the same words through the flow (§6).
  *
  * Server components throughout; the only client islands a page mounts are the
@@ -30,6 +30,7 @@ import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/marketing/ui/container";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { Display } from "@/components/marketing/display";
@@ -63,12 +64,9 @@ export function FeatureHero({
       <Container>
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
           <div>
-            <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-              <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-              {eyebrow}
-            </p>
+            <Kicker>{eyebrow}</Kicker>
 
-            <Display as="h1" size="hero" className="mt-5 text-balance">
+            <Display as="h1" size="hero" className="mt-3 text-balance">
               {title}
             </Display>
 
@@ -139,12 +137,7 @@ export function FeatureSection({
 }) {
   const copy = (
     <div className={cn(!visual && "mx-auto max-w-3xl")}>
-      {eyebrow && (
-        <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-          <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-          {eyebrow}
-        </p>
-      )}
+      {eyebrow && <Kicker>{eyebrow}</Kicker>}
       <Display as="h2" size="h2" className={cn(eyebrow && "mt-3")}>
         {heading}
       </Display>
@@ -441,7 +434,7 @@ export function FeatureCta({
             </Link>
           </Button>
         </div>
-        <p className="font-mono-mkt mt-4 text-[13px] text-[color:var(--paper)]/70">
+        <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
           $29/mo flat · Month to month · 30-day money-back guarantee
         </p>
       </div>

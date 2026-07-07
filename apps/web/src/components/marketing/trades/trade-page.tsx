@@ -1,22 +1,23 @@
 /**
  * TradePage (trades track), the ONE shared trade-page template component
- * (BLUEPRINT §5), rebuilt to the "Caught" marketing identity (DESIGN-DIRECTION,
+ * (BLUEPRINT §5), on the v3 "Quiet daylight" identity (DESIGN-DIRECTION,
  * BINDING). Every /for/<trade> page is this component, driven entirely by a
  * typed `TradeContent` object, so the six pages share a skeleton but ZERO
  * sentences (§5 scaled-content guard). All prose, jargon, example threads, use
  * cases, saved replies, and FAQ come from the page's own content object.
  *
  * Identity (DESIGN-DIRECTION §2-§4):
- *  - Each page opens on a duotone hero photo of the trade + a composed <Display>
- *    headline (the page authors the marker/emph/accent word). The scripted
- *    thread demo is the second, live centerpiece just below.
- *  - Structure comes from GROUND changes (the pale petrol-grey --paper panel to
- *    the one deep-petrol band and back) and display-lettering rhythm, NOT from a
+ *  - Each page opens on a framed trade photo + a composed <Display> headline
+ *    (the page authors the Mark/Accent word). The scripted thread demo is the
+ *    second, live centerpiece just below.
+ *  - Structure comes from GROUND changes (the pale porcelain --paper to the one
+ *    deep-petrol band and back) and display-lettering rhythm, NOT from a
  *    counter (§0: no section numbers).
- *  - True mono eyebrows only, no fake "live" dots or "FILED" stamps (§0).
+ *  - Kickers, not eyebrows: v3 <Kicker> labels (Public Sans 600, sentence case),
+ *    never mono, never a fake "live" dot (§0, §3).
  *  - CTA copy is "Start for $29", kept identical through the flow (§6).
  *
- * Section order: hero (duotone photo + composed headline) -> the scripted thread
+ * Section order: hero (photo + composed headline) -> the scripted thread
  * -> "sound familiar?" pain (real photo) -> how Loonext fits (supporting photo)
  * -> use cases -> saved-replies pack -> features strip -> pricing teaser -> FAQ
  * -> deep-petrol final CTA.
@@ -27,11 +28,12 @@
  */
 
 import Link from "next/link";
-import { ArrowRight, HelpCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Container } from "@/components/marketing/ui/container";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { Display, MarkerCheck } from "@/components/marketing/display";
@@ -172,11 +174,8 @@ export function TradePage({ content }: { content: TradeContent }) {
         <Container>
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:gap-16">
             <div>
-              <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-                <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-                {content.eyebrow}
-              </p>
-              <Display as="h1" size="hero" className="mt-5 text-balance">
+              <Kicker>{content.eyebrow}</Kicker>
+              <Display as="h1" size="hero" className="mt-3 text-balance">
                 {content.h1}
               </Display>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
@@ -185,7 +184,7 @@ export function TradePage({ content }: { content: TradeContent }) {
               <div className="mt-8">
                 <CtaRow />
               </div>
-              <p className="font-mono-mkt mt-6 max-w-xl text-[13px] leading-relaxed text-[color:var(--graphite)]">
+              <p className="mt-6 max-w-xl text-[13px] leading-relaxed text-[color:var(--ink-55)]">
                 {content.heroTruthLine}
               </p>
             </div>
@@ -394,11 +393,12 @@ export function TradePage({ content }: { content: TradeContent }) {
               <details key={item.q} className="group">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
                   {item.q}
-                  <HelpCircle
-                    className="size-5 shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-12"
-                    strokeWidth={1.75}
+                  <span
+                    className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
                     aria-hidden
-                  />
+                  >
+                    +
+                  </span>
                 </summary>
                 <p className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
                   {item.a}
@@ -435,7 +435,7 @@ export function TradePage({ content }: { content: TradeContent }) {
               </Link>
             </Button>
           </div>
-          <p className="font-mono-mkt mt-4 text-[13px] text-[color:var(--paper)]/70">
+          <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
             {GUARANTEE_MICRO}
           </p>
         </div>

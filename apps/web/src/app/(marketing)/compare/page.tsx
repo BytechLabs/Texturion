@@ -11,12 +11,13 @@
  */
 
 import Link from "next/link";
-import { ArrowRight, Building2, Scale } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import type { Metadata } from "next";
 
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { Display, MarkerCheck } from "@/components/marketing/display";
@@ -82,12 +83,8 @@ export default function CompareIndexPage() {
         <Container>
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-16">
             <div>
-              <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-                <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-                <Scale className="size-4 text-[color:var(--petrol)]" strokeWidth={1.75} aria-hidden />
-                Honest comparisons
-              </p>
-              <Display as="h1" size="hero" className="mt-5 text-balance">
+              <Kicker>Honest comparisons</Kicker>
+              <Display as="h1" size="hero" className="mt-3 text-balance">
                 How Loonext compares, with the price{" "}
                 <Display.Mark>on the page</Display.Mark>.
               </Display>
@@ -262,7 +259,7 @@ export default function CompareIndexPage() {
               </Link>
             </Button>
           </div>
-          <p className="font-mono-mkt mt-4 text-[13px] text-[color:var(--paper)]/70">
+          <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
             $29/mo flat · Month to month · 30-day money-back guarantee
           </p>
         </div>

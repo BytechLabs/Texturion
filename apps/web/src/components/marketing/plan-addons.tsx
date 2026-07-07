@@ -62,9 +62,9 @@ function OffSwitch() {
   return (
     <span
       aria-hidden
-      className="relative inline-flex h-5 w-9 shrink-0 rounded-full border border-border bg-secondary"
+      className="relative inline-flex h-5 w-9 shrink-0 rounded-full border border-[color:var(--hairline)] bg-[color:var(--rule-light)]"
     >
-      <span className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 rounded-full bg-muted-foreground/40" />
+      <span className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 rounded-full bg-[color:var(--ink-55)]/50" />
     </span>
   );
 }
@@ -73,27 +73,27 @@ function AddonCard({ card }: { card: PlanModuleCard }) {
   const id = card.id as Exclude<PlanModule, "regions_ca">;
   const Icon = ADDON_ICONS[id];
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-6">
+    <div className="panel-card flex h-full flex-col rounded-xl p-6">
       <div className="flex items-start justify-between gap-3">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
           <Icon className="size-5" strokeWidth={1.75} aria-hidden />
         </span>
         <OffSwitch />
       </div>
       <div className="mt-4 flex items-baseline justify-between gap-2">
-        <h3 className="text-[16px] font-semibold text-foreground">
+        <h3 className="text-[16px] font-semibold text-[color:var(--day-ink)]">
           {card.label}
         </h3>
-        <p className="text-[15px] font-semibold tabular-nums text-foreground">
+        <p className="font-mono-mkt text-[15px] font-semibold tabular-nums text-[color:var(--day-ink)]">
           {card.price}
-          <span className="font-normal text-muted-foreground">/mo</span>
+          <span className="font-normal text-[color:var(--ink-55)]">/mo</span>
         </p>
       </div>
-      <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+      <p className="mt-2 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
         {card.blurb}
         {card.detail ? ` ${card.detail}` : ""}
       </p>
-      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--ink-55)]">
         {ADDON_FINE_PRINT[id]}
       </p>
     </div>
@@ -109,10 +109,8 @@ export function PlanAddons() {
     <Section>
       <div className="mx-auto max-w-4xl">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="display-h2 text-foreground">
-            Start at $29. Add only what you need.
-          </h2>
-          <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
+          <h2 className="display-h2">Start at $29. Add only what you need.</h2>
+          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
             The base plan is the complete shared inbox, nothing above is held
             back. These three add-ons are the only ones that exist, each
             optional and priced right here. They&apos;re off until you turn
@@ -127,7 +125,7 @@ export function PlanAddons() {
             </Reveal>
           ))}
         </div>
-        <p className="mt-5 text-center text-[13px] text-muted-foreground">
+        <p className="mt-5 text-center text-[13px] text-[color:var(--ink-55)]">
           The same picker, at the same prices, is what you&apos;ll see at
           signup and in billing settings. There is no other list.
         </p>

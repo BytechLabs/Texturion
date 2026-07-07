@@ -10,6 +10,7 @@ import type { Metadata } from "next";
 
 import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { SECURITY_EMAIL } from "@/lib/marketing/business";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -71,11 +72,11 @@ export default function SecurityPage() {
       />
       <Container className="py-16 sm:py-24">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-semibold text-primary">Security</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <Kicker>Security</Kicker>
+          <h1 className="display-hero mt-3 text-balance">
             The honest version of &quot;we take security seriously.&quot;
           </h1>
-          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
             No badges we don&apos;t hold, no jargon. Here is exactly how Loonext
             protects your business&apos;s data, each point is something the
             product actually does today.
@@ -84,19 +85,14 @@ export default function SecurityPage() {
 
         <div className="mx-auto mt-12 grid max-w-4xl gap-4 sm:grid-cols-2">
           {POINTS.map(({ Icon, title, body }) => (
-            <div
-              key={title}
-              className="rounded-lg border border-border bg-card p-6"
-            >
-              <Icon
-                className="size-5 text-primary"
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              <h2 className="mt-4 text-base font-semibold text-foreground">
+            <div key={title} className="panel-card rounded-xl p-6">
+              <span className="flex size-9 items-center justify-center rounded-lg bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
+                <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
+              </span>
+              <h2 className="mt-4 text-base font-semibold text-[color:var(--day-ink)]">
                 {title}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-70)]">
                 {body}
               </p>
             </div>
@@ -104,24 +100,24 @@ export default function SecurityPage() {
         </div>
 
         {/* Data residency + sub-processors */}
-        <div className="mx-auto mt-6 max-w-4xl rounded-lg border border-border bg-card p-6">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="panel-card mx-auto mt-6 max-w-4xl rounded-xl p-6">
+          <h2 className="text-base font-semibold text-[color:var(--day-ink)]">
             Where your data lives
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-70)]">
             Loonext processes and stores data in the United States (Supabase on
             AWS us-east-1). The full list of vendors that process data on our
             behalf, and the region each operates in, is on our{" "}
             <a
               href="/legal/subprocessors"
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
             >
               sub-processors page
             </a>
             , and how we handle personal information is in our{" "}
             <a
               href="/legal/privacy"
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
             >
               privacy policy
             </a>
@@ -130,15 +126,15 @@ export default function SecurityPage() {
         </div>
 
         {/* Responsible disclosure */}
-        <div className="mx-auto mt-6 max-w-4xl rounded-lg border border-border bg-card p-6">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="panel-card mx-auto mt-6 max-w-4xl rounded-xl p-6">
+          <h2 className="text-base font-semibold text-[color:var(--day-ink)]">
             Responsible disclosure
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-70)]">
             Found a vulnerability? We want to hear from you. Email{" "}
             <a
               href={`mailto:${SECURITY_EMAIL}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
             >
               {SECURITY_EMAIL}
             </a>{" "}

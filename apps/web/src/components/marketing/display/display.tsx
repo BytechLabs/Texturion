@@ -1,21 +1,23 @@
 /**
- * <Display>, the expressive marketing headline system (DESIGN-DIRECTION §3).
+ * <Display>, the expressive marketing headline system (DESIGN-DIRECTION §3,
+ * v3 "Quiet daylight").
  *
  * Headlines are COMPOSED, not typed. A plain `<h1 className="display-hero">Every
- * text caught</h1>` is a bare font swap; a real "Caught" headline layers the
- * marketing devices: a lighter emphasis cut, a marker-yellow highlight swipe on
- * the promise word, a hand-marker underline or circle, one petrol accent word,
- * and scale/weight contrast. This component gives those devices a small, reusable
- * grammar so every headline on the site is authored the same way.
+ * text caught</h1>` is a bare font swap; a composed headline layers the calm v3
+ * devices: a quieter emphasis tone, a clean petrol underline on the promise
+ * word, and one petrol accent word. This component gives those devices a small,
+ * reusable grammar so every headline on the site is authored the same way. (v3
+ * retired the amber highlighter swipe and the hand-marker draw: §2 rations
+ * porch-amber to the unread dot, and the identity is minimal, not hand-drawn.)
  *
- * Server component (pure DOM/CSS; the marker draw is CSS-only, reduced-motion
+ * Server component (pure DOM/CSS; the underline draw is CSS-only, reduced-motion
  * safe). Set on the (marketing) subtree only, it reads --font-display etc.
  *
  * Usage:
  *   <Display as="h1" size="hero">
  *     Every text{" "}
- *     <Display.Emph italic>caught</Display.Emph>, not{" "}
- *     <Display.Mark>missed</Display.Mark>.
+ *     <Display.Mark>caught</Display.Mark>, not{" "}
+ *     <Display.Emph>missed</Display.Emph>.
  *   </Display>
  *
  *   <Display as="h2" size="h2">
@@ -48,10 +50,10 @@ interface DisplayProps {
 }
 
 /**
- * The composable emphasis word, the lighter Basteleur MOONLIGHT cut, an optical
- * weight-contrast against the Bold headline (Basteleur has no true italic, so
- * weight contrast is the distinctive emphasis; `italic` adds a restrained
- * synthetic slant only where the composition wants it).
+ * The composable emphasis word (v3). Every display utility renders Besley 700
+ * now, so weight contrast is dead; the v3 emphasis is a genuine tonal step (the
+ * word recedes to the quieter ink, see .dsp-emph). `italic` swaps that tone for
+ * a restrained synthetic slant where the composition wants it instead.
  */
 function Emph({
   children,
@@ -81,11 +83,11 @@ function Accent({
 }
 
 /**
- * The marker-yellow HIGHLIGHT SWIPE behind the promise word (§3 RATIONED marker,
- * used once per headline). A wobbly hand-laid band sits behind the glyphs; on
- * reveal it paints on once (reduced-motion shows it fully painted). Set
- * `draw={false}` for headlines that should never animate (e.g. the LCP hero if
- * you want zero motion there); default paints on reveal via [data-draw].
+ * The clean petrol UNDERLINE under the promise word (v3 §2: petrol is the one
+ * accent; the retired amber swipe is gone). On reveal the rule draws on once
+ * (reduced-motion shows it fully drawn). Set `draw={false}` for headlines that
+ * should never animate (e.g. the LCP hero if you want zero motion there);
+ * default draws on reveal via [data-draw].
  */
 function Mark({
   children,
@@ -93,7 +95,7 @@ function Mark({
   className,
 }: {
   children: ReactNode;
-  /** Paint-on animation on reveal (reduced-motion always shows painted). */
+  /** Draw-on animation on reveal (reduced-motion always shows drawn). */
   draw?: boolean;
   className?: string;
 }) {

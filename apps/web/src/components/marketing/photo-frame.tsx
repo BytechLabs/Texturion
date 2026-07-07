@@ -75,11 +75,12 @@ export function PhotoFrame({
         </div>
       </div>
 
-      {/* The corner caption, a short, true label over a real photo. Mono meta
-          voice, on a paper chip, no fake status pill (§0). */}
+      {/* The corner caption, a short, true label over a real photo. Public Sans
+          voice (§3: mono is figures only), on a paper chip, no fake status
+          pill (§0). */}
       {caption && (
         <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-xl border border-[color:var(--hairline)] bg-[color:var(--paper)]/95 px-3 py-1.5 shadow-sm backdrop-blur">
-          <span className="font-mono-mkt text-[13px] text-[color:var(--ink)]">
+          <span className="text-[13px] font-medium text-[color:var(--ink)]">
             {caption.label}
           </span>
         </div>

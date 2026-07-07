@@ -17,6 +17,7 @@ import type { Metadata } from "next";
 
 import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { Section } from "@/components/marketing/ui/section";
 import { Display, MarkerCheck } from "@/components/marketing/display";
@@ -61,11 +62,8 @@ export default function CanadaPage() {
         <Container>
           <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:gap-16">
             <div>
-              <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-                <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-                Made in Canada, for Canadian crews
-              </p>
-              <Display as="h1" size="hero" className="mt-5 text-balance">
+              <Kicker>Made in Canada, for Canadian crews</Kicker>
+              <Display as="h1" size="hero" className="mt-3 text-balance">
                 Canadian crews text customers{" "}
                 <Display.Mark>day one</Display.Mark>, no wait.
               </Display>
@@ -198,10 +196,7 @@ export default function CanadaPage() {
       {/* Section 4, honest data residency (stated, not buried), §7. */}
       <Section>
         <div className="mx-auto max-w-3xl">
-          <p className="font-mono-mkt flex items-center gap-2.5 text-[13px] font-medium tracking-[0.04em] text-[color:var(--graphite)]">
-            <span aria-hidden className="h-px w-6 bg-[color:var(--petrol)]/50" />
-            Where your data lives
-          </p>
+          <Kicker>Where your data lives</Kicker>
           <Display as="h2" size="h2" className="mt-3">
             Plain about your data, including that it&apos;s processed in the US.
           </Display>

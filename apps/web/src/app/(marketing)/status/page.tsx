@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { Container } from "@/components/marketing/ui/container";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Kicker } from "@/components/marketing/ui/kicker";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -33,19 +34,17 @@ export default function StatusPage() {
       />
       <Container className="py-16 sm:py-24">
         <div className="mx-auto max-w-2xl">
-          <p className="text-sm font-semibold text-primary">Status</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Is it down, or is it me?
-          </h1>
-          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+          <Kicker>Status</Kicker>
+          <h1 className="display-hero mt-3">Is it down, or is it me?</h1>
+          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
             Loonext hard-gates outbound texting on carrier approval and sells
             trust through honesty, so a real status page matters. Here&apos;s
             where things stand.
           </p>
 
-          <div className="mt-8 flex items-center gap-3 rounded-lg border border-border bg-card p-5">
+          <div className="panel-card mt-8 flex items-center gap-3 rounded-xl p-5">
             <CheckCircle2
-              className="size-6 shrink-0 text-[var(--success)]"
+              className="size-6 shrink-0 text-[color:var(--petrol)]"
               strokeWidth={1.75}
               aria-hidden="true"
             />
@@ -54,21 +53,21 @@ export default function StatusPage() {
                   check yet (the live page is being stood up — see below), so it
                   states the true fact ("no incidents") rather than asserting a
                   real-time "all systems operational" it can't verify. */}
-              <p className="font-medium text-foreground">
+              <p className="font-medium text-[color:var(--day-ink)]">
                 No incidents to report
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[color:var(--ink-70)]">
                 Nothing&apos;s gone wrong — and you&apos;ll see it here first if
                 it does.
               </p>
             </div>
           </div>
 
-          <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-8 space-y-4 text-sm leading-relaxed text-[color:var(--ink-70)]">
             <p>
               A live, hosted status page, with real-time component health and a
               full incident history, is being stood up at{" "}
-              <span className="font-medium text-foreground">
+              <span className="font-medium text-[color:var(--day-ink)]">
                 status.loonext.app
               </span>
               . Until it&apos;s wired up, we won&apos;t show fabricated uptime
@@ -81,7 +80,7 @@ export default function StatusPage() {
             </p>
             <ul className="list-disc space-y-2 pl-6">
               <li>
-                <strong className="text-foreground/90">
+                <strong className="font-semibold text-[color:var(--day-ink)]">
                   US texting activates after carrier approval
                 </strong>{" "}
                 (typically 3–7 business days after you pay). If your US texts
@@ -90,7 +89,7 @@ export default function StatusPage() {
                 whole time.
               </li>
               <li>
-                <strong className="text-foreground/90">
+                <strong className="font-semibold text-[color:var(--day-ink)]">
                   Delivery depends on the phone companies and carriers
                 </strong>
                 , which we don&apos;t control. When they have trouble, texts can
@@ -101,7 +100,7 @@ export default function StatusPage() {
               Seeing something that looks like an outage? Email{" "}
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
-                className="font-medium text-primary underline-offset-4 hover:underline"
+                className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
               >
                 {SUPPORT_EMAIL}
               </a>{" "}

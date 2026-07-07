@@ -76,11 +76,11 @@ export function ContactForm() {
       <Button type="submit" size="lg" className="w-full sm:w-auto">
         Open in your email app
       </Button>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-[color:var(--ink-70)]">
         This opens your email app with the message ready to send to{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
         >
           {SUPPORT_EMAIL}
         </a>
