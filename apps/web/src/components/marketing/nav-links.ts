@@ -1,3 +1,18 @@
+import {
+  Fan,
+  HardHat,
+  Hash,
+  Inbox,
+  Leaf,
+  type LucideIcon,
+  Scale,
+  Scissors,
+  ShieldCheck,
+  Sparkles,
+  Tags,
+  Wrench,
+} from "lucide-react";
+
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
@@ -15,6 +30,11 @@ export interface NavItem {
   href: string;
   /** One plain-English line rendered beneath the label in the menu panel. */
   description?: string;
+  /**
+   * The single line glyph shown in the item's Frost chip (v4 amendment 15).
+   * One lucide set across the whole nav; flat items (Pricing, Log in) omit it.
+   */
+  icon?: LucideIcon;
 }
 
 export interface NavMenu {
@@ -33,21 +53,25 @@ export const productMenu: NavMenu = {
       label: "Shared inbox",
       href: LIVE_ROUTES.featuresSharedInbox,
       description: "Every text in one inbox the whole crew can see.",
+      icon: Inbox,
     },
     {
       label: "Your business number",
       href: LIVE_ROUTES.featuresBusinessNumber,
       description: "A local number that belongs to the business, not a phone.",
+      icon: Hash,
     },
     {
       label: "Compliance built in",
       href: LIVE_ROUTES.featuresCompliance,
       description: "Registration, opt-outs, and consent, handled for you.",
+      icon: ShieldCheck,
     },
     {
       label: "Templates and tags",
       href: LIVE_ROUTES.featuresTemplatesAndTags,
       description: "Saved replies and tags that match how you sell.",
+      icon: Tags,
     },
   ],
 };
@@ -61,31 +85,37 @@ export const tradesMenu: NavMenu = {
       label: "Plumbers",
       href: LIVE_ROUTES.forPlumbers,
       description: "Photo triage and on-my-way texts, off your personal cell.",
+      icon: Wrench,
     },
     {
       label: "HVAC",
       href: LIVE_ROUTES.forHvac,
       description: "Triage the no-heat rush without missing a booking.",
+      icon: Fan,
     },
     {
       label: "Landscapers",
       href: LIVE_ROUTES.forLandscapers,
       description: "Gate codes, reschedules, and add-on asks in one thread.",
+      icon: Leaf,
     },
     {
       label: "Cleaners",
       href: LIVE_ROUTES.forCleaners,
       description: "Access notes, confirmations, and reschedules.",
+      icon: Sparkles,
     },
     {
       label: "Salons",
       href: LIVE_ROUTES.forSalons,
       description: "Confirmations, waitlist fills, and fewer no-shows.",
+      icon: Scissors,
     },
     {
       label: "Contractors",
       href: LIVE_ROUTES.forContractors,
       description: "Change orders and decisions, in writing, on one number.",
+      icon: HardHat,
     },
   ],
 };
@@ -99,16 +129,19 @@ export const compareMenu: NavMenu = {
       label: "Loonext vs Podium",
       href: LIVE_ROUTES.comparePodium,
       description: "A price you can read, next to one you have to ask for.",
+      icon: Scale,
     },
     {
       label: "Loonext vs Heymarket",
       href: LIVE_ROUTES.compareHeymarket,
       description: "Flat $29 for the crew vs $49 a person.",
+      icon: Scale,
     },
     {
       label: "Loonext vs Quo",
       href: LIVE_ROUTES.compareQuo,
       description: "Flat beats per-user, with texts included.",
+      icon: Scale,
     },
   ],
 };

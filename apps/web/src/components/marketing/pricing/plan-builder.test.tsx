@@ -8,6 +8,9 @@ import {
 } from "@/lib/api/types";
 import { PLANS } from "@/app/(marketing)/pricing/pricing-data";
 
+import { CountryProvider } from "./country-context";
+import { CountryToggle } from "./country-toggle";
+import { FirstWeekTimeline } from "./first-week-timeline";
 import { PlanBuilder } from "./plan-builder";
 import {
   DEFAULT_SELECTION,
@@ -133,6 +136,96 @@ describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake stat
   });
 
   it("has no em-dashes anywhere in the rendered markup (Law 6)", () => {
+    expect(html).not.toContain("—");
+  });
+});
+
+describe("<PlanBuilder> country toggle (US default, Canada one tap)", () => {
+  const usHtml = renderToStaticMarkup(
+    <CountryProvider initialCountry="us">
+      <PlanBuilder plans={PLANS} />
+    </CountryProvider>,
+  );
+  const caHtml = renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <PlanBuilder plans={PLANS} />
+    </CountryProvider>,
+  );
+
+  it("US view: the $29 registration fee is its own first-month line and the first month is $58", () => {
+    expect(usHtml).toContain("One-time US registration, first month only");
+    expect(usHtml).toContain("First month, US shops");
+    expect(usHtml).toContain("$58");
+    // Never rolled into the monthly figure.
+    expect(usHtml).not.toContain("$58/mo");
+  });
+
+  it("Canada view: no registration fee, no $58 first month, first month equals the monthly total", () => {
+    expect(caHtml).not.toContain("One-time US registration, first month only");
+    expect(caHtml).not.toContain("First month, US shops");
+    expect(caHtml).not.toContain("$58");
+    expect(caHtml).toContain("No registration fee in Canada");
+    // Base plan price is identical either way (USD, plus tax): $29 monthly.
+    expect(caHtml).toContain("$29");
+  });
+
+  it("Canada view keeps the CAD-billing honesty line visible (charged in USD for now)", () => {
+    expect(caHtml).toContain("CAD billing isn&#x27;t here yet");
+    expect(caHtml).toContain("charged in USD");
+  });
+
+  it("neither view has an em-dash (Law 6)", () => {
+    expect(usHtml).not.toContain("—");
+    expect(caHtml).not.toContain("—");
+  });
+});
+
+describe("<CountryToggle> (a real segmented radiogroup)", () => {
+  it("SSR default marks United States checked and Canada unchecked", () => {
+    const html = renderToStaticMarkup(
+      <CountryProvider>
+        <CountryToggle />
+      </CountryProvider>,
+    );
+    expect(html).toContain("United States");
+    expect(html).toContain("Canada");
+    expect(html).toContain('role="radiogroup"');
+    // Two radios, US selected by default.
+    expect(html.match(/role="radio"/g)).toHaveLength(2);
+    expect(html).toContain('role="radio" aria-checked="true"');
+  });
+
+  it("renders the Canada helper when the context is Canada", () => {
+    const html = renderToStaticMarkup(
+      <CountryProvider initialCountry="ca">
+        <CountryToggle />
+      </CountryProvider>,
+    );
+    expect(html).toContain("works the same day");
+    expect(html).not.toContain("registration, then US texting");
+  });
+});
+
+describe("<FirstWeekTimeline> is country-aware", () => {
+  it("US default renders the carrier-wait timeline with the YOU ARE HERE tab", () => {
+    const html = renderToStaticMarkup(<FirstWeekTimeline />);
+    expect(html).toContain("DAYS 1 TO 7");
+    expect(html).toContain("You are here");
+    expect(html).toContain("3 to 7 business days");
+    expect(html).not.toContain("—");
+  });
+
+  it("Canada renders the day-one card with no waiting segment", () => {
+    const html = renderToStaticMarkup(
+      <CountryProvider initialCountry="ca">
+        <FirstWeekTimeline />
+      </CountryProvider>,
+    );
+    expect(html).toContain("Day one · No wait");
+    expect(html).toContain("same day you sign up");
+    expect(html).toContain("this segment does not exist");
+    // No YOU ARE HERE tab: there is nothing to wait through.
+    expect(html).not.toContain("You are here");
     expect(html).not.toContain("—");
   });
 });

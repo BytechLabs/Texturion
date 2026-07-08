@@ -1,74 +1,79 @@
 "use client";
 
 /**
- * THE ARRIVAL FIELD (P5-SPEC v1): the site's single live algorithm, home hero
- * only (Law 3). Each particle IS a customer text: it spawns off-canvas at a
- * "personal phone" moment, wanders under noise (unanswered, Flare), resolves
- * into an arrive-steered path (in motion, Cobalt trail), and docks into the
- * REAL inbox card, which prepends the matching conversation row.
+ * THE ARRIVAL FIELD — "CONFLUENCE" (P5-SPEC v2, home hero only, Law 3).
+ *
+ * Divergence-free curl-noise streamlines braid across the hero and settle
+ * into the real inbox card, warming cobalt -> green ONLY where a signal
+ * resolves. Each streamline is a text finding its way to one inbox; the piece
+ * reads as calm gallery-quality generative art first, product metaphor second
+ * (amendment 14). There is no fabricated liveness and no text on the canvas:
+ * the Bricolage H1 stays the sole text node in the art path, so it remains the
+ * LCP candidate and CLS stays 0.00.
  *
  * Loaded only via next/dynamic({ ssr: false }) AFTER the boot gates pass
  * (arrival-layer.tsx), so this file plus p5 are a lazy chunk that never sits
- * in the critical request chain. Colors are the exact v4 tokens: Flare
- * #FF4A1F (waiting), Cobalt #2740DE (in motion), Green #0B7A50 (answered).
+ * in the critical request chain. Palette is the exact v4 tokens: Signal Cobalt
+ * #2740DE (in motion) warming to Answered Green #0B7A50 only at the resolve.
+ * No Flare: this piece is about resolution, not the waiting/tension beat.
  *
- * Delta-time integration throughout (v += a * dt, dt in seconds), 30fps,
- * offscreen accumulation buffer for the cobalt trails, visibility +
- * IntersectionObserver pause, full p5.remove() teardown on unmount.
+ * Delta-time integration throughout (framerate-independent), deltaTime clamped
+ * to 40ms, offscreen accumulation buffer for the silk trails, visibility +
+ * IntersectionObserver pause, full p5.remove() + buffer.remove() teardown.
  */
 
 import { useEffect, useRef } from "react";
 
 import type p5 from "p5";
 
-import {
-  ARRIVAL_DOCK_ATTR,
-  ARRIVAL_SCRIPT,
-  HERO_ARRIVAL_EVENT,
-} from "./arrival-script";
+import { ARRIVAL_DOCK_ATTR } from "./arrival-script";
 
-/* The v4 tokens, exact (P5-SPEC "Colors are exactly the v4 tokens"). Cobalt
- * (#2740DE) is applied straight to the trail/grid buffer strokes below as its
- * RGB channels (39, 64, 222), so it needs no shared constant here. */
-const FLARE = { r: 255, g: 74, b: 31 }; // #FF4A1F
-const GREEN = { r: 11, g: 122, b: 80 }; // #0B7A50
-const INK = { r: 16, g: 23, b: 59 }; // #10173B (timestamp labels at 60%)
+/* v4 tokens, exact. Cobalt in the open field warming to Green at the
+ * confluence is the ENTIRE palette of this sketch (Flare dropped). */
+const COBALT: readonly [number, number, number] = [39, 64, 222]; // #2740DE
+const GREEN: readonly [number, number, number] = [11, 122, 80]; // #0B7A50
+
+/* Field / motion constants (P5-SPEC "ALGORITHM" + "MOTION TUNING"). */
+const SCALE = 0.0016; // spatial frequency of the noise potential
+const EPS = 1.0; // finite-difference step, px
+const FIELD_SPEED = 0.06; // t += dt * FIELD_SPEED (slow breathing)
+const R_OUTER = 260; // convergence band starts
+const R_INNER = 26; // dock radius (docked -> respawn)
+const TANGENTIAL = 0.5; // soft rosette settle, not a radial crash
 
 interface Particle {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
-  /** Age in seconds. */
-  age: number;
-  /** Wander duration in seconds for this particle. */
-  wander: number;
-  scriptIndex: number;
-  state: "live" | "docking" | "pulse";
-  /** Seconds since docking started. */
-  dockT: number;
-  dockFromX: number;
-  dockFromY: number;
-  /** Spawn x (for the steering-blend progress measure). */
-  x0: number;
-  /** Trail segments already drawn (per-particle cap keeps totals ≤ 60). */
-  segments: number;
   px: number;
   py: number;
+  /** Depth in [0.35, 1], biased far. Drives weight, alpha, cruise speed. */
+  z: number;
+  /** Warmth latch in [0, 1]: 0 cobalt open field, 1 resolved green. */
+  hue: number;
+  /** Age in seconds. */
+  life: number;
+  /** Life cap in seconds (7-13s). */
+  maxLife: number;
+  /** Transient entry-speed multiplier for "just arrived" tributaries. */
+  boost: number;
+}
+
+/** A rare earned resolve: a green settle dot + one expanding ring (G2). */
+interface Settle {
+  x: number;
+  y: number;
+  /** Seconds since the resolve fired (lives 300ms). */
+  age: number;
 }
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** smoothstep that also handles reversed edges (a may be > b). */
 function smoothstep(a: number, b: number, x: number): number {
-  const t = clamp((x - a) / (b - a), 0, 1);
+  const t = clamp((x - a) / (b - a || 1e-6), 0, 1);
   return t * t * (3 - 2 * t);
-}
-
-function cubicOut(t: number): number {
-  const f = t - 1;
-  return f * f * f + 1;
 }
 
 export default function ArrivalField({
@@ -95,121 +100,103 @@ export default function ArrivalField({
       const P5 = mod.default;
 
       const sketch = (p: p5) => {
-        const mobile = () => host.clientWidth > 0 && window.innerWidth < 640;
+        const isMobile = window.innerWidth < 640;
+        // The field is now full-bleed across the whole hero (amendment 14), so
+        // the desktop count is raised to keep the river dense over the wider
+        // canvas. Curl noise is 4 cheap noise() lookups/particle; still 60fps.
+        const COUNT = isMobile ? 44 : 180;
+        const FPS = isMobile ? 30 : 60;
 
         let buffer: p5.Graphics;
         let particles: Particle[] = [];
-        let noiseT = 0;
-        let nextSpawnIn = 0.4; // first text lands quickly
-        let scriptCursor = 0;
-        let fadeAccum = 0;
+        let settles: Settle[] = [];
+        let t = 0; // field time
+        let settleCooldown = 4 + Math.random() * 4; // first resolve is soon-ish
         let firedFirstFrame = false;
         let dockX = 0;
         let dockY = 0;
-        let monoFamily = "ui-monospace, monospace";
-
-        const params = () =>
-          mobile()
-            ? {
-                maxLive: 3,
-                spawnMin: 3.5,
-                spawnMax: 5.0,
-                bubbleW: 16,
-                bubbleH: 10,
-                wanderMin: 1.6,
-                wanderMax: 2.2,
-                arriveRadius: 90,
-                labels: false,
-                trails: false,
-              }
-            : {
-                maxLive: 5,
-                spawnMin: 2.5,
-                spawnMax: 4.0,
-                bubbleW: 22,
-                bubbleH: 14,
-                wanderMin: 2.2,
-                wanderMax: 3.2,
-                arriveRadius: 140,
-                labels: true,
-                trails: true,
-              };
-
-        const MAX_SPEED = 120; // px/s
-        const MAX_FORCE = 220; // px/s²
+        let remeasureAt = 0.5; // re-measure the dock ~500ms after boot
 
         const measureDock = () => {
           const dockEl = document.querySelector(`[${ARRIVAL_DOCK_ATTR}]`);
           const cr = host.getBoundingClientRect();
-          if (dockEl) {
+          if (dockEl && cr.width > 0) {
             const dr = dockEl.getBoundingClientRect();
-            // Steer to the card's near (left) edge, vertically centered;
-            // when the card sits below the band (mobile), this clamps to the
-            // band's bottom center, the approach line toward the card.
             dockX = clamp(dr.left - cr.left + 10, 24, cr.width - 12);
             dockY = clamp(dr.top - cr.top + dr.height / 2, 24, cr.height - 10);
           } else {
-            dockX = cr.width - 24;
-            dockY = cr.height * 0.5;
-          }
-        };
-
-        const paintGrid = () => {
-          // Sparse field texture: 1px cobalt ticks at 6% alpha, 48px grid,
-          // drawn once to the buffer (desktop only).
-          if (!params().trails) return;
-          buffer.stroke(39, 64, 222, 15); // ~6% alpha
-          buffer.strokeWeight(1);
-          for (let gx = 24; gx < p.width; gx += 48) {
-            for (let gy = 24; gy < p.height; gy += 48) {
-              buffer.line(gx - 1.5, gy, gx + 1.5, gy);
-            }
+            dockX = p.width - 24;
+            dockY = p.height * 0.5;
           }
         };
 
         const rebuildBuffer = () => {
           buffer?.remove();
           buffer = p.createGraphics(p.width, p.height);
-          paintGrid();
+          buffer.clear();
         };
 
-        const spawn = () => {
-          const prm = params();
-          const idx = scriptCursor % ARRIVAL_SCRIPT.length;
-          scriptCursor += 1;
-          const x0 = -30;
-          const y0 = p.height * (0.08 + 0.55 * Math.random());
-          particles.push({
-            x: x0,
-            y: y0,
-            vx: 30 + Math.random() * 30,
-            vy: 10 * (Math.random() - 0.5),
-            age: 0,
-            wander:
-              prm.wanderMin + Math.random() * (prm.wanderMax - prm.wanderMin),
-            scriptIndex: idx,
-            state: "live",
-            dockT: 0,
-            dockFromX: x0,
-            dockFromY: y0,
-            x0,
-            segments: 0,
-            px: x0,
-            py: y0,
-          });
+        /** (Re)seed a particle in place so the count stays constant. */
+        const reseed = (q: Particle, initial: boolean) => {
+          const fresh = Math.random() < 0.2; // G4 "just arrived" tributary
+          const topEdge = Math.random() < 0.28; // 72% left / 28% top
+          q.hue = 0;
+          q.life = 0;
+          q.maxLife = 7 + Math.random() * 6;
+          q.boost = 1;
+
+          if (initial) {
+            // Populate the whole field on boot so the crossfade from the
+            // static still has no empty-then-fill pop.
+            q.x = Math.random() * p.width;
+            q.y = Math.random() * p.height;
+            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+            q.life = Math.random() * q.maxLife;
+          } else if (fresh) {
+            q.x = -20;
+            q.y = p.height * (0.1 + 0.7 * Math.random());
+            q.z = 0.72 + 0.28 * Math.random(); // pushed toward the near plane
+            q.boost = 1.3;
+          } else if (topEdge) {
+            q.x = p.width * (0.04 + 0.5 * Math.random());
+            q.y = -20;
+            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+          } else {
+            q.x = -20 + Math.random() * (p.width * 0.06);
+            q.y = p.height * (0.04 + 0.72 * Math.random());
+            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+          }
+          q.px = q.x;
+          q.py = q.y;
+        };
+
+        const buildParticles = () => {
+          particles = [];
+          for (let i = 0; i < COUNT; i += 1) {
+            const q: Particle = {
+              x: 0,
+              y: 0,
+              px: 0,
+              py: 0,
+              z: 0.6,
+              hue: 0,
+              life: 0,
+              maxLife: 10,
+              boost: 1,
+            };
+            reseed(q, true);
+            particles.push(q);
+          }
         };
 
         p.setup = () => {
           p.createCanvas(host.clientWidth, host.clientHeight);
-          p.pixelDensity(mobile() ? 1 : Math.min(p.pixelDensity(), 1.5));
-          p.frameRate(30);
-          p.noStroke();
+          p.pixelDensity(isMobile ? 1 : Math.min(p.pixelDensity(), 1.5));
+          p.frameRate(FPS);
+          p.noiseDetail(2, 0.5);
           rebuildBuffer();
           measureDock();
-          const fam = getComputedStyle(host)
-            .getPropertyValue("--font-mono")
-            .trim();
-          if (fam) monoFamily = `${fam}, ui-monospace, monospace`;
+          buildParticles();
         };
 
         p.windowResized = () => {
@@ -220,148 +207,113 @@ export default function ArrivalField({
         };
 
         p.draw = () => {
-          const prm = params();
-          const dt = Math.min(p.deltaTime, 100) / 1000; // seconds, clamped
-          noiseT += 0.0015;
-          p.clear();
+          const dt = Math.min(p.deltaTime, 40) / 1000; // seconds, clamped
+          t += dt * FIELD_SPEED;
 
-          // Trails buffer: fade ~2% per second so resolved paths build up,
-          // then slowly breathe.
-          if (prm.trails) {
-            fadeAccum += dt;
-            if (fadeAccum >= 0.5) {
-              fadeAccum = 0;
-              buffer.noStroke();
-              buffer.erase(3, 0);
-              buffer.rect(0, 0, buffer.width, buffer.height);
-              buffer.noErase();
-            }
-            p.image(buffer, 0, 0, p.width, p.height);
+          if (remeasureAt > 0) {
+            remeasureAt -= dt;
+            if (remeasureAt <= 0) measureDock();
           }
 
-          // Spawn (staggered).
-          nextSpawnIn -= dt;
-          const live = particles.filter((q) => q.state === "live").length;
-          if (nextSpawnIn <= 0 && live < prm.maxLive) {
-            spawn();
-            nextSpawnIn =
-              prm.spawnMin + Math.random() * (prm.spawnMax - prm.spawnMin);
-          }
+          // Silk: fade the whole buffer toward TRANSPARENT (never white, so
+          // zero haze over Signal White), then lay down this frame's segments.
+          buffer.push();
+          buffer.noStroke();
+          buffer.erase(3.0, 0);
+          buffer.rect(0, 0, buffer.width, buffer.height);
+          buffer.noErase();
+          buffer.pop();
 
-          const done: Particle[] = [];
+          settleCooldown -= dt;
+
           for (const q of particles) {
-            if (q.state === "live") {
-              q.age += dt;
+            q.life += dt;
+            q.boost = 1 + (q.boost - 1) * Math.max(0, 1 - dt * 2.5);
 
-              // Noise wander force.
-              const heading =
-                p.noise(q.x * 0.004, q.y * 0.004, noiseT) * p.TWO_PI * 2;
-              const nfx = Math.cos(heading) * MAX_FORCE;
-              const nfy = Math.sin(heading) * MAX_FORCE;
+            // --- divergence-free curl of the scalar noise potential psi ---
+            const n = (ax: number, ay: number) =>
+              p.noise(ax * SCALE, ay * SCALE, t);
+            const dpdy = (n(q.x, q.y + EPS) - n(q.x, q.y - EPS)) / (2 * EPS);
+            const dpdx = (n(q.x + EPS, q.y) - n(q.x - EPS, q.y)) / (2 * EPS);
+            let hx = dpdy;
+            let hy = -dpdx;
+            const hm = Math.hypot(hx, hy) || 1e-6;
+            hx /= hm;
+            hy /= hm;
 
-              // Reynolds arrive force toward the dock.
-              const dx = dockX - q.x;
-              const dy = dockY - q.y;
-              const d = Math.hypot(dx, dy) || 0.0001;
-              const speed =
-                d < prm.arriveRadius ? (MAX_SPEED * d) / prm.arriveRadius : MAX_SPEED;
-              let afx = (dx / d) * speed - q.vx;
-              let afy = (dy / d) * speed - q.vy;
-              const am = Math.hypot(afx, afy) || 0.0001;
-              if (am > MAX_FORCE) {
-                afx = (afx / am) * MAX_FORCE;
-                afy = (afy / am) * MAX_FORCE;
+            // --- convergence toward the dock node ---
+            const ddx = dockX - q.x;
+            const ddy = dockY - q.y;
+            const d = Math.hypot(ddx, ddy) || 1e-6;
+            const w = smoothstep(R_OUTER, R_INNER, d); // 0 open field -> 1 node
+            const ndx = ddx / d;
+            const ndy = ddy / d;
+            // Perp of the node direction gives a soft rosette settle.
+            const tx = -ndy * (TANGENTIAL * w);
+            const ty = ndx * (TANGENTIAL * w);
+
+            let dirX = hx * (1 - w) + ndx * w + tx;
+            let dirY = hy * (1 - w) + ndy * w + ty;
+            const dm = Math.hypot(dirX, dirY) || 1e-6;
+            dirX /= dm;
+            dirY /= dm;
+
+            // Arrive law: cruise in the open field, ease to rest at the dock.
+            const maxSpeed = 40 * (0.6 + 0.4 * q.z);
+            let speed = maxSpeed * (0.55 + 0.45 * (1 - w)) * q.boost;
+            if (d < R_INNER) speed *= d / R_INNER;
+
+            q.px = q.x;
+            q.py = q.y;
+            q.x += dirX * speed * dt;
+            q.y += dirY * speed * dt;
+
+            // Once warmed near the node it stays warm through the resolve.
+            q.hue = Math.max(q.hue, w);
+
+            // --- silk segment: cobalt open field -> green confluence ---
+            const cr = COBALT[0] + (GREEN[0] - COBALT[0]) * q.hue;
+            const cg = COBALT[1] + (GREEN[1] - COBALT[1]) * q.hue;
+            const cb = COBALT[2] + (GREEN[2] - COBALT[2]) * q.hue;
+            const alpha = 16 + 8 * q.z + 30 * q.hue;
+            buffer.stroke(cr, cg, cb, alpha);
+            buffer.strokeWeight((0.6 + 0.9 * q.z) * (1 + 0.4 * q.hue));
+            buffer.line(q.px, q.py, q.x, q.y);
+
+            // Respawn: docked, aged out, or drifted off-canvas.
+            const off =
+              q.x < -40 ||
+              q.x > p.width + 40 ||
+              q.y < -40 ||
+              q.y > p.height + 40;
+            if (d < R_INNER || q.life > q.maxLife || off) {
+              // A docked stream is the ONLY thing that can earn a resolve, and
+              // only when the sparse timer is due (green stays a rare event).
+              if (d < R_INNER && settleCooldown <= 0) {
+                settles.push({ x: dockX, y: dockY, age: 0 });
+                settleCooldown = 6 + Math.random() * 5;
               }
-
-              // Steering blend: x-progress toward the dock, plus a ramp once
-              // the wander window has run out (the text stops drifting).
-              const progressX = clamp((q.x - q.x0) / (dockX - q.x0 || 1), 0, 1);
-              const timeRamp = clamp((q.age - q.wander) / 1.2, 0, 1);
-              const blend = Math.max(
-                smoothstep(0.25, 0.75, progressX),
-                timeRamp,
-              );
-
-              const fx = nfx + (afx - nfx) * blend;
-              const fy = nfy + (afy - nfy) * blend;
-              q.vx += fx * dt;
-              q.vy += fy * dt;
-              const vm = Math.hypot(q.vx, q.vy) || 0.0001;
-              if (vm > MAX_SPEED) {
-                q.vx = (q.vx / vm) * MAX_SPEED;
-                q.vy = (q.vy / vm) * MAX_SPEED;
-              }
-              q.px = q.x;
-              q.py = q.y;
-              q.x += q.vx * dt;
-              q.y += q.vy * dt;
-              q.y = clamp(q.y, 10, p.height - 10);
-
-              // Cobalt trail into the accumulation buffer (≤60 segments per
-              // particle life keeps the total in budget).
-              if (prm.trails && q.segments < 60 && q.x > 0) {
-                q.segments += 1;
-                buffer.stroke(39, 64, 222, 31); // cobalt at 12% alpha
-                buffer.strokeWeight(1.5);
-                buffer.line(q.px, q.py, q.x, q.y);
-              }
-
-              // Stale drift: past 60% of the wander window, alpha eases to
-              // 40% (a text going stale) and recovers during convergence.
-              const staleT = q.age / q.wander;
-              const staleAlpha =
-                staleT > 0.6 ? 1 - 0.6 * clamp((staleT - 0.6) / 0.4, 0, 1) : 1;
-              const alpha = staleAlpha + (1 - staleAlpha) * blend;
-
-              // Dock trigger: the final 24px runs the docking ease.
-              if (d < 24) {
-                q.state = "docking";
-                q.dockT = 0;
-                q.dockFromX = q.x;
-                q.dockFromY = q.y;
-              }
-
-              drawBubble(q, FLARE, alpha, prm, blend);
-            } else if (q.state === "docking") {
-              q.dockT += dt;
-              const t = clamp(q.dockT / 0.32, 0, 1); // 320ms cubic-out
-              const e = cubicOut(t);
-              q.x = q.dockFromX + (dockX - q.dockFromX) * e;
-              q.y = q.dockFromY + (dockY - q.dockFromY) * e;
-              // Fill crossfade Flare → Green over 400ms.
-              const c = clamp(q.dockT / 0.4, 0, 1);
-              const mix = {
-                r: FLARE.r + (GREEN.r - FLARE.r) * c,
-                g: FLARE.g + (GREEN.g - FLARE.g) * c,
-                b: FLARE.b + (GREEN.b - FLARE.b) * c,
-              };
-              drawBubble(q, mix, 1, prm, 1);
-              if (t >= 1 && c >= 1) {
-                q.state = "pulse";
-                q.dockT = 0;
-                // The row lands in the real inbox the moment the dock settles.
-                host.dispatchEvent(
-                  new CustomEvent(HERO_ARRIVAL_EVENT, {
-                    detail: { scriptIndex: q.scriptIndex },
-                    bubbles: true,
-                  }),
-                );
-              }
-            } else {
-              // One 300ms ring pulse: green stroke expanding 8→28px, α .5→0.
-              q.dockT += dt;
-              const t = clamp(q.dockT / 0.3, 0, 1);
-              p.noFill();
-              p.stroke(GREEN.r, GREEN.g, GREEN.b, 127 * (1 - t));
-              p.strokeWeight(1.5);
-              p.circle(q.x, q.y, 8 + 20 * t);
-              p.noStroke();
-              drawBubble(q, GREEN, 1 - t, prm, 1);
-              if (t >= 1) done.push(q);
+              reseed(q, false);
             }
           }
-          if (done.length > 0) {
-            particles = particles.filter((q) => !done.includes(q));
+
+          // Blit the silk, then the rare resolve events on top.
+          p.clear();
+          p.image(buffer, 0, 0, p.width, p.height);
+
+          if (settles.length > 0) {
+            for (const s of settles) s.age += dt;
+            settles = settles.filter((s) => s.age < 0.3);
+            for (const s of settles) {
+              const st = clamp(s.age / 0.3, 0, 1);
+              p.noFill();
+              p.stroke(GREEN[0], GREEN[1], GREEN[2], 127 * (1 - st));
+              p.strokeWeight(1.25);
+              p.circle(s.x, s.y, 8 + 20 * st); // Ø 8 -> 28
+              p.noStroke();
+              p.fill(GREEN[0], GREEN[1], GREEN[2], 34 * (1 - st * 0.5));
+              p.circle(s.x, s.y, 2.2);
+            }
           }
 
           if (!firedFirstFrame) {
@@ -369,38 +321,6 @@ export default function ArrivalField({
             firstFrameRef.current();
           }
         };
-
-        function drawBubble(
-          q: Particle,
-          color: { r: number; g: number; b: number },
-          alpha: number,
-          prm: ReturnType<typeof params>,
-          blend: number,
-        ) {
-          p.fill(color.r, color.g, color.b, 255 * alpha);
-          p.rect(
-            q.x - prm.bubbleW / 2,
-            q.y - prm.bubbleH / 2,
-            prm.bubbleW,
-            prm.bubbleH,
-            5,
-          );
-          if (prm.labels && q.state === "live") {
-            // Timestamp label: Spline Sans Mono 11px, ink at 60%, right of
-            // the bubble. Raw canvas text keeps p5's text state untouched.
-            const ctx = p.drawingContext as CanvasRenderingContext2D;
-            ctx.save();
-            ctx.font = `500 11px ${monoFamily}`;
-            ctx.fillStyle = `rgba(${INK.r}, ${INK.g}, ${INK.b}, ${0.6 * alpha * (1 - 0.4 * blend)})`;
-            ctx.textBaseline = "middle";
-            ctx.fillText(
-              ARRIVAL_SCRIPT[q.scriptIndex].time,
-              q.x + prm.bubbleW / 2 + 8,
-              q.y,
-            );
-            ctx.restore();
-          }
-        }
       };
 
       instance = new P5(sketch, host);
@@ -441,7 +361,19 @@ export default function ArrivalField({
       ref={hostRef}
       className="absolute inset-0"
       aria-hidden="true"
-      style={{ pointerEvents: "none" }}
+      style={{
+        pointerEvents: "none",
+        // Full-bleed canvas (amendment 14): the art is the dominant surface, so
+        // the mask only feathers the four edges softly (no hard trail clip
+        // lines). H1/body legibility is handled by the copy scrim in hero.tsx,
+        // NOT by erasing the art across the center.
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent 0, black 6%, black 95%, transparent 100%), linear-gradient(to bottom, transparent 0, black 7%, black 93%, transparent 100%)",
+        WebkitMaskComposite: "source-in",
+        maskImage:
+          "linear-gradient(to right, transparent 0, black 6%, black 95%, transparent 100%), linear-gradient(to bottom, transparent 0, black 7%, black 93%, transparent 100%)",
+        maskComposite: "intersect",
+      }}
     />
   );
 }

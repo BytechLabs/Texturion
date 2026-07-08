@@ -65,6 +65,14 @@ describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compar
     }
   });
 
+  it("every mega-menu item carries a single icon ref (amendment 15)", () => {
+    for (const menu of NAV_MENUS) {
+      for (const item of menu.items) {
+        expect(item.icon, `${menu.label} / ${item.label} has no icon`).toBeDefined();
+      }
+    }
+  });
+
   it("CTA labels are the deck's, verbatim", () => {
     expect(PRIMARY_CTA_LABEL).toBe("Get your number");
     expect(SECONDARY_CTA_LABEL).toBe("See pricing");

@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+import { useCountry } from "./country-context";
 import {
   DEFAULT_SELECTION,
   SELLABLE_ADDON_CARDS,
@@ -108,6 +109,7 @@ function Switch({ on }: { on: boolean }) {
 }
 
 export function PlanBuilder({ plans }: { plans: Plan[] }) {
+  const { country } = useCountry();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_SELECTION.plan);
   const [addons, setAddons] = useState<readonly PlanModule[]>(
     DEFAULT_SELECTION.addons,
@@ -323,33 +325,56 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
             </span>
           </div>
 
-          {/* The one-time US registration fee: ALWAYS a separate first-month
-              line, never rolled into the monthly figure (owner ruling). */}
-          <dl className="mt-4 space-y-2">
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-[0.875rem] text-[color:var(--fr-ink-70)]">
-                One-time US registration, first month only
-              </dt>
-              <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                + {usd(US_REGISTRATION_FEE_DOLLARS)}
-              </dd>
+          {/* The one country-specific block. US: the one-time $29 registration
+              fee is ALWAYS its own first-month line, never rolled into the
+              monthly figure (owner ruling), so the first month is $58 then $29.
+              Canada: no registration fee and no carrier wait, so the first
+              month equals every month. Base and add-on prices are identical
+              either way (USD, plus tax). */}
+          {country === "us" ? (
+            <dl className="mt-4 space-y-2">
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-[0.875rem] text-[color:var(--fr-ink-70)]">
+                  One-time US registration, first month only
+                </dt>
+                <dd className="fr-mono-data text-[color:var(--fr-ink)]">
+                  + {usd(US_REGISTRATION_FEE_DOLLARS)}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-[0.875rem] font-semibold text-[color:var(--fr-ink)]">
+                  First month, US shops
+                </dt>
+                <dd className="fr-mono-data font-medium text-[color:var(--fr-ink)]">
+                  {usd(firstMonth)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <div className="mt-4 flex items-start gap-2 rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3.5">
+              <GreenTick />
+              <p className="text-[0.875rem] leading-relaxed text-[color:var(--fr-ink)]">
+                No registration fee in Canada. Your first month is{" "}
+                {usd(monthly)}, the same as every month after, and texting
+                Canadian customers works the same day.
+              </p>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-[0.875rem] font-semibold text-[color:var(--fr-ink)]">
-                First month, US shops
-              </dt>
-              <dd className="fr-mono-data font-medium text-[color:var(--fr-ink)]">
-                {usd(firstMonth)}
-              </dd>
-            </div>
-          </dl>
+          )}
         </div>
 
-        <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-          Canadian businesses that don&apos;t text US numbers never pay the{" "}
-          {usd(US_REGISTRATION_FEE_DOLLARS)} and never wait. Prices in USD,
-          plus sales tax where it applies.
-        </p>
+        {country === "us" ? (
+          <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+            Canadian businesses that don&apos;t text US numbers never pay the{" "}
+            {usd(US_REGISTRATION_FEE_DOLLARS)} and never wait. Prices in USD,
+            plus sales tax where it applies.
+          </p>
+        ) : (
+          <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+            Prices in USD, plus sales tax where it applies. CAD billing
+            isn&apos;t here yet, so your card is charged in USD for now and your
+            bank converts it.
+          </p>
+        )}
 
         <CtaButton
           href={signupHref(selection)}

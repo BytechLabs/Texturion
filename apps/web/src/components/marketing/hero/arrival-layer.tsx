@@ -131,21 +131,19 @@ export function ArrivalLayer() {
       aria-hidden="true"
     >
       {/* The composed still: SSR, no-JS, reduced-motion, and pre-boot all
-          keep this. It crossfades out only after the first live frame. On
-          desktop the still keeps its native 520x560 box and its RIGHT edge
-          tucks under the inbox card's left edge, so the docked queue and the
-          one waiting Flare bubble stay visible (the still is a composition,
-          not an absence); the trailing streamline ends ride at 12% alpha
-          under the hero copy, the texts arriving from the world. */}
+          keep this. It crossfades out only after the first live frame. Since
+          the live field is now a FULL-BLEED centerpiece (amendment 14), the
+          still is full-bleed too: a wide river of curl streamlines converging
+          into the node at the inbox card's left edge, the final few warmed
+          cobalt -> green. It IS a composition, not an absence, and the crossfade
+          to the live canvas is seamless because both fill the same box. */}
       <div
         className={cn(
           "absolute inset-0 transition-opacity duration-200",
           live ? "opacity-0" : "opacity-100",
         )}
       >
-        <div className="absolute inset-0 lg:left-auto lg:right-[20rem] lg:aspect-[520/560] lg:h-full lg:w-auto">
-          <ArrivalStatic />
-        </div>
+        <ArrivalStatic />
       </div>
       {boot ? <ArrivalField onFirstFrame={() => setLive(true)} /> : null}
     </div>

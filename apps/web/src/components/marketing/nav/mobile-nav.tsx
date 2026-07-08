@@ -14,12 +14,14 @@ import {
   SIGNUP_HREF,
   type NavItem,
 } from "../nav-links";
+import { MenuIconChip } from "./menu-icon";
 
 /**
  * The mobile navigation sheet, v4 "FIRST RESPONSE" skin: a white panel (the
  * surface is painted by frn-sheet in nav.tsx) with the same groups as the
  * desktop mega-menu in deck order (Product, Pricing, Who it's for, Compare,
- * Log in), purely typographic rows (no icon chips), Frost hover wash, and
+ * Log in), each grouped row led by the same cobalt Frost icon chip as the
+ * desktop menu (amendment 15), Frost hover wash, and
  * the one cobalt `Get your number` pill pinned to the bottom, always
  * reachable. Every row is at least 44px. Selecting any link closes the
  * sheet.
@@ -88,18 +90,21 @@ function MobileRow({
         href={item.href}
         onClick={onNavigate}
         className={cn(
-          "frn-focus block min-h-11 rounded-[10px] p-2.5 transition-colors duration-200 ease-out",
+          "frn-focus flex min-h-11 items-start gap-3 rounded-[10px] p-2.5 transition-colors duration-200 ease-out",
           "hover:bg-[color:var(--fr-frost)] active:bg-[color:var(--fr-frost)]",
         )}
       >
-        <span className="font-body-mkt block text-[15px] font-semibold text-[color:var(--fr-ink)]">
-          {item.label}
-        </span>
-        {item.description ? (
-          <span className="font-body-mkt mt-0.5 block text-[13px] leading-snug text-[color:var(--fr-ink-55)]">
-            {item.description}
+        {item.icon ? <MenuIconChip icon={item.icon} className="mt-0.5" /> : null}
+        <span className="min-w-0 flex-1">
+          <span className="font-body-mkt block text-[15px] font-semibold text-[color:var(--fr-ink)]">
+            {item.label}
           </span>
-        ) : null}
+          {item.description ? (
+            <span className="font-body-mkt mt-0.5 block text-[13px] leading-snug text-[color:var(--fr-ink-55)]">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
       </Link>
     </SheetClose>
   );

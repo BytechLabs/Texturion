@@ -37,6 +37,8 @@ import { LedgerTable } from "@/components/marketing/compare/ledger-table";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { PlanAddons } from "@/components/marketing/plan-addons";
+import { CountryProvider } from "@/components/marketing/pricing/country-context";
+import { CountryToggle } from "@/components/marketing/pricing/country-toggle";
 import { FirstWeekTimeline } from "@/components/marketing/pricing/first-week-timeline";
 import { HonestyLedger } from "@/components/marketing/pricing/honesty-ledger";
 import { PlanBuilder } from "@/components/marketing/pricing/plan-builder";
@@ -123,85 +125,97 @@ export default function PricingPage() {
         </div>
       </FrSection>
 
-      {/* THE PLAN BUILDER: the page's centerpiece (owner ruling 2026-07-07).
-          Pick Starter or Pro, toggle the three sellable add-ons, and the
-          receipt totals live from the same shared constants checkout bills
-          from. Server-rendered at its true default (Starter, no add-ons,
-          $29/mo, $58 first month US), so the page is complete without JS. */}
-      <FrSection ground="frost" id="build" className="pt-12 md:pt-16">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
-            Build your plan. The total updates as you go.
-          </h2>
-          <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
-            Pick a plan, switch on only what you need, and see the whole bill
-            before you ever type a card number. What you build here is exactly
-            what checkout starts from.
-          </p>
-          <div className="mt-10">
-            <PlanBuilder plans={PLANS} />
+      {/* The plan section shares one country (US default, Canada one tap) so
+          the toggle branches only the country-specific facts: the registration
+          fee line and the "first month" math in the builder receipt, and the
+          activation timeline card below. Base and add-on prices never change
+          (USD, plus tax). The provider defaults to US, so the whole section is
+          server-rendered and complete without JavaScript. */}
+      <CountryProvider>
+        {/* THE PLAN BUILDER: the page's centerpiece (owner ruling 2026-07-07).
+            Pick Starter or Pro, toggle the three sellable add-ons, and the
+            receipt totals live from the same shared constants checkout bills
+            from. Server-rendered at its true default (Starter, no add-ons,
+            $29/mo, $58 first month US), so the page is complete without JS. */}
+        <FrSection ground="frost" id="build" className="pt-12 md:pt-16">
+          <div className="mx-auto max-w-5xl">
+            <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+              Build your plan. The total updates as you go.
+            </h2>
+            <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
+              Pick a plan, switch on only what you need, and see the whole bill
+              before you ever type a card number. What you build here is exactly
+              what checkout starts from.
+            </p>
+            {/* The country toggle: US shops see the $29 registration fee and
+                the carrier wait; Canadian businesses texting Canadian
+                customers see neither. */}
+            <CountryToggle className="mt-8" />
+            <div className="mt-8">
+              <PlanBuilder plans={PLANS} />
+            </div>
           </div>
-        </div>
-      </FrSection>
+        </FrSection>
 
-      {/* The add-on fine print: the exact limits behind the three toggles. */}
-      <PlanAddons />
+        {/* The add-on fine print: the exact limits behind the three toggles. */}
+        <PlanAddons />
 
-      {/* Crew-size slider (demoted below the builder per the owner ruling):
-          the cobalt flat line vs the Flare climbing line. */}
-      <FrSection ground="frost">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
-            Flat beats per-user. Slide to see by how much.
-          </h2>
-        </div>
-        <Reveal className="mx-auto mt-10 max-w-xl">
-          <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
-        </Reveal>
-      </FrSection>
-
-      {/* The Honesty Ledger band: every cost, the day-one Truth Strip, the
-          first-week timeline, and the usage-meter embed. */}
-      <FrSection>
-        <div className="mx-auto max-w-3xl">
-          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
-            Every cost, before you pay.
-          </h2>
-
-          <Reveal className="mt-10">
-            <HonestyLedger entries={LEDGER} />
+        {/* Crew-size slider (demoted below the builder per the owner ruling):
+            the cobalt flat line vs the Flare climbing line. */}
+        <FrSection ground="frost">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+              Flat beats per-user. Slide to see by how much.
+            </h2>
+          </div>
+          <Reveal className="mx-auto mt-10 max-w-xl">
+            <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
           </Reveal>
+        </FrSection>
 
-          {/* The day-one truth (§5.4): what works now vs what waits. */}
-          <TruthStrip
-            className="mt-6"
-            items={[
-              {
-                text: "Receiving texts works the moment your number is ready, usually live in a minute or two. Texting Canadian numbers works immediately.",
-                good: true,
-              },
-              {
-                text: "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
-              },
-            ]}
-          />
+        {/* The Honesty Ledger band: every cost, the day-one Truth Strip, the
+            first-week timeline (country-aware), and the usage-meter embed. */}
+        <FrSection>
+          <div className="mx-auto max-w-3xl">
+            <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+              Every cost, before you pay.
+            </h2>
 
-          <Reveal className="mt-6">
-            <FirstWeekTimeline />
-          </Reveal>
+            <Reveal className="mt-10">
+              <HonestyLedger entries={LEDGER} />
+            </Reveal>
 
-          {/* The usage meter, staged with the app's own tokens (Law 2). */}
-          <Reveal className="mt-10">
-            <PanelFrame
-              className="mx-auto max-w-md"
-              caption="You set the cap; we email you at 80% and 100%. No surprise bills."
-              ariaLabel="The usage meter: 212 of 500 texts used this billing period, with the alert marker at 80% and the owner-set spending cap"
-            >
-              <UsageMeterEmbed />
-            </PanelFrame>
-          </Reveal>
-        </div>
-      </FrSection>
+            {/* The day-one truth (§5.4): what works now vs what waits. */}
+            <TruthStrip
+              className="mt-6"
+              items={[
+                {
+                  text: "Receiving texts works the moment your number is ready, usually live in a minute or two. Texting Canadian numbers works immediately.",
+                  good: true,
+                },
+                {
+                  text: "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
+                },
+              ]}
+            />
+
+            <Reveal className="mt-6">
+              <FirstWeekTimeline />
+            </Reveal>
+
+            {/* The usage meter, staged with the app's own tokens (Law 2). */}
+            <Reveal className="mt-10">
+              <PanelFrame
+                className="mx-auto max-w-md"
+                caption="You set the cap; we email you at 80% and 100%. No surprise bills."
+                ariaLabel="The usage meter: 212 of 500 texts used this billing period, with the alert marker at 80% and the owner-set spending cap"
+              >
+                <UsageMeterEmbed />
+              </PanelFrame>
+            </Reveal>
+          </div>
+        </FrSection>
+      </CountryProvider>
 
       {/* "The same crew, priced elsewhere": dated, per-cell sourced. */}
       <FrSection ground="frost">

@@ -126,3 +126,22 @@ All 25 routes assemble from these named parts. Nothing bespoke.
 13. **The /pricing centerpiece is the real plan builder.** Interactive plan + add-on configuration with a live monthly total computed from the product's shared constants (single source, zero retyped numbers), SSR default state, zero fake state. Static plan cards are a compact summary at most, never the centerpiece.
 
 Additional QA gates: (6) liveness grep: no live/online/operational indicator outside a SCRIPTED DEMO frame and no green dot on /status while unwired; (7) domain grep: zero loonext.app hits, metadata/sitemap/robots resolve to https://loonext.com; (8) pricing-source audit: every rendered price traces to the shared constants import, none retyped.
+
+---
+
+## 2026-07-08 owner amendments (binding, override earlier laws where they conflict)
+
+14. **The hero gets the full hero treatment.** The p5 Arrival Field confined to a small
+    right-column box behind the inbox card is rejected ("not beautiful or insane at all").
+    The home hero must lead with genuinely beautiful, LIVE p5 generative art: clean, subtle,
+    gallery-quality, given real compositional prominence (a dominant art canvas, not a
+    background sliver). It still means something about the product (signals finding one inbox)
+    but reads as refined generative art first, literal second. Palette-locked (Signal White,
+    cobalt, ink, a touch of Answered Green), performant (lazy, 60fps target, reduced-motion
+    static fallback, CLS 0, H1 stays LCP). This SUPERSEDES the earlier "one p5 moment, kept
+    small" framing: the moment is now the centerpiece.
+15. **Nav gets tasteful icons/visuals.** Law "zero decoration that is not information" is
+    relaxed for the mega-menu: the stripped-bare typographic menu reads as unfinished. Add a
+    clean, consistent icon per menu item (a single line-icon set, cobalt/ink, no color noise)
+    and a small visual treatment to the mega-menu panels. Restraint still applies (one icon
+    style, no illustration clutter), but the menu must not look empty.

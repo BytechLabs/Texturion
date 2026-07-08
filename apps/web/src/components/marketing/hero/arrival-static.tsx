@@ -1,22 +1,144 @@
-import { ConvergedField } from "@/components/marketing/fr";
 import { cn } from "@/lib/utils";
 
 /**
- * The static converged Arrival Field (P5-SPEC §"Static fallback SVG"): a
- * composed still, not an absence. This is what SSR ships, what no-JS keeps,
- * what reduced-motion / save-data / low-memory visitors keep, and what the
- * final CTA band and subpage marks reuse (via <ConvergedField> directly).
+ * The static "ConvergedField still" (P5-SPEC v2 §"Reduced-motion / pre-boot
+ * static fallback", amendment 14): a composed still that IS the live CONFLUENCE
+ * field's rest state. It is what SSR ships, what no-JS keeps, and what the
+ * reduced-motion / save-data / low-memory paths keep.
  *
- * The composition itself lives in the foundation kit (fr/converged-field.tsx,
- * variant "full": three cobalt streamlines, four green docked bubbles with
- * mono timestamps, ONE Flare bubble still waiting at 60% along the middle
- * path). This wrapper only sizes it to the hero's canvas box.
+ * Amendment 14 makes the live field a FULL-BLEED centerpiece, so the still is
+ * full-bleed too: a wide river of curl-noise streamlines sweeps in from the
+ * left and upper edge and converges into the node at the inbox card's left
+ * edge on the right. The final few strokes warm cobalt -> green (one earned
+ * confluence) and a single green settle dot + ring marks the resolve. The
+ * viewBox is wide (1200x600) and covers the hero via preserveAspectRatio
+ * "slice"; a soft edge feather matches the live canvas mask. H1/body legibility
+ * is provided by the hero's copy scrim, never by erasing the art.
+ *
+ * Transparent background only (the page's Signal White ground shows through and
+ * is never repainted). Decorative: aria-hidden, no tab stops. Palette is
+ * v4-locked: cobalt #2740DE in motion, green #0B7A50 at the resolve, no Flare.
  */
+
+/** The dock node: where the live field resolves, at the inbox card's left
+ *  edge (~0.71 across a 1200-wide box, vertically centered). */
+const NODE = { x: 852, y: 300 };
+const VW = 1200;
+const VH = 600;
+
+/** Tiny deterministic PRNG so SSR and client render identical path data. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface Stream {
+  d: string;
+  /** Pre-rounded to fixed decimals so SSR and client serialize identically
+   *  (Math.pow can differ in the last ULP across V8 builds). */
+  weight: string;
+  opacity: string;
+  green: boolean;
+}
+
+/** Build the frozen streamlines once (module scope): a wide field of cobalt
+ *  paths curving rightward toward the node, the final few warmed to green. */
+function buildStreams(): Stream[] {
+  const rnd = mulberry32(0x0b7a5011);
+  const total = 30;
+  const streams: Stream[] = [];
+  for (let i = 0; i < total; i += 1) {
+    const fromTop = rnd() < 0.26;
+    let sx: number;
+    let sy: number;
+    if (fromTop) {
+      sx = 40 + rnd() * (NODE.x - 140);
+      sy = -12;
+    } else {
+      sx = -12 + rnd() * 60;
+      sy = 20 + rnd() * (VH - 40);
+    }
+
+    // Depth: thin/faint far, crisper near (matches the live z parallax).
+    const z = Math.pow(rnd(), 1.5);
+    const weight = 0.6 + 1.0 * z;
+
+    // Two control points sweep the curve rightward toward the node with a
+    // gentle vertical wander (the laminar curl look), converging near NODE.y.
+    const c1x = sx + (NODE.x - sx) * (0.32 + 0.1 * rnd());
+    const c1y = sy + (NODE.y - sy) * 0.2 + (rnd() - 0.5) * 220;
+    const c2x = sx + (NODE.x - sx) * (0.74 + 0.1 * rnd());
+    const c2y = NODE.y + (rnd() - 0.5) * 120;
+
+    // Ends fan slightly around the node (soft rosette); the greens land on it.
+    const green = i >= total - 6;
+    const ex = green ? NODE.x : NODE.x - 8 - rnd() * 34;
+    const ey = green ? NODE.y : NODE.y + (rnd() - 0.5) * 44;
+
+    streams.push({
+      d: `M${sx.toFixed(1)} ${sy.toFixed(1)} C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${ex.toFixed(1)} ${ey.toFixed(1)}`,
+      weight: weight.toFixed(2),
+      opacity: (green ? 0.16 + 0.07 * z : 0.05 + 0.05 * z).toFixed(3),
+      green,
+    });
+  }
+  return streams;
+}
+
+const STREAMS = buildStreams();
+
 export function ArrivalStatic({ className }: { className?: string }) {
   return (
-    <ConvergedField
-      variant="full"
+    <svg
+      viewBox={`0 0 ${VW} ${VH}`}
       className={cn("h-full w-full", className)}
-    />
+      aria-hidden="true"
+      focusable="false"
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        {/* Soft edge feather: matches the live canvas mask so the crossfade is
+            seamless and no streamline hard-clips at the hero's edges. */}
+        <linearGradient id="fr-still-fade-x" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="white" stopOpacity="0" />
+          <stop offset="0.06" stopColor="white" stopOpacity="1" />
+          <stop offset="0.95" stopColor="white" stopOpacity="1" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+        <mask id="fr-still-mask">
+          <rect x="0" y="0" width={VW} height={VH} fill="url(#fr-still-fade-x)" />
+        </mask>
+      </defs>
+
+      <g mask="url(#fr-still-mask)" fill="none" strokeLinecap="round">
+        {STREAMS.map((s, i) => (
+          <path
+            key={i}
+            d={s.d}
+            stroke={s.green ? "var(--fr-green)" : "var(--fr-cobalt)"}
+            strokeOpacity={s.opacity}
+            strokeWidth={s.weight}
+          />
+        ))}
+
+        {/* The one earned resolve, frozen: settle ring + dot at the node. */}
+        <circle
+          cx={NODE.x}
+          cy={NODE.y}
+          r="10"
+          fill="none"
+          stroke="var(--fr-green)"
+          strokeOpacity="0.28"
+          strokeWidth="1.25"
+        />
+        <circle cx={NODE.x} cy={NODE.y} r="2.6" fill="var(--fr-green)" />
+      </g>
+    </svg>
   );
 }

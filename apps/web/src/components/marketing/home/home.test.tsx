@@ -201,9 +201,12 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
 
   it("SSR ships the finished inbox (no hole) and the composed static field", () => {
     const hero = renderToStaticMarkup(<Hero />);
-    // The static converged SVG (three streamlines + the one Flare bubble).
-    expect(hero).toContain("var(--fr-flare)");
+    // The static CONFLUENCE still: cobalt streamlines warming to a green
+    // resolve at the dock. No Flare in the hero (this piece is resolution, not
+    // the waiting beat), so the still ships cobalt + green alone.
+    expect(hero).toContain("var(--fr-cobalt)");
     expect(hero).toContain("var(--fr-green)");
+    expect(hero).not.toContain("var(--fr-flare)");
     // The real inbox rows, finished state, app tokens.
     for (const row of ARRIVAL_SCRIPT.slice(0, INBOX_ROW_CAP)) {
       expect(hero).toContain(row.name);

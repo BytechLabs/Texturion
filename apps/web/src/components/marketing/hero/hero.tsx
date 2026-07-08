@@ -13,24 +13,63 @@ import { ArrivalLayer } from "./arrival-layer";
 import { HeroInbox } from "./hero-inbox";
 
 /**
- * S1 · HERO (COPY-DECK v2, DESIGN-DIRECTION v4). Conversion job: make the
- * owner feel last night's missed text in five seconds and put the signup
- * button next to the feeling.
+ * S1 · HERO (COPY-DECK v2, DESIGN-DIRECTION v4, amendment 14). Conversion job:
+ * make the owner feel last night's missed text in five seconds and put the
+ * signup button next to the feeling.
  *
- * The H1 text node is the LCP on every load; the Arrival Field mounts into a
- * pre-sized, absolutely positioned layer behind the inbox card (CLS 0.00)
- * and boots only after the LCP settles (P5-SPEC gating in arrival-layer).
- * The inbox is the REAL conversation-row pattern with the app's own tokens
- * inside the PanelFrame (Law 2); the deck ships it with no caption.
+ * Amendment 14 makes the LIVE p5 "Confluence" field the compositional lead:
+ * it is a FULL-BLEED canvas spanning the entire hero (not a right-column box
+ * behind the card). A river of divergence-free curl-noise streamlines braids
+ * across the whole width and resolves cobalt -> green into the real inbox card
+ * docked at the right. The card is now a SECONDARY supporting proof element
+ * that the art converges into, not a cover the art hides behind.
  *
- * Canvas boxes per P5-SPEC: desktop ≥1024px, the hero's right column at a
- * fixed 560px; tablet, a 320px band between the H1 block and the inbox card;
- * mobile, a 200px band directly above the inbox card.
+ * Legibility without erasing the art: instead of a ground scrim washing the
+ * center of the canvas, a narrow gradient lifts the page ground only behind
+ * the copy column (desktop: from the left; mobile: from the top), fading to
+ * fully transparent well before the center so the art reads full-strength
+ * across the middle and right of the hero.
+ *
+ * The H1 text node stays the LCP; the field mounts into an absolutely
+ * positioned, pre-sized full-bleed layer (CLS 0.00) and boots only after the
+ * LCP settles (P5-SPEC gating in arrival-layer). The inbox is the REAL
+ * conversation-row pattern with the app's own tokens inside the PanelFrame
+ * (Law 2); the deck ships it with no caption.
  */
 export function Hero() {
   return (
-    <section className="bg-[color:var(--fr-ground)] pb-16 pt-14 text-[color:var(--fr-ink)] sm:pt-20 lg:pb-24">
-      <div className="mx-auto w-full max-w-[72rem] px-6 md:px-8">
+    <section className="relative isolate overflow-hidden bg-[color:var(--fr-ground)] pb-16 pt-14 text-[color:var(--fr-ink)] sm:pt-20 lg:pb-24">
+      {/* THE CENTERPIECE: full-bleed live generative art spanning the hero.
+          pointer-events none, aria-hidden, sits behind all content (z-0). */}
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <ArrivalLayer />
+      </div>
+
+      {/* Legibility scrim (mobile/tablet): the page ground fades in from the
+          TOP behind the stacked copy, then clears so the field runs full
+          strength down toward the inbox card. Decorative; above the art,
+          below the content. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 lg:hidden"
+        style={{
+          background:
+            "linear-gradient(to bottom, var(--fr-ground) 0%, var(--fr-ground) 24%, transparent 62%)",
+        }}
+      />
+      {/* Legibility scrim (desktop): the page ground holds behind the copy
+          column on the LEFT and clears before the center, so the art is the
+          dominant, unobstructed canvas across the middle and right. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 hidden lg:block"
+        style={{
+          background:
+            "linear-gradient(to right, var(--fr-ground) 0%, var(--fr-ground) 16%, transparent 48%)",
+        }}
+      />
+
+      <div className="relative z-10 mx-auto w-full max-w-[72rem] px-6 md:px-8">
         <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
           {/* LEFT (7/12): the pitch. The H1 is the LCP; nothing above it but
               the dateline chip. */}
@@ -68,28 +107,23 @@ export function Hero() {
             />
           </div>
 
-          {/* RIGHT (5/12): the pre-sized Arrival Field box + the real inbox.
-              On mobile/tablet the field is a band above the card; on desktop
-              the layer spans the column (plus the gutter) at 560px and the
-              card docks at its right edge. */}
+          {/* RIGHT (5/12): the real inbox card, the SECONDARY supporting proof
+              element the field resolves into. It carries the dock marker, so
+              the live streamlines steer to its left edge and warm to green as
+              they settle here. */}
           <div className="min-w-0 lg:col-span-5">
-            <div className="relative lg:h-[560px]">
-              <div className="relative h-[200px] sm:h-[320px] lg:absolute lg:-left-16 lg:inset-y-0 lg:right-0 lg:h-auto">
-                <ArrivalLayer />
-              </div>
-              <div
-                {...{ [ARRIVAL_DOCK_ATTR]: "" }}
-                className="relative mt-4 lg:absolute lg:right-0 lg:top-1/2 lg:mt-0 lg:w-[22.5rem] lg:max-w-full lg:-translate-y-1/2"
+            <div
+              {...{ [ARRIVAL_DOCK_ATTR]: "" }}
+              className="mx-auto w-full max-w-[22.5rem] lg:ml-auto lg:mr-0"
+            >
+              <PanelFrame
+                chromeUrl="loonext.com/inbox"
+                ariaLabel="Customer conversations waiting in the Loonext inbox"
               >
-                <PanelFrame
-                  chromeUrl="loonext.com/inbox"
-                  ariaLabel="Customer conversations waiting in the Loonext inbox"
-                >
-                  <AppSurface>
-                    <HeroInbox />
-                  </AppSurface>
-                </PanelFrame>
-              </div>
+                <AppSurface>
+                  <HeroInbox />
+                </AppSurface>
+              </PanelFrame>
             </div>
           </div>
         </div>

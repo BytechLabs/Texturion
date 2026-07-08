@@ -60,6 +60,15 @@ export function MegaMenu({ menu }: { menu: NavMenu }) {
           "duration-200 ease-out",
         )}
       >
+        {/* A quiet panel header (amendment 15): the menu's own eyebrow over a
+            Frost hairline, so the open panel reads titled and designed rather
+            than a bare list. No new copy, just the category label. */}
+        <div className="mb-1.5 border-b border-[color:var(--fr-frost)] px-3 pt-0.5 pb-2">
+          <span className="fr-eyebrow text-[color:var(--fr-ink-55)]">
+            {menu.label}
+          </span>
+        </div>
+
         <ul
           className={cn("grid gap-0.5", twoCol ? "grid-cols-2" : "grid-cols-1")}
         >
