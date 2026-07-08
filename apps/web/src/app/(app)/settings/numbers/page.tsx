@@ -79,7 +79,7 @@ export default function NumbersSettingsPage() {
             <div className="space-y-6">
               {!hasAnyNumber ? (
                 <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
-                  No number yet — it&apos;s created automatically when your
+                  No number yet. It&apos;s created automatically when your
                   subscription starts.
                 </p>
               ) : (
@@ -97,7 +97,7 @@ export default function NumbersSettingsPage() {
                 usedSlots < PLAN_NUMBER_LIMIT.pro && (
                   <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">
                     <p className="text-sm text-muted-foreground">
-                      Pro includes a second number — handy for a second crew or
+                      Pro includes a second number, handy for a second crew or
                       service area.
                     </p>
                     <ProvisionNumberDialog country={company.data.country} />

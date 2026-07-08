@@ -41,26 +41,26 @@ function input(overrides: Partial<RegistrationUiInput> = {}): RegistrationUiInpu
 describe("SPEC §4.4 banner copy — exact strings", () => {
   it("matches the spec table verbatim", () => {
     expect(REGISTRATION_COPY.numberProvisioning).toBe(
-      "Setting up your business number — usually under a minute.",
+      "Setting up your business number, usually under a minute.",
     );
     expect(REGISTRATION_COPY.numberDelayed).toBe(
-      "We're setting up your number — this is taking longer than usual. You don't need to do anything.",
+      "We're setting up your number. This is taking longer than usual. You don't need to do anything.",
     );
     expect(REGISTRATION_COPY.registrationPending).toBe(
-      "US texting activates in ~3–7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",
+      "US texting activates in ~3 to 7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",
     );
     expect(REGISTRATION_COPY.otpPending("(416) 555-0182")).toBe(
       "One step left: enter the verification code we sent to (416) 555-0182 to finish US registration.",
     );
     expect(REGISTRATION_COPY.rejected("brand address mismatch")).toBe(
-      "US registration needs a fix: brand address mismatch. Update and resubmit — it takes 2 minutes.",
+      "US registration needs a fix: brand address mismatch. Update and resubmit. It takes 2 minutes.",
     );
     expect(REGISTRATION_COPY.approved).toBe("US texting is live.");
   });
 
   it("keeps the hosted-review line honest — multi-day, never 'under a minute'", () => {
     expect(REGISTRATION_COPY.hostedReview).toBe(
-      "Text-enabling your existing number — carrier review usually takes a few business days. Calls keep working the whole time.",
+      "Text-enabling your existing number. Carrier review usually takes a few business days. Calls keep working the whole time.",
     );
     expect(REGISTRATION_COPY.hostedReview).not.toMatch(/under a minute/);
   });
@@ -69,7 +69,7 @@ describe("SPEC §4.4 banner copy — exact strings", () => {
     expect(HONEST_TIMELINE).toEqual([
       "Receiving texts works the moment your number is ready (minutes).",
       "Texting Canadian numbers works immediately.",
-      "Texting US numbers activates after carrier approval — typically 3–7 business days. We'll email you the moment you're approved.",
+      "Texting US numbers activates after carrier approval, typically 3 to 7 business days. We'll email you the moment you're approved.",
     ]);
   });
 });

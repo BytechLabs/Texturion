@@ -84,7 +84,7 @@ export function DropOverlay({
       aria-hidden
       className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/90 text-[13px] font-medium text-muted-foreground"
     >
-      {pending ? "Uploading — wait to add more" : "Drop to attach"}
+      {pending ? "Uploading, wait to add more" : "Drop to attach"}
     </div>
   );
 }

@@ -14,7 +14,7 @@ describe("searchAreaCodes", () => {
       code: "416",
       region: "ON",
       regionName: "Ontario",
-      label: "(416) — Ontario",
+      label: "(416) · Ontario",
     });
   });
 

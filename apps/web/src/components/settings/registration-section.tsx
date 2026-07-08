@@ -118,7 +118,7 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
           verify.mutate(code, {
             onSuccess: () => {
               setCode("");
-              toast.success("Verified — registration is moving again.");
+              toast.success("Verified. Registration is moving again.");
             },
             onError: (cause) =>
               setError(
@@ -191,7 +191,7 @@ function EnableUsCard() {
       {role === "owner" ? (
         <>
           <Button onClick={() => setConfirming(true)}>
-            Enable US texting — $29 one-time
+            Enable US texting: $29 one-time
           </Button>
           <Dialog open={confirming} onOpenChange={setConfirming}>
             <DialogContent>
@@ -200,7 +200,7 @@ function EnableUsCard() {
                 <DialogDescription>
                   A one-time $29 registration fee is charged to your card on
                   file, and we register your business with US carriers.
-                  Approval usually takes 3–7 business days — we handle it and
+                  Approval usually takes 3 to 7 business days. We handle it and
                   email you when it&apos;s live.
                 </DialogDescription>
               </DialogHeader>
@@ -221,7 +221,7 @@ function EnableUsCard() {
                       onSuccess: () => {
                         setConfirming(false);
                         toast.success(
-                          "US registration started — we'll email you when it's approved.",
+                          "US registration started. We'll email you when it's approved.",
                         );
                       },
                       onError: (cause) =>
@@ -241,7 +241,7 @@ function EnableUsCard() {
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Ask your account owner to enable US texting — it&apos;s a one-time
+          Ask your account owner to enable US texting; it&apos;s a one-time
           $29 carrier registration.
         </p>
       )}
@@ -280,8 +280,8 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
     return (
       <SettingsCard title="US texting registration">
         <p className="text-sm text-muted-foreground">
-          Registration starts automatically once your subscription begins —
-          nothing to do here yet.
+          Registration starts automatically once your subscription begins.
+          Nothing to do here yet.
         </p>
       </SettingsCard>
     );
@@ -322,7 +322,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
       detail: approved
         ? null
         : inReview
-          ? "Usually 3–7 business days — we handle it"
+          ? "Usually 3 to 7 business days, we handle it"
           : null,
     },
     {
@@ -360,7 +360,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {inReview && !otpOutstanding && (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
-            US texting activates in ~3–7 business days (carrier approval).
+            US texting activates in ~3 to 7 business days (carrier approval).
             Receiving texts and texting Canadian numbers already work.
           </p>
         )}
@@ -380,8 +380,8 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
             <p className="rounded-md bg-warning/10 px-3 py-2 text-sm break-words">
               US registration needs a fix:{" "}
               {rejectedRow.rejection_reason ??
-                "the carrier didn't say why — check your details below"}
-              . Update and resubmit — it takes 2 minutes.
+                "the carrier didn't say why, check your details below"}
+              . Update and resubmit; it takes 2 minutes.
             </p>
             {canEdit ? (
               <RegistrationFixForm

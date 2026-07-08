@@ -83,7 +83,7 @@ export function ComposerBannerCard({ banner }: { banner: NonNullable<ComposerBan
       break;
     case "registration_pending":
       sentence =
-        "US texting activates once your registration is approved — usually 3–7 business days.";
+        "US texting activates once your registration is approved. Usually 3 to 7 business days.";
       break;
     case "usage_cap":
       sentence = isOwner

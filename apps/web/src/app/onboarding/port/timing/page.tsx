@@ -80,7 +80,7 @@ export default function PortTimingPage() {
       !port.serviceAdminArea ||
       !port.servicePostalCode
     ) {
-      setError("Some transfer details are missing — go back and complete them.");
+      setError("Some transfer details are missing. Go back and complete them.");
       return;
     }
 
@@ -188,7 +188,7 @@ export default function PortTimingPage() {
           />
           <p className="text-[13px] text-muted-foreground">
             After you pay, you&apos;ll upload a signed authorization and a recent
-            bill — then we send the transfer to your carrier. We&apos;ll walk you
+            bill. Then we send the transfer to your carrier. We&apos;ll walk you
             through it.
           </p>
         </div>

@@ -61,7 +61,7 @@ export function DeliveryState({
         {optedOut ? "This customer opted out" : "Not delivered"}
         {retryable && (
           <>
-            {" — "}
+            {". "}
             <button
               type="button"
               onClick={() => retry.mutate(message.id)}
@@ -133,7 +133,7 @@ function PinnedBadge() {
     >
       <Pin aria-hidden className="size-3" strokeWidth={2} />
       Pinned
-      <span className="sr-only">— pinned message</span>
+      <span className="sr-only">, pinned message</span>
     </span>
   );
 }
@@ -158,7 +158,7 @@ function DoneBadge({ message }: { message: Message }) {
         >
           <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
           Done
-          <span className="sr-only">— {label}</span>
+          <span className="sr-only">, {label}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

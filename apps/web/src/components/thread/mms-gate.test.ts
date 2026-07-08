@@ -83,13 +83,13 @@ describe("photosDropped", () => {
 describe("droppedPhotoNotice", () => {
   it("singular for one photo", () => {
     expect(droppedPhotoNotice(1)).toBe(
-      "Your text was sent, but the photo wasn't — you've used all included picture messages this month.",
+      "Your text was sent, but the photo wasn't. You've used all included picture messages this month.",
     );
   });
 
   it("plural for several", () => {
     expect(droppedPhotoNotice(3)).toBe(
-      "Your text was sent, but the photos weren't — you've used all included picture messages this month.",
+      "Your text was sent, but the photos weren't. You've used all included picture messages this month.",
     );
   });
 });

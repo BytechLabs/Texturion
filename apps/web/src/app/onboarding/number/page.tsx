@@ -164,7 +164,7 @@ export default function NumberStepPage() {
       title="How do you want your business number?"
       subtitle={
         mode === "port"
-          ? "Bring the number your customers already know — it keeps working until the switch completes."
+          ? "Bring the number your customers already know. It keeps working until the switch completes."
           : "Get a fresh local number, or bring the one that's on your trucks and your listing."
       }
     >
@@ -190,7 +190,7 @@ export default function NumberStepPage() {
                 [
                   "port",
                   "Bring my existing number",
-                  "Transfer the number you already use — it's free.",
+                  "Transfer the number you already use. It's free.",
                 ],
               ] as const
             ).map(([value, label, hint]) => (
@@ -218,8 +218,8 @@ export default function NumberStepPage() {
               mention here so landline owners know it exists. */}
           <p className="text-[13px] text-muted-foreground">
             Have a landline you&apos;d rather keep with its current carrier?
-            After signup you can add texting to it from Settings → Numbers —
-            calls don&apos;t change, and the carrier review takes a few
+            After signup you can add texting to it from Settings → Numbers.
+            Calls don&apos;t change, and the carrier review takes a few
             business days.
           </p>
         </fieldset>
@@ -299,7 +299,7 @@ export default function NumberStepPage() {
               ) : results.length === 0 ? (
                 <p className="text-[13px] text-muted-foreground">
                   No {country === "US" ? "US" : "Canadian"} area codes match
-                  &ldquo;{query.trim()}&rdquo; — try the{" "}
+                  &ldquo;{query.trim()}&rdquo;. Try the{" "}
                   {country === "US" ? "state" : "province"} name or a code.
                 </p>
               ) : (
@@ -342,8 +342,8 @@ export default function NumberStepPage() {
             >
               {(
                 [
-                  ["yes", "Yes — some of our customers are in the US"],
-                  ["no", "No — Canadian customers only"],
+                  ["yes", "Yes, some of our customers are in the US"],
+                  ["no", "No, Canadian customers only"],
                 ] as const
               ).map(([value, label]) => (
                 <Label

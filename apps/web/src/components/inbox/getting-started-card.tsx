@@ -94,8 +94,8 @@ export function GettingStartedCard() {
       hint: numberDone
         ? undefined
         : numberStalled
-          ? "Taking a little longer than usual — you don't need to do anything."
-          : "It's on its way — usually under a minute.",
+          ? "Taking a little longer than usual. You don't need to do anything."
+          : "It's on its way, usually under a minute.",
     },
     {
       key: "inbound",
@@ -103,7 +103,7 @@ export function GettingStartedCard() {
       label: "Receive your first text",
       hint: inboundDone
         ? undefined
-        : "Text your number from your phone — it lands right here.",
+        : "Text your number from your phone, and it lands right here.",
     },
     {
       key: "reply",
@@ -178,7 +178,7 @@ export function GettingStartedCard() {
               >
                 {item.label}
                 <span className="sr-only">
-                  {item.done ? " — done" : " — not done yet"}
+                  {item.done ? ", done" : ", not done yet"}
                 </span>
               </span>
               {!item.done && item.hint ? (

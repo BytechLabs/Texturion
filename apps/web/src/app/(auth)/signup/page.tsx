@@ -146,7 +146,7 @@ export default function SignupPage() {
           Create your account
         </h1>
         <p className="text-sm text-muted-foreground">
-          A business number for your whole crew — set up in minutes.
+          A business number for your whole crew. Set up in minutes.
         </p>
       </div>
       {/* SSO stacked above the email form (§1.7). A first-time OAuth user with

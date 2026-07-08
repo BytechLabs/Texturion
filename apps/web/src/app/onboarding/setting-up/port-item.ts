@@ -90,16 +90,16 @@ export const PORT_CHECKLIST_COPY = {
   /** Replaces the "Creating your number" row title for a port. */
   title: "Transferring your number to Loonext",
   needsDocuments:
-    "Upload your signed authorization (LOA) and a recent phone bill to start the transfer — your number can't move until we have both.",
+    "Upload your signed authorization (LOA) and a recent phone bill to start the transfer. Your number can't move until we have both.",
   needsDocumentsCta: "Upload your documents",
   needsSubmit:
-    "Your documents are in — send the transfer to your carrier when you're ready.",
+    "Your documents are in. Send the transfer to your carrier when you're ready.",
   needsSubmitCta: "Review and submit the transfer",
   /** Shown to members, who can't upload — mirrors the OTP row's member line. */
   memberDocuments:
     "Your account owner or an admin uploads the signed authorization (LOA) and a recent phone bill to start the transfer.",
   /** Appended to the §9 "submitted" banner — the honest end-to-end window. */
   inReviewWindow:
-    "The whole transfer usually takes a few business days to about two weeks (US) — often faster in Canada.",
+    "The whole transfer usually takes a few business days to about two weeks (US), often faster in Canada.",
   trackLink: "Track it in Settings → Numbers",
 } as const;

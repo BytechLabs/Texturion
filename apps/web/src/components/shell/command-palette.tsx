@@ -269,7 +269,7 @@ export function CommandPalette() {
         if (!next) reset();
       }}
       title="Command palette"
-      description="Jump to a conversation, contact, task, file, template, or page — or act on the open conversation"
+      description="Jump to a conversation, contact, task, file, template, or page, or act on the open conversation"
       // The API search already ranked results; don't re-filter them away.
       commandProps={{ shouldFilter: !searching }}
     >

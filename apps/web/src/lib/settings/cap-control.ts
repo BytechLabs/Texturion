@@ -97,7 +97,7 @@ export function describeCapChange(
       kind: "raise",
       requiresConfirmation: true,
       summary: atCeiling
-        ? `Sending pauses at ${nextTotal.toLocaleString()} messages this period instead of ${currentTotal.toLocaleString()} — that's the highest the cap goes. Every message over your ${includedSegments.toLocaleString()} included is billed at the overage rate until sending pauses.`
+        ? `Sending pauses at ${nextTotal.toLocaleString()} messages this period instead of ${currentTotal.toLocaleString()}. That's the highest the cap goes. Every message over your ${includedSegments.toLocaleString()} included is billed at the overage rate until sending pauses.`
         : `Sending pauses at ${nextTotal.toLocaleString()} messages this period instead of ${currentTotal.toLocaleString()}.`,
     };
   }

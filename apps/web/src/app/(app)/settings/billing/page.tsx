@@ -176,7 +176,7 @@ export default function BillingSettingsPage() {
               <div className="space-y-3">
                 <p className="text-sm">
                   Your subscription is canceled. We hold your number for 30
-                  days after your last period — resubscribe before then and
+                  days after your last period. Resubscribe before then and
                   everything picks up where it left off.
                 </p>
                 {canManage && (
@@ -187,7 +187,7 @@ export default function BillingSettingsPage() {
           ) : company.data.plan === null ? (
             <SettingsCard title="Plan">
               <p className="text-sm text-muted-foreground">
-                No plan yet — finish setup to pick one and get your number.
+                No plan yet. Finish setup to pick one and get your number.
               </p>
             </SettingsCard>
           ) : (
@@ -245,7 +245,7 @@ export default function BillingSettingsPage() {
                   <p className="text-sm text-muted-foreground">
                     Cancel anytime from the payment portal. Texting stops at
                     the end of your billing period, and we hold your number
-                    for 30 days in case you change your mind — after that
+                    for 30 days in case you change your mind. After that
                     it&apos;s released for good.
                   </p>
                 </SettingsCard>

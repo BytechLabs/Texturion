@@ -64,7 +64,7 @@ export function seatUsage(
   const full = used >= limit;
   const line =
     full && plan !== "pro"
-      ? `${used} of ${limit} seats — upgrade for more`
+      ? `${used} of ${limit} seats. Upgrade for more`
       : `${used} of ${limit} seats`;
   return { used, limit, full, line };
 }

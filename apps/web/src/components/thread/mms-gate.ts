@@ -48,6 +48,6 @@ export function photosDropped(
 /** #23 honest-feedback copy — the text went out, the photo(s) did not. */
 export function droppedPhotoNotice(count: number): string {
   return count === 1
-    ? "Your text was sent, but the photo wasn't — you've used all included picture messages this month."
-    : "Your text was sent, but the photos weren't — you've used all included picture messages this month.";
+    ? "Your text was sent, but the photo wasn't. You've used all included picture messages this month."
+    : "Your text was sent, but the photos weren't. You've used all included picture messages this month.";
 }

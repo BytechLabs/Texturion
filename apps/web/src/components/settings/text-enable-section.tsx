@@ -63,7 +63,7 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
     return (
       <SettingsCard
         title="Text-enable your existing landline"
-        description="Keep the number and the carrier you have — Loonext adds texting to it. Calls don't change; the carrier review takes a few business days, and texting goes live once it completes."
+        description="Keep the number and the carrier you have; Loonext adds texting to it. Calls don't change; the carrier review takes a few business days, and texting goes live once it completes."
       >
         <StartTextEnableDialog />
       </SettingsCard>

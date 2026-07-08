@@ -93,7 +93,7 @@ export default function CompanyNamePage() {
                   />
                 </FormControl>
                 <FormDescription>
-                  It signs your first text to each customer — you can change it
+                  It signs your first text to each customer. You can change it
                   later in Settings.
                 </FormDescription>
                 <FormMessage />

@@ -121,7 +121,7 @@ export function admitFiles(
       break;
     }
     if (!ACCEPTED_TYPES.has(file.type)) {
-      toast.error("Photos only — JPEG, PNG, or GIF.");
+      toast.error("Photos only: JPEG, PNG, or GIF.");
       continue;
     }
     if (file.size > MAX_BYTES) {
@@ -356,8 +356,8 @@ export function Composer({
       // toaster fires this even if the composer already unmounted.
       toast.error(
         failed.length === draftFiles.length
-          ? "The note saved, but its files didn't upload — re-attach them from the note's Files section."
-          : `The note saved, but ${failed.length} of ${draftFiles.length} files didn't upload — re-attach them from the note's Files section.`,
+          ? "The note saved, but its files didn't upload. Re-attach them from the note's Files section."
+          : `The note saved, but ${failed.length} of ${draftFiles.length} files didn't upload. Re-attach them from the note's Files section.`,
       );
       return;
     }
@@ -582,7 +582,7 @@ export function Composer({
                 </TooltipTrigger>
                 <TooltipContent>
                   {mms.gated
-                    ? "Picture messages is an add-on — turn it on in Settings › Billing"
+                    ? "Picture messages is an add-on. Turn it on in Settings › Billing"
                     : "Attach up to 3 photos"}
                 </TooltipContent>
               </Tooltip>
@@ -599,7 +599,7 @@ export function Composer({
                     <FileText className="size-5" strokeWidth={1.75} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Saved replies — or type “/”</TooltipContent>
+                <TooltipContent>Saved replies, or type “/”</TooltipContent>
               </Tooltip>
             </div>
 
@@ -664,7 +664,7 @@ export function Composer({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Attach up to {MAX_ATTACHMENTS_PER_OWNER} files — 25 MB each
+                  Attach up to {MAX_ATTACHMENTS_PER_OWNER} files, 25 MB each
                 </TooltipContent>
               </Tooltip>
             </div>

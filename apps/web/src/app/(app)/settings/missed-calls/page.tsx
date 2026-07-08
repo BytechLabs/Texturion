@@ -97,7 +97,7 @@ function TextBackCard({
   return (
     <SettingsCard
       title="Text back a missed call"
-      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply — instead of calling the next number on their list."
+      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply, instead of calling the next number on their list."
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
@@ -117,7 +117,7 @@ function TextBackCard({
             <p className="text-sm text-muted-foreground">
               Fires once per caller when a call goes unanswered. A caller who
               dials you started the conversation, so this reply is always
-              allowed — opted-out numbers are never texted.
+              allowed. Opted-out numbers are never texted.
             </p>
           </div>
           <Switch
@@ -250,7 +250,7 @@ function ForwardCard({
           className="max-w-xs"
         />
         <p className="text-xs text-muted-foreground">
-          Leave blank to skip forwarding — a call no one picks up rings out and
+          Leave blank to skip forwarding. A call no one picks up rings out and
           counts as missed. If your voicemail answers instead of you, the call
           still counts as missed. Forwarded calls are included in your plan up
           to{" "}
@@ -258,7 +258,7 @@ function ForwardCard({
             {includedMinutes.toLocaleString()}
           </span>{" "}
           minutes a month. After that, new calls stop forwarding and the caller
-          gets your missed-call text instead — so your phone bill can&apos;t run
+          gets your missed-call text instead, so your phone bill can&apos;t run
           past your plan.
         </p>
         {error && (
@@ -301,7 +301,7 @@ export default function MissedCallsSettingsPage() {
         <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
           Ringing your cell and texting back missed calls need the{" "}
           <span className="font-medium text-foreground">Call forwarding</span>{" "}
-          add-on —{" "}
+          add-on:{" "}
           <Link
             href="/settings/billing"
             className="font-medium text-primary underline-offset-4 hover:underline"
@@ -317,7 +317,7 @@ export default function MissedCallsSettingsPage() {
           {onlyHostedNumbers(company.data.numbers) && (
             <p className="text-sm text-muted-foreground">
               Missed-call text-back needs a number whose calls come through
-              Loonext — calls to your text-enabled landline stay with your
+              Loonext. Calls to your text-enabled landline stay with your
               existing carrier, so these settings won&apos;t apply until you
               add or transfer a Loonext number.
             </p>

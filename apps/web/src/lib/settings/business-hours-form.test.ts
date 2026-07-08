@@ -76,7 +76,7 @@ describe("summarizeDay", () => {
   it("summarizes open and closed days", () => {
     expect(
       summarizeDay({ weekday: "mon", enabled: true, open: "08:00", close: "17:00" }),
-    ).toBe("08:00 – 17:00");
+    ).toBe("08:00 to 17:00");
     expect(
       summarizeDay({ weekday: "sun", enabled: false, open: "08:00", close: "17:00" }),
     ).toBe("Closed");

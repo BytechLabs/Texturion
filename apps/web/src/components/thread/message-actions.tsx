@@ -167,7 +167,7 @@ function MessageOverflow({
       await navigator.clipboard.writeText(message.body);
       toast.success("Copied to clipboard.");
     } catch {
-      toast.error("Couldn't copy — your browser blocked clipboard access.");
+      toast.error("Couldn't copy. Your browser blocked clipboard access.");
     }
   };
 

@@ -73,7 +73,7 @@ export function PermissionCard() {
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Get a notification on this device when a customer texts you —
+              Get a notification on this device when a customer texts you,
               even with Loonext closed.
             </p>
           )}

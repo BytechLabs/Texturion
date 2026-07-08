@@ -79,15 +79,15 @@ export function PlanModulesCard() {
           // for that whole cohort (see lib/settings/module-billing.ts).
           toast.success(
             enable
-              ? `${module.label} added — the prorated charge is on today's invoice.`
-              : `${module.label} turned off — if it was on your bill, the unused time is credited toward your next invoice.`,
+              ? `${module.label} added. The prorated charge is on today's invoice.`
+              : `${module.label} turned off. If it was on your bill, the unused time is credited toward your next invoice.`,
           );
         },
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "We couldn't update that add-on — try again.",
+              : "We couldn't update that add-on. Try again.",
           ),
       },
     );
@@ -96,7 +96,7 @@ export function PlanModulesCard() {
   return (
     <SettingsCard
       title="Add-ons"
-      description="Turn extra features on or off. Changes prorate to today — you never pay for time you didn't have them."
+      description="Turn extra features on or off. Changes prorate to today, so you never pay for time you didn't have them."
     >
       {modules.isPending ? (
         <div className="space-y-2" aria-label="Loading add-ons">

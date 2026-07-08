@@ -232,7 +232,7 @@ export function ImportWizard({
             <DialogHeader>
               <DialogTitle>Match your columns</DialogTitle>
               <DialogDescription>
-                {fileName} — {dataRows.length.toLocaleString()} rows. We took a
+                {fileName} · {dataRows.length.toLocaleString()} rows. We took a
                 guess; fix anything that&apos;s off.
               </DialogDescription>
             </DialogHeader>
@@ -290,8 +290,8 @@ export function ImportWizard({
             </div>
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
               About &quot;Opted out&quot;: rows with true, yes, y, or 1 in that
-              column are blocked from texting the moment they&apos;re imported
-              — use it for customers who already asked not to be texted.
+              column are blocked from texting the moment they&apos;re imported.
+              Use it for customers who already asked not to be texted.
               Anything else leaves texting on.
             </p>
             <DialogFooter>
@@ -307,7 +307,7 @@ export function ImportWizard({
             </DialogFooter>
             {mapping.phone === undefined && (
               <p className="text-xs text-muted-foreground">
-                Pick the phone column to continue — it&apos;s the one field
+                Pick the phone column to continue. It&apos;s the one field
                 every contact needs.
               </p>
             )}
@@ -341,9 +341,9 @@ export function ImportWizard({
                   {preview.slice(0, PREVIEW_ROW_LIMIT).map((row) => (
                     <TableRow key={row.rowNumber}>
                       <TableCell className="tabular-nums">
-                        {row.values.phone || "—"}
+                        {row.values.phone || "–"}
                       </TableCell>
-                      <TableCell>{row.values.name || "—"}</TableCell>
+                      <TableCell>{row.values.name || "–"}</TableCell>
                       <TableCell>
                         {row.status === "ready" ? (
                           row.optedOut ? (
@@ -357,7 +357,7 @@ export function ImportWizard({
                           )
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            Skipped — {row.reason}
+                            Skipped: {row.reason}
                           </span>
                         )}
                       </TableCell>
@@ -396,7 +396,7 @@ export function ImportWizard({
             </DialogFooter>
             {importContacts.isPending && (
               <p role="status" className="text-xs text-muted-foreground">
-                Importing your contacts — this window stays open until it
+                Importing your contacts. This window stays open until it
                 finishes so the summary and skipped rows aren&apos;t lost.
               </p>
             )}
@@ -416,7 +416,7 @@ export function ImportWizard({
             {result.errors.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Skipped rows kept their reasons — download them, fix the
+                  Skipped rows kept their reasons. Download them, fix the
                   numbers, and import just that file again.
                 </p>
                 <Button

@@ -212,7 +212,7 @@ export function RegistrationFixForm({
             ctx.addIssue({
               code: "custom",
               path: ["mobilePhone"],
-              message: "Enter a US or Canadian mobile number — it gets the verification text.",
+              message: "Enter a US or Canadian mobile number; it gets the verification text.",
             });
           }
           if (v.website.trim() !== "" && !isHttpUrl(v.website.trim())) {
@@ -250,7 +250,7 @@ export function RegistrationFixForm({
             code: "custom",
             path: ["messageFlow"],
             message:
-              "Carriers need at least 40 characters here — describe how customers ask you to text them.",
+              "Carriers need at least 40 characters here: describe how customers ask you to text them.",
           });
         } else if (v.messageFlow.trim().length > 2048) {
           ctx.addIssue({
@@ -265,7 +265,7 @@ export function RegistrationFixForm({
             ctx.addIssue({
               code: "custom",
               path: [key],
-              message: "At least 20 characters — a real text you'd send.",
+              message: "At least 20 characters: a real text you'd send.",
             });
           } else if (value.length > 1024) {
             ctx.addIssue({
@@ -642,7 +642,7 @@ export function RegistrationFixForm({
                     <Textarea rows={3} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Plain words work best — e.g. &quot;Customers text our
+                    Plain words work best. For example, &quot;Customers text our
                     business number first, or ask us in person or by phone to
                     text them.&quot;
                   </FormDescription>

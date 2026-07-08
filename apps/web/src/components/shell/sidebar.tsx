@@ -57,7 +57,7 @@ function SidebarNumberRow({ e164 }: { e164: string }) {
       toast.success("Number copied.");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn't copy — your browser blocked clipboard access.");
+      toast.error("Couldn't copy. Your browser blocked clipboard access.");
     }
   };
   return (

@@ -124,7 +124,7 @@ export function PhonePickerDialog({
               <DialogTitle>Import from your phone</DialogTitle>
               <DialogDescription>
                 Choose contacts from your device. We&apos;ll import the ones with
-                a valid US or Canada number — existing numbers are updated, not
+                a valid US or Canada number. Existing numbers are updated, not
                 duplicated. Nothing is texted.
               </DialogDescription>
             </DialogHeader>

@@ -87,7 +87,7 @@ function SaveStatus({ state }: { state: SaveState }) {
       {state === "saving" && "Saving…"}
       {state === "saved" && "Saved"}
       {state === "error" && (
-        <span className="text-destructive">Couldn&apos;t save — check your connection.</span>
+        <span className="text-destructive">Couldn&apos;t save. Check your connection.</span>
       )}
     </p>
   );
@@ -98,7 +98,7 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
   if (!contact.consent_source) {
     return (
       <p className="text-sm text-muted-foreground">
-        No consent recorded yet — it&apos;s recorded when they text you first,
+        No consent recorded yet. It&apos;s recorded when they text you first,
         or when you confirm they asked for texts while composing.
       </p>
     );

@@ -52,7 +52,7 @@ export function StartTextEnableDialog() {
     try {
       await create.mutateAsync(e164);
       toast.success(
-        "Text-enablement started — upload your signed authorization and a recent bill next.",
+        "Text-enablement started. Upload your signed authorization and a recent bill next.",
       );
       onOpenChange(false);
     } catch (cause) {
@@ -73,7 +73,7 @@ export function StartTextEnableDialog() {
         <DialogHeader>
           <DialogTitle>Text-enable your existing landline</DialogTitle>
           <DialogDescription>
-            Your number and your carrier stay exactly as they are — calls
+            Your number and your carrier stay exactly as they are; calls
             don&apos;t change. Loonext adds texting to the number; the carrier
             review usually takes a few business days, and texting goes live
             once it completes.

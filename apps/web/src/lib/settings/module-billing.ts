@@ -56,14 +56,14 @@ export function describeModuleToggle(input: {
       title: `Add ${input.label}?`,
       summary:
         `Adds ${input.label} to your plan for ${price}/month. ` +
-        `You'll be charged a prorated share of ${price} today — covering the rest of this billing period — then the full ${price} with each renewal.`,
+        `You'll be charged a prorated share of ${price} today, covering the rest of this billing period, then the full ${price} with each renewal.`,
       confirmLabel: `Add for ${price}/mo`,
     };
   }
   return {
     title: `Turn off ${input.label}?`,
     summary:
-      `${input.label} turns off right away — anything it unlocks stops working now, not at the end of the period. ` +
+      `${input.label} turns off right away. Anything it unlocks stops working now, not at the end of the period. ` +
       // Conditional on purpose: grandfathered legacy modules were never
       // billed (no Stripe line item), so no credit exists for them — see the
       // module doc above.

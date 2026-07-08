@@ -43,12 +43,12 @@ const schema = z.object({
   sample1: z
     .string()
     .trim()
-    .min(20, "Make it a realistic text — at least 20 characters.")
+    .min(20, "Make it a realistic text, at least 20 characters.")
     .max(1024, "Keep it under 1,024 characters."),
   sample2: z
     .string()
     .trim()
-    .min(20, "Make it a realistic text — at least 20 characters.")
+    .min(20, "Make it a realistic text, at least 20 characters.")
     .max(1024, "Keep it under 1,024 characters."),
 });
 
@@ -61,7 +61,7 @@ const DEFAULT_MESSAGE_FLOW =
 function defaultSamples(businessName: string): Pick<FormValues, "sample1" | "sample2"> {
   const name = businessName.trim() || "our team";
   return {
-    sample1: `Hi, it's ${name} — we can fit you in tomorrow between 9 and 11am. Does that still work for you?`,
+    sample1: `Hi, it's ${name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?`,
     sample2: `${name} here. Your quote is ready: $180 for the full job. Reply YES to book it, or text us any questions.`,
   };
 }
@@ -115,7 +115,7 @@ export default function TextingDetailsPage() {
       >
         <div className="space-y-6">
           <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            These details were already submitted to carriers — nothing more to
+            These details were already submitted to carriers. Nothing more to
             do on this step.
           </p>
           <Button
@@ -155,7 +155,7 @@ export default function TextingDetailsPage() {
       index={progress.index}
       total={progress.total}
       title="How customers hear from you"
-      subtitle="Carriers review these before approving business texting. We've written honest defaults — edit them if they don't fit."
+      subtitle="Carriers review these before approving business texting. We've written honest defaults. Edit them if they don't fit."
     >
       <Form {...form}>
         <form
@@ -173,7 +173,7 @@ export default function TextingDetailsPage() {
                   <Textarea rows={3} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Plain truth works best — carriers reject marketing-blast
+                  Plain truth works best. Carriers reject marketing-blast
                   language.
                 </FormDescription>
                 <FormMessage />

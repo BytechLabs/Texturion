@@ -39,5 +39,5 @@ export function segmentMeter(text: string): SegmentMeterState {
  * "segment".
  */
 export function segmentTooltip(parts: number): string {
-  return `Longer texts are sent in parts — this one's ${parts} part${parts === 1 ? "" : "s"}.`;
+  return `Longer texts are sent in parts. This one's ${parts} part${parts === 1 ? "" : "s"}.`;
 }

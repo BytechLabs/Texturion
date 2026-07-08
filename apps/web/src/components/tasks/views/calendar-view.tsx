@@ -175,8 +175,8 @@ export function CalendarView({ state }: { state: TaskPageState }) {
         <div className="rounded-app-card border border-app-line bg-app-stone-1 px-4 py-3 text-center">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             No tasks are scheduled in this range. A task appears here once it has
-            a <span className="font-medium text-foreground">due date</span> —
-            set one on a task from its row, the checklist, or its detail drawer,
+            a <span className="font-medium text-foreground">due date</span>.
+            Set one on a task from its row, the checklist, or its detail drawer,
             then drag it between days to reschedule.
           </p>
         </div>

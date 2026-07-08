@@ -28,7 +28,7 @@ export function TaskAttachments({ items }: { items: TaskAttachmentItem[] }) {
   if (items.length === 0) {
     return (
       <p className="text-[13px] leading-relaxed text-app-muted">
-        Files live on the messages and notes of this conversation — attach one
+        Files live on the messages and notes of this conversation. Attach one
         in the discussion below.
       </p>
     );

@@ -455,8 +455,8 @@ function TaskNoteComposer({
     if (failed.length === 0) return;
     toast.error(
       failed.length === draftFiles.length
-        ? "The note posted, but its files didn't upload — re-attach them from the note's Files section in the thread."
-        : `The note posted, but ${failed.length} of ${draftFiles.length} files didn't upload — re-attach them from the note's Files section in the thread.`,
+        ? "The note posted, but its files didn't upload. Re-attach them from the note's Files section in the thread."
+        : `The note posted, but ${failed.length} of ${draftFiles.length} files didn't upload. Re-attach them from the note's Files section in the thread.`,
     );
   };
 

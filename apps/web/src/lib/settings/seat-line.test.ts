@@ -54,7 +54,7 @@ describe("seatUsage", () => {
       used: 3,
       limit: 3,
       full: true,
-      line: "3 of 3 seats — upgrade for more",
+      line: "3 of 3 seats. Upgrade for more",
     });
   });
 
@@ -62,7 +62,7 @@ describe("seatUsage", () => {
     const usage = seatUsage(2, 1, "starter");
     expect(usage.used).toBe(3);
     expect(usage.full).toBe(true);
-    expect(usage.line).toBe("3 of 3 seats — upgrade for more");
+    expect(usage.line).toBe("3 of 3 seats. Upgrade for more");
   });
 
   it("stays factual below capacity", () => {
@@ -77,6 +77,6 @@ describe("seatUsage", () => {
   });
 
   it("treats a NULL plan as the Starter allowance", () => {
-    expect(seatUsage(3, 0, null).line).toBe("3 of 3 seats — upgrade for more");
+    expect(seatUsage(3, 0, null).line).toBe("3 of 3 seats. Upgrade for more");
   });
 });

@@ -28,7 +28,7 @@ import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
 const DEFAULT_AWAY_MESSAGE =
-  "Thanks for texting us — we're out of the office right now and will reply first thing. For a no-heat or burst-pipe emergency, reply URGENT and we'll call you.";
+  "Thanks for texting us. We're out of the office right now and will reply first thing. For a no-heat or burst-pipe emergency, reply URGENT and we'll call you.";
 
 function AwaySkeleton() {
   return (
@@ -209,7 +209,7 @@ function AwayMessageCard({
   return (
     <SettingsCard
       title="Away reply"
-      description="One automatic text back when someone reaches you outside your business hours — in your words, so you never lose an after-hours emergency."
+      description="One automatic text back when someone reaches you outside your business hours, in your words, so you never lose an after-hours emergency."
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
@@ -261,7 +261,7 @@ function AwayMessageCard({
             <code className="rounded bg-secondary px-1 py-0.5">
               {"{business_name}"}
             </code>
-            . Write it so an emergency still reaches you — never just
+            . Write it so an emergency still reaches you, never just
             &ldquo;we&apos;re closed.&rdquo;
           </p>
         </div>

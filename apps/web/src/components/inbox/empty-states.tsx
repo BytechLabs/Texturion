@@ -70,7 +70,7 @@ export function ActivationEmptyState() {
           <p className="max-w-xs text-sm text-muted-foreground">
             {canAct
               ? "One step left: finish checkout to get your business number and start texting."
-              : "Checkout isn't finished yet — ask your account owner to complete it, then your business number appears here."}
+              : "Checkout isn't finished yet. Ask your account owner to complete it, then your business number appears here."}
           </p>
           {canAct && (
             <Button asChild size="sm">
@@ -142,7 +142,7 @@ export function ActivationEmptyState() {
         copyLabel="Copy your business number"
         // Center the number+copy row; constrain the caption to a calm measure.
         className="flex flex-col items-center [&>div:first-child]:justify-center [&>p]:max-w-[280px] [&>p]:text-[15px] [&>p]:leading-relaxed"
-        caption="This is your business number. Text it from your phone right now — your message will appear here."
+        caption="This is your business number. Text it from your phone right now, and your message will appear here."
       />
     </div>
   );

@@ -95,7 +95,7 @@ export function CapControl({
       </div>
       <p className="text-xs text-muted-foreground">
         The cap is a multiple of your included messages. When you hit it,
-        sending pauses until you raise it — nothing is billed past it.
+        sending pauses until you raise it. Nothing is billed past it.
       </p>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>

@@ -10,7 +10,7 @@ export function authErrorMessage(error: unknown): string {
       case "invalid_credentials":
         return "That email or password isn't right. Try again.";
       case "email_not_confirmed":
-        return "Confirm your email first — we sent you a link when you signed up.";
+        return "Confirm your email first. We sent you a link when you signed up.";
       case "user_already_exists":
       case "email_exists":
         return "You already have an account with this email. Log in instead.";

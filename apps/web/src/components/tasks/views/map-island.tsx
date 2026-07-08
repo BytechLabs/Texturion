@@ -254,7 +254,7 @@ function ClusterPeek({ tasks }: { tasks: LocatedTask[] }) {
         ))}
         {tasks.length > 6 && (
           <li className="text-[12px] text-muted-foreground">
-            +{tasks.length - 6} more — zoom in
+            +{tasks.length - 6} more, zoom in
           </li>
         )}
       </ul>

@@ -44,7 +44,7 @@ export default function NotificationsSettingsPage() {
   return (
     <SettingsPage
       title="Notifications"
-      description="How you hear about new customer texts. These are your settings — teammates set their own."
+      description="How you hear about new customer texts. These are your settings; teammates set their own."
     >
       {prefs.isPending ? (
         <div className="space-y-4" aria-label="Loading notification settings">
@@ -64,7 +64,7 @@ export default function NotificationsSettingsPage() {
                   </Label>
                   <p className="text-sm text-muted-foreground">
                     Email you when a new conversation starts or a customer
-                    texts back after a quiet spell — never one email per
+                    texts back after a quiet spell, never one email per
                     message.
                   </p>
                 </div>
@@ -99,7 +99,7 @@ export default function NotificationsSettingsPage() {
 
           <p className="px-1 text-xs text-muted-foreground">
             Billing, usage, and registration emails always go to owners and
-            admins — they can&apos;t be turned off here.
+            admins. They can&apos;t be turned off here.
           </p>
         </div>
       )}

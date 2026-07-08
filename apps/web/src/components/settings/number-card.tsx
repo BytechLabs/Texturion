@@ -25,9 +25,9 @@ import { formatPhone } from "@/lib/format/phone";
 
 /** SPEC §4.4 customer-facing provisioning copy — exact strings. */
 const STATUS_COPY: Partial<Record<PhoneNumberSummary["status"], string>> = {
-  provisioning: "Setting up your business number — usually under a minute.",
+  provisioning: "Setting up your business number, usually under a minute.",
   provision_failed:
-    "We're setting up your number — this is taking longer than usual. You don't need to do anything.",
+    "We're setting up your number. This is taking longer than usual. You don't need to do anything.",
 };
 
 function StatusBadge({ status }: { status: PhoneNumberSummary["status"] }) {
@@ -162,7 +162,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
         >
           {number.number_e164
             ? formatPhone(number.number_e164)
-            : `Area code ${number.requested_area_code ?? "—"}`}
+            : `Area code ${number.requested_area_code ?? "–"}`}
         </p>
         {number.number_e164 && !released && (
           <Button

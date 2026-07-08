@@ -134,7 +134,7 @@ export function PortFixForm({
               autoComplete={field.autoComplete}
               placeholder={
                 field.key === "account_number" && port.has_account_number
-                  ? "On file — leave blank to keep it"
+                  ? "On file, leave blank to keep it"
                   : undefined
               }
             />

@@ -257,7 +257,7 @@ export default function BusinessIdentityPage() {
       >
         <div className="space-y-6">
           <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            Your business details were already submitted to carriers — nothing
+            Your business details were already submitted to carriers. Nothing
             more to do on this step.
           </p>
           <Button
@@ -348,7 +348,7 @@ export default function BusinessIdentityPage() {
       index={progress.index}
       total={progress.total}
       title="Tell us about your business"
-      subtitle="Carriers require this before a business can text customers. We file everything for you — it takes about 2 minutes."
+      subtitle="Carriers require this before a business can text customers. We file everything for you. It takes about 2 minutes."
     >
       <Form {...form}>
         <form
@@ -404,7 +404,7 @@ export default function BusinessIdentityPage() {
           {hasEin === "no" ? (
             <div className="space-y-4 rounded-lg border border-border bg-card p-4">
               <p className="text-sm">
-                No problem — we&apos;ll register you as a sole proprietor.
+                No problem. We&apos;ll register you as a sole proprietor.
               </p>
               <p className="text-[13px] text-muted-foreground">
                 Same texting features. Carriers verify you with the last 4
@@ -457,7 +457,7 @@ export default function BusinessIdentityPage() {
                     </FormControl>
                     <FormDescription>
                       Carriers use it to confirm you&apos;re you. We only ever
-                      ask for — and store — the last 4.
+                      ask for, and store, the last 4.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -547,7 +547,7 @@ export default function BusinessIdentityPage() {
                   <Input autoComplete="street-address" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Carriers require a physical address on file — it&apos;s
+                  Carriers require a physical address on file. It&apos;s
                   never shown to customers.
                 </FormDescription>
                 <FormMessage />
@@ -627,7 +627,7 @@ export default function BusinessIdentityPage() {
                   />
                 </FormControl>
                 <FormDescription>
-                  Carriers look for a real web presence — a Facebook or Google
+                  Carriers look for a real web presence. A Facebook or Google
                   Business page counts.
                 </FormDescription>
                 <FormMessage />
@@ -667,7 +667,7 @@ export default function BusinessIdentityPage() {
                     />
                   </FormControl>
                   <FormDescription>
-                    A number carriers can reach you at — your cell is fine.
+                    A number carriers can reach you at. Your cell is fine.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

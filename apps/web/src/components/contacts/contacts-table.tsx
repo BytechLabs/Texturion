@@ -104,7 +104,7 @@ export function ContactsTable({
             <CalmEmptyState
               icon={<Users strokeWidth={1.5} aria-hidden />}
               title="Your customers show up here on their own"
-              description="Every person who texts your business number is added automatically — or bring your list over in one go."
+              description="Every person who texts your business number is added automatically, or bring your list over in one go."
               action={emptyAction ?? undefined}
             />
           )
@@ -164,7 +164,7 @@ export function ContactsTable({
                         </span>
                       ) : (
                         <>
-                          <span aria-hidden>—</span>
+                          <span aria-hidden>–</span>
                           <span className="sr-only">No texting activity yet</span>
                         </>
                       )}

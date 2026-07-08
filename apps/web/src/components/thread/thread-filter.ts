@@ -74,6 +74,6 @@ export function threadFilterEmptyCopy(filter: ThreadFilter): string {
     case "events":
       return "Nothing has happened on this conversation yet.";
     case "all":
-      return "No messages yet — say hello below.";
+      return "No messages yet. Say hello below.";
   }
 }

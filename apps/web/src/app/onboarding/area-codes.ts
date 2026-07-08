@@ -71,7 +71,7 @@ function toHint(code: string, entry: NanpGeographicEntry): AreaCodeHint {
     country: entry.country,
     region: entry.region,
     regionName: name,
-    label: `(${code}) — ${name}`,
+    label: `(${code}) · ${name}`,
   };
 }
 

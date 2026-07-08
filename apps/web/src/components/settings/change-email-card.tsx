@@ -96,7 +96,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
       {sent ? (
         <div className="space-y-2">
           <p className="text-sm">
-            We&apos;ve emailed both your old and new address — confirm from each
+            We&apos;ve emailed both your old and new address. Confirm from each
             to finish the change.
           </p>
           <Button

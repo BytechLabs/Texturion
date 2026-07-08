@@ -113,7 +113,7 @@ export function eventSentence(
     // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
     // in the crew's plain language (the message itself renders just below).
     case "missed_call":
-      return "This customer called and no one picked up — we texted them back";
+      return "This customer called and no one picked up, so we texted them back";
   }
 }
 

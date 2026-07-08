@@ -168,7 +168,7 @@ export function TemplateDialog({
                     <Textarea
                       rows={4}
                       maxLength={2000}
-                      placeholder="On our way — see you in about 20 minutes."
+                      placeholder="On our way. See you in about 20 minutes."
                       {...field}
                     />
                   </FormControl>
@@ -196,7 +196,7 @@ export function TemplateDialog({
                 send time. */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
-                Variables — tap to insert
+                Variables: tap to insert
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TEMPLATE_VARIABLES.map((v) => (

@@ -39,7 +39,7 @@ export function AttachmentImage({
             onClick={() => url.refetch()}
             className="text-xs underline-offset-2 hover:underline"
           >
-            Photo didn&apos;t load — retry
+            Photo didn&apos;t load. Retry
           </button>
         </div>
       </div>

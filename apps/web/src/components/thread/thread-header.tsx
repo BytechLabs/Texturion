@@ -103,7 +103,7 @@ export function ThreadHeader({
       await navigator.clipboard.writeText(phone);
       toast.success("Number copied.");
     } catch {
-      toast.error("Couldn't copy — your browser blocked clipboard access.");
+      toast.error("Couldn't copy. Your browser blocked clipboard access.");
     }
   };
 

@@ -213,7 +213,7 @@ function InviteRow({ invite }: { invite: Invite }) {
         <p className="text-xs text-muted-foreground">
           {ROLE_LABELS[invite.role]} ·{" "}
           {expired
-            ? "Expired — doesn't hold a seat"
+            ? "Expired, doesn't hold a seat"
             : `Expires ${new Date(invite.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
         </p>
       </div>

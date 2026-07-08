@@ -83,10 +83,10 @@ function StepRow({
           {label}
           <span className="sr-only">
             {step.state === "done"
-              ? " — done"
+              ? ", done"
               : step.state === "active"
-                ? " — in progress"
-                : " — upcoming"}
+                ? ", in progress"
+                : ", upcoming"}
           </span>
         </p>
         <p className="text-[13px] text-muted-foreground">{meaning}</p>

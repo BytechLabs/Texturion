@@ -118,10 +118,10 @@ function ChecklistRow({
           {title}
           <span className="sr-only">
             {status === "done"
-              ? " — done"
+              ? ", done"
               : status === "action"
-                ? " — needs your attention"
-                : " — in progress"}
+                ? ", needs your attention"
+                : ", in progress"}
           </span>
         </p>
         {children}
@@ -178,7 +178,7 @@ function OtpRow({
     try {
       await resend.mutateAsync({ companyId });
       setCooldown(60);
-      setNotice("We sent a new code — it's good for 24 hours.");
+      setNotice("We sent a new code. It's good for 24 hours.");
     } catch (cause) {
       setError(
         cause instanceof ApiError
@@ -510,12 +510,12 @@ function SettingUp() {
         </h1>
         <p className="text-sm text-muted-foreground">
           {numberReady
-            ? "Everything below is live — text your new number to see it land."
+            ? "Everything below is live. Text your new number to see it land."
             : portItem?.actionNeeded
               ? // "Updates itself" would be a lie while the transfer waits on
                 // the user — say so instead.
-                "One step below needs you — the rest updates itself."
-              : "This screen updates itself — no refreshing needed."}
+                "One step below needs you. The rest updates itself."
+              : "This screen updates itself. No refreshing needed."}
         </p>
       </div>
 
@@ -551,7 +551,7 @@ function SettingUp() {
             ) : (
               <p className="text-sm text-muted-foreground">
                 {confirming
-                  ? "Confirming your payment — a few seconds."
+                  ? "Confirming your payment. A few seconds."
                   : provisionFailed
                     ? REGISTRATION_COPY.numberDelayed
                     : REGISTRATION_COPY.numberProvisioning}
@@ -567,7 +567,7 @@ function SettingUp() {
         >
           {!owes ? (
             <p className="text-sm text-muted-foreground">
-              Not needed — Canadian texting works right away.
+              Not needed. Canadian texting works right away.
             </p>
           ) : campaignApproved ? (
             <p className="text-sm text-muted-foreground">
@@ -613,7 +613,7 @@ function SettingUp() {
             // visible on every page.
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                You can start using Loonext now — your inbox fills in the moment
+                You can start using Loonext now. Your inbox fills in the moment
                 your number is ready, and we&apos;ll keep you posted at the top
                 of every screen.
               </p>

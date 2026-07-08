@@ -89,7 +89,7 @@ export default function PortCarrierPage() {
       index={progress.index}
       total={progress.total}
       title="Your current carrier account"
-      subtitle="These come from your current provider — matching them to your latest bill is the surest way to a smooth transfer."
+      subtitle="These come from your current provider. Matching them to your latest bill is the surest way to a smooth transfer."
     >
       <div className="space-y-5">
         <div className="space-y-2">
@@ -164,7 +164,7 @@ export default function PortCarrierPage() {
               <p className="text-[13px] text-muted-foreground">
                 This is a mobile number, so your carrier needs two extra
                 details to release it. We only ever store the last 4 digits of
-                the {ssnSinLabel} — never the full number.
+                the {ssnSinLabel}, never the full number.
               </p>
             </div>
             <div className="space-y-2">
@@ -194,7 +194,7 @@ export default function PortCarrierPage() {
                   <TooltipContent className="max-w-64">
                     Mobile carriers verify the account holder&apos;s identity
                     before releasing a number. We pass only the last 4 digits to
-                    the carrier and store only those 4 — never the full{" "}
+                    the carrier and store only those 4, never the full{" "}
                     {ssnSinLabel}.
                   </TooltipContent>
                 </Tooltip>

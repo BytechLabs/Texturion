@@ -88,7 +88,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
   return (
     <SettingsCard
       title="Company name"
-      description="The name your customers know you by — used on your carrier registration and available as a {business_name} field in your texts."
+      description="The name your customers know you by, used on your carrier registration and available as a {business_name} field in your texts."
     >
       <div className="space-y-4">
         {canEdit ? (
@@ -162,7 +162,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
   const registration = useRegistration();
 
   const description =
-    "What carriers have on file for your business — it comes from your texting registration.";
+    "What carriers have on file for your business. It comes from your texting registration.";
 
   if (registration.isPending) {
     return (
@@ -185,7 +185,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
       <SettingsCard title="Business identification" description={description}>
         <p className="text-sm text-muted-foreground">
           {company.country === "CA" && !company.us_texting_enabled
-            ? "No registration needed — Canadian texting works without one. Enabling US texting adds it."
+            ? "No registration needed. Canadian texting works without one. Enabling US texting adds it."
             : "No registration details on file yet."}{" "}
           <Link
             href="/settings/numbers"

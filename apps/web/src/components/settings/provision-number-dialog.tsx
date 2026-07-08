@@ -30,9 +30,9 @@ function areaCodeHint(code: string, country: Country): string | null {
     return `${code} isn't an assigned ${REGION_NAMES[country]} area code.`;
   }
   if (entry.country !== country) {
-    return `${code} is a ${REGION_NAMES[entry.country]} area code — your account texts from ${REGION_NAMES[country]} numbers.`;
+    return `${code} is a ${REGION_NAMES[entry.country]} area code. Your account texts from ${REGION_NAMES[country]} numbers.`;
   }
-  return `(${code}) — ${entry.region}, ${REGION_NAMES[entry.country]}`;
+  return `(${code}): ${entry.region}, ${REGION_NAMES[entry.country]}`;
 }
 
 /**
@@ -112,7 +112,7 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
               provision.mutate(code, {
                 onSuccess: () => {
                   reset(false);
-                  toast.success("Number on the way — usually under a minute.");
+                  toast.success("Number on the way, usually under a minute.");
                 },
                 onError: (cause) =>
                   setError(

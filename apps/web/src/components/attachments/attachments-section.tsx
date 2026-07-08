@@ -78,7 +78,7 @@ export function AttachmentsSection({
       // One batch at a time keeps the running count honest — but say so instead
       // of dropping the files silently (the picker input has already reset, so
       // there'd be no other trace). They can re-drop once the spinner clears.
-      setError("A file is still uploading — drop these again when it finishes.");
+      setError("A file is still uploading. Drop these again when it finishes.");
       return;
     }
     setError(null);
@@ -153,7 +153,7 @@ export function AttachmentsSection({
 
       {atCap ? (
         <p className="text-[11px] text-muted-foreground">
-          Up to {MAX_ATTACHMENTS_PER_OWNER} files — remove one to add another.
+          Up to {MAX_ATTACHMENTS_PER_OWNER} files. Remove one to add another.
         </p>
       ) : (
         <>
@@ -191,7 +191,7 @@ export function AttachmentsSection({
 
       {!compact && attachments.length === 0 && !list.isPending && !error && (
         <p className="text-[11px] text-muted-foreground">
-          Images, PDFs, and documents up to 25 MB — or drop files here.
+          Images, PDFs, and documents up to 25 MB, or drop files here.
         </p>
       )}
     </div>

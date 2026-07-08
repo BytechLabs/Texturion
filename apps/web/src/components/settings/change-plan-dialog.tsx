@@ -85,10 +85,10 @@ function DowngradeBody({
       <ul className="space-y-2">
         <Requirement met={numbersOk}>
           {numbersOk ? (
-            <>1 phone number — you&apos;re set.</>
+            <>1 phone number. You&apos;re set.</>
           ) : (
             <>
-              Starter includes 1 phone number — you have {activeNumbers}.{" "}
+              Starter includes 1 phone number; you have {activeNumbers}.{" "}
               <Link
                 href="/settings/numbers"
                 className="font-medium text-primary underline-offset-4 hover:underline"
@@ -101,12 +101,12 @@ function DowngradeBody({
         </Requirement>
         <Requirement met={seatsOk}>
           {activeMembers === null ? (
-            <>Couldn&apos;t check your member count — try again.</>
+            <>Couldn&apos;t check your member count. Try again.</>
           ) : seatsOk ? (
-            <>Up to 3 members — you have {activeMembers}.</>
+            <>Up to 3 members; you have {activeMembers}.</>
           ) : (
             <>
-              Starter includes 3 members — you have {activeMembers} active.{" "}
+              Starter includes 3 members; you have {activeMembers} active.{" "}
               <Link
                 href="/settings/team"
                 className="font-medium text-primary underline-offset-4 hover:underline"
@@ -119,7 +119,7 @@ function DowngradeBody({
         </Requirement>
       </ul>
       <p className="text-sm text-muted-foreground">
-        The change happens at the end of your current period — you keep Pro
+        The change happens at the end of your current period. You keep Pro
         until then, and nothing is refunded mid-period.
       </p>
     </div>
@@ -196,7 +196,7 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
                   reset(false);
                   toast.success(
                     result.effective === "now"
-                      ? "You're on Pro — the extra allowance starts now."
+                      ? "You're on Pro. The extra allowance starts now."
                       : `Starter starts ${new Date(result.effective_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}. You keep Pro until then.`,
                   );
                 },

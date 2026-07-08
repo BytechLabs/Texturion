@@ -76,7 +76,7 @@ export default function PortAddressPage() {
       index={progress.index}
       total={progress.total}
       title="Service address on file"
-      subtitle="The address your current carrier has for this number. A mismatch here is the most common reason a transfer gets held up — copy it from your latest bill."
+      subtitle="The address your current carrier has for this number. A mismatch here is the most common reason a transfer gets held up. Copy it from your latest bill."
     >
       <div className="space-y-5">
         <div className="space-y-2">

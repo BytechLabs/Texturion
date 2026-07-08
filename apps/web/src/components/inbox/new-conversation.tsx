@@ -429,7 +429,7 @@ export function NewConversation() {
                     setActiveIndex(-1);
                   }
                 }}
-                aria-label="Recipient — search contacts or type a phone number"
+                aria-label="Recipient: search contacts or type a phone number"
               />
               {listOpen && (
                 <div
@@ -484,7 +484,7 @@ export function NewConversation() {
                       className="px-3 py-2 text-sm text-muted-foreground"
                     >
                       {isPhone
-                        ? "Keep typing — a US or Canada number has 10 digits."
+                        ? "Keep typing. A US or Canada number has 10 digits."
                         : contacts.isPending && input.trim().length > 0
                           ? "Searching…"
                           : "No matching contacts."}
@@ -520,7 +520,7 @@ export function NewConversation() {
         {company.isPending && <Skeleton className="h-9 w-full" />}
         {company.isSuccess && activeNumbers.length === 0 && (
           <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-            Your business number is still being set up — sending unlocks the
+            Your business number is still being set up. Sending unlocks the
             moment it&apos;s ready.
           </p>
         )}
@@ -610,7 +610,7 @@ export function NewConversation() {
                 Name the reason instead of leaving Send silently dead. */}
             {attachments.length > 0 && body.trim() === "" ? (
               <p className="text-xs text-muted-foreground">
-                Add a short message — the first text in a new conversation
+                Add a short message. The first text in a new conversation
                 can&apos;t be photo-only.
               </p>
             ) : (

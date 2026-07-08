@@ -136,7 +136,7 @@ export function StartPortDialog({ country }: { country: Country }) {
     }
     if (isWireless && (!/^\d{4}$/.test(ssnSinLast4.trim()) || !pinPasscode.trim())) {
       setError(
-        `This is a mobile number — enter the transfer PIN and the last 4 of the account holder's ${ssnSinLabel}.`,
+        `This is a mobile number. Enter the transfer PIN and the last 4 of the account holder's ${ssnSinLabel}.`,
       );
       return;
     }
@@ -155,7 +155,7 @@ export function StartPortDialog({ country }: { country: Country }) {
           ? { pin_passcode: pinPasscode.trim(), ssn_sin_last4: ssnSinLast4.trim() }
           : {}),
       });
-      toast.success("Transfer started — upload your documents to send it.");
+      toast.success("Transfer started. Upload your documents to send it.");
       onOpenChange(false);
     } catch (cause) {
       setError(
@@ -246,7 +246,7 @@ export function StartPortDialog({ country }: { country: Country }) {
 
               <p className="pt-1 text-sm font-medium">Service address on file</p>
               <p className="text-[13px] text-muted-foreground">
-                From your latest bill — a mismatch is the #1 reason a transfer
+                From your latest bill. A mismatch is the #1 reason a transfer
                 gets held up.
               </p>
               <Field label="Street address" value={street} onChange={setStreet} />

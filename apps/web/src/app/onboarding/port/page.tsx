@@ -123,7 +123,7 @@ export default function PortNumberPage() {
       index={progress.index}
       total={progress.total}
       title="Which number do you want to bring?"
-      subtitle="Enter the number your customers already text. We'll check it can move to Loonext — no commitment yet."
+      subtitle="Enter the number your customers already text. We'll check it can move to Loonext. No commitment yet."
     >
       <div className="space-y-6">
         <div className="space-y-2">

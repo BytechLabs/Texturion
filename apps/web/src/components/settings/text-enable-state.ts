@@ -18,13 +18,13 @@ import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
 /** Per-state status sentences (plain, no jargon beyond the LOA field label). */
 export const TEXT_ENABLE_STATE_COPY = {
   pending:
-    "Waiting on carrier review — typically a few business days. Calls keep working with your current carrier the whole time.",
+    "Waiting on carrier review, typically a few business days. Calls keep working with your current carrier the whole time.",
   actionRequired:
     "The carrier needs your signed authorization (LOA) and a recent bill before it can continue.",
   inProgress:
-    "Your documents are with the carrier for review. Nothing to do — texting turns on here the moment it completes.",
+    "Your documents are with the carrier for review. Nothing to do; texting turns on here the moment it completes.",
   completed:
-    "Texting is live on this number. Calls are unchanged — they stay with your current carrier.",
+    "Texting is live on this number. Calls are unchanged; they stay with your current carrier.",
   cancelled:
     "Text-enablement cancelled. Your number is untouched with your current carrier.",
   failedFallback:
@@ -34,7 +34,7 @@ export const TEXT_ENABLE_STATE_COPY = {
 /** Plain one-liners for the two required documents (PDF only — carrier rule). */
 export const HOSTED_DOCUMENT_HINTS = {
   loa: "A signed letter authorizing texting on this number. PDF only, under 5 MB, signed within the last 90 days, listing this number.",
-  bill: "A recent bill from your current carrier — less than 30 days old, showing this number. PDF only, under 5 MB.",
+  bill: "A recent bill from your current carrier, less than 30 days old, showing this number. PDF only, under 5 MB.",
 } as const;
 
 /** The failed banner: the carrier's reason plainly, or a calm fallback. */

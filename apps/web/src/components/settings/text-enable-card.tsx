@@ -151,7 +151,7 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
   if (verified) {
     return (
       <p className="text-sm text-muted-foreground">
-        Number ownership verified — nothing else to do for this step.
+        Number ownership verified. Nothing else to do for this step.
       </p>
     );
   }
@@ -196,8 +196,8 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
       <div>
         <p className="text-sm font-medium">Verify you own this number</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          If the carrier asks for proof, get a one-time code at {display} — by
-          text, or an automated call if it can&apos;t receive texts — and enter
+          If the carrier asks for proof, get a one-time code at {display} (by
+          text, or an automated call if it can&apos;t receive texts) and enter
           it below.
         </p>
       </div>
@@ -304,7 +304,7 @@ function ReleaseHostedNumberDialog({
             <DialogTitle>Remove texting from {display}?</DialogTitle>
             <DialogDescription>
               This releases the number from Loonext: texting stops and its plan
-              slot frees up. Calls aren&apos;t affected — the number itself
+              slot frees up. Calls aren&apos;t affected; the number itself
               stays with your current carrier. Text-enabling it again later
               means a fresh carrier review. Type the number to confirm.
             </DialogDescription>
@@ -391,7 +391,7 @@ function CancelTextEnableDialog({ order }: { order: TextEnablement }) {
           <DialogHeader>
             <DialogTitle>Stop adding texting to {display}?</DialogTitle>
             <DialogDescription>
-              Your number is untouched — calls and service stay with your
+              Your number is untouched; calls and service stay with your
               current carrier. You can start again any time.
             </DialogDescription>
           </DialogHeader>
@@ -483,7 +483,7 @@ export function TextEnableCard({
     setResubmitError(null);
     resubmit.mutate(undefined, {
       onSuccess: () =>
-        toast.success("Resubmitted — we'll run it past the carrier again."),
+        toast.success("Resubmitted. We'll run it past the carrier again."),
       onError: (cause) =>
         setResubmitError(
           cause instanceof ApiError
@@ -506,7 +506,7 @@ export function TextEnableCard({
           {display}
         </p>
         <span className="text-[13px] text-muted-foreground">
-          {ui.live ? "Texting live — calls unchanged" : "Adding texting"}
+          {ui.live ? "Texting live, calls unchanged" : "Adding texting"}
         </span>
       </div>
       {startedLine ? (

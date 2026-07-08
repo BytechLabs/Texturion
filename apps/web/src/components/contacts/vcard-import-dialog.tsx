@@ -101,7 +101,7 @@ export function VCardImportDialog({
               <DialogDescription>
                 Upload a .vcf file exported from your phone, Google Contacts, or
                 Apple Contacts. We&apos;ll add each contact with a valid US or
-                Canada number — existing numbers are updated, not duplicated.
+                Canada number. Existing numbers are updated, not duplicated.
               </DialogDescription>
             </DialogHeader>
             <button

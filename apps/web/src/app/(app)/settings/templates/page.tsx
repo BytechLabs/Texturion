@@ -109,7 +109,7 @@ export default function TemplatesSettingsPage() {
         ) : templates.data.data.length === 0 ? (
           <div className="rounded-lg border bg-card px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">
-              No templates yet. Save a reply you type all the time — then insert
+              No templates yet. Save a reply you type all the time, then insert
               it with / in the composer.
             </p>
             <Button className="mt-4" onClick={openCreate}>

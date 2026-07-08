@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Loonext",
     short_name: "Loonext",
     description:
-      "One local business number your whole team can text from — every incoming text becomes a conversation you can reply to, assign, tag, and close.",
+      "One local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
     id: "/inbox",
     start_url: "/inbox",
     display: "standalone",

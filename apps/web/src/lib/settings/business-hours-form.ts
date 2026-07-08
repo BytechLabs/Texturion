@@ -82,7 +82,7 @@ export function isDirty(a: DayFormState[], b: DayFormState[]): boolean {
 /** A short human summary of a day row for the read-only / preview line. */
 export function summarizeDay(day: DayFormState): string {
   if (!day.enabled) return "Closed";
-  return `${day.open} – ${day.close}`;
+  return `${day.open} to ${day.close}`;
 }
 
 /** WEEKDAYS re-exported so callers don't reach into @loonext/shared directly. */

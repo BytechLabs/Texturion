@@ -131,7 +131,7 @@ function PlanStep() {
       const message =
         cause instanceof ApiError
           ? cause.message
-          : "We couldn't open checkout — this is usually a brief connection hiccup. Check your connection and try again.";
+          : "We couldn't open checkout. This is usually a brief connection hiccup. Check your connection and try again.";
       toast.error(message, {
         action: { label: "Try again", onClick: () => void choose(plan) },
       });
@@ -144,7 +144,7 @@ function PlanStep() {
       index={progress.index}
       total={progress.total}
       title="Pick your plan"
-      subtitle="One flat price for your whole crew. No contracts — cancel any time."
+      subtitle="One flat price for your whole crew. No contracts. Cancel any time."
     >
       <div className="space-y-6">
         {canceledReturn ? (
@@ -152,7 +152,7 @@ function PlanStep() {
             role="status"
             className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground"
           >
-            Checkout was canceled — you haven&apos;t been charged. Pick a plan
+            Checkout was canceled. You haven&apos;t been charged. Pick a plan
             whenever you&apos;re ready.
           </p>
         ) : null}
@@ -186,7 +186,7 @@ function PlanStep() {
               {plan.id === "pro" && soleProp ? (
                 <p className="mt-3 text-[13px] text-muted-foreground">
                   Sole proprietor registrations are limited to 1 number by
-                  carriers — Pro still adds teammates and texts.
+                  carriers. Pro still adds teammates and texts.
                 </p>
               ) : null}
               <Button
@@ -214,7 +214,7 @@ function PlanStep() {
         <div className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-[15px] font-medium">Add-ons</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Optional — turn on only what you need. Add or remove them any time.
+            Optional. Turn on only what you need. Add or remove them any time.
           </p>
           <div className="mt-4 space-y-2">
             {/* regions_ca is inert in the single-region model (numbers are
@@ -283,7 +283,7 @@ function PlanStep() {
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
                 US carriers require every business to register before texting
-                customers. This covers their registration and vetting fees —
+                customers. This covers their registration and vetting fees,
                 charged once, ever. We file the paperwork for you.
               </TooltipContent>
             </Tooltip>
@@ -315,7 +315,7 @@ function PlanStep() {
         </div>
 
         <p className="text-[13px] text-muted-foreground">
-          A &ldquo;text&rdquo; is one 160-character message segment — long
+          A &ldquo;text&rdquo; is one 160-character message segment. Long
           texts and emoji use more than one. Incoming texts never count.
         </p>
 

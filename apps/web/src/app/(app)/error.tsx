@@ -35,7 +35,7 @@ export default function AppError({
           This screen ran into a problem.
         </p>
         <p className="text-sm text-app-muted">
-          The rest of the app is fine — you can try this screen again or move on
+          The rest of the app is fine. You can try this screen again or move on
           from the sidebar.
         </p>
       </div>

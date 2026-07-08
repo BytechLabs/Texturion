@@ -44,7 +44,7 @@ function periodRange(usage: Usage): string | null {
     options,
   );
   const end = new Date(usage.period_end).toLocaleDateString(undefined, options);
-  return `${start} – ${end}`;
+  return `${start} to ${end}`;
 }
 
 function PeriodMeter({ usage }: { usage: Usage }) {
@@ -99,7 +99,7 @@ function PeriodMeter({ usage }: { usage: Usage }) {
             <span className="font-medium tabular-nums">
               {usage.overage_segments.toLocaleString()}
             </span>{" "}
-            over your included amount —{" "}
+            over your included amount:{" "}
             <span className="font-medium tabular-nums">
               {dollars(usage.projected_overage_cents)}
             </span>{" "}
@@ -107,7 +107,7 @@ function PeriodMeter({ usage }: { usage: Usage }) {
           </p>
         ) : (
           <p className="text-muted-foreground">
-            No overage this period — {dollars(0)} extra so far.
+            No overage this period. {dollars(0)} extra so far.
           </p>
         )}
         {/* #42: there is no uncapped state any more — the API clamps a null
@@ -165,7 +165,7 @@ function StorageBar({
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
         <span className="font-medium">{label}</span>
         <span className="tabular-nums text-muted-foreground">
-          {formatBytes(used)} of {budget ? formatBytes(budget) : "—"}
+          {formatBytes(used)} of {budget ? formatBytes(budget) : "–"}
         </span>
       </div>
       {budget !== null && (
@@ -210,7 +210,7 @@ function StorageMeter({ storage }: { storage: UsageStorage }) {
         label="Picture messages"
         used={storage.mms_bytes}
         budget={storage.mms_budget_bytes || null}
-        help="Pictures customers text you are saved here. When it's full, new pictures are held — the message text always comes through — until you free up space or move to a larger plan."
+        help="Pictures customers text you are saved here. When it's full, new pictures are held (the message text always comes through) until you free up space or move to a larger plan."
       />
     </div>
   );
@@ -253,8 +253,8 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
       </div>
       <p className="text-sm text-muted-foreground">
         Calls forwarded to your cell use these minutes. When they&apos;re used
-        up, new calls aren&apos;t forwarded — callers get your missed-call text
-        instead — so your phone bill can&apos;t run past your plan.
+        up, new calls aren&apos;t forwarded. Callers get your missed-call text
+        instead, so your phone bill can&apos;t run past your plan.
       </p>
     </div>
   );
@@ -295,8 +295,8 @@ function MmsMeter({ mms }: { mms: UsageMms }) {
       </div>
       <p className="text-sm text-muted-foreground">
         Photos you send in texts use these. When they&apos;re used up, new sends
-        go out as text only — your message still reaches your customer, without
-        the photo — so your messaging bill can&apos;t run past your plan.
+        go out as text only. Your message still reaches your customer, without
+        the photo, so your messaging bill can&apos;t run past your plan.
       </p>
     </div>
   );
