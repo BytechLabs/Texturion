@@ -40,7 +40,7 @@ describe("isAppSurfacePath", () => {
     expect(isAppSurfacePath(path)).toBe(true);
   });
 
-  it.each(["/", "/pricing", "/legal/terms", "/for/plumbers", "/compare/podium", "/canada"])(
+  it.each(["/", "/pricing", "/legal/terms", "/for/plumbers", "/compare/heymarket", "/canada"])(
     "%s is marketing",
     (path) => {
       expect(isAppSurfacePath(path)).toBe(false);

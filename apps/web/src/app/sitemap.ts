@@ -62,15 +62,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: LIVE_ROUTES.canada, priority: 0.7, changeFrequency: "monthly" },
 
     // Comparison pages (BLUEPRINT §2, §6). The /compare index is the hub the
-    // three head-to-head pages link back to (and their breadcrumbs terminate on).
+    // two head-to-head pages link back to (and their breadcrumbs terminate on).
     {
       path: LIVE_ROUTES.compareIndex,
       priority: 0.7,
-      changeFrequency: "monthly",
-    },
-    {
-      path: LIVE_ROUTES.comparePodium,
-      priority: 0.6,
       changeFrequency: "monthly",
     },
     {

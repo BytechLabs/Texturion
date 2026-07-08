@@ -4,7 +4,7 @@
  * "generated from the same route-data maps that drive nav/footer").
  *
  * Iteration 3 SEO content: the feature pages (shared-inbox, business-number,
- * compliance, templates-and-tags), /canada, the six trade pages, and the three
+ * compliance, templates-and-tags), /canada, the six trade pages, and the two
  * comparison pages are now REAL routes. Every link in the nav and footer resolves
  * to a shipped page. The only entries that still point at a home-page anchor are
  * the two menu *triggers* ("Product ▾" / "Who it's for ▾"), clicking the trigger
@@ -54,10 +54,9 @@ export const LIVE_ROUTES = {
   forContractors: "/for/contractors",
 
   // Comparison pages (BLUEPRINT §2, §6). `compareIndex` is the /compare hub the
-  // three head-to-head pages' breadcrumbs terminate on (seo.ts breadcrumbJsonLd
+  // two head-to-head pages' breadcrumbs terminate on (seo.ts breadcrumbJsonLd
   // emits { name: "Compare", path: "/compare" }) and the Compare menu points at.
   compareIndex: "/compare",
-  comparePodium: "/compare/podium",
   compareHeymarket: "/compare/heymarket",
   compareQuo: "/compare/quo",
 } as const;

@@ -257,11 +257,6 @@ export default function CompliancePage() {
             href: "/canada",
             hint: "Canadian crews text day one: the registration wait doesn't apply.",
           },
-          {
-            label: "Loonext vs Podium",
-            href: "/compare/podium",
-            hint: "Compliance handled without a sales call or an annual contract.",
-          },
         ]}
       />
 

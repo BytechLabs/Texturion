@@ -38,11 +38,11 @@ const PATH = LIVE_ROUTES.compareIndex;
 export const metadata: Metadata = buildMetadata({
   title: "Compare Loonext: the same crew, priced elsewhere",
   description:
-    "Loonext next to Heymarket, Quo, and Podium for a 3-person crew sending 500 texts a month: every competitor price dated July 2026 and sourced from their own pricing page, and every place they fit better named outright.",
+    "Loonext next to Heymarket and Quo for a 3-person crew sending 500 texts a month: every competitor price dated July 2026 and sourced from their own pricing page, and every place they fit better named outright.",
   path: PATH,
 });
 
-/** The three head-to-heads, each led by its page's own load-bearing fact. */
+/** The two head-to-heads, each led by its page's own load-bearing fact. */
 const CARDS = [
   {
     competitor: "Heymarket",
@@ -57,13 +57,6 @@ const CARDS = [
     fact: "$19/user/mo + 1¢/text",
     angle:
       "A full business phone system (formerly OpenPhone) with calling included, billed per user, texting metered by the segment.",
-  },
-  {
-    competitor: "Podium",
-    href: LIVE_ROUTES.comparePodium,
-    fact: "Monthly total: ask their sales team",
-    angle:
-      "An all-in-one platform with reviews, payments, and AI call answering, sold through a demo, with no prices published.",
   },
 ] as const;
 
@@ -80,16 +73,16 @@ export default function CompareIndexPage() {
       <CompareHero
         dateline="3 PEOPLE · 500 TEXTS · JULY 2026"
         title="The same crew, priced elsewhere."
-        lead="One 3-person crew sending 500 texts a month, priced at Loonext and at the three tools you're most likely weighing it against. Every competitor number is dated, comes from their own public pricing page, and is sourced cell by cell on the matching head-to-head page, where we also say when the other tool fits you better."
+        lead="One 3-person crew sending 500 texts a month, priced at Loonext and at the two tools you're most likely weighing it against. Every competitor number is dated, comes from their own public pricing page, and is sourced cell by cell on the matching head-to-head page, where we also say when the other tool fits you better."
       />
 
       <LedgerBand
-        heading="Four pricing pages, one table."
+        heading="Three pricing pages, one table."
         lead="This is the same table our pricing page shows, rendered from the same data, so the two can never quietly disagree."
         footnote={ELSEWHERE_FOOTNOTE}
       >
         <LedgerTable
-          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket, Quo, and Podium, at published prices as of July 2026."
+          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices as of July 2026."
           columns={ELSEWHERE_COLUMNS}
           rows={ELSEWHERE_ROWS}
         />
@@ -105,7 +98,7 @@ export default function CompareIndexPage() {
             Each page carries the full sourced ledger, the crew-size math, and
             a plain section on when that tool is the better buy.
           </p>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
             {CARDS.map((card, i) => (
               <Reveal key={card.href} delay={Math.min(i, 3) * 60} className="h-full">
                 <FrCard className="h-full p-0">

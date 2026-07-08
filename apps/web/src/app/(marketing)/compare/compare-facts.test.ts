@@ -10,11 +10,6 @@ import {
   HEYMARKET_FOOTNOTE,
   HEYMARKET_ROWS,
 } from "./heymarket/page-data";
-import {
-  PODIUM_COLUMNS,
-  PODIUM_FOOTNOTE,
-  PODIUM_ROWS,
-} from "./podium/page-data";
 import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./quo/page-data";
 
 interface PageData {
@@ -30,12 +25,6 @@ const PAGES: PageData[] = [
     columns: HEYMARKET_COLUMNS,
     rows: HEYMARKET_ROWS,
     footnote: HEYMARKET_FOOTNOTE,
-  },
-  {
-    name: "podium",
-    columns: PODIUM_COLUMNS,
-    rows: PODIUM_ROWS,
-    footnote: PODIUM_FOOTNOTE,
   },
   { name: "quo", columns: QUO_COLUMNS, rows: QUO_ROWS, footnote: QUO_FOOTNOTE },
 ];
@@ -102,33 +91,6 @@ describe("heymarket ledger facts (their published prices, July 2026)", () => {
 
   it("labels the single-segment assumption instead of hiding it", () => {
     expect(flat + HEYMARKET_FOOTNOTE).toContain("single-segment");
-  });
-});
-
-describe("podium ledger facts (the Not published column is the argument)", () => {
-  it("every Podium cell except the total reads exactly Not published", () => {
-    for (const row of PODIUM_ROWS) {
-      if (row.total) continue;
-      const cell = row.cells[1];
-      const value = typeof cell === "string" ? cell : cell.value;
-      if (row.label === "How you buy") {
-        expect(value).toBe("Watch a demo");
-      } else {
-        expect(value).toBe("Not published");
-      }
-    }
-    const total = PODIUM_ROWS.find((r) => r.total);
-    expect(JSON.stringify(total?.cells)).toContain("Ask their sales team");
-  });
-
-  it("prints no invented Podium dollar figure anywhere (Law 7)", () => {
-    for (const s of allStrings(PAGES[1]!)) {
-      // The only dollars on this page's data are Loonext's own $29/$79.
-      const dollars = s.match(/\$\d+(?:\.\d+)?/g) ?? [];
-      for (const d of dollars) {
-        expect(["$29", "$79"], `${d} in: ${s}`).toContain(d);
-      }
-    }
   });
 });
 

@@ -19,7 +19,7 @@ import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
  * Nav link inventory (COPY-DECK v2 §Global + V4 coverage map):
  * Product · Pricing · Who it's for · Compare · Log in · [Get your number].
  * The Product menu links the 4 feature pages; Who it's for links the 6
- * trades; Compare links the 3 rivals. Every item resolves to a real
+ * trades; Compare links the 2 rivals. Every item resolves to a real
  * standalone route (zero dead links). Rows are typographic (label + one
  * plain-English line): v4 tolerates zero decoration that is not information,
  * so the old icon chips and the promo cell are gone.
@@ -120,17 +120,11 @@ export const tradesMenu: NavMenu = {
   ],
 };
 
-/** Compare ▾ — the three rivals (coverage map). */
+/** Compare ▾ — the two rivals (coverage map). */
 export const compareMenu: NavMenu = {
   label: "Compare",
   columns: 1,
   items: [
-    {
-      label: "Loonext vs Podium",
-      href: LIVE_ROUTES.comparePodium,
-      description: "A price you can read, next to one you have to ask for.",
-      icon: Scale,
-    },
     {
       label: "Loonext vs Heymarket",
       href: LIVE_ROUTES.compareHeymarket,

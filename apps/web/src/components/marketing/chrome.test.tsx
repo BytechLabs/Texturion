@@ -45,10 +45,9 @@ describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compar
     );
   });
 
-  it("Compare menu links exactly the 3 rivals", () => {
+  it("Compare menu links exactly the 2 rivals", () => {
     expect(new Set(compareMenu.items.map((i) => i.href))).toEqual(
       new Set([
-        LIVE_ROUTES.comparePodium,
         LIVE_ROUTES.compareHeymarket,
         LIVE_ROUTES.compareQuo,
       ]),
@@ -88,7 +87,7 @@ describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compar
 describe("footer (deck §F: the Dispatch Ink band)", () => {
   const html = renderToStaticMarkup(<Footer />);
 
-  it("covers every coverage-map route: Product 7 · Who it's for 6 · Compare 3 · Company and legal 9", () => {
+  it("covers every coverage-map route: Product 7 · Who it's for 6 · Compare 2 · Company and legal 9", () => {
     const required = [
       // Product (7)
       LIVE_ROUTES.featuresSharedInbox,
@@ -105,8 +104,7 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
       LIVE_ROUTES.forHvac,
       LIVE_ROUTES.forSalons,
       LIVE_ROUTES.forContractors,
-      // Compare (3)
-      LIVE_ROUTES.comparePodium,
+      // Compare (2)
       LIVE_ROUTES.compareHeymarket,
       LIVE_ROUTES.compareQuo,
       // Company and legal (9)

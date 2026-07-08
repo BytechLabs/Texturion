@@ -141,7 +141,6 @@ export const ELSEWHERE_COLUMNS: LedgerColumn[] = [
   { label: "Loonext Starter", highlight: true },
   { label: "Heymarket Standard", sub: "as of July 2026" },
   { label: "Quo", sub: "as of July 2026" },
-  { label: "Podium", sub: "as of July 2026" },
 ];
 
 export const ELSEWHERE_ROWS: LedgerTableRow[] = [
@@ -151,7 +150,6 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = [
       `${usd(S.monthlyDollars)} flat`,
       "$49/user/mo × 3 = $147",
       "$19/user/mo × 3 = $57 (monthly billing)",
-      "Not published",
     ],
   },
   {
@@ -160,12 +158,11 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = [
       "Included",
       "~$15 (3¢/segment × 500)",
       "Not included, metered at 1¢/segment (~$5)",
-      "Not published",
     ],
   },
   {
     label: "Monthly carrier line item",
-    cells: ["$0", "$10/mo", "$1.50 to $3/mo", "Not published"],
+    cells: ["$0", "$10/mo", "$1.50 to $3/mo"],
   },
   {
     label: "Monthly total",
@@ -174,7 +171,6 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = [
       usd(S.monthlyDollars),
       "~$172",
       "~$64 + extra numbers at $5 ea.",
-      "Ask their sales team",
     ],
   },
 ];

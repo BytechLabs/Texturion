@@ -238,7 +238,7 @@ export default function PricingPage() {
 
           <Reveal className="mt-8">
             <LedgerTable
-              caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket, Quo, and Podium, at published prices as of July 2026."
+              caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices as of July 2026."
               columns={ELSEWHERE_COLUMNS}
               rows={ELSEWHERE_ROWS}
             />

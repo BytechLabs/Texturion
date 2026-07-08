@@ -141,10 +141,10 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     const total = ELSEWHERE_ROWS.find((r) => r.total);
     expect(total?.cells[0]).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
     expect(total?.cells[1]).toBe("~$172");
-    expect(total?.cells[3]).toBe("Ask their sales team");
+    expect(total?.cells[2]).toBe("~$64 + extra numbers at $5 ea.");
     expect(
       ELSEWHERE_COLUMNS.filter((c) => c.sub === "as of July 2026"),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     expect(ELSEWHERE_FOOTNOTE).toContain("July 2026");
     expect(ELSEWHERE_FOOTNOTE).toContain("$19.50");
     expect(ELSEWHERE_FOOTNOTE).toContain("tell us and we'll fix it");

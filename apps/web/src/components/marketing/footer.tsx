@@ -7,7 +7,7 @@ import { LIVE_ROUTES } from "@/lib/marketing/site";
  * FOOTER (COPY-DECK v2 §F, DESIGN-DIRECTION v4 §4): the Dispatch Ink band,
  * "night outside the window", one of the site's two sanctioned dark
  * surfaces. White-at-70% links in four columns covering every route in the
- * coverage map (Product 7 · Who it's for 6 · Compare 3 · Company and legal
+ * coverage map (Product 7 · Who it's for 6 · Compare 2 · Company and legal
  * 9), the brand line, the conditional identity line, and the sign-off.
  * Server component, zero JS, shared by every marketing page.
  *
@@ -43,7 +43,6 @@ const WHO_ITS_FOR: FooterLinkItem[] = [
 ];
 
 const COMPARE: FooterLinkItem[] = [
-  { label: "Loonext vs Podium", href: LIVE_ROUTES.comparePodium },
   { label: "Loonext vs Heymarket", href: LIVE_ROUTES.compareHeymarket },
   { label: "Loonext vs Quo", href: LIVE_ROUTES.compareQuo },
 ];
