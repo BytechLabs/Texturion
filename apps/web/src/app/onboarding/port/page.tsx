@@ -20,7 +20,7 @@ import { formatPhone } from "@/lib/format/phone";
 import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { areaCodeOf, apiFetchCheck, toE164 } from "./port-shared";
-import { usePortWizardGuard } from "./use-port-wizard";
+import { portStepProgress, usePortWizardGuard } from "./use-port-wizard";
 
 /**
  * Port sub-step 1 (PORTING.md §8.1 step 1): enter the number and confirm it can
@@ -58,11 +58,12 @@ export default function PortNumberPage() {
   if (onboarding.status === "error") {
     return <StepError onRetry={onboarding.retry} />;
   }
-  if (!ready) return <StepLoading />;
+  if (!ready || !onboarding.snapshot) return <StepLoading />;
 
   const country = draft.country ?? "US";
   const e164 = toE164(raw);
   const companyId = onboarding.companyId;
+  const progress = portStepProgress(onboarding.snapshot);
 
   async function checkAndContinue() {
     setError(null);
@@ -119,8 +120,8 @@ export default function PortNumberPage() {
   return (
     <StepShell
       backHref="/onboarding/number"
-      index={1}
-      total={5}
+      index={progress.index}
+      total={progress.total}
       title="Which number do you want to bring?"
       subtitle="Enter the number your customers already text. We'll check it can move to Loonext — no commitment yet."
     >

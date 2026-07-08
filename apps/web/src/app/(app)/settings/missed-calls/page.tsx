@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useModules } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
+import { useUsage } from "@/lib/api/usage";
 import { previewMissedCallText } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -178,9 +179,17 @@ function TextBackCard({
 function ForwardCard({
   company,
   canEdit,
+  includedMinutes,
 }: {
   company: CompanyView;
   canEdit: boolean;
+  /**
+   * The plan's monthly call-forwarding allowance (voice.included_minutes from
+   * GET /v1/usage, i.e. PLAN_VOICE_MINUTES). Forwarding is cap-and-drop, not
+   * uncapped: past this the voice webhook stops forwarding, so the copy must
+   * state the ceiling rather than promise unlimited "included" minutes.
+   */
+  includedMinutes: number;
 }) {
   const update = useUpdateCompany();
   const [cell, setCell] = useState(company.forward_to_cell ?? "");
@@ -243,8 +252,14 @@ function ForwardCard({
         <p className="text-xs text-muted-foreground">
           Leave blank to skip forwarding — a call no one picks up rings out and
           counts as missed. If your voicemail answers instead of you, the call
-          still counts as missed. Forwarded calls don&apos;t cost extra —
-          they&apos;re included in your plan.
+          still counts as missed. Forwarded calls are included in your plan up
+          to{" "}
+          <span className="tabular-nums">
+            {includedMinutes.toLocaleString()}
+          </span>{" "}
+          minutes a month. After that, new calls stop forwarding and the caller
+          gets your missed-call text instead — so your phone bill can&apos;t run
+          past your plan.
         </p>
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -259,6 +274,7 @@ function ForwardCard({
 export default function MissedCallsSettingsPage() {
   const company = useCompany();
   const modules = useModules();
+  const usage = useUsage();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   // Missed-call text-back and forward-to-cell are both call features, gated by
@@ -272,10 +288,15 @@ export default function MissedCallsSettingsPage() {
       title="Missed calls"
       description="Turn a missed call into a booked job with one automatic text."
     >
-      {company.isPending || modules.isPending ? (
+      {company.isPending || modules.isPending || usage.isPending ? (
         <MissedCallsSkeleton />
-      ) : company.isError ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : company.isError || usage.isError ? (
+        <LoadError
+          onRetry={() => {
+            void company.refetch();
+            void usage.refetch();
+          }}
+        />
       ) : !voiceEnabled ? (
         <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
           Ringing your cell and texting back missed calls need the{" "}
@@ -302,7 +323,11 @@ export default function MissedCallsSettingsPage() {
             </p>
           )}
           <TextBackCard company={company.data} canEdit={canEdit} />
-          <ForwardCard company={company.data} canEdit={canEdit} />
+          <ForwardCard
+            company={company.data}
+            canEdit={canEdit}
+            includedMinutes={usage.data.voice.included_minutes}
+          />
         </div>
       )}
     </SettingsPage>

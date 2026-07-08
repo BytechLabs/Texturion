@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
-import { usePortWizardGuard } from "../use-port-wizard";
+import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
 /**
  * Port sub-step 3 (PORTING.md §8.1 step 3): the SERVICE address on file with
@@ -42,11 +42,12 @@ export default function PortAddressPage() {
   if (onboarding.status === "error") {
     return <StepError onRetry={onboarding.retry} />;
   }
-  if (!ready) return <StepLoading />;
+  if (!ready || !onboarding.snapshot) return <StepLoading />;
 
   const country = onboarding.draft.country ?? "US";
   const regionLabel = country === "US" ? "State" : "Province";
   const postalLabel = country === "US" ? "ZIP code" : "Postal code";
+  const progress = portStepProgress(onboarding.snapshot);
 
   function onContinue() {
     setError(null);
@@ -72,8 +73,8 @@ export default function PortAddressPage() {
   return (
     <StepShell
       backHref="/onboarding/port/carrier"
-      index={3}
-      total={5}
+      index={progress.index}
+      total={progress.total}
       title="Service address on file"
       subtitle="The address your current carrier has for this number. A mismatch here is the most common reason a transfer gets held up — copy it from your latest bill."
     >

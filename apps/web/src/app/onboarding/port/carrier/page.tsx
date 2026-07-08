@@ -16,7 +16,7 @@ import { formatPhone } from "@/lib/format/phone";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
-import { usePortWizardGuard } from "../use-port-wizard";
+import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
 /**
  * Port sub-step 2 (PORTING.md §8.1 step 2): the losing-carrier account details
@@ -51,11 +51,12 @@ export default function PortCarrierPage() {
   if (onboarding.status === "error") {
     return <StepError onRetry={onboarding.retry} />;
   }
-  if (!ready) return <StepLoading />;
+  if (!ready || !onboarding.snapshot) return <StepLoading />;
 
   const country = onboarding.draft.country ?? "US";
   const isWireless = port.isWireless === true;
   const ssnSinLabel = country === "US" ? "SSN" : "SIN";
+  const progress = portStepProgress(onboarding.snapshot);
 
   function onContinue() {
     setError(null);
@@ -85,8 +86,8 @@ export default function PortCarrierPage() {
   return (
     <StepShell
       backHref="/onboarding/port"
-      index={2}
-      total={5}
+      index={progress.index}
+      total={progress.total}
       title="Your current carrier account"
       subtitle="These come from your current provider — matching them to your latest bill is the surest way to a smooth transfer."
     >

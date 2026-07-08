@@ -76,31 +76,23 @@ function openConversationId(pathname: string): string | null {
   return id === "new" ? null : id;
 }
 
-/** A tiny inline accelerator key printed in a palette row (§1.2). */
-function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="ml-auto rounded-[5px] border border-app-line bg-app-line-soft px-1.5 py-0.5 text-[10px] font-semibold text-app-muted">
-      {children}
-    </kbd>
-  );
-}
-
 /**
  * The "Actions on this conversation" group (PORTAL-UX §1.2), rendered only when
- * a conversation is open. A context chip names the target; the rows run the same
- * mutations the thread header uses (assign / status / done) plus deep-links for
- * make-a-task / template. Accelerator letters are printed inline so the
- * keyboard model teaches itself. Kept in its own component so the
- * useUpdateConversation/useConversation hooks mount only with an id.
+ * a conversation is open. A context chip names the target; every row runs a
+ * real mutation the thread header also exposes (done / assign / unassign /
+ * status), so nothing here promises an action the palette can't perform. No row
+ * prints an accelerator key: the app binds no single-letter hotkeys (the only
+ * document keydown handler is the palette's own ⌘K toggle), so a printed letter
+ * would advertise a shortcut that never fires. Kept in its own component so the
+ * useUpdateConversation/useConversation hooks mount only with an id. Exported
+ * for the palette's unit test.
  */
-function ConversationActions({
+export function ConversationActions({
   conversationId,
   onDone,
-  onNavigate,
 }: {
   conversationId: string;
   onDone: () => void;
-  onNavigate: (href: string) => void;
 }) {
   const detail = useConversation(conversationId);
   const update = useUpdateConversation(conversationId);
@@ -134,24 +126,17 @@ function ConversationActions({
         >
           <ListChecks className="size-4" strokeWidth={1.75} />
           Mark done
-          <Key>E</Key>
         </CommandItem>
-        <CommandItem
-          value="make a task"
-          onSelect={() => onNavigate(`/inbox/${conversationId}`)}
-        >
-          <ListChecks className="size-4" strokeWidth={1.75} />
-          Make a task
-          <Key>T</Key>
-        </CommandItem>
-        <CommandItem
-          value="send template"
-          onSelect={() => onNavigate(`/inbox/${conversationId}`)}
-        >
-          <MessageSquareText className="size-4" strokeWidth={1.75} />
-          Send template
-          <Key>R</Key>
-        </CommandItem>
+        {/* "Make a task" (T) and "Send template" (R) used to live here, but the
+            palette can't perform either from outside the thread: make-a-task is
+            a per-message popover (thread/message-actions) and the template
+            picker lives in the composer, and neither exposes a trigger the
+            palette can fire. Their old handlers only router.push'd to the very
+            conversation this group already renders over (§1.2: shown solely when
+            /inbox/:id is on the stage), so the accelerator keys promised an
+            action that never ran. Removed rather than ship a control that lies;
+            they return once the thread grows a compose trigger the palette can
+            invoke. */}
         <CommandItem
           value="unassign conversation"
           onSelect={() => patch({ assigned_user_id: null }, "Unassigned")}
@@ -306,11 +291,7 @@ export function CommandPalette() {
 
         {/* Context actions on the open conversation lead the palette (§1.2). */}
         {conversationId && !searching && (
-          <ConversationActions
-            conversationId={conversationId}
-            onDone={close}
-            onNavigate={go}
-          />
+          <ConversationActions conversationId={conversationId} onDone={close} />
         )}
 
         {searching && search.data && search.data.conversations.length > 0 && (

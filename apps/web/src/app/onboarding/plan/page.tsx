@@ -27,6 +27,7 @@ import { useOnboardingCheckout } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
 import {
   PLAN_MODULE_CARDS,
+  US_REGISTRATION_FEE_DOLLARS,
   type PlanId,
   type PlanModule,
 } from "@/lib/api/types";
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { owesUsRegistration, previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
+import { PLANS } from "./plans";
 
 /**
  * G7 step 4 — plan cards (SPEC §2 pricing) with the honest-timeline card
@@ -43,41 +45,6 @@ import { useWizardStepGuard } from "../use-onboarding-state";
  * fee line. Checkout is hosted Stripe; returning without paying lands back
  * here via /dashboard?checkout=canceled with a calm note.
  */
-
-interface PlanCard {
-  id: PlanId;
-  name: string;
-  price: string;
-  lines: string[];
-}
-
-// SPEC §2 plan table, in human terms (G7: feature deltas in 5 lines max).
-const PLANS: PlanCard[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "$29",
-    lines: [
-      "500 outgoing texts included each month",
-      "Your whole crew — 3 teammates",
-      "1 business number",
-      "Incoming texts & photos free, always",
-      "3¢ per extra outgoing text",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$79",
-    lines: [
-      "2,500 outgoing texts included each month",
-      "10 teammates",
-      "2 business numbers",
-      "Incoming texts & photos free, always",
-      "2.5¢ per extra outgoing text",
-    ],
-  },
-];
 
 function PlanStep() {
   const { state, ready } = useWizardStepGuard("plan");
@@ -305,7 +272,8 @@ function PlanStep() {
 
         {owesFee ? (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            + $29 one-time carrier registration (US texting)
+            + ${US_REGISTRATION_FEE_DOLLARS} one-time carrier registration (US
+            texting)
             <Tooltip>
               <TooltipTrigger
                 aria-label="Why the registration fee?"

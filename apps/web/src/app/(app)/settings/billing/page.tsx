@@ -19,28 +19,7 @@ import { ApiError } from "@/lib/api/error";
 import type { CompanyView, PlanId } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
-/** SPEC §2 plan facts, shown on the plan card. */
-const PLAN_FACTS: Record<
-  PlanId,
-  { name: string; price: string; included: string; seats: string; numbers: string; overage: string }
-> = {
-  starter: {
-    name: "Starter",
-    price: "$29/mo",
-    included: "500 outgoing texts included each month",
-    seats: "3 team members",
-    numbers: "1 phone number",
-    overage: "3¢ per extra text after that",
-  },
-  pro: {
-    name: "Pro",
-    price: "$79/mo",
-    included: "2,500 outgoing texts included each month",
-    seats: "10 team members",
-    numbers: "2 phone numbers",
-    overage: "2.5¢ per extra text after that",
-  },
-};
+import { PLAN_FACTS } from "./plan-facts";
 
 function fullDate(iso: string | null): string | null {
   if (!iso) return null;

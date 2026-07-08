@@ -21,7 +21,7 @@ import { formatPhone } from "@/lib/format/phone";
 
 import { clearOnboardingDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
-import { usePortWizardGuard } from "../use-port-wizard";
+import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
 /**
  * Port sub-step 4 (PORTING.md §8.1 steps 5–6): an optional requested switch-over
@@ -59,9 +59,10 @@ export default function PortTimingPage() {
   if (onboarding.status === "error") {
     return <StepError onRetry={onboarding.retry} />;
   }
-  if (!ready) return <StepLoading />;
+  if (!ready || !onboarding.snapshot) return <StepLoading />;
 
   const companyId = onboarding.companyId;
+  const progress = portStepProgress(onboarding.snapshot);
 
   async function onSubmit() {
     setError(null);
@@ -132,8 +133,8 @@ export default function PortTimingPage() {
   return (
     <StepShell
       backHref="/onboarding/port/address"
-      index={4}
-      total={5}
+      index={progress.index}
+      total={progress.total}
       title="When should the switch happen?"
       subtitle="Pick a target date if you have one, or leave it to us to move it as soon as your carrier confirms."
     >

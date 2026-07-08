@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import type { PortDraft } from "../steps";
+import { stepProgress, type OnboardingSnapshot, type PortDraft } from "../steps";
 import { useOnboardingState, type OnboardingState } from "../use-onboarding-state";
 
 /**
@@ -32,6 +32,23 @@ export const PORT_SUB_STEPS: PortSubStep[] = [
   "address",
   "timing",
 ];
+
+/**
+ * Progress dots for a port sub-step. The whole port detour IS the top-level
+ * "number" step of the onboarding wizard, so its dots must mirror the wizard's
+ * applicable step set rather than a fixed count: a US (or CA-with-US-texting)
+ * signup walks 5 steps, a CA-only signup that skips US registration walks 3.
+ * Deriving from stepProgress("number", …) — the same source every other step
+ * reads — keeps the port screens' "Step 2 of N" honest for the signup's
+ * country / US-texting choice (before the company exists the draft decides;
+ * after creation the company view does, both handled by applicableSteps).
+ */
+export function portStepProgress(snapshot: OnboardingSnapshot): {
+  index: number;
+  total: number;
+} {
+  return stepProgress("number", snapshot);
+}
 
 export interface PortWizardState {
   onboarding: OnboardingState;

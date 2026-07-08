@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useMarkAllNotificationsRead,
+  useMarkNotificationRead,
   useNotificationsFeed,
   useNotificationsUnreadCount,
 } from "@/lib/api/notifications";
@@ -67,10 +68,10 @@ function deepLink(item: NotificationItem): string | null {
 
 function NotificationRow({
   item,
-  onNavigate,
+  onSelect,
 }: {
   item: NotificationItem;
-  onNavigate: (href: string) => void;
+  onSelect: (item: NotificationItem) => void;
 }) {
   const Icon = TYPE_ICON[item.type] ?? Bell;
   const name = contactDisplayName(item.contact);
@@ -80,7 +81,7 @@ function NotificationRow({
     <button
       type="button"
       disabled={!href}
-      onClick={() => href && onNavigate(href)}
+      onClick={() => onSelect(item)}
       className={cn(
         "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out",
         href ? "hover:bg-secondary/60" : "cursor-default",
@@ -122,9 +123,10 @@ function NotificationRow({
  * unread dot/count from GET /v1/notifications/unread-count; the popover lists
  * the derived feed (GET /v1/notifications) newest-first with a per-item
  * read/unread dot, relative time, an icon per type, a deep-link, and one
- * "Mark all read" (the watermark model has no per-row read — see the read
- * model). Opening the popover marks everything read (the natural "I've seen my
- * notifications" gesture), matching the derived last-seen semantics.
+ * "Mark all read". Opening a single notification marks just it (and everything
+ * older) read via POST /v1/notifications/mark-read — a watermark advance to that
+ * item's timestamp, so newer notifications stay unread. Dismissing the popover
+ * (ESC / click-away) is the "I've seen everything" gesture and marks all read.
  */
 export function NotificationBell({
   appVariant = false,
@@ -145,26 +147,35 @@ export function NotificationBell({
   const unread = useNotificationsUnreadCount();
   const feed = useNotificationsFeed(open);
   const markAllRead = useMarkAllNotificationsRead();
+  const markRead = useMarkNotificationRead();
 
   const count = unread.data?.count ?? 0;
   const items = useMemo(() => flattenPages(feed.data), [feed.data]);
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
-    // Mark read on CLOSE, not open: the unread dots stay visible while the user
-    // reads the list (so they can see what's new), then the watermark advances
-    // — "I've seen my notifications" — as they dismiss it. Guarded so a close
-    // with nothing unread never fires a needless write.
+    // Mark ALL read on DISMISS (ESC / click-away), not open: the unread dots
+    // stay visible while the user reads the list (so they can see what's new),
+    // then the watermark advances — "I've seen everything" — as they dismiss
+    // it. Guarded so a close with nothing unread never fires a needless write.
     if (!next && count > 0 && !markAllRead.isPending) {
       markAllRead.mutate();
     }
   };
 
-  const onNavigate = (href: string) => {
-    // Closing via the shared path so opening the notification also marks the
-    // feed seen (the watermark advance), then deep-link to the thread.
-    onOpenChange(false);
-    router.push(href);
+  const onSelect = (item: NotificationItem) => {
+    // Opening ONE notification marks just it (and everything older) read via the
+    // per-item endpoint — newer notifications stay unread. Fires only when there
+    // is something to clear. Close directly (not through onOpenChange) so this
+    // does NOT also trip mark-all-read, then deep-link to the thread.
+    if (item.unread) {
+      markRead.mutate(item.created_at);
+    }
+    setOpen(false);
+    const href = deepLink(item);
+    if (href) {
+      router.push(href);
+    }
   };
 
   return (
@@ -251,7 +262,7 @@ export function NotificationBell({
             <ul className="divide-y divide-border-subtle">
               {items.map((item) => (
                 <li key={item.id}>
-                  <NotificationRow item={item} onNavigate={onNavigate} />
+                  <NotificationRow item={item} onSelect={onSelect} />
                 </li>
               ))}
             </ul>

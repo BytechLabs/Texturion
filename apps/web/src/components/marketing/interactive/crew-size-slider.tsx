@@ -22,14 +22,24 @@
 import { useId, useState } from "react";
 
 import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { PLAN_PRICING } from "@/lib/api/types";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 const PER_USER_MONTHLY = 19;
 
-function loonextPrice(seats: number): { plan: "Starter" | "Pro"; price: number } {
-  return seats <= 3
-    ? { plan: "Starter", price: 29 }
-    : { plan: "Pro", price: 79 };
+/** Largest crew the slider offers — Pro's included-seat ceiling (SPEC §2). */
+export const MAX_CREW = PLAN_PRICING.pro.seats;
+
+/**
+ * Loonext's flat plan for a crew of `seats`, sourced from PLAN_PRICING (never
+ * retyped): up to Starter's seat count = Starter, above it = Pro. Both flat.
+ */
+export function loonextPrice(
+  seats: number,
+): { plan: "Starter" | "Pro"; price: number } {
+  return seats <= PLAN_PRICING.starter.seats
+    ? { plan: "Starter", price: PLAN_PRICING.starter.monthlyDollars }
+    : { plan: "Pro", price: PLAN_PRICING.pro.monthlyDollars };
 }
 
 function usd(n: number): string {
@@ -44,8 +54,8 @@ export function CrewSizeSlider() {
   const perUser = seats * PER_USER_MONTHLY;
   const savings = perUser - loonext.price;
 
-  // Bar widths are relative to the max the per-user line reaches at 10 seats.
-  const maxPerUser = 10 * PER_USER_MONTHLY; // $190
+  // Bar widths are relative to the max the per-user line reaches at full crew.
+  const maxPerUser = MAX_CREW * PER_USER_MONTHLY; // $190 at 10 seats
   const loonextWidth = Math.max(6, (loonext.price / maxPerUser) * 100);
   const perUserWidth = Math.max(6, (perUser / maxPerUser) * 100);
 
@@ -64,7 +74,7 @@ export function CrewSizeSlider() {
         id={sliderId}
         type="range"
         min={1}
-        max={10}
+        max={MAX_CREW}
         step={1}
         value={seats}
         onChange={(e) => setSeats(Number(e.target.value))}
@@ -73,7 +83,7 @@ export function CrewSizeSlider() {
       />
       <div className="fr-mono-data mt-1 flex justify-between text-[0.6875rem] text-[color:var(--fr-ink-55)]">
         <span>1</span>
-        <span>10</span>
+        <span>{MAX_CREW}</span>
       </div>
 
       <div className="mt-6 space-y-4" aria-live="polite">

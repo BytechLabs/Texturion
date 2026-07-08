@@ -110,19 +110,21 @@ function PeriodMeter({ usage }: { usage: Usage }) {
             No overage this period — {dollars(0)} extra so far.
           </p>
         )}
-        {usage.cap_segments !== null ? (
-          <p className="text-muted-foreground">
-            Sending pauses at{" "}
-            <span className="tabular-nums">
-              {usage.cap_segments.toLocaleString()}
-            </span>{" "}
-            messages.
-          </p>
-        ) : (
-          <p className="text-muted-foreground">
-            No cap — sending never pauses, overage is billed as you go.
-          </p>
-        )}
+        {/* #42: there is no uncapped state any more — the API clamps a null
+            multiplier to the 10× hard ceiling. A null cap_segments can only be
+            legacy/edge data, so we still state a real pause point (the maximum,
+            10× included) rather than the abolished "sending never pauses". */}
+        <p className="text-muted-foreground">
+          Sending pauses at{" "}
+          <span className="tabular-nums">
+            {(usage.cap_segments ?? capSegments(usage.included_segments, null))
+              .toLocaleString()}
+          </span>{" "}
+          messages
+          {usage.cap_segments === null
+            ? ", the maximum, which is 10 times your included messages."
+            : "."}
+        </p>
         {usage.inbound_segments > 0 && (
           <p className="text-muted-foreground">
             <span className="tabular-nums">

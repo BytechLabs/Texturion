@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
 
@@ -121,20 +122,61 @@ export function useNotificationsFeed(enabled: boolean) {
   });
 }
 
+/** The bell popover's infinite-feed cache entry shape. */
+type NotificationFeedData = InfiniteData<Page<NotificationItem>>;
+
+/**
+ * Watermark advance to `before`: return feed data with the `unread` dot cleared
+ * on every item AT OR OLDER than `before` (created_at <= before), leaving newer
+ * items untouched. Pure — the optimistic mirror of the mark-read RPC, which
+ * marks a notification and everything older read. Passing `null` clears every
+ * item (the mark-ALL-read case: no item is newer than "now").
+ */
+export function markFeedReadBefore(
+  data: NotificationFeedData | undefined,
+  before: string | null,
+): NotificationFeedData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      data: page.data.map((item) =>
+        item.unread && (before === null || item.created_at <= before)
+          ? { ...item, unread: false }
+          : item,
+      ),
+    })),
+  };
+}
+
+/**
+ * How many LOADED feed items `markFeedReadBefore(data, before)` would flip —
+ * the amount to drop the badge by optimistically. It can undercount when unread
+ * items older than `before` sit past the loaded pages; the onSettled re-read of
+ * the count reconciles those, so the badge only ever briefly reads high.
+ */
+export function feedUnreadAtOrBefore(
+  data: NotificationFeedData | undefined,
+  before: string | null,
+): number {
+  if (!data) return 0;
+  return data.pages.reduce(
+    (total, page) =>
+      total +
+      page.data.filter(
+        (item) =>
+          item.unread && (before === null || item.created_at <= before),
+      ).length,
+    0,
+  );
+}
+
 /** Flip every cached feed item's `unread` dot to false (watermark advanced). */
 function clearFeedUnread(companyId: string, queryClient: QueryClient) {
-  queryClient.setQueryData<{ pages: Page<NotificationItem>[]; pageParams: unknown[] }>(
+  queryClient.setQueryData<NotificationFeedData>(
     keys.notifications.feed(companyId),
-    (data) =>
-      data
-        ? {
-            ...data,
-            pages: data.pages.map((page) => ({
-              ...page,
-              data: page.data.map((item) => ({ ...item, unread: false })),
-            })),
-          }
-        : data,
+    (data) => markFeedReadBefore(data, null),
   );
 }
 
@@ -161,6 +203,62 @@ export function useMarkAllNotificationsRead() {
       return { previousCount };
     },
     onError: (_error, _vars, context) => {
+      if (context?.previousCount) {
+        queryClient.setQueryData(
+          keys.notifications.unreadCount(companyId),
+          context.previousCount,
+        );
+      }
+      // Re-read the feed so the dots we optimistically cleared come back right.
+      queryClient.invalidateQueries({
+        queryKey: keys.notifications.feed(companyId),
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: keys.notifications.unreadCount(companyId),
+      });
+    },
+  });
+}
+
+/**
+ * POST /v1/notifications/mark-read — advance the watermark to ONE notification's
+ * timestamp, marking it and everything older read (D24: the derived read-model
+ * has no per-row state, so "read this one" is a watermark advance to its
+ * created_at). Newer notifications stay unread. Optimistic: the clicked item's
+ * dot and every older loaded dot clear, and the badge drops by that many; the
+ * onSettled re-read of the count reconciles anything past the loaded feed. The
+ * argument is the notification's `created_at`.
+ */
+export function useMarkNotificationRead() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (before: string) =>
+      apiFetch<MarkReadResult>("/v1/notifications/mark-read", {
+        method: "POST",
+        companyId,
+        body: { before },
+      }),
+    onMutate: async (before) => {
+      const countKey = keys.notifications.unreadCount(companyId);
+      const feedKey = keys.notifications.feed(companyId);
+      await queryClient.cancelQueries({ queryKey: countKey });
+      const previousCount = queryClient.getQueryData<UnreadCount>(countKey);
+      const cleared = feedUnreadAtOrBefore(
+        queryClient.getQueryData<NotificationFeedData>(feedKey),
+        before,
+      );
+      queryClient.setQueryData<UnreadCount>(countKey, (current) =>
+        current ? { count: Math.max(0, current.count - cleared) } : current,
+      );
+      queryClient.setQueryData<NotificationFeedData>(feedKey, (data) =>
+        markFeedReadBefore(data, before),
+      );
+      return { previousCount };
+    },
+    onError: (_error, _before, context) => {
       if (context?.previousCount) {
         queryClient.setQueryData(
           keys.notifications.unreadCount(companyId),

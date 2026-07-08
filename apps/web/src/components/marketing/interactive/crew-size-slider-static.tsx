@@ -14,13 +14,15 @@
  */
 
 import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { PLAN_PRICING } from "@/lib/api/types";
 
 const PER_USER_MONTHLY = 19;
 const SEATS = 6;
-const LOONEXT_PRICE = 79; // 4 to 10 people is Pro
+// 4 to 10 people is Pro (SPEC §2) — sourced, never retyped.
+const LOONEXT_PRICE = PLAN_PRICING.pro.monthlyDollars; // $79
 const PER_USER = SEATS * PER_USER_MONTHLY; // $114
 const SAVINGS = PER_USER - LOONEXT_PRICE; // $35
-const MAX_PER_USER = 10 * PER_USER_MONTHLY; // $190
+const MAX_PER_USER = PLAN_PRICING.pro.seats * PER_USER_MONTHLY; // $190 at 10 seats
 
 function usd(n: number): string {
   return `$${n.toLocaleString("en-US")}`;
@@ -45,7 +47,7 @@ export function CrewSizeSliderStatic() {
       />
       <div className="fr-mono-data mt-1 flex justify-between text-[0.6875rem] text-[color:var(--fr-ink-55)]">
         <span>1</span>
-        <span>10</span>
+        <span>{PLAN_PRICING.pro.seats}</span>
       </div>
 
       <div className="mt-6 space-y-4">
