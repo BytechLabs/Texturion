@@ -25,6 +25,8 @@ apps/web/public/marketing-font-preloads.json
 !.dev.vars.example
 # Production secrets bundle — LIVE credentials, never commit
 prod-secrets.json
+# Filled production-config table (LIVE credentials) — never commit
+PRODUCTION.local.md
 
 # Supabase
 supabase/.temp/

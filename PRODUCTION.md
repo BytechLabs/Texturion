@@ -16,6 +16,10 @@ Legend: **Req** = required (Worker/build refuses to start without it). **Opt** =
 optional (unset = the documented no-op / fallback). **Script** = value is printed
 by `pnpm --filter @loonext/api stripe:setup` (see §3).
 
+> **Filled-in values** (live credentials) live in `PRODUCTION.local.md` — a
+> **gitignored** companion (same as `prod-secrets.json`), so secrets never enter
+> git history. This tracked file stays secret-free.
+
 ---
 
 ## 1. `loonext-api` Worker secrets
