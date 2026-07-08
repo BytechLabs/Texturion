@@ -19,10 +19,11 @@ Loonext is **two Cloudflare Workers + five SaaS vendors**, no other servers.
 | **Supabase** | **Pro**, US region ($25/mo) | Postgres 17, Auth (ES256), Storage | $25/mo |
 | **Telnyx** | Standard, Level-2 for 10DLC | SMS/MMS, numbers, voice (missed-call), 10DLC | usage + ~$1/number/mo |
 | **Stripe** | Standard + **Tax** enabled | Subscriptions, usage metering | % of revenue |
-| **Resend** | Any, with a **verified sending domain** | Transactional email + Supabase Auth SMTP | free tier fine |
+| **Resend** | Any, with a **verified sending domain** | Transactional email + Supabase Auth SMTP + reply-as SMTP for support | free tier fine |
+| **Inbound email** | Cloudflare Email Routing | Receive support@/privacy@/security@loonext.com in your own inbox — [docs/deploy/10-email-inbox.md](docs/deploy/10-email-inbox.md) | free |
 | **Sentry** | Any (Team+) | API error tracking (DSN only) | free tier fine |
 | **PostHog** | *Optional*, Cloud US | Product analytics (silent no-op if unset) | free tier fine |
-| **Domain registrar** | — | `loonext.app` (or yours), DNS delegated to Cloudflare | ~$12/yr |
+| **Domain registrar** | — | `loonext.com` (or yours), DNS delegated to Cloudflare | ~$12/yr |
 | **Status page** | Instatus / BetterStack free | Launch blocker (deliverability-gated SMS product) | free tier fine |
 
 **Fixed platform cost ≈ $30/mo** (Cloudflare $5 + Supabase $25); everything else scales with usage.
@@ -63,9 +64,9 @@ Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_
 
 - **Supabase → Auth → enable an ES256 (asymmetric) JWT signing key.** Without it every `/v1/*` request 401s — the API verifies tokens ES256-only against the project JWKS.
 - **Supabase → Auth → custom SMTP = Resend**, and (optional) **Attack Protection → CAPTCHA = Turnstile.** ⚠️ If you enable the captcha setting, the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` secret must be set and the web redeployed **first**, or all email/password auth breaks.
-- **Telnyx → create one Call-Control (voice) application**, webhook + failover both `https://api.loonext.app/webhooks/telnyx`; its id becomes `TELNYX_VOICE_CONNECTION_ID`.
-- **Stripe → webhook endpoint** `https://api.loonext.app/webhooks/stripe` (7 events); enable **Tax**; configure the **customer portal** and **dunning → cancel**.
-- **Cloudflare → attach three custom domains to `loonext-web`** (`loonext.app`, `www.loonext.app`, `app.loonext.app`) and `api.loonext.app` to `loonext-api`.
+- **Telnyx → create one Call-Control (voice) application**, webhook + failover both `https://api.loonext.com/webhooks/telnyx`; its id becomes `TELNYX_VOICE_CONNECTION_ID`.
+- **Stripe → webhook endpoint** `https://api.loonext.com/webhooks/stripe` (7 events); enable **Tax**; configure the **customer portal** and **dunning → cancel**.
+- **Cloudflare → attach three custom domains to `loonext-web`** (`loonext.com`, `www.loonext.com`, `app.loonext.com`) and `api.loonext.com` to `loonext-api`.
 
 ---
 
@@ -76,7 +77,7 @@ Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_
 3. `stripe:setup` (catalog) → 10 IDs (6 plan/meter + 4 module add-on prices); webhook; Tax; portal.
 4. Telnyx API key + Ed25519 public key + Call-Control voice app → 3 Telnyx values.
 5. Set all 25 API secrets + the GitHub Actions secrets; deploy both Workers; bind custom domains; register the live webhook URLs.
-6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET https://api.loonext.app/health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
+6. **Go-live checklist + smoke test** — [docs/deploy/07-go-live-checklist.md](docs/deploy/07-go-live-checklist.md). Confirm all **9 cron triggers** are visible, `GET https://api.loonext.com/health` → `{"ok":true}`, and run the test-mode end-to-end (sign up → pay → number provisions → send/receive a real text → cancel→grace).
 
 ---
 
