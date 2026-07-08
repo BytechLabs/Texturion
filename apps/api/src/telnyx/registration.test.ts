@@ -207,8 +207,8 @@ describe("submitRegistration — R1 (§4.4)", () => {
       phone: "+12125550100",
       website: "https://acme.example",
       vertical: "PROFESSIONAL",
-      webhookURL: "https://api.loonext.app/webhooks/telnyx",
-      webhookFailoverURL: "https://api.loonext.app/webhooks/telnyx",
+      webhookURL: "https://api.loonext.com/webhooks/telnyx",
+      webhookFailoverURL: "https://api.loonext.com/webhooks/telnyx",
     });
 
     const brand = brandRowOf(rest);

@@ -45,7 +45,7 @@ function webhookRequest(
   body: string,
   headers: Record<string, string>,
 ): Request {
-  return new Request("https://api.loonext.app/webhooks/telnyx", {
+  return new Request("https://api.loonext.com/webhooks/telnyx", {
     method: "POST",
     headers,
     body,

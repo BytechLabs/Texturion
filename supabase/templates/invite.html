@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<title>You're invited to Loonext</title>
+</head>
+<body style="margin:0;padding:0;background-color:#ffffff;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Accept your invite to join your team's shared texting inbox on Loonext.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;">
+        <tr>
+          <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;color:#10173B;">Loonext</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 12px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;color:#10173B;">Join your team on Loonext</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#10173B;">{{ if .Data.company_name }}{{ if .Data.invited_by_name }}{{ .Data.invited_by_name }} invited you to join {{ .Data.company_name }} on Loonext.{{ else }}You have been invited to join {{ .Data.company_name }} on Loonext.{{ end }}{{ else }}You have been invited to join a team on Loonext.{{ end }} Loonext gives your team one shared inbox for business text messages. Accept the invite below to create your account.</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 28px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="#2740DE" style="border-radius:6px;">
+                  <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">Accept invite</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5A6472;">
+            If the button does not work, copy and paste this link into your browser:<br>
+            <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#2740DE;word-break:break-all;">{{ .ConfirmationURL }}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="border-top:1px solid #E6E8F0;padding:16px 0 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#5A6472;">
+            This invite was sent to {{ .Email }}. If you were not expecting it, you can ignore this email.<br>
+            Loonext, <a href="https://loonext.com" target="_blank" style="color:#5A6472;">loonext.com</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

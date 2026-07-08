@@ -114,8 +114,8 @@ describe("provisionCompanyNumber — §4.3 saga happy path", () => {
     const profile = telnyx.callsTo("POST", /messaging_profiles/)[0];
     expect(profile.body).toEqual({
       name: COMPANY_ID,
-      webhook_url: "https://api.loonext.app/webhooks/telnyx",
-      webhook_failover_url: "https://api.loonext.app/webhooks/telnyx",
+      webhook_url: "https://api.loonext.com/webhooks/telnyx",
+      webhook_failover_url: "https://api.loonext.com/webhooks/telnyx",
       whitelisted_destinations: ["US", "CA"],
     });
     expect(

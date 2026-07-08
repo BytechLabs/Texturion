@@ -158,6 +158,23 @@ describe("notifyInboundMessage (§8)", () => {
     );
   });
 
+  it("carries the opt-out footer and List-Unsubscribe header (recurring alert)", async () => {
+    const world = buildWorld({});
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    const email = world.resend.calls[0] as {
+      text: string;
+      html: string;
+      headers?: Record<string, string>;
+    };
+    const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
+    expect(email.text).toContain(`Turn these alerts off: ${settingsUrl}`);
+    expect(email.html).toContain(`<a href="${settingsUrl}">Turn these alerts off</a>`);
+    expect(email.headers).toEqual({ "List-Unsubscribe": `<${settingsUrl}>` });
+  });
+
   it("assigned: only the assignee is notified", async () => {
     const world = buildWorld({ assignedUserId: MEMBER });
     stubFetch(...world.routes);

@@ -21,6 +21,7 @@ import {
   type PlanId,
 } from "./plans";
 import { getDb } from "../db";
+import { toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
@@ -256,14 +257,6 @@ function egressAlertCopy(
       `normal use, just reply to this email.\n\n` +
       `See usage: ${usageUrl}\n\n— Loonext`,
   };
-}
-
-function toHtml(text: string): string {
-  const escaped = text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`;
 }
 
 /**

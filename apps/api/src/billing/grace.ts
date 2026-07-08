@@ -1,5 +1,6 @@
 import { billingRecipients } from "./recipients";
 import { getDb } from "../db";
+import { toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { deactivateCampaign } from "../telnyx/registration";
@@ -69,14 +70,6 @@ function releasedCopy(company: CanceledCompany): {
       `If you resubscribe, we'll set you up with a new number and re-run US carrier ` +
       `registration where required.\n\n— Loonext`,
   };
-}
-
-function toHtml(text: string): string {
-  const escaped = text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`;
 }
 
 /**

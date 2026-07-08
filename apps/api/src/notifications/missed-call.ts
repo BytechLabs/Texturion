@@ -18,8 +18,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import type { Env } from "../env";
+import { escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import type { Env } from "../env";
 import { sendWebPush } from "./webpush";
 
 export interface MissedCallNotificationInput {
@@ -142,10 +143,14 @@ export async function notifyMissedCall(
         if (data.user?.email) to.push(data.user.email);
       }
       if (to.length > 0) {
+        // Recurring notification email: opt-out path (settings footer +
+        // List-Unsubscribe header), mirroring the §8 inbound-message email.
+        const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
         const text =
           `${contactName} called and no one picked up.\n\n` +
           `${sentLine}\n\n` +
-          `Open the conversation: ${link}\n`;
+          `Open the conversation: ${link}\n\n` +
+          `Turn these alerts off: ${settingsUrl}\n`;
         await sendEmail(env, {
           to,
           subject: `Missed call from ${contactName}`,
@@ -153,7 +158,9 @@ export async function notifyMissedCall(
           html:
             `<p><strong>${escapeHtml(contactName)}</strong> called and no one picked up.</p>` +
             `<p>${escapeHtml(sentLine)}</p>` +
-            `<p><a href="${link}">Open the conversation</a></p>`,
+            `<p><a href="${link}">Open the conversation</a></p>` +
+            `<p><a href="${settingsUrl}">Turn these alerts off</a></p>`,
+          headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
       }
     } catch (cause) {
@@ -208,10 +215,3 @@ export async function notifyMissedCall(
   }
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

@@ -84,4 +84,86 @@ describe("sendEmail", () => {
       sendEmail(env, { to: "x@example.com", subject: "s", html: "h", text: "t" }),
     ).rejects.toThrow(/no email id/);
   });
+
+  it("sends no reply_to and no headers when neither env nor input set them", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+    await sendEmail(env, { to: "x@example.com", subject: "s", html: "h", text: "t" });
+    const body = harness.callsTo("POST", /emails/)[0].json() as Record<
+      string,
+      unknown
+    >;
+    expect(body).not.toHaveProperty("reply_to");
+    expect(body).not.toHaveProperty("headers");
+  });
+
+  it("stamps env.RESEND_REPLY_TO as reply_to on every send (P0: replies must land somewhere)", async () => {
+    const replyEnv = {
+      ...completeEnv(),
+      RESEND_REPLY_TO: "Loonext Support <support@loonext.com>",
+    };
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+    await sendEmail(replyEnv, {
+      to: "x@example.com",
+      subject: "s",
+      html: "h",
+      text: "t",
+    });
+    expect(
+      (harness.callsTo("POST", /emails/)[0].json() as { reply_to: string })
+        .reply_to,
+    ).toBe("Loonext Support <support@loonext.com>");
+  });
+
+  it("a per-send replyTo overrides the env default (contact form → submitter)", async () => {
+    const replyEnv = {
+      ...completeEnv(),
+      RESEND_REPLY_TO: "support@loonext.com",
+    };
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+    await sendEmail(replyEnv, {
+      to: "support@loonext.com",
+      subject: "s",
+      html: "h",
+      text: "t",
+      replyTo: "customer@example.com",
+    });
+    expect(
+      (harness.callsTo("POST", /emails/)[0].json() as { reply_to: string })
+        .reply_to,
+    ).toBe("customer@example.com");
+  });
+
+  it("passes custom headers through (List-Unsubscribe on recurring alerts)", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+    await sendEmail(env, {
+      to: "x@example.com",
+      subject: "s",
+      html: "h",
+      text: "t",
+      headers: {
+        "List-Unsubscribe": "<https://app.loonext.com/settings/notifications>",
+      },
+    });
+    expect(
+      (
+        harness.callsTo("POST", /emails/)[0].json() as {
+          headers: Record<string, string>;
+        }
+      ).headers,
+    ).toEqual({
+      "List-Unsubscribe": "<https://app.loonext.com/settings/notifications>",
+    });
+  });
 });

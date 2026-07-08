@@ -19,6 +19,7 @@ import { effectiveStorageBudgets } from "../billing/company-modules";
 import type { PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
+import { toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
@@ -179,15 +180,6 @@ export async function handleInboundMessage(
   }
 }
 
-/** Minimal paragraph HTML for the plain-text alert copy (usage-alerts style). */
-function alertHtml(text: string): string {
-  const escaped = text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`;
-}
-
 /**
  * #39 owner alert for the daily inbound-notification budget: warn at 80%,
  * state the drop plainly at 100%. Operational email to the owner + active
@@ -243,7 +235,7 @@ async function sendNotificationBudgetAlert(
     to,
     subject: copy.subject,
     text: copy.text,
-    html: alertHtml(copy.text),
+    html: toHtml(copy.text),
   });
 }
 

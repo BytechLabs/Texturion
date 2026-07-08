@@ -1,3 +1,4 @@
+import { toHtml } from "../email/html";
 import type { Env } from "../env";
 
 /**
@@ -11,14 +12,6 @@ export interface EmailCopy {
   subject: string;
   text: string;
   html: string;
-}
-
-function toHtml(text: string): string {
-  const escaped = text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<p>${escaped.replaceAll("\n\n", "</p><p>").replaceAll("\n", "<br>")}</p>`;
 }
 
 function copy(subject: string, text: string): EmailCopy {

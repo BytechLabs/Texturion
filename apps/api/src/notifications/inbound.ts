@@ -25,8 +25,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import type { Env } from "../env";
+import { escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import type { Env } from "../env";
 import { sendWebPush } from "./webpush";
 
 const SNIPPET_LENGTH = 80;
@@ -164,10 +165,16 @@ export async function notifyInboundMessage(
         if (data.user?.email) to.push(data.user.email);
       }
       if (to.length > 0) {
+        // Recurring notification email: carry an opt-out path (settings
+        // footer + List-Unsubscribe header) so recipients can stop the
+        // stream without marking it spam. Billing/operational alerts do NOT
+        // get this — they are not optional.
+        const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
         const text =
           `${contactName} sent a new text:\n\n` +
           `"${snippet}"\n\n` +
-          `Reply in Loonext: ${link}\n`;
+          `Reply in Loonext: ${link}\n\n` +
+          `Turn these alerts off: ${settingsUrl}\n`;
         await sendEmail(env, {
           to,
           subject: `New text from ${contactName}`,
@@ -175,7 +182,9 @@ export async function notifyInboundMessage(
           html:
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
             `<blockquote>${escapeHtml(snippet)}</blockquote>` +
-            `<p><a href="${link}">Reply in Loonext</a></p>`,
+            `<p><a href="${link}">Reply in Loonext</a></p>` +
+            `<p><a href="${settingsUrl}">Turn these alerts off</a></p>`,
+          headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
       }
     } catch (cause) {
@@ -236,10 +245,3 @@ export async function notifyInboundMessage(
   }
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

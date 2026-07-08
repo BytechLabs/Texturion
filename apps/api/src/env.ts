@@ -42,6 +42,23 @@ const envSchema = z.object({
   /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
   /**
+   * Reply-To stamped on EVERY Resend send (email-hardening: alert copy says
+   * "just reply to this email", so replies must land in a monitored inbox
+   * rather than the unmonitored sender). Production sets it to
+   * `support@loonext.com` (docs/deploy/10-email-inbox.md routes that address).
+   * OPTIONAL: unset (local dev, tests) sends carry no Reply-To — exactly the
+   * pre-hardening behavior. Per-send `replyTo` (contact form → submitter)
+   * overrides it.
+   */
+  RESEND_REPLY_TO: z.string().min(1).optional(),
+  /**
+   * Cloudflare Turnstile SECRET key for server-side verification on the
+   * public POST /contact endpoint (the sibling of the web app's
+   * NEXT_PUBLIC_TURNSTILE_SITE_KEY). OPTIONAL: unset = the endpoint relies on
+   * its honeypot + rate limits + daily cap only and requires no token.
+   */
+  TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
+  /**
    * Web Push VAPID key pair as Worker secrets (SPEC §8). Standard encoding
    * (`npx web-push generate-vapid-keys`): base64url uncompressed P-256 point
    * (65 bytes) and base64url private scalar (32 bytes).

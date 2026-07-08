@@ -23,6 +23,7 @@ import { attachmentsRoutes } from "./routes/attachments";
 import { billingRoutes } from "./routes/billing";
 import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
+import { contactRoutes } from "./routes/contact";
 import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
 import { forYouRoutes } from "./routes/for-you";
@@ -126,6 +127,14 @@ app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model
  */
 app.route("/webhooks/telnyx", telnyxWebhookRoute);
 app.route("/webhooks/stripe", stripeWebhookRoute);
+
+/**
+ * PUBLIC POST /contact (marketing contact form): unversioned and outside the
+ * JWT/company chain — there is no user session on the marketing site. Its
+ * abuse posture (honeypot, per-IP rate limit, optional Turnstile, global
+ * daily cap) and its own APP_ORIGIN-exact CORS live in routes/contact.ts.
+ */
+app.route("/", contactRoutes);
 
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 

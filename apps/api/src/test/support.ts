@@ -22,9 +22,9 @@ export function completeEnv(): Env {
     STRIPE_WEBHOOK_SECRET: "whsec_0123456789abcdef",
     RESEND_API_KEY: "re_0123456789abcdef",
     SENTRY_DSN: "https://0123456789abcdef@o000001.ingest.sentry.io/0000001",
-    APP_ORIGIN: "https://app.loonext.app",
-    API_ORIGIN: "https://api.loonext.app",
-    RESEND_FROM: "Loonext <notifications@loonext.app>",
+    APP_ORIGIN: "https://app.loonext.com",
+    API_ORIGIN: "https://api.loonext.com",
+    RESEND_FROM: "Loonext <notifications@loonext.com>",
     // A REAL (test-only) P-256 pair in the standard VAPID encoding, so the
     // §8 Web Push crypto paths run for real in tests.
     VAPID_PUBLIC_KEY:

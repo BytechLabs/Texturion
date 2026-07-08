@@ -44,7 +44,7 @@ export async function signedTelnyxRequest(
     ),
   );
   if (options.tamper) signature[0] ^= 0xff;
-  return new Request("https://api.loonext.app/webhooks/telnyx", {
+  return new Request("https://api.loonext.com/webhooks/telnyx", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -238,6 +238,6 @@ export function messageReceivedEvent(overrides: {
         parts: 1,
       },
     },
-    meta: { attempt: 1, delivered_to: "https://api.loonext.app/webhooks/telnyx" },
+    meta: { attempt: 1, delivered_to: "https://api.loonext.com/webhooks/telnyx" },
   };
 }
