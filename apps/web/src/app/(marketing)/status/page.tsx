@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
@@ -103,14 +104,23 @@ export default function StatusPage() {
               Looks like an outage, usually isn&apos;t
             </h2>
             <div className="mt-4 space-y-3 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
-              <p>
-                US texting activates after carrier approval, typically{" "}
-                <span className="fr-mono-data text-[0.8125rem]">3 to 7</span>{" "}
-                business days after you pay. If your US texts aren&apos;t
-                sending yet, that&apos;s the approval wait, not an outage;
-                receiving texts and texting Canadian numbers work the whole
-                time.
-              </p>
+              <CountryOnly country="us">
+                <p>
+                  US texting activates after carrier approval, typically{" "}
+                  <span className="fr-mono-data text-[0.8125rem]">3 to 7</span>{" "}
+                  business days after you pay. If your US texts aren&apos;t
+                  sending yet, that&apos;s the approval wait, not an outage;
+                  receiving texts work the whole time.
+                </p>
+              </CountryOnly>
+              <CountryOnly country="ca">
+                <p>
+                  Texting Canadian customers works the same day your number is
+                  active, with no registration to wait on, so there&apos;s no
+                  approval delay to mistake for an outage. Receiving texts work
+                  right away too.
+                </p>
+              </CountryOnly>
               <p>
                 Delivery depends on the phone companies and carriers, which we
                 don&apos;t control. When they have trouble, texts can be

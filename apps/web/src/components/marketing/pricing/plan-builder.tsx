@@ -384,8 +384,9 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
 
         <p className="mt-4 flex items-start gap-2 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink)]">
           <GreenTick />
-          30-day money-back guarantee. Full refund, including the registration
-          fee. No fine print.
+          {country === "us"
+            ? "30-day money-back guarantee. Full refund, including the registration fee. No fine print."
+            : "30-day money-back guarantee. Full refund, no fine print."}
         </p>
       </div>
     </div>

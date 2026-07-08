@@ -15,6 +15,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import {
@@ -152,12 +153,19 @@ export default function SharedInboxPage() {
           outgoing texts a month on Starter, 2,500 on Pro, and receiving texts
           is always free and unlimited.
         </p>
-        <p>
-          US shops also pay a one-time $29 to register with the phone
-          companies, charged once, ever, so the first month is $58 and every
-          month after is $29. Canadian businesses that don&apos;t text US
-          numbers never pay it.
-        </p>
+        <CountryOnly country="us">
+          <p>
+            US shops also pay a one-time $29 to register with the phone
+            companies, charged once, ever, so the first month is $58 and every
+            month after is $29.
+          </p>
+        </CountryOnly>
+        <CountryOnly country="ca">
+          <p>
+            Texting Canadian customers has no registration and no setup fee, so
+            $29 is $29 from your first month on.
+          </p>
+        </CountryOnly>
       </PricingSnippet>
 
       <RelatedLinks

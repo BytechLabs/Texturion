@@ -22,9 +22,14 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { useCountry } from "@/components/marketing/country";
 import { cn } from "@/lib/utils";
 
 import { resolveQuery, type AreaCodeResult } from "./city-lookup";
+
+/** The local example each country seeds with (a real metro in the NANP index):
+ *  Toronto (416) for Canada, Austin (512) for the US. */
+const SEED_CITY = { us: "Austin", ca: "Toronto" } as const;
 
 function DayOneTick() {
   return (
@@ -47,10 +52,20 @@ function DayOneTick() {
 }
 
 export function CityAreaCodeWidget() {
-  const [query, setQuery] = useState("Toronto");
+  const { country } = useCountry();
+  // Seed the default frame to a local example for the visitor's country, so a
+  // US visitor sees a US number (and the honest carrier-wait line) and a
+  // Canadian visitor sees Toronto (and the day-one line). The per-result line
+  // below still reflects whatever number the visitor chooses to look up.
+  const [query, setQuery] = useState<string>(SEED_CITY[country]);
   const [selected, setSelected] = useState<AreaCodeResult | null>(
-    () => resolveQuery("Toronto", 1)[0] ?? null,
+    () => resolveQuery(SEED_CITY[country], 1)[0] ?? null,
   );
+  // Once the visitor types or picks, their input is authoritative; until then,
+  // the widget adopts the country's seed. This also swaps a returning Canadian
+  // to the Toronto seed one frame after hydration, mirroring how the provider
+  // itself adopts a stored choice.
+  const touched = useRef(false);
   const [open, setOpen] = useState(false);
   // Index of the keyboard-highlighted option in the current results, or -1 for
   // "no active option" (input text is authoritative). Drives aria-activedescendant.
@@ -62,6 +77,15 @@ export function CityAreaCodeWidget() {
 
   const results = useMemo(() => resolveQuery(query, 6), [query]);
 
+  // Until the visitor touches the widget, follow the site-wide country: seed
+  // the query and the result to that country's local example.
+  useEffect(() => {
+    if (touched.current) return;
+    const seed = SEED_CITY[country];
+    setQuery(seed);
+    setSelected(resolveQuery(seed, 1)[0] ?? null);
+  }, [country]);
+
   // Keep the active option in view when it moves via the keyboard.
   useEffect(() => {
     if (!open || activeIndex < 0) return;
@@ -72,6 +96,7 @@ export function CityAreaCodeWidget() {
   }, [activeIndex, open]);
 
   const pick = (r: AreaCodeResult) => {
+    touched.current = true;
     setSelected(r);
     setQuery(r.city.startsWith("Area code") ? r.areaCode : r.city);
     setOpen(false);
@@ -154,6 +179,7 @@ export function CityAreaCodeWidget() {
           }
           placeholder="Type a city or area code"
           onChange={(e) => {
+            touched.current = true;
             setQuery(e.target.value);
             setOpen(true);
             // New query text: reset the keyboard highlight to "none".

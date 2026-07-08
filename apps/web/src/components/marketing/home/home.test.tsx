@@ -50,6 +50,7 @@ import { Faq, HOME_FAQS } from "./faq";
 import { FinalCta } from "./final-cta";
 import { FirstWeekTimeline } from "./first-week-timeline";
 import { Pattern } from "./pattern";
+import { RulesCanada } from "./rules-canada";
 import { HOME_PLANS, planItemText, TheDeal } from "./the-deal";
 import { TruthBar } from "./truth-bar";
 import { UsageMeterEmbed } from "./usage-meter";
@@ -341,12 +342,43 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(caF).not.toContain("your first month is $58");
   });
 
+  it("rules band: US shows the carrier proof + registration-tracked card; CA shows CASL + the day-one card, never the other's", () => {
+    const usR = us(<RulesCanada />);
+    // US: the carrier proof points and the US reassurance card.
+    expect(usR).toContain("The carrier stuff, handled");
+    expect(usR).toContain("Registration, filed for you.");
+    expect(usR).toContain("Your registration, filed and tracked.");
+    expect(usR).toContain("3 to 7 business days");
+    // No Canadian content reaches a US visitor.
+    expect(usR).not.toContain("In Canada");
+    expect(usR).not.toContain("Texting Canadian customers, day one.");
+    expect(usR).not.toContain("CASL");
+    expect(usR).not.toContain("Local Canadian numbers");
+    expect(usR).not.toContain("same day you sign up");
+
+    const caR = ca(<RulesCanada />);
+    // CA: the CASL-framed proof points and the day-one card, stated as fact.
+    expect(caR).toContain("The rules, handled");
+    expect(caR).toContain("No registration to file.");
+    expect(caR).toContain("CASL");
+    expect(caR).toContain("Texting Canadian customers, day one.");
+    expect(caR).toContain("Local Canadian numbers");
+    expect(caR).toContain("same day you sign up");
+    // No US wait, fee, or 10DLC copy reaches a Canadian.
+    expect(caR).not.toContain("3 to 7 business days");
+    expect(caR).not.toContain("about a week");
+    expect(caR).not.toContain("carrier approval");
+    expect(caR).not.toContain("one-time $29");
+    expect(caR).not.toContain("10DLC");
+  });
+
   it("no em-dashes or en-dash ranges in the CA branch of any edited component", () => {
     for (const html of [
       ca(<Hero />),
       ca(<FirstWeekTimeline />),
       ca(<TheDeal />),
       ca(<Faq />),
+      ca(<RulesCanada />),
     ]) {
       expect(html).not.toContain("—");
       expect(html).not.toContain("–");

@@ -14,6 +14,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import {
   CompareCta,
   CompareHero,
@@ -83,11 +84,20 @@ export default function CompareQuoPage() {
               crew answers from the truck, and you want all of it in one shared
               inbox at one flat price with the texts included.
             </p>
-            <p>
-              You&apos;re in Canada, or you split work across US and Canadian
-              customers: Canadian texting works the day you sign up, no
-              registration wait.
-            </p>
+            <CountryOnly country="us">
+              <p>
+                You&apos;d rather one flat bill than per-user math: $29 covers
+                the whole crew and the texts, with no per-seat fee and no
+                per-segment meter on top.
+              </p>
+            </CountryOnly>
+            <CountryOnly country="ca">
+              <p>
+                You&apos;re texting Canadian customers, or splitting work across
+                US and Canadian customers: Canadian texting works the day you
+                sign up, with no registration wait.
+              </p>
+            </CountryOnly>
           </>
         }
         competitorTitle="Reach for Quo if"
@@ -130,27 +140,54 @@ export default function CompareQuoPage() {
         }
       />
 
-      <SwitchBand
-        heading="Switching from a per-user bill is quick math."
-        lead="Count your seats, add the metered texting, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless."
-        items={[
-          {
-            text: "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
-            good: true,
-          },
-          {
-            text: "Your number keeps working on your current provider until the scheduled switch, so you can run both while you move.",
-            good: true,
-          },
-          {
-            text: "Month to month, with a 30-day full money-back guarantee, registration fee included.",
-            good: true,
-          },
-          {
-            text: "If your team makes calls from the app all day, read the calling section above before you switch; Loonext won't do that job.",
-          },
-        ]}
-      />
+      {/* The money-back line names the US registration fee, so it splits by
+          country; the rest of the band is shared. */}
+      <CountryOnly country="us">
+        <SwitchBand
+          heading="Switching from a per-user bill is quick math."
+          lead="Count your seats, add the metered texting, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless."
+          items={[
+            {
+              text: "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working on your current provider until the scheduled switch, so you can run both while you move.",
+              good: true,
+            },
+            {
+              text: "Month to month, with a 30-day full money-back guarantee, registration fee included.",
+              good: true,
+            },
+            {
+              text: "If your team makes calls from the app all day, read the calling section above before you switch; Loonext won't do that job.",
+            },
+          ]}
+        />
+      </CountryOnly>
+      <CountryOnly country="ca">
+        <SwitchBand
+          heading="Switching from a per-user bill is quick math."
+          lead="Count your seats, add the metered texting, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless."
+          items={[
+            {
+              text: "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working on your current provider until the scheduled switch, so you can run both while you move.",
+              good: true,
+            },
+            {
+              text: "Month to month, with a 30-day full money-back guarantee.",
+              good: true,
+            },
+            {
+              text: "If your team makes calls from the app all day, read the calling section above before you switch; Loonext won't do that job.",
+            },
+          ]}
+        />
+      </CountryOnly>
 
       <CompareCta
         heading="Flat for the crew, texts included."

@@ -22,6 +22,7 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { CountryText } from "@/components/marketing/country";
 import {
   ConvergedField,
   CtaButton,
@@ -325,8 +326,10 @@ export function PricingSnippet({ children }: { children: ReactNode }) {
             strokeWidth={2.5}
             aria-hidden
           />
-          30-day money-back guarantee. Full refund, including the registration
-          fee. No fine print.
+          <CountryText
+            us="30-day money-back guarantee. Full refund, including the registration fee. No fine print."
+            ca="30-day money-back guarantee. Full refund, no fine print."
+          />
         </p>
       </FrCard>
     </FrSection>

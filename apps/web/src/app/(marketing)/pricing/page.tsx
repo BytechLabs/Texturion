@@ -325,9 +325,13 @@ export default function PricingPage() {
               <p className="mt-4 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
                 If Loonext isn&apos;t right for your crew, email us within 30
                 days of signing up and we&apos;ll refund your first invoice in
-                full, subscription and registration fee included. No
-                &quot;minus credits used&quot;, no forms, no retention call.
-                We&apos;d rather have your trust than your $29.
+                full,{" "}
+                <CountryText
+                  us="subscription and registration fee included"
+                  ca="the whole subscription included"
+                />
+                . No &quot;minus credits used&quot;, no forms, no retention
+                call. We&apos;d rather have your trust than your $29.
               </p>
               <p className="mt-4">
                 <Link

@@ -15,6 +15,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import {
   CompareCta,
   CompareHero,
@@ -169,27 +170,56 @@ export default function CompareIndexPage() {
         </div>
       </FrSection>
 
-      <SwitchBand
-        heading="Whatever you run today, switching is small."
-        lead="Loonext sits comfortably next to your current tool while you move: sign up, pick or transfer a number, invite the crew by link, and shift the texting at your own pace."
-        items={[
-          {
-            text: "Keep your number: transfers are free, self-serve at signup or later, and typically take 1 to 7 business days.",
-            good: true,
-          },
-          {
-            text: "Your number keeps working on your current provider until the scheduled switch.",
-            good: true,
-          },
-          {
-            text: "Month to month, with a 30-day full money-back guarantee, registration fee included.",
-            good: true,
-          },
-          {
-            text: "Receiving texts and Canadian texting work day one; texting US numbers turns on once the phone companies approve you, typically 3 to 7 business days.",
-          },
-        ]}
-      />
+      {/* The switch band's country-specific lines (the money-back fee clause
+          and the activation timeline) split so a US visitor reads the carrier
+          wait and a Canadian reads the day-one story, never both. */}
+      <CountryOnly country="us">
+        <SwitchBand
+          heading="Whatever you run today, switching is small."
+          lead="Loonext sits comfortably next to your current tool while you move: sign up, pick or transfer a number, invite the crew by link, and shift the texting at your own pace."
+          items={[
+            {
+              text: "Keep your number: transfers are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working on your current provider until the scheduled switch.",
+              good: true,
+            },
+            {
+              text: "Month to month, with a 30-day full money-back guarantee, registration fee included.",
+              good: true,
+            },
+            {
+              text: "Receiving texts work day one; texting US numbers turns on once the phone companies approve you, typically 3 to 7 business days.",
+            },
+          ]}
+        />
+      </CountryOnly>
+      <CountryOnly country="ca">
+        <SwitchBand
+          heading="Whatever you run today, switching is small."
+          lead="Loonext sits comfortably next to your current tool while you move: sign up, pick or transfer a number, invite the crew by link, and shift the texting at your own pace."
+          items={[
+            {
+              text: "Keep your number: transfers are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working on your current provider until the scheduled switch.",
+              good: true,
+            },
+            {
+              text: "Month to month, with a 30-day full money-back guarantee.",
+              good: true,
+            },
+            {
+              text: "Texting Canadian customers works the day you sign up, with no registration to wait on. Receiving texts work day one too.",
+              good: true,
+            },
+          ]}
+        />
+      </CountryOnly>
 
       <CompareCta
         heading="Skip the demo. See the price and start today."

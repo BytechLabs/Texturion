@@ -13,6 +13,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import {
   CompareCta,
   CompareHero,
@@ -132,27 +133,56 @@ export default function CompareHeymarketPage() {
         }
       />
 
-      <SwitchBand
-        heading="Switching costs you nothing but the walk."
-        lead="Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around."
-        items={[
-          {
-            text: "Keep your number: transfers from your current provider are free, self-serve at signup or later, and typically take 1 to 7 business days.",
-            good: true,
-          },
-          {
-            text: "Your number keeps working where it is today until the scheduled switch, so there's no dead air while it moves.",
-            good: true,
-          },
-          {
-            text: "Month to month, and a 30-day money-back guarantee covers your first invoice, registration fee included.",
-            good: true,
-          },
-          {
-            text: "US carrier registration applies at every provider, ours is a one-time $29 and we file it the minute you pay. Receiving texts and Canadian texting work day one; US texting turns on in 3 to 7 business days.",
-          },
-        ]}
-      />
+      {/* The switch band's country-specific lines (the money-back fee clause
+          and the registration/activation timeline) split so a US visitor reads
+          the carrier wait and a Canadian reads the day-one story, never both. */}
+      <CountryOnly country="us">
+        <SwitchBand
+          heading="Switching costs you nothing but the walk."
+          lead="Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around."
+          items={[
+            {
+              text: "Keep your number: transfers from your current provider are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working where it is today until the scheduled switch, so there's no dead air while it moves.",
+              good: true,
+            },
+            {
+              text: "Month to month, and a 30-day money-back guarantee covers your first invoice, registration fee included.",
+              good: true,
+            },
+            {
+              text: "US carrier registration applies at every provider, ours is a one-time $29 and we file it the minute you pay. Receiving texts work day one; US texting turns on in 3 to 7 business days.",
+            },
+          ]}
+        />
+      </CountryOnly>
+      <CountryOnly country="ca">
+        <SwitchBand
+          heading="Switching costs you nothing but the walk."
+          lead="Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around."
+          items={[
+            {
+              text: "Keep your number: transfers from your current provider are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+              good: true,
+            },
+            {
+              text: "Your number keeps working where it is today until the scheduled switch, so there's no dead air while it moves.",
+              good: true,
+            },
+            {
+              text: "Month to month, and a 30-day money-back guarantee covers your first invoice.",
+              good: true,
+            },
+            {
+              text: "Texting Canadian customers works the day you sign up, with no registration to wait on. Receiving texts work day one too.",
+              good: true,
+            },
+          ]}
+        />
+      </CountryOnly>
 
       <CompareCta
         heading="One flat price, texts included, no demo."

@@ -254,7 +254,7 @@ export default function BusinessNumberPage() {
           {
             label: "Loonext in Canada",
             href: "/canada",
-            hint: "Local Canadian numbers that text the same day you sign up.",
+            hint: "How Loonext works for Canadian crews.",
           },
           {
             label: "Loonext vs Quo",

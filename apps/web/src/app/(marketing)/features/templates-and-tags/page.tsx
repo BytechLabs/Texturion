@@ -14,6 +14,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryOnly } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import {
@@ -204,11 +205,18 @@ export default function TemplatesAndTagsPage() {
           upsell: Starter is $29/mo for up to 3 people, Pro is $79/mo for up
           to 10 and a second number.
         </p>
-        <p>
-          US shops pay a one-time $29 to register with the phone companies,
-          once, ever, so the first month is $58 and every month after is $29.
-          Canadian businesses that don&apos;t text US numbers never pay it.
-        </p>
+        <CountryOnly country="us">
+          <p>
+            US shops pay a one-time $29 to register with the phone companies,
+            once, ever, so the first month is $58 and every month after is $29.
+          </p>
+        </CountryOnly>
+        <CountryOnly country="ca">
+          <p>
+            Texting Canadian customers has no registration and no setup fee, so
+            $29 is $29 from your first month on.
+          </p>
+        </CountryOnly>
       </PricingSnippet>
 
       <RelatedLinks
