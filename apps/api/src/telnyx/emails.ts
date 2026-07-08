@@ -22,9 +22,9 @@ function copy(subject: string, text: string): EmailCopy {
 export function provisioningDelayedCopy(companyName: string): EmailCopy {
   return copy(
     "We're still setting up your Loonext number",
-    `Hi,\n\nWe're setting up the business number for ${companyName} — this is ` +
+    `Hi,\n\nWe're setting up the business number for ${companyName}. This is ` +
       `taking longer than usual. You don't need to do anything: we retry ` +
-      `automatically and will have it ready shortly.\n\n— Loonext`,
+      `automatically and will have it ready shortly.\n\nLoonext`,
   );
 }
 
@@ -32,9 +32,9 @@ export function provisioningDelayedCopy(companyName: string): EmailCopy {
 export function usTextingLiveCopy(companyName: string, env: Env): EmailCopy {
   return copy(
     "US texting is live 🎉",
-    `Hi,\n\nGreat news — US carriers approved ${companyName}'s texting ` +
+    `Hi,\n\nGreat news: US carriers approved ${companyName}'s texting ` +
       `registration. You can now text US numbers from your Loonext inbox.\n\n` +
-      `Open your inbox: ${env.APP_ORIGIN}\n\n— Loonext`,
+      `Open your inbox: ${env.APP_ORIGIN}\n\nLoonext`,
   );
 }
 
@@ -48,8 +48,8 @@ export function registrationRejectedCopy(
     "US registration needs a fix",
     `Hi,\n\nUS carrier registration for ${companyName} needs a fix:\n\n` +
       `${rejectionReason}\n\n` +
-      `Update your details and resubmit — it takes 2 minutes:\n` +
-      `${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `Update your details and resubmit. It takes 2 minutes:\n` +
+      `${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -59,8 +59,8 @@ export function otpNudgeCopy(companyName: string, env: Env): EmailCopy {
     "One step left to finish your US texting registration",
     `Hi,\n\nOne step left for ${companyName}: enter the verification code we ` +
       `texted to your mobile number to finish US registration. The code ` +
-      `expires 24 hours after it was sent — you can request a fresh one from ` +
-      `Settings.\n\nFinish up: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `expires 24 hours after it was sent. You can request a fresh one from ` +
+      `Settings.\n\nFinish up: ${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -73,10 +73,10 @@ export function portSubmittedCopy(number: string, env: Env): EmailCopy {
   return copy(
     "Your number transfer is underway",
     `Hi,\n\nTransfer in progress. We've sent the request to move ${number} to ` +
-      `Loonext to your current carrier — they usually respond within a couple ` +
+      `Loonext to your current carrier. They usually respond within a couple ` +
       `of business days. Your number still works on your old carrier for now; ` +
       `nothing changes for your customers until the switch-over date.\n\n` +
-      `Track it: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `Track it: ${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -90,8 +90,8 @@ export function portFocConfirmedCopy(
   return copy(
     "Your number transfer date is locked in",
     `Hi,\n\nLocked in. ${number} switches to Loonext ${when}. Nothing works ` +
-      `differently until then — we'll email you the moment it switches.\n\n` +
-      `Details: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `differently until then. We'll email you the moment it switches.\n\n` +
+      `Details: ${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -104,20 +104,20 @@ export function portExceptionCopy(
   return copy(
     "Your number transfer needs a quick fix",
     `Hi,\n\nYour carrier flagged something on the transfer of ${number}:\n\n` +
-      `${reason}\n\nFix it and resubmit — it usually takes a couple of ` +
+      `${reason}\n\nFix it and resubmit. It usually takes a couple of ` +
       `minutes, and there's no fee to try again:\n` +
-      `${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
 /** PORTING.md §9: messaging exception (no customer action needed). */
 export function portMessagingExceptionCopy(number: string): EmailCopy {
   return copy(
-    "Your number moved — texting is taking a little longer",
+    "Your number moved, but texting is taking a little longer",
     `Hi,\n\n${number} moved over to Loonext, but texting is taking a bit ` +
-      `longer — your old provider hasn't released the texting routing yet. ` +
+      `longer. Your old provider hasn't released the texting routing yet. ` +
       `We're escalating with the carrier on your behalf; this usually clears ` +
-      `within a business day or two and there's nothing you need to do.\n\n— Loonext`,
+      `within a business day or two and there's nothing you need to do.\n\nLoonext`,
   );
 }
 
@@ -133,11 +133,11 @@ export function portMessagingExceptionCopy(number: string): EmailCopy {
 export function portAssignmentBlockedCopy(number: string, env: Env): EmailCopy {
   return copy(
     "Action needed to finish activating texting",
-    `Hi,\n\n${number} moved over to Loonext — one more step finishes ` +
+    `Hi,\n\n${number} moved over to Loonext. One more step finishes ` +
       `activating texting: ask your previous texting provider to remove ` +
       `${number} from their carrier campaign, then we'll finish connecting ` +
       `it. We'll retry automatically once they do.\n\n` +
-      `Details: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `Details: ${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -145,9 +145,9 @@ export function portAssignmentBlockedCopy(number: string, env: Env): EmailCopy {
 export function portCompletedCopy(number: string, env: Env): EmailCopy {
   return copy(
     "🎉 Your number is live on Loonext",
-    `Hi,\n\nGreat news — ${number} is now live on Loonext. You can text your ` +
+    `Hi,\n\nGreat news: ${number} is now live on Loonext. You can text your ` +
       `customers straight from your inbox.\n\nOpen your inbox: ${env.APP_ORIGIN}\n\n` +
-      `— Loonext`,
+      `Loonext`,
   );
 }
 
@@ -161,11 +161,11 @@ export function portCompletedCopy(number: string, env: Env): EmailCopy {
 export function portDocumentsNeededCopy(number: string, env: Env): EmailCopy {
   return copy(
     "Next step: two documents start your number transfer",
-    `Hi,\n\nYou're in — one step starts the transfer of ${number}: upload a ` +
+    `Hi,\n\nYou're in. One step starts the transfer of ${number}: upload a ` +
       `signed authorization (LOA) and a recent bill from your current ` +
       `carrier. The transfer can't move until we have both; it takes about ` +
       `two minutes, and your number keeps working the whole time.\n\n` +
-      `Upload them here: ${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `Upload them here: ${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }
 
@@ -181,11 +181,11 @@ export function portBridgeReleaseNudgeCopy(
   env: Env,
 ): EmailCopy {
   return copy(
-    "Your real number is live — you can release the temporary one",
+    "Your real number is live, so you can release the temporary one",
     `Hi,\n\n${portedNumber} is live on Loonext, so the temporary number we ` +
       `set up (${bridgeNumber}) has done its job. Conversations stay right ` +
-      `where they are — releasing it just frees the number slot on your ` +
+      `where they are. Releasing it just frees the number slot on your ` +
       `plan. Keep it if you're still using it; release it whenever you're ` +
-      `ready:\n\n${env.APP_ORIGIN}/settings/numbers\n\n— Loonext`,
+      `ready:\n\n${env.APP_ORIGIN}/settings/numbers\n\nLoonext`,
   );
 }

@@ -733,10 +733,10 @@ async function handleInvoicePaymentFailed(
       `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n` +
       `Update your payment method to resume texting: ${portal}\n\n` +
       invoiceLine +
-      `Stripe retries the charge automatically over the next two weeks.\n\n— Loonext`;
+      `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
     await sendEmail(env, {
       to,
-      subject: "Your Loonext payment failed — outbound texting is paused",
+      subject: "Your Loonext payment failed: outbound texting is paused",
       text,
       // toHtml escapes — company.name is customer-controlled input.
       html: toHtml(text),
@@ -774,7 +774,7 @@ async function handlePaymentActionRequired(
     (link
       ? `Confirm it here: ${link}\n\n`
       : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`) +
-    `Texting continues normally once the payment is confirmed.\n\n— Loonext`;
+    `Texting continues normally once the payment is confirmed.\n\nLoonext`;
   await sendEmail(env, {
     to,
     subject: "Action needed: confirm your Loonext payment",

@@ -43,17 +43,17 @@ function warningCopy(
   const resubscribeUrl = `${env.APP_ORIGIN}/settings/billing`;
   const daysLeft = GRACE_PERIOD_DAYS - day;
   const subjects: Record<GraceThresholdDay, string> = {
-    1: `Your Loonext subscription was canceled — your number is safe for ${daysLeft} more days`,
+    1: `Your Loonext subscription was canceled. Your number is safe for ${daysLeft} more days`,
     15: `${daysLeft} days left before your Loonext business number is released`,
     27: `Final notice: your Loonext business number is released in ${daysLeft} days`,
   };
   const text =
     `Hi,\n\nThe Loonext subscription for ${company.name} is canceled. ` +
     `Your business phone number is suspended but reserved for ${GRACE_PERIOD_DAYS} days ` +
-    `from cancellation — you still have about ${daysLeft} day${daysLeft === 1 ? "" : "s"} ` +
+    `from cancellation. You still have about ${daysLeft} day${daysLeft === 1 ? "" : "s"} ` +
     `to resubscribe and keep it, with your full message history intact.\n\n` +
     `After that the number is permanently released and cannot be recovered.\n\n` +
-    `Resubscribe: ${resubscribeUrl}\n\n— Loonext`;
+    `Resubscribe: ${resubscribeUrl}\n\nLoonext`;
   return { subject: subjects[day], text };
 }
 
@@ -68,7 +68,7 @@ function releasedCopy(company: CanceledCompany): {
       `and your business phone number has been released. Your conversation history ` +
       `remains available if you sign back in.\n\n` +
       `If you resubscribe, we'll set you up with a new number and re-run US carrier ` +
-      `registration where required.\n\n— Loonext`,
+      `registration where required.\n\nLoonext`,
   };
 }
 

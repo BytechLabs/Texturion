@@ -69,10 +69,10 @@ function segmentAlertCopy(
       subject: `${company.name} has used all ${included} included messages this period`,
       text:
         `Hi,\n\n${company.name} has used ${used} outbound message segments this ` +
-        `billing period — that's all ${included} included in your plan. ` +
+        `billing period. That's all ${included} included in your plan. ` +
         `Messages keep sending normally; extra segments are now billed as ` +
         `overage on your next invoice, up to your overage cap.\n\n` +
-        `See usage and manage your cap: ${usageUrl}\n\n— Loonext`,
+        `See usage and manage your cap: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -82,7 +82,7 @@ function segmentAlertCopy(
       `message segments included in your plan this billing period. Once the ` +
       `included quota is used up, extra segments are billed as overage on ` +
       `your next invoice.\n\n` +
-      `See usage: ${usageUrl}\n\n— Loonext`,
+      `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
 
@@ -110,10 +110,10 @@ function storageAlertCopy(
         text:
           `Hi,\n\n${company.name}'s saved picture messages have reached ${budget}, ` +
           `the picture-message storage included in your plan. New incoming ` +
-          `pictures are now held so the bill can't grow past your plan — the ` +
+          `pictures are now held so the bill can't grow past your plan. The ` +
           `text of every message still comes through untouched. Free up space ` +
           `or move to a larger plan to start saving pictures again.\n\n` +
-          `See usage: ${usageUrl}\n\n— Loonext`,
+          `See usage: ${usageUrl}\n\nLoonext`,
       };
     }
     return {
@@ -123,7 +123,7 @@ function storageAlertCopy(
         `picture-message storage included in your plan. When it's full, new ` +
         `incoming pictures are held (the message text still comes through). ` +
         `Free up space or move to a larger plan to avoid that.\n\n` +
-        `See usage: ${usageUrl}\n\n— Loonext`,
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   if (threshold === 100) {
@@ -133,7 +133,7 @@ function storageAlertCopy(
         `Hi,\n\n${company.name}'s files attached to notes have reached ${budget}, ` +
         `the file storage included in your plan. New uploads are paused until ` +
         `you delete files you no longer need, or move to a larger plan.\n\n` +
-        `See usage: ${usageUrl}\n\n— Loonext`,
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -142,7 +142,7 @@ function storageAlertCopy(
       `Hi,\n\n${company.name} has used ${used} of the ${budget} of file ` +
       `storage included in your plan. When it's full, new uploads are paused ` +
       `until you delete files you no longer need.\n\n` +
-      `See usage: ${usageUrl}\n\n— Loonext`,
+      `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
 
@@ -165,10 +165,10 @@ function voiceAlertCopy(
       text:
         `Hi,\n\n${company.name} has used all ${includedMinutes} call-forwarding ` +
         `minutes included in your plan this billing period. New incoming calls ` +
-        `are no longer forwarded to your cell — callers get your missed-call ` +
-        `text instead — so your phone bill can't run past your plan. Move to a ` +
+        `are no longer forwarded to your cell (callers get your missed-call ` +
+        `text instead), so your phone bill can't run past your plan. Move to a ` +
         `larger plan to keep forwarding calls.\n\n` +
-        `See usage: ${usageUrl}\n\n— Loonext`,
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -178,7 +178,7 @@ function voiceAlertCopy(
       `call-forwarding minutes included in your plan this billing period. Once ` +
       `they're used up, new incoming calls stop forwarding to your cell (callers ` +
       `get your missed-call text instead). Move to a larger plan to avoid that.\n\n` +
-      `See usage: ${usageUrl}\n\n— Loonext`,
+      `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
 
@@ -201,10 +201,10 @@ function mmsAlertCopy(
       text:
         `Hi,\n\n${company.name} has sent all ${includedMessages} picture ` +
         `messages included in your plan this billing period. New picture sends ` +
-        `now go out as text only — the message still reaches your customer, but ` +
-        `without the photo — so your messaging bill can't run past your plan. ` +
+        `now go out as text only (the message still reaches your customer, ` +
+        `without the photo), so your messaging bill can't run past your plan. ` +
         `Move to a larger plan to keep sending pictures.\n\n` +
-        `See usage: ${usageUrl}\n\n— Loonext`,
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -214,7 +214,7 @@ function mmsAlertCopy(
       `picture messages included in your plan this billing period. Once they're ` +
       `used up, new picture sends go out as text only (the message still reaches ` +
       `your customer, without the photo). Move to a larger plan to avoid that.\n\n` +
-      `See usage: ${usageUrl}\n\n— Loonext`,
+      `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
 
@@ -239,12 +239,12 @@ function egressAlertCopy(
       subject: `${company.name} has used all its included file downloads this period`,
       text:
         `Hi,\n\n${company.name} has downloaded ${allowance} of files and ` +
-        `pictures this billing period — the full download allowance included ` +
+        `pictures this billing period. That's the full download allowance included ` +
         `with your plan's storage. New downloads are paused until your next ` +
         `period starts so the bill can't grow past your plan; everything stays ` +
         `safely stored in the meantime. If you're hitting this in normal use, ` +
         `just reply to this email.\n\n` +
-        `See usage: ${usageUrl}\n\n— Loonext`,
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -255,7 +255,7 @@ function egressAlertCopy(
       `period. When it's used up, new downloads pause until the next period ` +
       `starts (everything stays safely stored). If you're hitting this in ` +
       `normal use, just reply to this email.\n\n` +
-      `See usage: ${usageUrl}\n\n— Loonext`,
+      `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
 

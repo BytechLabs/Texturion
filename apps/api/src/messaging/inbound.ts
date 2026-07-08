@@ -216,9 +216,9 @@ async function sendNotificationBudgetAlert(
             `Hi,\n\n${name}'s team has been alerted about an unusually large ` +
             `number of new text conversations today and has reached the daily ` +
             `limit on new-text alerts. Email and push alerts for new texts are ` +
-            `paused until tomorrow so a message flood can't run up costs — ` +
-            `every text still lands in your Loonext inbox as normal.\n\n` +
-            `Open your inbox: ${inboxUrl}\n\n— Loonext`,
+            `paused until tomorrow so a message flood can't run up costs. ` +
+            `Every text still lands in your Loonext inbox as normal.\n\n` +
+            `Open your inbox: ${inboxUrl}\n\nLoonext`,
         }
       : {
           subject: `${name} is nearing today's new-text alert limit`,
@@ -228,7 +228,7 @@ async function sendNotificationBudgetAlert(
             `and push alerts for new texts will pause until tomorrow (every ` +
             `text still lands in your Loonext inbox as normal). If you aren't ` +
             `expecting this volume, check your inbox for spam threads.\n\n` +
-            `Open your inbox: ${inboxUrl}\n\n— Loonext`,
+            `Open your inbox: ${inboxUrl}\n\nLoonext`,
         };
 
   await sendEmail(env, {

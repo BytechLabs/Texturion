@@ -126,7 +126,7 @@ export async function notifyMissedCall(
   // A failed text makes the miss MORE urgent — tell the crew to call back.
   const sentLine = input.textSent
     ? "We sent them a text so they can book by reply."
-    : "We tried to text them but the message didn't go through — call them back.";
+    : "We tried to text them but the message didn't go through. Call them back.";
 
   const failures: unknown[] = [];
 
@@ -180,7 +180,7 @@ export async function notifyMissedCall(
       title: `Missed call from ${contactName}`,
       body: input.textSent
         ? "We texted them so they can book by reply."
-        : "Their text-back failed — call them back.",
+        : "Their text-back failed. Call them back.",
       url: link,
     });
     for (const subscription of subscriptions) {
