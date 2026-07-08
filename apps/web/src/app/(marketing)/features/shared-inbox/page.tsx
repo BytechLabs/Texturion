@@ -55,7 +55,6 @@ export default function SharedInboxPage() {
         panel={
           <PanelFrame
             chromeUrl="loonext.com/inbox"
-            chip="scripted-demo"
             caption="The Reyes Plumbing inbox, mid-morning: Priya assigns the new drain call to Dale."
             ariaLabel="The Reyes Plumbing inbox in Loonext, with the assign menu open on a new conversation"
           >

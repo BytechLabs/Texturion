@@ -3,8 +3,8 @@
  * hero Arrival Field contract, and the S6/S9 product embeds.
  *
  * What must hold (DESIGN-DIRECTION v4 + owner amendments 2026-07-07):
- *  - Law 1: no artifact talk anywhere; the only content label is the
- *    SCRIPTED DEMO chip (EXAMPLE CONVERSATION is trade-pages-only).
+ *  - Law 1: no artifact talk anywhere; product demos render unlabeled, with
+ *    no demo-labeling chip (owner amendment 2026-07-08).
  *  - Law 2: product embeds carry APP tokens only, no marketing tokens inside
  *    a frame.
  *  - Law 4/§3.4: Flare stays on the whitelist, counted per component.
@@ -12,7 +12,8 @@
  *  - Law 7: the factual claims survive the v4 restage, worded per COPY-DECK
  *    v2. The #70 unit-language guard and the #28 add-on truth guard from the
  *    deleted night/pricing.test.ts carry forward here.
- *  - Law 11: nothing fake-live outside a SCRIPTED DEMO frame.
+ *  - Law 11: nothing fake-live; invented current-state frames render inside a
+ *    PanelFrame and nothing pulses or claims to be live.
  *  - Owner rule 12: canonical domain is https://loonext.com.
  */
 
@@ -26,7 +27,6 @@ vi.mock("next/font/local", () => ({
 }));
 
 import HomePage, { metadata } from "@/app/(marketing)/page";
-import { DEMO_CHIP_LABELS } from "@/components/marketing/fr";
 import {
   ARRIVAL_SCRIPT,
   INBOX_ROW_CAP,
@@ -79,9 +79,9 @@ describe("laws that hold across the whole page (Laws 1, 6, 11)", () => {
     );
   });
 
-  it("the only demo label is the SCRIPTED DEMO chip", () => {
-    expect(PAGE).toContain(DEMO_CHIP_LABELS["scripted-demo"]);
-    expect(PAGE).not.toContain(DEMO_CHIP_LABELS["example-conversation"]);
+  it("attaches no demo-labeling chip (owner amendment 2026-07-08)", () => {
+    expect(PAGE).not.toContain("SCRIPTED DEMO");
+    expect(PAGE).not.toContain("EXAMPLE CONVERSATION");
   });
 
   it("no fake liveness (Law 11): nothing pulses, nothing claims to be live", () => {

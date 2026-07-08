@@ -5,9 +5,9 @@
  * The LCP-neutral, no-JS / reduced-motion / pre-hydration frame for the
  * deep-dive: same two-column layout as the interactive <ThreadDeepDive>
  * (sticky captions left, the completed thread right, inside the foundation
- * <PanelFrame> so the product renders with app tokens per Law 2), the
- * SCRIPTED DEMO chip (the one permitted content label, Law 1), and the quiet
- * inline "Get your number" CTA.
+ * <PanelFrame> so the product renders with app tokens per Law 2), no
+ * demo-labeling chip (owner amendment 2026-07-08), and the quiet inline
+ * "Get your number" CTA.
  *
  * No client runtime; <LazyIsland> swaps in the steppable island on viewport
  * approach and reduced-motion keeps this frame (skipWhenReducedMotion).
@@ -122,12 +122,11 @@ export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
         </ol>
       </div>
 
-      {/* Right: the completed thread, framed (Law 2) and labeled with the one
-          permitted chip (Law 1). */}
+      {/* Right: the completed thread, framed (Law 2) and shown unlabeled
+          (owner amendment 2026-07-08). */}
       <div>
         <PanelFrame
           chromeUrl="loonext.com/inbox"
-          chip="scripted-demo"
           ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
         >
           <StaticThread

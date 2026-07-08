@@ -5,8 +5,8 @@
  *
  * What must hold (DESIGN-DIRECTION v4):
  *  - Law 1: no artifact talk anywhere ("real interface", "screenshot",
- *    "stock photos", font/framework credits). The only content label is the
- *    DemoChip.
+ *    "stock photos", font/framework credits). Product demos render unlabeled,
+ *    with no demo-labeling chip (owner amendment 2026-07-08).
  *  - Law 2: product embeds carry APP tokens only (no marketing cobalt inside
  *    a frame); pages mount them inside PanelFrame's `.app-scope` region.
  *  - Law 6: no em-dashes (or en-dash ranges) in rendered output.
@@ -78,18 +78,16 @@ describe("laws that hold across every features/canada page (Laws 1, 6)", () => {
     });
   }
 
-  it("the only demo labels are the sanctioned chips", () => {
-    expect(PAGES["shared-inbox"]).toContain("SCRIPTED DEMO");
-    expect(PAGES.compliance).toContain("SCRIPTED DEMO");
+  it("attaches no demo-labeling chip on any page (owner amendment 2026-07-08)", () => {
     for (const html of Object.values(PAGES)) {
-      expect(html).not.toMatch(/EXAMPLE CONVERSATION/); // trade pages only
+      expect(html).not.toContain("SCRIPTED DEMO");
+      expect(html).not.toContain("EXAMPLE CONVERSATION");
     }
   });
 
-  it("no fake liveness (Law 11): staged current-state frames carry the chip, nothing pulses", () => {
-    // Invented unread counts / in-flight states sit inside SCRIPTED DEMO frames.
-    expect(PAGES["business-number"]).toContain("SCRIPTED DEMO"); // "3 new" counts
-    expect(PAGES["templates-and-tags"]).toContain("SCRIPTED DEMO");
+  it("no fake liveness (Law 11): staged current-state frames never pulse or claim to be live", () => {
+    // Invented unread counts / in-flight states sit inside an unlabeled
+    // PanelFrame; nothing pulses or advertises itself as live.
     for (const [name, html] of Object.entries({ ...PAGES, ...EMBEDS })) {
       expect(html, name).not.toContain("animate-pulse");
       expect(html, name).not.toMatch(/\bonline now|\blive now|typing…/i);

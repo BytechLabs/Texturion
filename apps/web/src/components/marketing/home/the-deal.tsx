@@ -213,7 +213,6 @@ export function TheDeal() {
           </p>
           <PanelFrame
             className="mt-5"
-            chip="scripted-demo"
             ariaLabel="The Loonext usage meter partway through a billing period"
           >
             <AppSurface>

@@ -110,7 +110,6 @@ export function Bento() {
           <PanelFrame
             phone
             phoneDark
-            chip="scripted-demo"
             className="mt-6"
             ariaLabel="A 6am no-hot-water conversation, answered from a phone"
           >

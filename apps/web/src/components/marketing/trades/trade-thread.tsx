@@ -1,8 +1,7 @@
 /**
- * TradeThread (trades crew), v4 "FIRST RESPONSE" Law 2: the EXAMPLE
- * CONVERSATION on every /for/<trade> page, rendered as a static, server-only
- * depiction of the app's real thread built from the app's own component
- * patterns and tokens.
+ * TradeThread (trades crew), v4 "FIRST RESPONSE" Law 2: the example thread on
+ * every /for/<trade> page, rendered as a static, server-only depiction of the
+ * app's real thread built from the app's own component patterns and tokens.
  *
  * It is designed to sit INSIDE a marketing <PanelFrame>, whose `.app-scope`
  * wrapper resolves every app token here to the product's real values: petrol
@@ -18,8 +17,8 @@
  *
  * Accessibility: the thread adds no tab stops (DESIGN-DIRECTION §7); the
  * photo placeholders carry content-describing labels. No text in this file
- * is a label about the artifact (Law 1): the chip and caption live on the
- * PanelFrame outside.
+ * is a label about the artifact (Law 1): the caption lives on the PanelFrame
+ * outside, and no demo-labeling chip is attached (owner amendment 2026-07-08).
  */
 
 import { CheckCheck, CircleCheck, ImageIcon, Lock } from "lucide-react";
@@ -256,7 +255,7 @@ export interface TradeThreadProps {
 
 /**
  * The full static thread: header, beats on the app's paper ground, composer
- * at rest. Put it inside a <PanelFrame chip="example-conversation" …>.
+ * at rest. Put it inside a <PanelFrame …>.
  */
 export function TradeThread({ script, className }: TradeThreadProps) {
   const doneSet = new Set(script.doneIds ?? []);

@@ -12,8 +12,8 @@
  *
  * The thread renders inside the foundation <PanelFrame> so the product keeps
  * its own tokens (Law 2); the step controls are marketing chrome and live
- * OUTSIDE the frame, in cobalt. The only label is the SCRIPTED DEMO chip
- * (Law 1), which the PanelFrame carries.
+ * OUTSIDE the frame, in cobalt. The demo carries no demo-labeling chip (owner
+ * amendment 2026-07-08); it is a self-evident product demonstration.
  */
 
 import { ChevronRight, Play, RotateCcw } from "lucide-react";
@@ -118,7 +118,6 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
       <div>
         <PanelFrame
           chromeUrl="loonext.com/inbox"
-          chip="scripted-demo"
           ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
         >
           <ThreadFrame

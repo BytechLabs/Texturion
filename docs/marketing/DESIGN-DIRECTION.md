@@ -9,7 +9,7 @@ The whole site is built from the worst minute in a homeowner's week: 9:04 PM, wa
 
 ## 1. The ten laws (binding, in priority order)
 
-1. **The site never talks about itself as an artifact.** No font credits, no framework credits, no "this is the real interface," no "no stock photos." The one permitted content label is a terse mono chip reading exactly `SCRIPTED DEMO` (or `EXAMPLE CONVERSATION` on trade pages). It labels the conversation as scripted. It never mentions the interface, the site, or the demo's realism. See PURGE-LIST.
+1. **The site never talks about itself as an artifact.** No font credits, no framework credits, no "this is the real interface," no "no stock photos." The site attaches NO demo-labeling chip: the product-UI demos are self-evidently product demonstrations and render unlabeled (owner amendment 2026-07-08, item 16, which supersedes the earlier "one permitted content label / `SCRIPTED DEMO` / `EXAMPLE CONVERSATION` chip" language). The separate no-fake-social-proof rule stays in force (Law 7): no fabricated testimonials, customer logos, or invented stats presented as real. An unlabeled illustrative conversation shown inside the product UI does not violate that and needs no label. See PURGE-LIST.
 2. **Marketing frames the product; it never repaints it.** Every real product embed (ConversationRow, thread UI, usage meter, template picker, composer, segment counter) renders with the app's own tokens: petrol `#0F766E` primary, the app's own bubble colors, the app's own unread-dot color, the app's dark mode inside phone frames. Marketing chrome (the white card, the shadow, the caption) wraps it. Cobalt is the marketing voice OUTSIDE the frame; petrol is the product's voice inside it. Do not recolor outbound bubbles cobalt. Ever.
 3. **One live algorithm, on the home hero, and nowhere else.** The Arrival Field (see P5-SPEC) is the site's single p5 moment. The final CTA and all subpages use only its STATIC converged SVG derivative. No second canvas anywhere.
 4. **Flare is rationed by whitelist** (§3.4). If a use is not on the whitelist, it is a bug.
@@ -83,7 +83,7 @@ const mono = Spline_Sans_Mono({ subsets: ["latin"], variable: "--font-mono", wei
 All 25 routes assemble from these named parts. Nothing bespoke.
 
 1. **DATELINE HEADER.** Every page opens with: a Dispatch Ink chip (mono, uppercase, white text, 6px radius, one per page, ALWAYS a load-bearing fact for that page, never decoration), then H1, then sub, then (on conversion pages) the CTA row. Home's dateline: `9:04 PM · TUESDAY`. /pricing: `$58 FIRST MONTH (US) · $29 AFTER`. /features/shared-inbox: `1 OWNER PER CONVERSATION`. If a page has no load-bearing fact, it gets no chip (legal pages get a Frost "Plain English summary" chip instead, ink text).
-2. **PANEL FRAME.** The marketing chrome around every real product component: white card, 16px radius, the standard shadow, optional browser-chrome hint (`loonext.app/inbox`), optional phone frame for dark mode shots. The product inside renders with app tokens (Law 2). The only label ever attached is the `SCRIPTED DEMO` chip (Frost ground, mono ink text).
+2. **PANEL FRAME.** The marketing chrome around every real product component: white card, 16px radius, the standard shadow, optional browser-chrome hint (`loonext.app/inbox`), optional phone frame for dark mode shots. The product inside renders with app tokens (Law 2). No demo-labeling chip is attached; the frame carries only an optional content-descriptive caption (owner amendment 2026-07-08).
 3. **HONESTY LEDGER.** The mono table treatment: Spline Sans Mono figures, Frost row striping, no rules, sourced footnotes in ink-55. Used for /pricing "every cost" ledger, compare tables, /canada province table, add-on fine print.
 4. **TRUTH STRIP.** One repeated component for every honesty claim, site-wide, so candor has a learnable shape: Frost ground, 3px cobalt left edge, mono text, green tick where the news is good. Carries: $58 first month, 3 to 7 day carrier wait, USD billing, "that's the whole list", the Canada day-one line.
 5. **NUMBERED STEPS / WORK CARDS.** Steps with mono numerals in cobalt circles; the first-week timeline is its flagship instance: Day 0 (green node) → Days 1 to 7 (cobalt progress track) → Approved (green node), with a `YOU ARE HERE` Flare tab (§3.4.4).
@@ -94,7 +94,7 @@ All 25 routes assemble from these named parts. Nothing bespoke.
 
 - **HOME:** the twelve-band arc defined in COPY-DECK v2. Only page with live p5.
 - **FEATURE (x4):** Dateline Header → one large Panel Frame with that capability's real component staged mid-task → three use-case blocks (Numbered Steps) → Truth Strip for any honest limitation → pricing snippet → feature FAQ → CTA band (Frost, not cobalt; cobalt band is home-only).
-- **TRADE (x6):** Dateline Header (the trade's after-hours moment, matching its scripted thread) → pain section → "A Tuesday, in texts" static thread in a Panel Frame (label: `EXAMPLE CONVERSATION`) → use cases → saved-replies pack rendered in the REAL template-picker component → features strip → pricing snippet → trade FAQ → CTA.
+- **TRADE (x6):** Dateline Header (the trade's after-hours moment, matching its scripted thread) → pain section → "A Tuesday, in texts" static thread in a Panel Frame (no demo-labeling chip; a content-descriptive caption only) → use cases → saved-replies pack rendered in the REAL template-picker component → features strip → pricing snippet → trade FAQ → CTA.
 - **COMPARE (x3 + index):** Dateline Header (the arithmetic) → Honesty Ledger as the centerpiece with sourced figures → slider chart (cobalt flat line vs Flare climbing line) → "when they fit better" honest section → switching/porting Truth Strip → CTA. No competitor logos, no dark patterns.
 - **PRICING:** the most mono-dense page: plan cards (mono price-as-art figures), Honesty Ledger, first-week timeline, the segment-counter widget running the real billing code in a Panel Frame, crew slider, guarantee, pricing FAQ.
 - **CANADA:** the flipped timeline (the waiting segment does not exist) leads; green is allowed to lead this one page; province availability as an Honesty Ledger.
@@ -121,11 +121,11 @@ All 25 routes assemble from these named parts. Nothing bespoke.
 
 ## 2026-07-07 owner amendments (binding, same force as the ten laws)
 
-11. **No fake liveness.** No fabricated live/online/typing indicators, no invented unread counts presented as current, no fake operational dots, no invented uptime numbers, no pulsing "live" ornaments. Anything that looks real-time is either genuinely real or sits inside a SCRIPTED DEMO frame. /status renders no operational indicators until it is wired to a real monitoring provider; until then it plainly states where status will be published.
+11. **No fake liveness.** No fabricated live/online/typing indicators, no invented unread counts presented as current, no fake operational dots, no invented uptime numbers, no pulsing "live" ornaments. Anything that looks real-time is either genuinely real or sits inside a product-demo Panel Frame (unlabeled, per amendment item 16). /status renders no operational indicators until it is wired to a real monitoring provider; until then it plainly states where status will be published.
 12. **Canonical domain is https://loonext.com.** All metadata, canonical URLs, OG tags, sitemap entries, and robots directives use loonext.com. No loonext.app anywhere.
 13. **The /pricing centerpiece is the real plan builder.** Interactive plan + add-on configuration with a live monthly total computed from the product's shared constants (single source, zero retyped numbers), SSR default state, zero fake state. Static plan cards are a compact summary at most, never the centerpiece.
 
-Additional QA gates: (6) liveness grep: no live/online/operational indicator outside a SCRIPTED DEMO frame and no green dot on /status while unwired; (7) domain grep: zero loonext.app hits, metadata/sitemap/robots resolve to https://loonext.com; (8) pricing-source audit: every rendered price traces to the shared constants import, none retyped.
+Additional QA gates: (6) liveness grep: no live/online/operational indicator outside a product-demo Panel Frame and no green dot on /status while unwired; (7) domain grep: zero loonext.app hits, metadata/sitemap/robots resolve to https://loonext.com; (8) pricing-source audit: every rendered price traces to the shared constants import, none retyped.
 
 ---
 
@@ -145,3 +145,14 @@ Additional QA gates: (6) liveness grep: no live/online/operational indicator out
     clean, consistent icon per menu item (a single line-icon set, cobalt/ink, no color noise)
     and a small visual treatment to the mega-menu panels. Restraint still applies (one icon
     style, no illustration clutter), but the menu must not look empty.
+16. **No demo-labeling chip on product demos.** The `SCRIPTED DEMO` / `EXAMPLE CONVERSATION`
+    chips are removed from the site entirely; the `DemoChip`, `DEMO_CHIP_LABELS`, and
+    `DemoChipVariant` machinery and the PanelFrame `chip` prop are deleted. They read as
+    amateur meta-text: no real SaaS labels its own product demo as fake, and the product-UI
+    demos are self-evidently product demonstrations that need no "this is scripted" label. A
+    Panel Frame keeps its browser/phone chrome and its optional content-descriptive caption
+    and aria-label (those describe the CONTENT, e.g. "A conversation in the Loonext inbox",
+    and stay); it just never renders a demo-label chip. This SUPERSEDES the Law 1 "one
+    permitted content label" language. The no-fake-social-proof rule (Law 7) is unchanged and
+    stands on its own: an unlabeled illustrative conversation shown inside the product UI is
+    standard and does not violate it.

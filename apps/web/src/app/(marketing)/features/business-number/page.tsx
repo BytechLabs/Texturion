@@ -59,7 +59,6 @@ export default function BusinessNumberPage() {
         panel={
           <PanelFrame
             chromeUrl="loonext.com/settings"
-            chip="scripted-demo"
             caption="Two numbers on Pro: an office line and a field line, each with its own inbox."
             ariaLabel="The Loonext numbers settings showing two active business numbers with their unread counts"
           >

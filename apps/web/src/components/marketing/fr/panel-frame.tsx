@@ -1,7 +1,5 @@
 import { cn } from "@/lib/utils";
 
-import { DemoChip, type DemoChipVariant } from "./chips";
-
 /**
  * FR PANEL FRAME (DESIGN-DIRECTION v4 §5.2, Law 2): the marketing chrome
  * around every REAL product embed. The frame is marketing (white card, 16px
@@ -13,13 +11,12 @@ import { DemoChip, type DemoChipVariant } from "./chips";
  * color. Marketing cobalt stays OUTSIDE the frame. Do not recolor bubbles.
  * Ever.
  *
- * The only label ever attached is the mono chip (SCRIPTED DEMO, or
- * EXAMPLE CONVERSATION on trade pages) plus an optional caption that
- * describes the CONTENT, never the artifact (no "real interface", no
- * "not a screenshot").
+ * No demo-labeling chip is ever attached (owner amendment 2026-07-08); the
+ * frame keeps its chrome plus an optional caption that describes the CONTENT,
+ * never the artifact (no "real interface", no "not a screenshot").
  *
  * Usage:
- *   <PanelFrame chromeUrl="loonext.com/inbox" chip="scripted-demo"
+ *   <PanelFrame chromeUrl="loonext.com/inbox"
  *               caption="A Reyes Plumbing conversation.">
  *     <InboxEmbed />
  *   </PanelFrame>
@@ -33,7 +30,6 @@ export function PanelFrame({
   chromeUrl,
   phone = false,
   phoneDark = false,
-  chip,
   caption,
   className,
   embedClassName,
@@ -48,8 +44,6 @@ export function PanelFrame({
   /** With `phone`: flips the embed to the app's own dark mode (a local
       `.dark` region; the app tokens inside do the flipping). */
   phoneDark?: boolean;
-  /** The one permitted content label (Law 1). Omit for none. */
-  chip?: DemoChipVariant;
   /** Caption under the frame: content-descriptive, ink-55, body face. */
   caption?: string;
   className?: string;
@@ -99,14 +93,11 @@ export function PanelFrame({
         </div>
       )}
 
-      {chip || caption ? (
+      {caption ? (
         <figcaption className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          {chip ? <DemoChip variant={chip} /> : null}
-          {caption ? (
-            <span className="font-body-mkt text-sm text-[color:var(--fr-ink-55)]">
-              {caption}
-            </span>
-          ) : null}
+          <span className="font-body-mkt text-sm text-[color:var(--fr-ink-55)]">
+            {caption}
+          </span>
         </figcaption>
       ) : null}
     </figure>

@@ -11,8 +11,8 @@ import { LazyThreadDeepDive } from "./lazy-islands";
  * The server ships the COMPLETED water-heater thread (ThreadDeepDiveStatic,
  * also the no-JS and reduced-motion frame); the steppable island replaces it
  * in place on viewport approach. The thread renders inside the foundation
- * PanelFrame with app tokens (Law 2) and carries only the SCRIPTED DEMO chip
- * (Law 1); both of those live inside the shared deep-dive frames.
+ * PanelFrame with app tokens (Law 2) and carries no demo-labeling chip (owner
+ * amendment 2026-07-08); the shared deep-dive frames handle that framing.
  */
 export function FixShown() {
   return (

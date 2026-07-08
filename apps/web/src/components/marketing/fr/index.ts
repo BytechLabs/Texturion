@@ -4,13 +4,7 @@
  */
 export { FrSection, FrContainer } from "./section";
 export { FrCard } from "./card";
-export {
-  Dateline,
-  Eyebrow,
-  DemoChip,
-  DEMO_CHIP_LABELS,
-  type DemoChipVariant,
-} from "./chips";
+export { Dateline, Eyebrow } from "./chips";
 export { CtaButton } from "./cta";
 export { MonoFigure } from "./mono-figure";
 export { PanelFrame } from "./panel-frame";

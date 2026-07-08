@@ -9,7 +9,6 @@ import HvacPage from "@/app/(marketing)/for/hvac/page";
 import LandscapersPage from "@/app/(marketing)/for/landscapers/page";
 import PlumbersPage from "@/app/(marketing)/for/plumbers/page";
 import SalonsPage from "@/app/(marketing)/for/salons/page";
-import { DEMO_CHIP_LABELS } from "@/components/marketing/fr";
 import {
   PRIMARY_CTA_LABEL,
   SECONDARY_CTA_LABEL,
@@ -132,11 +131,11 @@ describe("coverage map + deck copy (each trade's own worst minute)", () => {
   });
 });
 
-describe("Law 1: the only content label is the EXAMPLE CONVERSATION chip", () => {
-  it.each(PAGES)("$name carries the chip and zero artifact talk", (page) => {
-    expect(page.html).toContain(DEMO_CHIP_LABELS["example-conversation"]);
-    // Trade pages use EXAMPLE CONVERSATION, never SCRIPTED DEMO.
-    expect(page.html).not.toContain(DEMO_CHIP_LABELS["scripted-demo"]);
+describe("Law 1: product demos render unlabeled, with no artifact talk", () => {
+  it.each(PAGES)("$name attaches no demo-labeling chip and zero artifact talk", (page) => {
+    // No demo-labeling chip is attached (owner amendment 2026-07-08).
+    expect(page.html).not.toContain("EXAMPLE CONVERSATION");
+    expect(page.html).not.toContain("SCRIPTED DEMO");
     // Purge sweep (V4-REDO-PLAN): the site never describes itself.
     expect(page.html).not.toMatch(
       /real interface|not a screenshot|stock photo|fake review|set in |built with next/i,

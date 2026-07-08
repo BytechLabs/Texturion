@@ -8,7 +8,7 @@
  *
  * Template order (DESIGN-DIRECTION v4 §6 TRADE):
  *   Dateline Header (the trade's after-hours moment, matching the thread)
- *   → pain → the static EXAMPLE CONVERSATION thread in a PanelFrame
+ *   → pain → the static example thread in a PanelFrame
  *   → use cases (work cards) → saved-replies pack in the template picker
  *   → features strip → pricing snippet (+ Truth Strips) → trade FAQ
  *   → final CTA (Frost band; the cobalt band is home-only).
@@ -214,9 +214,9 @@ export function TradePage({ content }: { content: TradeContent }) {
         </div>
       </FrSection>
 
-      {/* THE EXAMPLE CONVERSATION: the worst minute, played out in the
-          product. Real thread patterns with app tokens inside the frame;
-          the only label is the EXAMPLE CONVERSATION chip (Law 1). */}
+      {/* THE EXAMPLE THREAD: the worst minute, played out in the product.
+          Real thread patterns with app tokens inside the frame; shown
+          unlabeled (owner amendment 2026-07-08). */}
       <FrSection ground="white">
         <div className="max-w-2xl">
           <h2 className="fr-h2 text-[color:var(--fr-ink)]">
@@ -228,7 +228,6 @@ export function TradePage({ content }: { content: TradeContent }) {
         </div>
         <PanelFrame
           chromeUrl="loonext.com/inbox"
-          chip="example-conversation"
           caption={THREAD_CAPTION}
           ariaLabel={content.threadAriaLabel}
           className="mx-auto mt-12 w-full max-w-[36rem]"

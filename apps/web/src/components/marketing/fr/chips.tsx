@@ -14,17 +14,14 @@ import { cn } from "@/lib/utils";
  * <Eyebrow>    The section eyebrow: Frost ground, mono ink text, uppercase
  *              (e.g. "SEE IT WORK", "DO THE MATH").
  *
- * <DemoChip>   The ONLY content label the site may attach to a demo (Law 1):
- *              a terse mono chip reading exactly SCRIPTED DEMO, or
- *              EXAMPLE CONVERSATION on trade pages. It labels the
- *              conversation as scripted; it never mentions the interface,
- *              the site, or realism.
+ * The site attaches NO demo-labeling chip to product demos; they render
+ * unlabeled (owner amendment 2026-07-08). The no-fake-social-proof rule
+ * (Law 7) is unchanged and stated separately.
  *
  * Usage:
  *   <Dateline>9:04 PM · TUESDAY</Dateline>
  *   <Dateline tone="frost">Plain English summary</Dateline>
  *   <Eyebrow>See it work</Eyebrow>
- *   <DemoChip variant="example-conversation" />
  */
 
 export function Dateline({
@@ -67,33 +64,6 @@ export function Eyebrow({
       )}
     >
       {children}
-    </span>
-  );
-}
-
-/** The exact permitted label strings (Law 1). Nothing else, ever. */
-export const DEMO_CHIP_LABELS = {
-  "scripted-demo": "SCRIPTED DEMO",
-  "example-conversation": "EXAMPLE CONVERSATION",
-} as const;
-
-export type DemoChipVariant = keyof typeof DEMO_CHIP_LABELS;
-
-export function DemoChip({
-  variant = "scripted-demo",
-  className,
-}: {
-  variant?: DemoChipVariant;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "fr-eyebrow inline-flex items-center rounded-[6px] bg-[color:var(--fr-frost)] px-2.5 py-1.5 text-[color:var(--fr-ink)]",
-        className,
-      )}
-    >
-      {DEMO_CHIP_LABELS[variant]}
     </span>
   );
 }

@@ -57,7 +57,6 @@ export default function TemplatesAndTagsPage() {
         panel={
           <PanelFrame
             chromeUrl="loonext.com/inbox"
-            chip="scripted-demo"
             caption="Type / in the composer and the saved replies open, with the preview showing what actually ships."
             ariaLabel="The Loonext saved-replies picker open over the composer, with a template preview"
           >
@@ -93,7 +92,6 @@ export default function TemplatesAndTagsPage() {
         heading="Tag it the way you sell. Check off what's handled."
         visual={
           <PanelFrame
-            chip="scripted-demo"
             caption="A conversation tagged Scheduled, and a question checked off right in the thread."
             ariaLabel="Loonext pipeline tags on a conversation and a message marked done"
           >

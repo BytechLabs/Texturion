@@ -5,8 +5,6 @@ import {
   ConvergedField,
   CtaButton,
   Dateline,
-  DemoChip,
-  DEMO_CHIP_LABELS,
   Eyebrow,
   FrCard,
   FrSection,
@@ -17,23 +15,6 @@ import {
 /** The v4 laws the primitives must encode (DESIGN-DIRECTION v4). */
 
 describe("fr primitives — the FIRST RESPONSE component kit", () => {
-  it("DemoChip renders EXACTLY the two permitted content labels (Law 1), never artifact talk", () => {
-    expect(DEMO_CHIP_LABELS["scripted-demo"]).toBe("SCRIPTED DEMO");
-    expect(DEMO_CHIP_LABELS["example-conversation"]).toBe(
-      "EXAMPLE CONVERSATION",
-    );
-    const scripted = renderToStaticMarkup(<DemoChip />);
-    expect(scripted).toContain("SCRIPTED DEMO");
-    const example = renderToStaticMarkup(
-      <DemoChip variant="example-conversation" />,
-    );
-    expect(example).toContain("EXAMPLE CONVERSATION");
-    // The label describes the CONTENT only: no interface/realism talk.
-    for (const html of [scripted, example]) {
-      expect(html).not.toMatch(/real interface|screenshot|demo thread/i);
-    }
-  });
-
   it("Dateline is the ink chip (white mono text) with a frost tone for legal summary chips", () => {
     const ink = renderToStaticMarkup(<Dateline>9:04 PM · TUESDAY</Dateline>);
     expect(ink).toContain("9:04 PM · TUESDAY");
@@ -121,7 +102,6 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     const html = renderToStaticMarkup(
       <PanelFrame
         chromeUrl="loonext.com/inbox"
-        chip="scripted-demo"
         caption="A Reyes Plumbing conversation."
         ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
       >
@@ -130,7 +110,9 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     );
     expect(html).toContain("app-scope");
     expect(html).toContain("loonext.com/inbox");
-    expect(html).toContain("SCRIPTED DEMO");
+    // No demo-labeling chip is ever attached (owner amendment 2026-07-08).
+    expect(html).not.toContain("SCRIPTED DEMO");
+    expect(html).not.toContain("EXAMPLE CONVERSATION");
     expect(html).toContain("A Reyes Plumbing conversation.");
     // Marketing never paints cobalt INSIDE the frame: the embed region adds
     // no marketing color, only the scope class.
@@ -175,10 +157,9 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     const everything = [
       renderToStaticMarkup(<Dateline>9:04 PM · TUESDAY</Dateline>),
       renderToStaticMarkup(<Eyebrow>Do the math</Eyebrow>),
-      renderToStaticMarkup(<DemoChip />),
       renderToStaticMarkup(<CtaButton href="/signup">Get your number</CtaButton>),
       renderToStaticMarkup(
-        <PanelFrame chip="example-conversation" caption="Tap any message to mark it done.">
+        <PanelFrame caption="Tap any message to mark it done.">
           <div>x</div>
         </PanelFrame>,
       ),

@@ -60,7 +60,6 @@ export default function CompliancePage() {
         panel={
           <PanelFrame
             chromeUrl="loonext.com/settings"
-            chip="scripted-demo"
             caption="The registration tracker, three days in: filed, in review, nothing for you to do."
             ariaLabel="The Loonext registration tracker showing a filing in carrier review"
           >
@@ -99,7 +98,6 @@ export default function CompliancePage() {
         heading="STOP means stop, instantly."
         visual={
           <PanelFrame
-            chip="scripted-demo"
             caption="A STOP arrives, and the composer is replaced by the block."
             ariaLabel="A conversation where a customer texted STOP and sends to them are blocked"
           >
@@ -158,7 +156,6 @@ export default function CompliancePage() {
         heading="A gentle check before a late-night first text."
         visual={
           <PanelFrame
-            chip="scripted-demo"
             caption="Starting a conversation at 9:14 PM the customer's time: send, or wait for morning."
             ariaLabel="The Loonext late-night check asking whether to send a new conversation now or wait"
           >
