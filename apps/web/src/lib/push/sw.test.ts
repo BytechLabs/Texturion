@@ -15,7 +15,7 @@ const SW_SOURCE = readFileSync(
   "utf8",
 );
 
-const ORIGIN = "https://app.loonext.app";
+const ORIGIN = "https://app.loonext.com";
 
 interface WindowClientStub {
   url: string;

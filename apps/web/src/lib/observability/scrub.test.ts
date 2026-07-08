@@ -37,7 +37,7 @@ function syntheticEvent(): ErrorEvent {
           // Search-as-you-type: the palette fires GET /v1/search?q=<term>
           // per keystroke, and the default breadcrumbsIntegration records
           // the full request URL.
-          url: `https://api.loonext.app/v1/search?q=${encodeURIComponent(SEARCH_TERM)}&phone=${encodeURIComponent(PHONE)}`,
+          url: `https://api.loonext.com/v1/search?q=${encodeURIComponent(SEARCH_TERM)}&phone=${encodeURIComponent(PHONE)}`,
           to: PHONE,
           contact_name: "Jane Doe",
           displayName: "Jane Doe",
@@ -57,13 +57,13 @@ function syntheticEvent(): ErrorEvent {
     request: {
       // location.href while an inbox search is active: the typed term
       // round-trips through ?q= (filter-url.ts serializeInboxFilters).
-      url: `https://app.loonext.app/inbox?q=${encodeURIComponent(`${SEARCH_TERM} ${PHONE}`)}`,
+      url: `https://app.loonext.com/inbox?q=${encodeURIComponent(`${SEARCH_TERM} ${PHONE}`)}`,
       query_string: `q=${SEARCH_TERM} ${PHONE}`,
       cookies: { session: "abc" },
       headers: {
         "User-Agent": "vitest",
         "x-note": PHONE,
-        Referer: `https://app.loonext.app/contacts?q=${encodeURIComponent(SEARCH_TERM)}`,
+        Referer: `https://app.loonext.com/contacts?q=${encodeURIComponent(SEARCH_TERM)}`,
       },
       data: `{"body":"hi, call me at ${PHONE}","name":"Jane Doe"}`,
     },
@@ -130,7 +130,7 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
       "dialing [phone redacted] then [phone redacted]",
     );
     expect(scrubbed.breadcrumbs?.[0]?.data).toEqual({
-      url: "https://api.loonext.app/v1/search",
+      url: "https://api.loonext.com/v1/search",
       to: "[phone redacted]",
       contact_name: "[name redacted]",
       displayName: "[name redacted]",
@@ -147,11 +147,11 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
     expect(serialized).not.toContain(encodeURIComponent(SEARCH_TERM));
 
     // (1) event.request.url is location.href — ?q=<term> is cut, path kept.
-    expect(scrubbed.request?.url).toBe("https://app.loonext.app/inbox");
+    expect(scrubbed.request?.url).toBe("https://app.loonext.com/inbox");
 
     // (2) fetch/XHR breadcrumbs record the full search request URL.
     expect(scrubbed.breadcrumbs?.[0]?.data?.url).toBe(
-      "https://api.loonext.app/v1/search",
+      "https://api.loonext.com/v1/search",
     );
 
     // (3) navigation breadcrumbs carry from/to including query strings.
@@ -162,15 +162,15 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
 
     // The Referer header is a URL too.
     expect(scrubbed.request?.headers?.["Referer"]).toBe(
-      "https://app.loonext.app/contacts",
+      "https://app.loonext.com/contacts",
     );
   });
 
   it("still phone-redacts URL path segments after the query is cut", () => {
     const event = syntheticEvent();
-    event.request = { url: `https://app.loonext.app/contacts/${PHONE}?tab=notes` };
+    event.request = { url: `https://app.loonext.com/contacts/${PHONE}?tab=notes` };
     expect(scrubEvent(event).request?.url).toBe(
-      "https://app.loonext.app/contacts/[phone redacted]",
+      "https://app.loonext.com/contacts/[phone redacted]",
     );
   });
 
@@ -200,10 +200,10 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
   it("cuts query strings from url/from/to before the crumb is stored", () => {
     const fetchCrumb = scrubBreadcrumb({
       category: "fetch",
-      data: { url: "https://api.loonext.app/v1/search?q=Jane%20Doe", method: "GET" },
+      data: { url: "https://api.loonext.com/v1/search?q=Jane%20Doe", method: "GET" },
     });
     expect(fetchCrumb.data).toEqual({
-      url: "https://api.loonext.app/v1/search",
+      url: "https://api.loonext.com/v1/search",
       method: "GET",
     });
 

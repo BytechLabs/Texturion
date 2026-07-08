@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Info } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { PORT_CHECKOUT_TIMELINE } from "@/components/porting/copy";
@@ -17,6 +17,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  trackCheckoutStarted,
+  trackPlanSelected,
+} from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
@@ -26,6 +30,7 @@ import {
   type PlanId,
   type PlanModule,
 } from "@/lib/api/types";
+import { consumePlanIntent } from "@/lib/marketing/plan-intent";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -84,6 +89,18 @@ function PlanStep() {
   const [formError, setFormError] = useState<string | null>(null);
   // #12 plan builder: opt-in add-ons carried into checkout.
   const [modules, setModules] = useState<PlanModule[]>([]);
+  // The /pricing plan builder's configuration, stashed at signup (or carried
+  // in this URL on a deep link) — "what you build here is exactly what
+  // checkout starts from". Consumed exactly once (URL wins over stash, stash
+  // cleared) in an effect so the SSR pass renders identically; the intent
+  // pre-toggles the add-ons and moves the emphasized plan card.
+  const [intentPlan, setIntentPlan] = useState<PlanId | null>(null);
+  useEffect(() => {
+    const intent = consumePlanIntent(window.location.search);
+    if (!intent) return;
+    setIntentPlan(intent.plan);
+    setModules(intent.modules);
+  }, []);
 
   function toggleModule(id: PlanModule) {
     setModules((current) =>
@@ -119,8 +136,13 @@ function PlanStep() {
   async function choose(plan: PlanId) {
     setFormError(null);
     setChoosing(plan);
+    // Funnel: the committed selection (hydrated intent or hand-picked) —
+    // plan/module enums only (D8).
+    trackPlanSelected(plan, modules);
     try {
       const { url } = await checkout.mutateAsync({ companyId, plan, modules });
+      // Funnel: a hosted Checkout session exists and the redirect begins.
+      trackCheckoutStarted(plan, modules);
       window.location.assign(url);
       // Keep the button in its busy state while the browser navigates.
     } catch (cause) {
@@ -203,7 +225,11 @@ function PlanStep() {
               <Button
                 size="lg"
                 className="mt-5 w-full"
-                variant={plan.id === "starter" ? "default" : "outline"}
+                // The petrol emphasis follows the pricing-builder intent when
+                // one arrived with this signup; Starter stays the default.
+                variant={
+                  plan.id === (intentPlan ?? "starter") ? "default" : "outline"
+                }
                 onClick={() => choose(plan.id)}
                 disabled={choosing !== null}
               >

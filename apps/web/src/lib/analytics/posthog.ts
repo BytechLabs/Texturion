@@ -68,6 +68,11 @@ export function initPostHog(): Promise<PostHog | null> {
         disable_surveys: true,
         capture_pageview: "history_change",
         capture_pageleave: false,
+        // COOKIELESS BY CONFIGURATION, not by accident: the privacy policy
+        // states analytics sets no cookies, so persistence is pinned to
+        // localStorage (PostHog's default "localStorage+cookie" would write a
+        // ph_* cookie). Do not change without changing the legal copy first.
+        persistence: "localStorage",
         // No feature flags in use — skip the remote flags round-trip.
         advanced_disable_flags: true,
         // Anonymous marketing traffic stays anonymous; a profile exists only

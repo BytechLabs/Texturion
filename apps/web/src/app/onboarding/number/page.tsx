@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useCreateCompany } from "@/lib/api/companies";
@@ -104,6 +105,7 @@ export default function NumberStepPage() {
         usTexting: country === "CA" ? usTexting : true,
         mode: "port",
       });
+      trackOnboardingStepCompleted("number");
       router.push("/onboarding/port");
       return;
     }
@@ -121,6 +123,7 @@ export default function NumberStepPage() {
     });
 
     if (!skipsRegistration) {
+      trackOnboardingStepCompleted("number");
       router.push("/onboarding/business");
       return;
     }
@@ -142,6 +145,7 @@ export default function NumberStepPage() {
       // wait for the membership to be visible before navigating.
       await queryClient.invalidateQueries({ queryKey: keys.me });
       clearOnboardingDraft();
+      trackOnboardingStepCompleted("number");
       router.push("/onboarding/plan");
     } catch (cause) {
       setFormError(

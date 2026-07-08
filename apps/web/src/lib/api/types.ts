@@ -790,6 +790,56 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   },
 ];
 
+/**
+ * #59-style hand-kept mirror of the plan table (apps/api/src/billing/plans.ts
+ * PLAN_LIMITS / PLAN_INCLUDED_SEGMENTS / PLAN_OVERAGE_CENTS_PER_SEGMENT, and
+ * SPEC §2 for the monthly prices the Stripe catalog charges). Read by the
+ * static, unauthenticated marketing surfaces (the /pricing plan builder and
+ * plan cards) that can never call the authed API, exactly like
+ * PLAN_MODULE_CARDS above — every rendered plan figure must trace to THIS
+ * object, never be retyped at a call site. WHEN RETUNING A PLAN you must edit
+ * plans.ts / the Stripe prices AND this mirror; there is no runtime link.
+ * Values as of 2026-07-07: Starter $29 / 3 seats / 1 number / 500 segments /
+ * 3¢ overage; Pro $79 / 10 seats / 2 numbers / 2,500 segments / 2.5¢ overage.
+ */
+export const PLAN_PRICING: Record<
+  PlanId,
+  {
+    /** Flat monthly price in whole USD (SPEC §2). */
+    monthlyDollars: number;
+    /** Teammates included (PLAN_LIMITS.seats). */
+    seats: number;
+    /** Business numbers included (PLAN_LIMITS.numbers). */
+    numbers: number;
+    /** Outgoing texts (segments) included per month (PLAN_INCLUDED_SEGMENTS). */
+    includedTexts: number;
+    /** Overage price per extra outgoing text, in cents (PLAN_OVERAGE_CENTS_PER_SEGMENT). */
+    overageCentsPerText: number;
+  }
+> = {
+  starter: {
+    monthlyDollars: 29,
+    seats: 3,
+    numbers: 1,
+    includedTexts: 500,
+    overageCentsPerText: 3,
+  },
+  pro: {
+    monthlyDollars: 79,
+    seats: 10,
+    numbers: 2,
+    includedTexts: 2500,
+    overageCentsPerText: 2.5,
+  },
+};
+
+/**
+ * The one-time US carrier-registration fee in whole USD (SPEC §4.1: charged
+ * at most once per company, ever; Canadian companies that never text US
+ * numbers never pay it). Same hand-kept-mirror rules as PLAN_PRICING.
+ */
+export const US_REGISTRATION_FEE_DOLLARS = 29;
+
 /** GET /v1/registration row — owner/admin additionally receive `data`. */
 export interface RegistrationRow extends RegistrationSummary {
   id: string;

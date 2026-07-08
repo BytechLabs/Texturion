@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -328,6 +329,7 @@ export default function BusinessIdentityPage() {
         await queryClient.invalidateQueries({ queryKey: keys.me });
         clearOnboardingDraft();
       }
+      trackOnboardingStepCompleted("business");
       router.push("/onboarding/texting");
     } catch (cause) {
       setFormError(

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { Wordmark } from "@/components/shell/wordmark";
 
 import { AppProviders } from "../app-providers";
@@ -10,6 +12,14 @@ import { AppProviders } from "../app-providers";
  * Wraps AppProviders because the auth forms use the TanStack Query client;
  * the (marketing) group does not, so it stays out of the root layout.
  */
+
+export const metadata: Metadata = {
+  // Auth pages are transactional surfaces, not content — keep them out of
+  // search indexes. Per-route titles live in each segment's metadata-only
+  // layout (the pages are client components) and flow through the root
+  // "%s · Loonext" template.
+  robots: { index: false, follow: false },
+};
 export default function AuthLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

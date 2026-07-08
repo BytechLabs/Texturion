@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
 
@@ -137,6 +138,7 @@ export default function TextingDetailsPage() {
         companyId: state.companyId,
         campaign: values,
       });
+      trackOnboardingStepCompleted("texting");
       router.push("/onboarding/plan");
     } catch (cause) {
       setFormError(

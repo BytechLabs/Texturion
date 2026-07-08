@@ -8,9 +8,9 @@ const publicEnvSchema = z.object({
   // its token to Supabase Auth (SPEC §10 front door). Local dev and CI run
   // without it — Supabase only enforces captcha when enabled in the dashboard.
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
-  // Optional: the app portal origin (e.g. https://app.loonext.app). When set,
+  // Optional: the app portal origin (e.g. https://app.loonext.com). When set,
   // the middleware enforces the marketing/app host split — app-surface paths
-  // on loonext.app redirect here, marketing paths on this host redirect to
+  // on loonext.com redirect here, marketing paths on this host redirect to
   // the marketing site (lib/hosts.ts). Unset (dev/CI/previews) = no gating;
   // every route stays reachable on one origin.
   NEXT_PUBLIC_APP_ORIGIN: z.url().optional(),

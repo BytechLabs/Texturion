@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
 import { writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -59,6 +60,7 @@ export default function CompanyNamePage() {
 
   function onSubmit(values: z.infer<typeof schema>) {
     writeOnboardingDraft({ name: values.name });
+    trackOnboardingStepCompleted("name");
     router.push("/onboarding/number");
   }
 

@@ -11,6 +11,7 @@ import { REGISTRATION_COPY } from "@/components/registration/copy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberReveal } from "@/components/ui/number-reveal";
+import { trackCheckoutCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import {
@@ -355,6 +356,13 @@ function SettingUp() {
   // shows the "confirming payment" row until the subscription flips.
   const paid = company ? hasPaid(company.subscription_status) : false;
   const confirming = company !== null && !paid && checkoutSuccess;
+
+  // Funnel: the checkout return confirmed as paid (client view; the Stripe
+  // webhook's server-side event stays authoritative). The helper's
+  // once-per-tab guard absorbs this screen's constant poll-driven re-renders.
+  useEffect(() => {
+    if (checkoutSuccess && paid) trackCheckoutCompleted();
+  }, [checkoutSuccess, paid]);
   const redirectTo =
     state.status !== "ready"
       ? null

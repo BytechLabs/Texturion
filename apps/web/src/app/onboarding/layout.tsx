@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { Wordmark } from "@/components/shell/wordmark";
 
 import { AppProviders } from "../app-providers";
@@ -12,6 +14,16 @@ import { OnboardingSignOut } from "./sign-out";
  * Wraps AppProviders because the wizard steps use the TanStack Query client;
  * the (marketing) group does not, so it stays out of the root layout.
  */
+
+export const metadata: Metadata = {
+  // The wizard is a transactional, signed-in surface — keep it out of search
+  // indexes (child step layouts inherit this). The default title covers the
+  // dispatcher/index; each step's metadata-only layout supplies its own "%s"
+  // that the root "%s · Loonext" template wraps. The pages are client
+  // components, so the titles cannot live on them.
+  title: { default: "Get started · Loonext", template: "%s · Loonext" },
+  robots: { index: false, follow: false },
+};
 export default function OnboardingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

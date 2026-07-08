@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const VALID_URL = "https://abcdefghijkl.supabase.co";
 const VALID_KEY = "sb_publishable_0123456789abcdef";
-const VALID_API = "https://api.loonext.app";
+const VALID_API = "https://api.loonext.com";
 const DSN = "https://abc123def456@o4506000000000.ingest.us.sentry.io/4506000000001";
 
 // The SDK is loaded via dynamic import inside initSentryClient — mock it so

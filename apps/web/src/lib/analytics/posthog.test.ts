@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const VALID_URL = "https://abcdefghijkl.supabase.co";
 const VALID_KEY = "sb_publishable_0123456789abcdef";
-const VALID_API = "https://api.loonext.app";
+const VALID_API = "https://api.loonext.com";
 const POSTHOG_KEY = "phc_0123456789abcdefghijklmnopqrstuvwxyzABCDEF";
 const COMPANY_ID = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
 const PHONE = "+14165551234";
@@ -43,16 +43,16 @@ describe("sanitizeEventProperties (D8: UUIDs, counts, and feature events only)",
     const { sanitizeEventProperties } = await importPostHog(POSTHOG_KEY);
     expect(
       sanitizeEventProperties({
-        $current_url: `https://app.loonext.app/contacts?q=${encodeURIComponent(PHONE)}`,
+        $current_url: `https://app.loonext.com/contacts?q=${encodeURIComponent(PHONE)}`,
         $pathname: "/contacts",
         $referrer: "https://loonext.com/pricing#faq",
-        $session_entry_url: `https://app.loonext.app/inbox/${COMPANY_ID}?q=1#x`,
+        $session_entry_url: `https://app.loonext.com/inbox/${COMPANY_ID}?q=1#x`,
       }),
     ).toEqual({
-      $current_url: "https://app.loonext.app/contacts",
+      $current_url: "https://app.loonext.com/contacts",
       $pathname: "/contacts",
       $referrer: "https://loonext.com/pricing",
-      $session_entry_url: `https://app.loonext.app/inbox/${COMPANY_ID}`,
+      $session_entry_url: `https://app.loonext.com/inbox/${COMPANY_ID}`,
     });
   });
 
@@ -60,10 +60,10 @@ describe("sanitizeEventProperties (D8: UUIDs, counts, and feature events only)",
     const { sanitizeEventProperties } = await importPostHog(POSTHOG_KEY);
     expect(
       sanitizeEventProperties({
-        $current_url: "https://app.loonext.app/contacts/+14165551234?tab=notes",
+        $current_url: "https://app.loonext.com/contacts/+14165551234?tab=notes",
       }),
     ).toEqual({
-      $current_url: "https://app.loonext.app/contacts/[phone redacted]",
+      $current_url: "https://app.loonext.com/contacts/[phone redacted]",
     });
   });
 
@@ -116,6 +116,10 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
     expect(config.capture_pageview).toBe("history_change");
     expect(config.capture_pageleave).toBe(false);
     expect(config.person_profiles).toBe("identified_only");
+    // The privacy policy claims analytics is cookieless — pin persistence to
+    // localStorage so PostHog never writes a ph_* cookie (the SDK default
+    // "localStorage+cookie" would falsify the legal copy).
+    expect(config.persistence).toBe("localStorage");
 
     // The sanitizer is actually wired in, not just exported.
     expect(

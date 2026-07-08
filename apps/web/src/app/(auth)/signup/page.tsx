@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -21,7 +21,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
+import {
+  trackSignupCompleted,
+  trackSignupStarted,
+} from "@/lib/analytics/events";
 import { authErrorMessage } from "@/lib/auth/messages";
+import {
+  planIntentSearch,
+  stashPlanIntentFromSearch,
+  type PlanIntent,
+} from "@/lib/marketing/plan-intent";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 const schema = z.object({
@@ -47,6 +56,23 @@ export default function SignupPage() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
+  // The /pricing plan builder lands here with ?plan=…&modules=… and promises
+  // "what you build here is exactly what checkout starts from". Validate +
+  // stash that intent (sessionStorage, loonext.plan_intent) and thread it
+  // through BOTH auth paths below so the onboarding plan step can start from
+  // it. window.location (in an effect) instead of useSearchParams keeps the
+  // page out of a Suspense boundary; the effect runs before any submit can.
+  const [planIntent, setPlanIntent] = useState<PlanIntent | null>(null);
+  useEffect(() => {
+    setPlanIntent(stashPlanIntentFromSearch(window.location.search));
+  }, []);
+  // Where a completed auth should land: onboarding, carrying the intent in
+  // the URL so it survives contexts where the stash doesn't exist (the
+  // confirm-email link opened in another browser/profile).
+  const onboardingPath = planIntent
+    ? `/onboarding?${planIntentSearch(planIntent)}`
+    : "/onboarding";
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "" },
@@ -54,13 +80,16 @@ export default function SignupPage() {
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
+    trackSignupStarted(planIntent);
     const { data, error } = await getSupabaseBrowser().auth.signUp({
       email: values.email,
       password: values.password,
       options: {
         // The DB trigger copies display_name into profiles (SPEC §6).
         data: { display_name: values.name },
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        // Carries the plan intent through the confirm-email round trip — the
+        // onboarding dispatcher re-stashes it from the URL on landing.
+        emailRedirectTo: `${window.location.origin}${onboardingPath}`,
         captchaToken: captchaToken ?? undefined,
       },
     });
@@ -73,7 +102,8 @@ export default function SignupPage() {
     }
     if (data.session) {
       // Email confirmation disabled: straight into onboarding (SPEC §4.1).
-      router.replace("/onboarding");
+      trackSignupCompleted();
+      router.replace(onboardingPath);
       router.refresh();
       return;
     }
@@ -121,10 +151,13 @@ export default function SignupPage() {
       </div>
       {/* SSO stacked above the email form (§1.7). A first-time OAuth user with
           no company goes through the SAME company-first onboarding as a
-          password signup (D18) — no `next` here means the callback lands on
-          /inbox, and CompanyProvider forwards a zero-membership user to
-          /onboarding (where the AUP is accepted). */}
-      <OAuthButtons />
+          password signup (D18). With a plan intent, `next` sends the callback
+          to /onboarding carrying it (the PKCE round trip also keeps the
+          sessionStorage stash — belt and suspenders); without one, no `next`
+          keeps today's behavior: the callback lands on the default surface and
+          CompanyProvider forwards a zero-membership user to /onboarding
+          (where the AUP is accepted). */}
+      <OAuthButtons next={planIntent ? onboardingPath : undefined} />
       <Form {...form}>
         <form
           // Belt-and-suspenders: `handleSubmit` preventDefaults once hydrated,

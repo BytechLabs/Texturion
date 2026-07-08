@@ -324,7 +324,7 @@ describe("invalidateAfterNoteUpload — the note-file upload invalidation set", 
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
       "sb_publishable_0123456789abcdef",
     );
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.loonext.app");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.loonext.com");
     const mod = await import("./attachments");
     return mod.invalidateAfterNoteUpload;
   }
