@@ -150,7 +150,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What do you need from our company to get us approved for texting?",
-      a: "Two minutes at signup: your legal business name, address, and EIN. No EIN because you run as a sole proprietor? We verify you with a texted code instead. We file the registration for you; receiving texts works from day one, and texting US customers turns on in about a week, typically 3 to 7 business days, once the phone companies sign off.",
+      a: "If you run a Canadian shop texting Canadian customers, there's nothing to register and no wait: you're texting the same day. Registration only applies to texting US customers, and we file it for you: two minutes at signup with your legal business name, address, and EIN. No EIN because you run as a sole proprietor? We verify you with a texted code instead. Receiving texts works from day one wherever you are, and texting US customers turns on in about a week, typically 3 to 7 business days, once the phone companies sign off.",
     },
   ],
 

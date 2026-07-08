@@ -149,7 +149,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We're a licensed plumbing company. What's the registration process?",
-      a: "About two minutes of plain questions at signup: legal business name, address, and your EIN. Don't have an EIN? There's a sole proprietor path, where we text you a verification code and handle the rest. We file it all for you.",
+      a: "If you're a Canadian crew texting Canadian customers, there's nothing to register and no wait: you start the same day. Registering only applies to texting US customers, and we file it all for you: about two minutes of plain questions at signup, legal business name, address, and your EIN. Don't have an EIN? There's a sole proprietor path, where we text you a verification code and handle the rest.",
     },
   ],
 

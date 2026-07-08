@@ -116,9 +116,10 @@ export interface TradeContent {
   pricingBody: string;
   /**
    * Extra Truth Strip lines under the pricing card (§5.4). The two standard
-   * lines (receiving free; the US $58-first-month registration fact) render
-   * on every trade page; these are trade-specific additions (for example
-   * the contractors "texting, not project management" line).
+   * lines (receiving free; the Canada-same-day / US $58-first-month
+   * registration fact) render on every trade page; these are trade-specific
+   * additions (for example the contractors "texting, not project management"
+   * line).
    */
   truthLines?: TradeTruthLine[];
 
@@ -331,7 +332,7 @@ export function TradePage({ content }: { content: TradeContent }) {
             />
             <TruthStrip
               line={{
-                text: "US shops: a one-time $29 to register with the phone companies. $58 the first month, then $29 after.",
+                text: "In Canada you text customers the same day, with no registration and no fee. US shops register once with the phone companies: a one-time $29, so $58 the first month, then $29 after.",
               }}
             />
             {(content.truthLines ?? []).map((line, i) => (

@@ -209,7 +209,7 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
       "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
     );
     expect(page.html).toContain(
-      "US shops: a one-time $29 to register with the phone companies. $58 the first month, then $29 after.",
+      "In Canada you text customers the same day, with no registration and no fee. US shops register once with the phone companies: a one-time $29, so $58 the first month, then $29 after.",
     );
     // The pricing snippet figure and the deck's pricing link line.
     expect(page.html).toContain("$29");

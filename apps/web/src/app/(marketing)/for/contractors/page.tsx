@@ -170,7 +170,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What do you need from our company to get the number registered?",
-      a: "A couple of minutes at signup and three things: your legal business name, address, and EIN. Operating as a sole proprietor without an EIN? There's a path for that: we text you a verification code and take care of the rest. We file the whole registration for you; you can receive texts immediately, and texting US numbers activates in about a week once you're cleared.",
+      a: "If you're a Canadian crew texting Canadian customers, there's nothing to register and no wait: you can text the same day you sign up. Registration only applies to texting US numbers, and we file the whole thing for you: a couple of minutes at signup and three things, your legal business name, address, and EIN. Operating as a sole proprietor without an EIN? There's a path for that: we text you a verification code and take care of the rest. You can receive texts immediately either way, and texting US numbers activates in about a week once you're cleared.",
     },
   ],
 

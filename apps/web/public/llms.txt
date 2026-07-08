@@ -32,6 +32,7 @@ Website: https://loonext.com
 ## The honest US timeline (a trust feature, stated before payment)
 - Day one: your number is live and receiving texts; texting Canadian customers works immediately.
 - US texting activates after the phone companies approve your business registration, typically 3 to 7 business days (about a week). Loonext files everything the minute you pay and emails you the moment you're approved.
+- The registration wait and the one-time $29 fee are US-only. A Canadian business texting Canadian customers registers nothing, pays no fee, and never waits; the wait and fee apply only if you also text US numbers.
 
 ## Product features
 - Shared inbox with per-conversation owner and status (new, open, waiting, closed).

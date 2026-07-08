@@ -149,7 +149,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "How much of our time does the texting registration take?",
-      a: "About two minutes when you sign up: your legal business name, address, and EIN. If you run the crew as a sole proprietor with no EIN, we verify you with a texted code instead. From there we file everything with the phone companies. You can receive texts right away, and texting US customers turns on within about a week once you're cleared.",
+      a: "If you're a Canadian crew texting Canadian customers, there's no registration and no wait at all: you start the same day. The registration only applies if you text US customers, and we handle it: about two minutes when you sign up, with your legal business name, address, and EIN. If you run the crew as a sole proprietor with no EIN, we verify you with a texted code instead. You can receive texts right away either way, and texting US customers turns on within about a week once you're cleared.",
     },
   ],
 
