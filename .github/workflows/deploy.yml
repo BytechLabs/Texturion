@@ -28,6 +28,12 @@ jobs:
       # the middleware serves ONLY marketing pages on loonext.com and ONLY the
       # product on this origin. Both hostnames must be attached to the web Worker.
       NEXT_PUBLIC_APP_ORIGIN: ${{ secrets.NEXT_PUBLIC_APP_ORIGIN }}
+      # Optional client telemetry (blank = off — env.ts coerces "" → undefined,
+      # both are schema-optional). Browser Sentry (D13) and PostHog (D8/D12)
+      # activate only when set. NEXT_PUBLIC_* are inlined by `next build`, so
+      # they must be present at BUILD time here, not as runtime Worker vars.
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:

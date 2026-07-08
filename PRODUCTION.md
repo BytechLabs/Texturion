@@ -182,13 +182,16 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 | `NEXT_PUBLIC_API_URL` | Web build var (§4) — **must exist before the first automated deploy** |
 | `NEXT_PUBLIC_APP_ORIGIN` | Web build var (§4, optional — enables host split) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Web build var (§4, optional) |
+| `NEXT_PUBLIC_SENTRY_DSN` | Web build var (§4, optional) — browser error reporting |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Web build var (§4, optional) — browser analytics |
 
-> ⚠️ **Gap to note:** `deploy.yml` currently passes `NEXT_PUBLIC_APP_ORIGIN` and
-> `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to the web build, but **not**
-> `NEXT_PUBLIC_SENTRY_DSN` or `NEXT_PUBLIC_POSTHOG_KEY`. If you want browser-side
-> Sentry/PostHog in production, add those two as Actions secrets AND pass them as
-> build args in `deploy.yml`'s web build step (otherwise they're inlined empty =
-> client observability off). Not a blocker; the app works without them.
+> **Client telemetry (wired 2026-07-08):** `deploy.yml` now passes all six
+> `NEXT_PUBLIC_*` build vars, including `NEXT_PUBLIC_SENTRY_DSN` and
+> `NEXT_PUBLIC_POSTHOG_KEY`. Both stay optional — leave the Actions secret unset
+> (or blank) and that client is a silent no-op. Two caveats: (1) PostHog's host is
+> hardcoded to Cloud **US** (`us.i.posthog.com`), so the project must be US-region;
+> (2) no Sentry build plugin is configured, so browser stack traces arrive
+> minified (add `@sentry/nextjs`'s source-map upload later for readable traces).
 
 ---
 
