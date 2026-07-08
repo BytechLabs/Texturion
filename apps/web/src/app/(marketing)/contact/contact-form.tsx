@@ -112,8 +112,8 @@ export function ContactForm() {
           Thanks, your message was sent.
         </h2>
         <p className="mt-2 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-          A real person on our team will read it and reply within one business
-          day. If it is urgent, you can also email us at{" "}
+          We read every message and reply within one business day. If it is
+          urgent, you can also email us at{" "}
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
             className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 hover:decoration-[color:var(--fr-cobalt)]"

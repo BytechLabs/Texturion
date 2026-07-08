@@ -69,7 +69,7 @@ export const PLANS: Plan[] = [
       `${S.seats} teammates included`,
       `${S.numbers} local business number (US or Canada, your area code)`,
       `${S.includedTexts.toLocaleString("en-US")} texts a month (a plain text up to 160 characters is one; the composer shows the count before you send)`,
-      "Receiving texts and photos: free, unlimited",
+      "Receiving texts: free and unlimited; photos free to receive",
       `Extra texts: ${S.overageCentsPerText}¢ each, with a spending cap you control`,
       "Month to month, cancel anytime",
     ],
@@ -86,7 +86,7 @@ export const PLANS: Plan[] = [
       `${P.seats} teammates included`,
       `${P.numbers} local business numbers (two locations, or office and field)`,
       `${P.includedTexts.toLocaleString("en-US")} texts a month (same count rule; the composer always shows it before you send)`,
-      "Receiving texts and photos: free, unlimited",
+      "Receiving texts: free and unlimited; photos free to receive",
       `Extra texts: ${P.overageCentsPerText}¢ each, with a spending cap you control`,
       "Month to month, cancel anytime",
     ],
@@ -189,11 +189,11 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Do texts customers send me count against my 500?",
-    a: "No. Receiving texts and photos is free and unlimited on every plan. Only what you send counts.",
+    a: "No. Receiving texts is free and unlimited on every plan, and receiving photos is free too. Only what you send counts.",
   },
   {
     q: "How do photo messages work?",
-    a: "Receiving photos is free and unlimited on every plan. Sending them is the Picture messages add-on: $5 a month with 150 picture messages included. Each one you send also counts as a flat three texts from your monthly allowance, however long the words. Past 150 in a month, the photo is dropped and your message still goes out as plain text. The account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go.",
+    a: "Receiving photos is free on every plan, and they're saved in your included storage. Sending them is the Picture messages add-on: $5 a month with 150 picture messages included. Each one you send also counts as a flat three texts from your monthly allowance, however long the words. Past 150 in a month, the photo is dropped and your message still goes out as plain text. The account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go.",
   },
   {
     q: "What happens when I hit my allowance?",

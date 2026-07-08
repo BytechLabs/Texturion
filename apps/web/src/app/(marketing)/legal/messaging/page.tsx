@@ -149,8 +149,8 @@ export default function MessagingPolicyPage() {
           Questions about this program, or a message you received through
           Loonext? Email{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>{" "}
-          or use our <LegalLink href="/contact">contact page</LegalLink>. A
-          real person answers.
+          or use our <LegalLink href="/contact">contact page</LegalLink>. We
+          reply.
         </p>
       </LegalSectionBlock>
     </LegalPage>

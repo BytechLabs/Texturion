@@ -60,7 +60,7 @@ export default function RefundsPage() {
           from the email address on your account within your first 30 days and
           say you&apos;d like the refund. That&apos;s the whole process. You
           don&apos;t need to give a reason, though we appreciate hearing what
-          didn&apos;t work. A real person answers.
+          didn&apos;t work. We reply.
         </p>
       </LegalSectionBlock>
 

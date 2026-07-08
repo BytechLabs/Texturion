@@ -41,7 +41,7 @@ export const ADDON_FINE_PRINT: Record<
   voice:
     "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Loonext itself doesn't place calls.",
   extra_storage:
-    "For crews that keep lots of job photos and files: it stacks on top of your plan's included storage (5 GB on Starter, 25 GB on Pro, per pool).",
+    "Your plan's storage holds the files you attach to notes and the photos customers text you; when a pool is full, new photos are held (the message text still arrives) until you free space. This add-on gives you more room: it stacks on top of your included storage (5 GB on Starter, 25 GB on Pro, per pool).",
 };
 
 function AddonCard({ card }: { card: PlanModuleCard }) {

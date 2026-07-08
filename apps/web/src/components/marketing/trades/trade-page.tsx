@@ -325,7 +325,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           <div className="mt-6 space-y-2.5">
             <TruthStrip
               line={{
-                text: "Receiving texts and photos: free, unlimited, on every plan.",
+                text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
                 good: true,
               }}
             />

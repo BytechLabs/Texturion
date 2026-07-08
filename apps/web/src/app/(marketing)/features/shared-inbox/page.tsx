@@ -5,8 +5,9 @@
  * Dateline `1 OWNER PER CONVERSATION` → H1 "Every customer text, in one
  * inbox the whole crew can see." → the real inbox staged mid-task (assign
  * menu open) in a Panel Frame → use cases (morning triage, one owner per
- * thread, search as memory) → Truth Strip (inbound is free and unlimited on
- * every plan) → pricing snippet → unique FAQ → Frost CTA band.
+ * thread, search as memory) → Truth Strip (receiving texts is free and
+ * unlimited; photos are free to receive and saved in your storage) → pricing
+ * snippet → unique FAQ → Frost CTA band.
  *
  * Every number is a verified product/billing fact. buildMetadata +
  * BreadcrumbList JSON-LD; no FAQPage.
@@ -131,7 +132,7 @@ export default function SharedInboxPage() {
         heading="The plain facts"
         items={[
           {
-            text: "Receiving texts and photos: free, unlimited, on every plan.",
+            text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
             good: true,
           },
           {
@@ -148,8 +149,8 @@ export default function SharedInboxPage() {
           The shared inbox is the whole product, at one flat price for the
           whole crew: $29/mo on Starter for up to 3 people and one local
           number, $79/mo on Pro for up to 10 people and two numbers. 500
-          outgoing texts a month on Starter, 2,500 on Pro, and receiving is
-          always free and unlimited.
+          outgoing texts a month on Starter, 2,500 on Pro, and receiving texts
+          is always free and unlimited.
         </p>
         <p>
           US shops also pay a one-time $29 to register with the phone

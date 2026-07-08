@@ -12,11 +12,11 @@ Website: https://loonext.com
 
 ## Pricing (USD, plus sales tax where applicable)
 - Starter, $29/mo: 3 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
-- Pro, $79/mo: 10 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving free and unlimited.
+- Pro, $79/mo: 10 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving texts free and unlimited.
 - A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send.
 - One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever, never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.
 - Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.
-- Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro.
+- Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro. When a pool is full, new items are held (for pictures, the message text still arrives) until you free space or add the extra-storage add-on.
 
 ## Optional add-on modules (opt in at signup or later, cancel monthly)
 - Picture messages (MMS), $5/mo: send photos in your texts, with 150 outgoing picture messages a month included; a photo send also counts as three texts from the plan allowance. At the cap, more photos can't be sent until the period resets. The composer says so the moment a photo doesn't go, the text part of the message still sends, and email alerts warn at 80% and 100% of the included picture messages. Receiving photos is free on every plan, with or without this module.
@@ -38,7 +38,7 @@ Website: https://loonext.com
 - Internal notes (marked, never sent to the customer).
 - Saved replies (templates) via a "/" shortcut.
 - Tags for how you sell (Quote sent, Scheduled, Won, Lost).
-- Pictures both ways: receiving photos is free on every plan; sending photos is the $5/mo picture-messages module above.
+- Pictures both ways: receiving photos is free on every plan and saved to your included picture-messages storage; sending photos is the $5/mo picture-messages module above.
 - After-hours auto-reply: outside your business hours, a message you wrote yourself is sent back automatically (at most once per conversation per burst, so nobody gets spammed).
 - Missed-call text-back and call forwarding via the $8/mo module above.
 - Search across every message and contact; CSV contact import with a dry-run preview.

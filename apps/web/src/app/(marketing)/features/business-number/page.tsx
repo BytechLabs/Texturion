@@ -174,7 +174,7 @@ export default function BusinessNumberPage() {
         <p>
           One local number comes with Starter at $29/mo for up to 3 people; a
           second number comes with Pro at $79/mo for up to 10. Both are flat,
-          month to month, with receiving always free and unlimited. Porting a
+          month to month, with receiving texts always free and unlimited. Porting a
           number in is free.
         </p>
         <p>

@@ -25,7 +25,7 @@ export const HOME_FAQS: readonly { q: string; a: string }[] = [
   },
   {
     q: "What counts as one of my 500 texts?",
-    a: "Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts with emoji, count as more than one, and the composer shows you the count before you send, so there's no mystery. Receiving texts and photos is always free and unlimited. In practice, 500 covers roughly 20 to 25 plain texts every working day for a 2 or 3 person shop. Go over and it's 3¢ a text, with a cap you set. Sending photos is its own add-on; see the photos question below.",
+    a: "Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts with emoji, count as more than one, and the composer shows you the count before you send, so there's no mystery. Receiving texts is always free and unlimited. Receiving photos is free too, and they're saved in your included storage. In practice, 500 covers roughly 20 to 25 plain texts every working day for a 2 or 3 person shop. Go over and it's 3¢ a text, with a cap you set. Sending photos is its own add-on; see the photos question below.",
   },
   {
     q: "Why does texting US customers take about a week?",

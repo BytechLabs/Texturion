@@ -24,8 +24,8 @@ const formHtml = renderToStaticMarkup(<ContactForm />);
 
 describe("/contact — the work-order page", () => {
   it("opens with the deck's dateline, H1, and reply promise", () => {
-    expect(pageHtml).toContain("A REAL PERSON ANSWERS");
-    expect(pageHtml).toContain("Email us. A real person answers.");
+    expect(pageHtml).toContain("GET IN TOUCH");
+    expect(pageHtml).toContain("Email us. We answer.");
     expect(pageHtml).toContain("one of the people who built Loonext");
     // Deck /contact note: the reply-time clause ships only once ops verifies
     // it. Unverified at build time, so it is dropped (page and metadata).

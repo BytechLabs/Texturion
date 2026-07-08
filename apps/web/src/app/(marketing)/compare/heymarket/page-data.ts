@@ -37,7 +37,7 @@ export const HEYMARKET_ROWS: LedgerTableRow[] = [
     cells: [
       {
         value: "Included",
-        note: "500 outgoing texts ship with Starter; receiving is free and unlimited.",
+        note: "500 outgoing texts ship with Starter; receiving texts is free and unlimited.",
       },
       {
         value: "~$15",

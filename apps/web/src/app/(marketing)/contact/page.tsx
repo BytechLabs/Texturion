@@ -23,7 +23,7 @@ const PATH = "/contact";
 export const metadata: Metadata = buildMetadata({
   title: "Contact",
   description:
-    "Email us and a real person answers. No sales team, no ticket deflection: your message goes to the people who built Loonext.",
+    "Email us and we answer. No sales team: your message goes to the people who built Loonext.",
   path: PATH,
 });
 
@@ -49,7 +49,7 @@ function ContactLink({
  * CONTACT (DESIGN-DIRECTION v4 §6, COPY-DECK v2): the short work-order form
  * plus the founder reply promise. The form POSTs to the PUBLIC POST /contact
  * endpoint (apps/api/src/routes/contact.ts), which forwards the message to the
- * support inbox and acknowledges the sender, so "a real person answers" stays
+ * support inbox and acknowledges the sender, so the reply promise stays
  * literally true. A pre-filled mailto remains as a fallback for people who
  * prefer their own mail client.
  */
@@ -66,14 +66,14 @@ export default function ContactPage() {
         <div className="max-w-3xl">
           <ConvergedField variant="mark" className="h-9 w-auto" />
           <div className="mt-6">
-            <Dateline>A REAL PERSON ANSWERS</Dateline>
+            <Dateline>GET IN TOUCH</Dateline>
           </div>
           <h1 className="fr-h1 mt-5 text-[color:var(--fr-ink)]">
-            Email us. A real person answers.
+            Email us. We answer.
           </h1>
           <p className="fr-body mt-5 max-w-[58ch] text-[color:var(--fr-ink-70)]">
-            No sales team, no ticket deflection. You&apos;ll get a reply from
-            one of the people who built Loonext.
+            No sales team, no runaround. You&apos;ll get a reply from one of the
+            people who built Loonext.
           </p>
         </div>
 

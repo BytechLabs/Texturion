@@ -206,7 +206,7 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
   it.each(PAGES)("$name carries the standard Truth Strip facts", (page) => {
     // Receiving is free on every plan; the US registration arithmetic.
     expect(page.html).toContain(
-      "Receiving texts and photos: free, unlimited, on every plan.",
+      "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
     );
     expect(page.html).toContain(
       "US shops: a one-time $29 to register with the phone companies. $58 the first month, then $29 after.",

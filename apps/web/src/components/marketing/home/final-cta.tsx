@@ -51,7 +51,7 @@ export function FinalCta() {
           >
             Email us anytime
           </Link>
-          ; a real person answers.
+          ; we answer.
         </p>
 
         <p className="font-body-mkt mx-auto mt-6 max-w-[62ch] text-[13px] leading-[1.7] text-white/60">
