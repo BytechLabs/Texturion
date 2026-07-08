@@ -211,9 +211,9 @@ export async function startHarness(): Promise<Harness> {
     STRIPE_WEBHOOK_SECRET,
     RESEND_API_KEY: "re_e2e",
     SENTRY_DSN: "https://e2e@o000001.ingest.sentry.io/0000001",
-    APP_ORIGIN: "https://app.loonext.app",
-    API_ORIGIN: "https://api.loonext.app",
-    RESEND_FROM: "Loonext <notifications@loonext.app>",
+    APP_ORIGIN: "https://app.loonext.com",
+    API_ORIGIN: "https://api.loonext.com",
+    RESEND_FROM: "Loonext <notifications@loonext.com>",
     VAPID_PUBLIC_KEY:
       "BD_hP_N07omlLXk14YXRFvsSICDKoywjGtx-T1_5PdLX155D623P5Ci-5sRhh5g2Qj5j0aQPiDWSgT2DlOefImw",
     VAPID_PRIVATE_KEY: "L9lOg9x05mb1bG5kwUIpxSSf8YiMrm6KZn-c_GIyqAM",
@@ -254,7 +254,7 @@ export async function startHarness(): Promise<Harness> {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(options.body);
     }
-    const request = new Request(`https://api.loonext.app${path}`, {
+    const request = new Request(`https://api.loonext.com${path}`, {
       method,
       headers,
       body,
@@ -278,7 +278,7 @@ export async function startHarness(): Promise<Harness> {
       telnyx.privateKey,
       bodyText,
     );
-    const request = new Request("https://api.loonext.app/webhooks/telnyx", {
+    const request = new Request("https://api.loonext.com/webhooks/telnyx", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -308,7 +308,7 @@ export async function startHarness(): Promise<Harness> {
       payload: bodyText,
       secret: STRIPE_WEBHOOK_SECRET,
     });
-    const request = new Request("https://api.loonext.app/webhooks/stripe", {
+    const request = new Request("https://api.loonext.com/webhooks/stripe", {
       method: "POST",
       headers: {
         "content-type": "application/json",

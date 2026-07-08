@@ -89,7 +89,7 @@ jobs:
       # so `next build` failed public-env validation on every commit.)
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
-      NEXT_PUBLIC_API_URL: https://api.loonext.app
+      NEXT_PUBLIC_API_URL: https://api.loonext.com
     steps:
       - uses: actions/checkout@v4
 

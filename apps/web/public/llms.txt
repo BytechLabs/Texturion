@@ -1,8 +1,8 @@
 # Loonext
 
-Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1–10 field staff. A business gets its own local phone number — a new one, or the number it already has, ported in free — and every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
+Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1 to 10 field staff. A business gets its own local phone number, either a new one or the number it already has, ported in free. Every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
 
-Website: https://loonext.app
+Website: https://loonext.com
 
 ## Positioning
 - Flat per-company pricing, not per seat: $29/mo covers 3 people; $79/mo covers 10.
@@ -19,19 +19,19 @@ Website: https://loonext.app
 - Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro.
 
 ## Optional add-on modules (opt in at signup or later, cancel monthly)
-- Picture messages (MMS), $5/mo: send photos in your texts, with 150 outgoing picture messages a month included; a photo send also counts as three texts from the plan allowance. At the cap, more photos can't be sent until the period resets — the composer says so the moment a photo doesn't go, the text part of the message still sends, and email alerts warn at 80% and 100% of the included picture messages. Receiving photos is free on every plan, with or without this module.
-- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with 300 forwarded minutes a month included — and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere.
+- Picture messages (MMS), $5/mo: send photos in your texts, with 150 outgoing picture messages a month included; a photo send also counts as three texts from the plan allowance. At the cap, more photos can't be sent until the period resets. The composer says so the moment a photo doesn't go, the text part of the message still sends, and email alerts warn at 80% and 100% of the included picture messages. Receiving photos is free on every plan, with or without this module.
+- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with 300 forwarded minutes a month included, and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere.
 - Extra storage, $5/mo: adds 10 GB to each storage pool (files and pictures).
 - Canadian numbers alongside a US number: coming soon; listed in the catalog but not yet purchasable.
 
 ## Keep your existing number (porting)
 - Porting in is free and self-serve for US and Canadian local numbers: choose "Bring my number" at signup, or start a port later from Settings → Numbers. Loonext handles the carrier paperwork and shows the port's status the whole way.
-- Your number keeps working on your old carrier during the transfer and switches to Loonext on a scheduled cutover date — typically 1 to 7 business days.
+- Your number keeps working on your old carrier during the transfer and switches to Loonext on a scheduled cutover date, typically 1 to 7 business days.
 - An optional temporary Loonext number is offered to text from while the port completes (off by default).
 
 ## The honest US timeline (a trust feature, stated before payment)
 - Day one: your number is live and receiving texts; texting Canadian customers works immediately.
-- US texting activates after the phone companies approve your business registration, typically 3–7 business days (about a week). Loonext files everything the minute you pay and emails you the moment you're approved.
+- US texting activates after the phone companies approve your business registration, typically 3 to 7 business days (about a week). Loonext files everything the minute you pay and emails you the moment you're approved.
 
 ## Product features
 - Shared inbox with per-conversation owner and status (new, open, waiting, closed).
@@ -49,7 +49,7 @@ Website: https://loonext.app
 - Registration with the US phone companies is filed automatically at signup.
 - STOP opt-outs are honored instantly; future sends to opted-out numbers are blocked. A "please stop texting me" can be honored with one click, the same way.
 - Consent is recorded (name and date) when you start a conversation.
-- A quiet-hours check nudges you before starting a late-night conversation (8pm–8am in the customer's local time), never on replies.
+- A quiet-hours check nudges you before starting a late-night conversation (8pm to 8am in the customer's local time), never on replies.
 - Messages send exactly as typed: Loonext does not append an automatic identification or opt-out footer to your texts.
 - Helps you follow the rules (TCPA in the US, CASL in Canada). It does not make you compliant on its own, and it does not send marketing blasts.
 
