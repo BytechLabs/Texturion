@@ -4,6 +4,27 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Observability pinned to match the dashboard so `wrangler deploy` (local and
+  // CI) never resets it — Cloudflare's "keep settings consistent across
+  // deployments" prompt. Net effect: Workers Logs ON (persisted invocation logs
+  // for debugging cron/webhook runs), traces OFF. head_sampling_rate is 1 (100%)
+  // — fine at MVP volume; lower it if log volume ever approaches the Paid plan's
+  // included allotment.
+  "observability": {
+    "enabled": false,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  },
   "triggers": {
     // Exactly the SPEC §11 schedule set. Each expression maps to its job(s)
     // in src/index.ts CRON_JOBS; src/mount.test.ts asserts this list and that
