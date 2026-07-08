@@ -21,13 +21,13 @@ export const MAILING_ADDRESS: string | null = null;
 export const PRIVACY_OFFICER_NAME: string | null = null;
 
 /** Support email, the only support channel (BLUEPRINT §2: no chat, no phone). */
-export const SUPPORT_EMAIL = "support@loonext.app";
+export const SUPPORT_EMAIL = "support@loonext.com";
 
 /** Responsible-disclosure contact for /security (SPEC §10). */
-export const SECURITY_EMAIL = "security@loonext.app";
+export const SECURITY_EMAIL = "security@loonext.com";
 
 /** Privacy contact for /legal/privacy. */
-export const PRIVACY_EMAIL = "privacy@loonext.app";
+export const PRIVACY_EMAIL = "privacy@loonext.com";
 
 /**
  * Support-response expectation (BLUEPRINT §14). Phrased as a norm, not a hard
@@ -37,14 +37,15 @@ export const PRIVACY_EMAIL = "privacy@loonext.app";
 export const SUPPORT_SLA = "We usually reply within one business day.";
 
 /**
- * The footer/legal identity line. Renders the real entity + address once ops
- * fills them in; until then, an honest pending marker (never a fake company).
+ * The footer/legal identity line. Returns the real entity + address once ops
+ * fills them in; until then, null so callers render nothing (Law 1: never a
+ * placeholder sentence, never an invented company).
  */
-export function businessIdentityLine(): string {
+export function businessIdentityLine(): string | null {
   if (LEGAL_ENTITY_NAME && MAILING_ADDRESS) {
     return `${LEGAL_ENTITY_NAME} · ${MAILING_ADDRESS}`;
   }
-  return "Business name and mailing address pending, added before launch.";
+  return null;
 }
 
 /** True once the real identity is in place (surfaces are honest either way). */

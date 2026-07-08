@@ -1,45 +1,34 @@
 /**
- * Thread frame (Track B), the chrome around a demo thread.
+ * Thread frame, v4 "FIRST RESPONSE": the PRODUCT chrome around a demo thread
+ * (the thread header with contact, status pill, assignee), rendered entirely
+ * with the app's own tokens. It is NOT the marketing chrome anymore: the
+ * white card, the one shadow, the browser-URL hint, and the phone bezel all
+ * come from the foundation <PanelFrame> (fr/panel-frame.tsx), which wraps
+ * its children in `.app-scope` so everything in here resolves the app's
+ * petrol system (Law 2).
  *
- * Two framings per BLUEPRINT §1.3:
- * - "desktop": a white card with a minimal stone browser-chrome hint (three
- *   dots + `loonext.app/inbox` URL), quietly reinforces "it's just the web,
- *   no download". Used by the hero right phone / deep-dive.
- * - "phone": a neutral rounded frame (stone ring, 28px radius), NO Apple/Android
- *   device chrome (keeps the PWA story honest). Used by the hero left phone and
- *   the dark band.
+ *   <PanelFrame chromeUrl="loonext.com/inbox" chip="scripted-demo">
+ *     <ThreadFrame framing="desktop" …>…beats…</ThreadFrame>
+ *   </PanelFrame>
  *
- * The soft ambient shadow is the marketing exception to the app's no-card-shadow
- * rule (BLUEPRINT §1.3), allowed only on framed product visuals.
+ * Framings:
+ * - "desktop": the thread pane as the app draws it (header + body).
+ * - "phone": the mobile thread (back chevron, optional push-notification
+ *   banner). Stage it inside <PanelFrame phone> (optionally phoneDark for
+ *   the app's real dark mode).
+ *
+ * <AppSurface> is baked into the root so the embed also reads in the app's
+ * own face (Golos), not the marketing trio.
  */
 
 import { ChevronLeft, Info } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import { AppSurface } from "./app-surface";
 import { DemoAvatar, DemoStatusPill } from "./thread-primitives";
 
-const AMBIENT_SHADOW = "shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]";
-
-/** The browser-chrome hint (three dots + neutral URL bar), v3 hairlines. */
-function BrowserChrome({ url = "loonext.app/inbox" }: { url?: string }) {
-  return (
-    <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-3 py-2">
-      <div className="flex gap-1.5" aria-hidden>
-        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-        <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-      </div>
-      {/* --ink-55 (4.9:1 on white) so this quiet URL hint clears WCAG AA and
-          reads petrol-cast, not warm stone. A muted chrome hint, not body. */}
-      <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-[color:var(--ink-55)]">
-        {url}
-      </div>
-    </div>
-  );
-}
-
-/** Thread header: contact name + number, status pill, assignee (G5). */
+/** Thread header: contact name + number, status pill, assignee avatar. */
 function ThreadHeader({
   name,
   number,
@@ -54,19 +43,19 @@ function ThreadHeader({
   showBack?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] px-3 py-2.5">
+    <div className="flex items-center gap-2 border-b border-app-line px-3.5 py-2.5">
       {showBack && (
         <ChevronLeft
-          className="size-5 shrink-0 text-[color:var(--ink-55)]"
+          className="size-5 shrink-0 text-app-muted-2"
           strokeWidth={1.75}
           aria-hidden
         />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold leading-tight text-[color:var(--day-ink)]">
+        <p className="truncate text-[14px] font-semibold leading-tight text-app-ink">
           {name}
         </p>
-        <p className="truncate text-[12px] tabular-nums text-[color:var(--ink-55)]">
+        <p className="truncate text-[12px] tabular-nums text-app-muted-2">
           {number}
         </p>
       </div>
@@ -74,7 +63,7 @@ function ThreadHeader({
       {assignee && <DemoAvatar name={assignee} className="size-6 text-[10px]" />}
       {!assignee && (
         <Info
-          className="size-4 shrink-0 text-[color:var(--ink-55)]"
+          className="size-4 shrink-0 text-app-muted-2"
           strokeWidth={1.75}
           aria-hidden
         />
@@ -88,7 +77,7 @@ export interface ThreadFrameProps {
   contact: { name: string; number: string };
   status: "new" | "open" | "waiting" | "closed";
   assignee?: string;
-  /** Push-notification banner drawn above the phone thread (dark band, §3.7). */
+  /** Push-notification banner drawn above the phone thread. */
   pushBanner?: { title: string; body: string };
   children: React.ReactNode;
   className?: string;
@@ -103,60 +92,33 @@ export function ThreadFrame({
   children,
   className,
 }: ThreadFrameProps) {
-  if (framing === "phone") {
-    return (
-      <div
-        className={cn(
-          "relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[28px] border-[6px] border-[color:var(--paper-edge)] bg-white",
-          AMBIENT_SHADOW,
-          className,
-        )}
-      >
-        {pushBanner && (
-          <div className="absolute inset-x-2 top-2 z-10 rounded-xl border border-[color:var(--hairline)] bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[color:var(--petrol)] text-[10px] font-semibold text-white">
-                J
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-semibold text-[color:var(--day-ink)]">
-                  {pushBanner.title}
-                </p>
-                <p className="truncate text-[11px] text-[color:var(--ink-55)]">
-                  {pushBanner.body}
-                </p>
-              </div>
+  return (
+    <AppSurface className={cn("relative", className)}>
+      {framing === "phone" && pushBanner && (
+        <div className="app-shadow-float absolute inset-x-2 top-2 z-10 rounded-app-card border border-app-line bg-app-white/95 px-3 py-2 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <span className="bg-primary flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold">
+              L
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-semibold text-app-ink">
+                {pushBanner.title}
+              </p>
+              <p className="truncate text-[11px] text-app-muted">
+                {pushBanner.body}
+              </p>
             </div>
           </div>
-        )}
-        <ThreadHeader
-          name={contact.name}
-          number={contact.number}
-          status={status}
-          assignee={assignee}
-          showBack
-        />
-        {children}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-[10px] border border-[color:var(--hairline)] bg-white",
-        AMBIENT_SHADOW,
-        className,
+        </div>
       )}
-    >
-      <BrowserChrome />
       <ThreadHeader
         name={contact.name}
         number={contact.number}
         status={status}
         assignee={assignee}
+        showBack={framing === "phone"}
       />
       {children}
-    </div>
+    </AppSurface>
   );
 }

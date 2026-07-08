@@ -1,28 +1,18 @@
 /**
- * /for/landscapers (trades track). BLUEPRINT §5. Angle: seasonal quote volume,
- * crews spread across sites, photo-of-the-yard quotes, recurring maintenance.
- * Zero sentences shared with any other trade page (§5 guard). Own metadata +
- * BreadcrumbList JSON-LD. Fully static (§11.4).
+ * /for/landscapers (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2
+ * §/for/landscapers: dateline 7:15 AM · GATE LOCKED, H1 "The text inbox for
+ * landscaping crews.", pain H2 "You can't answer the phone from the top of a
+ * mower.", the gate-code script with the "add the back beds this week?"
+ * upsell, and the v2 use cases (weather reschedules in two taps,
+ * before-and-after photos, spring-list follow-ups). Fully static; own
+ * metadata + BreadcrumbList JSON-LD.
  */
 
 import type { Metadata } from "next";
-import {
-  CalendarClock,
-  CloudRain,
-  Image as ImageIcon,
-  MapPin,
-  Repeat,
-  Sprout,
-  Truck,
-  Users,
-} from "lucide-react";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
-import { Display } from "@/components/marketing/display";
-import { Photo } from "@/components/marketing/photo";
 import { LANDSCAPERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -31,7 +21,7 @@ const PATH = "/for/landscapers";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for landscaping businesses",
   description:
-    "A shared text inbox for landscaping crews: quote from a yard photo, keep every address in one place, reschedule around the weather. Flat $29/mo.",
+    "A shared text inbox for landscaping crews: quote from a yard photo, keep every gate code with the property, reschedule around the weather. Flat $29/mo.",
   path: PATH,
 });
 
@@ -39,140 +29,111 @@ const CONTENT: TradeContent = {
   slug: "landscapers",
   displayName: "Landscapers",
 
-  eyebrow: "Business texting for landscaping crews",
-  h1: (
-    <>
-      The spring quote request that beats one phone, now{" "}
-      <Display.Mark>caught</Display.Mark>.
-    </>
-  ),
+  dateline: "7:15 AM · GATE LOCKED",
+  h1: "The text inbox for landscaping crews.",
   heroSub:
-    "Spring hits and the quote requests come in faster than one phone can hold. Customers text a photo of the yard; whoever's at the desk quotes it, books it, and dispatches the crew, all from one number the whole company shares.",
-  heroTruthLine:
-    "One number for every property. Live in minutes. Cancel any time, no busy-season lock-in.",
-  heroPhotoId: "gardener-hands",
-  heroPhotoCaption: "Yard-photo quote, caught",
+    "The crew is at the gate, the gate is locked, and the code is in a text thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask in one shared inbox on one business number. $29 a month for the whole company.",
+  heroTruth:
+    "One number for every property · Live in minutes · No busy-season lock-in",
 
-  painH2: "In April, the quotes come in faster than one phone can hold them.",
+  painH2: "You can't answer the phone from the top of a mower.",
   painBody: [
-    "Landscaping runs in waves. The first warm week, everyone wants a spring cleanup, a mulch estimate, a mowing quote, all at once, all by text, all to the number printed on the truck. If that number is the owner's cell, the owner spends the busiest month of the year as a full-time receptionist instead of running crews.",
-    "And the work is spread out. One crew's at the Alvarez place, another's across town, and the addresses, gate notes, and “which corner did they want re-mulched” live in a hundred separate text threads on separate phones. Loonext puts every property conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same address, the same notes.",
+    "Landscaping runs in waves. The first warm week, everyone wants a spring cleanup, a mulch estimate, and a mowing quote, all at once, all by text, all to the number on the truck. If that number is the owner's cell, the owner spends the busiest month of the year as a receptionist instead of running crews.",
+    "And the work is spread out. One crew's on the Alvarez lawn, another's across town, and the gate codes, addresses, and “which corner did they want re-mulched” live in a hundred separate threads on separate phones. Loonext puts every property's conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same code, the same notes.",
   ],
-  painVisual: (
-    <TradePhoto
-      photoId="landscaper-shovel"
-      caption="Crews spread across properties, one number on the truck. Every quote request and gate note lands in the same shared inbox."
-    />
-  ),
 
-  threadH2: "A spring cleanup, quoted from a photo.",
+  threadH2: "A locked gate, turned into next week's job.",
   threadLede:
-    "A homeowner texts the worst corner of the front beds. The office recognizes the street, checks which crew is nearby, quotes the mulch and edging, and folds them into Thursday's route, then the customer asks about seasonal mowing, and that's the next job.",
+    "The crew's idling at a locked side gate at 7:15 AM. One text gets the code, the code gets saved to the contact, and the customer's “could you add the back beds?” becomes a priced cleanup folded into Thursday's route.",
   script: LANDSCAPERS_SCRIPT,
-  supportingGraphic: (
-    <TradeGraphic
-      caption="One business number, one shared inbox, so the office quoting the job and the crews out on sites all see the same conversation."
-    >
-      <Photo
-        id="landscaper-mower"
-        className="overflow-hidden rounded-xl"
-        imgClassName="aspect-[4/3] object-cover"
-        sizes="(min-width: 1024px) 28rem, 100vw"
-      />
-    </TradeGraphic>
-  ),
+  threadAriaLabel:
+    "A Greenline landscaping conversation: a locked side gate at 7:15 AM, the code saved to the contact, and a back-beds cleanup quoted for Thursday",
 
   useCasesH2: "Where texting earns its keep in a landscaping business.",
   useCases: [
     {
-      icon: ImageIcon,
-      title: "Quote from a yard photo, not a site visit.",
-      body: "Most cleanup, mulch, and planting quotes can be scoped from two photos and a few questions. Customers text the pictures, you text back a number, and you've saved a truck roll and a half-day of driving to give estimates you could've priced from the office.",
+      title: "Weather reschedules, in two taps.",
+      body: "Rain moves the route. Pull up the day's conversations and text each customer the new time with a saved reply. It's a few taps per stop, and everyone knows before they wonder where the crew is.",
     },
     {
-      icon: CloudRain,
-      title: "Reschedule a whole day when the weather turns.",
-      body: "Rain moves the route. Instead of a chain of individual calls, pull up the day's conversations and text each customer the new time, with a saved reply, it's a few taps per stop, and everyone knows before they wonder where the crew is.",
+      title: "Before-and-after photos, in the thread.",
+      body: "Customers text the overgrown before; you text back the finished after. Every photo sits in the conversation, free to receive, so the quote, the work, and the proof live in one place.",
     },
     {
-      icon: Truck,
-      title: "Dispatch the crew that's already nearby.",
-      body: "Assign the conversation to whichever crew lead is closest, drop an internal note with the gate code and the mulch count, and they've got the address and the scope on their own phone, no radio call, no “which house was it again?”",
+      title: "Spring-list follow-ups that book the season.",
+      body: "Last year's clients are this year's easiest work. A quick “want back on the every-other-week rotation?” sent down the spring list with a saved reply fills the calendar before the phone starts ringing.",
     },
     {
-      icon: Repeat,
-      title: "Keep recurring maintenance clients close.",
-      body: "Biweekly mowing, seasonal pruning, fall cleanup, the whole history of a property lives in one thread. When it's time to renew for the season, you're texting a customer you already have a relationship with, not a cold quote.",
+      title: "Gate codes saved where the crew can see them.",
+      body: "Save “side gate 2580, dog in the yard Thursdays” to the contact once, and whichever crew pulls up has it on their own phone. Nobody idles in the driveway texting the office.",
     },
   ],
 
   savedRepliesH2: "Six texts every landscaping crew sends. Steal these.",
   savedRepliesIntro:
-    "Ready-to-edit saved replies written for lawn-care and landscaping companies, the photo ask, the weather bump, the season renewal, in words a homeowner actually reads.",
+    "Six saved replies worth setting up on day one: the photo ask, the weather bump, the season renewal, in words a homeowner actually reads. Save each one once and it's two taps forever.",
   savedReplies: [
     {
       name: "Photo request",
-      text: "Happy to quote that. Could you text me a couple photos of the area and let me know the rough size? I can usually get you a price without a site visit.",
+      text: "Happy to quote that. Could you text me a couple photos of the area and the rough size? I can usually get you a price without a site visit.",
     },
     {
       name: "Quote sent",
-      text: "Here's your estimate for the spring cleanup and mulch: {amount}. That includes bed edging and cleanup of the clippings. Want me to pencil you in?",
+      text: "Hi {first_name}, here's your estimate for the cleanup and mulch: $340. That includes bed edging and hauling away the clippings. Want me to pencil you in?",
     },
     {
       name: "Weather reschedule",
-      text: "Heads up, rain's moving in, so we're bumping your service from {day} to {day}. Same crew, same scope. Let me know if that doesn't work.",
+      text: "Heads up, rain's moving in, so we're bumping your service from Tuesday to Wednesday. Same crew, same scope. Let me know if that doesn't work.",
     },
     {
       name: "On the way",
-      text: "The crew's heading your way now, they'll be there within the hour. No need to be home; we'll text you a photo when it's done.",
+      text: "The crew's heading your way now and will be there within the hour. No need to be home; we'll text you a photo when it's done.",
     },
     {
       name: "Season renewal",
-      text: "It's almost mowing season again. Want us to put you back on the every-other-week rotation at last year's rate? Just reply yes and you're set.",
+      text: "It's almost mowing season again. Want us to put you back on the every-other-week rotation at last year's rate? Reply yes and you're set.",
     },
     {
       name: "Job done",
-      text: "All wrapped up, beds edged, mulched, and cleaned up. Photos attached. Anything you'd like tweaked, just text us here.",
+      text: "All wrapped up: beds edged, mulched, and cleaned up. Photos attached. Anything you'd like tweaked, just text us here.",
     },
   ],
+  savedRepliesCaption:
+    "The landscaping pack in the composer: the weather bump goes down a whole route in a few taps.",
 
   featuresH2: "Built for how a landscaping company actually works.",
   features: [
     {
-      icon: MapPin,
       title: "Every property in one place.",
       body: "Addresses, gate codes, and “re-mulch the front only” notes live on the contact, not scattered across five crew members' phones.",
     },
     {
-      icon: Users,
       title: "Assign to the closest crew.",
       body: "One owner per conversation, so the right crew gets the job and nobody double-books the same street.",
     },
     {
-      icon: CalendarClock,
       title: "Handle the whole season from one inbox.",
-      body: "Quote season, recurring visits, and end-of-season renewals all in one shared history, no per-user fee as you add seasonal help.",
+      body: "Quote season, recurring visits, and end-of-season renewals in one shared history, with no per-user fee as you add seasonal help.",
     },
     {
-      icon: Sprout,
-      title: "Photos in and out, free to receive.",
-      body: "Customers send the before, you send the after. Every image sits in the conversation the whole company can see.",
+      title: "Photos in and out.",
+      body: "Customers send the before, you send the after. Receiving photos is free on every plan; sending them back is a $5/mo add-on with 150 picture messages included.",
     },
   ],
 
-  pricingH2: "$29 a month, flat, even in your busiest month.",
+  pricingH2: "$29 a month, flat. Even in April.",
   pricingBody:
-    "Starter is 3 people, 1 local number, and 500 texts a month. In April you'll send more; that's fine, extra texts are 3¢ each with a cap you control, and the composer shows the count as you type (photos count as three). Add seasonal crew on Pro at $79 for 10 people and 2 numbers, and drop back to Starter when the season winds down. Month to month, so you're never paying for winter capacity in July.",
+    "Starter is 3 people, 1 local number, and 500 texts a month. In the spring rush you'll send more; extra texts are 3¢ each with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for up to 10 people and a second number, then drop back when the season winds down.",
 
   faqH2: "Landscaper questions, straight answers.",
   faqs: [
     {
       q: "Can I quote a job from photos instead of driving out?",
-      a: "Yes, that's most of the point. Customers text photos of the yard or beds, receiving them is free, and they sit in the conversation so whoever's quoting and whoever's doing the work both see them. You save the truck rolls for jobs that truly need a walk-through.",
+      a: "Yes, that's most of the point. Customers text photos of the yard or beds, receiving them is free, and they sit in the conversation so whoever's quoting and whoever's doing the work both see them. Save the truck rolls for jobs that truly need a walk-through.",
     },
     {
-      q: "We add crew for the season, do we pay per person?",
-      a: "No per-user fee, ever. Starter covers 3 people for $29; when you scale up for the busy months, Pro is $79 for up to 10. Drop back down between seasons, it's month to month.",
+      q: "We add crew for the season. Do we pay per person?",
+      a: "No per-user fee, ever. Starter covers 3 people for $29; when you scale up for the busy months, Pro is $79 for up to 10. Drop back down between seasons, since it's month to month.",
     },
     {
       q: "Can the whole crew see a property's address and gate code?",
@@ -183,18 +144,18 @@ const CONTENT: TradeContent = {
       a: "It's the fastest way to reschedule. Pull up the day's conversations, send each affected customer the new time with a saved reply, and everyone knows before the crew doesn't show. Loonext doesn't reschedule for you, but it makes sending 15 updates a two-minute job.",
     },
     {
-      q: "Our customers are seasonal, will they remember us next spring?",
+      q: "Our customers are seasonal. Will they remember us next spring?",
       a: "The whole conversation history stays in the inbox, so next season you're texting a familiar name, not starting cold. A quick “want back on the rotation?” to last year's clients is often the easiest work you'll book all year.",
     },
     {
       q: "How much of our time does the texting registration take?",
-      a: "About two minutes when you sign up. You'll give us your legal business name, address, and EIN; if you run the crew as a sole proprietor with no EIN, we verify you with a texted code instead. From there we file everything with the phone companies. You can receive texts right away, and sending to US customers turns on within a week or so once you're cleared.",
+      a: "About two minutes when you sign up: your legal business name, address, and EIN. If you run the crew as a sole proprietor with no EIN, we verify you with a texted code instead. From there we file everything with the phone companies. You can receive texts right away, and texting US customers turns on within about a week once you're cleared.",
     },
   ],
 
   finalH2: "One number for every property you service.",
   finalSub:
-    "Quote from a photo, dispatch the nearest crew, keep every address in one shared inbox. Live in minutes.",
+    "Quote from a photo, dispatch the nearest crew, and keep every gate code in one shared inbox. Live in minutes.",
 };
 
 export default function LandscapersPage() {
@@ -203,7 +164,6 @@ export default function LandscapersPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Who it's for", path: "/#trades" },
           { name: "Landscapers", path: PATH },
         ])}
       />

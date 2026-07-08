@@ -1,151 +1,274 @@
 /**
- * TradeThread (trades track), a STATIC, server-rendered thread that reuses the
- * heroperf-owned thread primitives (thread-demo/thread-primitives + thread-frame)
- * as read-only building blocks, and adds the ONE thing the shared ThreadDemo
- * can't show: the D14 mark-done state (line-through + petrol check badge).
+ * TradeThread (trades crew), v4 "FIRST RESPONSE" Law 2: the EXAMPLE
+ * CONVERSATION on every /for/<trade> page, rendered as a static, server-only
+ * depiction of the app's real thread built from the app's own component
+ * patterns and tokens.
  *
- * The animated live thread on each trade page is the shared <ThreadDemo> (the
- * signature moment, reused). This component is the trades-owned static
- * illustration used specifically by /for/contractors to make the
- * "each text is a task the crew marks done" scenario concrete (DECISIONS D14,
- * the message itself is the task; there is NO jobs feature). It renders the
- * completed thread at rest with a plain "Example, real interface" label, so it
- * needs no client JS.
+ * It is designed to sit INSIDE a marketing <PanelFrame>, whose `.app-scope`
+ * wrapper resolves every app token here to the product's real values: petrol
+ * `--primary` outbound bubbles (`app-bubble-out` carries its own AA text
+ * pair), the amber internal-note card, the calm paper ground, the app's radii
+ * (`rounded-app-bub` with the squared inner corner, exactly like
+ * components/thread/message-bubble.tsx). Marketing cobalt NEVER appears in
+ * here; nothing in this file references an --fr-* token.
  *
- * Done-state tokens match the app's real DoneBadge (components/thread/
- * message-bubble.tsx): text `line-through opacity-55`, a `bg-primary/10`
- * petrol check pill with the "Done · Name · time" tooltip text.
+ * Real product components that are server-safe are used directly (the inbox
+ * <StatusPill>); the stateful ones (MessageBubble, ThreadHeader, Composer)
+ * are reproduced as static DOM with the same classes and structure.
+ *
+ * Accessibility: the thread adds no tab stops (DESIGN-DIRECTION §7); the
+ * photo placeholders carry content-describing labels. No text in this file
+ * is a label about the artifact (Law 1): the chip and caption live on the
+ * PanelFrame outside.
  */
 
-import { CircleCheck } from "lucide-react";
+import { CheckCheck, CircleCheck, ImageIcon, Lock } from "lucide-react";
 
-import type {
-  InboundBeat,
-  NoteBeat,
-  OutboundBeat,
-  ThreadScript,
-} from "@/components/marketing/thread-demo/script";
-import { ThreadFrame } from "@/components/marketing/thread-demo/thread-frame";
-import {
-  EventLine,
-  InboundBubble,
-  NoteBubble,
-  OutboundBubble,
-} from "@/components/marketing/thread-demo/thread-primitives";
+import { StatusPill } from "@/components/inbox/status-pill";
 import { cn } from "@/lib/utils";
 
-/** The petrol check badge a done message carries (D14, matches the app). */
-function DoneBadge({ label }: { label: string }) {
+import type {
+  TradeBeat,
+  TradeInboundBeat,
+  TradeNoteBeat,
+  TradeOutboundBeat,
+  TradeScript,
+} from "./scripts";
+
+/** Initials, same rule as the app's avatar helpers. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+/** Flat single-tone avatar: petrol tint fill, petrol-deep initials (the
+ *  app's calm avatar treatment, PORTAL-UX §4). */
+function Avatar({ name }: { name: string }) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-[color:var(--petrol-12)] px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--petrol)]"
-      title={label}
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-app-tint text-[11px] font-medium text-app-petrol-deep"
+      aria-hidden
     >
-      <CircleCheck aria-hidden className="size-3" strokeWidth={2} />
-      {label}
+      {initials(name)}
     </span>
   );
 }
 
-/**
- * A done wrapper: dims + strikes through the primitive's bubble and appends the
- * D14 badge. We overlay the strikethrough via a utility on the wrapper so we
- * don't need to fork the shared bubble primitives (they stay heroperf-owned).
- */
-function DoneWrap({
-  children,
-  label,
-  align,
+/** Static render of the app's G5 thread header: contact name + number, the
+ *  real StatusPill, the assignee avatar. */
+function Header({ script }: { script: TradeScript }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-app-line bg-app-white px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-semibold leading-tight text-app-ink">
+          {script.contact.name}
+        </p>
+        <p className="truncate text-[12px] tabular-nums text-app-muted">
+          {script.contact.number}
+        </p>
+      </div>
+      <StatusPill status={script.status} />
+      <Avatar name={script.assignee} />
+    </div>
+  );
+}
+
+/** DOM-drawn MMS thumbnail placeholder (no rasters on the site, ever). */
+function PhotoThumb({ label }: { label: string }) {
+  return (
+    <div
+      className="flex size-28 flex-col items-center justify-center gap-1 rounded-app-ctrl border border-app-line bg-app-line-soft text-center text-app-muted"
+      role="img"
+      aria-label={`Photo: ${label}`}
+    >
+      <ImageIcon className="size-5" strokeWidth={1.75} aria-hidden />
+      <span className="px-2 text-[10px] leading-tight">{label}</span>
+    </div>
+  );
+}
+
+/** The app's D14 petrol "Done" pill, with the "Done · Name · time" detail. */
+function DoneBadge({ label }: { label: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary"
+      title={label}
+    >
+      <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
+      Done
+      <span className="sr-only"> · {label}</span>
+    </span>
+  );
+}
+
+function InboundBeat({
+  beat,
+  done,
+  doneLabel,
 }: {
-  children: React.ReactNode;
-  label: string;
-  align: "start" | "end";
+  beat: TradeInboundBeat;
+  done: boolean;
+  doneLabel: string;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      {/* Dim the whole beat and strike through only the message text. The
-          shared bubble primitives put message text in a `.break-words` div
-          (never the timestamp/delivery line), so this selector strikes the
-          copy without touching the meta, matching the app's D14 treatment. */}
-      <div className="opacity-55 [&_.break-words]:line-through">{children}</div>
-      <div className={cn("flex", align === "end" ? "justify-end" : "justify-start")}>
-        <DoneBadge label={label} />
+    <div className="flex w-full flex-col items-start gap-1">
+      {beat.photoLabel && (
+        <div className={cn(done && "opacity-55")}>
+          <PhotoThumb label={beat.photoLabel} />
+        </div>
+      )}
+      <div
+        className={cn(
+          "max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-ink [border-top-left-radius:5px] md:max-w-[80%]",
+          done && "opacity-55",
+        )}
+      >
+        <span className={cn(done && "line-through")}>{beat.body}</span>
+      </div>
+      <span className="flex items-center gap-1.5">
+        {done && <DoneBadge label={doneLabel} />}
+        <span className="text-[12px] text-muted-foreground">{beat.time}</span>
+      </span>
+    </div>
+  );
+}
+
+function OutboundBeat({
+  beat,
+  done,
+  doneLabel,
+}: {
+  beat: TradeOutboundBeat;
+  done: boolean;
+  doneLabel: string;
+}) {
+  return (
+    <div className="flex w-full flex-col items-end gap-1">
+      <div
+        className={cn(
+          "app-bubble-out max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub px-3.5 py-2.5 text-[14px] leading-[1.5] [border-top-right-radius:5px] md:max-w-[80%]",
+          done && "opacity-55",
+        )}
+      >
+        <span className={cn(done && "line-through")}>{beat.body}</span>
+      </div>
+      <span className="flex items-center gap-1.5">
+        {done && <DoneBadge label={doneLabel} />}
+        {/* The app's G5 delivery-state line: time · Delivered ✓✓. */}
+        <span className="text-[12px] text-muted-foreground">
+          <span>{beat.time}</span>
+          <span aria-hidden> · </span>
+          <span>
+            Delivered{" "}
+            <CheckCheck
+              aria-hidden
+              className="inline size-3"
+              strokeWidth={1.75}
+            />
+          </span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function NoteBeat({
+  beat,
+  done,
+  doneLabel,
+}: {
+  beat: TradeNoteBeat;
+  done: boolean;
+  doneLabel: string;
+}) {
+  return (
+    <div className="flex w-full flex-col items-end gap-1">
+      <div
+        className={cn(
+          "max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-amber-line bg-app-amber-bg px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-amber-ink [border-bottom-right-radius:5px] md:max-w-[80%]",
+          done && "opacity-55",
+        )}
+      >
+        <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
+          <Lock className="size-3" strokeWidth={1.75} aria-hidden />
+          Internal note · {beat.by}
+        </span>
+        <span className={cn(done && "line-through")}>{beat.body}</span>
+      </div>
+      <span className="flex items-center gap-1.5">
+        {done && <DoneBadge label={doneLabel} />}
+        <span className="text-[12px] text-muted-foreground">{beat.time}</span>
+      </span>
+    </div>
+  );
+}
+
+function renderBeat(
+  beat: TradeBeat,
+  doneSet: ReadonlySet<string>,
+  doneLabels: Readonly<Record<string, string>>,
+) {
+  if (beat.kind === "event") {
+    return (
+      <p key={beat.id} className="py-1 text-center text-[12px] text-app-muted">
+        {beat.text}
+      </p>
+    );
+  }
+  const done = doneSet.has(beat.id);
+  const doneLabel = doneLabels[beat.id] ?? "Done";
+  if (beat.kind === "inbound") {
+    return (
+      <InboundBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />
+    );
+  }
+  if (beat.kind === "outbound") {
+    return (
+      <OutboundBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />
+    );
+  }
+  return <NoteBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />;
+}
+
+/** Static composer pill at rest, matching the app's composer card (empty
+ *  draft, Send inactive). Pure depiction: spans only, zero tab stops. */
+function ComposerAtRest() {
+  return (
+    <div className="border-t border-app-line bg-app-white px-3 pb-3 pt-2">
+      <div className="flex items-end gap-1 rounded-app-card border border-app-line bg-app-white px-2 py-1.5">
+        <span className="min-h-9 flex-1 px-2 py-2 text-[14px] leading-6 text-muted-foreground">
+          Text message
+        </span>
+        <span className="mb-0.5 inline-flex h-8 items-center gap-1.5 rounded-app-ctrl bg-primary px-3 text-[13px] font-semibold opacity-45">
+          Send
+        </span>
       </div>
     </div>
   );
 }
 
 export interface TradeThreadProps {
-  script: ThreadScript;
-  framing?: "desktop" | "phone";
-  /** Beat ids to render in the D14 done state. */
-  doneIds?: readonly string[];
-  /** Per-beat done-badge label ("Done · Name · time"). */
-  doneLabels?: Record<string, string>;
+  script: TradeScript;
   className?: string;
-  bodyClassName?: string;
 }
 
-export function TradeThread({
-  script,
-  framing = "desktop",
-  doneIds = [],
-  doneLabels = {},
-  className,
-  bodyClassName,
-}: TradeThreadProps) {
-  const doneSet = new Set(doneIds);
+/**
+ * The full static thread: header, beats on the app's paper ground, composer
+ * at rest. Put it inside a <PanelFrame chip="example-conversation" …>.
+ */
+export function TradeThread({ script, className }: TradeThreadProps) {
+  const doneSet = new Set(script.doneIds ?? []);
+  const doneLabels = script.doneLabels ?? {};
 
   return (
-    <ThreadFrame
-      framing={framing}
-      contact={script.contact}
-      status={script.finalStatus}
-      assignee={script.assignee}
-      className={className}
-    >
-      <div className={cn("flex flex-col gap-3 px-3 py-4", bodyClassName)}>
-        {script.beats.map((beat) => {
-          const done = doneSet.has(beat.id);
-          const label = doneLabels[beat.id] ?? "Done";
-
-          if (beat.kind === "event") {
-            return <EventLine key={beat.id} beat={beat} />;
-          }
-
-          let bubble: React.ReactNode;
-          let align: "start" | "end" = "start";
-          if (beat.kind === "inbound") {
-            bubble = <InboundBubble beat={beat as InboundBeat} />;
-            align = "start";
-          } else if (beat.kind === "outbound") {
-            bubble = (
-              <OutboundBubble
-                beat={beat as OutboundBeat}
-                state={(beat as OutboundBeat).delivered}
-              />
-            );
-            align = "end";
-          } else {
-            bubble = <NoteBubble beat={beat as NoteBeat} />;
-            align = "end";
-          }
-
-          if (!done) return <div key={beat.id}>{bubble}</div>;
-          return (
-            <DoneWrap key={beat.id} label={label} align={align}>
-              {bubble}
-            </DoneWrap>
-          );
-        })}
+    <div className={cn("font-sans bg-background text-foreground", className)}>
+      <Header script={script} />
+      <div className="flex flex-col gap-3 px-4 py-4">
+        {script.beats.map((beat) => renderBeat(beat, doneSet, doneLabels))}
       </div>
-
-      <div className="border-t border-[color:var(--hairline)] px-3 py-2">
-        <span className="text-[12px] text-[color:var(--ink-55)]">
-          Example, real interface. Tap any message to mark it done; the whole
-          crew sees what&apos;s handled.
-        </span>
-      </div>
-    </ThreadFrame>
+      <ComposerAtRest />
+    </div>
   );
 }

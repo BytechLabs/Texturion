@@ -60,27 +60,10 @@ function nextBuild() {
   }).status ?? 1;
 }
 
-function genFontPreloads() {
-  return spawnSync(
-    process.execPath,
-    [join(webDir, "scripts", "gen-font-preloads.mjs")],
-    { cwd: webDir, stdio: "inherit", env },
-  ).status ?? 1;
-}
-
-// PASS 1: build so next/font emits the hashed woff2 media. On this pass the
-// hero-font preload manifest doesn't exist yet, so the layout renders no
-// explicit preloads (harmless, degrades to prior behavior).
-let code = nextBuild();
-
-if (code === 0) {
-  // Derive the hero-font preload URLs from the just-emitted media.
-  genFontPreloads();
-  // PASS 2: rebuild so the static home HTML bakes in the <link rel=preload> for
-  // the hero faces. The woff2 content hashes are stable across passes (content
-  // addressed), so the manifest URLs stay valid.
-  code = nextBuild();
-}
+// Single pass: the marketing fonts are next/font/google instances now
+// (lib/marketing/fonts.ts), and next/font emits its own <link rel=preload>
+// at build time, so the old two-pass gen-font-preloads manifest dance is gone.
+const code = nextBuild();
 
 // Clean up the isolated output unless the caller wants to `next start` from it.
 if (!keep) clean();

@@ -1,135 +1,99 @@
 /**
- * "Build your plan" add-ons strip for /pricing (#28): the plan-builder module
- * model, marketed instead of hidden. Fully static, server-rendered, zero JS —
- * it depicts the same picker the buyer meets at signup (onboarding/plan) and
- * in Settings › Billing, so nothing at checkout is a surprise.
+ * Add-on fine print for /pricing (#28), v4 "FIRST RESPONSE": the plain-words
+ * limits behind the three toggles in the plan builder above it. Fully static,
+ * server-rendered, zero JS. The builder is where a buyer switches an add-on
+ * on; this band is where the exact behavior of each one is stated BEFORE
+ * purchase instead of discovered after.
  *
  * Truth source: PLAN_MODULE_CARDS in @/lib/api/types is the web mirror of the
  * API module catalog (apps/api/src/billing/modules.ts; quantities from
- * apps/api/src/billing/plans.ts — 150 pictures, 300 minutes, 10 GB). Labels,
- * prices, and quantity lines render from that one list so this section can
- * never drift from what checkout actually charges. `regions_ca` (Canada
+ * apps/api/src/billing/plans.ts: 150 pictures, 300 minutes, 10 GB). Labels,
+ * prices, and quantity lines render from that one list (via plan-math's
+ * SELLABLE_ADDON_CARDS, the same array the builder totals), so this section
+ * can never drift from what checkout actually charges. `regions_ca` (Canada
  * numbers) is excluded on purpose: the API refuses to sell it until
  * multi-region provisioning ships (SELLABLE_MODULES in
  * apps/api/src/billing/company-modules.ts), and we don't advertise what a
  * buyer can't buy.
  */
 
-import { HardDrive, ImagePlus, PhoneForwarded } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-import {
-  PLAN_MODULE_CARDS,
-  type PlanModule,
-  type PlanModuleCard,
-} from "@/lib/api/types";
+import type { PlanModule, PlanModuleCard } from "@/lib/api/types";
+import { FrCard, FrSection } from "@/components/marketing/fr";
+import { SELLABLE_ADDON_CARDS } from "@/components/marketing/pricing/plan-math";
 import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
 
-/** The add-ons a buyer can actually purchase today (API SELLABLE_MODULES). */
-export const SELLABLE_ADDON_CARDS: PlanModuleCard[] = PLAN_MODULE_CARDS.filter(
-  (card) => card.id !== "regions_ca",
-);
+export { SELLABLE_ADDON_CARDS };
 
 /**
- * The honest fine print per add-on — the limits and behaviors the product
+ * The plain-words fine print per add-on: the limits and behaviors the product
  * enforces (apps/api/src/billing/plans.ts + messaging/send.ts cap-and-drop;
  * outbound MMS meters as a flat 3 segments per MMS_SEGMENTS in
  * messaging/media.ts, DECISIONS.md D5; the 80% warning is the owner email
  * from billing/usage-alerts.ts, and the composer reports a dropped photo
  * right after the send via thread/mms-gate.ts), stated before purchase
- * rather than discovered after.
+ * rather than discovered after. No em-dashes (Law 6).
  */
 export const ADDON_FINE_PRINT: Record<
   Exclude<PlanModule, "regions_ca">,
   string
 > = {
-  mms: "Each picture message you send counts as three texts from your allowance, however long the words. Past 150 in a month, the photo is dropped and your message still sends as text — the account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go. Receiving photos is free on every plan, add-on or not.",
+  mms: "Each picture message you send counts as three texts from your allowance, however long the words. Past 150 in a month, the photo is dropped and your message still sends as text. The account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go. Receiving photos is free on every plan, add-on or not.",
   voice:
     "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Loonext itself doesn't place calls.",
   extra_storage:
     "For crews that keep lots of job photos and files: it stacks on top of your plan's included storage (5 GB on Starter, 25 GB on Pro, per pool).",
 };
 
-const ADDON_ICONS: Record<Exclude<PlanModule, "regions_ca">, LucideIcon> = {
-  mms: ImagePlus,
-  voice: PhoneForwarded,
-  extra_storage: HardDrive,
-};
-
-/** Decorative off-position switch: the "off by default" promise, drawn. */
-function OffSwitch() {
-  return (
-    <span
-      aria-hidden
-      className="relative inline-flex h-5 w-9 shrink-0 rounded-full border border-[color:var(--hairline)] bg-[color:var(--rule-light)]"
-    >
-      <span className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 rounded-full bg-[color:var(--ink-55)]/50" />
-    </span>
-  );
-}
-
 function AddonCard({ card }: { card: PlanModuleCard }) {
   const id = card.id as Exclude<PlanModule, "regions_ca">;
-  const Icon = ADDON_ICONS[id];
   return (
-    <div className="panel-card flex h-full flex-col rounded-xl p-6">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
-          <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-        </span>
-        <OffSwitch />
-      </div>
-      <div className="mt-4 flex items-baseline justify-between gap-2">
-        <h3 className="text-[16px] font-semibold text-[color:var(--day-ink)]">
-          {card.label}
-        </h3>
-        <p className="font-mono-mkt text-[15px] font-semibold tabular-nums text-[color:var(--day-ink)]">
+    <FrCard className="flex h-full flex-col p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="fr-h3 text-[color:var(--fr-ink)]">{card.label}</h3>
+        <p className="fr-mono-data text-[color:var(--fr-ink)]">
           {card.price}
-          <span className="font-normal text-[color:var(--ink-55)]">/mo</span>
+          <span className="text-[color:var(--fr-ink-55)]">/mo</span>
         </p>
       </div>
-      <p className="mt-2 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
+      <p className="mt-3 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
         {card.blurb}
         {card.detail ? ` ${card.detail}` : ""}
       </p>
-      <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--ink-55)]">
+      <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
         {ADDON_FINE_PRINT[id]}
       </p>
-    </div>
+    </FrCard>
   );
 }
 
 /**
- * The /pricing section: "Start at $29. Add only what you need." Sits between
- * the plan cards and the honesty ledger (BLUEPRINT §8 order amendment, #28).
+ * The /pricing section: the add-ons, in plain words. Sits directly under the
+ * plan builder (the deck's compact-summary slot), before the honesty ledger.
  */
 export function PlanAddons() {
   return (
-    <Section>
-      <div className="mx-auto max-w-4xl">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="display-h2">Start at $29. Add only what you need.</h2>
-          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-            The base plan is the complete shared inbox, nothing above is held
-            back. These three add-ons are the only ones that exist, each
-            optional and priced right here. They&apos;re off until you turn
-            them on, and you can turn them off the same way. You only ever pay
-            for what you switched on.
-          </p>
-        </div>
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {SELLABLE_ADDON_CARDS.map((card) => (
-            <Reveal key={card.id} className="h-full">
-              <AddonCard card={card} />
-            </Reveal>
-          ))}
-        </div>
-        <p className="mt-5 text-center text-[13px] text-[color:var(--ink-55)]">
-          The same picker, at the same prices, is what you&apos;ll see at
-          signup and in billing settings. There is no other list.
+    <FrSection>
+      <div className="mx-auto max-w-2xl text-center">
+        <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+          The add-ons, in plain words.
+        </h2>
+        <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
+          The base plan is the complete shared inbox, nothing above is held
+          back. These three are the only add-ons that exist, each optional and
+          priced right here, with the limits written out before you pay.
         </p>
       </div>
-    </Section>
+      <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3">
+        {SELLABLE_ADDON_CARDS.map((card) => (
+          <Reveal key={card.id} className="h-full">
+            <AddonCard card={card} />
+          </Reveal>
+        ))}
+      </div>
+      <p className="mt-6 text-center text-[0.8125rem] text-[color:var(--fr-ink-55)]">
+        The same three add-ons, at the same prices, are what you&apos;ll see at
+        signup and in billing settings. There is no other list.
+      </p>
+    </FrSection>
   );
 }

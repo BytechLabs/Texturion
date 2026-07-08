@@ -1,40 +1,43 @@
 "use client";
 
 /**
- * Thread deep-dive (Track B), §3.4 "What actually happens when a text lands".
+ * Thread deep-dive, home §S4 "The fix, shown" (v4 "FIRST RESPONSE").
  *
- * Not a second hero: the hero autoplays the spectacle; this slows the SAME
- * story down and annotates the mechanics (BLUEPRINT panel resolution). Reuses
- * the exact thread primitives; the reader steps the beats (or, reduced-motion,
- * sees them all at rest) and the left-column captions highlight in sync.
+ * Slows the canonical water-heater conversation down and annotates the
+ * mechanics: the reader steps the beats and the left-column captions
+ * highlight in sync. The island MOUNTS in the completed state, pixel-equal to
+ * the server-rendered <ThreadDeepDiveStatic>, so the swap never moves layout;
+ * "Step through it" restarts the conversation at beat one. Reduced motion
+ * keeps the completed thread and renders no step controls.
  *
- * The captions are the COPY.md §H4 step captions, verbatim.
+ * The thread renders inside the foundation <PanelFrame> so the product keeps
+ * its own tokens (Law 2); the step controls are marketing chrome and live
+ * OUTSIDE the frame, in cobalt. The only label is the SCRIPTED DEMO chip
+ * (Law 1), which the PanelFrame carries.
  */
 
 import { ChevronRight, Play, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
+import { PanelFrame } from "@/components/marketing/fr";
 import { cn } from "@/lib/utils";
-import { Display } from "@/components/marketing/display";
-import { Kicker } from "@/components/marketing/ui/kicker";
 
 import type { ThreadBeat, ThreadScript } from "./script";
 import { ThreadFrame } from "./thread-frame";
+import {
+  DEEP_DIVE_BODY_CLASSES,
+  DEEP_DIVE_CAPTIONS,
+  DeepDiveCaption,
+  DeepDiveHeader,
+  DeepDiveInlineCta,
+} from "./thread-deep-dive-static";
 import {
   EventLine,
   InboundBubble,
   NoteBubble,
   OutboundBubble,
 } from "./thread-primitives";
-import { useReducedMotion } from "./use-thread-player";
-
-const CAPTIONS = [
-  "A text to your business number becomes a conversation everyone can see.",
-  "Leave a note for the team, customers never see notes.",
-  "Assign it to whoever's closest. One owner, no double replies.",
-  "Reply from any phone. Delivery is confirmed, in writing.",
-  "Tag it the way you sell: quote sent, scheduled, won.",
-] as const;
+import { useReducedMotion } from "./use-reduced-motion";
 
 function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
   return (
@@ -54,17 +57,15 @@ function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
   );
 }
 
+const STEP_BUTTON =
+  "font-body-mkt inline-flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]";
+
 export function ThreadDeepDive({ script }: { script: ThreadScript }) {
   const reduced = useReducedMotion();
   const total = script.beats.length;
-  // Reduced motion: reveal everything at rest immediately.
+  // Mount complete (identical to the static frame); stepping is opt-in.
   const [revealed, setRevealed] = useState(total);
-  const bodyRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // With motion allowed, start at the first beat so the reader can step.
-    setRevealed(reduced ? total : 1);
-  }, [reduced, total]);
+  const [engaged, setEngaged] = useState(false);
 
   const visible = script.beats.slice(0, revealed);
   const done = revealed >= total;
@@ -77,147 +78,120 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
   }
 
   const status = done ? script.finalStatus : "new";
-  const assignee = activeStep != null && activeStep >= 3 ? script.assignee : undefined;
+  const assignee =
+    activeStep != null && activeStep >= 3 ? script.assignee : undefined;
 
-  const advance = () => {
-    setRevealed((r) => {
-      const next = Math.min(r + 1, total);
-      // Keep the newest beat in view.
-      requestAnimationFrame(() => {
-        bodyRef.current?.scrollTo({
-          top: bodyRef.current.scrollHeight,
-          behavior: reduced ? "auto" : "smooth",
-        });
-      });
-      return next;
-    });
+  const start = () => {
+    setEngaged(true);
+    setRevealed(1);
   };
-
-  const restart = () => setRevealed(1);
+  const advance = () => setRevealed((r) => Math.min(r + 1, total));
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
-      {/* Left: sticky captions */}
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
+      {/* Left: sticky captions, sync-highlighted while stepping. */}
       <div className="lg:sticky lg:top-28">
-        <Kicker>See it work</Kicker>
-        <Display as="h2" size="h2" className="mt-3">
-          What happens when a text{" "}
-          <Display.Mark>lands</Display.Mark>.
-        </Display>
-        <p className="mt-4 max-w-md text-lg leading-relaxed text-[color:var(--ink-70)]">
-          Here is the same conversation, slowed down. A customer texts your
-          business number, and step by step, this is what your crew sees and
-          does: assign it, note it, reply, confirm, tag.
-        </p>
-
+        <DeepDiveHeader />
         <ol className="mt-8 space-y-1">
-          {CAPTIONS.map((caption, i) => {
+          {DEEP_DIVE_CAPTIONS.map((caption, i) => {
             const step = i + 1;
-            const isActive = activeStep === step;
-            const isPast = activeStep != null && step < activeStep;
+            const state = !engaged
+              ? "rest"
+              : activeStep === step
+                ? "active"
+                : activeStep != null && step < activeStep
+                  ? "past"
+                  : "rest";
             return (
-              <li
+              <DeepDiveCaption
                 key={caption}
-                className={cn(
-                  "flex gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200",
-                  isActive && "bg-[color:var(--petrol-12)]/50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums transition-colors duration-200",
-                    isActive || isPast
-                      ? "bg-[color:var(--petrol)] text-white"
-                      : "bg-[color:var(--petrol-12)] text-[color:var(--petrol)]",
-                  )}
-                  aria-hidden
-                >
-                  {step}
-                </span>
-                <span
-                  className={cn(
-                    "text-[15px] leading-snug transition-colors duration-200",
-                    isActive
-                      ? "font-medium text-[color:var(--ink)]"
-                      : "text-[color:var(--ink-70)]",
-                  )}
-                >
-                  {caption}
-                </span>
-              </li>
+                step={step}
+                caption={caption}
+                state={state}
+              />
             );
           })}
         </ol>
       </div>
 
-      {/* Right: the annotated, steppable thread */}
+      {/* Right: the annotated, steppable thread inside the product frame. */}
       <div>
-        <ThreadFrame
-          framing="desktop"
-          contact={script.contact}
-          status={status}
-          assignee={assignee}
+        <PanelFrame
+          chromeUrl="loonext.com/inbox"
+          chip="scripted-demo"
+          ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
         >
-          <div
-            ref={bodyRef}
-            className="flex max-h-[420px] flex-col gap-3 overflow-y-auto px-3 py-4"
+          <ThreadFrame
+            framing="desktop"
+            contact={script.contact}
+            status={status}
+            assignee={assignee}
           >
-            {visible.map((beat, i) => (
-              <Beat
-                key={beat.id}
-                beat={beat}
-                animate={!reduced && i === revealed - 1 && revealed > 1}
-              />
-            ))}
-          </div>
-          <div className="flex flex-col gap-2 border-t border-[color:var(--hairline)] px-3 py-2.5">
-            <div className="flex items-center justify-between gap-2">
-              {/* The ONE load-bearing honesty label (panel resolution). Muted
-                  per §3.4 but --ink-55 (4.9:1 on white) so it clears WCAG AA;
-                  a load-bearing label must stay legible. */}
-              <span className="text-[13px] text-[color:var(--ink-55)]">
-                Demo, scripted conversation, real interface.
-              </span>
-              {!reduced &&
-                (done ? (
-                  <button
-                    type="button"
-                    onClick={restart}
-                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
-                  >
-                    <RotateCcw className="size-3.5" strokeWidth={1.75} aria-hidden />
-                    Play it again
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={advance}
-                    className="tap-target inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[color:var(--petrol-12)] px-3 py-1 text-[13px] font-medium text-[color:var(--petrol)] transition-colors hover:bg-[color:var(--petrol-24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
-                  >
-                    {revealed === 1 ? (
-                      <>
-                        <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
-                        Step through it
-                      </>
-                    ) : (
-                      <>
-                        Next
-                        <ChevronRight className="size-3.5" strokeWidth={1.75} aria-hidden />
-                      </>
-                    )}
-                  </button>
-                ))}
+            <div className={DEEP_DIVE_BODY_CLASSES}>
+              {visible.map((beat, i) => (
+                <Beat
+                  key={beat.id}
+                  beat={beat}
+                  animate={!reduced && engaged && i === revealed - 1}
+                />
+              ))}
             </div>
-            {/* Inline CTA, closes the mid-page dead zone (§3.4), secondary weight. */}
-            <a
-              href="/signup"
-              className="text-[13px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
-            >
-              Get your number →
-            </a>
-          </div>
-        </ThreadFrame>
+          </ThreadFrame>
+        </PanelFrame>
+
+        {/* Marketing controls, OUTSIDE the frame (cobalt is the marketing
+            voice; it never enters the product embed). */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <DeepDiveInlineCta />
+          {!reduced &&
+            (!engaged || done ? (
+              <button
+                type="button"
+                onClick={start}
+                className={cn(
+                  STEP_BUTTON,
+                  engaged
+                    ? "text-[color:var(--fr-cobalt)] hover:bg-[color:var(--fr-frost)]"
+                    : "bg-[color:var(--fr-cobalt)] text-white hover:bg-[color:var(--fr-cobalt-deep)]",
+                )}
+              >
+                {engaged ? (
+                  <>
+                    <RotateCcw
+                      className="size-3.5"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    Play it again
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
+                    Step through it
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={advance}
+                className={cn(
+                  STEP_BUTTON,
+                  "bg-[color:var(--fr-cobalt)] text-white hover:bg-[color:var(--fr-cobalt-deep)]",
+                )}
+              >
+                Next
+                <ChevronRight
+                  className="size-3.5"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              </button>
+            ))}
+        </div>
       </div>
     </div>
   );
 }
+
+export default ThreadDeepDive;

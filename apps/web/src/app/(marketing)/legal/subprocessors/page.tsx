@@ -81,52 +81,74 @@ export default function SubprocessorsPage() {
   return (
     <LegalPage
       title="Sub-processors"
-      intro="These are the vendors that process data on our behalf so Loonext can run. Each is limited to what its job requires."
+      summary="Seven vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. Data lives primarily in the United States. When this list changes, this page and the date above change with it."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Sub-processors"
       path={PATH}
       sections={sections}
     >
       <LegalSectionBlock id="list" heading="Current sub-processors">
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full border-collapse text-sm">
+        {/* The Honesty Ledger treatment (v4 §5.3): Frost row striping, no
+            rules, vendor names emphasized, regions in the mono voice. */}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[0.9375rem]">
             <thead>
-              <tr className="border-b border-border bg-muted/50 text-left">
-                <th className="px-4 py-3 font-semibold text-foreground">
+              <tr className="text-left">
+                <th
+                  scope="col"
+                  className="fr-eyebrow px-4 py-3 text-[color:var(--fr-ink-55)]"
+                >
                   Vendor
                 </th>
-                <th className="px-4 py-3 font-semibold text-foreground">
+                <th
+                  scope="col"
+                  className="fr-eyebrow px-4 py-3 text-[color:var(--fr-ink-55)]"
+                >
                   What it does
                 </th>
-                <th className="px-4 py-3 font-semibold text-foreground">
+                <th
+                  scope="col"
+                  className="fr-eyebrow px-4 py-3 text-[color:var(--fr-ink-55)]"
+                >
                   Data it touches
                 </th>
-                <th className="px-4 py-3 font-semibold text-foreground">
+                <th
+                  scope="col"
+                  className="fr-eyebrow px-4 py-3 text-[color:var(--fr-ink-55)]"
+                >
                   Region
                 </th>
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((row) => (
+              {ROWS.map((row, i) => (
                 <tr
                   key={row.name}
-                  className="border-b border-border last:border-0 align-top"
+                  className={
+                    i % 2 === 0 ? "bg-[color:var(--fr-frost)]" : undefined
+                  }
                 >
-                  <td className="px-4 py-3 font-medium text-foreground">
+                  <td className="rounded-l-[6px] px-4 py-3 align-top font-semibold text-[color:var(--fr-ink)]">
                     {row.name}
                   </td>
-                  <td className="px-4 py-3 text-foreground/80">{row.purpose}</td>
-                  <td className="px-4 py-3 text-foreground/80">{row.data}</td>
-                  <td className="px-4 py-3 text-foreground/80">{row.region}</td>
+                  <td className="px-4 py-3 align-top text-[color:var(--fr-ink-70)]">
+                    {row.purpose}
+                  </td>
+                  <td className="px-4 py-3 align-top text-[color:var(--fr-ink-70)]">
+                    {row.data}
+                  </td>
+                  <td className="fr-mono-data rounded-r-[6px] px-4 py-3 align-top text-[0.8125rem] text-[color:var(--fr-ink-70)]">
+                    {row.region}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p>
+        <p className="text-[0.9375rem] text-[color:var(--fr-ink-55)]">
           Data lives primarily in the United States (Supabase on AWS{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-sm">us-east-1</code>
-          ). We keep message content out of Sentry and PostHog by design, see our{" "}
+          <span className="fr-mono-data">us-east-1</span>). We keep message
+          content out of Sentry and PostHog by design, see our{" "}
           <LegalLink href="/security">security page</LegalLink> and{" "}
           <LegalLink href="/legal/privacy">privacy policy</LegalLink>.
         </p>

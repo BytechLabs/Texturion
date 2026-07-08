@@ -1,43 +1,44 @@
 /**
- * /features/business-number, the business number + multi-number story
- * (BLUEPRINT §2, §4). Targets "business phone number for texting" and
- * "second number for business texting".
+ * /features/business-number, on the v4 "FIRST RESPONSE" FEATURE template
+ * (DESIGN-DIRECTION v4 §6, COPY-DECK v2).
  *
- * Angles (§4): local numbers, type-a-city area-code picker (the shared NANP
- * widget), what "local" does for answer rates (framed as common sense, not fake
- * stats), multi-number is REAL. Pro includes 2 (two locations, or office +
- * field) with per-number threading, the number is the business's not an
- * employee's, and the Canada instant path. 700+ words, hand-written, unique
- * FAQ. buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
+ * Dateline `THE NUMBER BELONGS TO THE BUSINESS` → H1 "A local number that
+ * belongs to the business, not to somebody's phone." → sections: pick a
+ * local number (live in minutes), bring your number (free porting,
+ * self-serve, the old number keeps working until the scheduled cutover,
+ * usually a few days to two weeks for US numbers and often faster in
+ * Canada), two numbers on Pro → Truth Strip: the US first-week approval →
+ * pricing snippet → unique FAQ → Frost CTA band.
+ *
+ * Every number is a verified product/billing fact. buildMetadata +
+ * BreadcrumbList JSON-LD; no FAQPage.
  */
 
-import { Building2, Layers, MapPin, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PanelFrame } from "@/components/marketing/fr";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
   FeatureSection,
-  FeatureStrip,
-  HonestDetails,
-  MiniPricing,
+  PlainDetails,
+  PricingSnippet,
   RelatedLinks,
+  TruthStripSection,
+  UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
-import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import { Display } from "@/components/marketing/display";
-import { PhotoFrame } from "@/components/marketing/photo-frame";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Your business texting number, local, and yours",
+  title: "A local business number for texting, and it's yours",
   description:
-    "A local texting number in the area code you choose, so your personal cell stays personal. Pro gives you two numbers, each with its own inbox. Flat $29/mo.",
+    "Pick a local number in the area code you choose, usually live in a minute or two, or bring the number on your trucks. Porting is free. Two numbers on Pro. $29/mo flat.",
   path: PATH,
 });
 
@@ -52,255 +53,142 @@ export default function BusinessNumberPage() {
       />
 
       <FeatureHero
-        eyebrow="Your business number"
-        title={
-          <>
-            A number that belongs to the business, so every text gets{" "}
-            <Display.Mark>caught</Display.Mark>.
-          </>
+        dateline="THE NUMBER BELONGS TO THE BUSINESS"
+        title="A local number that belongs to the business, not to somebody's phone."
+        sub="Pick a local number in the area code you choose, usually live in a minute or two, and give your customers one place to text. Your personal cell goes back to being personal, and the number, the contacts, and every conversation stay with the company when a tech moves on."
+        panel={
+          <PanelFrame
+            chromeUrl="loonext.com/settings"
+            chip="scripted-demo"
+            caption="Two numbers on Pro: an office line and a field line, each with its own inbox."
+            ariaLabel="The Loonext numbers settings showing two active business numbers with their unread counts"
+          >
+            <NumberCardsVisual />
+          </PanelFrame>
         }
-        sub="Pick a local number in the area code you want, and give your customers one place to text. Your personal cell goes back to being personal, and the number, the contacts, and every conversation stay with the company, not with whoever's phone they landed on."
-        truthChips={[
-          "Local number, your area code",
-          "Two numbers on Pro",
-          "Canadian numbers text day one",
-        ]}
-        visual={<InboxListVisual />}
       />
 
-      {/* Section 1, pick a local number, your area code. */}
       <FeatureSection
+        ground="frost"
         eyebrow="Local, on purpose"
         heading="Type a city. Get a local number."
         visual={<CityAreaCodeWidget />}
-        wash
       >
         <p>
-          When you sign up, you tell Loonext where your customers are, a city or
-          an area code, and we find you a local number to match. A shop in
-          Toronto gets a (416) or (647); a shop in Austin gets a (512). The
-          picker above uses the exact same numbering data the app uses to choose
-          your number, so what you see here is what you&apos;ll get.
+          When you sign up, you tell Loonext where your customers are, a city
+          or an area code, and we find you a local number to match. A shop in
+          Toronto gets a (416) or a (647); a shop in Austin gets a (512). The
+          picker here runs on the same numbering data the app uses to choose
+          your number, so what you see is what you&apos;d get.
         </p>
         <p>
-          Local matters for a plain, common-sense reason: people answer a number
-          that looks like it&apos;s from around the corner. A neighbourhood area
-          code reads as a real local business, not a call centre, which is
-          exactly what you are. We won&apos;t quote you an invented
-          &ldquo;answer-rate&rdquo; statistic; we&apos;ll just say your number
-          should look like it belongs where your customers live, and let you
-          pick it.
+          Local matters for a plain, common-sense reason: people answer a
+          number that looks like it&apos;s from around the corner. A
+          neighbourhood area code reads as a real local business, which is
+          exactly what you are. We won&apos;t quote an invented answer-rate
+          statistic; we&apos;ll just let you pick the code your customers
+          already trust.
         </p>
       </FeatureSection>
 
-      {/* Section 2, the number is the business's. */}
-      <FeatureSection
-        eyebrow="It's the company's number"
-        heading="Get the business off your personal cell."
-        visual={
-          <PhotoFrame
-            id="owner-apron-phone"
-            className="mx-auto max-w-md"
-            sizes="(min-width: 1024px) 40vw, 90vw"
-            caption={{ label: "One number, shared by the crew" }}
-          />
-        }
-        flip
-      >
-        <p>
-          The moment a customer has a tech&apos;s personal number, the business
-          has a problem. Quotes and bookings land in someone&apos;s private
-          messages, between the family group chat and the dentist reminder. When
-          that person is off, the business is off. When that person leaves, the
-          conversations, and sometimes the customers, leave with them.
-        </p>
-        <p>
-          A Loonext number fixes that at the root. It&apos;s owned by the
-          company and shared by the crew, so the front door to your business is a
-          single, consistent number that everyone can answer and nobody can walk
-          off with. Your own cell stops buzzing with work at 9pm, and the
-          history of every customer stays where it belongs, with the business.
-        </p>
-      </FeatureSection>
-
-      {/* Section 3, bring your existing number (real porting). */}
       <FeatureSection
         eyebrow="Bring your number"
-        heading="Keep the number on your trucks, transfer it to Loonext, free."
-        visual={
-          <PhotoFrame
-            id="tools-wall"
-            className="mx-auto max-w-md"
-            sizes="(min-width: 1024px) 40vw, 90vw"
-            caption={{ label: "The number on the truck, kept" }}
-          />
-        }
-        wash
+        heading="Keep the number on your trucks. Porting is free."
+        flip
       >
         <p>
           Already have a number your customers know, the one on your trucks,
-          your yard signs, and your Google listing? Bring it with you.{" "}
-          <strong>
-            You can transfer your existing US or Canadian number to Loonext for
-            free
-          </strong>
-          , and keep every customer who has it saved. At signup, choose
-          &ldquo;Bring my number,&rdquo; tell us your current carrier details,
-          and upload a recent bill, from there we handle the paperwork with the
-          phone companies for you.
+          your yard signs, and your Google listing? Bring it. Porting is free
+          and self-serve: choose &quot;Bring my number&quot; at signup or
+          start it later from settings, answer a few questions about your
+          current carrier, and we handle the carrier paperwork and show you
+          where the transfer is the whole way.
         </p>
         <p>
-          A transfer typically takes about 1 to 7 business days. The important
-          part: your number keeps working on your current carrier the whole
-          time, so nothing goes dark, it switches over to Loonext on the
-          transfer date, and texting through Loonext turns on once the transfer
-          finishes. We show you exactly where the transfer is the entire way and
-          email you at each step. In a hurry? Get a new local number now and
-          transfer your existing one alongside it.{" "}
-          <a
-            href="/signup"
-            className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
-          >
-            Bring your number when you sign up →
-          </a>
+          Your number keeps working on your old carrier while it moves,
+          usually a few days to two weeks for US numbers and often faster in
+          Canada, then switches to Loonext on a scheduled date. Nothing on
+          your trucks or your listing has to change, and if you want to start
+          texting today, get a new local number now and port your existing one
+          alongside it.
         </p>
       </FeatureSection>
 
-      {/* Section 4, multi-number (the under-sold weapon). */}
-      <FeatureSection
-        eyebrow="Multi-number, for real"
-        heading="Two numbers on Pro, two front doors, one crew."
-        visual={<NumberCardsVisual />}
-      >
-        <p>
-          This is the part most tools either don&apos;t do or quietly upcharge
-          for: <strong>Pro includes two separate business numbers</strong>, each
-          with its own inbox thread. Run two locations and want a distinct number
-          for each? Done. Want an office line that the front desk watches and a
-          field line for the crew in the trucks? Also done. The texts to each
-          number stay in their own conversations, so nothing bleeds together, and
-          your whole team still works out of the one shared inbox.
-        </p>
-        <p>
-          It&apos;s a genuinely useful setup that usually costs extra elsewhere,
-          the per-user tools tend to bill a few dollars a month for every added
-          number. On Loonext, the second number is simply part of Pro.
-        </p>
-      </FeatureSection>
-
-      {/* Section 5. Canada instant path. */}
-      <FeatureSection
-        eyebrow="Canadian numbers"
-        heading="A Canadian number that texts the same day."
-        visual={
-          <PhotoFrame
-            id="phone-in-hand"
-            className="mx-auto max-w-md"
-            sizes="(min-width: 1024px) 40vw, 90vw"
-            caption={{ label: "Texting day one, in Canada" }}
-          />
-        }
-        flip
-      >
-        <p>
-          If your customers are in Canada, a Canadian number on Loonext is live
-          for texting the day you sign up, no US carrier registration to wait
-          on, because that requirement doesn&apos;t apply to a Canadian business
-          texting Canadian customers. Local numbers are available across every
-          province, and CASL-aware consent recording and opt-out enforcement are
-          built in from the first message.
-        </p>
-        <p>
-          Want to text US customers later too? You can enable that any time; the
-          one-time $29 registration fee and the roughly-one-week carrier approval
-          apply then, and everything you&apos;ve already set up stays exactly as
-          it is.{" "}
-          <a
-            href="/canada"
-            className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
-          >
-            See the full Canada story →
-          </a>
-        </p>
-      </FeatureSection>
-
-      {/* Feature strip. */}
-      <FeatureStrip
-        heading="What your business number gives you."
-        items={[
+      <UseCaseSteps
+        eyebrow="What the number fixes"
+        heading="Three problems that end the day the business owns its number."
+        steps={[
           {
-            icon: MapPin,
-            title: "Your area code",
-            body: "Choose a local number that matches where your customers are, real NANP data, the same table onboarding uses.",
+            title: "The buried quote",
+            body: "Quotes and bookings stop landing in one person's private messages, between the family group chat and the dentist reminder. They land on the business number, where the whole crew can see and answer them.",
           },
           {
-            icon: Building2,
-            title: "Owned by the company",
-            body: "The number, contacts, and history belong to the business, techs come and go, the number stays.",
+            title: "The tech who moved on",
+            body: "When a number lives on someone's personal phone, their conversations, their contacts, and sometimes their customers leave with them. A company-owned number keeps the history where it belongs.",
           },
           {
-            icon: Layers,
-            title: "Two numbers on Pro",
-            body: "Two locations, or an office line and a field line, each with its own inbox thread, both in one shared workspace.",
-          },
-          {
-            icon: ShieldCheck,
-            title: "Personal cells stay private",
-            body: "Customers text the business number, not a tech's mobile, so nobody's personal phone becomes the company hotline.",
+            title: "Two front doors, on Pro",
+            body: "Pro includes 2 local numbers, each with its own inbox: two locations, or an office line the front desk watches and a field line for the trucks. One crew, one workspace, no bleed between them.",
           },
         ]}
       />
 
-      {/* Honest details. */}
-      <HonestDetails
-        lead="A phone number is a serious thing to hand your customers, so here's exactly how Loonext numbers work, including what isn't possible yet."
+      <TruthStripSection
+        heading="The first week, stated plainly"
         items={[
           {
-            term: "A transfer takes days, not minutes, and we set the timeline honestly.",
-            detail:
-              "Moving a number between carriers is a real telecom process, not an instant switch. It typically takes about 1 to 7 business days, and your number keeps working on your current carrier the entire time, it only switches to Loonext on the transfer date, and texting through Loonext turns on once that's done. We won't promise an instant port, because nobody can honestly do one. If you need to start texting today, get a new local number now and transfer your existing one alongside it.",
+            text: "Your number is live and receiving texts on day one, and Canadian crews can text customers right away.",
+            good: true,
           },
           {
-            term: "Numbers are US and Canada only.",
-            detail:
-              "You can pick a local number in the United States or Canada, and text customers in both countries. Texting destinations outside the US and Canada isn't supported.",
+            text: "Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you. We file everything the minute you pay.",
           },
           {
-            term: "A number requires a paid plan.",
+            text: "Numbers are US and Canada only, and a number is provisioned after you subscribe, usually in a minute or two.",
+          },
+        ]}
+      />
+
+      <PlainDetails
+        heading="The precise edges"
+        lead="A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits."
+        items={[
+          {
+            term: "A port takes days, not minutes.",
             detail:
-              "There's no free, unclaimed number sitting around, the phone companies charge for every number, and free numbers attract spam that wrecks delivery. A number is provisioned only after you subscribe, usually within a minute or two.",
+              "Moving a number between carriers is a real telecom process, usually a few days to two weeks for US numbers and often faster in Canada. Your number keeps working on your current carrier the whole time and switches to Loonext on the scheduled transfer date. Nobody can truthfully promise an instant port, so we don't.",
           },
           {
             term: "Sole proprietors get one number.",
             detail:
-              "If you register without an EIN via the sole-proprietor path, US carrier rules cap you at a single number regardless of plan. Register with an EIN to use Pro's second number.",
+              "If you register without an EIN through the sole-proprietor path, US carrier rules cap you at a single number regardless of plan. Register with an EIN to use Pro's second number.",
+          },
+          {
+            term: "A number requires a paid plan.",
+            detail:
+              "The phone companies charge for every number, and free numbers attract the spam that wrecks delivery for everyone. A number is provisioned only after you subscribe, usually within a minute or two.",
           },
         ]}
       />
 
-      {/* Mini-pricing. */}
-      <MiniPricing
-        body={
-          <>
-            <p>
-              One local number comes with Starter at $29/mo (up to 3 people); a
-              second number comes with Pro at $79/mo (up to 10 people). Both are
-              flat, month to month, with receiving always free and unlimited.
-            </p>
-            <p>
-              US shops pay a one-time $29 to register the business with the phone
-              companies, once, ever, so the first month is $58 and every month
-              after is $29. Canadian businesses that stick to Canadian customers
-              never pay it.
-            </p>
-          </>
-        }
-      />
+      <PricingSnippet>
+        <p>
+          One local number comes with Starter at $29/mo for up to 3 people; a
+          second number comes with Pro at $79/mo for up to 10. Both are flat,
+          month to month, with receiving always free and unlimited. Porting a
+          number in is free.
+        </p>
+        <p>
+          US shops pay a one-time $29 to register the business with the phone
+          companies, once, ever, so the first month is $58 and every month
+          after is $29. Canadian businesses that don&apos;t text US numbers
+          never pay it.
+        </p>
+      </PricingSnippet>
 
-      {/* Internal links. */}
       <RelatedLinks
         heading="Where a business number does the most work"
-        intro="A dedicated number matters most for crews spread across jobs and trades that live on their phones. Here's where it fits, and how the flat-price model compares to the per-user tools."
+        intro="A dedicated number matters most for crews spread across jobs. Here's where it fits, and how the flat price compares to tools that charge for every extra number."
         links={[
           {
             label: "Texting for contractors",
@@ -320,12 +208,11 @@ export default function BusinessNumberPage() {
           {
             label: "Loonext vs Quo",
             href: "/compare/quo",
-            hint: "Two numbers on Pro, next to a tool that charges per extra number.",
+            hint: "Two numbers included on Pro, next to a tool that charges $5/mo per extra number.",
           },
         ]}
       />
 
-      {/* Page-specific FAQ, unique to business-number. */}
       <FeatureFaq
         heading="Number questions, straight answers."
         faqs={[
@@ -335,11 +222,11 @@ export default function BusinessNumberPage() {
           },
           {
             q: "Can I keep the number already on my trucks and my Google listing?",
-            a: "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take about 1 to 7 business days. Your number keeps working on your current carrier the whole time and switches to Loonext on the transfer date, texting through Loonext turns on once the transfer completes. If you want to start texting before it finishes, get a new local number now and transfer your old one alongside it.",
+            a: "Yes. Porting is free and self-serve: choose 'Bring my number' at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, usually a few days to two weeks for US numbers and often faster in Canada, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.",
           },
           {
             q: "What do the two numbers on Pro actually get me?",
-            a: "Two separate local numbers, each with its own inbox thread inside the same shared workspace. Common setups are an office line and a field line, or one number per location. Your whole team still works from one inbox; the conversations just stay grouped by which number they came in on.",
+            a: "Two separate local numbers, each with its own inbox thread inside the same shared workspace. Common setups are an office line and a field line, or one number per location. Your whole team still works from one inbox; the conversations stay grouped by which number they came in on.",
           },
           {
             q: "Is the number really the business's, not mine personally?",
@@ -347,14 +234,14 @@ export default function BusinessNumberPage() {
           },
           {
             q: "How fast is a new number ready?",
-            a: "Usually a minute or two after you subscribe. Receiving texts works as soon as the number is active, and if you're in Canada you can text Canadian customers right away. Texting US customers turns on after carrier approval, typically about a week.",
+            a: "Usually a minute or two after you subscribe. Receiving texts works as soon as the number is active, and if you're in Canada you can text Canadian customers right away. Texting US customers turns on after carrier approval, typically 3 to 7 business days.",
           },
         ]}
       />
 
       <FeatureCta
         heading="Get a number your customers can text."
-        sub="Pick your local area code, keep your personal cell private, and give the whole crew one number to share. Live in minutes."
+        sub="Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew one number to share. Live in minutes."
       />
     </>
   );

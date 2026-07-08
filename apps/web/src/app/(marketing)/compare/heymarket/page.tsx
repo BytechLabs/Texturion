@@ -1,258 +1,45 @@
 /**
- * /compare/heymarket. Loonext vs Heymarket (BLUEPRINT §5–6).
+ * /compare/heymarket, v4 "FIRST RESPONSE" (DESIGN-DIRECTION §6 COMPARE
+ * template; COPY-DECK v2). Dateline Header (their published seat price) →
+ * Honesty Ledger centerpiece (page-data.ts, every cell dated + sourced) →
+ * slider chart → "when Heymarket fits better" honesty → switching Truth
+ * Strip → CTA. No competitor logos, no dark patterns, no cheap shots; the
+ * places Heymarket genuinely beats us (SOC 2, HIPAA BAA, email channel, CRM
+ * depth) are stated outright.
  *
- * The flat-team-price page: Loonext's one flat price vs Heymarket's per-user
- * seats with a 2-user minimum, messages billed separately on top of seats, and
- * a $10/mo-per-campaign carrier fee. Heymarket is a genuine, enterprise-grade
- * shared inbox with SOC 2, HIPAA/BAA, email, and deep CRM integrations, we
- * concede that outright (§6); the honest read is "different buyer."
- *
- * Every Heymarket claim is dated "as of July 2026" and traces to
- * docs/marketing/competitor-site-teardowns.md and a live fetch of
- * heymarket.com/pricing (re-verified 2026-07-02: $49/$99/$199 per user, 2-user
- * minimum, $0.03/segment, $10/mo/campaign 10DLC, "Book a free demo" CTAs, up to
- * 18% annual). The all-in math for a 3-person crew sending 500 single-segment
- * texts states its single-segment assumption in the cell (§6, segment-unit
- * finding). No fabricated stats, no aggregateRating.
- *
- * JSON-LD: buildMetadata + BreadcrumbList only. Fully static (§11.4). Zero
- * sentences shared with the Podium/Quo pages (§6).
+ * JSON-LD: buildMetadata + BreadcrumbList only. Fully static. No em-dashes
+ * anywhere in rendered text (Law 6).
  */
 
 import type { Metadata } from "next";
 
-import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { Section } from "@/components/marketing/ui/section";
-import { Display } from "@/components/marketing/display";
 import {
-  Advantages,
-  AtAGlanceChart,
-  BetterPickCallout,
   CompareCta,
-  CompareFaq,
   CompareHero,
-  CompareHeroPhoto,
-  CompareRelatedLinks,
-  PayMathBlock,
-  SwitchingNote,
-  WhoEachIsFor,
+  HonestFit,
+  LedgerBand,
+  SliderBand,
+  SwitchBand,
 } from "@/components/marketing/compare/compare-sections";
-import {
-  ComparisonTable,
-  type ComparisonRow,
-} from "@/components/marketing/compare/comparison-table";
+import { LedgerTable } from "@/components/marketing/compare/ledger-table";
+import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { cn } from "@/lib/utils";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-const PATH = "/compare/heymarket";
-const COMPETITOR = "Heymarket";
+import {
+  HEYMARKET_COLUMNS,
+  HEYMARKET_FOOTNOTE,
+  HEYMARKET_ROWS,
+} from "./page-data";
+
+const PATH = LIVE_ROUTES.compareHeymarket;
 
 export const metadata: Metadata = buildMetadata({
-  title: "Loonext vs Heymarket: pricing & honest differences (2026)",
+  title: "Loonext vs Heymarket: flat $29 vs $49 a person",
   description:
-    "A fair, dated comparison: Loonext is $29/mo flat for the crew; Heymarket is $49/user (2-user minimum), with texts and a carrier fee billed separately.",
+    "A dated, sourced comparison. Loonext is $29/mo flat with 500 texts included; Heymarket is $49/user with a 2-user minimum, texts at 3¢/segment, and a $10/mo carrier fee. About $172 vs $29 for a 3-person crew, July 2026.",
   path: PATH,
 });
-
-/* -------------------------------------------------------------------------- */
-/* Comparison table, every cell dated + sourced (§6, §13.7).                  */
-/* -------------------------------------------------------------------------- */
-
-const ROWS: ComparisonRow[] = [
-  {
-    label: "Base price",
-    loonext: {
-      value: "$29/mo flat (3 people) · $79/mo (10 people)",
-      emphasis: true,
-      note: "Whole team, one price. Not per seat (SPEC §2).",
-    },
-    competitor: {
-      value: "$49/user/mo (Standard), 2-user minimum",
-      note: "Pricing page (annual): Standard $49, Plus $99, Pro $199 per user; minimum 2 users. So the floor is $98/mo.",
-    },
-  },
-  {
-    label: "How texts are priced",
-    loonext: {
-      value: "Included, 500 on Starter, 2,500 on Pro",
-      emphasis: true,
-      note: "Outgoing texts are in the plan; receiving is free and unlimited.",
-    },
-    competitor: {
-      value: "Billed separately at $0.03 per segment",
-      note: "Pricing page: SMS/MMS is $0.03/message segment on top of the per-user seat cost.",
-    },
-  },
-  {
-    label: "Carrier / 10DLC fee",
-    loonext: {
-      value: "$29 one time, ever",
-      note: "One-time US registration fee; Canadian-only texting never pays it (SPEC §4.1).",
-    },
-    competitor: {
-      value: "$10 per month, per campaign",
-      note: 'Pricing page: "$10 per month per campaign" covering 10DLC registration and compliance, a recurring charge, not one-time.',
-    },
-  },
-  {
-    label: "How you buy",
-    loonext: {
-      value: "Self-serve, sign up and pay online",
-      emphasis: true,
-      note: "No demo required (SPEC §1).",
-    },
-    competitor: {
-      value: 'Prices listed, but every paid tier CTA is "Book a free demo"',
-      note: "Pricing page routes the buy path to sales even though the numbers are shown.",
-    },
-  },
-  {
-    label: "Contract",
-    loonext: {
-      value: "Month to month",
-      emphasis: true,
-      note: "Cancel anytime in billing settings.",
-    },
-    competitor: {
-      value: "Annual pricing headline (up to 18% off)",
-      note: 'Pricing page: annual billing "Save up to 18%," described as two months free spread across the year.',
-    },
-  },
-  {
-    label: "Email channel",
-    loonext: {
-      value: "Not included, texting only",
-      note: "Loonext is a shared SMS inbox; no email inbox.",
-    },
-    competitor: {
-      value: "Included (email at $0.0025/segment)",
-      emphasis: true,
-      note: "Heymarket added shared email; outbound email is billed per segment too.",
-    },
-  },
-  {
-    label: "Enterprise compliance",
-    loonext: {
-      value: "Encryption + tenant isolation + US residency, stated plainly",
-      note: "No SOC 2 or HIPAA/BAA claims, we don't hold them yet (SPEC §10).",
-    },
-    competitor: {
-      value: "SOC 2 Type 2, TCPA, HIPAA (BAA available)",
-      emphasis: true,
-      note: "Compliance badges on Heymarket's site; a real advantage for regulated buyers.",
-    },
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* "What you'll actually pay", the all-in math, single-segment stated.        */
-/* -------------------------------------------------------------------------- */
-
-function HeymarketCostStack() {
-  const rows: { label: string; loonext: string; heymarket: string }[] = [
-    {
-      label: "Seats (3 people)",
-      loonext: "$29 flat, covers 3",
-      heymarket: "$49/user × 3 = $147",
-    },
-    {
-      label: "500 texts a month",
-      loonext: "Included",
-      heymarket: "~$15 (3¢/segment × 500, single-segment)",
-    },
-    {
-      label: "Carrier / 10DLC fee",
-      loonext: "$0/mo (one-time $29)",
-      heymarket: "$10/mo per campaign",
-    },
-    {
-      label: "Monthly total",
-      loonext: "$29",
-      heymarket: "≈ $172/mo",
-    },
-  ];
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-[color:var(--hairline)]">
-      <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
-        <thead>
-          <tr className="border-b border-[color:var(--hairline)]">
-            <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
-            <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
-              Loonext Starter
-            </th>
-            <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
-              Heymarket Standard
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const isTotal = r.label === "Monthly total";
-            return (
-              <tr
-                key={r.label}
-                className={cn(
-                  "border-b border-[color:var(--hairline)] last:border-b-0",
-                  isTotal && "bg-[color:var(--paper-2)]",
-                )}
-              >
-                <th
-                  scope="row"
-                  className={cn(
-                    "p-4 text-left align-top text-[13px] font-medium text-[color:var(--graphite)]",
-                    isTotal && "font-semibold text-[color:var(--ink)]",
-                  )}
-                >
-                  {r.label}
-                </th>
-                <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-semibold tabular-nums text-[color:var(--ink)]">
-                  {r.loonext}
-                </td>
-                <td
-                  className={cn(
-                    "border-l border-[color:var(--hairline)] p-4 align-top tabular-nums text-[color:var(--ink-70)]",
-                    isTotal && "font-semibold text-[color:var(--ink)]",
-                  )}
-                >
-                  {r.heymarket}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-const FAQS: { q: string; a: React.ReactNode }[] = [
-  {
-    q: "Why is Loonext so much cheaper for a small crew?",
-    a: "Because we don't charge per seat, we include your texts, and we don't add a monthly carrier line item. Heymarket's model is per user (2-user minimum), plus 3¢ a segment for texts, plus $10 a month per campaign. For a 3-person shop sending 500 texts that stacks up to roughly $172 a month; on Loonext the same crew is $29. If you're a large team where seats are the smaller part of the bill, that gap narrows.",
-  },
-  {
-    q: "Does Heymarket really route you to a demo even though prices are listed?",
-    a: "As of July 2026, yes, the per-user prices are printed on Heymarket's pricing page, but the button on every paid tier says \"Book a free demo\" rather than sign up. Loonext skips that step: the price is on the page and the button starts your account. If a guided demo is something you actively want, that's a point for Heymarket, not against it.",
-  },
-  {
-    q: "We might need email and SMS in one inbox. Can Loonext do that?",
-    a: "No. Loonext is a shared SMS inbox, texting only. Heymarket added a shared email channel (billed per segment), so if a unified text-and-email inbox is a requirement, Heymarket fits that better and we'd tell you to use it. If texting is the whole job, Loonext does that one thing for a flat price.",
-  },
-  {
-    q: "Is Heymarket more secure than Loonext?",
-    a: "On paper, today, in the ways auditors measure: Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA; Loonext doesn't hold those certifications yet, and we won't claim badges we don't have. What we do state plainly and can prove: data encrypted in transit and at rest, tenant isolation, US data residency, and no message content in our analytics or error logs. For a regulated healthcare buyer, Heymarket's certifications are a real edge.",
-  },
-  {
-    q: "How long until I can text US customers on Loonext?",
-    a: "About a week. Every business that texts US numbers has to register with the carriers first. Heymarket handles that with its $10/mo campaign fee, we handle it with a one-time $29 fee. We file yours the minute you pay; approval usually lands in 3–7 business days, and receiving texts works right away. Canadian texting is same-day.",
-  },
-  {
-    q: "Can I bring my existing number over?",
-    a: "Yes, you can transfer your existing US or Canadian number into Loonext for free. Choose “Bring my number” at signup, give us your current carrier details, and upload a recent bill; we handle the carrier paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier the whole time, it switches to Loonext on the transfer date, and texting on it turns on once the transfer completes. If you want to text before it finishes, get a new local number now and transfer your old one alongside it.",
-  },
-];
 
 export default function CompareHeymarketPage() {
   return (
@@ -260,61 +47,44 @@ export default function CompareHeymarketPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Compare", path: "/compare" },
+          { name: "Compare", path: LIVE_ROUTES.compareIndex },
           { name: "Loonext vs Heymarket", path: PATH },
         ])}
       />
 
       <CompareHero
-        eyebrow="Loonext vs Heymarket"
-        title={
-          <>
-            One <Display.Mark>flat price</Display.Mark>, next to per-seat plus
-            extras.
-          </>
-        }
-        lead="Heymarket is a polished, enterprise-grade shared inbox with SOC 2, a HIPAA BAA, email, and deep CRM integrations, genuinely strong if that's your world. But it's priced per user with a two-seat minimum, texts are billed separately at 3¢ a segment, and there's a $10-a-month carrier fee on top. Loonext is $29 a month flat, texts included. Here's the fair, dated comparison, July 2026."
-        visual={
-          <CompareHeroPhoto
-            photoId="crew-rooftop"
-            caption="The whole crew on one shared number for a single flat price, no per-seat bill that climbs with every hire."
-          />
-        }
+        dateline="$49/USER/MO · THEIR PUBLISHED STARTER SEAT"
+        title="Loonext vs Heymarket: flat $29 vs $49 a person."
+        lead="Heymarket is a polished, enterprise-grade shared inbox, and its price model is per user: $49 a seat with a two-seat minimum, texts billed on top at 3¢ a segment, plus a $10 monthly carrier fee. Loonext is $29 a month for the whole crew, texts included. Here is the arithmetic, dated and sourced, July 2026."
       />
 
-      <Section>
-        <div className="mx-auto max-w-4xl">
-          <Display as="h2" size="h2">
-            Side by side, with the sources in the cells.
-          </Display>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-            Loonext facts are from our own product and pricing. Every Heymarket
-            figure is dated July 2026 and cites the exact line item from its
-            public pricing page, including the parts that count in Heymarket&apos;s
-            favor.
-          </p>
-          <div className="mt-8">
-            <ComparisonTable competitorName={COMPETITOR} rows={ROWS} caption />
-          </div>
-        </div>
-      </Section>
+      <LedgerBand
+        heading="A 3-person crew, side by side."
+        lead="Same crew, same 500 texts a month, at published prices. Every Heymarket figure cites the exact line item from their public pricing page, including the rows that count in their favor."
+        footnote={HEYMARKET_FOOTNOTE}
+      >
+        <LedgerTable
+          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Heymarket Standard, at published prices as of July 2026."
+          columns={HEYMARKET_COLUMNS}
+          rows={HEYMARKET_ROWS}
+        />
+      </LedgerBand>
 
-      {/* At-a-glance visual, flat vs per-seat (VISUALS §3 compare-page rule). */}
-      <AtAGlanceChart
-        heading="One flat price vs. a bill that grows per seat."
-        lead="Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent. Loonext is flat, $29 up to three people, $79 up to ten. Here's the flat line against a typical per-user tool as the crew grows."
+      <SliderBand
+        heading="Per-user pricing climbs. Flat doesn't."
+        lead="Heymarket's two-seat minimum puts its floor at $98 a month before a single text is sent. Slide your crew size and watch a typical per-user bill pull away from the flat line."
       />
 
-      <WhoEachIsFor
-        heading="Who each one is really for."
-        loonextTitle="Reach for Loonext if…"
+      <HonestFit
+        heading="When Heymarket fits better."
+        intro="Heymarket is a serious product for a different buyer, and pretending otherwise would cost us your trust. Here's the straight read."
+        loonextTitle="Reach for Loonext if"
         loonextBody={
           <>
             <p>
-              You&apos;re a small service crew where a per-user bill and a
-              separate per-text charge would add up faster than the value.
-              You&apos;d rather one flat number cover everyone and your texts
-              come included.
+              You&apos;re a small service crew that wants every customer text
+              in one shared inbox at one flat price, with the texts included
+              and the whole cost printed before you pay.
             </p>
             <p>
               You want to sign up and pay online today, month to month, without
@@ -322,162 +92,71 @@ export default function CompareHeymarketPage() {
             </p>
           </>
         }
-        competitorTitle="Reach for Heymarket if…"
+        competitorTitle="Reach for Heymarket if"
         competitorBody={
           <>
             <p>
               You&apos;re a larger or regulated team that needs SOC 2, a HIPAA
-              BAA, a unified text-and-email inbox, and deep Salesforce or HubSpot
-              integrations, and per-user pricing is normal for how you buy
-              software.
+              BAA, a unified text-and-email inbox, or deep Salesforce and
+              HubSpot integrations, and per-user pricing is normal for how you
+              buy software.
             </p>
             <p>
-              A guided demo and an annual plan are how you prefer to roll out a
-              tool across a bigger org.
+              A guided demo and an annual plan are how you prefer to roll a
+              tool out across a bigger organization.
             </p>
           </>
         }
-      />
-
-      <BetterPickCallout
-        heading="Where Heymarket may be the better pick."
-        intro="Heymarket is a serious product, and it beats Loonext in concrete ways. If any of these are on your must-have list, buy Heymarket, you'll be happier."
         points={[
           {
-            title: "Enterprise compliance you can hand to an auditor.",
-            body: "Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real, disqualifying gap on our side.",
+            title: "Compliance you can hand to an auditor.",
+            body: "Heymarket publishes SOC 2 Type 2 and offers a HIPAA BAA. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real gap on our side.",
           },
           {
             title: "Text and email in one shared inbox.",
-            body: "Heymarket handles both channels together. Loonext is SMS only. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
+            body: "Heymarket handles both channels together. Loonext is texting only. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
           },
           {
             title: "Deep CRM integrations and automations.",
-            body: "Heymarket integrates tightly with Salesforce and HubSpot and offers list broadcasts, campaigns, and AI-assisted flows. Loonext keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
+            body: "Heymarket integrates tightly with Salesforce and HubSpot and offers broadcasts, campaigns, and AI-assisted flows. Loonext keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
           },
         ]}
         recommendation={
           <>
-            Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email inbox,
-            or CRM-deep automations, buy Heymarket, it&apos;s built for that and
-            does it well. If you&apos;re a small crew who just wants texting to
-            land in one place at one flat price, that&apos;s where Loonext is the
-            better-value call.
+            Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email
+            inbox, or CRM-deep automations, buy Heymarket. It&apos;s built for
+            that and does it well. If you&apos;re a crew of ten or fewer that
+            wants texting to land in one place at one flat price, that&apos;s
+            the job Loonext was built for.
           </>
         }
       />
 
-      <Advantages
-        heading="Where Loonext wins for a small crew."
-        lead="For a two-to-ten-person shop, the pricing model is the whole story, and it runs the other way from Heymarket's."
+      <SwitchBand
+        heading="Switching costs you nothing but the walk."
+        lead="Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around."
         items={[
           {
-            title: "One flat price, no seat counting.",
-            body: "$29 covers three people, $79 covers ten. Heymarket charges per user with a two-seat floor, so its entry point is $98/mo before a single text is sent.",
+            text: "Keep your number: transfers from your current provider are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+            good: true,
           },
           {
-            title: "Texts are included, not metered on top.",
-            body: "500 texts are in Starter, 2,500 in Pro, and receiving is always free. Heymarket bills SMS separately at 3¢ a segment on top of the seat cost.",
+            text: "Your number keeps working where it is today until the scheduled switch, so there's no dead air while it moves.",
+            good: true,
           },
           {
-            title: "No monthly carrier line item.",
-            body: "We charge one $29 registration fee, once ever. Heymarket's carrier compliance is $10 a month per campaign, a recurring charge that never goes away.",
+            text: "Month to month, and a 30-day money-back guarantee covers your first invoice, registration fee included.",
+            good: true,
           },
           {
-            title: "The buy button actually buys.",
-            body: "Sign up and pay online in minutes. Heymarket lists its prices but sends every paid tier to \"Book a free demo\" first.",
-          },
-          {
-            title: "Month to month, no annual headline.",
-            body: "Cancel any month. Heymarket's pricing leads with annual billing; month-to-month, if offered, isn't the advertised deal.",
-          },
-          {
-            title: "Refund if it's not for you.",
-            body: "Full refund of your first invoice, registration fee included, within 30 days, no forms, no clawback for texts you sent.",
+            text: "US carrier registration applies at every provider, ours is a one-time $29 and we file it the minute you pay. Receiving texts and Canadian texting work day one; US texting turns on in 3 to 7 business days.",
           },
         ]}
       />
-
-      <PayMathBlock
-        heading="What a 3-person crew actually pays."
-        lead="Same crew, same 500 texts a month, at published prices as of July 2026. Heymarket's total assumes each text is a single 160-character segment, longer texts count as more, so real Heymarket bills can run higher, not lower."
-        footnote={
-          <>
-            Loonext&apos;s numbers come straight from our published plans (SPEC
-            §1–2). Heymarket figures are from heymarket.com/pricing, re-verified
-            2026-07-02:
-            Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS
-            $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total
-            assumes 3 seats, 500 single-segment texts, and one campaign; texts
-            over 160 characters count as multiple segments and cost more.
-            One-time registration fees are excluded from both totals (Loonext&apos;s
-            is $29). If any figure changes, tell us and we&apos;ll correct it.
-          </>
-        }
-      >
-        <HeymarketCostStack />
-      </PayMathBlock>
-
-      <SwitchingNote
-        heading="Moving from Heymarket is painless."
-        body={
-          <>
-            <p>
-              Start Loonext alongside Heymarket, sign up, choose your local
-              number, and add the crew in minutes. Run both while you shift your
-              texting over, then cancel Heymarket once your conversations live in
-              Loonext. Because we&apos;re month to month, there&apos;s no exit
-              window on our side to plan around.
-            </p>
-            <p>
-              <strong className="font-semibold text-[color:var(--ink)]">
-                On keeping your number:
-              </strong>{" "}
-              you can transfer your existing US or Canadian number into Loonext
-              for free, choose &ldquo;Bring my number&rdquo; at signup, share
-              your current carrier details, and upload a recent bill; we handle
-              the paperwork. A transfer typically takes about 1 to 7 business
-              days, and your number keeps working on your current carrier until
-              it switches over to Loonext, texting on it turns on once the
-              transfer completes. No rush to move everyone at once.
-            </p>
-          </>
-        }
-      />
-
-      {/* Internal links, feature + trade pages (SEO: thin-internal-linking fix). */}
-      <CompareRelatedLinks
-        heading="If texting is the job, here's the Loonext version."
-        intro="Heymarket does a lot more than texting. If a shared text inbox at a flat price is what you're really after, this is where Loonext focuses, and where it fits a couple of trades."
-        links={[
-          {
-            label: "The shared inbox",
-            href: "/features/shared-inbox",
-            hint: "One number, one inbox the crew shares, assign, note, tag, search, done.",
-          },
-          {
-            label: "Templates, tags & workflow",
-            href: "/features/templates-and-tags",
-            hint: "Saved replies and sell-pipeline tags included, not billed per seat.",
-          },
-          {
-            label: "Texting for cleaners",
-            href: "/for/cleaners",
-            hint: "Recurring confirmations and access notes in one shared inbox, flat $29/mo.",
-          },
-          {
-            label: "Texting for salons",
-            href: "/for/salons",
-            hint: "Confirmations and waitlist fills across the whole floor, one number.",
-          },
-        ]}
-      />
-
-      <CompareFaq heading="Switching questions, answered." faqs={FAQS} />
 
       <CompareCta
         heading="One flat price, texts included, no demo."
-        sub="$29 a month covers the whole crew and your texts, no per-seat bill, no per-segment meter, no monthly carrier line item. Month to month, with a 30-day refund if it's not for you."
+        sub="$29 a month covers the whole crew and the texts. No per-seat bill, no per-segment meter on top, no monthly carrier line item, and a full refund in your first 30 days if it's not for you."
       />
     </>
   );

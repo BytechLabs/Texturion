@@ -1,18 +1,18 @@
 /**
- * Registration-stepper visual (features track), the /features/compliance
- * product visual. A live-DOM render of the app's registration state machine
- * (SPEC §4.4: brand → campaign → approved) as the friendly stepper G7/G8
- * describe, in an "In review" state. It shows the honest US timeline as a
+ * Registration-stepper embed (features crew), the /features/compliance hero
+ * visual: the app's registration state machine (SPEC §4.4, brand → campaign
+ * → approved) in its real "In review" state, so the honest US timeline is a
  * designed object: what's already done, what the carriers are reviewing, and
- * what turns on at the end, the same win-first frame as the home first-week
- * timeline, scoped to the registration flow.
+ * what turns on at the end.
  *
- * Server component, pure DOM. The "in review" state carries the sanctioned
- * review-pending amber via the v3 --marker tokens (as the home first-week
- * timeline does), not raw Tailwind amber; everything else is petrol-cast.
+ * Law 2: PRODUCT content, app tokens only (bg-primary done nodes, the app's
+ * calm amber for the in-review state, app-line/app-muted structure). Mount
+ * inside <PanelFrame> for the `.app-scope` token region. Never cobalt.
+ *
+ * Server component, pure DOM. Wording per Law 6: "3 to 7 business days".
  */
 
-import { Check, Clock, Loader2 } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Carrier review, in progress",
-    detail: "Typically 3–7 business days. Nothing for you to do.",
+    detail: "Typically 3 to 7 business days. Nothing for you to do.",
     state: "active",
   },
   {
@@ -46,7 +46,7 @@ function StepDot({ state }: { state: StepState }) {
   if (state === "done") {
     return (
       <span
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--petrol)] text-white"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
         aria-hidden
       >
         <Check className="size-4" strokeWidth={2.5} />
@@ -56,16 +56,16 @@ function StepDot({ state }: { state: StepState }) {
   if (state === "active") {
     return (
       <span
-        className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--marker)] bg-[color:var(--marker-40)] text-[color:var(--day-ink)]"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full border border-app-amber-line bg-app-amber-bg text-app-amber-ink"
         aria-hidden
       >
-        <Loader2 className="size-4 animate-spin motion-reduce:animate-none" strokeWidth={2} />
+        <Clock className="size-4" strokeWidth={2} />
       </span>
     );
   }
   return (
     <span
-      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--hairline)] bg-[rgba(11,43,38,0.06)] text-[color:var(--ink-55)]"
+      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-app-line bg-app-stone-1 text-app-muted-2"
       aria-hidden
     >
       <span className="size-1.5 rounded-full bg-current" />
@@ -79,62 +79,57 @@ export function RegistrationStepperVisual({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)] sm:p-6",
-        className,
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-[14px] font-semibold text-[color:var(--day-ink)]">
-          US texting registration
-        </p>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--marker)] bg-[color:var(--marker-40)] px-2.5 py-1 text-[12px] font-medium text-[color:var(--day-ink)]">
-          <Clock className="size-3.5" strokeWidth={1.75} aria-hidden />
-          In review
-        </span>
-      </div>
+    <div className={cn("p-4 sm:p-5", className)}>
+      <div className="rounded-app-card border border-app-line bg-app-white p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[14px] font-semibold text-app-ink">
+            US texting registration
+          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-app-amber-line bg-app-amber-bg px-2.5 py-1 text-[12px] font-medium text-app-amber-ink">
+            <Clock className="size-3.5" strokeWidth={1.75} aria-hidden />
+            In review
+          </span>
+        </div>
 
-      <ol className="mt-5 space-y-0">
-        {STEPS.map((step, i) => (
-          <li key={step.title} className="flex gap-3.5">
-            <div className="flex flex-col items-center">
-              <StepDot state={step.state} />
-              {i < STEPS.length - 1 && (
-                <span
-                  className={cn(
-                    "my-1 w-px flex-1",
-                    step.state === "done"
-                      ? "bg-[color:var(--petrol-24)]"
-                      : "bg-[color:var(--hairline)]",
-                  )}
-                  aria-hidden
-                />
-              )}
-            </div>
-            <div className={cn(i < STEPS.length - 1 && "pb-4")}>
-              <p
-                className={cn(
-                  "text-[14px] font-semibold",
-                  step.state === "upcoming"
-                    ? "text-[color:var(--ink-55)]"
-                    : "text-[color:var(--day-ink)]",
+        <ol className="mt-5 space-y-0">
+          {STEPS.map((step, i) => (
+            <li key={step.title} className="flex gap-3.5">
+              <div className="flex flex-col items-center">
+                <StepDot state={step.state} />
+                {i < STEPS.length - 1 && (
+                  <span
+                    className={cn(
+                      "my-1 w-px flex-1",
+                      step.state === "done"
+                        ? "bg-app-tint-line"
+                        : "bg-app-line",
+                    )}
+                    aria-hidden
+                  />
                 )}
-              >
-                {step.title}
-              </p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
-                {step.detail}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ol>
+              </div>
+              <div className={cn(i < STEPS.length - 1 && "pb-4")}>
+                <p
+                  className={cn(
+                    "text-[14px] font-semibold",
+                    step.state === "upcoming" ? "text-app-muted" : "text-app-ink",
+                  )}
+                >
+                  {step.title}
+                </p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-app-muted">
+                  {step.detail}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
 
-      <p className="mt-2 rounded-lg bg-[rgba(11,43,38,0.06)] px-3 py-2 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
-        Receiving texts and texting Canadian numbers already work, this only
-        gates US-bound texting.
-      </p>
+        <p className="mt-2 rounded-app-ctrl bg-app-stone-1 px-3 py-2 text-[13px] leading-relaxed text-app-muted">
+          Receiving texts and texting Canadian numbers already work. This only
+          gates US-bound texting.
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,273 +1,42 @@
 /**
- * /compare/quo. Loonext vs Quo (formerly OpenPhone) (BLUEPRINT §5–6).
+ * /compare/quo, v4 "FIRST RESPONSE" (DESIGN-DIRECTION §6 COMPARE template;
+ * COPY-DECK v2). Dateline Header (their per-user + per-segment arithmetic) →
+ * Honesty Ledger centerpiece (page-data.ts; never claims a bundled texting
+ * allowance for Quo, because it doesn't sell one) → slider chart (the $19
+ * seat price in the chart IS Quo's, sourced here) → the honest calling
+ * concession (Quo is a full phone system; Loonext can't place calls) →
+ * switching Truth Strip → CTA. Their $19.50 registration disclosure is
+ * credited in the footnote, as the deck orders.
  *
- * The per-user foil. Quo is a full business PHONE system, calling included,
- * aimed at a broad VoIP / developer / SMB audience. Loonext is SMS-only and
- * Canada-first for service trades. The load-bearing honesty here (§6): concede
- * Quo's calling, maturity, and reviews OUTRIGHT. Loonext cannot make a call,
- * and NEVER claim "500 texts included" for Quo (its texting is metered at
- * $0.01/segment; claiming otherwise is a false competitor claim, the exact
- * exposure the blueprint's panel flagged).
- *
- * Every Quo claim is dated "as of July 2026" and traces to
- * docs/marketing/competitor-site-teardowns.md and a live fetch of
- * quo.com/pricing (re-verified 2026-07-02: Starter $15 annual / $19 monthly,
- * Business $23/$33, Scale $35/$47 per user; 7-day trial; extra numbers $5/mo;
- * automated SMS $0.01/segment; $19.50 one-time TCR + $1.50–$3/mo carrier
- * maintenance; US/Canada calling included). No fabricated stats, no
- * aggregateRating.
- *
- * JSON-LD: buildMetadata + BreadcrumbList only. Fully static (§11.4). Zero
- * sentences shared with the Podium/Heymarket pages (§6).
+ * JSON-LD: buildMetadata + BreadcrumbList only. Fully static. No em-dashes
+ * anywhere in rendered text (Law 6).
  */
 
 import type { Metadata } from "next";
 
-import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { Section } from "@/components/marketing/ui/section";
-import { Display } from "@/components/marketing/display";
 import {
-  Advantages,
-  AtAGlanceChart,
-  BetterPickCallout,
   CompareCta,
-  CompareFaq,
   CompareHero,
-  CompareHeroPhoto,
-  CompareRelatedLinks,
-  PayMathBlock,
-  SwitchingNote,
-  WhoEachIsFor,
+  HonestFit,
+  LedgerBand,
+  SliderBand,
+  SwitchBand,
 } from "@/components/marketing/compare/compare-sections";
-import {
-  ComparisonTable,
-  type ComparisonRow,
-} from "@/components/marketing/compare/comparison-table";
+import { LedgerTable } from "@/components/marketing/compare/ledger-table";
+import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
-import { cn } from "@/lib/utils";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-const PATH = "/compare/quo";
-const COMPETITOR = "Quo";
+import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./page-data";
+
+const PATH = LIVE_ROUTES.compareQuo;
 
 export const metadata: Metadata = buildMetadata({
-  title: "Loonext vs Quo: pricing & honest differences (2026)",
+  title: "Loonext vs Quo: flat beats per-user",
   description:
-    "A fair, dated comparison: Loonext is $29/mo flat and SMS-only; Quo (formerly OpenPhone) is a per-user phone system with texting metered separately.",
+    "A dated, sourced comparison. Loonext is $29/mo flat with 500 texts included; Quo (formerly OpenPhone) is $19/user/mo on monthly billing with texting metered at 1¢/segment and extra numbers at $5/mo. Where Quo's calling genuinely wins, we say so.",
   path: PATH,
 });
-
-/* -------------------------------------------------------------------------- */
-/* Comparison table, every cell dated + sourced (§6, §13.7).                  */
-/* NOTE: Quo's texting cell states its REAL metered terms, never "included".  */
-/* -------------------------------------------------------------------------- */
-
-const ROWS: ComparisonRow[] = [
-  {
-    label: "What it is",
-    loonext: {
-      value: "A shared SMS inbox, texting only",
-      note: "Reply, assign, tag, note, search, close (SPEC §1).",
-    },
-    competitor: {
-      value: "A full business phone system, calling + texting",
-      emphasis: true,
-      note: 'Quo home page: "shared business phone and inbox" for every call and text.',
-    },
-  },
-  {
-    label: "Base price",
-    loonext: {
-      value: "$29/mo flat (3 people) · $79/mo (10 people)",
-      emphasis: true,
-      note: "One price for the whole crew, not per seat (SPEC §2).",
-    },
-    competitor: {
-      value: "$15/user (annual) or $19/user (monthly), Starter",
-      note: "Pricing page: Starter $15 annual / $19 monthly; Business $23/$33; Scale $35/$47, all per user.",
-    },
-  },
-  {
-    label: "Voice calling",
-    loonext: {
-      value: "Not included. Loonext can't make calls",
-      note: "We're a text inbox. If you need to call customers, this is a real gap.",
-    },
-    competitor: {
-      value: "Unlimited US/Canada calling included",
-      emphasis: true,
-      note: "Pricing page: calling to US and Canadian numbers included on every tier (fair-use).",
-    },
-  },
-  {
-    label: "How texts are priced",
-    loonext: {
-      value: "Included, 500 on Starter, 2,500 on Pro",
-      emphasis: true,
-      note: "A texting allowance ships with each plan; inbound is always free.",
-    },
-    competitor: {
-      value: "Metered, automated SMS $0.01 per outgoing segment",
-      note: "Pricing page: texting is not a bundled allowance; automated SMS is billed per segment.",
-    },
-  },
-  {
-    label: "Extra phone numbers",
-    loonext: {
-      value: "2nd number included on Pro",
-      emphasis: true,
-      note: "Pro gives two numbers (two locations, or office + field) at no add-on.",
-    },
-    competitor: {
-      value: "$5/mo each",
-      note: "Pricing page: additional phone numbers are $5/month each.",
-    },
-  },
-  {
-    label: "Bring your existing number",
-    loonext: {
-      value: "Free number transfer (US/CA), ~1–7 business days",
-      note: "Choose “Bring my number” at signup; we handle the carrier paperwork. Your number keeps working until it switches over (docs/PORTING.md).",
-    },
-    competitor: {
-      value: "Free number porting",
-      emphasis: true,
-      note: "Pricing/support pages: Quo ports existing US/Canada numbers in at no charge. A wash between us.",
-    },
-  },
-  {
-    label: "Carrier registration fee",
-    loonext: {
-      value: "$29 one time, ever",
-      note: "Canadian-only texting never pays it; charged once even if you leave and return (SPEC §4.1).",
-    },
-    competitor: {
-      value: "$19.50 one-time + $1.50–$3/mo maintenance",
-      note: "Pricing page: $19.50 one-time Campaign Registry review + $1.50–$3/mo carrier maintenance.",
-    },
-  },
-  {
-    label: "Canada",
-    loonext: {
-      value: "Canada-first, text Canadian customers the same day",
-      emphasis: true,
-      note: "No US carrier registration for CA→CA texting (SPEC §4.1). CASL-aware.",
-    },
-    competitor: {
-      value: "Supported, but not the focus",
-      note: "Quo serves a broad US-centric VoIP/developer audience; Canada isn't its positioning.",
-    },
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* "What you'll actually pay", per-user vs flat, dated.                       */
-/* -------------------------------------------------------------------------- */
-
-function QuoCostStack() {
-  const rows: { label: string; loonext: string; quo: string }[] = [
-    {
-      label: "6-person crew, software",
-      loonext: "$79 flat (Pro covers 10)",
-      quo: "$19/user × 6 = $114/mo (monthly billing)",
-    },
-    {
-      label: "A second number",
-      loonext: "Included on Pro",
-      quo: "+$5/mo",
-    },
-    {
-      label: "Texting",
-      loonext: "2,500 included",
-      quo: "Metered at 1¢/segment, depends on volume",
-    },
-    {
-      label: "Monthly total",
-      loonext: "$79",
-      quo: "≈ $119/mo + texting",
-    },
-  ];
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-[color:var(--hairline)]">
-      <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
-        <thead>
-          <tr className="border-b border-[color:var(--hairline)]">
-            <th className="p-4 text-[13px] font-medium text-[color:var(--graphite)]" />
-            <th className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 font-semibold text-[color:var(--petrol)]">
-              Loonext Pro
-            </th>
-            <th className="border-l border-[color:var(--hairline)] p-4 font-semibold text-[color:var(--ink)]">
-              Quo Starter
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const isTotal = r.label === "Monthly total";
-            return (
-              <tr
-                key={r.label}
-                className={cn(
-                  "border-b border-[color:var(--hairline)] last:border-b-0",
-                  isTotal && "bg-[color:var(--paper-2)]",
-                )}
-              >
-                <th
-                  scope="row"
-                  className={cn(
-                    "p-4 text-left align-top text-[13px] font-medium text-[color:var(--graphite)]",
-                    isTotal && "font-semibold text-[color:var(--ink)]",
-                  )}
-                >
-                  {r.label}
-                </th>
-                <td className="border-l border-[color:var(--hairline)] bg-[color:var(--petrol-12)] p-4 align-top font-semibold tabular-nums text-[color:var(--ink)]">
-                  {r.loonext}
-                </td>
-                <td
-                  className={cn(
-                    "border-l border-[color:var(--hairline)] p-4 align-top tabular-nums text-[color:var(--ink-70)]",
-                    isTotal && "font-semibold text-[color:var(--ink)]",
-                  )}
-                >
-                  {r.quo}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-const FAQS: { q: string; a: React.ReactNode }[] = [
-  {
-    q: "Does Loonext make phone calls like Quo does?",
-    a: "No, and this is the honest headline of this whole comparison. Quo is a full business phone system: it makes and receives calls, and unlimited US/Canada calling is included on every plan. Loonext can't call anyone; it's a shared text inbox. If your business lives on the phone, Quo is genuinely the better tool and we'll say so.",
-  },
-  {
-    q: "Isn't Quo cheaper at $15 a user?",
-    a: "It depends on your crew size, and on texting. Quo's Starter is $15 a user on annual billing, $19 monthly, for a 6-person crew that's $90 to $114 a month, plus $5 for a second number, plus texting metered at 1¢ a segment. Loonext Pro is $79 flat for up to 10 people with a second number and 2,500 texts included. For a solo operator who mostly calls, Quo can be cheaper; for a texting crew, Loonext's flat price usually wins.",
-  },
-  {
-    q: "Why don't you show Quo as \"500 texts included\" in the table?",
-    a: "Because it wouldn't be true, and we won't print a competitor number we can't stand behind. Quo doesn't bundle a texting allowance the way Loonext does, its automated SMS is metered at 1¢ per segment. We show Quo's real terms, not a made-up allowance, on every row.",
-  },
-  {
-    q: "Quo discloses its fees really clearly. Does Loonext?",
-    a: "Quo sets a high bar here, and credit where it's due, it lists its $19.50 one-time registration and $1.50–$3/month carrier maintenance right on the pricing page, and even reminds you before a trial ends. We aim to match and beat that: one $29 registration fee, charged once ever, with no recurring carrier line item at all, and Canadian texting that skips registration entirely. Same honesty, simpler math.",
-  },
-  {
-    q: "How fast can I text customers on each?",
-    a: "For US texting, both of us wait on the same carrier registration, it's an industry rule, not a product choice, and it usually takes 3–7 business days. The difference is Canada: Loonext is built Canada-first, so Canadian crews text Canadian customers the same day they sign up, with no US registration. We file your US registration the minute you pay and email you when it clears.",
-  },
-  {
-    q: "Can I bring my number over from Quo?",
-    a: "Yes, you can transfer your existing US or Canadian number into Loonext for free. At signup choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork from there. A transfer typically takes about 1 to 7 business days, and your number keeps working on your current carrier until it switches over to Loonext, texting on it turns on once the transfer completes. Quo offers free porting too, so number transfer is a wash between the two; the real deciders here are calling (Quo has it, we don't) and price (flat vs per user).",
-  },
-];
 
 export default function CompareQuoPage() {
   return (
@@ -275,226 +44,117 @@ export default function CompareQuoPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Compare", path: "/compare" },
+          { name: "Compare", path: LIVE_ROUTES.compareIndex },
           { name: "Loonext vs Quo", path: PATH },
         ])}
       />
 
       <CompareHero
-        eyebrow="Loonext vs Quo"
-        title={
-          <>
-            A shared text inbox, not a{" "}
-            <Display.Mark>per-seat</Display.Mark> phone system.
-          </>
-        }
-        lead="Quo (formerly OpenPhone) is a mature per-user business phone system, calling included, broad audience, genuinely polished. Loonext is narrower on purpose: a shared SMS inbox, Canada-first, flat $29 a month for service crews. The biggest honest difference up top. Loonext can't make calls, and Quo can. Here's the fair, dated side-by-side, July 2026."
-        visual={
-          <CompareHeroPhoto
-            photoId="owner-counter-phone"
-            caption="For a crew whose customers text more than they call, a shared text inbox does the whole job, no per-seat phone system required."
-          />
-        }
+        dateline="$19/USER/MO + 1¢/TEXT"
+        title="Loonext vs Quo: flat beats per-user."
+        lead="Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is texting only, $29 a month flat for the whole crew, texts included. Here is the arithmetic, dated and sourced, July 2026."
       />
 
-      <Section>
-        <div className="mx-auto max-w-4xl">
-          <Display as="h2" size="h2">
-            Side by side, including where Quo wins.
-          </Display>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-            Loonext facts come from our own product and pricing. Every Quo figure
-            is dated July 2026 and cites the exact line from its public pricing
-            page, and we never dress up Quo&apos;s metered texting as an
-            included allowance, because it isn&apos;t.
-          </p>
-          <div className="mt-8">
-            <ComparisonTable competitorName={COMPETITOR} rows={ROWS} caption />
-          </div>
-        </div>
-      </Section>
+      <LedgerBand
+        heading="A 3-person crew, side by side."
+        lead="Same crew, same 500 texts a month, at published prices. Quo's texting cell states its real metered terms, we won't print a bundled allowance it doesn't sell, and the row where Quo flatly beats us is in the table too."
+        footnote={QUO_FOOTNOTE}
+      >
+        <LedgerTable
+          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Quo Starter, at published prices as of July 2026."
+          columns={QUO_COLUMNS}
+          rows={QUO_ROWS}
+        />
+      </LedgerBand>
 
-      {/* At-a-glance visual, flat vs per-seat. The chart's per-user line IS Quo's
-          published $19/user/mo (July 2026), so this page owns the sourced math. */}
-      <AtAGlanceChart
-        heading="Flat vs. per user, as the crew grows."
-        lead="Quo's Starter is $19/user a month on monthly billing. Loonext is flat, $29 up to three people, $79 up to ten. For a solo operator Quo can be cheaper; the more you hire, the more the per-user line climbs while Loonext holds. The figures below are Quo's published seat price, July 2026."
+      <SliderBand
+        heading="This chart's $19 line is Quo's own seat price."
+        lead="The per-user line in this chart is Quo Starter's published $19/user monthly price, and it doesn't include their metered texting. Slide your crew size and watch the gap."
       />
 
-      <WhoEachIsFor
-        heading="Who each one is really for."
-        loonextTitle="Reach for Loonext if…"
+      <HonestFit
+        heading="When Quo fits better."
+        intro="Quo is a mature product with a real edge over us, and the biggest one is the obvious one: it's a phone system."
+        loonextTitle="Reach for Loonext if"
         loonextBody={
           <>
             <p>
-              You&apos;re a US or Canadian service crew whose customers text more
-              than they call, and you want those texts in one shared inbox at a
-              flat price, not a per-user bill that grows with every hire.
+              Texting is the job: customers text photos of the problem, the
+              crew answers from the truck, and you want all of it in one shared
+              inbox at one flat price with the texts included.
             </p>
             <p>
-              You&apos;re in Canada and want to text customers the same day, or
-              you value texting being included instead of metered per message.
+              You&apos;re in Canada, or you split work across US and Canadian
+              customers: Canadian texting works the day you sign up, no
+              registration wait.
             </p>
           </>
         }
-        competitorTitle="Reach for Quo if…"
+        competitorTitle="Reach for Quo if"
         competitorBody={
           <>
             <p>
-              You need to make and take phone calls. Quo is a real phone system
-              with unlimited US/Canada calling, call routing, and voicemail.
-              That&apos;s the core of what it does and it does it well.
+              Your business lives on phone calls. Quo makes and receives them,
+              with unlimited US and Canada calling on every tier, voicemail,
+              and an AI agent. Loonext cannot place a call; our $8/mo add-on
+              only forwards calls to your cell and texts back the ones you
+              miss.
             </p>
             <p>
-              You want a broader, more mature platform with an AI voice agent,
-              analytics, and a large integration and app ecosystem, and per-user
-              pricing suits how you buy.
+              You want desktop and mobile apps for a distributed team that
+              treats the phone line, not the text thread, as home base.
             </p>
           </>
         }
-      />
-
-      <BetterPickCallout
-        heading="Where Quo may be the better pick."
-        intro="Quo is a strong product and it beats Loonext outright in several places. These aren't hedges, if any of them matter to you, buy Quo, you'll be better served."
         points={[
           {
-            title: "It makes phone calls. We don't.",
-            body: "This is the big one. Quo is a full phone system, calling to US and Canadian numbers is included on every plan. Loonext is texting only and cannot place or receive a call. If a real phone line is a requirement, Loonext is simply the wrong tool and Quo is the right one.",
+            title: "Calling is the honest headline.",
+            body: "Unlimited US/Canada calling ships on every Quo tier. If your customers expect to reach you by voice all day, Quo is genuinely the better tool and no texting inbox replaces it.",
           },
           {
-            title: "It's more mature, with a bigger ecosystem.",
-            body: "Quo (as OpenPhone) has years of shipping behind it, a large integration catalog, an AI voice agent, and calling analytics. Loonext is young and deliberately small. If you want breadth and a proven track record, Quo has more of both.",
+            title: "Their fee disclosure sets a high bar.",
+            body: "Quo prints its $19.50 one-time registration and its $1.50 to $3 monthly carrier maintenance right on the pricing page, and even reminds you before a trial ends. Credit where due; we aim to beat it, not match it, with one $29 fee, once, and no recurring carrier line at all.",
           },
           {
-            title: "Best-in-class fee transparency.",
-            body: "Quo lists its registration and carrier fees plainly, right on the pricing page, and even reminds you before a trial ends. We aim to match that, but Quo sets the bar for putting every dollar in writing up front. (Free number porting isn't a difference here, both of us transfer your existing number in for free.)",
+            title: "A bigger app surface.",
+            body: "Quo ships iOS, Android, macOS, Windows, and web apps plus integrations and an API. Loonext is a fast web app you add to your home screen, deliberately smaller.",
           },
         ]}
         recommendation={
           <>
-            Said plainly: if you need to call customers or want a mature
-            all-round phone platform, buy Quo, it genuinely does more than we
-            do. Loonext is the better pick when texting is the whole job, you
-            want it included at a flat price, and especially if you&apos;re a
-            Canadian crew that wants to start today. Bringing your existing
-            number over is free either way, so let calling and price decide it.
+            Plainly: if the phone ringing is your front door, buy Quo. If the
+            text thread is your front door and you&apos;re tired of it living
+            on one person&apos;s cell, Loonext gives the whole crew one inbox
+            for $29 flat, and the texts are already in the price.
           </>
         }
       />
 
-      <Advantages
-        heading="Where Loonext wins for a texting crew."
-        lead="Against a per-user phone system, Loonext's edge is narrow and specific: flat pricing, texting included, and a Canada-first head start."
+      <SwitchBand
+        heading="Switching from a per-user bill is quick math."
+        lead="Count your seats, add the metered texting, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless."
         items={[
           {
-            title: "Flat price beats per-user as you grow.",
-            body: "$79 covers up to ten people on Pro. On Quo at $19/user monthly, ten seats is $190 before texts or extra numbers. The more the crew grows, the wider that gap opens.",
+            text: "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+            good: true,
           },
           {
-            title: "Texting is included, not metered.",
-            body: "500 texts on Starter, 2,500 on Pro, receiving always free. Quo meters automated SMS at 1¢ a segment, so a texting-heavy month is an open-ended line item there.",
+            text: "Your number keeps working on your current provider until the scheduled switch, so you can run both while you move.",
+            good: true,
           },
           {
-            title: "A second number without the add-on.",
-            body: "Pro includes two numbers, a second location, or an office and a field line, at no extra charge. Quo bills $5 a month for each additional number.",
+            text: "Month to month, with a 30-day full money-back guarantee, registration fee included.",
+            good: true,
           },
           {
-            title: "Canada-first, text the same day.",
-            body: "Canadian crews text Canadian customers the day they sign up, no US registration in the way. For a Canadian shop, that's a head start Quo doesn't position around.",
-          },
-          {
-            title: "Fee honesty that matches Quo and simplifies it.",
-            body: "One $29 registration fee, charged once ever, no recurring carrier maintenance line, versus Quo's $19.50 one-time plus $1.50–$3 every month. Both are honest; ours is simpler.",
-          },
-          {
-            title: "Refund if it's not for you.",
-            body: "Full refund of your first invoice, registration fee included, within 30 days, no forms. A clean way to find out whether an SMS-only inbox is enough for your crew.",
+            text: "If your team makes calls from the app all day, read the calling section above before you switch; Loonext won't do that job.",
           },
         ]}
       />
-
-      <PayMathBlock
-        heading="What a 6-person crew actually pays."
-        lead="A texting crew of six, at published prices as of July 2026. Quo's software cost is real and dated; its texting is metered, so the true Quo total depends on how much you send, which is exactly why we don't print a single tidy number for it."
-        footnote={
-          <>
-            Loonext&apos;s figures reflect our own published Starter and Pro
-            plans (SPEC §1–2). Quo figures are from quo.com/pricing, re-verified
-            2026-07-02: Starter $15/user/mo
-            (annual) or $19/user/mo (monthly), additional numbers $5/mo, automated
-            SMS $0.01/segment, and calling included. The ~$119 Quo total uses
-            monthly billing ($19 × 6) plus one extra number and excludes texting,
-            which Quo meters separately. One-time registration fees are excluded
-            from both totals (Loonext&apos;s is $29; Quo discloses $19.50). If any
-            figure changes, tell us and we&apos;ll correct it.
-          </>
-        }
-      >
-        <QuoCostStack />
-      </PayMathBlock>
-
-      <SwitchingNote
-        heading="Trying Loonext next to Quo is easy."
-        body={
-          <>
-            <p>
-              Because Loonext is month to month and self-serve, you can stand it
-              up beside Quo in minutes, pick a number, add the crew, move your
-              texting over, and decide with real usage in front of you. Keep Quo
-              for calling as long as you want; nothing forces an all-or-nothing
-              switch.
-            </p>
-            <p>
-              <strong className="font-semibold text-[color:var(--ink)]">
-                On keeping your number:
-              </strong>{" "}
-              you can transfer your existing US or Canadian number into Loonext
-              for free, choose &ldquo;Bring my number&rdquo; at signup, share
-              your current carrier details, and upload a recent bill; we handle
-              the paperwork. A transfer typically takes about 1 to 7 business
-              days, and your number keeps working on your current carrier until
-              it switches over, texting on it turns on once the transfer
-              completes. Quo ports for free too, so number transfer isn&apos;t
-              the deciding factor between us; calling and price are.
-            </p>
-          </>
-        }
-      />
-
-      {/* Internal links, feature + trade pages (SEO: thin-internal-linking fix). */}
-      <CompareRelatedLinks
-        heading="What Loonext does with texting, in depth."
-        intro="Quo is a phone system; Loonext is a texting inbox. If texting is the part that matters, here's what it looks like, and where a second number and a Canada-first head start earn their keep."
-        links={[
-          {
-            label: "Your business number",
-            href: "/features/business-number",
-            hint: "Two numbers on Pro at no add-on, next to Quo's $5/mo per extra number.",
-          },
-          {
-            label: "Loonext in Canada",
-            href: "/canada",
-            hint: "Canadian crews text customers the same day, no US registration wait.",
-          },
-          {
-            label: "Texting for landscapers",
-            href: "/for/landscapers",
-            hint: "Quote from a photo and dispatch the nearest crew, all from one inbox.",
-          },
-          {
-            label: "Texting for contractors",
-            href: "/for/contractors",
-            hint: "Every message a task the crew works and checks off, off your personal cell.",
-          },
-        ]}
-      />
-
-      <CompareFaq heading="Switching questions, answered." faqs={FAQS} />
 
       <CompareCta
-        heading="If texting is the job, this is the tool."
-        sub="A shared text inbox, texting included, Canada-first, $29 a month flat for the whole crew. If you need calling too, keep Quo, we'll be the honest ones and tell you that. Otherwise, month to month with a 30-day refund."
+        heading="Flat for the crew, texts included."
+        sub="$29 a month covers up to three people and 500 texts; $79 covers ten and 2,500, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you."
       />
     </>
   );

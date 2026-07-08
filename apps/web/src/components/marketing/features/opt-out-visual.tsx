@@ -1,15 +1,16 @@
 /**
- * Opt-out enforcement visual (features track), /features/compliance.
+ * Opt-out enforcement embed (features crew), /features/compliance.
  *
- * A live-DOM render of two real app behaviors (DESIGN.md G5, SPEC §5): a
- * customer's STOP arriving in the thread, and the app's opted-out composer
- * banner (red tint, "This customer opted out of texting. Sends are blocked.")
- * that replaces the composer so a send to an opted-out number is impossible. It
- * makes "STOP means stop, automatically" concrete, the block is shown in the
- * interface, not just asserted in prose.
+ * Two real app behaviors in sequence (SPEC §5, components/thread): a
+ * customer's STOP arriving as a normal inbound bubble (border + app-white
+ * fill, the real bubble anatomy), the system opt-out event line, and the
+ * banner that REPLACES the composer (composer-banners.tsx, verbatim: "This
+ * customer opted out of texting. Sends are blocked." on the destructive
+ * tint). The block is shown in the interface, not asserted in prose.
  *
- * Server component, static DOM, matches the inbound-bubble + opted-out banner
- * tokens. All numbers are in the 555-01XX safe fictional range (G10).
+ * Law 2: PRODUCT content, app tokens only (the app's warm-clay destructive,
+ * never a marketing color); mount inside <PanelFrame>.
+ * Server component, static DOM, 555-01XX safe fictional number.
  */
 
 import { Ban } from "lucide-react";
@@ -18,41 +19,35 @@ import { cn } from "@/lib/utils";
 
 export function OptOutVisual({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
-        className,
-      )}
-    >
-      <p className="text-[13px] font-medium text-[color:var(--ink-55)]">
-        Jordan P · (416) 555-0173
+    <div className={cn("p-4 sm:p-5", className)}>
+      <p className="text-[13px] font-medium text-app-muted">
+        Jordan P · <span className="tabular-nums">(416) 555-0173</span>
       </p>
 
-      {/* The customer's inbound STOP, a normal inbound bubble. */}
+      {/* The customer's STOP: the real inbound bubble anatomy. */}
       <div className="mt-4 flex flex-col gap-1">
-        <div className="max-w-[80%] self-start rounded-[10px] rounded-tl-sm bg-[#F0F4F2] px-3 py-2">
-          <p className="text-[15px] leading-normal text-[color:var(--day-ink)]">STOP</p>
+        <div className="max-w-[80%] self-start rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 [border-top-left-radius:5px]">
+          <p className="text-[15px] leading-normal text-app-ink">STOP</p>
         </div>
-        {/* The system opt-out event line (G5 centered timeline event). */}
-        <p className="mt-1 text-center text-[12px] text-[color:var(--ink-55)]">
+        {/* The centered system event line the thread draws. */}
+        <p className="mt-1 text-center text-[12px] text-app-muted-2">
           Jordan P opted out · today, 4:12 PM
         </p>
       </div>
 
-      {/* The opted-out banner that REPLACES the composer (G5). Red is the one
-          sanctioned destructive/blocked signal (matches the app's opt-out
-          banner); petrol would read as "ok", the wrong semantics. Light-only. */}
-      <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3">
+      {/* The banner that replaces the composer (composer-banners.tsx tone:
+          destructive tint; the app's warm clay, its own blocked signal). */}
+      <div className="mt-3 flex items-start gap-2.5 rounded-app-card border border-destructive/30 bg-destructive/10 p-3">
         <span
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive"
           aria-hidden
         >
           <Ban className="size-3.5" strokeWidth={2} />
         </span>
-        <p className="text-[13px] leading-snug text-red-800">
+        <p className="text-[13px] leading-snug text-app-ink">
           This customer opted out of texting. Sends are blocked.
-          <span className="mt-0.5 block text-[12px] text-red-700/80">
-            Blocked in the app before it reaches the carrier, no accidental
+          <span className="mt-0.5 block text-[12px] text-app-muted">
+            Rejected in the app before it reaches the carrier. No accidental
             texts.
           </span>
         </p>

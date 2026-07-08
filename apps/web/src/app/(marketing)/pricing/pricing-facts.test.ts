@@ -1,0 +1,196 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  PLAN_MODULE_CARDS,
+  PLAN_PRICING,
+  US_REGISTRATION_FEE_DOLLARS,
+} from "@/lib/api/types";
+
+import {
+  ELSEWHERE_COLUMNS,
+  ELSEWHERE_FOOTNOTE,
+  ELSEWHERE_ROWS,
+  FAQS,
+  LEDGER,
+  PLANS,
+  PRICING_DATELINE,
+} from "./pricing-data";
+
+/** Every customer-facing string this module exports, flattened. */
+function allStrings(): string[] {
+  const out: string[] = [PRICING_DATELINE, ELSEWHERE_FOOTNOTE];
+  for (const plan of PLANS) {
+    out.push(plan.name, plan.price, plan.tagline, plan.cta, ...plan.features);
+    if (plan.badge) out.push(plan.badge);
+  }
+  for (const entry of LEDGER) {
+    out.push(entry.term, entry.detail);
+    if (entry.figure) out.push(entry.figure);
+  }
+  for (const col of ELSEWHERE_COLUMNS) {
+    out.push(col.label);
+    if (col.sub) out.push(col.sub);
+  }
+  for (const row of ELSEWHERE_ROWS) {
+    out.push(row.label);
+    for (const cell of row.cells) {
+      out.push(typeof cell === "string" ? cell : cell.value);
+      if (typeof cell !== "string" && cell.note) out.push(cell.note);
+    }
+  }
+  for (const faq of FAQS) out.push(faq.q, faq.a);
+  return out;
+}
+
+describe("/pricing rendered strings (Law 6)", () => {
+  it("contain no em-dashes and no en-dash ranges", () => {
+    for (const s of allStrings()) {
+      expect(s, s).not.toMatch(/[—–]/);
+    }
+  });
+
+  it("never describe the site as an artifact (Law 1 purge sweep)", () => {
+    for (const s of allStrings()) {
+      expect(s.toLowerCase(), s).not.toMatch(
+        /real interface|not a screenshot|stock photo|fake review|built with next|set in /,
+      );
+    }
+  });
+});
+
+describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
+  it("dateline states the $58-then-$29 US arithmetic from the constants", () => {
+    expect(PRICING_DATELINE).toBe("$58 FIRST MONTH (US) · $29 AFTER");
+    expect(PRICING_DATELINE).toContain(
+      `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS}`,
+    );
+  });
+
+  it("plan cards carry the mirror's prices, seats, numbers, texts, and overage", () => {
+    const starter = PLANS.find((p) => p.id === "starter");
+    const pro = PLANS.find((p) => p.id === "pro");
+    expect(starter?.price).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
+    expect(pro?.price).toBe(`$${PLAN_PRICING.pro.monthlyDollars}`);
+    expect(starter?.features.join(" ")).toContain(
+      `${PLAN_PRICING.starter.seats} teammates`,
+    );
+    expect(pro?.features.join(" ")).toContain(
+      `${PLAN_PRICING.pro.seats} teammates`,
+    );
+    expect(starter?.features.join(" ")).toContain("500 texts a month");
+    expect(pro?.features.join(" ")).toContain("2,500 texts a month");
+    expect(starter?.features.join(" ")).toContain(
+      `${PLAN_PRICING.starter.overageCentsPerText}¢ each`,
+    );
+    expect(pro?.features.join(" ")).toContain(
+      `${PLAN_PRICING.pro.overageCentsPerText}¢ each`,
+    );
+    // Plain "texts", never billing jargon, in a plan line item (#70).
+    for (const plan of PLANS) {
+      for (const f of plan.features) {
+        expect(f.toLowerCase()).not.toContain("segment");
+      }
+    }
+  });
+
+  it("the ledger names every cost: plans, one-time fee, overage, add-ons, tax, and closes the list", () => {
+    const terms = LEDGER.map((e) => e.term);
+    expect(terms).toContain("Your plan");
+    expect(terms).toContain("Register with the phone companies");
+    expect(terms).toContain("Extra texts");
+    expect(terms).toContain("Optional add-ons, if you turn them on");
+    expect(terms).toContain("Tax");
+    expect(terms).toContain("That's the whole list.");
+
+    const registration = LEDGER.find(
+      (e) => e.term === "Register with the phone companies",
+    );
+    expect(registration?.figure).toBe(
+      `$${US_REGISTRATION_FEE_DOLLARS}, one time, ever`,
+    );
+    expect(registration?.detail).toContain("$58 your first month");
+    expect(registration?.detail).toContain("never pay it");
+
+    const overage = LEDGER.find((e) => e.term === "Extra texts");
+    expect(overage?.figure).toBe(
+      `${PLAN_PRICING.starter.overageCentsPerText}¢ · ${PLAN_PRICING.pro.overageCentsPerText}¢`,
+    );
+
+    // The add-ons figure and prose agree with the module catalog mirror.
+    const addons = LEDGER.find(
+      (e) => e.term === "Optional add-ons, if you turn them on",
+    );
+    const byId = (id: string) =>
+      PLAN_MODULE_CARDS.find((c) => c.id === id)!;
+    expect(addons?.figure).toBe(
+      `${byId("mms").price} · ${byId("voice").price} · ${byId("extra_storage").price}`,
+    );
+    expect(addons?.detail).toContain(`${byId("mms").price}/mo`);
+    expect(addons?.detail).toContain("150 a month included");
+    expect(addons?.detail).toContain("counts as three texts");
+    expect(addons?.detail).toContain(`${byId("voice").price}/mo`);
+    expect(addons?.detail).toContain("300 minutes included");
+    expect(addons?.detail).toContain("10 GB");
+
+    // The CAD honesty stays (deck: "we'd rather tell you now").
+    const tax = LEDGER.find((e) => e.term === "Tax");
+    expect(tax?.detail).toContain("CAD billing isn't here yet");
+  });
+
+  it('the "priced elsewhere" table keeps the dated July 2026 math and the sourced footnote', () => {
+    const total = ELSEWHERE_ROWS.find((r) => r.total);
+    expect(total?.cells[0]).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
+    expect(total?.cells[1]).toBe("~$172");
+    expect(total?.cells[3]).toBe("Ask their sales team");
+    expect(
+      ELSEWHERE_COLUMNS.filter((c) => c.sub === "as of July 2026"),
+    ).toHaveLength(3);
+    expect(ELSEWHERE_FOOTNOTE).toContain("July 2026");
+    expect(ELSEWHERE_FOOTNOTE).toContain("$19.50");
+    expect(ELSEWHERE_FOOTNOTE).toContain("tell us and we'll fix it");
+  });
+});
+
+describe("/pricing FAQ (all nine, facts intact)", () => {
+  it("keeps all nine questions", () => {
+    expect(FAQS).toHaveLength(9);
+  });
+
+  it("keeps the no-trial answer with the 30-day guarantee", () => {
+    const trial = FAQS.find((f) => f.q === "Is there a free trial?");
+    expect(trial?.a).toContain("30-day full money-back guarantee");
+  });
+
+  it("keeps the keep-my-number porting story", () => {
+    const port = FAQS.find(
+      (f) => f.q === "Can I keep my current business number?",
+    );
+    expect(port?.a).toContain("Bring my number");
+    expect(port?.a).toContain("1 to 7 business days");
+    expect(port?.a).toContain("free");
+  });
+
+  it("keeps the photo cap-and-drop truth (dropped photo, text still sends, 80% email)", () => {
+    const photos = FAQS.find((f) => f.q === "How do photo messages work?");
+    expect(photos?.a).toContain("$5 a month");
+    expect(photos?.a).toContain("150");
+    expect(photos?.a).toContain("three texts");
+    expect(photos?.a).toContain("dropped");
+    expect(photos?.a).toContain("80%");
+  });
+
+  it("keeps the voice add-on facts in the what-am-I-not-getting answer", () => {
+    const not = FAQS.find(
+      (f) => f.q === "What am I not getting at these prices?",
+    );
+    expect(not?.a).toContain("call forwarding add-on ($8/mo)");
+    expect(not?.a).toContain("texts back the ones you miss");
+  });
+
+  it("keeps the once-ever registration-fee promise", () => {
+    const fee = FAQS.find(
+      (f) => f.q === "Will I ever pay the $29 registration fee twice?",
+    );
+    expect(fee?.a).toContain("once per company, ever");
+  });
+});

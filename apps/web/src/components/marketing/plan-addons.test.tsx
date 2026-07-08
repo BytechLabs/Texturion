@@ -54,7 +54,7 @@ describe("pricing add-ons strip (#28 truth guard)", () => {
       expect(html).toContain(card.price);
       if (card.detail) expect(html).toContain(card.detail);
     }
-    expect(html).toContain("Start at $29. Add only what you need.");
+    expect(html).toContain("The add-ons, in plain words.");
     expect(html).not.toContain("Canada numbers");
   });
 });

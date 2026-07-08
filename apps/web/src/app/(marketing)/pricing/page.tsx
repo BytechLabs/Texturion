@@ -1,51 +1,66 @@
 /**
- * Pricing page (Track A shell family). BLUEPRINT §8 (full spec) + COPY §PR
- * (verbatim). Pricing on its own page IS the positioning (anti-Podium): every
- * cost on one page and a buy button instead of a sales call.
+ * /pricing, v4 "FIRST RESPONSE" (DESIGN-DIRECTION v4 §6 PRICING template +
+ * COPY-DECK v2 /pricing, copy verbatim; owner amendment 13). The trust
+ * weapon: the most mono-dense page on the site, every cost on the page, and
+ * a buy button instead of a sales call.
  *
- * Layout order (§8, amended by #28): H1 + sub → two plan cards (full detail,
- * both CTAs to signup) → "Build your plan" add-ons strip (#12 module model,
- * the differentiator) → crew-size slider → honesty ledger (with the
- * first-week timeline card) → "what you'll actually pay elsewhere" table →
- * segment explainer + counter → guarantee block → FAQ (9) → CTA band.
+ * Band order: Dateline Header ($58 FIRST MONTH (US) · $29 AFTER) → THE PLAN
+ * BUILDER (the centerpiece per the 2026-07-07 owner ruling: pick a plan,
+ * toggle the three sellable add-ons, live totals from the shared constants,
+ * the $29 US registration fee always a separate first-month line, CTA carries
+ * the configuration into signup) → add-on fine print (#12 module model;
+ * prices render from the shared catalog mirror so nothing can drift from
+ * checkout) → crew-size slider (demoted below the builder; cobalt flat line
+ * vs Flare climbing line) → Honesty Ledger with the day-one Truth Strip, the
+ * first-week timeline (Flare YOU ARE HERE tab) and the usage-meter embed →
+ * "the same crew, priced elsewhere" ledger (dated, per-cell sourced) → the
+ * segment counter running the real billing code in a Panel Frame → guarantee
+ * → pricing FAQ (9) → final CTA (Frost; the cobalt band is home-only).
  *
- * Reuses the shared marketing components (crew-size slider, usage-meter proof,
- * first-week timeline) rather than re-implementing them, one source of truth,
- * one motion grammar. Competitor numbers carry "as of July 2026" and per-cell
- * sourcing (§6, §13.7). SoftwareApplication + BreadcrumbList JSON-LD only,
- * NO FAQPage (§11.2, dead rich result). Fully static (§11.4).
+ * SoftwareApplication + BreadcrumbList JSON-LD only, NO FAQPage (dead rich
+ * result). No em-dashes anywhere in rendered text (Law 6).
  */
 
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  CircleDollarSign,
-  Clock,
-  Receipt,
-} from "lucide-react";
 import type { Metadata } from "next";
 
-import { Container } from "@/components/marketing/ui/container";
-import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { Kicker } from "@/components/marketing/ui/kicker";
-import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
-import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
+import {
+  ConvergedField,
+  CtaButton,
+  Dateline,
+  FrCard,
+  FrSection,
+  PanelFrame,
+} from "@/components/marketing/fr";
+import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
+import { LedgerTable } from "@/components/marketing/compare/ledger-table";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
+import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { PlanAddons } from "@/components/marketing/plan-addons";
-import { UsageMeterProof } from "@/components/marketing/home/usage-meter-proof";
-import { FirstWeekTimeline } from "@/components/marketing/home/first-week-timeline";
-import { Button } from "@/components/ui/button";
+import { FirstWeekTimeline } from "@/components/marketing/pricing/first-week-timeline";
+import { HonestyLedger } from "@/components/marketing/pricing/honesty-ledger";
+import { PlanBuilder } from "@/components/marketing/pricing/plan-builder";
+import { TruthStrip } from "@/components/marketing/pricing/truth-strip";
+import { UsageMeterEmbed } from "@/components/marketing/pricing/usage-meter-embed";
+import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { Reveal } from "@/components/marketing/ui/reveal";
 import {
   breadcrumbJsonLd,
   buildMetadata,
   softwareApplicationJsonLd,
 } from "@/lib/marketing/seo";
-import { LIVE_ROUTES } from "@/lib/marketing/site";
-import { cn } from "@/lib/utils";
+import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 import { LazySegmentCounter } from "./lazy-segment-counter";
+import {
+  ELSEWHERE_COLUMNS,
+  ELSEWHERE_FOOTNOTE,
+  ELSEWHERE_ROWS,
+  FAQS,
+  LEDGER,
+  PLANS,
+  PRICING_DATELINE,
+} from "./pricing-data";
 import { SegmentCounterStatic } from "./segment-counter-static";
 
 const PATH = LIVE_ROUTES.pricing;
@@ -53,270 +68,29 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500). Optional add-ons: picture messages $5, call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
+    "Build your plan and see the total before you pay: Starter $29/mo (3 people, 500 texts), Pro $79/mo (10 people, 2,500). Optional add-ons: picture messages $5, call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
-/* -------------------------------------------------------------------------- */
-/* Plan cards, everything from SPEC §2, in human words, nothing omitted (§8). */
-/* Copy from COPY §PR plan cards, amended by #24: photo sending is NOT a base */
-/* feature (it's the $5/mo Picture messages add-on, apps/api/src/billing/     */
-/* modules.ts), so the cards no longer claim it. The add-ons strip below the  */
-/* cards carries the module truth.                                            */
-/* -------------------------------------------------------------------------- */
-
-interface Plan {
-  name: string;
-  price: string;
-  tagline: string;
-  badge?: string;
-  highlighted?: boolean;
-  features: string[];
-  cta: string;
-}
-
-const PLANS: Plan[] = [
-  {
-    name: "Starter",
-    price: "$29",
-    tagline: "For crews of one to three.",
-    features: [
-      "3 teammates included",
-      "1 local business number (US or Canada, your area code)",
-      "500 texts a month (a plain text up to 160 characters is one; the composer shows the count before you send)",
-      "Receiving texts and photos: free, unlimited",
-      "Extra texts: 3¢ each",
-      "Spending cap you control (default 3× your allowance) with alerts at 80% and 100%",
-      "Month to month, cancel anytime",
-    ],
-    cta: "Start with Starter",
-  },
-  {
-    name: "Pro",
-    price: "$79",
-    tagline: "For crews up to ten, and a second number.",
-    badge: "For bigger crews",
-    highlighted: true,
-    features: [
-      "10 teammates included",
-      "2 local business numbers (two locations, or office and field)",
-      "2,500 texts a month (same count rule; the composer always shows it before you send)",
-      "Receiving texts and photos: free, unlimited",
-      "Extra texts: 2.5¢ each",
-      "Spending cap you control (default 3× your allowance) with alerts at 80% and 100%",
-      "Month to month, cancel anytime",
-    ],
-    cta: "Start with Pro",
-  },
-];
-
-function PlanCard({ plan }: { plan: Plan }) {
+function GuaranteeTick() {
   return (
-    <div
-      className={cn(
-        "panel-card flex h-full flex-col rounded-xl p-6 sm:p-8",
-        plan.highlighted &&
-          "ring-1 ring-[color:var(--petrol)]/25 [border-color:color-mix(in_srgb,var(--petrol)_40%,transparent)]",
-      )}
+    <span
+      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-green)]"
+      aria-hidden
     >
-      <div className="flex items-center justify-between">
-        {/* Kept as <h2> (styled at the H3 scale) so the hero H1 → plan-name
-            heading order has no skipped level. */}
-        <h2 className="display-h3">{plan.name}</h2>
-        {plan.badge && (
-          <span className="rounded-full bg-[color:var(--petrol-12)] px-2.5 py-0.5 text-[12px] font-medium text-[color:var(--petrol)]">
-            {plan.badge}
-          </span>
-        )}
-      </div>
-      {/* The price figure: Besley 700 over a 2px copper rule — copper only ever
-          touches money (§3). /mo stays in the mono data voice. */}
-      <p className="mt-4">
-        <span className="display-numeral inline-block border-b-2 border-[color:var(--copper)] pb-1.5 text-[color:var(--day-ink)]">
-          {plan.price}
-        </span>
-        <span className="font-mono-mkt ml-1.5 text-sm tracking-[0.02em] text-[color:var(--ink-55)]">
-          /mo
-        </span>
-      </p>
-      <p className="mt-3 text-[14px] text-[color:var(--ink-55)]">
-        {plan.tagline}
-      </p>
-
-      <ul className="mt-6 flex-1 space-y-3">
-        {plan.features.map((f) => (
-          <li
-            key={f}
-            className="flex gap-2.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]"
-          >
-            <Check
-              className="mt-0.5 size-4 shrink-0 text-[color:var(--petrol)]"
-              strokeWidth={2}
-              aria-hidden
-            />
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      <Button
-        asChild
-        className="mt-8 w-full"
-        variant={plan.highlighted ? "default" : "outline"}
-      >
-        <Link href="/signup">{plan.cta}</Link>
-      </Button>
-    </div>
+      <svg viewBox="0 0 16 16" className="size-5" focusable="false">
+        <path
+          d="M3.5 8.5 6.5 11.5 12.5 4.5"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Honesty ledger, the trust centerpiece (§8). Every cost, before you pay.    */
-/* Copy verbatim from COPY §PR honesty ledger.                                 */
-/* -------------------------------------------------------------------------- */
-
-const LEDGER: { term: string; detail: React.ReactNode }[] = [
-  {
-    term: "Your plan",
-    detail: "$29 or $79 a month. Month to month.",
-  },
-  {
-    term: "Register with the phone companies: $29, one time, ever.",
-    detail:
-      "The phone companies require every business that texts to register first; this covers the fee they charge to review and approve you, which we pay on your behalf, including a resubmission if your first attempt bounces. Cancel and come back next year: you won't pay it again. Canadian businesses that don't text US numbers never pay it. For a US shop, that means $58 your first month, then $29 every month after.",
-  },
-  {
-    term: "Extra texts",
-    detail:
-      "3¢ each on Starter, 2.5¢ on Pro, only after your included texts run out, only up to the cap you control.",
-  },
-  {
-    // #24: the module prices are part of "every cost, before you pay."
-    // Prices and quantities mirror apps/api/src/billing/plans.ts +
-    // modules.ts (mms $5/150 picture messages, voice $8/300 min,
-    // extra_storage $5/10 GB); the add-ons strip above renders them from
-    // the shared catalog mirror. Each outbound MMS also meters as a flat 3
-    // segments (MMS_SEGMENTS, messaging/media.ts; DECISIONS.md D5) — that
-    // cost belongs on this page too.
-    term: "Optional add-ons, if you turn them on",
-    detail:
-      "Picture messages $5/mo (150 a month included; each one you send also counts as three texts from your allowance), call forwarding with missed-call text-back $8/mo (300 minutes included), extra storage $5/mo (10 GB more). All three are off by default, you switch them on at signup or later in settings, and you can switch them off the same way. Nothing here is required to text.",
-  },
-  {
-    term: "Tax",
-    detail:
-      "Prices are in USD, plus sales tax where it applies, calculated at checkout. (CAD billing isn't here yet, we'd rather tell you now than surprise you at checkout.)",
-  },
-  {
-    term: "That's the whole list.",
-    detail:
-      'Two plans, three optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* "What you'll actually pay elsewhere" (§8). Every competitor figure dated    */
-/* "as of July 2026" with per-cell sourcing (§6, §13.7). Copy verbatim §PR.    */
-/* -------------------------------------------------------------------------- */
-
-const COMPARE_COLUMNS = [
-  "Loonext Starter",
-  "Heymarket Standard",
-  "Quo",
-  "Podium",
-] as const;
-
-const COMPARE_ROWS: { label: string; cells: string[] }[] = [
-  {
-    label: "Monthly software",
-    cells: [
-      "$29 flat",
-      "$49/user/mo × 3 = $147",
-      "$19/user/mo × 3 = $57 (monthly billing)",
-      "Not published",
-    ],
-  },
-  {
-    label: "The 500 texts",
-    cells: [
-      "Included",
-      "~$15 (3¢/segment × 500)",
-      "Not included, metered at 1¢/segment (~$5)",
-      "Not published",
-    ],
-  },
-  {
-    label: "Monthly carrier line item",
-    cells: ["$0", "$10/mo", "$0", "Not published"],
-  },
-  {
-    label: "Monthly total",
-    cells: [
-      "$29",
-      "~$172",
-      "~$62 + extra numbers at $5 ea.",
-      "Ask their sales team",
-    ],
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Pricing FAQ (9). COPY §PR, amended: the photo answer states the $5 add-on  */
-/* + 150 cap-and-drop truth (#24), the "not getting" answer stops denying     */
-/* voice (#24, the $8 call-forwarding add-on ships), and the keep-my-number   */
-/* question mirrors /features/business-number's verified porting answer       */
-/* (#71). NO FAQPage JSON-LD (§11.2).                                         */
-/* -------------------------------------------------------------------------- */
-
-const FAQS: { q: string; a: string }[] = [
-  {
-    q: "Is there a free trial?",
-    a: "No, and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So Loonext is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
-  },
-  {
-    q: "Do texts customers send me count against my 500?",
-    a: "No. Receiving texts and photos is free and unlimited on every plan. Only what you send counts.",
-  },
-  {
-    // Truth: apps/api/src/billing/plans.ts PLAN_MMS_INCLUDED (150, both
-    // plans) + the cap-and-drop in messaging/send.ts. An outbound picture
-    // message meters as a FLAT 3 segments against the text allowance
-    // (MMS_SEGMENTS in messaging/media.ts, reported in messaging/status.ts;
-    // DECISIONS.md D5). The 80% warning is the owner email from
-    // billing/usage-alerts.ts; the composer reports a dropped photo right
-    // after the send (thread/mms-gate.ts).
-    q: "How do photo messages work?",
-    a: "Receiving photos is free and unlimited on every plan. Sending them is the Picture messages add-on: $5 a month with 150 picture messages included. Each one you send also counts as a flat three texts from your monthly allowance, however long the words. Past 150 in a month, the photo is dropped and your message still goes out as plain text — the account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go.",
-  },
-  {
-    q: "What happens when I hit my allowance?",
-    a: "We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up to a spending cap, 3× your allowance by default. Hit the cap and sending pauses until you raise it; account owners can do that in one click. You'll never get a surprise bill.",
-  },
-  {
-    q: "Will I ever pay the $29 registration fee twice?",
-    a: "No. It's charged at most once per company, ever, even if you cancel and come back. It only exists at all because the phone companies charge a real fee to review and approve every business that texts, and we'd rather show you that fee than bury it in the subscription.",
-  },
-  {
-    q: "Can I change plans or cancel later?",
-    a: "Yes. Upgrades apply immediately. Downgrades apply at the end of your billing period. Canceling takes two clicks in billing settings, no phone call, no chat-with-retention. We hold your number for 30 days in case you change your mind.",
-  },
-  {
-    // Mirrors the verified porting answer on /features/business-number
-    // (free US/CA transfers, 1–7 business days, no dead air). #71.
-    q: "Can I keep my current business number?",
-    a: "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take 1 to 7 business days, and your number keeps working on your current carrier the whole time, switching to Loonext on the transfer date. Want to text sooner? Get a new local number now and transfer your old one alongside it.",
-  },
-  {
-    q: "Are prices really in USD for Canadian businesses?",
-    a: "For now, yes, your card is charged in USD and your bank converts it. CAD billing is coming; until it's real, we won't pretend otherwise.",
-  },
-  {
-    // #24/#58: no more blanket voice denial, the $8 call-forwarding module
-    // ships (apps/api/src/billing/modules.ts).
-    q: "What am I not getting at these prices?",
-    a: "Loonext is a shared texting inbox, not a phone system: there's no calling inside the app, no mass text blasts, and no review management. Phone calls aren't left hanging, though. The call forwarding add-on ($8/mo) sends calls on your business number to your cell and texts back the ones you miss, so the lead still lands in your inbox. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
-  },
-];
 
 export default function PricingPage() {
   return (
@@ -331,317 +105,243 @@ export default function PricingPage() {
         ]}
       />
 
-      {/* Hero. H1 + sub (COPY §PR). */}
-      <Container className="pt-28 sm:pt-32">
-        <div className="mx-auto max-w-2xl text-center">
-          <Kicker>Pricing</Kicker>
-          <h1 className="display-hero mt-3 text-balance">
+      {/* Dateline Header (§5.1): the chip is the page's load-bearing fact. */}
+      <FrSection as="header" className="pb-6 md:pb-10">
+        <div className="mx-auto max-w-3xl text-center">
+          <ConvergedField variant="mark" className="mx-auto h-9 w-auto" />
+          <div className="mt-6">
+            <Dateline>{PRICING_DATELINE}</Dateline>
+          </div>
+          <h1 className="fr-h1 mt-5 text-[color:var(--fr-ink)]">
             One price for the whole crew. Nothing hidden.
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
+          <p className="fr-body mx-auto mt-6 max-w-2xl text-[color:var(--fr-ink-70)]">
             Two plans, every cost on this page, and a buy button instead of a
             sales call. If you can&apos;t find a price on a texting
             company&apos;s pricing page, that&apos;s the price talking.
           </p>
         </div>
-      </Container>
+      </FrSection>
 
-      {/* Plan cards + under-cards line. */}
-      <Container className="pt-12 sm:pt-16">
-        <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-2 lg:items-stretch">
-          {PLANS.map((plan) => (
-            <Reveal key={plan.name} className="h-full">
-              <PlanCard plan={plan} />
-            </Reveal>
-          ))}
+      {/* THE PLAN BUILDER: the page's centerpiece (owner ruling 2026-07-07).
+          Pick Starter or Pro, toggle the three sellable add-ons, and the
+          receipt totals live from the same shared constants checkout bills
+          from. Server-rendered at its true default (Starter, no add-ons,
+          $29/mo, $58 first month US), so the page is complete without JS. */}
+      <FrSection ground="frost" id="build" className="pt-12 md:pt-16">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            Build your plan. The total updates as you go.
+          </h2>
+          <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
+            Pick a plan, switch on only what you need, and see the whole bill
+            before you ever type a card number. What you build here is exactly
+            what checkout starts from.
+          </p>
+          <div className="mt-10">
+            <PlanBuilder plans={PLANS} />
+          </div>
         </div>
-        <p className="mx-auto mt-5 max-w-4xl text-center text-[14px] text-[color:var(--ink-55)]">
-          Upgrading from Starter to Pro takes one click and applies immediately.
-          Both plans take the same optional add-ons, listed below.
-        </p>
-      </Container>
+      </FrSection>
 
-      {/* "Build your plan" add-ons strip (#28): the #12 module model, marketed.
-          Prices and quantities render from the shared catalog mirror
-          (PLAN_MODULE_CARDS), so this section can't drift from checkout. */}
+      {/* The add-on fine print: the exact limits behind the three toggles. */}
       <PlanAddons />
 
-      {/* Crew-size slider, flat beats per-user. */}
-      <Section>
-        <div className="mx-auto max-w-4xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="display-h2">
-              Flat beats per-user. Slide to see by how much.
-            </h2>
-          </div>
-          <div className="mx-auto mt-10 max-w-xl">
-            <Reveal>
-              {/* Reuses the shared slider; its own dated + sourced footnote
-                  (§13.7) is part of the component, so no duplicate footnote
-                  here, the §PR footnote text lives inside CrewSizeSlider.
-                  Deferred: the static default state converts before/without JS;
-                  the draggable island loads on viewport approach. */}
-              <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
-            </Reveal>
-          </div>
+      {/* Crew-size slider (demoted below the builder per the owner ruling):
+          the cobalt flat line vs the Flare climbing line. */}
+      <FrSection ground="frost">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            Flat beats per-user. Slide to see by how much.
+          </h2>
         </div>
-      </Section>
+        <Reveal className="mx-auto mt-10 max-w-xl">
+          <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
+        </Reveal>
+      </FrSection>
 
-      {/* Honesty ledger, the trust centerpiece, with the first-week timeline.
-          A light band separated by hairlines and white panels (v3 §2: no
-          gradient washes), not a costume. */}
-      <Section bleed className="bg-[color:var(--first-light)] py-16 sm:py-24">
-        <Container>
-          <div className="mx-auto max-w-3xl">
-            <h2 className="display-h2">Every cost, before you pay.</h2>
+      {/* The Honesty Ledger band: every cost, the day-one Truth Strip, the
+          first-week timeline, and the usage-meter embed. */}
+      <FrSection>
+        <div className="mx-auto max-w-3xl">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            Every cost, before you pay.
+          </h2>
 
-            {/* Each row is a <div> whose ONLY children are <dt>/<dd> so the
-                definition-list / dlitem a11y rules pass (axe: a <dl>'s <div>
-                wrappers may contain nothing but <dt>/<dd>). The decorative
-                icon lives inside the <dt>, not as a sibling of the wrapper. */}
-            <dl className="panel-card mt-10 space-y-5 rounded-xl p-6 sm:p-8">
-              {LEDGER.map(({ term, detail }) => (
-                <div key={term}>
-                  <dt className="flex items-start gap-3.5 text-[15px] font-semibold text-[color:var(--day-ink)]">
-                    <CircleDollarSign
-                      className="mt-0.5 size-5 shrink-0 text-[color:var(--petrol)]"
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    {term}
-                  </dt>
-                  <dd className="mt-1 pl-[34px] text-[14px] leading-relaxed text-[color:var(--ink-70)]">
-                    {detail}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+          <Reveal className="mt-10">
+            <HonestyLedger entries={LEDGER} />
+          </Reveal>
 
-            {/* Timeline card: the honesty tint (amber-strip at 10%, §5) with
-                day-ink text. The carrier-wait truth, stated plainly. §PR. */}
-            <div className="mt-6 rounded-xl border border-[color:var(--hairline)] bg-[color:var(--amber-strip)] p-5">
-              <div className="flex gap-3">
-                <Clock
-                  className="mt-0.5 size-5 shrink-0 text-[color:var(--day-ink)]"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <p className="text-[14px] leading-relaxed text-[color:var(--day-ink)]">
-                  Receiving texts works the moment your number is ready,
-                  usually live in a minute or two. Texting Canadian numbers works
-                  immediately. Texting US numbers turns on after the phone
-                  companies approve you, typically 3–7 business days (about a
-                  week). We file everything and email you the moment you&apos;re
-                  approved.
-                </p>
-              </div>
-            </div>
+          {/* The day-one truth (§5.4): what works now vs what waits. */}
+          <TruthStrip
+            className="mt-6"
+            items={[
+              {
+                text: "Receiving texts works the moment your number is ready, usually live in a minute or two. Texting Canadian numbers works immediately.",
+                good: true,
+              },
+              {
+                text: "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
+              },
+            ]}
+          />
 
-            <div className="mt-6">
-              <Reveal>
-                <FirstWeekTimeline />
-              </Reveal>
-            </div>
+          <Reveal className="mt-6">
+            <FirstWeekTimeline />
+          </Reveal>
 
-            {/* The real usage meter as product proof (SPEC §2 cap + alerts). */}
-            <div className="mt-6 max-w-md">
-              <Reveal>
-                <UsageMeterProof />
-              </Reveal>
-            </div>
-          </div>
-        </Container>
-      </Section>
+          {/* The usage meter, staged with the app's own tokens (Law 2). */}
+          <Reveal className="mt-10">
+            <PanelFrame
+              className="mx-auto max-w-md"
+              caption="You set the cap; we email you at 80% and 100%. No surprise bills."
+              ariaLabel="The usage meter: 212 of 500 texts used this billing period, with the alert marker at 80% and the owner-set spending cap"
+            >
+              <UsageMeterEmbed />
+            </PanelFrame>
+          </Reveal>
+        </div>
+      </FrSection>
 
-      {/* "What you'll actually pay elsewhere", dated, per-cell sourced. A quiet
-          receipt: hairline rules, mono figures, no gradient, no loud fills. */}
-      <Section>
-        <div className="mx-auto max-w-4xl">
-          <h2 className="display-h2">The same crew, priced elsewhere.</h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
+      {/* "The same crew, priced elsewhere": dated, per-cell sourced. */}
+      <FrSection ground="frost">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            The same crew, priced elsewhere.
+          </h2>
+          <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
             A 3-person crew sending 500 single-segment texts a month, at
-            published prices as of July 2026 (every number below cites its source
-            in our comparison pages):
+            published prices as of July 2026 (every number below cites its
+            source on our{" "}
+            <Link
+              href={LIVE_ROUTES.compareIndex}
+              className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+            >
+              comparison pages
+            </Link>
+            ):
           </p>
 
-          <div className="mt-8 overflow-x-auto rounded-xl border border-[color:var(--hairline)]">
-            <table className="w-full min-w-[640px] border-collapse text-left text-[14px]">
-              <thead>
-                <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
-                  <th className="p-4 font-medium text-[color:var(--ink-55)]" />
-                  {COMPARE_COLUMNS.map((col, i) => (
-                    <th
-                      key={col}
-                      className={cn(
-                        "p-4 font-semibold",
-                        i === 0
-                          ? "text-[color:var(--petrol)]"
-                          : "text-[color:var(--day-ink)]",
-                      )}
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARE_ROWS.map((row) => {
-                  const isTotal = row.label === "Monthly total";
-                  return (
-                    <tr
-                      key={row.label}
-                      className={cn(
-                        "border-b border-[color:var(--hairline)] last:border-b-0",
-                        isTotal && "bg-[color:var(--paper-2)]",
-                      )}
-                    >
-                      <th
-                        scope="row"
-                        className={cn(
-                          "p-4 text-left font-medium text-[color:var(--day-ink)]",
-                          isTotal && "font-semibold",
-                        )}
-                      >
-                        {row.label}
-                      </th>
-                      {row.cells.map((cell, i) => (
-                        <td
-                          key={i}
-                          className={cn(
-                            "font-mono-mkt p-4 tabular-nums tracking-[0.02em] text-[color:var(--ink-70)]",
-                            i === 0 && "font-medium text-[color:var(--day-ink)]",
-                            isTotal && "font-semibold text-[color:var(--day-ink)]",
-                          )}
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Reveal className="mt-8">
+            <LedgerTable
+              caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket, Quo, and Podium, at published prices as of July 2026."
+              columns={ELSEWHERE_COLUMNS}
+              rows={ELSEWHERE_ROWS}
+            />
+          </Reveal>
 
-          <p className="mt-4 text-[13px] leading-relaxed text-[color:var(--ink-55)]">
-            Competitor prices from their public pricing pages, July 2026; each
-            figure is sourced on the matching comparison page. Heymarket&apos;s
-            texting total assumes 500 single-segment texts at their published
-            3¢/segment; Quo bills texting separately at 1¢/segment (automated
-            SMS) and charges $5/mo per extra number, so its real total depends on
-            volume. One-time registration fees excluded for all (ours is $29; Quo
-            discloses $19.50; others don&apos;t say). If any number changes, tell
-            us and we&apos;ll fix it.
+          <p className="mt-4 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+            {ELSEWHERE_FOOTNOTE}
           </p>
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Text-length explainer + counter (§8, §PR). Light panel band, hairline
-          separation, no gradient wash (v3 §2). */}
-      <Section bleed className="bg-[color:var(--first-light)] py-16 sm:py-24">
-        <Container>
-          <div className="mx-auto grid max-w-4xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
-            <div>
-              <h2 className="display-h2">
-                What&apos;s a &quot;text,&quot; exactly?
-              </h2>
-              <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-                A plain text up to 160 characters counts as one text. Longer
-                texts, or texts with emoji, count as more than one, the texting
-                networks split them behind the scenes (the technical word is
-                &quot;segments,&quot; but you never have to think about it). Your
-                500 is 500 of these, and the composer always shows the count
-                before you send, so there&apos;s no mystery on your bill.
-              </p>
-            </div>
-            <Reveal>
-              {/* Deferred: the static default count is real (same estimator) and
-                  meaningful before/without JS; the typable counter loads on
-                  viewport approach. */}
-              <LazySegmentCounter fallback={<SegmentCounterStatic />} />
-            </Reveal>
+      {/* Text-length explainer + the counter running the real billing code,
+          staged in a Panel Frame with the app's own tokens (Law 2). */}
+      <FrSection>
+        <div className="mx-auto grid max-w-4xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+          <div>
+            <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+              What&apos;s a &quot;text,&quot; exactly?
+            </h2>
+            <p className="fr-body mt-5 text-[color:var(--fr-ink-70)]">
+              A plain text up to 160 characters counts as one text. Longer
+              texts, or texts with emoji, count as more than one, the texting
+              networks split them behind the scenes (the technical word is
+              &quot;segments,&quot; but you never have to think about it). Your
+              500 is 500 of these, and the composer always shows the count
+              before you send, so there&apos;s no mystery on your bill.
+            </p>
           </div>
-        </Container>
-      </Section>
+          <Reveal>
+            <PanelFrame ariaLabel="A message to Karen from Reyes Plumbing being counted: one text, 122 characters, plain">
+              <LazySegmentCounter fallback={<SegmentCounterStatic />} />
+            </PanelFrame>
+          </Reveal>
+        </div>
+      </FrSection>
 
-      {/* Guarantee block (§8, §PR). */}
-      <Section>
-        <div className="panel-card mx-auto max-w-3xl rounded-xl p-6 sm:p-10">
+      {/* Guarantee (green: something got handled). */}
+      <FrSection ground="frost">
+        <FrCard className="mx-auto max-w-3xl p-6 sm:p-10">
           <div className="flex gap-4">
-            <span className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
-              <Receipt className="size-5" strokeWidth={1.75} aria-hidden />
-            </span>
+            <GuaranteeTick />
             <div>
-              <h2 className="font-display text-2xl font-bold tracking-[-0.005em] text-[color:var(--day-ink)]">
+              <h2 className="fr-h3 text-[color:var(--fr-ink)]">
                 Try it for a month, on us if it&apos;s not for you.
               </h2>
-              <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
+              <p className="mt-4 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
                 If Loonext isn&apos;t right for your crew, email us within 30
                 days of signing up and we&apos;ll refund your first invoice in
-                full, subscription and registration fee included. No &quot;minus
-                credits used,&quot; no forms, no retention call. We&apos;d rather
-                have your trust than your $29.
+                full, subscription and registration fee included. No
+                &quot;minus credits used&quot;, no forms, no retention call.
+                We&apos;d rather have your trust than your $29.
+              </p>
+              <p className="mt-4">
+                <Link
+                  href={LIVE_ROUTES.refunds}
+                  className="text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+                >
+                  Read the whole policy. It&apos;s three paragraphs.
+                </Link>
               </p>
             </div>
           </div>
-        </div>
-      </Section>
+        </FrCard>
+      </FrSection>
 
-      {/* Pricing FAQ (9), no FAQPage JSON-LD (§11.2). Same +/rotate-45 glyph the
-          rest of the site uses. */}
-      <Section>
+      {/* Pricing FAQ (9). Native <details>; separation is space and Frost,
+          not rules (Law 10). Numbers in FAQ prose stay in the body face (the
+          prose exception, §3). */}
+      <FrSection>
         <div className="mx-auto max-w-3xl">
-          <h2 className="display-h2 text-center">
+          <h2 className="fr-h2 text-center text-[color:var(--fr-ink)]">
             Pricing questions, straight answers.
           </h2>
-          <div className="mt-12 divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
+          <div className="mt-12 space-y-3">
             {FAQS.map((item) => (
-              <details key={item.q} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
+              <details
+                key={item.q}
+                className="group rounded-xl bg-[color:var(--fr-frost)]"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-4 text-left text-[1.0625rem] font-medium text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <span
-                    className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
+                    className="shrink-0 text-[color:var(--fr-ink-55)] transition-transform duration-200 group-open:rotate-45"
                     aria-hidden
                   >
                     +
                   </span>
                 </summary>
-                <p className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
+                <p className="px-5 pb-5 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
                   {item.a}
                 </p>
               </details>
             ))}
           </div>
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Final CTA band (§8, §PR): the ONE dark band per page (v3 §6 S7),
-          matching the home FinalCta and every subpage close. */}
-      <Section
-        bleed
-        className="relative overflow-hidden bg-[color:var(--deep)] py-16 text-[color:var(--paper)] sm:py-24"
-      >
-        <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-          <h2 className="font-display text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.005em] text-[color:var(--paper)] sm:text-[44px]">
+      {/* Final CTA (Frost; the one cobalt band lives on home only). */}
+      <FrSection ground="frost" className="relative overflow-hidden">
+        <ConvergedField
+          variant="backdrop"
+          className="pointer-events-none absolute inset-0 h-full w-full text-[color:var(--fr-cobalt)] opacity-[0.08]"
+        />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
             You&apos;ve seen the whole price list. That&apos;s the point.
           </h2>
           <div className="mt-8 flex justify-center">
-            <Button
-              asChild
-              size="lg"
-              className="bg-[color:var(--paper)] text-[color:var(--deep)] hover:bg-white"
-            >
-              <Link href="/signup">
-                Start for $29
-                <ArrowRight strokeWidth={1.75} aria-hidden />
-              </Link>
-            </Button>
+            <CtaButton href={APP_LINKS.signup} size="lg">
+              {PRIMARY_CTA_LABEL}
+            </CtaButton>
           </div>
-          <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
+          <p className="fr-mono-data mt-5 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
             Live in minutes · Month to month · 30-day money-back guarantee
           </p>
         </div>
-      </Section>
+      </FrSection>
     </>
   );
 }

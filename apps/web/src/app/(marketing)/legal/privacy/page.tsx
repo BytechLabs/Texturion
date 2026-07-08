@@ -22,42 +22,47 @@ export const metadata: Metadata = buildMetadata({
 });
 
 const sections = [
-  { id: "scope", heading: "1. Scope" },
-  { id: "what-we-collect", heading: "2. What we collect" },
-  { id: "why", heading: "3. Why we use it" },
-  { id: "sms-consent", heading: "4. SMS & consent data" },
-  { id: "where", heading: "5. Where your data lives" },
-  { id: "sharing", heading: "6. Who we share with" },
-  { id: "retention", heading: "7. How long we keep it" },
-  { id: "your-rights", heading: "8. Your rights" },
-  { id: "law-25", heading: "9. Quebec Law 25" },
-  { id: "security", heading: "10. Security" },
-  { id: "contact", heading: "11. Privacy contact" },
+  { id: "scope", number: "1", heading: "Scope" },
+  { id: "what-we-collect", number: "2", heading: "What we collect" },
+  { id: "why", number: "3", heading: "Why we use it" },
+  { id: "sms-consent", number: "4", heading: "SMS and consent data" },
+  { id: "where", number: "5", heading: "Where your data lives" },
+  { id: "sharing", number: "6", heading: "Who we share with" },
+  { id: "retention", number: "7", heading: "How long we keep it" },
+  { id: "your-rights", number: "8", heading: "Your rights" },
+  { id: "law-25", number: "9", heading: "Quebec Law 25" },
+  { id: "security", number: "10", heading: "Security" },
+  { id: "contact", number: "11", heading: "Privacy contact" },
 ];
 
 export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      intro="One policy for both countries. It follows Canada's PIPEDA and Quebec's Law 25, and it tells you plainly where your data is processed, in the United States."
+      summary="We collect only what the service needs to run your inbox: account details, the contacts and messages your business handles, and billing through Stripe. Your data is processed and stored in the United States, and we say so plainly. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Privacy policy"
       path={PATH}
       sections={sections}
     >
-      <LegalSectionBlock id="scope" heading="1. Scope">
+      <LegalSectionBlock id="scope" number="1" heading="Scope">
         <p>
           This policy covers the personal information Loonext handles when a
-          business uses the service to text its customers. Two groups of people
-          are involved: the <strong>account users</strong> on a business&apos;s
-          crew, and the <strong>contacts</strong> those businesses text. The
-          business is the party that decides who to text and why; Loonext
-          processes that data to run the shared inbox on the business&apos;s
-          behalf.
+          business uses the service to text its customers. It follows
+          Canada&apos;s PIPEDA and Quebec&apos;s Law 25 and applies in both
+          countries we serve. Two groups of people are involved: the{" "}
+          <strong>account users</strong> on a business&apos;s crew, and the{" "}
+          <strong>contacts</strong> those businesses text. The business is the
+          party that decides who to text and why; Loonext processes that data to
+          run the shared inbox on the business&apos;s behalf.
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="what-we-collect" heading="2. What we collect">
+      <LegalSectionBlock
+        id="what-we-collect"
+        number="2"
+        heading="What we collect"
+      >
         <p>We collect only what the service needs to work:</p>
         <ul className="list-disc space-y-2 pl-6">
           <li>
@@ -69,7 +74,7 @@ export default function PrivacyPage() {
             never collect or store a full SSN/SIN.
           </li>
           <li>
-            <strong>Contact & message data:</strong> the phone numbers, names,
+            <strong>Contact and message data:</strong> the phone numbers, names,
             notes, and message content that flow through your inbox. This is your
             business&apos;s data; we hold it so your crew can see and reply to
             it.
@@ -86,7 +91,7 @@ export default function PrivacyPage() {
         </ul>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="why" heading="3. Why we use it">
+      <LegalSectionBlock id="why" number="3" heading="Why we use it">
         <p>
           To provide the inbox, provision and register your number, send and
           receive texts, bill your subscription, prevent abuse and fraud, meet
@@ -95,8 +100,12 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="sms-consent" heading="4. SMS & consent data">
-        <p className="rounded-lg border border-border bg-card p-4 text-foreground">
+      <LegalSectionBlock
+        id="sms-consent"
+        number="4"
+        heading="SMS and consent data"
+      >
+        <p className="rounded-xl bg-[color:var(--fr-frost)] p-4 text-[color:var(--fr-ink)]">
           <strong>
             Mobile numbers and SMS consent data are never shared with, or sold
             to, third parties or affiliates for their own marketing.
@@ -114,15 +123,15 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="where" heading="5. Where your data lives">
+      <LegalSectionBlock id="where" number="5" heading="Where your data lives">
         <p>
           Loonext processes and stores data in the <strong>United States</strong>
           . Our database, authentication, and file storage run on Supabase in the
-          AWS <code className="rounded bg-muted px-1 py-0.5 text-sm">us-east-1</code>{" "}
-          region. If you are in Canada, your data is transferred to and processed
-          in the United States, we state this plainly rather than burying it.
-          The full list of the vendors that process data on our behalf, and the
-          region each operates in, is on our{" "}
+          AWS <span className="fr-mono-data">us-east-1</span> region. If you are
+          in Canada, your data is transferred to and processed in the United
+          States, we state this plainly rather than burying it. The full list of
+          the vendors that process data on our behalf, and the region each
+          operates in, is on our{" "}
           <LegalLink href="/legal/subprocessors">
             sub-processors page
           </LegalLink>
@@ -130,7 +139,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="sharing" heading="6. Who we share with">
+      <LegalSectionBlock id="sharing" number="6" heading="Who we share with">
         <p>
           We share data only with the sub-processors that make the service run,
           the phone carrier (Telnyx), payments (Stripe), infrastructure
@@ -142,7 +151,11 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="retention" heading="7. How long we keep it">
+      <LegalSectionBlock
+        id="retention"
+        number="7"
+        heading="How long we keep it"
+      >
         <p>
           We keep account and message data while your subscription is active and
           for a reasonable period afterward to meet legal, tax, and carrier
@@ -152,7 +165,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="your-rights" heading="8. Your rights">
+      <LegalSectionBlock id="your-rights" number="8" heading="Your rights">
         <p>
           Under PIPEDA and Law 25 you can ask to access, correct, or delete your
           personal information, and to withdraw consent. Email{" "}
@@ -163,25 +176,22 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="law-25" heading="9. Quebec Law 25">
+      <LegalSectionBlock id="law-25" number="9" heading="Quebec Law 25">
         <p>
           For Quebec residents, Law 25 gives you additional rights, including the
           right to be informed of the use and disclosure of your information and
           the right to portability. As required by Law 25, Loonext has a
           designated person responsible for the protection of personal
           information:{" "}
-          <strong>
-            {PRIVACY_OFFICER_NAME ??
-              "our Privacy Officer (name provided at launch)"}
-          </strong>
-          , reachable at{" "}
+          <strong>{PRIVACY_OFFICER_NAME ?? "our Privacy Officer"}</strong>,
+          reachable at{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>
           . We disclose above that personal information is transferred to and
           processed in the United States.
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="security" heading="10. Security">
+      <LegalSectionBlock id="security" number="10" heading="Security">
         <p>
           Data is encrypted in transit and at rest, each business&apos;s data is
           isolated from every other tenant, and we keep message content out of our
@@ -190,7 +200,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" heading="11. Privacy contact">
+      <LegalSectionBlock id="contact" number="11" heading="Privacy contact">
         <p>
           Questions or requests? Email{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>

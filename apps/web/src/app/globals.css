@@ -797,282 +797,352 @@
 }
 
 /* ==========================================================================
-   MARKETING-ONLY additions (DESIGN-DIRECTION), owned by the marketing surface.
-   The "Open all night" identity: Besley display, Public Sans body, Martian
-   Mono data, over a hue-locked petrol night that lifts into porcelain
-   daylight. Bounded by the brand; the app itself never uses any of these.
+   MARKETING v4 — "FIRST RESPONSE" (docs/marketing/DESIGN-DIRECTION.md §2-§4).
+   Scoped to the (marketing) route-group root. `.mkt-scope` is the mounted
+   scope class; `.marketing` (the direction's name for the same scope) is
+   honored as an alias so either class carries the system. The APP tokens
+   above (.app-scope, :root, .dark) are untouched: real product embeds inside
+   marketing pages are wrapped in an `.app-scope` region (see
+   components/marketing/fr/panel-frame.tsx) so the product renders with its
+   own petrol tokens inside the frame while marketing cobalt stays outside
+   (Law 2: frame the product, never repaint it).
    ========================================================================== */
 
-/*
- * DESIGN-DIRECTION "Open all night" palette, scoped to marketing DOM via
- * `.mkt-scope` (the (marketing) layout root). Two acts share one hue family:
- * a petrol-ink NIGHT (hue-locked near 172°, never neutral black) where
- * incoming messages are the light source, and a cool-porcelain DAYLIGHT for
- * the money sections. Additive, the app's :root tokens are untouched, and
- * nothing here leaks into (app)/ because it is gated on `.mkt-scope`.
- */
-.mkt-scope {
-  /* ---- The night act ---- */
-  --ink-11pm: #041f1c; /* primary dark ground: hero, problem, final CTA, footer */
-  --ink-midnight: #02110f; /* the page's darkest point: the demo stage only */
-  --cab-panel: #0a312c; /* raised surfaces on dark: cards, app-shell chrome */
-  --signal-aqua: #3fd5c0; /* live signal on dark: links, ticks, focus, lit rail */
-  --porch-amber: #ffb454; /* incoming light ONLY: inbound glow, unread dots, honesty tint */
-  --amber-core: #fff4df; /* the warm core inside inbound glows (lamp engine only) */
-  --moonlight: #eaf4f0; /* headline/body text on dark grounds (green cast, on purpose) */
-  --dusk: #8fb3ac; /* secondary text on dark: timestamps, captions, the unlit rail */
+.mkt-scope,
+.marketing {
+  /* ---- The v4 palette (direction §2). These nine are the law. ---- */
+  --fr-ground: #fbfcfe; /* Signal White — dominant ground on every page */
+  --fr-card: #ffffff; /* cards on the ground (12px radius + card shadow) */
+  --fr-ink: #10173b; /* Dispatch Ink — headlines/body; also the ONLY two dark surfaces (dateline chip, footer) */
+  --fr-ink-70: #3f4563; /* secondary text */
+  --fr-ink-55: #5a6080; /* captions, timestamps, table labels */
+  --fr-cobalt: #2740de; /* Signal Cobalt — CTAs, links, focus rings, in-motion trails, the one cobalt band */
+  --fr-cobalt-deep: #1f33b8; /* primary CTA hover (§4 Buttons) */
+  --fr-green: #0b7a50; /* Answered Green — only when something got handled */
+  --fr-flare: #ff4a1f; /* 9:04 Flare — WHITELIST ONLY (§3.4); never body text, never backgrounds */
+  --fr-frost: #edf2fb; /* Frost — the only wash (bands, chips, row striping, wells) */
 
-  /* ---- The daylight act ---- */
-  --first-light: #f2f8f5; /* light ground: features, pricing, comparison, approval clock */
-  --day-ink: #0b2b26; /* all text on light grounds; petrol-cast, never #000 */
-  --copper: #9a4f26; /* money only: price rules, the Won tag, the flat-vs-seat delta */
-  --copper-lift: #c06a3b; /* the lifted money tint, ONLY for figures >= 32px on light */
+  /* The card shadow (§2) — the only shadow on the site. No glows, no colored
+     shadows (§4). */
+  --fr-shadow-card:
+    0 1px 2px rgba(16, 23, 59, 0.06), 0 8px 24px rgba(16, 23, 59, 0.06);
 
-  /* ---- Brand anchor (identical to the app UI and favicon) ---- */
-  --petrol: #0f766e; /* CTA buttons, status pills, links + focus on light */
-
-  /* ---- Sanctioned tints (the only alpha variants allowed) ---- */
-  --rule-dark: rgba(143, 179, 172, 0.12); /* 1px rules on dark (dusk @ 12%) */
-  --rule-light: rgba(11, 43, 38, 0.12); /* 1px rules on light (day-ink @ 12%) */
-  --amber-strip: rgba(255, 180, 84, 0.1); /* the honesty-strip background on light */
-  --amber-spill: rgba(255, 180, 84, 0.06); /* sidebar spill overlay in the demo */
-
-  /* ---- Compatibility aliases (older marketing components + subpages read
-     these; they now resolve to the daylight act so every marketing subpage
-     inherits the new identity without edits) ---- */
-  --deep: var(--ink-11pm); /* ground-deep bands now paint the night ground */
-  --ink: var(--day-ink);
-  --paper: var(--first-light);
-  --marker: var(--porch-amber); /* the old yellow highlight reads as lamplight now */
-  --graphite: #46605a; /* secondary text on light */
-  --paper-2: #fbfdfc; /* card surfaces on the porcelain ground */
-  --paper-edge: #dce7e2; /* panel edges on light */
-  --petrol-12: rgba(15, 118, 110, 0.12);
-  --petrol-24: rgba(15, 118, 110, 0.24);
-  --marker-40: rgba(255, 180, 84, 0.32);
-  /* Softer body inks. SOLID (not alpha) so they hold AA over washes. */
-  --ink-70: #3a534d; /* soft body text on light */
-  --ink-55: #587068; /* quieter body text on light */
+  /* ------------------------------------------------------------------
+     v3 COMPAT ALIASES — TRANSITIONAL. The v3 "Open all night"/"Quiet
+     daylight" palette is dead (v4 supersedes it entirely); these names
+     survive only so not-yet-rebuilt v3 components keep rendering legible
+     text in the v4 palette while the page crews land. Every alias resolves
+     into the v4 system above. DELETE each alias with the last component
+     that reads it.
+     ------------------------------------------------------------------ */
+  --ink-11pm: var(--fr-ink);
+  --ink-midnight: var(--fr-ink);
+  --cab-panel: #1d2650; /* raised step on Dispatch Ink */
+  --signal-aqua: #a8b6ff; /* readable link tint on ink grounds */
+  --porch-amber: var(--fr-cobalt);
+  --amber-core: var(--fr-frost);
+  --moonlight: #ffffff;
+  --dusk: rgba(255, 255, 255, 0.7);
+  --first-light: var(--fr-frost);
+  --day-ink: var(--fr-ink);
+  --copper: var(--fr-ink);
+  --copper-lift: var(--fr-ink);
+  --petrol: var(--fr-cobalt); /* the marketing chrome accent is cobalt in v4 */
+  --rule-dark: rgba(255, 255, 255, 0.12);
+  --rule-light: rgba(16, 23, 59, 0.1);
+  --amber-strip: var(--fr-frost);
+  --amber-spill: rgba(39, 64, 222, 0.05);
+  --deep: var(--fr-ink);
+  --ink: var(--fr-ink);
+  --paper: var(--fr-ground);
+  --marker: var(--fr-cobalt);
+  --graphite: var(--fr-ink-70);
+  --paper-2: var(--fr-card);
+  --paper-edge: #e3e9f6;
+  --petrol-12: rgba(39, 64, 222, 0.12);
+  --petrol-24: rgba(39, 64, 222, 0.24);
+  --marker-40: rgba(39, 64, 222, 0.18);
+  --ink-70: var(--fr-ink-70);
+  --ink-55: var(--fr-ink-55);
   --hairline: var(--rule-light);
+  /* Old font-variable names → the v4 faces (ledger-css.tsx et al. read the
+     raw variables, not the utilities). */
+  --font-body-mkt: var(--font-body);
+  --font-mono-mkt: var(--font-mono);
 
-  /* FORCE LIGHT (accessibility + identity). The marketing identity is a LIGHT
-     "painted panel" surface (DESIGN-DIRECTION §3); there is no marketing dark
-     theme, only the one honest dark screenshot inside its own scoped `.dark`
-     region. But ThemeProvider is global (defaultTheme:"system"), so under an OS
-     dark preference `<html>` gets `.dark` and every APP token the marketing DOM
-     consumes (bg-card, text-foreground, text-muted-foreground, text-primary,
-     border-border, ...) flipped to its night value while the marketing palette
-     tokens stayed light. Result: dark app-surface behind light-palette text, or
-     light-palette dark text on a flipped-dark card — the color-contrast audit
-     failed (1.04 / 1.85 / 1.96:1). Re-asserting the LIGHT app-token values on
-     the scope root pins the whole marketing subtree to light regardless of OS
-     theme; a nested explicit `.dark` region (the dark-band phone) still flips
-     them back for just that region. The app's own :root/.dark are untouched. */
-  --background: oklch(0.985 0.001 106.423); /* stone-50 */
-  --foreground: oklch(0.216 0.006 56.043); /* stone-900 */
-  --card: oklch(1 0 0); /* white */
-  --card-foreground: oklch(0.216 0.006 56.043);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.216 0.006 56.043);
-  --primary: oklch(0.511 0.096 186.391); /* teal-700 #0F766E (== petrol) */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
-  --secondary-foreground: oklch(0.216 0.006 56.043);
-  --muted: oklch(0.97 0.001 106.424); /* stone-100 */
-  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 */
-  --foreground-tertiary: oklch(0.709 0.01 56.259); /* stone-400 */
-  --border-subtle: oklch(0.97 0.001 106.424); /* stone-100 */
-  --accent: oklch(0.97 0.001 106.424); /* stone-100 */
-  --accent-foreground: oklch(0.216 0.006 56.043);
-  --destructive: oklch(0.577 0.245 27.325); /* red-600 */
-  --border: oklch(0.923 0.003 48.717); /* stone-200 */
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.511 0.096 186.391); /* petrol focus rings */
+  /* FORCE LIGHT (accessibility + identity). The marketing surface is light
+     on every page (v4: Signal White ground); there is no marketing dark
+     theme, only local `.dark` regions (dark-mode product embeds inside phone
+     frames). ThemeProvider is global (defaultTheme:"system"), so under an OS
+     dark preference <html> gets `.dark` and every shadcn token the marketing
+     DOM consumes would flip dark while the marketing palette stayed light.
+     Re-asserting light app-token values on the scope root pins the whole
+     marketing subtree; a nested explicit `.dark` region still flips them back
+     for just that region. Values are the v4 family so any shadcn primitive
+     rendered in marketing chrome (sheet, dialog) reads as v4, with COBALT as
+     primary/ring — product embeds wrapped in .app-scope reset these to the
+     app's own petrol (Law 2). */
+  --background: #fbfcfe;
+  --foreground: #10173b;
+  --card: #ffffff;
+  --card-foreground: #10173b;
+  --popover: #ffffff;
+  --popover-foreground: #10173b;
+  --primary: #2740de;
+  --primary-foreground: #ffffff;
+  --secondary: #edf2fb;
+  --secondary-foreground: #10173b;
+  --muted: #edf2fb;
+  --muted-foreground: #5a6080;
+  --foreground-tertiary: #8a90ac;
+  --border-subtle: #edf2fb;
+  --accent: #edf2fb;
+  --accent-foreground: #10173b;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e3e9f6;
+  --input: #e3e9f6;
+  --ring: #2740de; /* cobalt focus rings everywhere in marketing (§7) */
   color-scheme: light;
 
-  /* The dominant ground (§3): the marketing surface sits on the pale petrol-grey
-     "painted panel", not the app's stone/white. Set on the scope root so every
-     marketing band inherits the paper ground and the warm green-black ink,
-     without touching the app's :root tokens or the app surface. */
-  background-color: var(--paper);
-  color: var(--ink);
+  /* The dominant ground (§2): Signal White with Dispatch Ink text, set on the
+     scope root so every band inherits it. */
+  background-color: var(--fr-ground);
+  color: var(--fr-ink);
 }
 
-/* DARK-SCOPE marketing tokens (accessibility fix). The marketing surface has one
-   honest dark moment: the real dark-mode product screenshot, wrapped in a `.dark`
-   region so the app tokens inside the phone frame flip to their night values.
-   Problem: the MARKETING palette tokens (--ink, --graphite, --deep, --petrol) did
-   NOT flip, so any marketing-colored text landing in that `.dark` region rendered
-   dark-on-dark (measured 1.05:1 / 1.96:1 / 1.86:1 — the color-contrast audit
-   fails). Here every marketing token that can carry text gets a dark-readable
-   value (all AA+ on the stone-950 / stone-900 dark grounds); the paper ground
-   itself flips to the dark field. Covers a `.dark` element inside the marketing
-   scope AND its descendants. Marketing-scoped only; the app surface is untouched. */
+/* LOCAL DARK REGIONS inside marketing (the dark-mode product embed in a phone
+   frame; the app tokens inside flip via the `.dark .app-scope` block above).
+   The v3 compat aliases that can carry text get readable-on-ink values so any
+   not-yet-rebuilt component landing in the region never renders dark-on-dark.
+   The --fr-* tokens themselves NEVER flip: they are the law, and text on the
+   ink surfaces uses explicit white utilities. */
 .mkt-scope .dark,
-.mkt-scope.dark {
-  --ink: var(--moonlight); /* headlines / body on the night grounds */
-  --graphite: var(--dusk); /* secondary text on dark */
-  --petrol: var(--signal-aqua); /* links / key marks on dark: interactive means lit */
-  --deep: var(--ink-11pm);
-  --paper: var(--ink-11pm); /* the ground under this region is the night itself */
-  --paper-2: var(--cab-panel); /* card panels on dark: one luminance step up */
-  --paper-edge: #12403a; /* panel edges on dark */
-  --marker-40: rgba(255, 180, 84, 0.28);
-  --ink-70: rgba(234, 244, 240, 0.78);
-  --ink-55: rgba(234, 244, 240, 0.6);
+.mkt-scope.dark,
+.marketing .dark,
+.marketing.dark {
+  --ink: #ffffff;
+  --day-ink: #ffffff;
+  --graphite: rgba(255, 255, 255, 0.72);
+  --petrol: #a8b6ff; /* links on ink lift to a readable cobalt tint */
+  --deep: var(--fr-ink);
+  --paper: var(--fr-ink);
+  --paper-2: #1d2650;
+  --paper-edge: #2a3466;
+  --marker-40: rgba(168, 182, 255, 0.28);
+  --ink-70: rgba(255, 255, 255, 0.78);
+  --ink-55: rgba(255, 255, 255, 0.62);
   --hairline: var(--rule-dark);
-  --petrol-12: rgba(63, 213, 192, 0.14);
-  --petrol-24: rgba(63, 213, 192, 0.26);
-  color: var(--ink);
-}
-
-/* Card / panel surfaces on the porcelain ground ("Quiet daylight" v3): white,
-   one hairline, the faintest sanctioned shadow. Nothing heavier exists. */
-@utility panel-card {
-  background-color: #ffffff;
-  border: 1px solid rgba(11, 43, 38, 0.08);
-  box-shadow: 0 1px 2px rgb(11 43 38 / 0.05);
-}
-
-/* Night grounds ("Open all night"). ground-deep is the compat name older
-   sections use; it now paints the primary night ground. */
-@utility ground-deep {
-  background-color: var(--ink-11pm);
-  color: var(--moonlight);
-}
-
-@utility ground-night {
-  background-color: var(--ink-11pm);
-  color: var(--moonlight);
-}
-
-@utility font-display {
-  /* The MARKETING display face: Besley (variable 700-900), mounted in the
-     (marketing) layout as --font-display, scoped to marketing DOM. HEADLINES +
-     price figures only, never body/UI. Inert (serif fallback) wherever
-     --font-display is unset (the app). 900 = hero, 800 = H2, 700 = H3. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-}
-
-@utility font-body-mkt {
-  /* The MARKETING body face: Public Sans (--font-body-mkt), set on the
-     (marketing) subtree root. The honesty register in typographic form. */
-  font-family: var(--font-body-mkt), ui-sans-serif, system-ui, sans-serif;
-}
-
-@utility font-mono-mkt {
-  /* The MARKETING data mono: Martian Mono (--font-mono-mkt) for everything
-     countable: clock eyebrows, ticks, segments, phone numbers, dollars. */
-  font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
-    monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-@utility eyebrow-clock {
-  /* Section eyebrows are clock times ("9:47 PM", "7:22 AM"), Martian Mono
-     condensed light, never "01 / 02 / 03". */
-  font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo,
-    monospace;
-  font-size: 0.8125rem;
-  font-weight: 300;
-  font-stretch: 75%;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-@utility display-numeral {
-  /* The price figure scale ("Quiet daylight" v3): Besley 700, restrained. The
-     copper underline rule and color are applied by the call site. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: clamp(2.25rem, 1.5rem + 2vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1;
-  font-variant-numeric: lining-nums;
-}
-
-@utility display-hero {
-  /* Hero H1 scale (v3): Besley 700 at a calm editorial size, not a poster
-     shout. The H1 min-height reservation holds the box so the font upgrade
-     never shifts. Sentence case. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: clamp(2.25rem, 1.4rem + 3.2vw, 3.5rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.08;
-  color: var(--ink);
-}
-
-@utility display-h2 {
-  /* Section H2 scale (v3), Besley 700. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: clamp(1.65rem, 1.2rem + 1.8vw, 2.375rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-  color: var(--ink);
-}
-
-@utility display-h3 {
-  /* Card H3 scale (v3), Besley 700. */
-  font-family: var(--font-display), Georgia, Cambria, "Times New Roman", serif;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.005em;
-  line-height: 1.3;
+  --petrol-12: rgba(168, 182, 255, 0.14);
+  --petrol-24: rgba(168, 182, 255, 0.26);
   color: var(--ink);
 }
 
 /* --------------------------------------------------------------------------
-   The <Display> expressive-headline system (DESIGN-DIRECTION §3 signature).
-   Headlines are COMPOSED, not typed: weight/optical contrast, a marker-yellow
-   highlight swipe, a hand-marker underline/circle, one petrol accent word.
-   These utilities are the styling half; the <Display>/<Marker> components
-   compose them. All marketing-scoped; the app never references them.
+   v4 type system (direction §3): Bricolage Grotesque (display), Hanken
+   Grotesk (body), Spline Sans Mono (data). Mounted as --font-display /
+   --font-body / --font-mono by the (marketing) layout via next/font/google
+   (lib/marketing/fonts.ts). Inert wherever the variables are unset (the app).
    -------------------------------------------------------------------------- */
 
-@utility dsp-emph {
-  /* Composable emphasis word inside a <Display> (v3 "Quiet daylight"). Every
-     display utility now renders Besley 700, so the old "light end vs 900 body"
-     weight contrast is gone (#67: it made Emph render identically to the
-     headline). The v3-sanctioned emphasis is a genuine tonal step: the
-     emphasis word recedes to the quieter ink so the composition reads as
-     composed, not flat. Distinct at every headline size. */
+@utility font-display {
+  /* Bricolage Grotesque — H1/H2 and the wordmark only (800). */
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+@utility font-body-mkt {
+  /* Hanken Grotesk — body, H3, UI labels. 400 body / 500 emphasis / 600 UI /
+     700 H3 (§3). */
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+@utility font-mono-mkt {
+  /* Spline Sans Mono — every countable truth (the mono law, §3): prices,
+     counts, timestamps, phone numbers, datelines, eyebrows. Tabular always. */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility fr-h1 {
+  /* H1 (§3): Bricolage 800, clamp(2.5rem, 6.5vw, 5.25rem), lh 1.02,
+     ls -0.02em, optical size at max. */
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.5rem, 6.5vw, 5.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 96;
+  text-wrap: balance;
+}
+
+@utility fr-h2 {
+  /* H2 (§3): Bricolage 800, clamp(1.875rem, 4vw, 3rem), lh 1.08. */
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.875rem, 4vw, 3rem);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+@utility fr-h3 {
+  /* H3 / card titles (§3): Hanken 700, 1.25rem, lh 1.3. */
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+@utility fr-body {
+  /* Body (§3): Hanken 400, 17px, lh 1.65. */
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+@utility fr-eyebrow {
+  /* Eyebrows / datelines (§3): Spline 500, 0.75rem, uppercase, 0.08em. */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility fr-mono-data {
+  /* Mono data (§3): Spline 500 tabular, chip/timestamp/table size. */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility fr-figure {
+  /* Display numerals — prices as art (§3): Spline 500, 3rem to 6rem, tabular.
+     Size is clamped mid-range; call sites scale up with text-* when a band
+     wants the full 6rem. */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  font-size: clamp(3rem, 2rem + 3vw, 4.5rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility fr-card {
+  /* The card (§2): white, 12px radius, the one shadow. No border (Law 10:
+     no hairline rules; separation is space, radius, and Frost). */
+  background-color: var(--fr-card);
+  border-radius: 12px;
+  box-shadow: var(--fr-shadow-card);
+}
+
+/* --------------------------------------------------------------------------
+   v3 utility names, repointed (TRANSITIONAL, same contract as the token
+   aliases above): not-yet-rebuilt components keep compiling and render in the
+   v4 voice. Delete each with its last consumer.
+   -------------------------------------------------------------------------- */
+
+@utility panel-card {
+  /* v3 card → v4 card: white + the one shadow, hairline dropped (Law 10). */
+  background-color: var(--fr-card);
+  box-shadow: var(--fr-shadow-card);
+}
+
+@utility ground-deep {
+  /* Old night grounds now paint Dispatch Ink (the only sanctioned dark). */
+  background-color: var(--fr-ink);
+  color: #ffffff;
+}
+
+@utility ground-night {
+  background-color: var(--fr-ink);
+  color: #ffffff;
+}
+
+@utility eyebrow-clock {
+  /* v3 clock eyebrow → the v4 eyebrow voice (Spline 500). */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility display-numeral {
+  /* v3 price figure → the mono law (§3): countable truths wear Spline. */
+  font-family:
+    var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(2.5rem, 1.75rem + 2vw, 3.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility display-hero {
+  /* v3 hero scale → v4 H1 (Bricolage 800). Color rides --ink so local dark
+     regions stay readable. */
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.5rem, 6.5vw, 5.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  font-variation-settings: "opsz" 96;
+  color: var(--ink);
+}
+
+@utility display-h2 {
+  /* v3 H2 scale → v4 H2. */
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.875rem, 4vw, 3rem);
+  font-weight: 800;
+  line-height: 1.08;
+  color: var(--ink);
+}
+
+@utility display-h3 {
+  /* v3 H3 → v4 H3 (Hanken 700). */
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+@utility dsp-emph {
+  /* Composed-headline emphasis: the quieter ink step. */
+  font-weight: 800;
   color: var(--ink-55);
 }
 
 @utility dsp-emph-italic {
-  /* The alternate emphasis cut: a restrained synthetic oblique (the latin
-     subset ships no italic master), for the short emphasis word a composition
-     wants slanted rather than toned. */
-  font-weight: 700;
+  font-weight: 800;
   font-style: italic;
   color: var(--ink-55);
 }
 
 @utility dsp-accent {
-  /* The single petrol accent word in a headline (§3 "one petrol accent"). */
-  color: var(--petrol);
+  /* The single accent word in a composed headline: cobalt in v4. */
+  color: var(--fr-cobalt);
 }
 
 @utility dsp-marker {
-  /* The promise-word emphasis in a composed <Display> headline (v3 "Quiet
-     daylight"). v3 §2 rations porch-amber to the single unread dot, so the old
-     amber highlighter swipe is retired; the promise word now carries a clean
-     petrol underline (petrol is THE accent, §2), the calm sibling of the copper
-     price underline. The word stays on top via position/z-index on its inner
-     span. */
   position: relative;
   display: inline-block;
   isolation: isolate;
 }
 
 @utility dsp-marker-swipe {
-  /* The underline itself (a decorative span the component renders, so it can be
-     reduced-motion-drawn independently). A flat petrol rule seated at the
-     baseline, no tilt, no wobble: minimal, not hand-drawn. */
+  /* The underline gesture, now cobalt (via the repointed --petrol alias). */
   position: absolute;
   left: -0.02em;
   right: -0.02em;
@@ -1084,12 +1154,9 @@
 }
 
 @layer utilities {
-  /* The marker "paints on" once when its headline REVEALS (§5 motion: one quiet
-     drawn gesture, reduced-motion-safe). The default resting state is FULLY
-     PAINTED (visible with JS off, reduced motion, and pre-reveal), the draw only
-     replays when a [data-reveal] ancestor flips to revealed AND motion is
-     allowed. So the mark is never invisible; the animation is pure enhancement.
-     Compositor-friendly (clip-path / stroke-dashoffset only). */
+  /* The marker "paints on" once when its headline reveals. Resting state is
+     FULLY PAINTED (visible with JS off, reduced motion, pre-reveal); the draw
+     is pure enhancement. Compositor-friendly only. */
   @keyframes mkt-marker-paint {
     from {
       clip-path: inset(0 100% 0 0);
@@ -1108,25 +1175,19 @@
     }
   }
 
-  /* Resting state: painted. The swipe is a solid band; the SVG strokes are at
-     offset 0 (their inline dashoffset is also 0 by default, see the components). */
   .dsp-marker-swipe {
     clip-path: none;
   }
 
-  /* Draw-on only inside a revealed container (so it plays as the headline scrolls
-     in, not on page mount). data-draw marks the eligible elements. */
   [data-revealed="true"] .dsp-marker-swipe[data-draw="true"] {
     animation: mkt-marker-paint 520ms ease-out both;
   }
 
   [data-revealed="true"] .mkt-marker-path[data-draw="true"] {
-    /* --marker-len is set inline per path to match its length. */
     animation: mkt-marker-draw 640ms ease-out both;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    /* Reduced motion: present, fully painted, no draw, override the reveal rule. */
     [data-revealed="true"] .dsp-marker-swipe[data-draw="true"],
     [data-revealed="true"] .mkt-marker-path[data-draw="true"] {
       animation: none;
@@ -1135,10 +1196,10 @@
 }
 
 @layer utilities {
-  /* Scroll-reveal keyframe (§1.5): opacity 0→1 + translateY 12px→0, 300ms
-     ease-out, ONCE. The IntersectionObserver in <Reveal> toggles
-     data-revealed; the layout box is already reserved (CLS-safe). Fully
-     disabled under prefers-reduced-motion (base rule above forces it visible). */
+  /* Scroll reveal (v4 §4 Motion): opacity 0→1 + translateY 12px→0, 400ms
+     cubic-bezier(0.22,1,0.36,1), ONCE only. The IntersectionObserver in
+     <RevealActivator> toggles data-revealed; the layout box is already
+     reserved (CLS-safe). Fully disabled under prefers-reduced-motion. */
   [data-reveal] {
     opacity: 0;
     transform: translateY(12px);
@@ -1148,15 +1209,13 @@
   [data-reveal][data-revealed="true"] {
     opacity: 1;
     transform: none;
-    /* Stagger via --reveal-delay (§1.5: 60ms steps, max 4), set by <Reveal>. */
     transition:
-      opacity 300ms ease-out var(--reveal-delay, 0ms),
-      transform 300ms ease-out var(--reveal-delay, 0ms);
+      opacity 400ms cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+      transform 400ms cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms);
   }
 
-  /* Fail-safe / instant reveal: snap to the final visible state with NO fade, so
-     text is never caught mid-opacity-transition by the contrast audit (a false
-     positive) and is never left hidden. Set by RevealActivator's fail-safe path. */
+  /* Fail-safe / instant reveal: snap to visible with NO fade (set by
+     RevealActivator's fail-safe path), so text is never left hidden. */
   [data-reveal][data-reveal-instant="true"] {
     opacity: 1;
     transform: none;

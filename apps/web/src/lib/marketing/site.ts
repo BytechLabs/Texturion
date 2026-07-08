@@ -12,7 +12,7 @@
  * real standalone pages. There are ZERO dead links.
  */
 
-export const SITE_URL = "https://loonext.app";
+export const SITE_URL = "https://loonext.com";
 
 /** Absolute canonical for a path (leading slash), e.g. "/legal/terms". */
 export function absoluteUrl(path: string): string {
@@ -60,23 +60,6 @@ export const LIVE_ROUTES = {
   comparePodium: "/compare/podium",
   compareHeymarket: "/compare/heymarket",
   compareQuo: "/compare/quo",
-} as const;
-
-/**
- * Home-page section anchors for the "Open all night" home (design-spec §6;
- * section ids: #tonight #after-dark #night-shift #day #pricing #approval
- * #start, plus #faq inside S7). Used only by the two nav dropdown *triggers*:
- * "Product" scrolls to the daylight features grid (S4, #day) and "Who it's
- * for" to the trades problem band (S2, #after-dark), while their dropdown
- * items link to the real standalone pages above. Verified against the home
- * sections at integration.
- */
-export const HOME_ANCHORS = {
-  features: "/#day",
-  trades: "/#after-dark",
-  /** "Pricing" is a real standalone page, not an anchor, kept here so the nav
-   * top-level link and the home "See pricing" CTAs share one source. */
-  pricing: LIVE_ROUTES.pricing,
 } as const;
 
 /** The app (separate Worker origin in production; same-origin route locally). */

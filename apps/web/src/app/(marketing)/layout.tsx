@@ -4,17 +4,18 @@ import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
 import { organizationJsonLd } from "@/lib/marketing/seo";
-import { besley, publicSans, martianMono } from "@/lib/marketing/fonts";
-import { MARKETING_FONT_PRELOADS } from "@/lib/marketing/font-preloads";
+import { body, display, mono } from "@/lib/marketing/fonts";
 
 /**
- * The MARKETING type trio (DESIGN-DIRECTION, "Open all night"): Besley
- * (display), Public Sans (body), Martian Mono (data). The next/font/local
- * instances are defined once in `@/lib/marketing/fonts`; here we mount their
- * combined `.variable` classNames on the (marketing) route-group subtree so
- * the marketing headline/body/mono utilities resolve them. The APP stays calm
- * Inter-only (the two-surfaces rule), nothing outside this subtree can resolve
- * --font-display / --font-body-mkt / --font-mono-mkt.
+ * The MARKETING v4 type trio (DESIGN-DIRECTION §3, "FIRST RESPONSE"):
+ * Bricolage Grotesque (display), Hanken Grotesk (body), Spline Sans Mono
+ * (data). The next/font/google instances are defined once in
+ * `@/lib/marketing/fonts`; here we mount their `.variable` classNames on the
+ * (marketing) route-group subtree so --font-display / --font-body /
+ * --font-mono resolve for the marketing utilities. The APP keeps its own
+ * faces (the two-surfaces rule); nothing outside this subtree can resolve
+ * the marketing font variables. next/font emits the font preload links
+ * itself (no manual preload manifest).
  */
 
 /**
@@ -22,16 +23,14 @@ import { MARKETING_FONT_PRELOADS } from "@/lib/marketing/font-preloads";
  * Nav + children + Footer only, with NONE of the app's provider weight
  * (TanStack Query, tooltips, toaster, service worker live in app-providers.tsx,
  * mounted by the signed-in groups). ThemeProvider stays global in the root
- * layout, so dark mode still works here (the dark band, the footer toggle).
+ * layout; the marketing scope pins itself light in globals.css (v4: the site
+ * is Signal White on every page; the only dark surfaces are the dateline chip
+ * and the footer band, plus local `.dark` regions for dark-mode product
+ * embeds inside phone frames).
  *
  * Organization JSON-LD is emitted once here so it covers every marketing page
- * (§11.2). WebSite + SoftwareApplication (home/pricing-specific) are provided as
- * helpers in lib/marketing/seo.ts for those pages to render.
- *
- * The trio's `.variable` classNames scope --font-display / --font-body-mkt /
- * --font-mono-mkt to this subtree (MARKETING-ONLY) without touching the app's
- * Inter. `.font-body-mkt` sets Hanken Grotesk as the marketing body face here so
- * marketing prose reads in the warm grotesque, not Inter.
+ * (§11.2). WebSite + SoftwareApplication (home/pricing-specific) are provided
+ * as helpers in lib/marketing/seo.ts for those pages to render.
  *
  * ROOT / resolves into this group via (marketing)/page.tsx (Track B).
  */
@@ -39,30 +38,11 @@ export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // Mounts --font-display / --font-body-mkt / --font-mono-mkt on the (marketing)
-    // subtree only (the two-surfaces rule); the app stays Inter.
+    // Mounts --font-display / --font-body / --font-mono on the (marketing)
+    // subtree only (the two-surfaces rule); the app keeps its own faces.
     <div
-      className={`mkt-scope ${besley.variable} ${publicSans.variable} ${martianMono.variable} font-body-mkt flex min-h-svh flex-col`}
+      className={`mkt-scope ${display.variable} ${body.variable} ${mono.variable} font-body-mkt flex min-h-svh flex-col`}
     >
-      {/* PRELOAD the LCP hero face (Besley, the variable file the H1 is set in).
-          next/font doesn't emit this with inlineCss on. With font-display:optional
-          the preload is what lets Besley make the ~100 ms block window so the hero
-          lettering renders instead of the fallback on warm loads. ONLY the LCP face
-          is preloaded: preloading the demoted above-the-fold faces (Public Sans/
-          Martian Mono) only contends for the critical path with no LCP benefit, so
-          they upgrade in-window from the inlined @font-face instead (gen-font-
-          preloads.mjs). React 19 hoists this <link> into <head>; the manifest is
-          generated post-build and is empty on the first build pass. */}
-      {MARKETING_FONT_PRELOADS.map((href) => (
-        <link
-          key={href}
-          rel="preload"
-          as="font"
-          type="font/woff2"
-          href={href}
-          crossOrigin="anonymous"
-        />
-      ))}
       {/* No-JS fail-safe: reveal every scroll-reveal element when JS is off, so
           content is never permanently hidden without the RevealActivator. */}
       <noscript>
@@ -74,11 +54,11 @@ export default function MarketingLayout({
           appear on subpages (canada, compare, features, trades), not just the
           home page that used to carry this style block. */}
       <LedgerStyles />
-      {/* One shared IntersectionObserver drives every [data-reveal] (§1.5). */}
+      {/* One shared IntersectionObserver drives every [data-reveal] (§4). */}
       <RevealActivator />
       <Nav />
-      {/* id="content" is the nav skip link's target (copy deck "Skip to
-          content"); keep it in sync with nav.tsx's .nxh-skip href. */}
+      {/* id="content" is the nav skip link's target; keep it in sync with
+          nav.tsx's .frn-skip href. */}
       <main id="content" className="flex-1">
         {children}
       </main>

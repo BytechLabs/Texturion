@@ -1,19 +1,18 @@
 "use client";
 
 /**
- * City → area-code widget (Track B), §3.11 Canada beat / COPY §H11.
+ * City to area-code widget, v4 "FIRST RESPONSE". Type a city (or a 3-digit
+ * code) and see the local area code, drawn from the app's own verified NANP
+ * data (@loonext/shared via city-lookup): the math and the data are the
+ * product's, only the frame is marketing.
  *
- * Type a city (or a 3-digit code) and see the local area code, drawn from the
- * app's own verified NANP data (@loonext/shared via city-lookup). A real
- * product visual, not a text list of chips (BLUEPRINT §3.10 finding). Keyboard-
- * accessible listbox pattern; aria-live result. <15KB island.
- *
- * Canada-forward: seeds with a Canadian example (Toronto → 416) so a Canadian
- * visitor immediately sees their own code. Reinforces "local numbers in every
- * province" without flag-waving.
+ * Canada-forward: seeds with a Canadian example (Toronto, 416) so a Canadian
+ * visitor immediately sees their own code; the Canada day-one line carries
+ * the green tick (green whitelist: the Canada "day one" tick). Area codes are
+ * countable truths and render mono (§3). Keyboard-accessible listbox pattern;
+ * aria-live result; cobalt focus rings (§7).
  */
 
-import { MapPin, Search } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -26,6 +25,26 @@ import {
 import { cn } from "@/lib/utils";
 
 import { resolveQuery, type AreaCodeResult } from "./city-lookup";
+
+function DayOneTick() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="size-3.5 shrink-0"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 8.5 6.5 12 13 4.5"
+        fill="none"
+        stroke="var(--fr-green)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function CityAreaCodeWidget() {
   const [query, setQuery] = useState("Toronto");
@@ -43,14 +62,13 @@ export function CityAreaCodeWidget() {
 
   const results = useMemo(() => resolveQuery(query, 6), [query]);
 
-  // Keep the active option in view when it moves via the keyboard. Query the
-  // list's children by position rather than by id so there's no dependency on
-  // the id-builder closure.
+  // Keep the active option in view when it moves via the keyboard.
   useEffect(() => {
     if (!open || activeIndex < 0) return;
     const list = listRef.current;
-    list?.querySelectorAll<HTMLElement>('[role="option"]')[activeIndex]
-      ?.scrollIntoView({ block: "nearest" });
+    list
+      ?.querySelectorAll<HTMLElement>('[role="option"]')
+      [activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, open]);
 
   const pick = (r: AreaCodeResult) => {
@@ -114,19 +132,14 @@ export function CityAreaCodeWidget() {
   };
 
   return (
-    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-5 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+    <div className="fr-card p-5">
       <label
         htmlFor="area-code-city"
-        className="text-[14px] font-medium text-[color:var(--day-ink)]"
+        className="text-[0.875rem] font-semibold text-[color:var(--fr-ink)]"
       >
         Find your local area code
       </label>
       <div className="relative mt-2">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[color:var(--ink-55)]"
-          strokeWidth={1.75}
-          aria-hidden
-        />
         <input
           id="area-code-city"
           type="text"
@@ -143,13 +156,13 @@ export function CityAreaCodeWidget() {
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
-            // New query text ⇒ reset the keyboard highlight to "none".
+            // New query text: reset the keyboard highlight to "none".
             setActiveIndex(-1);
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           onBlur={() => setOpen(false)}
-          className="w-full rounded-md border border-[color:var(--hairline)] bg-white py-2 pl-9 pr-3 text-[15px] text-[color:var(--day-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--petrol)]/50"
+          className="w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
         />
         {open && results.length > 0 && (
           <ul
@@ -157,7 +170,7 @@ export function CityAreaCodeWidget() {
             ref={listRef}
             role="listbox"
             aria-label="Matching cities and area codes"
-            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-[color:var(--hairline)] bg-white py-1 shadow-lg"
+            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[10px] bg-white py-1 shadow-[var(--fr-shadow-card)]"
           >
             {results.map((r, i) => {
               const active = i === activeIndex;
@@ -174,12 +187,14 @@ export function CityAreaCodeWidget() {
                   }}
                   onMouseEnter={() => setActiveIndex(i)}
                   className={cn(
-                    "flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left text-[14px]",
-                    active && "bg-[#F0F4F2]",
+                    "flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left text-[0.875rem]",
+                    active && "bg-[color:var(--fr-frost)]",
                   )}
                 >
-                  <span className="truncate text-[color:var(--day-ink)]">{r.city}</span>
-                  <span className="shrink-0 tabular-nums text-[color:var(--ink-55)]">
+                  <span className="truncate text-[color:var(--fr-ink)]">
+                    {r.city}
+                  </span>
+                  <span className="fr-mono-data shrink-0 text-[0.75rem] text-[color:var(--fr-ink-55)]">
                     ({r.areaCode}) · {r.country}
                   </span>
                 </li>
@@ -191,60 +206,59 @@ export function CityAreaCodeWidget() {
 
       <div
         aria-live="polite"
-        className="mt-4 flex items-center gap-3 rounded-lg bg-[color:var(--petrol-12)] p-4"
+        className="mt-4 rounded-[10px] bg-[color:var(--fr-frost)] p-4"
       >
         {selected ? (
-          <>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-[color:var(--petrol)]">
-              <MapPin className="size-5" strokeWidth={1.75} aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[15px] text-[color:var(--day-ink)]">
-                A{" "}
-                <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
-                  ({selected.areaCode})
-                </span>{" "}
-                number for{" "}
-                <span className="font-medium">
-                  {selected.city.startsWith("Area code")
-                    ? selected.regionLabel ?? selected.country
-                    : selected.city}
-                </span>
-                {selected.regionLabel && !selected.city.startsWith("Area code") && (
-                  // --graphite (8.3:1 on this petrol-tinted panel); muted-foreground
-                  // was 4.45:1 here, a hair under AA.
-                  <span className="text-[color:var(--graphite)]">
-                    {" "}
+          <div className="min-w-0">
+            <p className="text-[0.9375rem] text-[color:var(--fr-ink)]">
+              A{" "}
+              <span className="fr-mono-data text-[color:var(--fr-ink)]">
+                ({selected.areaCode})
+              </span>{" "}
+              number for{" "}
+              <span className="font-medium">
+                {selected.city.startsWith("Area code")
+                  ? (selected.regionLabel ?? selected.country)
+                  : selected.city}
+              </span>
+              {selected.regionLabel &&
+                !selected.city.startsWith("Area code") && (
+                  <span className="text-[color:var(--fr-ink-70)]">
                     , {selected.regionLabel}
                   </span>
                 )}
-              </p>
-              <p className="text-[12px] text-[color:var(--graphite)]">
-                {selected.country === "CA"
-                  ? "Canadian number, texting works the same day you sign up."
-                  : "US number, receiving works day one; texting turns on in about a week."}
-              </p>
-            </div>
-          </>
+              .
+            </p>
+            <p className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-[color:var(--fr-ink-70)]">
+              {selected.country === "CA" ? (
+                <>
+                  <DayOneTick />
+                  Canadian number, texting works the same day you sign up.
+                </>
+              ) : (
+                "US number, receiving works day one; texting turns on in about a week."
+              )}
+            </p>
+          </div>
         ) : (
-          <p className="text-[14px] text-[color:var(--graphite)]">
+          <p className="text-[0.875rem] text-[color:var(--fr-ink-70)]">
             No match, try a nearby city or a 3-digit area code.
           </p>
         )}
       </div>
 
-      {/* Every interactive ends in a conversion nudge (CONVERSION §5). */}
       {selected && (
         <a
           href="/signup"
-          className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
+          className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
         >
           Get your ({selected.areaCode}) number →
         </a>
       )}
 
-      <p className={cn("mt-3 text-[12px] text-[color:var(--ink-55)]")}>
-        Real numbering data, the same table the app uses to pick your number.
+      <p className="mt-3 text-[0.75rem] text-[color:var(--fr-ink-55)]">
+        Local numbers are available across the US and Canada, in the area code
+        you choose.
       </p>
     </div>
   );

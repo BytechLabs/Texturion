@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 
-import { Container } from "@/components/marketing/ui/container";
-import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { Kicker } from "@/components/marketing/ui/kicker";
 import {
+  ConvergedField,
+  Dateline,
+  FrCard,
+  FrSection,
+} from "@/components/marketing/fr";
+import { JsonLd } from "@/components/marketing/ui/json-ld";
+import {
+  HAS_BUSINESS_IDENTITY,
+  LEGAL_ENTITY_NAME,
+  MAILING_ADDRESS,
   SECURITY_EMAIL,
   SUPPORT_EMAIL,
-  SUPPORT_SLA,
-  businessIdentityLine,
 } from "@/lib/marketing/business";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -18,10 +23,34 @@ const PATH = "/contact";
 export const metadata: Metadata = buildMetadata({
   title: "Contact",
   description:
-    "Get in touch with Loonext. Email is our only support channel, no chat bot, no phone tree, and a real person answers, usually within one business day.",
+    "Email us and a real person answers. No sales team, no ticket deflection: your message goes to the people who built Loonext.",
   path: PATH,
 });
 
+/** Inline cobalt link (the marketing link voice). */
+function ContactLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
+ * CONTACT (DESIGN-DIRECTION v4 §6, COPY-DECK v2): the short work-order form
+ * plus the founder reply promise. Email is the only support channel; the form
+ * composes a mailto so the promise ("a real person answers") stays literally
+ * true, no marketing backend pretending otherwise.
+ */
 export default function ContactPage() {
   return (
     <>
@@ -31,89 +60,82 @@ export default function ContactPage() {
           { name: "Contact", path: PATH },
         ])}
       />
-      <Container className="py-16 sm:py-24">
-        <div className="mx-auto max-w-2xl">
-          <Kicker>Contact</Kicker>
-          <h1 className="display-hero mt-3">Talk to a real person.</h1>
-          <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-            Email is how we do support, deliberately. No chat widget, no phone
-            tree, no &quot;press 1.&quot; {SUPPORT_SLA} A person on the team reads
-            every message.
+      <FrSection ground="white">
+        <div className="max-w-3xl">
+          <ConvergedField variant="mark" className="h-9 w-auto" />
+          <div className="mt-6">
+            <Dateline>A REAL PERSON ANSWERS</Dateline>
+          </div>
+          <h1 className="fr-h1 mt-5 text-[color:var(--fr-ink)]">
+            Email us. A real person answers.
+          </h1>
+          <p className="fr-body mt-5 max-w-[58ch] text-[color:var(--fr-ink-70)]">
+            No sales team, no ticket deflection. You&apos;ll get a reply from
+            one of the people who built Loonext.
           </p>
         </div>
 
-        <div className="mx-auto mt-12 grid max-w-4xl gap-8 lg:grid-cols-[1.2fr_1fr]">
-          {/* Form */}
-          <div className="panel-card rounded-xl p-6">
+        <div className="mt-12 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <FrCard className="p-6 sm:p-8">
             <ContactForm />
-          </div>
+          </FrCard>
 
-          {/* Ways to reach us */}
           <div className="space-y-6">
-            <div>
-              <h2 className="text-sm font-semibold text-[color:var(--day-ink)]">
-                Support
-              </h2>
-              <p className="mt-1 text-sm text-[color:var(--ink-70)]">
+            <FrCard well className="p-6">
+              <h2 className="fr-h3 text-[color:var(--fr-ink)]">Support</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
                 Questions, billing, anything about your account.
               </p>
-              <a
-                href={`mailto:${SUPPORT_EMAIL}`}
-                className="mt-1 inline-block text-sm font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
-              >
-                {SUPPORT_EMAIL}
-              </a>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-semibold text-[color:var(--day-ink)]">
-                Security & responsible disclosure
-              </h2>
-              <p className="mt-1 text-sm text-[color:var(--ink-70)]">
-                Found a vulnerability? See our{" "}
-                <a
-                  href="/security"
-                  className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
-                >
-                  security page
-                </a>
-                , or email
+              <p className="mt-2">
+                <ContactLink href={`mailto:${SUPPORT_EMAIL}`}>
+                  {SUPPORT_EMAIL}
+                </ContactLink>
               </p>
-              <a
-                href={`mailto:${SECURITY_EMAIL}`}
-                className="mt-1 inline-block text-sm font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
-              >
-                {SECURITY_EMAIL}
-              </a>
-            </div>
+            </FrCard>
 
-            <div>
-              <h2 className="text-sm font-semibold text-[color:var(--day-ink)]">
+            <FrCard well className="p-6">
+              <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+                Security and responsible disclosure
+              </h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
+                Found a vulnerability? See our{" "}
+                <ContactLink href="/security">security page</ContactLink>, or
+                email
+              </p>
+              <p className="mt-2">
+                <ContactLink href={`mailto:${SECURITY_EMAIL}`}>
+                  {SECURITY_EMAIL}
+                </ContactLink>
+              </p>
+            </FrCard>
+
+            <FrCard well className="p-6">
+              <h2 className="fr-h3 text-[color:var(--fr-ink)]">
                 Service status
               </h2>
-              <p className="mt-1 text-sm text-[color:var(--ink-70)]">
+              <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
                 Check whether it&apos;s us on our{" "}
-                <a
-                  href="/status"
-                  className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
-                >
-                  status page
-                </a>
-                .
+                <ContactLink href="/status">status page</ContactLink>.
               </p>
-            </div>
+            </FrCard>
 
-            <div className="border-t border-[color:var(--hairline)] pt-6">
-              <h2 className="text-sm font-semibold text-[color:var(--day-ink)]">
-                Mailing address
-              </h2>
-              <p className="mt-1 text-sm text-[color:var(--ink-70)]">
-                {businessIdentityLine()}
-              </p>
-            </div>
+            {/* Identity renders only once ops supplies the real legal entity
+                and mailing address; never a placeholder (purge 7). */}
+            {HAS_BUSINESS_IDENTITY && (
+              <FrCard well className="p-6">
+                <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+                  Mailing address
+                </h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
+                  {LEGAL_ENTITY_NAME}
+                  <br />
+                  {MAILING_ADDRESS}
+                </p>
+              </FrCard>
+            )}
           </div>
         </div>
-      </Container>
+      </FrSection>
     </>
   );
 }

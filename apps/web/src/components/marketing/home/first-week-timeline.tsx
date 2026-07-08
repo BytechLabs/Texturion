@@ -1,98 +1,104 @@
+import { Check } from "lucide-react";
+
+import { FrCard } from "@/components/marketing/fr";
+
 /**
- * First-week timeline (§H5 / §0.2), the honest US wait as a designed object, not
- * fine print. Win-first: Day 0 is up and receiving, Canada texts the same day;
- * the US carrier review is a bounded, drawn segment; then US texting turns on.
+ * FIRST-WEEK TIMELINE (COPY-DECK v2 §S5; DESIGN-DIRECTION v4 §5.5), the
+ * flagship Numbered Steps instance: Day 0 (green node, something got
+ * handled) → Days 1 to 7 (the bounded cobalt review track) → Approved
+ * (green node), with the `YOU ARE HERE` Flare tab (whitelist §3.4.4: ink
+ * text on a white tag with a Flare border; Flare itself carries no text).
  *
- * The Day 0 numeral is the second expressive numeral moment (the first is the
- * $29 in the truth bar). Sits on the paper panel. Server component, pure DOM,
- * LCP-safe static. No em-dashes; the marker check is the "done" mark.
+ * The honest US carrier wait as a designed object, not fine print. Server
+ * component, pure DOM. Also staged by /pricing and /features/compliance.
  */
 
-import { MarkerCheck } from "@/components/marketing/display";
+const STAGES: readonly {
+  label: string;
+  title: string;
+  body: string;
+  node: "green" | "track";
+  here?: boolean;
+}[] = [
+  {
+    label: "DAY 0",
+    title: "You're live, not waiting.",
+    body: "Your number is up. Receiving texts works. Texting Canadian customers works. You can invite the crew and start today.",
+    node: "green",
+    here: true,
+  },
+  {
+    label: "DAYS 1 TO 7",
+    title: "The phone companies review you.",
+    body: "US carriers require every business that texts to register. We filed yours the minute you paid. Approval typically takes 3 to 7 business days, about a week.",
+    node: "track",
+  },
+  {
+    label: "APPROVED",
+    title: "US texting turns on.",
+    body: "We email you the moment it's live. Nothing else for you to do.",
+    node: "green",
+  },
+];
+
+function Node({ kind }: { kind: "green" | "track" }) {
+  if (kind === "green") {
+    return (
+      <span
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-green)]"
+        aria-hidden
+      >
+        <Check className="size-3.5 text-white" strokeWidth={3} />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--fr-cobalt)] bg-white"
+      aria-hidden
+    >
+      <span className="size-2 rounded-full bg-[color:var(--fr-cobalt)]" />
+    </span>
+  );
+}
 
 export function FirstWeekTimeline() {
   return (
-    <div className="panel-card rounded-2xl p-6 sm:p-10">
-      <div className="grid gap-8 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-12">
-        {/* Day 0 as art, the numeral escalation. */}
-        <div className="text-center lg:text-left">
-          {/* Unit label over the numeral, NOT a figure, so Public Sans per §3
-              (the "0" below carries the mono/display figure, not this label). */}
-          <p className="font-body-mkt text-[13px] font-medium text-[color:var(--graphite)]">
-            Day
-          </p>
-          <p className="display-numeral text-[color:var(--petrol)]">0</p>
-          <p className="mt-1 text-[15px] font-medium text-[color:var(--ink)]">
-            You&apos;re live, not waiting.
-          </p>
-        </div>
-
-        {/* The bounded wait, drawn as a designed segment. */}
-        <ol className="space-y-4">
-          <li className="flex gap-4">
-            <span
-              className="mt-0.5 flex size-6 shrink-0 items-center justify-center"
-              aria-hidden
-            >
-              <MarkerCheck className="size-5" color="petrol" draw={false} />
-            </span>
-            <div>
-              <p className="text-[15px] font-semibold text-[color:var(--ink)]">
-                Day 0, you&apos;re live, not waiting.
-              </p>
-              <p className="mt-0.5 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                Your number is up. Receiving texts works. Texting Canadian
-                customers works. You can invite the crew and start today.
-              </p>
-            </div>
-          </li>
-
-          <li className="flex gap-4">
-            <span
-              className="font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--marker)] bg-[color:var(--marker-40)] text-[10px] font-semibold tabular-nums text-[color:var(--ink)]"
-              aria-hidden
-            >
-              1-7
-            </span>
-            <div>
-              <p className="text-[15px] font-semibold text-[color:var(--ink)]">
-                Days 1 to 7, the phone companies review you.
-              </p>
-              <p className="mt-0.5 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                US carriers require every business that texts to register. We
-                filed yours the minute you paid; approval typically takes about
-                a week (3 to 7 business days).
-              </p>
-            </div>
-          </li>
-
-          <li className="flex gap-4">
-            <span
-              className="mt-0.5 flex size-6 shrink-0 items-center justify-center"
-              aria-hidden
-            >
-              <MarkerCheck className="size-5" color="petrol" draw={false} />
-            </span>
-            <div>
-              <p className="text-[15px] font-semibold text-[color:var(--ink)]">
-                Approved. US texting turns on.
-              </p>
-              <p className="mt-0.5 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                We email you the moment it&apos;s live. Nothing else for you to
-                do.
-              </p>
-            </div>
-          </li>
-        </ol>
+    <FrCard className="p-6 sm:p-10">
+      {/* The drawn track: live (green) → bounded review (cobalt) → live
+          (green). Decorative; the stages below carry the meaning. */}
+      <div className="mb-8 hidden items-center gap-1.5 md:flex" aria-hidden>
+        <span className="h-1.5 flex-1 rounded-full bg-[color:var(--fr-green)]" />
+        <span className="h-1.5 flex-[3] rounded-full bg-[color:var(--fr-cobalt)]" />
+        <span className="h-1.5 flex-1 rounded-full bg-[color:var(--fr-green)]" />
       </div>
 
-      {/* Progress track, purely decorative: the short live start, the bounded
-          review, and the live tail, in petrol and rationed marker yellow. */}
-      <div className="mt-8 flex items-center gap-1.5" aria-hidden>
-        <span className="h-1.5 flex-1 rounded-full bg-[color:var(--petrol)]" />
-        <span className="h-1.5 flex-[3] rounded-full bg-[color:var(--marker)]" />
-        <span className="h-1.5 flex-1 rounded-full bg-[color:var(--petrol)]" />
-      </div>
-    </div>
+      <ol className="grid gap-8 md:grid-cols-3 md:gap-6">
+        {STAGES.map((stage) => (
+          <li key={stage.label} className="flex gap-4 md:flex-col md:gap-3">
+            <div className="flex flex-col items-center gap-2 md:flex-row md:items-center">
+              <Node kind={stage.node} />
+              {/* The one Flare tab (§3.4.4): white tag, Flare border, ink text. */}
+              {stage.here ? (
+                <span className="fr-eyebrow inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-white px-2 py-1 text-[color:var(--fr-ink)]">
+                  You are here
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
+                {stage.label}
+              </p>
+              <h3 className="font-body-mkt mt-2 text-[15px] font-bold leading-snug text-[color:var(--fr-ink)]">
+                {stage.title}
+              </h3>
+              <p className="font-body-mkt mt-1.5 text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
+                {stage.body}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </FrCard>
   );
 }

@@ -1,39 +1,94 @@
 /**
- * Trade thread scripts (trades track), one genuinely-specific scripted
- * conversation per trade page (BLUEPRINT §5: "an example conversation rendered
- * in the real thread UI, static, trade-specific"; §5 guard: zero shared
- * sentences between pages).
+ * Trade thread scripts (trades crew), v4 "FIRST RESPONSE".
  *
- * These reuse the heroperf-owned `ThreadScript` model (thread-demo/script.ts)
- * verbatim, the trades track only supplies DATA, never edits the shared
- * component or the shared thread-demo scripts. Every line here is real trade
- * dialogue: the jargon, the numbers, the objections, and the flow are specific
- * to that trade and appear on no other page.
+ * One genuinely specific scripted conversation per trade page, each staging
+ * that trade's worst minute from the COPY-DECK v2 dateline:
  *
- * Contact numbers use the 555-01XX safe fictional range (DESIGN.md G10). Crew
+ *   plumbers     9:04 PM · BASEMENT DRAIN
+ *   hvac         6:48 AM · NO HEAT
+ *   landscapers  7:15 AM · GATE LOCKED
+ *   cleaners     5:56 PM · KEY UNDER MAT?
+ *   salons       11:20 AM · RUNNING LATE
+ *   contractors  8:02 AM · CHANGE ORDER
+ *
+ * The scripts are DATA for the trades-owned static <TradeThread> (which
+ * renders them with the app's own tokens inside a marketing <PanelFrame>).
+ * Every line is real trade dialogue: the jargon, the prices, the objections,
+ * and the flow are specific to that trade and appear on no other page. Crew
  * names differ per trade so no page reads like a find-and-replace of another.
+ * Contact numbers use the 555-01XX safe fictional range.
+ *
+ * Law 6: no em-dashes in any string here; ranges read "between 9 and 11".
  */
 
-import type { ThreadScript } from "@/components/marketing/thread-demo/script";
+export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
+
+export interface TradeInboundBeat {
+  id: string;
+  kind: "inbound";
+  body: string;
+  time: string;
+  /** DOM-drawn photo placeholder label (no rasters, Law: live DOM only). */
+  photoLabel?: string;
+}
+
+export interface TradeNoteBeat {
+  id: string;
+  kind: "note";
+  /** Teammate who left the internal note. */
+  by: string;
+  body: string;
+  time: string;
+}
+
+export interface TradeOutboundBeat {
+  id: string;
+  kind: "outbound";
+  body: string;
+  time: string;
+}
+
+export interface TradeEventBeat {
+  id: string;
+  kind: "event";
+  text: string;
+}
+
+export type TradeBeat =
+  | TradeInboundBeat
+  | TradeNoteBeat
+  | TradeOutboundBeat
+  | TradeEventBeat;
+
+export interface TradeScript {
+  contact: { name: string; number: string };
+  status: TradeScriptStatus;
+  /** Assignee shown in the thread header after the assignment event. */
+  assignee: string;
+  beats: TradeBeat[];
+  /** Beat ids rendered in the app's D14 done state (strike + petrol pill). */
+  doneIds?: readonly string[];
+  /** Per-beat done-badge label ("Done · Name · time"). */
+  doneLabels?: Readonly<Record<string, string>>;
+}
 
 /* -------------------------------------------------------------------------- */
-/* Plumbers, emergency backup, elbow-deep, photo triage (COPY §P anchor,      */
-/* expanded with a distinct after-hours turn). "A Tuesday, in texts."          */
+/* Plumbers: the 9:04 PM basement drain, answered the same evening and booked  */
+/* for 8am. Outbound wording per COPY-DECK v2 §/for/plumbers.                  */
 /* -------------------------------------------------------------------------- */
 
-export const PLUMBERS_SCRIPT: ThreadScript = {
+export const PLUMBERS_SCRIPT: TradeScript = {
   contact: { name: "Marcus T", number: "(647) 555-0121" },
-  finalStatus: "waiting",
+  status: "waiting",
   assignee: "Dale",
   beats: [
     {
       id: "pl-in-1",
       kind: "inbound",
-      from: "Marcus T",
       body:
         "Hey, our basement floor drain is backing up when the washing machine runs. How soon could someone look at it?",
-      photo: { label: "Backed-up floor drain" },
-      time: "7:52 AM",
+      photoLabel: "Backed-up floor drain",
+      time: "9:04 PM",
     },
     {
       id: "pl-note-1",
@@ -41,7 +96,7 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
       by: "Priya",
       body:
         "Second backup on that street this month. Dale, bring the auger and the camera",
-      time: "7:55 AM",
+      time: "9:09 PM",
     },
     {
       id: "pl-event-1",
@@ -51,18 +106,15 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
     {
       id: "pl-out-1",
       kind: "outbound",
-      by: "Dale",
       body:
-        "Hi Marcus, Dale from Reyes Plumbing. From your photo that looks like a main line clog, we can be there tomorrow at 8am. It's $180 for the auger service, and we'll quote anything bigger before we touch it. Want the 8am?",
-      time: "8:03 AM",
-      delivered: "delivered",
+        "Hi Marcus, Dale from Reyes Plumbing. From your photo that looks like a main line clog, we can be there tomorrow at 8am. It's $180 for the auger service, and we'll quote anything bigger before touching it. Want the 8am?",
+      time: "9:14 PM",
     },
     {
       id: "pl-in-2",
       kind: "inbound",
-      from: "Marcus T",
       body: "Booked. See you at 8",
-      time: "8:06 AM",
+      time: "9:17 PM",
     },
     {
       id: "pl-event-2",
@@ -73,142 +125,30 @@ export const PLUMBERS_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Landscapers, spring cleanup quote from a yard photo, crews across sites.    */
-/* Distinct jargon: bed edging, mulch yards, mowing rotation.                  */
+/* HVAC: the 6:48 AM no-heat text with a thermostat error photo; the office    */
+/* reads the code, the "bring the capacitor" note rides the van (v2 script).   */
 /* -------------------------------------------------------------------------- */
 
-export const LANDSCAPERS_SCRIPT: ThreadScript = {
-  contact: { name: "The Alvarez house", number: "(905) 555-0164" },
-  finalStatus: "waiting",
-  assignee: "Sofia",
-  beats: [
-    {
-      id: "ls-in-1",
-      kind: "inbound",
-      from: "Diane Alvarez",
-      body:
-        "Winter really did a number on the beds out front. Could you do a spring cleanup and re-mulch? Here's the worst corner.",
-      photo: { label: "Overgrown front beds" },
-      time: "9:12 AM",
-    },
-    {
-      id: "ls-note-1",
-      kind: "note",
-      by: "Marco",
-      body:
-        "That's the Oakridge cul-de-sac. Sofia's crew is three doors down Thursday. Roughly 4 yards of mulch, half a day.",
-      time: "9:20 AM",
-    },
-    {
-      id: "ls-event-1",
-      kind: "event",
-      text: "Marco assigned this conversation to Sofia",
-    },
-    {
-      id: "ls-out-1",
-      kind: "outbound",
-      by: "Sofia",
-      body:
-        "Hi Diane, Sofia from Greenline. From the photo I'd budget a full bed cleanup, fresh edging, and about 4 yards of mulch, $640 all in. My crew is on your street Thursday, so we could fold you in that morning. Sound good?",
-      time: "9:34 AM",
-      delivered: "delivered",
-    },
-    {
-      id: "ls-in-2",
-      kind: "inbound",
-      from: "Diane Alvarez",
-      body: "Thursday's perfect. Can you also quote the mowing for the season while you're here?",
-      time: "9:41 AM",
-    },
-    {
-      id: "ls-event-2",
-      kind: "event",
-      text: "Sofia added the tag Quote sent",
-    },
-  ],
-};
-
-/* -------------------------------------------------------------------------- */
-/* Cleaners, recurring client, gate code / access note, reschedule.           */
-/* Distinct jargon: biweekly, lockbox, turnover, team of two.                  */
-/* -------------------------------------------------------------------------- */
-
-export const CLEANERS_SCRIPT: ThreadScript = {
-  contact: { name: "Nadia K", number: "(437) 555-0178" },
-  finalStatus: "open",
-  assignee: "Rosa",
-  beats: [
-    {
-      id: "cl-in-1",
-      kind: "inbound",
-      from: "Nadia K",
-      body:
-        "Hi! We're out of town for our biweekly Friday clean. Door code is 4-4-8-2, and the dog is in the crate, please don't let him out. Key's in the lockbox if the code acts up.",
-      time: "3:18 PM",
-    },
-    {
-      id: "cl-note-1",
-      kind: "note",
-      by: "Elena",
-      body:
-        "Saving the gate code to her contact so the whole team has it. Rosa, you and Ana have this one Friday",
-      time: "3:22 PM",
-    },
-    {
-      id: "cl-event-1",
-      kind: "event",
-      text: "Elena assigned this conversation to Rosa",
-    },
-    {
-      id: "cl-out-1",
-      kind: "outbound",
-      by: "Rosa",
-      body:
-        "Got it, Nadia, code 4482, dog stays crated, lockbox as backup. Ana and I will be there Friday between 10 and noon and I'll text you when we lock up. Anything you want us to focus on this time?",
-      time: "3:29 PM",
-      delivered: "delivered",
-    },
-    {
-      id: "cl-in-2",
-      kind: "inbound",
-      from: "Nadia K",
-      body: "Just the oven if you have time. Thank you both!",
-      time: "3:35 PM",
-    },
-    {
-      id: "cl-event-2",
-      kind: "event",
-      text: "Rosa added the tag Scheduled",
-    },
-  ],
-};
-
-/* -------------------------------------------------------------------------- */
-/* HVAC, no-heat call in a January cold snap, seasonal triage, maintenance.   */
-/* Distinct jargon: furnace lockout, filter, maintenance plan, blower.         */
-/* -------------------------------------------------------------------------- */
-
-export const HVAC_SCRIPT: ThreadScript = {
+export const HVAC_SCRIPT: TradeScript = {
   contact: { name: "Greg P", number: "(613) 555-0143" },
-  finalStatus: "waiting",
+  status: "waiting",
   assignee: "Tariq",
   beats: [
     {
       id: "hv-in-1",
       kind: "inbound",
-      from: "Greg P",
       body:
-        "Furnace quit overnight and it's -18 out. It's clicking then shutting off, the little light is flashing 3 times. Can someone come today?",
-      photo: { label: "Furnace status light" },
-      time: "6:41 AM",
+        "Furnace's been off since last night and the thermostat is showing E4. It's 12 degrees in the house. Can someone come today?",
+      photoLabel: "Thermostat error E4",
+      time: "6:48 AM",
     },
     {
       id: "hv-note-1",
       kind: "note",
       by: "Dana",
       body:
-        "3 flashes on that model is a pressure-switch / flame lockout. Tariq's van has the induced-draft motor if it's that. Bump him up the cold-snap list.",
-      time: "6:47 AM",
+        "E4 on that model is almost always the blower capacitor. Tariq, bring the capacitor kit and a filter while you're in there",
+      time: "6:52 AM",
     },
     {
       id: "hv-event-1",
@@ -218,18 +158,15 @@ export const HVAC_SCRIPT: ThreadScript = {
     {
       id: "hv-out-1",
       kind: "outbound",
-      by: "Tariq",
       body:
-        "Morning Greg, Tariq from Northline Heating. Three flashes points to a pressure-switch lockout, often a blocked intake or the induced-draft motor. I can be there by 11. Diagnostic is $120 and applies to the repair. In the meantime, keep the thermostat set and don't keep resetting it. Okay to head over?",
-      time: "6:55 AM",
-      delivered: "delivered",
+        "Morning Greg, Tariq from Northline Heating. That error usually points to the blower, and I've got the likely part on the van already. I can be there by 9. The diagnostic is $120 and it applies to the repair. In the meantime, leave the system off rather than resetting it. Okay to head over?",
+      time: "6:57 AM",
     },
     {
       id: "hv-in-2",
       kind: "inbound",
-      from: "Greg P",
-      body: "Yes please, 11 works. We're bundling up till then",
-      time: "6:58 AM",
+      body: "Yes please, 9 works. We're bundling up till then",
+      time: "7:01 AM",
     },
     {
       id: "hv-event-2",
@@ -240,135 +177,209 @@ export const HVAC_SCRIPT: ThreadScript = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Salons, appointment confirmation + a rebook, front desk is one person.     */
-/* Distinct jargon: color consult, root touch-up, stylist, waitlist.          */
+/* Landscapers: 7:15 AM, the crew is at a locked gate; the code request turns  */
+/* into a back-beds upsell (v2 script).                                        */
 /* -------------------------------------------------------------------------- */
 
-export const SALONS_SCRIPT: ThreadScript = {
-  contact: { name: "Bri L", number: "(416) 555-0192" },
-  finalStatus: "open",
-  assignee: "Jess",
+export const LANDSCAPERS_SCRIPT: TradeScript = {
+  contact: { name: "Diane Alvarez", number: "(905) 555-0164" },
+  status: "open",
+  assignee: "Sofia",
   beats: [
     {
-      id: "sa-in-1",
-      kind: "inbound",
-      from: "Bri L",
-      body:
-        "Hi! Confirming my color appointment Saturday. Also. I'd love to go a few shades lighter than last time, is that something we can talk through first?",
-      photo: { label: "Hair color inspo" },
-      time: "1:04 PM",
-    },
-    {
-      id: "sa-note-1",
-      kind: "note",
-      by: "Priya",
-      body:
-        "Bri's booked with Jess 2pm Sat. Big lift from her current level, flag it so Jess adds time and a bond treatment.",
-      time: "1:08 PM",
-    },
-    {
-      id: "sa-event-1",
-      kind: "event",
-      text: "Priya assigned this conversation to Jess",
-    },
-    {
-      id: "sa-out-1",
+      id: "ls-out-1",
       kind: "outbound",
-      by: "Jess",
       body:
-        "Hi Bri! You're confirmed for Saturday at 2 with me. That inspo is a bigger lift from where we are now, so I'll block extra time and add a bond treatment to keep it healthy, it'll run a little more than a root touch-up. Want me to text you the updated total before Saturday?",
-      time: "1:15 PM",
-      delivered: "delivered",
+        "Morning Diane, it's Greenline. The crew's at your side gate for the mowing and it's locked. Is there a code we should use?",
+      time: "7:15 AM",
     },
     {
-      id: "sa-in-2",
+      id: "ls-in-1",
       kind: "inbound",
-      from: "Bri L",
-      body: "Yes please! And thank you for the heads up on the price",
-      time: "1:19 PM",
+      body:
+        "So sorry! Code is 2580. While they're there, could you add the back beds this week? They're getting away from us.",
+      time: "7:19 AM",
     },
     {
-      id: "sa-event-2",
+      id: "ls-note-1",
+      kind: "note",
+      by: "Marco",
+      body:
+        "Saving 2580 to her contact so nobody's stuck at that gate again. Sofia, walk the back beds after the mow and price the cleanup",
+      time: "7:22 AM",
+    },
+    {
+      id: "ls-event-1",
       kind: "event",
-      text: "Jess added the tag Scheduled",
+      text: "Marco assigned this conversation to Sofia",
+    },
+    {
+      id: "ls-out-2",
+      kind: "outbound",
+      body:
+        "We're in, thanks Diane. I'll look at the back beds once the mowing's done and text you a price this afternoon. If it works for you, we can fold the cleanup into Thursday's visit.",
+      time: "7:26 AM",
+    },
+    {
+      id: "ls-event-2",
+      kind: "event",
+      text: "Sofia added the tag Quote sent",
     },
   ],
 };
 
 /* -------------------------------------------------------------------------- */
-/* Contractors, the builder-sends-address-and-paint-color scenario, made      */
-/* concrete via D14 mark-done: EACH text is a task the crew works through and  */
-/* checks off in the thread (DECISIONS D14, the message IS the task; NO jobs  */
-/* feature). Distinct jargon: GC, subs, change order, punch list.              */
-/*                                                                            */
-/* `done` beats carry the D14 done state (line-through + petrol check badge),  */
-/* rendered by the trades-owned <TradeThread> done wrapper.                     */
+/* Cleaners: 5:56 PM, new access instructions (key under the mat) plus a       */
+/* Friday-to-Monday reschedule (v2 script).                                    */
 /* -------------------------------------------------------------------------- */
 
-export const CONTRACTORS_SCRIPT: ThreadScript = {
-  contact: { name: "Ben (GC)", number: "(289) 555-0137" },
-  finalStatus: "open",
-  assignee: "Luis",
+export const CLEANERS_SCRIPT: TradeScript = {
+  contact: { name: "Nadia K", number: "(437) 555-0178" },
+  status: "waiting",
+  assignee: "Rosa",
+  beats: [
+    {
+      id: "cl-in-1",
+      kind: "inbound",
+      body:
+        "Hi! We're away Friday, so the key will be under the mat, the door code stopped working. And could we move Friday's clean to Monday instead?",
+      time: "5:56 PM",
+    },
+    {
+      id: "cl-note-1",
+      kind: "note",
+      by: "Elena",
+      body:
+        "Saving the key note to her contact. Rosa, your Friday just opened up. Can you and Ana take her Monday between 10 and noon?",
+      time: "6:03 PM",
+    },
+    {
+      id: "cl-event-1",
+      kind: "event",
+      text: "Elena assigned this conversation to Rosa",
+    },
+    {
+      id: "cl-out-1",
+      kind: "outbound",
+      body:
+        "Hi Nadia, Monday's no problem. Ana and I will be there between 10 and noon, key under the mat, and we'll lock up and text you when we're done. Anything you want us to focus on this visit?",
+      time: "6:10 PM",
+    },
+    {
+      id: "cl-in-2",
+      kind: "inbound",
+      body: "Perfect. Just the oven if you have time. Thank you!",
+      time: "6:14 PM",
+    },
+    {
+      id: "cl-event-2",
+      kind: "event",
+      text: "Rosa added the tag Scheduled",
+    },
+  ],
+};
+
+/* -------------------------------------------------------------------------- */
+/* Salons: 11:20 AM, the running-late text, rescued between stylists           */
+/* (v2 script: the reschedule is handled by whoever is free).                  */
+/* -------------------------------------------------------------------------- */
+
+export const SALONS_SCRIPT: TradeScript = {
+  contact: { name: "Bri L", number: "(416) 555-0192" },
+  status: "open",
+  assignee: "Maya",
+  beats: [
+    {
+      id: "sa-in-1",
+      kind: "inbound",
+      body:
+        "So sorry, I'm stuck at work and running about 30 minutes late for my 11:30 color with Jess. Should I still come in?",
+      time: "11:20 AM",
+    },
+    {
+      id: "sa-note-1",
+      kind: "note",
+      by: "Renee",
+      body:
+        "Jess has a cut at 12:30, she can't absorb 30 minutes. Maya's open from noon and has done Bri's color before",
+      time: "11:22 AM",
+    },
+    {
+      id: "sa-event-1",
+      kind: "event",
+      text: "Renee assigned this conversation to Maya",
+    },
+    {
+      id: "sa-out-1",
+      kind: "outbound",
+      body:
+        "Hi Bri, no stress, it's Maya. Jess is booked right after you, so I'll take your color at noon instead. Same service, same price, and I've got the notes from your last visit. See you at 12?",
+      time: "11:24 AM",
+    },
+    {
+      id: "sa-in-2",
+      kind: "inbound",
+      body: "You're a lifesaver. See you at 12!",
+      time: "11:26 AM",
+    },
+    {
+      id: "sa-event-2",
+      kind: "event",
+      text: "Maya added the tag Scheduled",
+    },
+  ],
+};
+
+/* -------------------------------------------------------------------------- */
+/* Contractors: 8:02 AM, a homeowner change request filed against the job,     */
+/* assigned, priced, and approved in writing (v2 script). The original         */
+/* request carries the app's D14 done state once it's been written up.        */
+/* -------------------------------------------------------------------------- */
+
+export const CONTRACTORS_SCRIPT: TradeScript = {
+  contact: { name: "Karen H", number: "(289) 555-0137" },
+  status: "open",
+  assignee: "Omar",
   beats: [
     {
       id: "co-in-1",
       kind: "inbound",
-      from: "Ben (GC)",
       body:
-        "Crew's starting the Riverside unit tomorrow. Address is 214 Riverside, lockbox 7-1-9-0. Powder room and hall get Chantilly Lace, primary bedroom is Hale Navy, two coats.",
-      time: "4:02 PM",
+        "Morning! We slept on it and we'd like the island in the walnut butcher block after all, not the laminate. Is it too late to change?",
+      time: "8:02 AM",
     },
     {
       id: "co-note-1",
       kind: "note",
       by: "Luis",
       body:
-        "Marking Ben's address + paint text done once I've read it out to the crew and loaded the paint. Change orders go through me, not the client.",
-      time: "4:10 PM",
+        "That's the Fairview kitchen. Filing this against the job before it gets buried. Counters don't template until Thursday, so we're inside the window",
+      time: "8:06 AM",
+    },
+    {
+      id: "co-event-1",
+      kind: "event",
+      text: "Luis assigned this conversation to Omar",
     },
     {
       id: "co-out-1",
       kind: "outbound",
-      by: "Luis",
       body:
-        "Got it Ben, 214 Riverside, code 7190, Chantilly Lace in the powder room and hall, Hale Navy two coats in the primary. I'll have the crew there at 7. I'll text you a photo once the primary's cut in.",
-      time: "4:16 PM",
-      delivered: "delivered",
+        "Hi Karen, not too late. Walnut butcher block for the island adds $840 and two days to the counter schedule. Reply approved and I'll write it up as a change order so it's on the record before Thursday's template.",
+      time: "8:11 AM",
     },
     {
       id: "co-in-2",
       kind: "inbound",
-      from: "Ben (GC)",
-      body:
-        "One change, client wants the hall in Hale Navy too now, not Chantilly. Can you price the extra coat?",
-      time: "8:47 AM",
+      body: "Approved! Thank you for making that painless",
+      time: "8:15 AM",
     },
     {
-      id: "co-out-2",
-      kind: "outbound",
-      by: "Luis",
-      body:
-        "No problem. Hall in Hale Navy instead is an extra $140 for the color switch and second coat. Say the word and I'll write it up as a change order.",
-      time: "8:52 AM",
-      delivered: "delivered",
+      id: "co-event-2",
+      kind: "event",
+      text: "Omar added the tag Won",
     },
   ],
-};
-
-/**
- * The done-marked beat ids for the contractors thread (D14). The trades-owned
- * <TradeThread> renders these two with strikethrough + the petrol check badge:
- * the address/paint spec is done (crew briefed, paint loaded) and Luis's
- * confirmation is done. The live change-order turn is left open, a new task,
- * not yet worked through, so the reader sees the thread as a working task list.
- */
-export const CONTRACTORS_DONE_IDS: readonly string[] = ["co-in-1", "co-out-1"];
-
-/**
- * The D14 done-badge tooltip/label text per done beat, so the marketing
- * illustration reads like the app's real "Done · Sam · 2:14 PM" badge.
- */
-export const CONTRACTORS_DONE_LABELS: Record<string, string> = {
-  "co-in-1": "Done · Luis · 4:12 PM",
-  "co-out-1": "Done · Luis · 4:18 PM",
+  doneIds: ["co-in-1"],
+  doneLabels: { "co-in-1": "Done · Omar · 8:16 AM" },
 };

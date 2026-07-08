@@ -1,29 +1,20 @@
 /**
- * /for/salons (trades track). BLUEPRINT §5. Angle: front desk is one person,
- * no-shows, appointment confirmations, waitlist fills, rebooking. Honesty guard
- * (§5): confirmations and waitlist fills are things you SEND (manual, fast with
- * saved replies), never "automated reminders." Zero shared sentences with any
- * other trade page. Own metadata + BreadcrumbList JSON-LD. Static (§11.4).
+ * /for/salons (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2 §/for/salons:
+ * dateline 11:20 AM · RUNNING LATE, H1 "The text inbox for your front desk,
+ * even if you don't have one.", pain H2 about the empty chair and the
+ * running-late text on a personal phone, the reschedule-between-stylists
+ * script, and the v2 use cases (confirmations, waitlist fills, aftercare
+ * follow-ups). Honesty guards: confirmations and waitlist fills are things
+ * you SEND (fast, with saved replies), never "automated"; and NO booking
+ * integration claims anywhere (Loonext is texting only). Fully static; own
+ * metadata + BreadcrumbList JSON-LD.
  */
 
 import type { Metadata } from "next";
-import {
-  CalendarHeart,
-  CalendarX,
-  Clock,
-  Image as ImageIcon,
-  ListChecks,
-  Scissors,
-  Sparkles,
-  Users,
-} from "lucide-react";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
-import { TradeGraphic, TradePhoto } from "@/components/marketing/trades/trade-graphic";
-import { Display } from "@/components/marketing/display";
-import { Photo } from "@/components/marketing/photo";
 import { SALONS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
@@ -32,7 +23,7 @@ const PATH = "/for/salons";
 export const metadata: Metadata = buildMetadata({
   title: "Text messaging for salons and barbershops",
   description:
-    "A shared text inbox for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and rebook clients. Flat $29/mo.",
+    "A shared text inbox for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and follow up after the visit. Flat $29/mo.",
   path: PATH,
 });
 
@@ -40,144 +31,116 @@ const CONTENT: TradeContent = {
   slug: "salons",
   displayName: "Salons",
 
-  eyebrow: "Business texting for salons and barbershops",
-  h1: (
-    <>
-      The cancellation you can still fill, now{" "}
-      <Display.Mark>caught</Display.Mark>.
-    </>
-  ),
+  dateline: "11:20 AM · RUNNING LATE",
+  h1: "The text inbox for your front desk, even if you don't have one.",
   heroSub:
-    "A no-show is an empty chair you can't get back, and a cancellation is only a loss if you can't fill it. Loonext gives the front desk and every stylist one number to confirm appointments, work a waitlist, and rebook, so the chairs stay full and the “did they confirm?” guesswork ends.",
-  heroTruthLine:
-    "One number for the whole floor. Live in minutes. Month to month.",
-  heroPhotoId: "owner-counter-phone",
-  heroPhotoCaption: "Waitlist fill, caught",
+    "A running-late text only helps if somebody sees it before the chair sits empty. Loonext gives the whole floor one number, so confirmations, reschedules, and waitlist fills get handled by whoever's free, not whoever's phone it landed on. $29 a month for the whole salon.",
+  heroTruth:
+    "One number for the whole floor · Live in minutes · Month to month",
 
-  painH2: "An empty chair is money you can't earn back. A confirmation is cheap.",
+  painH2:
+    "The chair is empty and the “running late” text is on someone's personal phone.",
   painBody: [
-    "At a busy salon, the front desk is one person, and that person can't be answering the phone, checking someone out, and confirming tomorrow's column all at once. So confirmations slip, a client forgets, and at 2pm a stylist is standing at an empty chair that was booked solid a week ago. That gap is pure lost revenue, and it happens on the days you can least afford it.",
-    "Cancellations aren't the problem; unfilled cancellations are. When a 3pm color cancels, there's almost always someone on a waitlist who'd take it, if you can reach them in the next ten minutes. Loonext puts the whole floor on one inbox: confirm the day's appointments with a couple of taps, text the waitlist the moment a slot opens, and rebook a client before they've left the chair.",
+    "At a busy salon the front desk is one person, if it's anyone at all. That person can't answer the phone, check someone out, and confirm tomorrow's column all at once. So confirmations slip, a client forgets, and at 2pm a stylist is standing at an empty chair that was booked solid a week ago.",
+    "Cancellations aren't the problem; unfilled ones are. When a 3pm color cancels, there's almost always someone who'd take it, if you can reach them in the next ten minutes. With the whole floor on one inbox, the running-late text gets seen in time, the slot gets offered, and the day stays full no matter who's at the desk.",
   ],
-  painVisual: (
-    <TradePhoto
-      photoId="salon-stylist"
-      caption="A stylist can't work the chair and chase confirmations at once. The whole floor shares one inbox, so the schedule stays full."
-    />
-  ),
 
-  threadH2: "A color appointment, confirmed and leveled-up.",
+  threadH2: "A running-late text, rescued between stylists.",
   threadLede:
-    "A client texts to confirm Saturday and mentions she wants to go lighter. The desk flags the bigger lift for her stylist, who blocks extra time, adds a bond treatment, and sets the price expectation up front, so Saturday runs on schedule and there's no sticker shock at the chair.",
+    "A client texts at 11:20 that she's 30 minutes late for her 11:30 color. The desk sees Jess can't absorb it, hands the appointment to Maya, and the client walks in at noon to the same service at the same price, instead of a cancelled slot.",
   script: SALONS_SCRIPT,
-  supportingGraphic: (
-    <TradeGraphic
-      caption="One number for the whole floor, the front desk and every stylist see the same conversations, so a confirmation never depends on who's at the desk."
-    >
-      <Photo
-        id="salon-cut"
-        className="overflow-hidden rounded-xl"
-        imgClassName="aspect-[4/3] object-cover"
-        sizes="(min-width: 1024px) 28rem, 100vw"
-      />
-    </TradeGraphic>
-  ),
+  threadAriaLabel:
+    "A salon conversation: a client running 30 minutes late at 11:20 AM, moved from Jess to Maya so the color still happens at noon",
 
   useCasesH2: "Where texting earns its keep in a salon.",
   useCases: [
     {
-      icon: CalendarX,
       title: "Confirm appointments to cut no-shows.",
-      body: "The day before, send each client a quick “confirming your 2pm with Jess tomorrow” with a saved reply. A client who taps back “yes” is a client who shows, and the whole team can see who's confirmed and who to chase, so it's not all on the front desk.",
+      body: "The day before, text each client a quick “confirming your 2pm with Jess tomorrow” with a saved reply. A client who taps back yes is a client who shows, and the whole team sees who still needs a nudge.",
     },
     {
-      icon: Clock,
       title: "Fill a cancellation from the waitlist.",
-      body: "A 3pm cancels; you text the two people who wanted that window and give it to whoever answers first. You're not automating a blast, you're sending a real, personal text in seconds, and turning a hole in the day back into revenue.",
+      body: "A 3pm cancels; you text the two people who wanted that window and give it to whoever answers first. A personal, one-to-one text sent in seconds turns a hole in the day back into revenue.",
     },
     {
-      icon: CalendarHeart,
-      title: "Rebook before they leave the chair.",
-      body: "The best time to book the next visit is right after this one. A quick “want me to hold your usual slot in six weeks?” by text, from the shared number, keeps regulars on the calendar without the front desk playing phone tag.",
+      title: "Aftercare follow-ups that bring them back.",
+      body: "Two days after a big color, a quick “how's it feeling? remember the sulfate-free wash” keeps the result good and the client loyal, and it's two taps with a saved reply.",
     },
     {
-      icon: ImageIcon,
       title: "Talk through the look before the appointment.",
-      body: "Clients text inspo photos ahead of a color or cut. The stylist sees it in the thread, flags a bigger-than-expected change, and sets time and price up front, fewer surprises in the chair, happier clients out the door.",
+      body: "Clients text inspo photos ahead of a color or cut. The stylist sees them in the thread, blocks the right amount of time, and sets the price expectation up front. No sticker shock at the chair.",
     },
   ],
 
   savedRepliesH2: "Six texts every salon sends. Steal these.",
   savedRepliesIntro:
-    "Ready-to-edit saved replies for salons and barbershops, the confirmation, the waitlist offer, the rebook nudge, in a warm, on-brand voice your clients will recognize.",
+    "Six saved replies worth setting up on day one: the confirmation, the waitlist offer, the aftercare check-in, in a warm voice your clients will recognize. Save each one once and it's two taps forever.",
   savedReplies: [
     {
       name: "Appointment confirmation",
-      text: "Hi {name}! Confirming your {service} with {stylist} tomorrow at {time}. Reply YES to confirm, or let us know if you need to change it. Can't wait to see you!",
+      text: "Hi {first_name}! Confirming your appointment tomorrow at 2pm. Reply YES to confirm, or let us know if you need to change it.",
     },
     {
       name: "Waitlist offer",
-      text: "Good news, a {time} spot with {stylist} just opened up {day}. Want it? First to reply gets it. Let me know and I'll lock it in.",
+      text: "Good news, {first_name}: a 3pm spot just opened up tomorrow. Want it? First to reply gets it, and I'll lock it in.",
     },
     {
-      name: "Rebook reminder",
-      text: "It's been about six weeks, want me to book your next {service} with {stylist}? I can hold your usual day and time. Just reply and you're set.",
+      name: "Aftercare check-in",
+      text: "Hi {first_name}! Checking in on your color from last week. If anything feels off, text me here and we'll sort it. Remember the sulfate-free wash for the first week!",
     },
     {
       name: "Running behind",
-      text: "So sorry, {stylist} is running about 15 minutes behind. No need to rush over, we'll text you the moment we're ready for you.",
+      text: "So sorry, we're running about 15 minutes behind. No need to rush over; we'll text you the moment your chair is ready.",
     },
     {
       name: "Consult ask",
-      text: "Love that look! Before your appointment, could you text a photo or two so {stylist} can plan the time and give you an accurate price? It helps us give you exactly what you want.",
+      text: "Love that idea! Before your appointment, could you text a photo or two of the look? It helps us plan the time and give you an accurate price.",
     },
     {
       name: "Thank you + review",
-      text: "Thank you for coming in today! If you loved your {service}, a quick review really helps our little salon: {link}. See you next time!",
+      text: "Thank you for coming in today, {first_name}! If you loved the result, a quick review really helps our little salon.",
     },
   ],
+  savedRepliesCaption:
+    "The salon pack in the composer: tomorrow's column gets confirmed between clients.",
 
   featuresH2: "Built for how a salon actually runs.",
   features: [
     {
-      icon: Users,
       title: "The whole floor, one number.",
-      body: "Front desk and every stylist see the same conversations, so a confirmation or a waitlist fill doesn't depend on who's standing at the desk.",
+      body: "The front desk and every stylist see the same conversations, so a confirmation or a waitlist fill doesn't depend on who's standing at the desk.",
     },
     {
-      icon: Scissors,
       title: "Assign a client to their stylist.",
       body: "Each conversation has one owner, so the color question reaches the colorist and nothing gets answered twice or not at all.",
     },
     {
-      icon: Sparkles,
       title: "Notes only the team sees.",
-      body: "“Sensitive scalp, always books the 2pm, big lift last time”, internal notes on the client that never get sent as a text.",
+      body: "“Sensitive scalp, always books the 2pm, big lift last time.” Internal notes on the client that never get sent as a text.",
     },
     {
-      icon: ListChecks,
       title: "No app, no learning curve.",
-      body: "It works like texting on the phone your team already carries, open a link and you're in. Push notifications when a client replies to a confirmation.",
+      body: "It works like texting on the phone your team already carries. Open a link and you're in, with push notifications when a client replies.",
     },
   ],
 
   pricingH2: "$29 a month for the whole salon.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and 500 texts a month, enough to confirm a full book and work a waitlist (a plain confirmation is one text; the composer shows the count as you type). More chairs, or a second location? Pro is $79 for up to 10 people and gives you a second number to keep two shops separate. Month to month, receiving always free, and for US salons a one-time $29 to register with the phone companies, so it's $58 your first month, then $29 every month after.",
+    "Starter covers 3 people, 1 local number, and 500 texts a month, enough to confirm a full book and work a waitlist; a plain confirmation counts as one, and the composer shows the count before you send. More chairs, or a second location? Pro is $79 for up to 10 people and a second number to keep two shops separate.",
 
   faqH2: "Salon questions, straight answers.",
   faqs: [
     {
       q: "Will Loonext send appointment reminders on its own?",
-      a: "No, you send them, and that's on purpose. Pull up tomorrow's column and text each client a confirmation with a saved reply; it takes a couple of taps per client and keeps a real person in the loop (the phone companies don't allow unsolicited blasts, and we won't fake “automated”). What you get is one shared inbox where the whole team sees who's confirmed and who hasn't.",
+      a: "No. You send them, and that's on purpose. Pull up tomorrow's column and text each client a confirmation with a saved reply; it takes a couple of taps per client, keeps a real person in the loop, and stays inside the phone companies' rules on unsolicited blasts. What you get is one shared inbox where the whole team sees who's confirmed and who hasn't.",
     },
     {
       q: "How does texting actually reduce no-shows?",
-      a: "A client who's tapped “yes” to a confirmation is far more likely to show than one who booked a week ago and forgot. Because the confirmations live in a shared inbox, anyone on the team can send them and see who still needs a nudge, it doesn't all fall on the front desk on a busy morning.",
+      a: "A client who's tapped yes to a confirmation is far more likely to show than one who booked a week ago and forgot. Because the confirmations live in a shared inbox, anyone on the team can send them and see who still needs a nudge. It doesn't all fall on the front desk on a busy morning.",
     },
     {
       q: "Can we fill a last-minute cancellation from a waitlist?",
-      a: "Yes, that's one of the best uses. When a slot opens, text the clients who wanted that window and give it to whoever replies first. It's a personal, one-to-one text sent in seconds, not an automated blast, so it stays warm and stays compliant.",
+      a: "Yes, that's one of the best uses. When a slot opens, text the clients who wanted that window and give it to whoever replies first. It's a personal, one-to-one text sent in seconds, not an automated blast, so it stays warm and stays inside the rules.",
     },
     {
       q: "Every stylist has their own clients. Can they each see their own?",
@@ -185,7 +148,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "Do confirmation texts eat up our 500?",
-      a: "A plain confirmation counts as one text, so 500 covers a lot of “see you tomorrow” messages; the composer shows the count before you send. Go over on a big week and it's 3¢ each up to a cap you control, no surprise bill.",
+      a: "A plain confirmation counts as one text, so 500 covers a lot of “see you tomorrow” messages, and the composer shows the count before you send. Go over on a big week and it's 3¢ each up to a cap you control. No surprise bill.",
     },
     {
       q: "What does it take to get our salon set up to text?",
@@ -195,7 +158,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Keep the chairs full.",
   finalSub:
-    "Confirm appointments, fill cancellations from your waitlist, and rebook, all from one number the whole floor shares. Live in minutes.",
+    "Confirm appointments, fill cancellations from the waitlist, and follow up after the big color, all from one number the whole floor shares. Live in minutes.",
 };
 
 export default function SalonsPage() {
@@ -204,7 +167,6 @@ export default function SalonsPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Who it's for", path: "/#trades" },
           { name: "Salons", path: PATH },
         ])}
       />

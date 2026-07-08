@@ -1,27 +1,29 @@
 "use client";
 
 /**
- * Crew-size slider (Track B), §3.9 / COPY §H9. THE converting interaction
- * (BLUEPRINT §0 weapon #1, panel resolution: this replaces the missed-text
- * calculator as the home page's flagship interactive).
+ * Crew-size slider, v4 "FIRST RESPONSE" (DESIGN-DIRECTION §6 COMPARE/PRICING;
+ * COPY-DECK v2 §S9). Drag 1 to 10 people and watch a typical per-user tool's
+ * line climb past Loonext's flat line.
  *
- * Drag 1→10 people; watch a typical per-user tool's line climb past Loonext's
- * flat line. The per-user figure is REAL, labeled, and dated: Quo's published
- * monthly Starter seat price is $19/user/mo as of July 2026
- * (docs/marketing/competitor-site-teardowns.md line 129–130); Quo also bills
- * texting separately ($0.01/segment) and charges $5/mo per extra number, so the
- * comparison is conservative in Loonext's favor. Links /compare/quo for the
- * sourced math (§13.7, no bare unverified competitor number).
+ * Color law: the Loonext flat line is COBALT (§2, named cobalt use); the
+ * rival's climbing line is FLARE (whitelist §3.4.5, a non-text mark). The
+ * figures themselves are mono ink (the mono law, §3); Flare never carries
+ * text below 24px bold.
  *
- * Loonext plan follows SPEC §2: ≤3 people = Starter $29, 4–10 = Pro $79, both
- * flat, whatever the crew size. Keyboard-accessible, tabular numerals, aria-live.
+ * The per-user figure is REAL, labeled, and dated: a leading tool's published
+ * monthly Starter seat price, $19/user/mo as of July 2026, sourced in full on
+ * /compare/quo (that tool also bills texting separately, so the comparison is
+ * conservative in Loonext's favor). Loonext follows SPEC §2: up to 3 people =
+ * Starter $29, 4 to 10 = Pro $79, both flat.
+ *
+ * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
 
 import { useId, useState } from "react";
 
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-/** Quo published monthly Starter seat price, July 2026 (teardown line 129). */
+/** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 const PER_USER_MONTHLY = 19;
 
 function loonextPrice(seats: number): { plan: "Starter" | "Pro"; price: number } {
@@ -48,13 +50,13 @@ export function CrewSizeSlider() {
   const perUserWidth = Math.max(6, (perUser / maxPerUser) * 100);
 
   return (
-    <div className="rounded-[10px] border border-[color:var(--hairline)] bg-white p-6 shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]">
+    <div className="fr-card p-6">
       <label
         htmlFor={sliderId}
-        className="flex items-baseline justify-between text-[14px] font-medium text-[color:var(--day-ink)]"
+        className="flex items-baseline justify-between text-[0.875rem] font-semibold text-[color:var(--fr-ink)]"
       >
         <span>People on your crew</span>
-        <span className="text-2xl font-semibold tabular-nums text-[color:var(--petrol)]">
+        <span className="fr-mono-data text-2xl text-[color:var(--fr-ink)]">
           {seats}
         </span>
       </label>
@@ -67,53 +69,53 @@ export function CrewSizeSlider() {
         value={seats}
         onChange={(e) => setSeats(Number(e.target.value))}
         aria-valuetext={`${seats} ${seats === 1 ? "person" : "people"}`}
-        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[rgba(11,43,38,0.06)] accent-[color:var(--petrol)]"
+        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
       />
-      <div className="mt-1 flex justify-between text-[11px] tabular-nums text-[color:var(--ink-55)]">
+      <div className="fr-mono-data mt-1 flex justify-between text-[0.6875rem] text-[color:var(--fr-ink-55)]">
         <span>1</span>
         <span>10</span>
       </div>
 
       <div className="mt-6 space-y-4" aria-live="polite">
-        {/* Loonext, flat line */}
+        {/* Loonext: the cobalt flat line. */}
         <div>
-          <div className="flex items-baseline justify-between text-[14px]">
-            <span className="font-medium text-[color:var(--day-ink)]">
+          <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
+            <span className="font-medium text-[color:var(--fr-ink)]">
               Loonext {loonext.plan}
             </span>
-            <span className="tabular-nums">
-              <span className="font-semibold text-[color:var(--petrol)]">
-                {usd(loonext.price)}
+            <span className="whitespace-nowrap">
+              <span className="fr-mono-data text-[color:var(--fr-ink)]">
+                {usd(loonext.price)}/mo
               </span>
-              <span className="text-[color:var(--ink-55)]">/mo, flat</span>
+              <span className="text-[color:var(--fr-ink-55)]">, flat</span>
             </span>
           </div>
-          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[rgba(11,43,38,0.06)]">
+          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
             <div
-              className="h-full rounded-full bg-[color:var(--petrol)] transition-[width] duration-200 ease-out"
+              className="h-full rounded-full bg-[color:var(--fr-cobalt)] transition-[width] duration-200 ease-out"
               style={{ width: `${loonextWidth}%` }}
             />
           </div>
         </div>
 
-        {/* Per-user, climbing line */}
+        {/* The rival: the Flare climbing line (§3.4.5, non-text mark). */}
         <div>
-          <div className="flex items-baseline justify-between text-[14px]">
-            <span className="font-medium text-[color:var(--day-ink)]">
-              Typical per-user tool
+          <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
+            <span className="font-medium text-[color:var(--fr-ink)]">
+              Typical per-user tool at {usd(PER_USER_MONTHLY)}/user/mo
             </span>
-            <span className="tabular-nums">
-              <span className="font-semibold text-[color:var(--ink)]">
-                {usd(perUser)}
+            <span className="whitespace-nowrap">
+              <span className="fr-mono-data text-[color:var(--fr-ink)]">
+                {usd(perUser)}/mo
               </span>
-              <span className="text-[color:var(--ink-55)]">
-                /mo{seats > 1 ? ", and climbing" : ""}
+              <span className="text-[color:var(--fr-ink-55)]">
+                {seats > 1 ? ", and climbing" : ""}
               </span>
             </span>
           </div>
-          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[rgba(11,43,38,0.06)]">
+          <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
             <div
-              className="h-full rounded-full bg-[color:var(--ink-55)] transition-[width] duration-200 ease-out"
+              className="h-full rounded-full bg-[color:var(--fr-flare)] transition-[width] duration-200 ease-out"
               style={{ width: `${perUserWidth}%` }}
             />
           </div>
@@ -121,9 +123,9 @@ export function CrewSizeSlider() {
       </div>
 
       {savings > 0 && (
-        <p className="mt-5 text-[15px] text-[color:var(--day-ink)]">
+        <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
           At {seats} people, that&apos;s{" "}
-          <span className="font-semibold tabular-nums text-[color:var(--petrol)]">
+          <span className="fr-mono-data text-[color:var(--fr-ink)]">
             {usd(savings)} less a month
           </span>{" "}
           with Loonext, {usd(loonext.price)} flat instead of {seats} ×{" "}
@@ -131,24 +133,23 @@ export function CrewSizeSlider() {
         </p>
       )}
 
-      {/* Every interactive ends in a conversion nudge (CONVERSION §5). */}
       <a
         href="/signup"
-        className="mt-4 inline-flex items-center gap-1 text-[15px] font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
+        className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
       >
         Start for {usd(loonext.price)} flat →
       </a>
 
-      <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--ink-70)]">
-        Per-user figure is a leading tool&apos;s published monthly seat price
-        (${PER_USER_MONTHLY}/user/mo) as of July 2026, and that tool bills
-        texting separately, so real totals run higher.{" "}
-        {/* The dated per-user figure is sourced in full on the Quo comparison. */}
+      <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+        The $19/user figure is the published monthly Starter seat price of a
+        leading per-user business-texting tool as of July 2026 (that tool bills
+        texting separately, so real totals run higher). See the named, sourced
+        math on{" "}
         <a
           href={LIVE_ROUTES.compareQuo}
-          className="font-medium text-[color:var(--petrol)] underline-offset-2 hover:underline"
+          className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
         >
-          See the sourced math
+          our comparison pages
         </a>
         .
       </p>

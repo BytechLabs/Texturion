@@ -19,29 +19,29 @@ export const metadata: Metadata = buildMetadata({
 });
 
 const sections = [
-  { id: "agreement", heading: "1. The agreement" },
-  { id: "eligibility", heading: "2. Who can sign up" },
-  { id: "subscription", heading: "3. Subscription & billing" },
-  { id: "numbers", heading: "4. Your phone number" },
-  { id: "acceptable-use", heading: "5. Acceptable use" },
-  { id: "cancellation", heading: "6. Cancellation & number hold" },
-  { id: "guarantee", heading: "7. 30-day money-back guarantee" },
-  { id: "availability", heading: "8. Availability & changes" },
-  { id: "liability", heading: "9. Liability" },
-  { id: "contact", heading: "10. Contact" },
+  { id: "agreement", number: "1", heading: "The agreement" },
+  { id: "eligibility", number: "2", heading: "Who can sign up" },
+  { id: "subscription", number: "3", heading: "Subscription and billing" },
+  { id: "numbers", number: "4", heading: "Your phone number" },
+  { id: "acceptable-use", number: "5", heading: "Acceptable use" },
+  { id: "cancellation", number: "6", heading: "Cancellation and number hold" },
+  { id: "guarantee", number: "7", heading: "30-day money-back guarantee" },
+  { id: "availability", number: "8", heading: "Availability and changes" },
+  { id: "liability", number: "9", heading: "Liability" },
+  { id: "contact", number: "10", heading: "Contact" },
 ];
 
 export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of service"
-      intro="These terms cover your use of Loonext, the shared text inbox for service crews. We keep them short and plain, the way we keep everything about Loonext."
+      summary="Loonext is a month-to-month subscription with no annual contract: cancel anytime from your billing settings, and we hold your number for 30 days in case you come back. Your first 30 days carry a full money-back guarantee, registration fee included. Text only people who have agreed to hear from you. That is most of what follows."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Terms of service"
       path={PATH}
       sections={sections}
     >
-      <LegalSectionBlock id="agreement" heading="1. The agreement">
+      <LegalSectionBlock id="agreement" number="1" heading="The agreement">
         <p>
           By creating a Loonext account or using the service, you agree to these
           terms on behalf of your business. If you don&apos;t agree, don&apos;t
@@ -51,7 +51,7 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="eligibility" heading="2. Who can sign up">
+      <LegalSectionBlock id="eligibility" number="2" heading="Who can sign up">
         <p>
           Loonext is built for businesses in the United States and Canada that
           text their own customers. You must be able to enter into a contract,
@@ -62,7 +62,11 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="subscription" heading="3. Subscription & billing">
+      <LegalSectionBlock
+        id="subscription"
+        number="3"
+        heading="Subscription and billing"
+      >
         <p>
           Loonext is a paid, month-to-month subscription. There is no annual
           contract and nothing auto-converts from a trial, there is no trial
@@ -86,25 +90,29 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="numbers" heading="4. Your phone number">
+      <LegalSectionBlock id="numbers" number="4" heading="Your phone number">
         <p>
           The local number Loonext provisions belongs to your business account
           while your subscription is active. You can send to Canadian numbers as
           soon as the number is live; sending to US numbers turns on after the
-          phone companies approve your registration (typically 3–7 business
+          phone companies approve your registration (typically 3 to 7 business
           days). Receiving texts works right away.
         </p>
         <p>
           You can bring your existing US or Canadian number to Loonext instead
           of getting a new one, the transfer is free. Your number keeps working
           on your current carrier the whole time and switches to Loonext on the
-          transfer date, which typically takes about 1–7 business days. Texting
-          through Loonext turns on once the transfer completes. We show you where
-          the transfer is at every step.
+          transfer date, which typically takes about 1 to 7 business days.
+          Texting through Loonext turns on once the transfer completes. We show
+          you where the transfer is at every step.
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="acceptable-use" heading="5. Acceptable use">
+      <LegalSectionBlock
+        id="acceptable-use"
+        number="5"
+        heading="Acceptable use"
+      >
         <p>
           Your use of Loonext is subject to our{" "}
           <LegalLink href="/legal/aup">acceptable use policy</LegalLink>. In
@@ -116,7 +124,11 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="cancellation" heading="6. Cancellation & number hold">
+      <LegalSectionBlock
+        id="cancellation"
+        number="6"
+        heading="Cancellation and number hold"
+      >
         <p>
           You can cancel anytime from your billing settings, no phone call, no
           retention chat. Cancellation stops the next renewal; you keep access
@@ -130,16 +142,26 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="guarantee" heading="7. 30-day money-back guarantee">
+      <LegalSectionBlock
+        id="guarantee"
+        number="7"
+        heading="30-day money-back guarantee"
+      >
         <p>
           If Loonext isn&apos;t right for your crew, email us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
           subscription and the one-time registration fee included. No
-          &quot;minus credits used,&quot; no forms, no retention call.
+          &quot;minus credits used,&quot; no forms, no retention call. The full
+          policy is on our{" "}
+          <LegalLink href="/legal/refunds">guarantee page</LegalLink>.
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="availability" heading="8. Availability & changes">
+      <LegalSectionBlock
+        id="availability"
+        number="8"
+        heading="Availability and changes"
+      >
         <p>
           We work to keep Loonext available, but we don&apos;t guarantee
           uninterrupted service, text delivery depends on the phone companies
@@ -151,7 +173,7 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="liability" heading="9. Liability">
+      <LegalSectionBlock id="liability" number="9" heading="Liability">
         <p>
           Loonext is provided &quot;as is.&quot; To the extent the law allows,
           we&apos;re not liable for indirect or consequential losses, and our
@@ -161,7 +183,7 @@ export default function TermsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" heading="10. Contact">
+      <LegalSectionBlock id="contact" number="10" heading="Contact">
         <p>
           Questions about these terms? Email{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>{" "}

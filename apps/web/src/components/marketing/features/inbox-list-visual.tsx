@@ -1,180 +1,213 @@
 /**
- * Inbox-list visual (features track), the shared-inbox flagship product visual.
+ * Inbox-list embed (features crew), the /features/shared-inbox flagship
+ * product visual: the app's conversation list staged MID-TASK, with the
+ * assign menu open over the newest conversation (coverage map: "the real
+ * inbox staged mid-task (assign + status change)").
  *
- * A live-DOM render of the app's conversation list (DESIGN.md G4 row anatomy):
- * unread dot, contact name/number, one-line snippet, relative time, assignee
- * avatar, status pill. It shows the whole point of a SHARED inbox, many
- * conversations, different owners, different statuses, all visible to the crew
- * at once, using the same seed company (Reyes Plumbing) and the same tokens as
- * the thread primitives, so the two visual sets are identical (BLUEPRINT §1.3).
+ * Law 2 (DESIGN-DIRECTION v4): this is PRODUCT content, so every color is an
+ * APP token (bg-primary, app-tint, app-line, app-muted...), and it must be
+ * mounted inside <PanelFrame> (which provides the `.app-scope` token region).
+ * Marketing cobalt never appears in here. The anatomy mirrors the real
+ * ConversationRow (components/inbox/conversation-row.tsx: 38px tinted
+ * avatar, name + 2-line snippet + tabular time, unread petrol dot, tag and
+ * assignee chips) and the real FilterBar segments (Open | Mine | All |
+ * Closed with the quiet open count).
  *
- * Server component, pure DOM, no interactivity, part of the static render.
+ * Server component, pure DOM, no interactivity. Reyes Plumbing seed data,
+ * 555-01XX safe fictional range.
  */
 
-import { StickyNote } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import {
-  DemoAvatar,
-  DemoStatusPill,
-} from "@/components/marketing/thread-demo/thread-primitives";
 
 interface Row {
   name: string;
-  number: string;
+  initials: string;
   snippet: string;
   time: string;
-  status: "new" | "open" | "waiting" | "closed";
-  assignee?: string;
   unread?: boolean;
-  outbound?: boolean;
-  note?: boolean;
+  noteSnippet?: boolean;
+  tag?: string;
+  assignee?: string;
 }
 
-/** Seed rows. Reyes Plumbing crew (Priya/Dale/Marcus), 555-01XX safe range. */
+/** Seed rows: the Reyes Plumbing crew (Priya/Dale/Marcus) mid-morning. */
 const ROWS: Row[] = [
   {
-    name: "Karen M",
-    number: "(416) 555-0187",
-    snippet: "Tomorrow 9–11 works. Thank you so much",
+    name: "Marcus T",
+    initials: "MT",
+    snippet: "Basement floor drain is backing up again",
     time: "2m",
-    status: "waiting",
-    assignee: "Dale",
     unread: true,
+  },
+  {
+    name: "Karen M",
+    initials: "KM",
+    snippet: "Tomorrow between 9 and 11 works. Thank you so much",
+    time: "18m",
+    tag: "Scheduled",
+    assignee: "D",
   },
   {
     name: "Nguyen family",
-    number: "(647) 555-0143",
-    snippet: "You: Here's the quote for the water heater swap ,",
-    time: "18m",
-    status: "open",
-    assignee: "Priya",
-    outbound: true,
-  },
-  {
-    name: "Marcus T",
-    number: "(647) 555-0121",
-    snippet: "Basement floor drain is backing up again",
+    initials: "NF",
+    snippet: "You: Here's the quote for the water heater swap",
     time: "1h",
-    status: "new",
-    unread: true,
+    tag: "Quote sent",
+    assignee: "P",
   },
   {
     name: "The Hendersons",
-    number: "(416) 555-0166",
+    initials: "TH",
     snippet: "Gate code is 4482, dog is friendly",
     time: "3h",
-    status: "open",
-    assignee: "Marcus",
-    note: true,
+    noteSnippet: true,
+    assignee: "M",
   },
   {
     name: "Rivera, D.",
-    number: "(905) 555-0109",
+    initials: "RD",
     snippet: "You: All done, you're good to run the washer.",
     time: "Tue",
-    status: "closed",
-    assignee: "Dale",
-    outbound: true,
+    assignee: "D",
   },
 ];
 
-function Row({ row }: { row: Row }) {
+/** The real inbox segments (FilterBar): a pill track, selected tab lifted. */
+function Segments() {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px]">
+      {["Open", "Mine", "All", "Closed"].map((label, i) => (
+        <span
+          key={label}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px]",
+            i === 0
+              ? "bg-app-white font-semibold text-app-ink"
+              : "font-medium text-app-muted",
+          )}
+        >
+          {label}
+          {i === 0 && (
+            <span className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted">
+              3
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function InboxRow({ row, active }: { row: Row; active?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "relative flex items-start gap-[11px] rounded-app-card border p-[11px]",
+        active ? "border-app-line bg-app-white" : "border-transparent",
+      )}
+    >
+      {/* Tinted-initial avatar (ConversationRow anatomy). */}
       <span
-        className={cn(
-          "size-2 shrink-0 rounded-full",
-          row.unread ? "bg-[color:var(--porch-amber)]" : "bg-transparent",
-        )}
         aria-hidden
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p
+        className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-app-tint text-[13px] font-semibold text-app-petrol-deep"
+      >
+        {row.initials}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span
             className={cn(
-              "truncate text-[14px] text-[color:var(--day-ink)]",
+              "truncate text-[14px] text-app-ink",
               row.unread ? "font-semibold" : "font-medium",
             )}
           >
             {row.name}
-          </p>
-          <span className="shrink-0 text-[11px] tabular-nums text-[color:var(--ink-55)]">
-            {row.number}
           </span>
-        </div>
-        <p className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-[color:var(--ink-55)]">
-          {row.note && (
-            <StickyNote
-              className="size-3 shrink-0 text-[color:var(--ink-55)]"
+          <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
+            {row.time}
+          </span>
+        </span>
+
+        <span className="mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45] text-app-muted">
+          {row.noteSnippet && (
+            <Lock
+              className="mt-0.5 size-3 shrink-0 text-app-amber"
               strokeWidth={1.75}
               aria-hidden
             />
           )}
-          {row.snippet}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="text-[11px] tabular-nums text-[color:var(--ink-55)]">
-          {row.time}
+          <span className="line-clamp-1 min-w-0 break-words">{row.snippet}</span>
         </span>
-        <div className="flex items-center gap-1.5">
-          {row.assignee && (
-            <DemoAvatar name={row.assignee} className="size-[18px]" />
+
+        {(row.tag || row.assignee) && (
+          <span className="mt-[7px] flex flex-wrap items-center gap-[5px]">
+            {row.tag && (
+              <span className="inline-flex items-center rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-petrol-deep">
+                {row.tag}
+              </span>
+            )}
+            {row.assignee && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
+                {row.assignee}
+              </span>
+            )}
+          </span>
+        )}
+      </span>
+
+      {/* Unread petrol dot, top-right. */}
+      {row.unread && (
+        <span
+          aria-hidden
+          className="absolute right-3 top-[14px] size-2 rounded-full bg-primary"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The mid-task moment: the assign menu open over the new conversation, with
+ * Dale about to get it (one owner, no double replies).
+ */
+function AssignMenu() {
+  const members = ["Priya R", "Dale K", "Marcus O"];
+  return (
+    <div className="absolute right-3 top-[4.25rem] z-10 w-44 rounded-app-card border border-app-line bg-popover p-1 shadow-[var(--app-sh-float)]">
+      <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold text-app-muted-2">
+        Assign to
+      </p>
+      {members.map((member) => (
+        <span
+          key={member}
+          className={cn(
+            "flex items-center justify-between rounded-app-ctrl px-2 py-1.5 text-[13px]",
+            member === "Dale K"
+              ? "bg-app-tint font-medium text-app-petrol-deep"
+              : "text-app-ink",
           )}
-          <DemoStatusPill status={row.status} />
-        </div>
-      </div>
+        >
+          {member}
+          {member === "Dale K" && (
+            <Check className="size-3.5" strokeWidth={2.5} aria-hidden />
+          )}
+        </span>
+      ))}
     </div>
   );
 }
 
 export function InboxListVisual({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-[10px] border border-[color:var(--hairline)] bg-white shadow-[0_24px_64px_-32px_rgba(28,25,23,0.25)]",
-        className,
-      )}
-    >
-      {/* Browser-chrome hint, "it's just the web" (BLUEPRINT §1.3). */}
-      <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-3 py-2">
-        <div className="flex gap-1.5" aria-hidden>
-          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-          <span className="size-2.5 rounded-full bg-[rgba(11,43,38,0.18)]" />
-        </div>
-        {/* --ink-55 (4.9:1 on white) so this quiet URL hint clears WCAG AA and
-            reads petrol-cast, matching the corrected thread-frame.tsx primitive.
-            A muted chrome hint, not body text. */}
-        <div className="mx-auto flex max-w-[60%] items-center rounded-md bg-white px-3 py-0.5 text-[11px] text-[color:var(--ink-55)]">
-          loonext.app/inbox
-        </div>
-      </div>
-
-      {/* Filter segments, matches G4 "Open | Mine | All | Closed". */}
-      <div className="flex items-center gap-1 border-b border-[color:var(--hairline)] px-3 py-2">
-        {["Open", "Mine", "All", "Closed"].map((seg, i) => (
-          <span
-            key={seg}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-[12px] font-medium",
-              i === 0
-                ? "bg-[#F0F4F2] text-[color:var(--day-ink)]"
-                : "text-[color:var(--ink-55)]",
-            )}
-          >
-            {seg}
-          </span>
-        ))}
-        <span className="ml-auto text-[12px] text-[color:var(--ink-55)]">
-          3 open · 1 waiting
-        </span>
-      </div>
-
-      <div className="divide-y divide-[color:var(--hairline)]">
-        {ROWS.map((row) => (
-          <Row key={row.number} row={row} />
+    <div className={cn("relative p-3 sm:p-4", className)}>
+      <Segments />
+      <AssignMenu />
+      <div className="mt-2.5 space-y-0.5">
+        {ROWS.map((row, i) => (
+          <InboxRow key={row.name} row={row} active={i === 0} />
         ))}
       </div>
     </div>

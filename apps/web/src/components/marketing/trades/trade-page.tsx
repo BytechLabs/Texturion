@@ -1,69 +1,66 @@
 /**
- * TradePage (trades track), the ONE shared trade-page template component
- * (BLUEPRINT §5), on the v3 "Quiet daylight" identity (DESIGN-DIRECTION,
- * BINDING). Every /for/<trade> page is this component, driven entirely by a
- * typed `TradeContent` object, so the six pages share a skeleton but ZERO
- * sentences (§5 scaled-content guard). All prose, jargon, example threads, use
- * cases, saved replies, and FAQ come from the page's own content object.
+ * TradePage (trades crew), the ONE shared trade-page template on the v4
+ * "FIRST RESPONSE" identity (DESIGN-DIRECTION v4, BINDING; COPY-DECK v2).
+ * Every /for/<trade> page is this component driven by a typed `TradeContent`
+ * object: the six pages share a skeleton and ZERO sentences. All prose,
+ * jargon, the scripted thread, saved replies, and FAQ come from the page's
+ * own content object, each staging that trade's own worst minute.
  *
- * Identity (DESIGN-DIRECTION §2-§4):
- *  - Each page opens on a framed trade photo + a composed <Display> headline
- *    (the page authors the Mark/Accent word). The scripted thread demo is the
- *    second, live centerpiece just below.
- *  - Structure comes from GROUND changes (the pale porcelain --paper to the one
- *    deep-petrol band and back) and display-lettering rhythm, NOT from a
- *    counter (§0: no section numbers).
- *  - Kickers, not eyebrows: v3 <Kicker> labels (Public Sans 600, sentence case),
- *    never mono, never a fake "live" dot (§0, §3).
- *  - CTA copy is "Start for $29", kept identical through the flow (§6).
+ * Template order (DESIGN-DIRECTION v4 §6 TRADE):
+ *   Dateline Header (the trade's after-hours moment, matching the thread)
+ *   → pain → the static EXAMPLE CONVERSATION thread in a PanelFrame
+ *   → use cases (work cards) → saved-replies pack in the template picker
+ *   → features strip → pricing snippet (+ Truth Strips) → trade FAQ
+ *   → final CTA (Frost band; the cobalt band is home-only).
  *
- * Section order: hero (photo + composed headline) -> the scripted thread
- * -> "sound familiar?" pain (real photo) -> how Loonext fits (supporting photo)
- * -> use cases -> saved-replies pack -> features strip -> pricing teaser -> FAQ
- * -> deep-petrol final CTA.
- *
- * Fully static (§11.4): the only client islands are the reused ThreadDemo +
- * Reveal, which hydrate after first paint. Metadata + BreadcrumbList JSON-LD are
- * emitted by the page files (each page owns its own SEO).
+ * System notes:
+ *  - Assembled ONLY from the fr kit (FrSection/FrCard/Dateline/CtaButton/
+ *    PanelFrame/MonoFigure/ConvergedField); nothing bespoke off-kit.
+ *  - The ConvergedField "mark" is the sole decorative header motif on
+ *    subpages (coverage map); aria-hidden, no second canvas anywhere.
+ *  - Law 2: the thread and the picker render with app tokens inside
+ *    PanelFrame's `.app-scope`; marketing cobalt stays outside the frames.
+ *  - Law 6: no em-dashes anywhere, including aria-labels and captions.
+ *  - Law 10: no hairline rules; separation is space, radius, Frost.
+ *  - Fully static: zero client islands, zero tab stops added by the demos.
  */
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Container } from "@/components/marketing/ui/container";
-import { Kicker } from "@/components/marketing/ui/kicker";
-import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
-import { Display, MarkerCheck } from "@/components/marketing/display";
-import { PhotoFrame } from "@/components/marketing/photo-frame";
-import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
-import { ThreadDemo } from "@/components/marketing/thread-demo/thread-demo";
-import type { ThreadScript } from "@/components/marketing/thread-demo/script";
-import { Button } from "@/components/ui/button";
+import {
+  ConvergedField,
+  CtaButton,
+  Dateline,
+  FrCard,
+  FrSection,
+  MonoFigure,
+  PanelFrame,
+} from "@/components/marketing/fr";
+import {
+  PRIMARY_CTA_LABEL,
+  SECONDARY_CTA_LABEL,
+  SIGNUP_HREF,
+} from "@/components/marketing/nav-links";
+import { Check } from "lucide-react";
+
+import type { SavedReply } from "./saved-replies-picker";
+import { SavedRepliesPicker } from "./saved-replies-picker";
+import type { TradeScript } from "./scripts";
+import { TradeThread } from "./trade-thread";
 
 /* -------------------------------------------------------------------------- */
-/* The template API, the ONLY thing the six pages differ by.                  */
+/* The template API, the ONLY thing the six pages differ by.                   */
 /* -------------------------------------------------------------------------- */
 
 export interface TradeUseCase {
-  icon: LucideIcon;
   /** Short title, e.g. "Photo triage before you roll a truck." */
   title: string;
-  /** One or two sentences, trade-specific. */
+  /** One to three sentences, trade-specific. */
   body: string;
 }
 
-export interface SavedReply {
-  /** Template name, e.g. "On my way". */
-  name: string;
-  /** The message body, the copy-ready text. */
-  text: string;
-}
-
 export interface TradeFeature {
-  icon: LucideIcon;
   title: string;
   body: string;
 }
@@ -73,89 +70,97 @@ export interface TradeFaq {
   a: string;
 }
 
+/** One §5.4 Truth Strip line: mono fact, green tick when the news is good. */
+export interface TradeTruthLine {
+  text: ReactNode;
+  /** Adds the Answered-Green tick (green whitelist: good news only). */
+  good?: boolean;
+}
+
 export interface TradeContent {
   /** Trade slug ("plumbers"), used for keys/anchors, not shown. */
   slug: string;
-  /** Display name for breadcrumbs / prose the page files build, e.g. "Plumbers". */
+  /** Display name for breadcrumbs the page files build, e.g. "Plumbers". */
   displayName: string;
 
-  /** Hero. */
-  eyebrow: string;
-  /** A composed <Display> headline (page authors the marker/emph/accent). */
-  h1: ReactNode;
+  /** The dateline chip: the trade's worst minute (coverage map, exact). */
+  dateline: string;
+  /** COPY-DECK v2 H1 for this trade. */
+  h1: string;
   heroSub: string;
-  /** Truth chips under the CTAs (trade-flavored, factual). */
-  heroTruthLine: string;
-  /** The duotone hero photo for this trade (manifest id) + honest caption. */
-  heroPhotoId: string;
-  heroPhotoCaption: string;
+  /** Mono truth line under the CTA row (trade-flavored, factual). */
+  heroTruth: string;
 
-  /** "Sound familiar?" pain section. */
-  painH2: ReactNode;
-  /** Paragraphs of pain copy (rendered as <p>s). */
+  painH2: string;
   painBody: string[];
-  /** A trade-relevant real duotone photo for the pain section. */
-  painVisual: ReactNode;
 
-  /** How Loonext fits, the live thread demo. */
-  threadH2: ReactNode;
-  /** One-line framing above the demo. */
+  threadH2: string;
   threadLede: string;
-  /** The trade-specific scripted thread (reuses the shared ThreadDemo). */
-  script: ThreadScript;
+  script: TradeScript;
+  /** Content-describing accessible name for the thread PanelFrame. */
+  threadAriaLabel: string;
 
-  /** A trade-relevant supporting graphic shown beside the "how Loonext fits" copy. */
-  supportingGraphic: ReactNode;
-
-  /** Use cases. */
-  useCasesH2: ReactNode;
+  useCasesH2: string;
   useCases: TradeUseCase[];
 
-  /** Saved-replies pack (6 real, copy-ready templates, unique data per trade). */
-  savedRepliesH2: ReactNode;
-  /** One-line intro sentence for the pack. */
+  savedRepliesH2: string;
   savedRepliesIntro: string;
   savedReplies: SavedReply[];
+  /** Content-describing caption under the picker frame. */
+  savedRepliesCaption: string;
 
-  /** Features strip mapped to the trade. */
-  featuresH2: ReactNode;
+  featuresH2: string;
   features: TradeFeature[];
 
-  /** Pricing teaser. */
   pricingH2: string;
   pricingBody: string;
+  /**
+   * Extra Truth Strip lines under the pricing card (§5.4). The two standard
+   * lines (receiving free; the US $58-first-month registration fact) render
+   * on every trade page; these are trade-specific additions (for example
+   * the contractors "texting, not project management" line).
+   */
+  truthLines?: TradeTruthLine[];
 
-  /** FAQ (trade-specific). */
-  faqH2: ReactNode;
+  faqH2: string;
   faqs: TradeFaq[];
 
-  /** Final CTA. */
-  finalH2: ReactNode;
+  finalH2: string;
   finalSub: string;
-
-  /**
-   * Optional extra section rendered between the thread demo and the use cases,
-   * used by /for/contractors for the D14 mark-done illustration.
-   */
-  afterThread?: ReactNode;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Shared CTAs + microcopy (structural chrome, not trade copy).               */
+/* Shared microcopy (structural chrome, not trade copy).                       */
 /* -------------------------------------------------------------------------- */
 
-const GUARANTEE_MICRO = "$29/mo flat · Month to month · 30-day money-back guarantee";
+/**
+ * The trade-thread caption (COPY-DECK v2 §/for/plumbers, master): describes
+ * the CONTENT (what tapping a message does in the product), never the
+ * artifact.
+ */
+export const THREAD_CAPTION =
+  "Tap any message to mark it done. The whole crew sees what's handled.";
 
-function CtaRow() {
+const FINAL_MICROCOPY = "$29/mo flat · Month to month · 30-day money-back";
+
+/* -------------------------------------------------------------------------- */
+/* §5.4 TRUTH STRIP: Frost ground, 3px cobalt left edge, mono text, green      */
+/* tick where the news is good. The one learnable shape for candor.            */
+/* -------------------------------------------------------------------------- */
+
+function TruthStrip({ line }: { line: TradeTruthLine }) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-      <Button asChild size="lg" className="w-full sm:w-auto">
-        <Link href="/signup">
-          Start for $29
-          <ArrowRight strokeWidth={1.75} aria-hidden />
-        </Link>
-      </Button>
-      <ArrowLink href="/pricing">See pricing</ArrowLink>
+    <div className="flex items-start gap-2.5 rounded-r-[6px] border-l-[3px] border-[color:var(--fr-cobalt)] bg-[color:var(--fr-frost)] px-4 py-3">
+      {line.good ? (
+        <Check
+          className="mt-px size-4 shrink-0 text-[color:var(--fr-green)]"
+          strokeWidth={2.5}
+          aria-hidden
+        />
+      ) : null}
+      <p className="fr-mono-data text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink)]">
+        {line.text}
+      </p>
     </div>
   );
 }
@@ -167,279 +172,228 @@ function CtaRow() {
 export function TradePage({ content }: { content: TradeContent }) {
   return (
     <>
-      {/* Hero: composed headline over a real duotone photo of the trade. The
-          text is the LCP; the photo sits beside it, framed once. No amber wash,
-          no fake indicators. */}
-      <section className="relative overflow-hidden pb-14 pt-28 sm:pb-20 sm:pt-32">
-        <Container>
-          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:gap-16">
-            <div>
-              <Kicker>{content.eyebrow}</Kicker>
-              <Display as="h1" size="hero" className="mt-3 text-balance">
-                {content.h1}
-              </Display>
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-                {content.heroSub}
-              </p>
-              <div className="mt-8">
-                <CtaRow />
-              </div>
-              <p className="mt-6 max-w-xl text-[13px] leading-relaxed text-[color:var(--ink-55)]">
-                {content.heroTruthLine}
-              </p>
-            </div>
-
-            <Reveal className="relative">
-              <PhotoFrame
-                id={content.heroPhotoId}
-                priority
-                aspect="4 / 3"
-                sizes="(min-width: 1024px) 44vw, 92vw"
-                caption={{ label: content.heroPhotoCaption }}
-              />
-            </Reveal>
+      {/* DATELINE HEADER (§5.1): the converged-arrival mark (the subpage's
+          only decorative motif), the worst-minute chip, H1, sub, CTA row,
+          mono truth line. */}
+      <FrSection ground="white" className="pb-12 md:pb-16">
+        <ConvergedField variant="mark" className="h-9 w-auto md:h-10" />
+        <div className="mt-10 max-w-3xl">
+          <Dateline>{content.dateline}</Dateline>
+          <h1 className="fr-h1 mt-6 text-[color:var(--fr-ink)]">
+            {content.h1}
+          </h1>
+          <p className="fr-body mt-6 max-w-2xl text-[color:var(--fr-ink-70)]">
+            {content.heroSub}
+          </p>
+          <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
+            <CtaButton href="/pricing" variant="secondary">
+              {SECONDARY_CTA_LABEL}
+            </CtaButton>
           </div>
-        </Container>
-      </section>
-
-      {/* "Sound familiar?": the pain in the trade's own words, beside a real
-          duotone photo of the trade (asymmetric split; copy leads). On the
-          half-step-lighter panel ground (a ground change). */}
-      <Section bleed className="bg-[color:var(--paper-2)] py-16 sm:py-24" defer intrinsic={560}>
-        <Container>
-          <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
-            <div>
-              <Display as="h2" size="h2">
-                {content.painH2}
-              </Display>
-              <div className="mt-6 space-y-5">
-                {content.painBody.map((para, i) => (
-                  <Reveal key={i} delay={Math.min(i, 3) * 60}>
-                    <p className="text-lg leading-relaxed text-[color:var(--ink-70)]">
-                      {para}
-                    </p>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
-            <Reveal className="relative">{content.painVisual}</Reveal>
-          </div>
-        </Container>
-      </Section>
-
-      {/* How Loonext fits: the trade's own catch, played out. The scripted
-          thread is the live-DOM centerpiece; a supporting duotone photo sits
-          beside the framing copy. Back on the paper ground. */}
-      <Section defer intrinsic={640}>
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center lg:gap-16">
-            <div>
-              <Display as="h2" size="h2">
-                {content.threadH2}
-              </Display>
-              <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-                {content.threadLede}
-              </p>
-              <ArrowLink href="/features/shared-inbox" className="mt-6">
-                See how the shared inbox works
-              </ArrowLink>
-            </div>
-            <Reveal className="relative">{content.supportingGraphic}</Reveal>
-          </div>
-
-          <Reveal className="relative mx-auto mt-14 max-w-2xl">
-            <ThreadDemo
-              script={content.script}
-              framing="desktop"
-              bodyClassName="min-h-[360px]"
-            />
-          </Reveal>
+          <p className="fr-mono-data mt-7 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
+            {content.heroTruth}
+          </p>
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Optional extra beat (contractors D14 mark-done illustration). */}
-      {content.afterThread}
-
-      {/* Use cases: where texting earns its keep in this trade. */}
-      <Section defer intrinsic={640}>
-        <div className="mx-auto max-w-5xl">
-          <Display as="h2" size="h2" className="max-w-3xl">
-            {content.useCasesH2}
-          </Display>
-          <div className="mt-12 grid gap-6 sm:grid-cols-2">
-            {content.useCases.map((uc, i) => (
-              <Reveal key={uc.title} delay={Math.min(i, 3) * 60}>
-                <div className="flex h-full flex-col rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-6">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
-                    <uc.icon className="size-5" strokeWidth={1.75} aria-hidden />
-                  </span>
-                  <h3 className="mt-4 text-lg font-semibold text-[color:var(--ink)]">
-                    {uc.title}
-                  </h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                    {uc.body}
-                  </p>
-                </div>
-              </Reveal>
+      {/* THE PAIN: the trade's own failure mode, in its own words. */}
+      <FrSection ground="frost">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-16">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">{content.painH2}</h2>
+          <div className="space-y-5 lg:pt-2">
+            {content.painBody.map((para) => (
+              <p
+                key={para.slice(0, 32)}
+                className="fr-body text-[color:var(--fr-ink-70)]"
+              >
+                {para}
+              </p>
             ))}
           </div>
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Saved-replies pack: 6 copy-ready, trade-specific templates. Ground
-          change to the lighter panel. */}
-      <Section bleed className="bg-[color:var(--paper-2)] py-16 sm:py-24" defer intrinsic={720}>
-        <Container>
-          <div className="mx-auto max-w-4xl">
-            <Display as="h2" size="h2">
+      {/* THE EXAMPLE CONVERSATION: the worst minute, played out in the
+          product. Real thread patterns with app tokens inside the frame;
+          the only label is the EXAMPLE CONVERSATION chip (Law 1). */}
+      <FrSection ground="white">
+        <div className="max-w-2xl">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            {content.threadH2}
+          </h2>
+          <p className="fr-body mt-5 text-[color:var(--fr-ink-70)]">
+            {content.threadLede}
+          </p>
+        </div>
+        <PanelFrame
+          chromeUrl="loonext.com/inbox"
+          chip="example-conversation"
+          caption={THREAD_CAPTION}
+          ariaLabel={content.threadAriaLabel}
+          className="mx-auto mt-12 w-full max-w-[36rem]"
+        >
+          <TradeThread script={content.script} />
+        </PanelFrame>
+      </FrSection>
+
+      {/* USE CASES: §5.5 work cards, outcomes in the buyer's words. */}
+      <FrSection ground="frost">
+        <h2 className="fr-h2 max-w-3xl text-[color:var(--fr-ink)]">
+          {content.useCasesH2}
+        </h2>
+        <div className="mt-12 grid gap-6 sm:grid-cols-2">
+          {content.useCases.map((uc, i) => (
+            <FrCard key={uc.title} className="p-6 sm:p-7">
+              <span
+                className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-white"
+                aria-hidden
+              >
+                {i + 1}
+              </span>
+              <h3 className="fr-h3 mt-5 text-[color:var(--fr-ink)]">
+                {uc.title}
+              </h3>
+              <p className="font-body-mkt mt-2.5 text-base leading-relaxed text-[color:var(--fr-ink-70)]">
+                {uc.body}
+              </p>
+            </FrCard>
+          ))}
+        </div>
+      </FrSection>
+
+      {/* SAVED-REPLIES PACK: the trade's pack staged in the product's
+          template picker (app tokens inside the frame). */}
+      <FrSection ground="white">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-16">
+          <div>
+            <h2 className="fr-h2 text-[color:var(--fr-ink)]">
               {content.savedRepliesH2}
-            </Display>
-            <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[color:var(--ink-70)]">
+            </h2>
+            <p className="fr-body mt-5 text-[color:var(--fr-ink-70)]">
               {content.savedRepliesIntro}
             </p>
-            <ol className="mt-10 space-y-4">
-              {content.savedReplies.map((r) => (
-                <li
-                  key={r.name}
-                  className="flex flex-col gap-1.5 rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper)] p-5 sm:flex-row sm:items-start sm:gap-5"
-                >
-                  <div className="flex shrink-0 items-center gap-2 sm:w-44">
-                    <MarkerCheck
-                      color="petrol"
-                      draw={false}
-                      className="size-5 shrink-0"
-                    />
-                    <span className="text-[14px] font-semibold text-[color:var(--ink)]">
-                      {r.name}
-                    </span>
-                  </div>
-                  <p className="text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                    &ldquo;{r.text}&rdquo;
-                  </p>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-6 text-[13px] leading-relaxed text-[color:var(--graphite)]">
-              These ship as ready-to-edit saved replies you can send in two taps
-              , type &ldquo;/&rdquo; in the composer, pick one, send.
+            <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
+              Type <span className="fr-mono-data">/</span> in the composer,
+              tap one, send. Every template is editable before it goes out,
+              and <span className="fr-mono-data">{"{first_name}"}</span> fills
+              in the customer&apos;s name by itself.
             </p>
           </div>
-        </Container>
-      </Section>
-
-      {/* Features strip: mapped to how this trade works. */}
-      <Section defer intrinsic={480}>
-        <div className="mx-auto max-w-5xl">
-          <Display as="h2" size="h2" className="max-w-3xl">
-            {content.featuresH2}
-          </Display>
-          <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2">
-            {content.features.map((f) => (
-              <div key={f.title} className="flex gap-4">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
-                  <f.icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
-                </span>
-                <div>
-                  <h3 className="text-[16px] font-semibold text-[color:var(--ink)]">
-                    {f.title}
-                  </h3>
-                  <p className="mt-1 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                    {f.body}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <PanelFrame
+            caption={content.savedRepliesCaption}
+            ariaLabel={content.savedRepliesCaption}
+            className="w-full"
+          >
+            <SavedRepliesPicker replies={content.savedReplies} />
+          </PanelFrame>
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Pricing teaser: the $29 in the work-order mono, links to full pricing. */}
-      <Section bleed className="bg-[color:var(--paper-2)] py-16 sm:py-24" defer intrinsic={420}>
-        <Container>
-          <div className="mx-auto max-w-3xl rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper)] p-6 sm:p-10">
-            <div className="flex items-baseline gap-3">
-              <span className="font-mono-mkt text-[56px] font-semibold leading-none tabular-nums text-[color:var(--petrol)]">
-                $29
-              </span>
-              <span className="text-lg text-[color:var(--ink-70)]">
-                /mo · the whole crew
-              </span>
+      {/* FEATURES STRIP: mapped to how this trade works. Typographic. */}
+      <FrSection ground="frost">
+        <h2 className="fr-h2 max-w-3xl text-[color:var(--fr-ink)]">
+          {content.featuresH2}
+        </h2>
+        <div className="mt-12 grid gap-x-14 gap-y-10 sm:grid-cols-2">
+          {content.features.map((f) => (
+            <div key={f.title}>
+              <h3 className="font-body-mkt text-[1.0625rem] font-bold leading-snug text-[color:var(--fr-ink)]">
+                {f.title}
+              </h3>
+              <p className="font-body-mkt mt-2 text-base leading-relaxed text-[color:var(--fr-ink-70)]">
+                {f.body}
+              </p>
             </div>
-            <h2 className="font-display mt-6 text-[24px] font-bold leading-tight tracking-[-0.005em] text-[color:var(--ink)]">
-              {content.pricingH2}
-            </h2>
-            <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-              {content.pricingBody}
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <ArrowLink href="/pricing">See full pricing</ArrowLink>
-              <span className="inline-flex items-center gap-1.5 text-[13px] text-[color:var(--ink-70)]">
-                <MarkerCheck color="petrol" draw={false} className="size-4" />
-                Receiving texts and photos is always free
-              </span>
-            </div>
-          </div>
-        </Container>
-      </Section>
-
-      {/* Trade FAQ: no FAQPage JSON-LD (§11.2). */}
-      <Section defer intrinsic={520}>
-        <div className="mx-auto max-w-3xl">
-          <Display as="h2" size="h2" className="text-center">
-            {content.faqH2}
-          </Display>
-          <div className="mt-12 divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
-            {content.faqs.map((item) => (
-              <details key={item.q} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
-                  {item.q}
-                  <span
-                    className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
-                    aria-hidden
-                  >
-                    +
-                  </span>
-                </summary>
-                <p className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-                  {item.a}
-                </p>
-              </details>
-            ))}
-          </div>
+          ))}
         </div>
-      </Section>
+      </FrSection>
 
-      {/* Final CTA band: the ONE deep-petrol ground per page (§3 "used once"). */}
-      <Section
-        bleed
-        className="relative overflow-hidden bg-[color:var(--deep)] py-16 text-[color:var(--paper)] sm:py-24"
-        defer
-        intrinsic={420}
-      >
-        <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-          <h2 className="font-display text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.005em] text-[color:var(--paper)] sm:text-[44px]">
-            {content.finalH2}
+      {/* PRICING SNIPPET: the price as art (mono law), then Truth Strips. */}
+      <FrSection ground="white">
+        <FrCard className="mx-auto max-w-3xl p-7 sm:p-12">
+          <MonoFigure
+            value="$29"
+            suffix="/mo · the whole crew"
+            size="display"
+          />
+          <h2 className="fr-h3 mt-7 text-[color:var(--fr-ink)]">
+            {content.pricingH2}
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--paper)]/85">
+          <p className="font-body-mkt mt-3 text-base leading-relaxed text-[color:var(--fr-ink-70)]">
+            {content.pricingBody}
+          </p>
+          <div className="mt-6 space-y-2.5">
+            <TruthStrip
+              line={{
+                text: "Receiving texts and photos: free, unlimited, on every plan.",
+                good: true,
+              }}
+            />
+            <TruthStrip
+              line={{
+                text: "US shops: a one-time $29 to register with the phone companies. $58 the first month, then $29 after.",
+              }}
+            />
+            {(content.truthLines ?? []).map((line, i) => (
+              <TruthStrip key={i} line={line} />
+            ))}
+          </div>
+          <Link
+            href="/pricing"
+            className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+          >
+            See full pricing. Every cost is on that page.
+          </Link>
+        </FrCard>
+      </FrSection>
+
+      {/* TRADE FAQ: native details, Frost wells, no hairlines. */}
+      <FrSection ground="white" className="pt-0 md:pt-0">
+        <h2 className="fr-h2 mx-auto max-w-3xl text-center text-[color:var(--fr-ink)]">
+          {content.faqH2}
+        </h2>
+        <div className="mx-auto mt-12 max-w-3xl space-y-3">
+          {content.faqs.map((item) => (
+            <details
+              key={item.q}
+              className="group rounded-xl bg-[color:var(--fr-frost)] px-6 py-5"
+            >
+              <summary className="font-body-mkt flex cursor-pointer list-none items-center justify-between gap-4 text-left text-[1.0625rem] font-semibold text-[color:var(--fr-ink)] [&::-webkit-details-marker]:hidden">
+                {item.q}
+                <span
+                  className="shrink-0 text-[color:var(--fr-ink-55)] transition-transform duration-200 ease-out group-open:rotate-45 motion-reduce:transition-none"
+                  aria-hidden
+                >
+                  +
+                </span>
+              </summary>
+              <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+                {item.a}
+              </p>
+            </details>
+          ))}
+        </div>
+      </FrSection>
+
+      {/* FINAL CTA: Frost band (the cobalt band is home-only). One promise,
+          one button, mono microcopy, nothing new. */}
+      <FrSection ground="frost">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">{content.finalH2}</h2>
+          <p className="fr-body mx-auto mt-5 max-w-xl text-[color:var(--fr-ink-70)]">
             {content.finalSub}
           </p>
-          <div className="mt-8 flex justify-center">
-            <Button
-              asChild
-              size="lg"
-              className="bg-[color:var(--paper)] text-[color:var(--deep)] hover:bg-white"
-            >
-              <Link href="/signup">
-                Start for $29
-                <ArrowRight strokeWidth={1.75} aria-hidden />
-              </Link>
-            </Button>
+          <div className="mt-9 flex justify-center">
+            <CtaButton href={SIGNUP_HREF} size="lg">
+              {PRIMARY_CTA_LABEL}
+            </CtaButton>
           </div>
-          <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
-            {GUARANTEE_MICRO}
+          <p className="fr-eyebrow mt-7 text-[color:var(--fr-ink-55)]">
+            {FINAL_MICROCOPY}
           </p>
         </div>
-      </Section>
+      </FrSection>
     </>
   );
 }

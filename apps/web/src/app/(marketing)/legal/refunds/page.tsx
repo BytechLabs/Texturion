@@ -19,29 +19,29 @@ export const metadata: Metadata = buildMetadata({
 });
 
 const sections = [
-  { id: "guarantee", heading: "1. The guarantee" },
-  { id: "request", heading: "2. How to request a refund" },
-  { id: "after", heading: "3. What happens next" },
-  { id: "contact", heading: "4. Contact" },
+  { id: "guarantee", number: "1", heading: "The guarantee" },
+  { id: "request", number: "2", heading: "How to request a refund" },
+  { id: "after", number: "3", heading: "What happens next" },
+  { id: "contact", number: "4", heading: "Contact" },
 ];
 
 export default function RefundsPage() {
   return (
     <LegalPage
       title="30-day money-back guarantee"
-      intro="No asterisks, no fine print. If Loonext isn't right for your crew in the first 30 days, you get all your money back."
+      summary="Tell us within 30 days of signing up and we refund your first invoice in full, the subscription and the one-time registration fee included. One email is the whole process, no reason needed, no forms, no retention call. The refund goes back to your original payment method, usually issued within one business day."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-03"
       breadcrumbLabel="30-day guarantee"
       path={PATH}
       sections={sections}
     >
-      <LegalSectionBlock id="guarantee" heading="1. The guarantee">
+      <LegalSectionBlock id="guarantee" number="1" heading="The guarantee">
         <p>
           If Loonext isn&apos;t right for your crew, tell us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
           subscription and, if you paid it, the one-time $29 registration fee.
-          No &quot;minus credits used&quot; — the texts you sent during those 30
+          No &quot;minus credits used&quot;: the texts you sent during those 30
           days are on us. No forms, no retention call. The guarantee covers the
           first 30 days of your first Loonext subscription; it doesn&apos;t
           reset if you cancel and come back later. It is also part of our{" "}
@@ -49,7 +49,11 @@ export default function RefundsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="request" heading="2. How to request a refund">
+      <LegalSectionBlock
+        id="request"
+        number="2"
+        heading="How to request a refund"
+      >
         <p>
           Email{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>{" "}
@@ -60,13 +64,13 @@ export default function RefundsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="after" heading="3. What happens next">
+      <LegalSectionBlock id="after" number="3" heading="What happens next">
         <p>
           We cancel your subscription and refund your full first invoice to
           your original payment method through Stripe. We issue the refund
           promptly, typically within one business day of your email; depending
-          on your bank or card issuer it can take 5–10 business days to appear
-          on your statement.
+          on your bank or card issuer it can take 5 to 10 business days to
+          appear on your statement.
         </p>
         <p>
           Your number follows the same 30-day hold as any cancellation (see our{" "}
@@ -76,7 +80,7 @@ export default function RefundsPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" heading="4. Contact">
+      <LegalSectionBlock id="contact" number="4" heading="Contact">
         <p>
           Questions about the guarantee? Email{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>{" "}

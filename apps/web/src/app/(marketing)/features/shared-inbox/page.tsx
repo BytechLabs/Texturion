@@ -1,53 +1,40 @@
 /**
- * /features/shared-inbox, the flagship feature page (BLUEPRINT §2, §4).
+ * /features/shared-inbox, the flagship feature page, on the v4 "FIRST
+ * RESPONSE" FEATURE template (DESIGN-DIRECTION v4 §6, COPY-DECK v2).
  *
- * Head-term target ("shared sms inbox", "team text inbox"): 900+ words of
- * hand-written, page-specific content, its own unique FAQ (not a shared block),
- * and its own product visuals, the live inbox-list DOM and the steppable
- * thread deep-dive reused from the home §3.4 primitives. Every claim traces to
- * SPEC §1/§6 and DESIGN.md G4/G5. NO shared sentences with the other feature
- * pages. buildMetadata + BreadcrumbList JSON-LD; NO FAQPage (§11.2).
+ * Dateline `1 OWNER PER CONVERSATION` → H1 "Every customer text, in one
+ * inbox the whole crew can see." → the real inbox staged mid-task (assign
+ * menu open) in a Panel Frame → use cases (morning triage, one owner per
+ * thread, search as memory) → Truth Strip (inbound is free and unlimited on
+ * every plan) → pricing snippet → unique FAQ → Frost CTA band.
+ *
+ * Every number is a verified product/billing fact. buildMetadata +
+ * BreadcrumbList JSON-LD; no FAQPage.
  */
 
-import {
-  ClipboardList,
-  Lock,
-  RefreshCw,
-  Search,
-  Users,
-  UserSquare,
-} from "lucide-react";
 import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
-import { ThreadDeepDive } from "@/components/marketing/thread-demo/thread-deep-dive";
-import { WATER_HEATER_SCRIPT } from "@/components/marketing/thread-demo/script";
+import { PanelFrame } from "@/components/marketing/fr";
 import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
   FeatureSection,
-  FeatureStrip,
-  HonestDetails,
-  MiniPricing,
+  PricingSnippet,
   RelatedLinks,
+  TruthStripSection,
+  UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
-import { Display } from "@/components/marketing/display";
-import { FramedShot } from "@/components/marketing/shot";
-import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import { Section } from "@/components/marketing/ui/section";
-import { Container } from "@/components/marketing/ui/container";
-import { Kicker } from "@/components/marketing/ui/kicker";
-import { Reveal } from "@/components/marketing/ui/reveal";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/shared-inbox";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Shared SMS inbox for your whole team",
+  title: "Shared text inbox for the whole crew",
   description:
-    "One business number, one inbox the whole crew sees. Assign, status, note, tag, search, and mark texts done from any phone. Flat $29/mo for the team.",
+    "Every customer text, in one inbox the whole crew can see. Assign one owner per conversation, reply from any phone, search everything. $29/mo flat for the team.",
   path: PATH,
 });
 
@@ -62,223 +49,120 @@ export default function SharedInboxPage() {
       />
 
       <FeatureHero
-        eyebrow="Shared inbox"
-        title={
-          <>
-            One number. Every customer text{" "}
-            <Display.Mark>caught</Display.Mark> by the whole crew.
-          </>
+        dateline="1 OWNER PER CONVERSATION"
+        title="Every customer text, in one inbox the whole crew can see."
+        sub="A customer texts your business number and the conversation shows up on every phone on the team. Whoever is free picks it up, it gets exactly one owner, and nobody has to ask around about who answered the Hendersons. The number, the history, and the customers stay with the business."
+        panel={
+          <PanelFrame
+            chromeUrl="loonext.com/inbox"
+            chip="scripted-demo"
+            caption="The Reyes Plumbing inbox, mid-morning: Priya assigns the new drain call to Dale."
+            ariaLabel="The Reyes Plumbing inbox in Loonext, with the assign menu open on a new conversation"
+          >
+            <InboxListVisual />
+          </PanelFrame>
         }
-        sub="Every text to your business number lands in a single inbox that everyone on the team opens, on their own phone, at the same time. No more forwarding screenshots, no more 'did anyone answer the Hendersons?' The conversation belongs to the business, not to whoever's holding the phone."
-        truthChips={[
-          "Everyone sees every text",
-          "Works on any phone, no app",
-          "Realtime, replies show up as they happen",
-        ]}
-        visual={<InboxListVisual />}
       />
 
-      {/* Section 1, one number, whole team (copy | inbox-list already in hero;
-          this uses the steppable deep-dive as its second, richer visual). */}
-      <Section>
-        <Container>
-          <div className="mx-auto mb-12 max-w-3xl">
-            <Kicker>The core idea</Kicker>
-            <Display as="h2" size="h2" className="mt-3">
-              A text stops being one person&apos;s problem.
-            </Display>
-            <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-              When a customer texts your business number, Loonext turns that text
-              into a conversation in a shared inbox. Priya sees it. Dale sees it.
-              Marcus sees it. Whoever is free picks it up, and because everyone
-              is looking at the same thread, two people never reply to the same
-              customer, and nobody assumes someone else already did. The mess of
-              a business run from one personal cell simply goes away: the number
-              is the company&apos;s, the history is the company&apos;s, and the
-              next person who opens the app is caught up in a glance.
-            </p>
-          </div>
-          <Reveal>
-            <ThreadDeepDive script={WATER_HEATER_SCRIPT} />
-          </Reveal>
-        </Container>
-      </Section>
-
-      {/* Section 2, assign & status. */}
       <FeatureSection
-        eyebrow="Assign & status"
-        heading="One owner, one status, no double replies."
-        visual={
-          <FramedShot id="thread-open" className="mx-auto max-w-xl" />
-        }
-        wash
+        ground="frost"
+        eyebrow="The core idea"
+        heading="A text stops being one person's problem."
       >
         <p>
-          Every conversation can be assigned to exactly one person, the tech
-          who&apos;s closest, the office manager who took the first call,
-          whoever should carry it. Assignment shows as a small avatar on the
-          conversation and as a system line in the thread (&ldquo;Priya assigned
-          this to Dale&rdquo;), so the whole crew knows who has it without a
-          single &ldquo;who&apos;s got this one?&rdquo; text.
+          When a customer texts your business number, Loonext turns that text
+          into a conversation everyone can see. Priya sees it. Dale sees it.
+          Marcus sees it. Whoever is free picks it up, and because the whole
+          crew is looking at the same thread, two people never reply to the
+          same customer, and nobody assumes someone else already did.
         </p>
         <p>
-          Alongside the owner sits a status: <strong>New</strong> for the ones
-          nobody has touched, <strong>Open</strong> for the ones in progress,{" "}
-          <strong>Waiting</strong> for the ball that&apos;s in the
-          customer&apos;s court, and <strong>Closed</strong> for the ones that
-          are done. Filter the list to &ldquo;Open&rdquo; and you&apos;re
-          looking at exactly the work that still needs a human. Filter to
-          &ldquo;Mine&rdquo; and you&apos;re looking at your own. It is the
-          difference between a phone that buzzes at random and a queue you can
-          actually clear.
+          Every conversation carries one owner and one status: new, open,
+          waiting, or closed. Filter to Open and you&apos;re looking at exactly
+          the work that still needs a human. Filter to Mine and you&apos;re
+          looking at your own. It&apos;s the difference between a phone that
+          buzzes at random and a queue you can actually clear.
         </p>
       </FeatureSection>
 
-      {/* Section 3, notes. */}
+      {/* Signal White here, not the default Frost: "The core idea" band above
+          is Frost, and bands alternate (Law 10; the ground change IS the
+          separator). White also keeps the eyebrow's Frost chip legible. */}
+      <UseCaseSteps
+        ground="white"
+        eyebrow="Use it like this"
+        heading="Three jobs the inbox does every day."
+        steps={[
+          {
+            title: "Morning triage",
+            body: "Open the inbox with your first coffee. Everything that came in overnight is sitting in one list: assign the urgent one to whoever's closest, reply to the easy ones, and the day starts sorted instead of scattered across three personal phones.",
+          },
+          {
+            title: "One owner per thread",
+            body: "Assign a conversation and it shows on every phone: an owner chip on the row, a line in the thread. One owner means no double replies and no silent gaps, and anyone can still step in when they're needed.",
+          },
+          {
+            title: "Search as memory",
+            body: "Every message and contact is searchable. \"What did we quote the Nguyens in March?\" takes five seconds, not a phone poll around the crew. The answer is in the thread, with the matching text highlighted.",
+          },
+        ]}
+      />
+
       <FeatureSection
-        eyebrow="Internal notes"
+        eyebrow="Notes stay internal"
         heading="Talk about the job without texting the customer."
-        visual={
-          <FramedShot id="contact-panel" className="mx-auto max-w-xl" />
-        }
-        flip
       >
         <p>
-          Some of what a crew needs to say about a job should never leave the
-          building: &ldquo;gate code 4482, dog is friendly,&rdquo; &ldquo;last
-          visit ran long, quote high,&rdquo; &ldquo;this is the third backup on
-          that street.&rdquo; In Loonext you write those as internal notes,
-          right inside the conversation where they belong. Notes are drawn in an
-          unmistakable amber card with a lock icon and an &ldquo;Internal
-          note&rdquo; label, they are never sent to the customer, ever, and the
-          design makes it impossible to confuse one for an outgoing text.
+          Some of what a crew needs to say should never leave the building:
+          gate codes, &quot;quote high, last visit ran long&quot;, the quirks
+          of a property. Internal notes live right inside the conversation,
+          drawn in an unmistakable marked card with a lock, and they are never
+          sent to the customer. The next person who opens the thread has the
+          context exactly where they need it.
         </p>
         <p>
-          Because the note lives in the thread, the next person to open the
-          conversation has the context the way they need it: attached to the
-          customer, in order, next to the messages it&apos;s about. No separate
-          notes app, no side channel, no &ldquo;text me the gate code again.&rdquo;
+          And the inbox is live. When Dale replies, the conversation updates on
+          every other phone: the status changes, the snippet updates, the
+          thread re-sorts. Nobody refreshes, nobody wonders, nobody replies
+          twice.
         </p>
       </FeatureSection>
 
-      {/* Section 4, realtime + mark done. Real product DOM (the done-mark on a
-          message), not a generic illustration (§4). */}
-      <FeatureSection
-        eyebrow="Realtime & done-marks"
-        heading="When Dale replies, everyone's phone shows it answered."
-        visual={<TagsDoneVisual className="mx-auto max-w-md" />}
-        wash
-      >
-        <p>
-          Loonext is live. The moment someone on the crew sends a reply, the
-          conversation updates on every other phone, the status changes, the
-          snippet updates, the thread re-sorts to the top. You don&apos;t
-          refresh, you don&apos;t poll, you don&apos;t wonder. If a customer
-          texts while you&apos;re looking at their thread, the new message just
-          appears. If they text while you&apos;re elsewhere, a quiet notification
-          tells you, and the conversation jumps up the list.
-        </p>
-        <p>
-          For the little things inside a thread, a question you&apos;ve handled,
-          an address you&apos;ve noted, tap the message to mark it done. It
-          draws a strikethrough and a small petrol check, and the whole crew sees
-          it&apos;s handled. It&apos;s a lightweight way to keep a long
-          conversation tidy without leaving the inbox for a separate to-do list.
-        </p>
-      </FeatureSection>
-
-      {/* Feature strip, how the pieces map to a crew's day. */}
-      <FeatureStrip
-        heading="Everything a shared inbox should do."
+      <TruthStripSection
+        heading="The plain facts"
         items={[
           {
-            icon: Users,
-            title: "The whole crew, one view",
-            body: "Starter covers 3 people, Pro covers 10, all looking at the same inbox, all on their own phones. No per-seat surprise on the bill.",
+            text: "Receiving texts and photos: free, unlimited, on every plan.",
+            good: true,
           },
           {
-            icon: UserSquare,
-            title: "Assign to one owner",
-            body: "Each conversation has a single assignee, shown as an avatar and a system line, so responsibility is never ambiguous.",
+            text: "Starter seats 3 people, Pro seats 10. Real limits, never per-seat billing.",
           },
           {
-            icon: ClipboardList,
-            title: "Statuses that clear a queue",
-            body: "New, Open, Waiting, Closed, filter to the work that still needs you and stop scrolling past what's done.",
-          },
-          {
-            icon: Lock,
-            title: "Notes that stay internal",
-            body: "Amber, locked, and never sent, talk about the job inside the conversation without the customer ever seeing it.",
-          },
-          {
-            icon: Search,
-            title: "Search everything",
-            body: "Every message and contact is searchable. 'What did we quote the Nguyens?' takes five seconds, not a phone poll.",
-          },
-          {
-            icon: RefreshCw,
-            title: "Realtime across the team",
-            body: "Replies, status changes, and new texts show up on every phone as they happen, no refresh, no double-reply.",
+            text: "Loonext is a texting inbox, not a phone system. The optional call forwarding add-on ($8/mo) rings your cell and texts back missed calls.",
           },
         ]}
       />
 
-      {/* Honest details, limits stated plainly (§4). */}
-      <HonestDetails
-        lead="A shared inbox is only trustworthy if you know exactly what it does and doesn't do. Here's the fine print, in plain words."
-        items={[
-          {
-            // #58/#24: no blanket voice denial (the $8 call-forwarding module
-            // ships) and no unqualified MMS claim (sending photos is the $5
-            // Picture messages add-on) — truth in apps/api/src/billing/
-            // modules.ts + plans.ts.
-            term: "It's a texting inbox, not a phone system.",
-            detail:
-              "Loonext handles the texts on your business number, and incoming photos are always included; sending photos is an optional $5/mo add-on. There's no calling inside the app and no mass text blasts, it's built for one-to-one conversations a crew can share. If customers call your number, the optional call forwarding add-on ($8/mo) rings your cell and texts back the calls you miss, so the lead still lands in this inbox.",
-          },
-          {
-            term: "Receiving is free and unlimited; sending is what counts.",
-            detail:
-              "Every inbound text and photo is free on every plan. Only the texts your team sends count against your monthly allowance (500 on Starter, 2,500 on Pro), and the composer shows the count before you send.",
-          },
-          {
-            term: "Seats are enforced, honestly.",
-            detail:
-              "Starter is 3 people and Pro is 10, real limits, enforced in the app, not a soft cap that quietly bills you for a fourth teammate. When you outgrow Starter, upgrading to Pro is one click and applies immediately.",
-          },
-          {
-            term: "Assignment is a convention, not a lock.",
-            detail:
-              "Assigning a conversation to one person signals ownership; it doesn't stop a teammate from stepping in when they're needed. Anyone on the crew can read and reply to any conversation, that's the point of a shared inbox.",
-          },
-        ]}
-      />
+      <PricingSnippet>
+        <p>
+          The shared inbox is the whole product, at one flat price for the
+          whole crew: $29/mo on Starter for up to 3 people and one local
+          number, $79/mo on Pro for up to 10 people and two numbers. 500
+          outgoing texts a month on Starter, 2,500 on Pro, and receiving is
+          always free and unlimited.
+        </p>
+        <p>
+          US shops also pay a one-time $29 to register with the phone
+          companies, charged once, ever, so the first month is $58 and every
+          month after is $29. Canadian businesses that don&apos;t text US
+          numbers never pay it.
+        </p>
+      </PricingSnippet>
 
-      {/* Mini-pricing strip. */}
-      <MiniPricing
-        body={
-          <>
-            <p>
-              The shared inbox is the whole product, and it&apos;s the same flat
-              price for everyone on the crew: $29/mo on Starter for up to 3
-              people and one local number, $79/mo on Pro for up to 10 people and
-              two numbers. Receiving texts is always free and unlimited.
-            </p>
-            <p>
-              For US shops there&apos;s a one-time $29 fee to register your
-              business with the phone companies, charged once, ever, so your
-              first month is $58 and every month after is $29. Canadian
-              businesses that don&apos;t text US numbers never pay it.
-            </p>
-          </>
-        }
-      />
-
-      {/* Internal links, trades + related features + a comparison. */}
       <RelatedLinks
         heading="See the shared inbox in your trade"
-        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades, and where Loonext's flat, shared model stands next to the per-seat tools."
+        intro="The inbox is the same for every crew, but the way it earns its keep is specific. Here's how it plays out in a few trades, and where the flat price stands next to the per-user tools."
         links={[
           {
             label: "Texting for plumbers",
@@ -288,10 +172,10 @@ export default function SharedInboxPage() {
           {
             label: "Texting for HVAC",
             href: "/for/hvac",
-            hint: "Seasonal no-heat calls, triaged across the whole crew.",
+            hint: "The no-heat morning rush, triaged across the whole crew.",
           },
           {
-            label: "Templates, tags & workflow",
+            label: "Templates and tags",
             href: "/features/templates-and-tags",
             hint: "Saved replies, sell-pipeline tags, and done-marks inside the inbox.",
           },
@@ -303,7 +187,6 @@ export default function SharedInboxPage() {
         ]}
       />
 
-      {/* Page-specific FAQ, unique to shared-inbox (§4 flagship rule). */}
       <FeatureFaq
         heading="Shared inbox questions, straight answers."
         faqs={[
@@ -313,11 +196,11 @@ export default function SharedInboxPage() {
           },
           {
             q: "Can two people reply to the same customer by accident?",
-            a: "It's designed against. Every conversation carries one assignee and a status, and the list updates in realtime, so if Dale is typing a reply, the rest of the crew sees the conversation move and knows it's handled. Anyone can still jump in when they need to; the point is that nobody has to guess.",
+            a: "It's designed against. Every conversation carries one assignee and a status, and the list updates in realtime, so if Dale is replying, the rest of the crew sees the conversation move and knows it's handled. Anyone can still jump in when they need to; the point is that nobody has to guess.",
           },
           {
             q: "Do customers know it's a shared inbox and not one person's phone?",
-            a: "No, to the customer it's a normal text conversation with your business. Internal notes and assignments live inside Loonext and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
+            a: "No. To the customer it's a normal text conversation with your business. Internal notes and assignments live inside Loonext and are never sent. What the customer sees is a single, consistent business number that always gets answered.",
           },
           {
             q: "What happens to conversations when a teammate leaves?",
@@ -329,7 +212,7 @@ export default function SharedInboxPage() {
           },
           {
             q: "Can I search old conversations?",
-            a: "Yes. Every message and every contact is searchable from the inbox, type a name, a number, or a phrase like 'water heater' and you get the conversations and contacts that match, with the matching text highlighted.",
+            a: "Yes. Every message and every contact is searchable from the inbox. Type a name, a number, or a phrase like 'water heater' and you get the conversations and contacts that match, with the matching text highlighted.",
           },
         ]}
       />

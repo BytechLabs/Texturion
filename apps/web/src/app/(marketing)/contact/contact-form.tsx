@@ -2,85 +2,102 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 
 /**
- * Contact form, the honest option (BLUEPRINT §2): email is Loonext's only
- * support channel, so this composes a pre-filled message and opens your email
- * app via a mailto: link. We say so plainly under the button rather than pretend
- * a marketing backend exists. No data is sent anywhere by this page itself.
+ * The contact work-order form (COPY-DECK v2 /contact): name, business,
+ * message, styled after the composer's shape (one card, a big message box,
+ * one send action). Email is Loonext's only support channel, so submitting
+ * composes a pre-filled message and opens the visitor's email app via a
+ * mailto: link; we say so plainly under the button. No data is sent anywhere
+ * by this page itself.
  */
+/**
+ * Compose the RFC 6068 mailto URL for the work order. Hfield values must be
+ * percent-encoded (encodeURIComponent), NOT form-encoded: URLSearchParams
+ * turns spaces into literal "+" characters, which mail clients (Outlook,
+ * Apple Mail, Thunderbird) render verbatim in the drafted subject and body.
+ */
+export function buildMailto(
+  name: string,
+  business: string,
+  message: string,
+): string {
+  const subject = name ? `Loonext question from ${name}` : "Loonext question";
+  const signature = [name, business].filter(Boolean).join(", ");
+  const body = signature ? `${message}\n\n${signature}` : message;
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export function ContactForm() {
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [business, setBusiness] = useState("");
   const [message, setMessage] = useState("");
-
-  function buildMailto(): string {
-    const subject = name ? `Loonext question from ${name}` : "Loonext question";
-    const bodyLines = [
-      message,
-      "",
-      ", ",
-      name && `Name: ${name}`,
-      email && `Reply-to: ${email}`,
-    ].filter(Boolean);
-    const params = new URLSearchParams({
-      subject,
-      body: bodyLines.join("\n"),
-    });
-    return `mailto:${SUPPORT_EMAIL}?${params.toString()}`;
-  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Open the user's email client with the message pre-filled.
-    window.location.href = buildMailto();
+    // Open the visitor's email client with the message pre-filled.
+    window.location.href = buildMailto(name, business, message);
   }
 
+  const fieldClass =
+    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]";
+  const labelClass =
+    "block text-sm font-semibold text-[color:var(--fr-ink)]";
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="contact-name">Your name</Label>
-        <Input
-          id="contact-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="name"
-        />
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label htmlFor="contact-name" className={labelClass}>
+            Your name
+          </label>
+          <input
+            id="contact-name"
+            className={fieldClass}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="contact-business" className={labelClass}>
+            Your business
+          </label>
+          <input
+            id="contact-business"
+            className={fieldClass}
+            value={business}
+            onChange={(e) => setBusiness(e.target.value)}
+            autoComplete="organization"
+            placeholder="Reyes Plumbing"
+          />
+        </div>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="contact-email">Your email</Label>
-        <Input
-          id="contact-email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          placeholder="so we can reply"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="contact-message">How can we help?</Label>
-        <Textarea
+        <label htmlFor="contact-message" className={labelClass}>
+          How can we help?
+        </label>
+        <textarea
           id="contact-message"
+          className={fieldClass}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          rows={5}
+          rows={6}
           required
         />
       </div>
-      <Button type="submit" size="lg" className="w-full sm:w-auto">
+      <button
+        type="submit"
+        className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-white transition-colors duration-200 ease-out hover:bg-[color:var(--fr-cobalt-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] sm:w-auto"
+      >
         Open in your email app
-      </Button>
-      <p className="text-sm text-[color:var(--ink-70)]">
+      </button>
+      <p className="text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
         This opens your email app with the message ready to send to{" "}
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
-          className="font-medium text-[color:var(--petrol)] underline-offset-4 hover:underline"
+          className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 hover:decoration-[color:var(--fr-cobalt)]"
         >
           {SUPPORT_EMAIL}
         </a>

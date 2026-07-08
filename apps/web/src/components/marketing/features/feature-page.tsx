@@ -1,307 +1,340 @@
 /**
- * Feature-page building blocks (features track). BLUEPRINT §4 template, on the
- * v3 "Quiet daylight" identity (DESIGN-DIRECTION, BINDING).
+ * Feature-page building blocks (features crew), the v4 "FIRST RESPONSE"
+ * FEATURE template (DESIGN-DIRECTION v4 §6):
  *
- * The four /features/* pages share this skeleton (hero -> alternating job-named
- * sections -> honest-details block -> mini-pricing strip -> page-specific FAQ ->
- * CTA band) but ZERO copy: every page passes its own hand-written content, so
- * there are no shared sentences across pages (the scaled-content guard).
+ *   Dateline Header → one large Panel Frame with the capability's real
+ *   component staged mid-task → use-case blocks (Numbered Steps) → Truth
+ *   Strip for any honest limitation → pricing snippet → feature FAQ → CTA
+ *   band (Frost, never cobalt: the one cobalt band is home-only, Law 3).
  *
- * Identity notes (DESIGN-DIRECTION §2-§4):
- *  - Ground, not counters. Sections are separated by GROUND changes (the pale
- *    porcelain --paper to the one deep-petrol band and back) and by
- *    display-lettering rhythm. There are NO section numbers (§0).
- *  - Composed headlines. The hero and section headings are authored with the
- *    <Display> system: the page passes a ReactNode title composed with
- *    <Display.Mark> (the promise word, a clean petrol underline) and
- *    <Display.Accent> (the one petrol word). Boldness is spent here; everything
- *    else stays quiet.
- *  - Kickers, not eyebrows. Where a section needs a label it is a v3 <Kicker>
- *    (Public Sans 600, sentence case, --ink-55): §3 forbids mono eyebrows.
- *  - CTA copy is "Start for $29" and keeps the same words through the flow (§6).
+ * Everything assembles from the FR kit primitives (§5); nothing bespoke.
+ * The four /features/* pages and /canada share this skeleton but ZERO copy:
+ * every page passes its own hand-written content (the scaled-content guard).
  *
- * Server components throughout; the only client islands a page mounts are the
- * shared thread-demo / interactive widgets it drops into `visual` slots.
+ * Law 6: no em-dashes anywhere in rendered strings. Law 10: no hairline
+ * rules; separation is space, radius, and the Frost wash. Law 1: nothing in
+ * here talks about the site as an artifact.
+ *
+ * Server components throughout.
  */
 
 import Link from "next/link";
-import { ArrowRight, type LucideIcon } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Container } from "@/components/marketing/ui/container";
-import { Kicker } from "@/components/marketing/ui/kicker";
-import { Reveal } from "@/components/marketing/ui/reveal";
-import { Section } from "@/components/marketing/ui/section";
-import { Display } from "@/components/marketing/display";
-import { MarkerCheck } from "@/components/marketing/display";
-import { ArrowLink } from "@/components/marketing/ledger/arrow-link";
+import {
+  ConvergedField,
+  CtaButton,
+  Dateline,
+  Eyebrow,
+  FrCard,
+  FrSection,
+  MonoFigure,
+} from "@/components/marketing/fr";
+import {
+  PRIMARY_CTA_LABEL,
+  SECONDARY_CTA_LABEL,
+  SIGNUP_HREF,
+} from "@/components/marketing/nav-links";
 import { cn } from "@/lib/utils";
 
 /* -------------------------------------------------------------------------- */
-/* Hero: mono eyebrow -> composed <Display> H1 -> sub -> CTA row -> truth      */
-/* chips + one framed visual, over the painted-panel paper ground.            */
+/* DATELINE HEADER (§5.1): the static converged-arrival mark, the ink fact    */
+/* chip, H1, sub, CTA row, and the page's large Panel Frame on the right.     */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureHero({
-  eyebrow,
+  dateline,
   title,
   sub,
-  truthChips,
-  visual,
+  panel,
 }: {
-  eyebrow: string;
-  /** A composed <Display> headline (page authors the marker/emph/accent). */
+  /** The page's load-bearing fact (coverage map), e.g. "1 OWNER PER CONVERSATION". */
+  dateline: string;
   title: ReactNode;
   sub: ReactNode;
-  /** Short, verifiable truth chips under the CTAs (no adjectives-as-stats). */
-  truthChips: string[];
-  /** The feature-specific product visual (live thread demo, widget, or DOM). */
-  visual: ReactNode;
+  /** The capability's real component staged mid-task, inside a <PanelFrame>. */
+  panel: ReactNode;
 }) {
   return (
-    <section className="relative overflow-hidden pb-14 pt-28 sm:pb-20 sm:pt-32">
-      <Container>
-        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
-          <div>
-            <Kicker>{eyebrow}</Kicker>
-
-            <Display as="h1" size="hero" className="mt-3 text-balance">
-              {title}
-            </Display>
-
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-[color:var(--ink-70)]">
-              {sub}
-            </p>
-
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-              <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href="/signup">
-                  Start for $29
-                  <ArrowRight strokeWidth={1.75} aria-hidden />
-                </Link>
-              </Button>
-              <ArrowLink href="/pricing">See pricing</ArrowLink>
-            </div>
-
-            <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2.5">
-              {truthChips.map((chip) => (
-                <li
-                  key={chip}
-                  className="flex items-center gap-2 text-[13px] text-[color:var(--ink-70)]"
-                >
-                  <MarkerCheck
-                    color="petrol"
-                    draw={false}
-                    className="size-4 shrink-0"
-                  />
-                  {chip}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <Reveal className="relative">{visual}</Reveal>
+    <FrSection
+      className="pt-10 md:pt-16"
+      containerClassName="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:gap-16"
+    >
+      <div>
+        {/* The sole decorative page-header mark on subpages (Law 3): the
+            static converged Arrival Field derivative. */}
+        <ConvergedField variant="mark" className="h-8 w-auto" />
+        <div className="mt-5">
+          <Dateline>{dateline}</Dateline>
         </div>
-      </Container>
-    </section>
+        <h1 className="fr-h1 mt-5 text-[color:var(--fr-ink)]">{title}</h1>
+        <p className="fr-body mt-6 max-w-xl text-[color:var(--fr-ink-70)]">
+          {sub}
+        </p>
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <CtaButton href={SIGNUP_HREF} size="lg">
+            {PRIMARY_CTA_LABEL}
+          </CtaButton>
+          <CtaButton href="/pricing" variant="secondary" size="lg">
+            {SECONDARY_CTA_LABEL}
+          </CtaButton>
+        </div>
+      </div>
+      <div>{panel}</div>
+    </FrSection>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Alternating job-named content section (copy <-> visual). Ground alternates  */
-/* paper <-> a half-step lighter panel so adjacent bands never share a         */
-/* silhouette (§4), no gradient wash costume.                                  */
+/* Content band: eyebrow + H2 + prose, with an optional visual column.        */
+/* Bands alternate white and Frost (Law 10: ground changes, never rules).     */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureSection({
+  ground = "white",
   eyebrow,
   heading,
   children,
   visual,
   flip = false,
-  wash = false,
   id,
 }: {
+  ground?: "white" | "frost";
   eyebrow?: string;
-  /** Composed <Display> heading (ReactNode) or a plain string. */
   heading: ReactNode;
-  /** Prose, one or more <p>/lists; the page supplies unique body copy. */
+  /** Prose paragraphs; the page supplies unique body copy. */
   children: ReactNode;
   visual?: ReactNode;
   /** When true, the visual sits on the LEFT (alternating rhythm). */
   flip?: boolean;
-  /** Paint this band on the half-step-lighter panel ground (a ground change). */
-  wash?: boolean;
   id?: string;
 }) {
   const copy = (
     <div className={cn(!visual && "mx-auto max-w-3xl")}>
-      {eyebrow && <Kicker>{eyebrow}</Kicker>}
-      <Display as="h2" size="h2" className={cn(eyebrow && "mt-3")}>
+      {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+      <h2 className={cn("fr-h2 text-[color:var(--fr-ink)]", eyebrow && "mt-4")}>
         {heading}
-      </Display>
-      <div className="prose-feature mt-5 space-y-4 text-lg leading-relaxed text-[color:var(--ink-70)]">
+      </h2>
+      <div className="fr-body mt-5 space-y-4 text-[color:var(--fr-ink-70)]">
         {children}
       </div>
     </div>
   );
 
   return (
-    <Section
-      id={id}
-      bleed={wash}
-      className={cn(wash && "bg-[color:var(--paper-2)] py-16 sm:py-24")}
-      /* wash paints the half-step-lighter panel ground (a ground change, §4),
-         no gradient costume. */
-    >
-      {wash ? (
-        <Container>
-          <SectionInner copy={copy} visual={visual} flip={flip} />
-        </Container>
+    <FrSection ground={ground} id={id}>
+      {visual ? (
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <div className={cn(flip && "lg:order-2")}>{copy}</div>
+          <div className={cn(flip && "lg:order-1")}>{visual}</div>
+        </div>
       ) : (
-        <SectionInner copy={copy} visual={visual} flip={flip} />
+        copy
       )}
-    </Section>
+    </FrSection>
   );
 }
 
-function SectionInner({
-  copy,
-  visual,
-  flip,
+/* -------------------------------------------------------------------------- */
+/* NUMBERED STEPS (§5.5): use-case blocks with mono numerals in cobalt        */
+/* circles, on the Frost band as white cards.                                 */
+/* -------------------------------------------------------------------------- */
+
+export function UseCaseSteps({
+  eyebrow,
+  heading,
+  lead,
+  steps,
+  ground = "frost",
 }: {
-  copy: ReactNode;
-  visual?: ReactNode;
-  flip: boolean;
+  eyebrow?: string;
+  heading: ReactNode;
+  lead?: string;
+  steps: { title: string; body: string }[];
+  ground?: "white" | "frost";
 }) {
-  if (!visual) return <>{copy}</>;
   return (
-    <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-      <div className={cn(flip && "lg:order-2")}>{copy}</div>
-      <Reveal className={cn(flip && "lg:order-1")}>{visual}</Reveal>
+    <FrSection ground={ground}>
+      <div className="max-w-3xl">
+        {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+        <h2 className={cn("fr-h2 text-[color:var(--fr-ink)]", eyebrow && "mt-4")}>
+          {heading}
+        </h2>
+        {lead && (
+          <p className="fr-body mt-5 text-[color:var(--fr-ink-70)]">{lead}</p>
+        )}
+      </div>
+      <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {steps.map((step, i) => (
+          <FrCard as="li" key={step.title} className="p-6">
+            <span
+              className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-white"
+              aria-hidden
+            >
+              {i + 1}
+            </span>
+            <h3 className="fr-h3 mt-4 text-[color:var(--fr-ink)]">
+              {step.title}
+            </h3>
+            <p className="font-body-mkt mt-2 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
+              {step.body}
+            </p>
+          </FrCard>
+        ))}
+      </ol>
+    </FrSection>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* TRUTH STRIP (§5.4): the one repeated component for every honesty claim,    */
+/* site-wide, so candor has a learnable shape: Frost ground, 3px cobalt left  */
+/* edge, mono text, green tick where the news is good.                        */
+/* -------------------------------------------------------------------------- */
+
+export interface TruthItem {
+  text: string;
+  /** Green tick: only when something got handled (the green whitelist). */
+  good?: boolean;
+}
+
+export function TruthStrip({
+  items,
+  className,
+}: {
+  items: TruthItem[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-r-xl border-l-[3px] border-[color:var(--fr-cobalt)] bg-[color:var(--fr-frost)] px-5 py-4",
+        className,
+      )}
+    >
+      <ul className="space-y-3">
+        {items.map((item) => (
+          <li key={item.text} className="flex items-start gap-2.5">
+            {item.good ? (
+              <Check
+                className="mt-0.5 size-4 shrink-0 text-[color:var(--fr-green)]"
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            ) : (
+              <span
+                className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[color:var(--fr-ink-55)]"
+                aria-hidden
+              />
+            )}
+            <span className="fr-mono-data leading-relaxed text-[color:var(--fr-ink)]">
+              {item.text}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Honest-details block: limits stated plainly (BLUEPRINT §4). A ruled ledger  */
-/* of terms on paper cards, warm hairlines, not a broadsheet grid.             */
-/* -------------------------------------------------------------------------- */
-
-export function HonestDetails({
-  heading = "The honest details",
-  lead,
+/** A Truth Strip in its own band, for the template's honest-limitation slot. */
+export function TruthStripSection({
+  heading,
   items,
+  ground = "white",
 }: {
   heading?: string;
-  lead: string;
-  items: { term: string; detail: string }[];
+  items: TruthItem[];
+  ground?: "white" | "frost";
 }) {
   return (
-    <Section>
+    <FrSection ground={ground} className="py-10 md:py-14">
       <div className="mx-auto max-w-3xl">
-        <Display as="h2" size="h2">
-          {heading}
-        </Display>
-        <p className="mt-5 text-lg leading-relaxed text-[color:var(--ink-70)]">
-          {lead}
-        </p>
-        <dl className="mt-8 divide-y divide-[color:var(--hairline)] overflow-hidden rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
+        {heading && (
+          <h2 className="fr-h3 mb-4 text-[color:var(--fr-ink)]">{heading}</h2>
+        )}
+        <TruthStrip items={items} />
+      </div>
+    </FrSection>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Plain-words details: the page's precise edges (limits stated plainly),     */
+/* as Frost card wells. Facts live here so honesty survives redesigns.        */
+/* -------------------------------------------------------------------------- */
+
+export function PlainDetails({
+  heading,
+  lead,
+  items,
+  ground = "white",
+}: {
+  heading: string;
+  lead?: string;
+  items: { term: string; detail: string }[];
+  ground?: "white" | "frost";
+}) {
+  return (
+    <FrSection ground={ground}>
+      <div className="mx-auto max-w-3xl">
+        <h2 className="fr-h2 text-[color:var(--fr-ink)]">{heading}</h2>
+        {lead && (
+          <p className="fr-body mt-5 text-[color:var(--fr-ink-70)]">{lead}</p>
+        )}
+        <dl className="mt-8 space-y-4">
           {items.map(({ term, detail }) => (
-            <div key={term} className="p-5 sm:p-6">
-              <dt className="text-[15px] font-semibold text-[color:var(--ink)]">
+            <FrCard key={term} well className="p-5 sm:p-6">
+              <dt className="font-body-mkt text-[15px] font-semibold text-[color:var(--fr-ink)]">
                 {term}
               </dt>
-              <dd className="mt-1.5 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
+              <dd className="font-body-mkt mt-1.5 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
                 {detail}
               </dd>
-            </div>
+            </FrCard>
           ))}
         </dl>
       </div>
-    </Section>
+    </FrSection>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Feature-mapped strip: small icon rows tying the feature to the workflow.    */
+/* Pricing snippet: the whole price list, compact, price as art (the mono     */
+/* law), with the deck's guarantee microcopy under the CTAs.                  */
 /* -------------------------------------------------------------------------- */
 
-export function FeatureStrip({
-  heading,
-  items,
-}: {
-  heading: ReactNode;
-  items: { icon: LucideIcon; title: string; body: string }[];
-}) {
+export function PricingSnippet({ children }: { children: ReactNode }) {
   return (
-    <Section>
-      <Display as="h2" size="h2">
-        {heading}
-      </Display>
-      <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item, i) => {
-          const Icon = item.icon;
-          return (
-            <Reveal key={item.title} delay={Math.min(i, 3) * 60}>
-              <div className="flex h-full flex-col rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-5">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-[color:var(--petrol-12)] text-[color:var(--petrol)]">
-                  <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-                </span>
-                <h3 className="mt-4 text-[16px] font-semibold text-[color:var(--ink)]">
-                  {item.title}
-                </h3>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-70)]">
-                  {item.body}
-                </p>
-              </div>
-            </Reveal>
-          );
-        })}
-      </div>
-    </Section>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Mini-pricing strip: the whole price list, compact, with the $29 in the      */
-/* work-order mono (BLUEPRINT §4). On the paper ground, a bordered panel.       */
-/* -------------------------------------------------------------------------- */
-
-export function MiniPricing({ body }: { body: ReactNode }) {
-  return (
-    <Section bleed className="bg-[color:var(--paper-2)] py-16 sm:py-24">
-      <Container>
-        <div className="mx-auto max-w-3xl rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper)] p-6 sm:p-8">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="font-mono-mkt text-[44px] font-semibold leading-none tabular-nums text-[color:var(--petrol)]">
-              $29
-            </span>
-            <span className="text-[15px] text-[color:var(--ink-70)]">
-              /mo, the whole crew, month to month
-            </span>
-          </div>
-          <div className="prose-feature mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
-            {body}
-          </div>
-          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-            <Button asChild>
-              <Link href="/signup">
-                Start for $29
-                <ArrowRight strokeWidth={1.75} aria-hidden />
-              </Link>
-            </Button>
-            <ArrowLink href="/pricing">See full pricing</ArrowLink>
-          </div>
+    <FrSection ground="frost">
+      <FrCard className="mx-auto max-w-3xl p-6 sm:p-10">
+        <MonoFigure value="$29" suffix="/mo · the whole crew" size="display" />
+        <div className="font-body-mkt mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
+          {children}
         </div>
-      </Container>
-    </Section>
+        <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
+          <CtaButton href="/pricing" variant="secondary">
+            {SECONDARY_CTA_LABEL}
+          </CtaButton>
+        </div>
+        <p className="font-body-mkt mt-5 flex items-start gap-2 text-[13px] text-[color:var(--fr-ink-55)]">
+          <Check
+            className="mt-0.5 size-3.5 shrink-0 text-[color:var(--fr-green)]"
+            strokeWidth={2.5}
+            aria-hidden
+          />
+          30-day money-back guarantee. Full refund, including the registration
+          fee. No fine print.
+        </p>
+      </FrCard>
+    </FrSection>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Internal-link block: related trade + compare pages (BLUEPRINT §4/§11).      */
+/* Related links: trades, features, compares. Every href a real route.        */
 /* -------------------------------------------------------------------------- */
 
 export interface RelatedLink {
@@ -320,12 +353,10 @@ export function RelatedLinks({
   links: RelatedLink[];
 }) {
   return (
-    <Section>
+    <FrSection>
       <div className="mx-auto max-w-4xl">
-        <h2 className="font-display text-[26px] font-bold leading-tight tracking-[-0.01em] text-[color:var(--ink)] sm:text-[30px]">
-          {heading}
-        </h2>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-[color:var(--ink-70)]">
+        <h2 className="fr-h2 text-[color:var(--fr-ink)]">{heading}</h2>
+        <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
           {intro}
         </p>
         <ul className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -333,18 +364,18 @@ export function RelatedLinks({
             <li key={link.href + link.label}>
               <Link
                 href={link.href}
-                className="group flex items-start justify-between gap-4 rounded-2xl border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-4 transition-colors hover:border-[color:var(--petrol)]/40"
+                className="group flex h-full items-start justify-between gap-4 rounded-xl bg-[color:var(--fr-frost)] p-5 transition-colors duration-200 ease-out hover:bg-[color:var(--fr-card)] hover:shadow-[var(--fr-shadow-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
               >
                 <span>
-                  <span className="text-[15px] font-medium text-[color:var(--ink)]">
+                  <span className="font-body-mkt text-[15px] font-semibold text-[color:var(--fr-ink)]">
                     {link.label}
                   </span>
-                  <span className="mt-0.5 block text-[13px] leading-relaxed text-[color:var(--ink-70)]">
+                  <span className="font-body-mkt mt-1 block text-[13px] leading-relaxed text-[color:var(--fr-ink-70)]">
                     {link.hint}
                   </span>
                 </span>
                 <ArrowRight
-                  className="mt-0.5 size-4 shrink-0 text-[color:var(--petrol)] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                  className="mt-0.5 size-4 shrink-0 text-[color:var(--fr-cobalt)] opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0.5 group-hover:opacity-100"
                   strokeWidth={1.75}
                   aria-hidden
                 />
@@ -353,12 +384,12 @@ export function RelatedLinks({
           ))}
         </ul>
       </div>
-    </Section>
+    </FrSection>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Page-specific FAQ: native <details>, NO FAQPage JSON-LD (§11.2).            */
+/* Page-specific FAQ: native <details>, Frost wells, no hairlines (Law 10).   */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureFaq({
@@ -369,38 +400,37 @@ export function FeatureFaq({
   faqs: { q: string; a: ReactNode }[];
 }) {
   return (
-    <Section>
+    <FrSection>
       <div className="mx-auto max-w-3xl">
-        <Display as="h2" size="h2" className="text-center">
-          {heading}
-        </Display>
-        <div className="mt-12 divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
+        <h2 className="fr-h2 text-[color:var(--fr-ink)]">{heading}</h2>
+        <div className="mt-10 space-y-3">
           {faqs.map((item) => (
-            <details key={item.q} className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left text-[17px] font-medium text-[color:var(--ink)] [&::-webkit-details-marker]:hidden">
+            <details
+              key={item.q}
+              className="group rounded-xl bg-[color:var(--fr-frost)] px-5"
+            >
+              <summary className="font-body-mkt flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-left text-[16px] font-semibold text-[color:var(--fr-ink)] [&::-webkit-details-marker]:hidden">
                 {item.q}
                 <span
-                  className="shrink-0 text-[color:var(--graphite)] transition-transform duration-200 group-open:rotate-45"
+                  className="shrink-0 text-[color:var(--fr-ink-55)] transition-transform duration-200 ease-out group-open:rotate-45"
                   aria-hidden
                 >
                   +
                 </span>
               </summary>
-              <div className="pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--ink-70)]">
+              <div className="font-body-mkt pb-5 pr-8 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
                 {item.a}
               </div>
             </details>
           ))}
         </div>
       </div>
-    </Section>
+    </FrSection>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Closing CTA band: the ONE deep-petrol ground per page (§3 "used once"),     */
-/* the earned crescendo. Paper gives way to the dark band; light type, one     */
-/* paper-white button, a single marker check. No fake indicators.              */
+/* Closing CTA band: Frost, never cobalt (the one cobalt band is home-only).  */
 /* -------------------------------------------------------------------------- */
 
 export function FeatureCta({
@@ -411,33 +441,21 @@ export function FeatureCta({
   sub: string;
 }) {
   return (
-    <Section
-      bleed
-      className="relative overflow-hidden bg-[color:var(--deep)] py-16 text-[color:var(--paper)] sm:py-24"
-    >
-      <div className="mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-        <h2 className="font-display text-balance text-[30px] font-bold leading-[1.08] tracking-[-0.005em] text-[color:var(--paper)] sm:text-[44px]">
-          {heading}
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--paper)]/85">
+    <FrSection ground="frost">
+      <div className="mx-auto max-w-3xl text-center">
+        <h2 className="fr-h2 text-[color:var(--fr-ink)]">{heading}</h2>
+        <p className="fr-body mx-auto mt-5 max-w-xl text-[color:var(--fr-ink-70)]">
           {sub}
         </p>
         <div className="mt-8 flex justify-center">
-          <Button
-            asChild
-            size="lg"
-            className="bg-[color:var(--paper)] text-[color:var(--deep)] hover:bg-white"
-          >
-            <Link href="/signup">
-              Start for $29
-              <ArrowRight strokeWidth={1.75} aria-hidden />
-            </Link>
-          </Button>
+          <CtaButton href={SIGNUP_HREF} size="lg">
+            {PRIMARY_CTA_LABEL}
+          </CtaButton>
         </div>
-        <p className="mt-4 text-[13px] text-[color:var(--paper)]/70">
-          $29/mo flat · Month to month · 30-day money-back guarantee
+        <p className="fr-eyebrow mt-6 text-[color:var(--fr-ink-55)]">
+          $29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
         </p>
       </div>
-    </Section>
+    </FrSection>
   );
 }

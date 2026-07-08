@@ -21,7 +21,7 @@ const CSS = `
   font-weight: 500;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono-mkt), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ---- The one highlight-swipe (the problem H2 promise word) ---------------- */

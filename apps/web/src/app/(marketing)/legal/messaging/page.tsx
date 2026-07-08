@@ -19,37 +19,37 @@ export const metadata: Metadata = buildMetadata({
 });
 
 const sections = [
-  { id: "program", heading: "1. What this program is" },
-  { id: "opt-in", heading: "2. How opt-in works" },
-  { id: "opt-out", heading: "3. How to stop messages (STOP)" },
-  { id: "help", heading: "4. Getting help (HELP)" },
-  { id: "frequency", heading: "5. Message frequency & rates" },
-  { id: "carriers", heading: "6. Carrier disclaimer" },
-  { id: "privacy", heading: "7. Your number stays private" },
-  { id: "contact", heading: "8. Contact" },
+  { id: "program", number: "1", heading: "What this program is" },
+  { id: "opt-in", number: "2", heading: "How opt-in works" },
+  { id: "opt-out", number: "3", heading: "How to stop messages (STOP)" },
+  { id: "help", number: "4", heading: "Getting help (HELP)" },
+  { id: "frequency", number: "5", heading: "Message frequency and rates" },
+  { id: "carriers", number: "6", heading: "Carrier disclaimer" },
+  { id: "privacy", number: "7", heading: "Your number stays private" },
+  { id: "contact", number: "8", heading: "Contact" },
 ];
 
 export default function MessagingPolicyPage() {
   return (
     <LegalPage
       title="SMS messaging policy"
-      intro="If you've received a text sent through Loonext, this page explains what the program is, how you were opted in, and how to make it stop. It is also the messaging policy every business on Loonext agrees to."
+      summary="Businesses on Loonext text their own customers, one conversation at a time. You receive texts because you texted the business first, called it, or gave it your number and agreed to be texted. Reply STOP to any message and the messages stop; reply HELP for help. Message and data rates may apply, and message frequency varies with the conversation."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-03"
       breadcrumbLabel="SMS messaging policy"
       path={PATH}
       sections={sections}
     >
-      <LegalSectionBlock id="program" heading="1. What this program is">
+      <LegalSectionBlock id="program" number="1" heading="What this program is">
         <p>
           Loonext is a shared text inbox that local service businesses in the
           United States and Canada use to text{" "}
-          <strong>their own customers</strong> — appointment questions, quotes,
+          <strong>their own customers</strong>: appointment questions, quotes,
           photos of the job, on-my-way updates, and replies to messages those
-          customers sent. Every message
-          relayed through Loonext is a conversation between one business and a
-          customer of that business. Loonext is not a bulk-marketing platform
-          and does not offer blast tools, see our{" "}
+          customers sent. Every message relayed through Loonext is a
+          conversation between one business and a customer of that business.
+          Loonext is not a bulk-marketing platform and does not offer blast
+          tools, see our{" "}
           <LegalLink href="/legal/aup">acceptable use policy</LegalLink>.
           &quot;Loonext,&quot; &quot;we,&quot; and &quot;us&quot; mean the
           company that operates Loonext, as defined in our{" "}
@@ -57,7 +57,7 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="opt-in" heading="2. How opt-in works">
+      <LegalSectionBlock id="opt-in" number="2" heading="How opt-in works">
         <p>
           You receive texts from a business on Loonext in one of three ways:
           you texted the business first; you called the business (if no one
@@ -76,7 +76,11 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="opt-out" heading="3. How to stop messages (STOP)">
+      <LegalSectionBlock
+        id="opt-out"
+        number="3"
+        heading="How to stop messages (STOP)"
+      >
         <p>
           Reply <strong>STOP</strong> to any message and the messages stop. The
           opt-out is recorded and further sends from that business to your
@@ -89,7 +93,7 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="help" heading="4. Getting help (HELP)">
+      <LegalSectionBlock id="help" number="4" heading="Getting help (HELP)">
         <p>
           Reply <strong>HELP</strong> to any message and you&apos;ll receive a
           message identifying the service and how to reach support. You can
@@ -100,7 +104,11 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="frequency" heading="5. Message frequency & rates">
+      <LegalSectionBlock
+        id="frequency"
+        number="5"
+        heading="Message frequency and rates"
+      >
         <p>
           <strong>Message frequency varies.</strong> These are conversations,
           not scheduled campaigns, so how many messages you receive depends on
@@ -111,7 +119,7 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="carriers" heading="6. Carrier disclaimer">
+      <LegalSectionBlock id="carriers" number="6" heading="Carrier disclaimer">
         <p>
           Carriers are not liable for delayed or undelivered messages. Text
           delivery depends on the mobile carrier networks, which neither
@@ -120,7 +128,11 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="privacy" heading="7. Your number stays private">
+      <LegalSectionBlock
+        id="privacy"
+        number="7"
+        heading="Your number stays private"
+      >
         <p>
           Mobile numbers and SMS consent data are never shared with, or sold
           to, third parties or affiliates for their own marketing. The consent
@@ -132,7 +144,7 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" heading="8. Contact">
+      <LegalSectionBlock id="contact" number="8" heading="Contact">
         <p>
           Questions about this program, or a message you received through
           Loonext? Email{" "}

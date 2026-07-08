@@ -1,60 +1,61 @@
 /**
- * Home page: "Quiet daylight" (v3-spec, BINDING; supersedes the "Open all
- * night" nocturne after client rejection). ROOT / resolves here;
+ * Home page: v4 "FIRST RESPONSE" (DESIGN-DIRECTION v4 + COPY-DECK v2,
+ * BINDING; supersedes the v3 "Quiet daylight" page). ROOT / resolves here;
  * (marketing)/layout.tsx supplies <Nav/> + <Footer/> + fonts + the shared
  * RevealActivator, so this file composes ONLY the ordered sections.
  *
- * The page is light, calm, and minimal: white/porcelain grounds, hairline
- * rules, one petrol accent, the amber unread dot, and exactly ONE dark band
- * (the final CTA). Motion is limited to the shared [data-reveal] rise, the
- * hero message's single soft landing, the delivery-tick steps, and the
- * final-CTA odometer roll; everything else is static. No-JS and reduced
- * motion both get the identical resolved server markup.
- *
- * Section order (footer comes from the layout):
- *  - NightHero          #tonight      calm 7/5 split, one thread card, LCP H1 text
- *  - AfterDark          #after-dark   three problem cards
- *  - NightShift         #night-shift  the five-step story + resolved thread card
- *  - DaylightFeatures   #day          six crew-tool cards
- *  - Pricing            #pricing      flat-price cards + the mono cost table
- *  - ApprovalClock      #approval     the carrier-approval day-tick board
- *  - Faq                #faq          native-disclosure FAQ
- *  - FinalCta           #start        the one dark band: odometer + composer CTA
- *
- * <NightCss/> mounts the small shared motion/style block once (land, ticks,
- * unread pulse, odometer roll). LCP: the hero H1 text node, full color from
- * first paint. Hero + the first band after it stay undeferred; everything
- * below defers via <Section defer intrinsic>.
+ * The eleven-section arc (owner ruling 2026-07-07: S7 merged into S6 cell 9):
+ *  - Hero         S1  #tonight      9:04 dateline, LCP H1, the Arrival Field
+ *                                   (the site's ONLY live canvas, Law 3)
+ *                                   docking into the real inbox
+ *  - TruthBar     S2                $29 display figure + the three chips
+ *  - Pattern      S3  #after-dark   the three pain cards (Frost band)
+ *  - FixShown     S4  #see-it-work  the steppable water-heater thread in the
+ *                                   product frame (app tokens, Law 2)
+ *  - ThreeSteps   S5  #steps        signup-to-texting + first-week timeline
+ *  - Bento        S6  #day          nine cells, four real-component anchors
+ *  - DoTheMath    S8  #math         the calculator (the one Flare display)
+ *  - TheDeal      S9  #deal         plan cards, Truth Strip, slider, meter
+ *  - RulesCanada  S10 #rules        carrier proof points + the Canada card
+ *  - Faq          S11 #faq          native-disclosure fair questions
+ *  - FinalCta     S12 #start        the ONE cobalt band, static SVG backdrop
  *
  * <HomeJsonLd/> is the WebSite + SoftwareApplication node, rendered once here
- * per the SEO-lane contract. Metadata: buildMetadata carries the deck's page
- * title/description; the deck's OG title/description differ from the meta
- * pair, so openGraph/twitter are overridden wholesale below (overriding
- * replaces the whole object, hence type/siteName/url re-included; the
- * canonical survives via the spread). og:image is auto-wired by Next from
- * (marketing)/opengraph-image.tsx; never hardcode image URLs here.
+ * per the SEO-lane contract. Metadata: buildMetadata carries the page
+ * title/description (canonical https://loonext.com/, owner rule 12); the
+ * OG/twitter pair leads with the 9:04 hook, so openGraph/twitter are
+ * overridden wholesale below (overriding replaces the whole object, hence
+ * type/siteName/url re-included; the canonical survives via the spread).
+ * og:image is auto-wired by Next from (marketing)/opengraph-image.tsx; never
+ * hardcode image URLs here.
  */
 
 import type { Metadata } from "next";
 
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
+import { Hero } from "@/components/marketing/hero/hero";
+import { Bento } from "@/components/marketing/home/bento";
+import { DoTheMath } from "@/components/marketing/home/do-the-math";
+import { Faq } from "@/components/marketing/home/faq";
+import { FinalCta } from "@/components/marketing/home/final-cta";
+import { FixShown } from "@/components/marketing/home/fix-shown";
+import { Pattern } from "@/components/marketing/home/pattern";
+import { RulesCanada } from "@/components/marketing/home/rules-canada";
+import { TheDeal } from "@/components/marketing/home/the-deal";
+import { ThreeSteps } from "@/components/marketing/home/three-steps";
+import { TruthBar } from "@/components/marketing/home/truth-bar";
 import { buildMetadata } from "@/lib/marketing/seo";
 import { absoluteUrl } from "@/lib/marketing/site";
-import { NightCss } from "@/components/marketing/night/night-css";
-import { NightHero } from "@/components/marketing/night/hero";
-import { AfterDark } from "@/components/marketing/night/after-dark";
-import { NightShift } from "@/components/marketing/night/night-shift";
-import { DaylightFeatures } from "@/components/marketing/night/daylight-features";
-import { Pricing } from "@/components/marketing/night/pricing";
-import { ApprovalClock } from "@/components/marketing/night/approval-clock";
-import { Faq } from "@/components/marketing/night/faq";
-import { FinalCta } from "@/components/marketing/night/final-cta";
+
+const OG_TITLE = "Somebody texted your business at 9:04 last night.";
+const OG_DESCRIPTION =
+  "Loonext gives your business one local number and one shared text inbox the whole crew answers from. $29 a month flat for the team, not per user.";
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Loonext: shared text inbox for your crew, $29 a month flat",
+    title: "Loonext: one number and one shared text inbox for the whole crew",
     description:
-      "One local business number the whole crew texts from. Every customer text answered, assigned, and closed. $29 a month flat for the team, not per user.",
+      "One local business number, one shared text inbox. The whole crew reads, replies, assigns, and closes from any phone. $29 a month flat for the team, not per user.",
     path: "/",
     absoluteTitle: true,
   }),
@@ -62,15 +63,13 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Loonext",
     url: absoluteUrl("/"),
-    title: "Your best lead texts at 9:47 pm.",
-    description:
-      "Loonext is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Your best lead texts at 9:47 pm.",
-    description:
-      "Loonext is a shared text inbox for service businesses. One local number, the whole crew, $29 a month flat. Inbound texts are free.",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
 };
 
@@ -78,15 +77,15 @@ export default function HomePage() {
   return (
     <>
       <HomeJsonLd />
-      {/* The one shared motion/style block (land, ticks, unread pulse,
-          odometer roll). Mounted exactly once, above the first section. */}
-      <NightCss />
-      <NightHero />
-      <AfterDark />
-      <NightShift />
-      <DaylightFeatures />
-      <Pricing />
-      <ApprovalClock />
+      <Hero />
+      <TruthBar />
+      <Pattern />
+      <FixShown />
+      <ThreeSteps />
+      <Bento />
+      <DoTheMath />
+      <TheDeal />
+      <RulesCanada />
       <Faq />
       <FinalCta />
     </>

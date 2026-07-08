@@ -19,28 +19,28 @@ export const metadata: Metadata = buildMetadata({
 });
 
 const sections = [
-  { id: "why", heading: "1. Why this exists" },
-  { id: "consent", heading: "2. Consent is required" },
-  { id: "no-lists", heading: "3. No purchased or harvested lists" },
-  { id: "shaft", heading: "4. Prohibited content (SHAFT and more)" },
-  { id: "opt-out", heading: "5. Opt-out is immediate" },
-  { id: "identification", heading: "6. Identify yourself" },
-  { id: "no-abuse", heading: "7. No abuse of the network" },
-  { id: "enforcement", heading: "8. Enforcement" },
-  { id: "contact", heading: "9. Contact" },
+  { id: "why", number: "1", heading: "Why this exists" },
+  { id: "consent", number: "2", heading: "Consent is required" },
+  { id: "no-lists", number: "3", heading: "No purchased or harvested lists" },
+  { id: "shaft", number: "4", heading: "Prohibited content (SHAFT and more)" },
+  { id: "opt-out", number: "5", heading: "Opt-out is immediate" },
+  { id: "identification", number: "6", heading: "Identify yourself" },
+  { id: "no-abuse", number: "7", heading: "No abuse of the network" },
+  { id: "enforcement", number: "8", heading: "Enforcement" },
+  { id: "contact", number: "9", heading: "Contact" },
 ];
 
 export default function AupPage() {
   return (
     <LegalPage
       title="Acceptable use policy"
-      intro="Loonext anti-sells blast marketing on purpose. These rules keep message delivery healthy for every business on the network, and they are at least as strict as the carrier obligations that flow down to us."
+      summary="Text only people who have agreed to hear from you. No purchased or harvested lists, no SHAFT content (sex, hate, alcohol, firearms, tobacco), and every opt-out is honored immediately. These rules are at least as strict as the carrier obligations that flow down to us, and breaking them can end your account, because one bad sender hurts delivery for every business on the network."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Acceptable use"
       path={PATH}
       sections={sections}
     >
-      <LegalSectionBlock id="why" heading="1. Why this exists">
+      <LegalSectionBlock id="why" number="1" heading="Why this exists">
         <p>
           When you text through Loonext, you text through the phone companies and
           carriers we rely on. Their rules pass through to you, and breaking them
@@ -50,7 +50,7 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="consent" heading="2. Consent is required">
+      <LegalSectionBlock id="consent" number="2" heading="Consent is required">
         <p>
           Only text people who have agreed to hear from you, because they texted
           you first, or asked you in person or by phone to text them. Consent
@@ -60,7 +60,11 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="no-lists" heading="3. No purchased or harvested lists">
+      <LegalSectionBlock
+        id="no-lists"
+        number="3"
+        heading="No purchased or harvested lists"
+      >
         <p>
           You may not upload or text numbers from purchased, rented, scraped, or
           otherwise harvested lists. Importing your own customers whom you have
@@ -71,7 +75,8 @@ export default function AupPage() {
 
       <LegalSectionBlock
         id="shaft"
-        heading="4. Prohibited content (SHAFT and more)"
+        number="4"
+        heading="Prohibited content (SHAFT and more)"
       >
         <p>
           You may not use Loonext to send content related to{" "}
@@ -93,7 +98,7 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="opt-out" heading="5. Opt-out is immediate">
+      <LegalSectionBlock id="opt-out" number="5" heading="Opt-out is immediate">
         <p>
           Every recipient can opt out at any time by replying STOP (or a similar
           keyword). Loonext records the opt-out and blocks any further sends to
@@ -103,7 +108,11 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="identification" heading="6. Identify yourself">
+      <LegalSectionBlock
+        id="identification"
+        number="6"
+        heading="Identify yourself"
+      >
         <p>
           Your business must be identifiable in your messages. When you start a
           conversation with a new contact, include your business name so the
@@ -112,7 +121,11 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="no-abuse" heading="7. No abuse of the network">
+      <LegalSectionBlock
+        id="no-abuse"
+        number="7"
+        heading="No abuse of the network"
+      >
         <p>
           Don&apos;t attempt to send spam, don&apos;t try to route around our
           rate limits or spending caps, and don&apos;t use Loonext to text
@@ -122,7 +135,7 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="enforcement" heading="8. Enforcement">
+      <LegalSectionBlock id="enforcement" number="8" heading="Enforcement">
         <p>
           We may investigate suspected violations and may suspend or terminate an
           account, with or without notice, depending on the severity, to protect
@@ -132,9 +145,9 @@ export default function AupPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" heading="9. Contact">
+      <LegalSectionBlock id="contact" number="9" heading="Contact">
         <p>
-          Not sure whether something is allowed? Ask first ,{" "}
+          Not sure whether something is allowed? Ask first:{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.
           To report abuse of a Loonext number, email the same address.
         </p>
