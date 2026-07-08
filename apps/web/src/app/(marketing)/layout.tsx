@@ -1,3 +1,4 @@
+import { CountryProvider } from "@/components/marketing/country";
 import { Footer } from "@/components/marketing/footer";
 import { LedgerStyles } from "@/components/marketing/ledger";
 import { Nav } from "@/components/marketing/nav";
@@ -56,13 +57,20 @@ export default function MarketingLayout({
       <LedgerStyles />
       {/* One shared IntersectionObserver drives every [data-reveal] (§4). */}
       <RevealActivator />
-      <Nav />
-      {/* id="content" is the nav skip link's target; keep it in sync with
-          nav.tsx's .frn-skip href. */}
-      <main id="content" className="flex-1">
-        {children}
-      </main>
-      <Footer />
+      {/* One site-wide country (owner ruling v1): the nav CountrySelector, the
+          home HeroCountryChooser, the branch helpers, and the /pricing toggle
+          all read this single provider, so every surface moves the same state.
+          SSR default is "us"; a returning visitor's choice is adopted from
+          localStorage after hydration. */}
+      <CountryProvider>
+        <Nav />
+        {/* id="content" is the nav skip link's target; keep it in sync with
+            nav.tsx's .frn-skip href. */}
+        <main id="content" className="flex-1">
+          {children}
+        </main>
+        <Footer />
+      </CountryProvider>
     </div>
   );
 }

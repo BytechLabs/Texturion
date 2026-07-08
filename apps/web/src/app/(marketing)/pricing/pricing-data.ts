@@ -42,8 +42,16 @@ const STORAGE = moduleCard("extra_storage");
 /** "$29" etc., always derived. */
 const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
 
-/** The dateline chip: the page's load-bearing fact (§5.1). */
+/** The dateline chip: the page's load-bearing fact (§5.1). US default. */
 export const PRICING_DATELINE = `${usd(S.monthlyDollars + US_REGISTRATION_FEE_DOLLARS)} FIRST MONTH (US) · ${usd(S.monthlyDollars)} AFTER`;
+
+/**
+ * The Canada dateline. A Canadian business texting Canadian customers has no
+ * registration fee and no carrier wait, so its load-bearing pricing fact is the
+ * flat monthly price with nothing added the first month. The page swaps to this
+ * for a visitor who chose Canada; the US visitor never sees it (no mixing).
+ */
+export const PRICING_DATELINE_CA = `${usd(S.monthlyDollars)}/MO · NO REGISTRATION FEE`;
 
 export interface Plan {
   id: PlanId;
@@ -108,7 +116,7 @@ export const LEDGER: LedgerEntry[] = [
     term: "Register with the phone companies",
     figure: `${usd(US_REGISTRATION_FEE_DOLLARS)}, one time, ever`,
     detail:
-      "The phone companies require every business that texts to register first. This covers the fee they charge to review and approve you, and we pay it on your behalf, including a resubmission if your first attempt bounces. Cancel and come back next year: you won't pay it again. Canadian businesses that don't text US numbers never pay it. For a US shop that means $58 your first month, then $29 every month after.",
+      "The phone companies require every business that texts to register first. This covers the fee they charge to review and approve you, and we pay it on your behalf, including a resubmission if your first attempt bounces. Cancel and come back next year: you won't pay it again. That means $58 your first month, then $29 every month after.",
   },
   {
     term: "Extra texts",
@@ -133,6 +141,32 @@ export const LEDGER: LedgerEntry[] = [
       'Two plans, three optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
   },
 ];
+
+/* The Canada Honesty Ledger. A Canadian business texting Canadian customers has
+   no registration and no fee, so this list never shows the US $29 / $58-first-
+   month story (owner ruling v1, 2026-07-08: a Canadian visitor never reads a US
+   fee that doesn't apply). It shares the country-neutral rows with LEDGER (plan
+   prices, extra texts, add-ons, tax) and swaps only the two rows that carry the
+   registration fact. The FirstWeekTimeline card in the same band carries the
+   "if you later text US customers" edge case, so this stays clean. */
+export const LEDGER_CA: LedgerEntry[] = LEDGER.map((entry) => {
+  if (entry.term === "Register with the phone companies") {
+    return {
+      term: "No registration, no setup fee",
+      figure: `${usd(0)}, ever`,
+      detail:
+        "A Canadian business texting Canadian customers registers nothing and pays no setup fee. Your number sends the same day it's active, usually a minute or two after you subscribe, so your first month costs the same as every month after.",
+    };
+  }
+  if (entry.term === "That's the whole list.") {
+    return {
+      ...entry,
+      detail:
+        'Two plans, three optional add-ons, and overage you cap. No registration fee, no setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+    };
+  }
+  return entry;
+});
 
 /* "The same crew, priced elsewhere": dated, per-cell sourced (COPY §PR). Also
    rendered as the /compare hub's centerpiece ledger (COVERAGE MAP), so the

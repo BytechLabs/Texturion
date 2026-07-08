@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 
+import { CountryOnly, CountryText } from "@/components/marketing/country";
 import {
   CtaButton,
   FrCard,
@@ -94,17 +95,37 @@ export const HOME_PLANS: readonly HomePlan[] = [
   },
 ];
 
-/** The deck's §Global guarantee microcopy, under the pricing CTAs. */
+/** The deck's §Global guarantee microcopy, under the pricing CTAs. US default
+ *  (mentions the registration fee); the Canada variant drops it (there is none
+ *  to refund). */
 export const GUARANTEE_MICROCOPY =
   "30-day money-back guarantee. Full refund, including the registration fee. No fine print.";
+export const GUARANTEE_MICROCOPY_CA =
+  "30-day money-back guarantee. Full refund, no fine print.";
 
-/** COPY-DECK v2 §S9 Truth Strip, verbatim. */
-export const DEAL_TRUTH_LINES = [
+/** The Truth Strip lines branch on the site-wide country: a US visitor reads
+ *  the one-time registration fee and the carrier wait; a Canadian visitor reads
+ *  the flat $29, same-day story. Never both together (owner ruling v1). The
+ *  closing USD line is shared, so it stays in each set. */
+export const DEAL_TRUTH_LINES_US = [
   {
-    text: "US shops: $29/mo plus a one-time $29 to register with the phone companies. That's $58 your first month, then $29 every month after. The registration fee is charged once, ever. Canadian businesses that don't text US numbers never pay it and never wait.",
+    text: "US shops: $29 a month plus a one-time $29 to register with the phone companies. That's $58 your first month, then $29 every month after. The registration fee is charged once, ever.",
   },
   {
-    text: "Day one you're not idle: receiving texts and texting Canadian numbers work right away. Texting US numbers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
+    text: "Day one you're not idle: receiving texts works right away. Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
+    tick: true,
+  },
+  {
+    text: "Prices in USD, plus sales tax where it applies. That's the whole list.",
+  },
+] as const;
+
+export const DEAL_TRUTH_LINES_CA = [
+  {
+    text: "Canadian shops: $29 a month, flat. No registration, no setup fee, no first-month bump; $29 is $29 from month one.",
+  },
+  {
+    text: "Day one you're texting: your number is active and you can text Canadian customers the same day, usually a minute or two after signup. No waiting.",
     tick: true,
   },
   {
@@ -183,17 +204,29 @@ export function TheDeal() {
       </div>
 
       {/* The deck's guarantee microcopy, once, under both pricing CTAs
-          (green tick: the news is good). */}
+          (green tick: the news is good). The registration-fee clause is a US
+          detail, so the Canada variant drops it. */}
       <p className="font-body-mkt mx-auto mt-6 flex max-w-4xl items-start justify-center gap-2 text-center text-sm text-[color:var(--fr-ink-70)]">
         <Check
           className="mt-0.5 size-4 shrink-0 text-[color:var(--fr-green)]"
           strokeWidth={2.5}
           aria-hidden
         />
-        {GUARANTEE_MICROCOPY}
+        <CountryText us={GUARANTEE_MICROCOPY} ca={GUARANTEE_MICROCOPY_CA} />
       </p>
 
-      <TruthStrip className="mx-auto mt-10 max-w-4xl" lines={DEAL_TRUTH_LINES} />
+      <CountryOnly country="us">
+        <TruthStrip
+          className="mx-auto mt-10 max-w-4xl"
+          lines={DEAL_TRUTH_LINES_US}
+        />
+      </CountryOnly>
+      <CountryOnly country="ca">
+        <TruthStrip
+          className="mx-auto mt-10 max-w-4xl"
+          lines={DEAL_TRUTH_LINES_CA}
+        />
+      </CountryOnly>
 
       <div className="mx-auto mt-14 grid max-w-5xl gap-10 lg:grid-cols-2 lg:gap-8">
         <div>

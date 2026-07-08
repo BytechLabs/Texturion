@@ -3,6 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { CountrySelector } from "@/components/marketing/country";
 import { SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +51,15 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             ) : null}
           </section>
         ))}
+
+        {/* The country selector: sets the single site-wide country from the
+            sheet, so a mobile visitor gets the same control as the desktop bar. */}
+        <section className="mt-6">
+          <h3 className="fr-eyebrow px-1 pb-2 text-[color:var(--fr-ink-55)]">
+            Where you run your business
+          </h3>
+          <CountrySelector fullLabels className="flex w-full" />
+        </section>
 
         {/* Log in, a quiet flat row at the bottom of the scroll. */}
         <div className="mt-6 border-t-0 pt-2">

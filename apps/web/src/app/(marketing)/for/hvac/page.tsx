@@ -11,6 +11,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
@@ -150,7 +151,12 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What do you need from our company to get us approved for texting?",
-      a: "If you run a Canadian shop texting Canadian customers, there's nothing to register and no wait: you're texting the same day. Registration only applies to texting US customers, and we file it for you: two minutes at signup with your legal business name, address, and EIN. No EIN because you run as a sole proprietor? We verify you with a texted code instead. Receiving texts works from day one wherever you are, and texting US customers turns on in about a week, typically 3 to 7 business days, once the phone companies sign off.",
+      a: (
+        <CountryText
+          us="We file it for you: two minutes at signup with your legal business name, address, and EIN. No EIN because you run as a sole proprietor? We verify you with a texted code instead. Receiving texts works from day one, and texting US customers turns on in about a week, typically 3 to 7 business days, once the phone companies sign off."
+          ca="Nothing to register and no wait. A Canadian shop texting Canadian customers is texting the same day it signs up."
+        />
+      ),
     },
   ],
 

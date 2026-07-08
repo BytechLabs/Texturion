@@ -7,8 +7,9 @@
  * local number (live in minutes), bring your number (free porting,
  * self-serve, the old number keeps working until the scheduled cutover,
  * usually a few days to two weeks for US numbers and often faster in
- * Canada), two numbers on Pro → Truth Strip: the US first-week approval →
- * pricing snippet → unique FAQ → Frost CTA band.
+ * Canada), two numbers on Pro → Truth Strip branched by country (US
+ * first-week approval in US mode, same-day/no-wait in CA mode) → pricing
+ * snippet branched by country → unique FAQ → Frost CTA band.
  *
  * Every number is a verified product/billing fact. buildMetadata +
  * BreadcrumbList JSON-LD; no FAQPage.
@@ -18,6 +19,7 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
+import { CountryOnly, CountryText } from "@/components/marketing/country";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import {
   FeatureCta,
@@ -34,6 +36,23 @@ import { NumberCardsVisual } from "@/components/marketing/features/number-cards-
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/features/business-number";
+
+/**
+ * The two "precise edges" facts that hold in both countries. The sole-proprietor
+ * single-number cap is a US 10DLC-registration mechanic, so it lives only in the
+ * US branch of PlainDetails below (Canada-to-Canada texting has no registration).
+ */
+const PORT_DETAIL = {
+  term: "A port takes days, not minutes.",
+  detail:
+    "Moving a number between carriers is a real telecom process, usually a few days to two weeks for US numbers and often faster in Canada. Your number keeps working on your current carrier the whole time and switches to Loonext on the scheduled transfer date. Nobody can truthfully promise an instant port, so we don't.",
+} as const;
+
+const PAID_PLAN_DETAIL = {
+  term: "A number requires a paid plan.",
+  detail:
+    "The phone companies charge for every number, and free numbers attract the spam that wrecks delivery for everyone. A number is provisioned only after you subscribe, usually within a minute or two.",
+} as const;
 
 export const metadata: Metadata = buildMetadata({
   title: "A local business number for texting, and it's yours",
@@ -132,43 +151,66 @@ export default function BusinessNumberPage() {
         ]}
       />
 
-      <TruthStripSection
-        heading="The first week, stated plainly"
-        items={[
-          {
-            text: "Your number is live and receiving texts on day one, and Canadian crews can text customers right away.",
-            good: true,
-          },
-          {
-            text: "Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you. We file everything the minute you pay.",
-          },
-          {
-            text: "Numbers are US and Canada only, and a number is provisioned after you subscribe, usually in a minute or two.",
-          },
-        ]}
-      />
+      <CountryOnly country="us">
+        <TruthStripSection
+          heading="The first week, stated plainly"
+          items={[
+            {
+              text: "Your number is live and receiving texts on day one.",
+              good: true,
+            },
+            {
+              text: "Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you. We file everything the minute you pay.",
+            },
+            {
+              text: "Numbers are US and Canada only, and a number is provisioned after you subscribe, usually in a minute or two.",
+            },
+          ]}
+        />
+      </CountryOnly>
 
-      <PlainDetails
-        heading="The precise edges"
-        lead="A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits."
-        items={[
-          {
-            term: "A port takes days, not minutes.",
-            detail:
-              "Moving a number between carriers is a real telecom process, usually a few days to two weeks for US numbers and often faster in Canada. Your number keeps working on your current carrier the whole time and switches to Loonext on the scheduled transfer date. Nobody can truthfully promise an instant port, so we don't.",
-          },
-          {
-            term: "Sole proprietors get one number.",
-            detail:
-              "If you register without an EIN through the sole-proprietor path, US carrier rules cap you at a single number regardless of plan. Register with an EIN to use Pro's second number.",
-          },
-          {
-            term: "A number requires a paid plan.",
-            detail:
-              "The phone companies charge for every number, and free numbers attract the spam that wrecks delivery for everyone. A number is provisioned only after you subscribe, usually within a minute or two.",
-          },
-        ]}
-      />
+      <CountryOnly country="ca">
+        <TruthStripSection
+          heading="Day one, stated plainly"
+          items={[
+            {
+              text: "Your number is live and you can text Canadian customers the same day it goes active, usually a minute or two after signup.",
+              good: true,
+            },
+            {
+              text: "No registration, no fee, and no approval wait to text Canadian customers.",
+              good: true,
+            },
+            {
+              text: "Numbers are US and Canada only, and a number is provisioned after you subscribe, usually in a minute or two.",
+            },
+          ]}
+        />
+      </CountryOnly>
+
+      <CountryOnly country="us">
+        <PlainDetails
+          heading="The precise edges"
+          lead="A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits."
+          items={[
+            PORT_DETAIL,
+            {
+              term: "Sole proprietors get one number.",
+              detail:
+                "If you register without an EIN through the sole-proprietor path, US carrier rules cap you at a single number regardless of plan. Register with an EIN to use Pro's second number.",
+            },
+            PAID_PLAN_DETAIL,
+          ]}
+        />
+      </CountryOnly>
+
+      <CountryOnly country="ca">
+        <PlainDetails
+          heading="The precise edges"
+          lead="A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits."
+          items={[PORT_DETAIL, PAID_PLAN_DETAIL]}
+        />
+      </CountryOnly>
 
       <PricingSnippet>
         <p>
@@ -177,12 +219,22 @@ export default function BusinessNumberPage() {
           month to month, with receiving texts always free and unlimited. Porting a
           number in is free.
         </p>
-        <p>
-          US shops pay a one-time $29 to register the business with the phone
-          companies, once, ever, so the first month is $58 and every month
-          after is $29. Canadian businesses that don&apos;t text US numbers
-          never pay it.
-        </p>
+        <CountryText
+          us={
+            <p>
+              US shops pay a one-time $29 to register the business with the
+              phone companies, once, ever, so the first month is $58 and every
+              month after is $29.
+            </p>
+          }
+          ca={
+            <p>
+              Texting Canadian customers needs no registration and no one-time
+              fee, so your first month is the same flat $29 or $79 as every
+              month after.
+            </p>
+          }
+        />
       </PricingSnippet>
 
       <RelatedLinks
@@ -233,7 +285,16 @@ export default function BusinessNumberPage() {
           },
           {
             q: "How fast is a new number ready?",
-            a: "Usually a minute or two after you subscribe. Receiving texts works as soon as the number is active, and if you're in Canada you can text Canadian customers right away. Texting US customers turns on after carrier approval, typically 3 to 7 business days.",
+            a: (
+              <>
+                Usually a minute or two after you subscribe. Receiving texts
+                works as soon as the number is active.{" "}
+                <CountryText
+                  us="Texting US customers turns on after carrier approval, typically 3 to 7 business days."
+                  ca="You can text Canadian customers the same day, with no registration and no approval wait."
+                />
+              </>
+            ),
           },
         ]}
       />

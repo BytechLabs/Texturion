@@ -10,6 +10,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
@@ -149,7 +150,12 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We're a licensed plumbing company. What's the registration process?",
-      a: "If you're a Canadian crew texting Canadian customers, there's nothing to register and no wait: you start the same day. Registering only applies to texting US customers, and we file it all for you: about two minutes of plain questions at signup, legal business name, address, and your EIN. Don't have an EIN? There's a sole proprietor path, where we text you a verification code and handle the rest.",
+      a: (
+        <CountryText
+          us="We file it all for you. It's about two minutes of plain questions at signup: your legal business name, address, and your EIN. Don't have an EIN? There's a sole proprietor path, where we text you a verification code and handle the rest. You can receive texts right away, and texting US customers turns on once the phone companies clear you, usually 3 to 7 business days."
+          ca="Nothing to register and no wait. You start texting Canadian customers the same day your number is active, usually a minute or two after signup."
+        />
+      ),
     },
   ],
 

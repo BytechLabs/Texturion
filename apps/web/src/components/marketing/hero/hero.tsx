@@ -1,3 +1,4 @@
+import { CountryOnly } from "@/components/marketing/country";
 import { CtaButton, Dateline, PanelFrame } from "@/components/marketing/fr";
 import { TruthStrip } from "@/components/marketing/home/truth-strip";
 import {
@@ -96,15 +97,32 @@ export function Hero() {
               </CtaButton>
             </div>
 
-            <TruthStrip
-              className="mt-8 max-w-[36rem]"
-              lines={[
-                {
-                  text: "Your number is live and receiving texts on day one, and Canadian crews can text customers right away. Texting US customers turns on in about a week, once the phone companies approve you. We file everything the minute you pay.",
-                  tick: true,
-                },
-              ]}
-            />
+            {/* The truth line branches on the site-wide country context: a US
+                visitor reads the honest carrier-wait story, a Canadian visitor
+                reads the same-day story. Never both at once. SSR default is US
+                (the whole line is complete before hydration). */}
+            <CountryOnly country="us">
+              <TruthStrip
+                className="mt-8 max-w-[36rem]"
+                lines={[
+                  {
+                    text: "Your number is live and receiving texts the day you sign up. Texting US customers turns on in about a week, once the phone companies approve you. We file everything the minute you pay.",
+                    tick: true,
+                  },
+                ]}
+              />
+            </CountryOnly>
+            <CountryOnly country="ca">
+              <TruthStrip
+                className="mt-8 max-w-[36rem]"
+                lines={[
+                  {
+                    text: "Your number is live the day you sign up, and you can text Canadian customers the same day. No registration, no fee, no waiting. We set you up the minute you pay.",
+                    tick: true,
+                  },
+                ]}
+              />
+            </CountryOnly>
           </div>
 
           {/* RIGHT (5/12): the real inbox card, the SECONDARY supporting proof

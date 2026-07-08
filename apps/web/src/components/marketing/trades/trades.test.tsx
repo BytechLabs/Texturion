@@ -9,6 +9,7 @@ import HvacPage from "@/app/(marketing)/for/hvac/page";
 import LandscapersPage from "@/app/(marketing)/for/landscapers/page";
 import PlumbersPage from "@/app/(marketing)/for/plumbers/page";
 import SalonsPage from "@/app/(marketing)/for/salons/page";
+import { CountryProvider } from "@/components/marketing/country";
 import {
   PRIMARY_CTA_LABEL,
   SECONDARY_CTA_LABEL,
@@ -204,12 +205,22 @@ describe("Law 11: no fake liveness, no rasters, no added tab stops", () => {
 
 describe("factual claims (Law 7): the billing truths render on every page", () => {
   it.each(PAGES)("$name carries the standard Truth Strip facts", (page) => {
-    // Receiving is free on every plan; the US registration arithmetic.
+    // Receiving is free on every plan.
     expect(page.html).toContain(
       "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
     );
+    // Owner ruling (2026-07-08): the registration Truth Strip is now
+    // country-conditional. The SSR default is "us", so the static markup shows
+    // ONLY the US registration arithmetic, never the paired Canada+US line and
+    // never the Canada-only line.
     expect(page.html).toContain(
-      "In Canada you text customers the same day, with no registration and no fee. US shops register once with the phone companies: a one-time $29, so $58 the first month, then $29 after.",
+      "US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time $29, so $58 your first month, then $29 after.",
+    );
+    expect(page.html).not.toContain(
+      "In Canada you text customers the same day, with no registration and no fee.",
+    );
+    expect(page.html).not.toContain(
+      "Text your Canadian customers the same day your number is active.",
     );
     // The pricing snippet figure and the deck's pricing link line.
     expect(page.html).toContain("$29");
@@ -218,6 +229,26 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     expect(page.html).toContain(
       "See full pricing. Every cost is on that page.",
     );
+  });
+
+  it("the Canada branch shows the same-day story and never the US wait/fee", () => {
+    // Deterministic branch render (CountryProvider.initialCountry), the same
+    // mechanism the pricing tests use to exercise both countries.
+    const html = renderToStaticMarkup(
+      <CountryProvider initialCountry="ca">
+        <PlumbersPage />
+      </CountryProvider>,
+    );
+    expect(html).toContain(
+      "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat $29 a month.",
+    );
+    // The US registration wait and the one-time fee never reach a Canadian.
+    expect(html).not.toContain("3 to 7 business days");
+    expect(html).not.toContain("$58");
+    expect(html).not.toContain("EIN");
+    // Still dash-free in the Canada branch.
+    expect(html).not.toContain("—");
+    expect(html).not.toContain("–");
   });
 
   it.each(PAGES)("$name uses the deck CTA labels and real hrefs", (page) => {

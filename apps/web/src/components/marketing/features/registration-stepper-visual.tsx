@@ -126,8 +126,8 @@ export function RegistrationStepperVisual({
         </ol>
 
         <p className="mt-2 rounded-app-ctrl bg-app-stone-1 px-3 py-2 text-[13px] leading-relaxed text-app-muted">
-          Receiving texts and texting Canadian numbers already work. This only
-          gates US-bound texting.
+          Receiving texts already works while you wait. Approval gates only
+          your outbound texting.
         </p>
       </div>
     </div>

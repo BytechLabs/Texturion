@@ -33,11 +33,11 @@ import {
   PanelFrame,
 } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
+import { CountryOnly, CountryText } from "@/components/marketing/country";
 import { LedgerTable } from "@/components/marketing/compare/ledger-table";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { PlanAddons } from "@/components/marketing/plan-addons";
-import { CountryProvider } from "@/components/marketing/pricing/country-context";
 import { CountryToggle } from "@/components/marketing/pricing/country-toggle";
 import { FirstWeekTimeline } from "@/components/marketing/pricing/first-week-timeline";
 import { HonestyLedger } from "@/components/marketing/pricing/honesty-ledger";
@@ -60,8 +60,10 @@ import {
   ELSEWHERE_ROWS,
   FAQS,
   LEDGER,
+  LEDGER_CA,
   PLANS,
   PRICING_DATELINE,
+  PRICING_DATELINE_CA,
 } from "./pricing-data";
 import { SegmentCounterStatic } from "./segment-counter-static";
 
@@ -112,7 +114,12 @@ export default function PricingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <ConvergedField variant="mark" className="mx-auto h-9 w-auto" />
           <div className="mt-6">
-            <Dateline>{PRICING_DATELINE}</Dateline>
+            {/* The load-bearing fact follows the site-wide country: a US visitor
+                sees the $58-first-month-then-$29 arithmetic, a Canadian visitor
+                the flat monthly price with no registration fee. Never paired. */}
+            <Dateline>
+              <CountryText us={PRICING_DATELINE} ca={PRICING_DATELINE_CA} />
+            </Dateline>
           </div>
           <h1 className="fr-h1 mt-5 text-[color:var(--fr-ink)]">
             One price for the whole crew. Nothing hidden.
@@ -125,13 +132,14 @@ export default function PricingPage() {
         </div>
       </FrSection>
 
-      {/* The plan section shares one country (US default, Canada one tap) so
-          the toggle branches only the country-specific facts: the registration
-          fee line and the "first month" math in the builder receipt, and the
-          activation timeline card below. Base and add-on prices never change
-          (USD, plus tax). The provider defaults to US, so the whole section is
-          server-rendered and complete without JavaScript. */}
-      <CountryProvider>
+      {/* The plan section reads the single site-wide country (provided by the
+          marketing layout), so the pricing toggle and the nav selector move the
+          same state. The toggle branches only the country-specific facts: the
+          registration fee line and the "first month" math in the builder
+          receipt, and the activation timeline card below. Base and add-on prices
+          never change (USD, plus tax). The default is US, so the whole section
+          is server-rendered and complete without JavaScript. */}
+      <>
         {/* THE PLAN BUILDER: the page's centerpiece (owner ruling 2026-07-07).
             Pick Starter or Pro, toggle the three sellable add-ons, and the
             receipt totals live from the same shared constants checkout bills
@@ -181,23 +189,53 @@ export default function PricingPage() {
               Every cost, before you pay.
             </h2>
 
+            {/* The cost list follows the site-wide country. A US visitor sees
+                the $29 registration / $58-first-month row; a Canadian visitor
+                sees the no-registration, no-fee row in its place, and never the
+                US fee that doesn't apply to them (owner ruling v1). */}
             <Reveal className="mt-10">
-              <HonestyLedger entries={LEDGER} />
+              <CountryOnly country="us">
+                <HonestyLedger entries={LEDGER} />
+              </CountryOnly>
+              <CountryOnly country="ca">
+                <HonestyLedger entries={LEDGER_CA} />
+              </CountryOnly>
             </Reveal>
 
-            {/* The day-one truth (§5.4): what works now vs what waits. */}
-            <TruthStrip
-              className="mt-6"
-              items={[
-                {
-                  text: "Receiving texts works the moment your number is ready, usually live in a minute or two. Texting Canadian numbers works immediately.",
-                  good: true,
-                },
-                {
-                  text: "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
-                },
-              ]}
-            />
+            {/* The day-one truth (§5.4): what works now vs what waits, told for
+                the visitor's own country. The US strip carries the honest
+                carrier wait; the Canada strip carries the same-day story with no
+                mention of a US wait that doesn't apply to them (owner ruling
+                v1). Never paired in one strip. */}
+            <CountryOnly country="us">
+              <TruthStrip
+                className="mt-6"
+                items={[
+                  {
+                    text: "Receiving texts works the moment your number is ready, usually live in a minute or two.",
+                    good: true,
+                  },
+                  {
+                    text: "Texting US numbers turns on after the phone companies approve you, typically 3 to 7 business days. We file everything and email you the moment you're approved.",
+                  },
+                ]}
+              />
+            </CountryOnly>
+            <CountryOnly country="ca">
+              <TruthStrip
+                className="mt-6"
+                items={[
+                  {
+                    text: "Texting Canadian customers works the same day your number is active, usually live in a minute or two after you subscribe. No registration, no fee, no wait.",
+                    good: true,
+                  },
+                  {
+                    text: "Receiving texts works right away too, the moment your number is ready.",
+                    good: true,
+                  },
+                ]}
+              />
+            </CountryOnly>
 
             <Reveal className="mt-6">
               <FirstWeekTimeline />
@@ -215,7 +253,7 @@ export default function PricingPage() {
             </Reveal>
           </div>
         </FrSection>
-      </CountryProvider>
+      </>
 
       {/* "The same crew, priced elsewhere": dated, per-cell sourced. */}
       <FrSection ground="frost">

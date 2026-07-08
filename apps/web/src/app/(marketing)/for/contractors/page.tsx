@@ -15,6 +15,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
@@ -170,7 +171,12 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What do you need from our company to get the number registered?",
-      a: "If you're a Canadian crew texting Canadian customers, there's nothing to register and no wait: you can text the same day you sign up. Registration only applies to texting US numbers, and we file the whole thing for you: a couple of minutes at signup and three things, your legal business name, address, and EIN. Operating as a sole proprietor without an EIN? There's a path for that: we text you a verification code and take care of the rest. You can receive texts immediately either way, and texting US numbers activates in about a week once you're cleared.",
+      a: (
+        <CountryText
+          us="We file the whole thing for you: a couple of minutes at signup and three things, your legal business name, address, and EIN. Operating as a sole proprietor without an EIN? There's a path for that: we text you a verification code and take care of the rest. You can receive texts immediately, and texting US numbers activates in about a week once you're cleared."
+          ca="Nothing to register and no wait. You can text Canadian customers the same day you sign up."
+        />
+      ),
     },
   ],
 

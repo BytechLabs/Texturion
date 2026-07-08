@@ -12,6 +12,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
@@ -152,7 +153,12 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What does it take to get our salon set up to text?",
-      a: "If you're a Canadian salon texting Canadian clients, there's nothing to register and no wait: you're texting the same day. Registration only comes into it when you text US clients, and we take care of it: just a couple of minutes at signup with your salon's legal name, address, and EIN. Booth renter or sole proprietor without an EIN? We'll verify you with a texted code instead. You'll be receiving texts right away wherever you are, and texting US clients begins about a week later once you're approved.",
+      a: (
+        <CountryText
+          us="We take care of it: just a couple of minutes at signup with your salon's legal name, address, and EIN. Booth renter or sole proprietor without an EIN? We'll verify you with a texted code instead. You'll be receiving texts right away, and texting US clients begins about a week later once you're approved."
+          ca="Nothing to register and no wait. A Canadian salon texting Canadian clients is texting the same day it signs up."
+        />
+      ),
     },
   ],
 

@@ -17,6 +17,7 @@
  *  - Owner rule 12: canonical domain is https://loonext.com.
  */
 
+import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -27,6 +28,7 @@ vi.mock("next/font/local", () => ({
 }));
 
 import HomePage, { metadata } from "@/app/(marketing)/page";
+import { CountryProvider } from "@/components/marketing/country";
 import {
   ARRIVAL_SCRIPT,
   INBOX_ROW_CAP,
@@ -273,6 +275,83 @@ describe("the one cobalt band (Laws 3 and 5)", () => {
     // No live canvas anywhere in the server markup (the p5 layer is a lazy
     // client chunk that only ever mounts on the hero).
     expect(PAGE).not.toContain("<canvas");
+  });
+});
+
+describe("country branching: the home never pairs the two stories (owner ruling v1)", () => {
+  // A component rendered inside the site-wide provider, pinned to a country.
+  const ca = (node: ReactNode) =>
+    renderToStaticMarkup(
+      <CountryProvider initialCountry="ca">{node}</CountryProvider>,
+    );
+  const us = (node: ReactNode) =>
+    renderToStaticMarkup(
+      <CountryProvider initialCountry="us">{node}</CountryProvider>,
+    );
+
+  it("hero truth line: US reads the carrier wait, CA reads same-day, never both", () => {
+    const usHero = renderToStaticMarkup(<Hero />); // SSR default is us
+    expect(usHero).toContain("Texting US customers turns on in about a week");
+    expect(usHero).toContain("We file everything the minute you pay.");
+    expect(usHero).not.toContain("text Canadian customers the same day");
+
+    const caHero = ca(<Hero />);
+    expect(caHero).toContain("text Canadian customers the same day");
+    expect(caHero).toContain("No registration, no fee, no waiting.");
+    expect(caHero).not.toContain("Texting US customers turns on");
+    expect(caHero).not.toContain("to register with the phone companies");
+  });
+
+  it("first-week timeline: US has the 3-to-7-day review, CA has no wait", () => {
+    const usT = renderToStaticMarkup(<FirstWeekTimeline />);
+    expect(usT).toContain("3 to 7 business days");
+    expect(usT).toContain("The phone companies review you.");
+    expect(usT).toContain("You are here");
+
+    const caT = ca(<FirstWeekTimeline />);
+    expect(caT).not.toContain("3 to 7 business days");
+    expect(caT).not.toContain("The phone companies review you.");
+    expect(caT).toContain("live and texting the same day");
+  });
+
+  it("the deal: US carries the $58/registration story, CA is $29 flat", () => {
+    const usD = us(<TheDeal />);
+    expect(usD).toContain("$58 your first month");
+    expect(usD).toContain("one-time $29 to register");
+    expect(usD).toContain("including the registration fee");
+
+    const caD = ca(<TheDeal />);
+    expect(caD).not.toContain("$58");
+    expect(caD).not.toContain("one-time $29 to register");
+    expect(caD).not.toContain("including the registration fee");
+    expect(caD).toContain("$29 a month, flat");
+  });
+
+  it("FAQ: US answers the carrier wait and the fee; CA answers neither as a default", () => {
+    const usF = renderToStaticMarkup(<Faq />);
+    expect(usF).toContain("Why does texting US customers take about a week?");
+    expect(usF).toContain("What&#x27;s the one-time $29 fee?");
+    expect(usF).not.toContain("When can I start texting customers?");
+
+    const caF = ca(<Faq />);
+    expect(caF).toContain("When can I start texting customers?");
+    expect(caF).toContain("Can we also text US customers?");
+    expect(caF).not.toContain("Why does texting US customers take about a week?");
+    expect(caF).not.toContain("What&#x27;s the one-time $29 fee?");
+    expect(caF).not.toContain("your first month is $58");
+  });
+
+  it("no em-dashes or en-dash ranges in the CA branch of any edited component", () => {
+    for (const html of [
+      ca(<Hero />),
+      ca(<FirstWeekTimeline />),
+      ca(<TheDeal />),
+      ca(<Faq />),
+    ]) {
+      expect(html).not.toContain("—");
+      expect(html).not.toContain("–");
+      expect(html).not.toMatch(/\d–\d/);
+    }
   });
 });
 

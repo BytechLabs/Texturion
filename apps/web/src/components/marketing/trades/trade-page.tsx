@@ -28,6 +28,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { CountryOnly } from "@/components/marketing/country";
 import {
   ConvergedField,
   CtaButton,
@@ -67,7 +68,13 @@ export interface TradeFeature {
 
 export interface TradeFaq {
   q: string;
-  a: string;
+  /**
+   * The answer. A string for country-neutral questions; a country-branched node
+   * (CountryText / CountryOnly) for the registration-and-setup answer, so a US
+   * visitor reads only the US registration detail and a Canadian visitor reads
+   * only "nothing to register, no wait". Never both at once.
+   */
+  a: ReactNode;
 }
 
 /** One §5.4 Truth Strip line: mono fact, green tick when the news is good. */
@@ -115,11 +122,13 @@ export interface TradeContent {
   pricingH2: string;
   pricingBody: string;
   /**
-   * Extra Truth Strip lines under the pricing card (§5.4). The two standard
-   * lines (receiving free; the Canada-same-day / US $58-first-month
-   * registration fact) render on every trade page; these are trade-specific
-   * additions (for example the contractors "texting, not project management"
-   * line).
+   * Extra Truth Strip lines under the pricing card (§5.4). Two standard lines
+   * render on every trade page: receiving is always free, plus a
+   * country-conditional registration line (US visitors read the one-time $29 /
+   * $58-first-month registration story; Canadian visitors read the same-day, no
+   * fee, no wait story, and never see the other country's). These `truthLines`
+   * are trade-specific additions on top (for example the contractors "texting,
+   * not project management" line).
    */
   truthLines?: TradeTruthLine[];
 
@@ -330,11 +339,21 @@ export function TradePage({ content }: { content: TradeContent }) {
                 good: true,
               }}
             />
-            <TruthStrip
-              line={{
-                text: "In Canada you text customers the same day, with no registration and no fee. US shops register once with the phone companies: a one-time $29, so $58 the first month, then $29 after.",
-              }}
-            />
+            <CountryOnly country="us">
+              <TruthStrip
+                line={{
+                  text: "US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time $29, so $58 your first month, then $29 after.",
+                }}
+              />
+            </CountryOnly>
+            <CountryOnly country="ca">
+              <TruthStrip
+                line={{
+                  text: "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat $29 a month.",
+                  good: true,
+                }}
+              />
+            </CountryOnly>
             {(content.truthLines ?? []).map((line, i) => (
               <TruthStrip key={i} line={line} />
             ))}

@@ -14,6 +14,8 @@ import {
 import { body, display, mono } from "@/lib/marketing/fonts";
 import { cn } from "@/lib/utils";
 
+import { CountrySelector } from "@/components/marketing/country";
+
 import { LOGIN_HREF, PRIMARY_CTA_LABEL, SIGNUP_HREF } from "./nav-links";
 import { DesktopNav } from "./nav/desktop-nav";
 import { MobileNav } from "./nav/mobile-nav";
@@ -67,8 +69,11 @@ export function Nav() {
           {/* Desktop mega-menu nav, deck order. */}
           <DesktopNav />
 
-          {/* Right cluster: quiet Log in + the one cobalt pill (§4). */}
+          {/* Right cluster: the country selector, quiet Log in, the one cobalt
+              pill (§4). The selector sets the single site-wide country; on the
+              smallest screens the mobile sheet carries it instead. */}
           <div className="ml-auto flex items-center gap-3">
+            <CountrySelector className="hidden sm:inline-flex" />
             <Link
               href={LOGIN_HREF}
               className="frn-focus font-body-mkt hidden h-9 items-center rounded-full px-2.5 text-sm font-medium text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-ink)] sm:inline-flex"

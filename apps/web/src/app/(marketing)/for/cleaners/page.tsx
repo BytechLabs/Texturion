@@ -10,6 +10,7 @@
 
 import type { Metadata } from "next";
 
+import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
@@ -149,7 +150,12 @@ const CONTENT: TradeContent = {
     },
     {
       q: "What's involved in getting our cleaning business registered to text?",
-      a: "If you clean Canadian homes for Canadian customers, there's nothing to register and no wait: you start the same day. Registration only applies to texting US clients, and we handle it. At signup you'll enter your legal business name, address, and EIN, and if you clean as a sole proprietor without an EIN, there's a path for that too: we text you a code to verify and take it from there. We file the paperwork. Receiving texts works immediately either way, and texting US clients switches on within about a week once you're approved.",
+      a: (
+        <CountryText
+          us="We handle it. At signup you'll enter your legal business name, address, and EIN, and if you clean as a sole proprietor without an EIN, there's a path for that too: we text you a code to verify and take it from there. We file the paperwork. Receiving texts works immediately, and texting US clients switches on within about a week once you're approved."
+          ca="Nothing to register and no wait. If you clean Canadian homes for Canadian customers, you start texting the same day you sign up."
+        />
+      ),
     },
   ],
 

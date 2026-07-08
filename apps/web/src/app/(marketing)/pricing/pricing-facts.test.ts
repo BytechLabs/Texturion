@@ -12,18 +12,24 @@ import {
   ELSEWHERE_ROWS,
   FAQS,
   LEDGER,
+  LEDGER_CA,
   PLANS,
   PRICING_DATELINE,
+  PRICING_DATELINE_CA,
 } from "./pricing-data";
 
 /** Every customer-facing string this module exports, flattened. */
 function allStrings(): string[] {
-  const out: string[] = [PRICING_DATELINE, ELSEWHERE_FOOTNOTE];
+  const out: string[] = [
+    PRICING_DATELINE,
+    PRICING_DATELINE_CA,
+    ELSEWHERE_FOOTNOTE,
+  ];
   for (const plan of PLANS) {
     out.push(plan.name, plan.price, plan.tagline, plan.cta, ...plan.features);
     if (plan.badge) out.push(plan.badge);
   }
-  for (const entry of LEDGER) {
+  for (const entry of [...LEDGER, ...LEDGER_CA]) {
     out.push(entry.term, entry.detail);
     if (entry.figure) out.push(entry.figure);
   }
@@ -109,7 +115,7 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
       `$${US_REGISTRATION_FEE_DOLLARS}, one time, ever`,
     );
     expect(registration?.detail).toContain("$58 your first month");
-    expect(registration?.detail).toContain("never pay it");
+    expect(registration?.detail).toContain("you won't pay it again");
 
     const overage = LEDGER.find((e) => e.term === "Extra texts");
     expect(overage?.figure).toBe(
@@ -148,6 +154,63 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(ELSEWHERE_FOOTNOTE).toContain("July 2026");
     expect(ELSEWHERE_FOOTNOTE).toContain("$19.50");
     expect(ELSEWHERE_FOOTNOTE).toContain("tell us and we'll fix it");
+  });
+});
+
+describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to Canada)", () => {
+  it("the US dateline keeps the $58-then-$29 arithmetic; the Canada dateline is the flat monthly price with no registration fee", () => {
+    expect(PRICING_DATELINE).toBe("$58 FIRST MONTH (US) · $29 AFTER");
+    expect(PRICING_DATELINE_CA).toBe(
+      `$${PLAN_PRICING.starter.monthlyDollars}/MO · NO REGISTRATION FEE`,
+    );
+    // The Canada dateline never surfaces the US-only first-month figure.
+    expect(PRICING_DATELINE_CA).not.toContain(
+      `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS}`,
+    );
+  });
+
+  it("the Canada ledger drops the US registration row and never shows the $29 fee or $58 first month", () => {
+    const terms = LEDGER_CA.map((e) => e.term);
+    expect(terms).not.toContain("Register with the phone companies");
+    expect(terms).toContain("No registration, no setup fee");
+    // Still names every cost that actually applies to a Canadian business.
+    expect(terms).toContain("Your plan");
+    expect(terms).toContain("Extra texts");
+    expect(terms).toContain("Optional add-ons, if you turn them on");
+    expect(terms).toContain("Tax");
+    expect(terms).toContain("That's the whole list.");
+
+    const registration = LEDGER_CA.find(
+      (e) => e.term === "No registration, no setup fee",
+    );
+    expect(registration?.detail).toContain("registers nothing");
+    expect(registration?.detail).toContain("same day");
+
+    // No US fee ($29) or US first-month figure ($58) anywhere in the CA ledger.
+    for (const entry of LEDGER_CA) {
+      expect(entry.detail).not.toContain(
+        `$${US_REGISTRATION_FEE_DOLLARS} your first month`,
+      );
+      expect(entry.detail).not.toContain(
+        `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS} your first month`,
+      );
+    }
+    // The closing line drops "one registration fee" and states there is none.
+    const whole = LEDGER_CA.find((e) => e.term === "That's the whole list.");
+    expect(whole?.detail).toContain("No registration fee");
+  });
+
+  it("the Canada ledger keeps the country-neutral rows byte-for-byte identical to the US ledger", () => {
+    for (const term of [
+      "Your plan",
+      "Extra texts",
+      "Optional add-ons, if you turn them on",
+      "Tax",
+    ]) {
+      expect(LEDGER_CA.find((e) => e.term === term)).toEqual(
+        LEDGER.find((e) => e.term === term),
+      );
+    }
   });
 });
 

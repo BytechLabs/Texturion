@@ -145,18 +145,6 @@ function CanadaTimeline() {
           </p>
         </div>
       </div>
-
-      <div className="mt-6 rounded-xl bg-[color:var(--fr-frost)] px-4 py-3.5">
-        <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-          Days 1 to 7 · US carrier review
-        </p>
-        <p className="mt-1.5 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-          Doesn&apos;t apply here. A Canadian business texting Canadian
-          customers has no registration to wait on, so this segment does not
-          exist. Want to text US customers later? The one-time $29 fee and the
-          3 to 7 business day approval apply only then.
-        </p>
-      </div>
     </div>
   );
 }

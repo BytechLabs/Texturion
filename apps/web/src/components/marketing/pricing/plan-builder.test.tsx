@@ -128,10 +128,10 @@ describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake stat
     expect(html).toContain('href="/signup?plan=starter"');
   });
 
-  it("keeps the Canada no-fee truth and the guarantee microcopy at the buy button", () => {
-    expect(html).toContain(
-      "Canadian businesses that don&#x27;t text US numbers never pay the $29",
-    );
+  it("US mode shows the plain USD line with no Canadian carve-out, plus the guarantee microcopy", () => {
+    expect(html).toContain("Prices in USD, plus sales tax where it applies");
+    // US visitors self-selected US; no Canada mention leaks into US mode.
+    expect(html).not.toContain("Canadian businesses");
     expect(html).toContain("30-day money-back guarantee");
   });
 
@@ -223,8 +223,10 @@ describe("<FirstWeekTimeline> is country-aware", () => {
     );
     expect(html).toContain("Day one · No wait");
     expect(html).toContain("same day you sign up");
-    expect(html).toContain("this segment does not exist");
-    // No YOU ARE HERE tab: there is nothing to wait through.
+    // A Canadian never reads about the US carrier wait or the $29 fee.
+    expect(html).not.toContain("US carrier review");
+    expect(html).not.toContain("3 to 7 business days");
+    expect(html).not.toContain("$29");
     expect(html).not.toContain("You are here");
     expect(html).not.toContain("—");
   });

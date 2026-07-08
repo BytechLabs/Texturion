@@ -30,6 +30,7 @@ import SharedInboxPage, {
 import TemplatesAndTagsPage, {
   metadata as templatesMetadata,
 } from "@/app/(marketing)/features/templates-and-tags/page";
+import { CountryProvider } from "@/components/marketing/country";
 import { BrowserFrame } from "@/components/marketing/frame/browser-frame";
 import { PhoneFrame } from "@/components/marketing/frame/phone-frame";
 import { ConsentVisual } from "./consent-visual";
@@ -53,6 +54,24 @@ const PAGES: Record<string, string> = {
   compliance: renderToStaticMarkup(<CompliancePage />),
   "templates-and-tags": renderToStaticMarkup(<TemplatesAndTagsPage />),
   canada: renderToStaticMarkup(<CanadaPage />),
+};
+
+// The two features-crew pages rendered in the Canada branch. The foundation's
+// CountryProvider takes `initialCountry` so a static render can exercise either
+// branch deterministically; renderToStaticMarkup never runs the effect that
+// would otherwise adopt localStorage, so the tree stays in "ca". PAGES above is
+// the US branch (default "us", no provider needed).
+const CA_PAGES: Record<string, string> = {
+  "business-number": renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <BusinessNumberPage />
+    </CountryProvider>,
+  ),
+  compliance: renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <CompliancePage />
+    </CountryProvider>,
+  ),
 };
 
 const EMBEDS: Record<string, string> = {
@@ -205,6 +224,81 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     for (const code of ["604", "403", "416", "514", "902", "867"]) {
       expect(html).toContain(code);
     }
+  });
+});
+
+describe("country branching: a Canadian sees only the Canada story (owner ruling v1)", () => {
+  it("CA copy carries no em-dashes or en-dash ranges (Law 6)", () => {
+    for (const [name, html] of Object.entries(CA_PAGES)) {
+      expect(html, name).not.toContain("—");
+      expect(html, name).not.toMatch(/\d–\d/);
+    }
+  });
+
+  it("bands still alternate in CA mode (Law 10): no two adjacent Frost bands", () => {
+    const BAND =
+      /bg-\[color:var\(--fr-(frost|ground)\)\] text-\[color:var\(--fr-ink\)\] py/g;
+    for (const [name, html] of Object.entries(CA_PAGES)) {
+      const grounds = [...html.matchAll(BAND)].map((m) => m[1]);
+      expect(grounds.length, `${name}: still built from FrSection bands`)
+        .toBeGreaterThan(3);
+      for (let i = 1; i < grounds.length; i++) {
+        expect(
+          `${grounds[i - 1]}→${grounds[i]}`,
+          `${name}: bands ${i - 1} and ${i} fuse into one wash`,
+        ).not.toBe("frost→frost");
+      }
+    }
+  });
+
+  it("business-number (CA): same-day, no-fee, no-registration facts, no US wait/fee/EIN", () => {
+    const html = CA_PAGES["business-number"];
+    // The Canada story is present.
+    expect(html).toMatch(/the same day it goes active/);
+    expect(html).toMatch(/No registration, no fee, and no approval wait/);
+    expect(html).toMatch(/no registration and no one-time/);
+    expect(html).toMatch(/text Canadian customers the same day/);
+    // Shared, country-neutral facts still hold.
+    expect(html).toMatch(/Porting is free/i);
+    expect(html).toMatch(/often faster in Canada/);
+    // The US-only wait, fee, and 10DLC sole-prop cap never reach a Canadian.
+    expect(html).not.toMatch(/3 to 7 business days/);
+    expect(html).not.toContain("first month is $58");
+    expect(html).not.toContain("one-time $29");
+    expect(html).not.toMatch(/without an EIN/);
+    expect(html).not.toMatch(/single number regardless of plan/);
+  });
+
+  it("compliance (CA): no-registration + CASL framing, and zero US registration copy", () => {
+    const html = CA_PAGES.compliance;
+    // The Canada story is present.
+    expect(html).toMatch(/no carrier registration to text Canadian customers/);
+    expect(html).toMatch(/needs no carrier registration/);
+    expect(html).toContain("CASL");
+    expect(html).toMatch(/the same day your number is active/);
+    expect(html).toMatch(/Do I need to register to text customers in Canada/);
+    expect(html).toMatch(/Let us handle the compliance details/);
+    // No US wait, fee, or carrier-registration obligation, in copy OR the embed.
+    expect(html).not.toMatch(/3 to 7 business days/);
+    expect(html).not.toContain("first month is $58");
+    expect(html).not.toContain("one-time $29");
+    expect(html).not.toContain("carrier approval");
+    expect(html).not.toContain("carrier paperwork"); // the closing-CTA leak, now branched
+    expect(html).not.toContain("Registration filed for you"); // the closing-CTA leak
+    expect(html).not.toContain("US texting registration"); // the registration-stepper embed
+    expect(html).not.toContain("Business registered with the phone companies");
+  });
+
+  it("US branch carries none of the CA-only no-registration carve-outs", () => {
+    const bn = PAGES["business-number"];
+    expect(bn).not.toContain("the same day it goes active");
+    expect(bn).not.toContain("No registration, no fee, and no approval wait");
+    const comp = PAGES.compliance;
+    expect(comp).not.toContain("No registration for Canada");
+    expect(comp).not.toContain(
+      "no carrier registration to text Canadian customers",
+    );
+    expect(comp).not.toContain("Let us handle the compliance details");
   });
 });
 

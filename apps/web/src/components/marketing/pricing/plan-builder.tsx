@@ -364,9 +364,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
 
         {country === "us" ? (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-            Canadian businesses that don&apos;t text US numbers never pay the{" "}
-            {usd(US_REGISTRATION_FEE_DOLLARS)} and never wait. Prices in USD,
-            plus sales tax where it applies.
+            Prices in USD, plus sales tax where it applies.
           </p>
         ) : (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
