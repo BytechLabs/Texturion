@@ -14,12 +14,29 @@ You already run DNS on Cloudflare, so receiving costs nothing:
    warn if anything conflicts; accept its records).
 2. **Destination addresses**: add your real inbox (e.g. your Gmail) and click the
    verification link Cloudflare emails you.
-3. **Custom addresses**: create three routes, all forwarding to that destination:
-   - `support@loonext.com`
+3. **Custom addresses**: create five routes, all forwarding to that destination:
+   - `support@loonext.com` — the human support inbox, and the address Resend stamps
+     as `Reply-To` on every transactional send. Set the optional Worker secret
+     `RESEND_REPLY_TO` to this address so alert replies land here, not in the
+     unmonitored `notifications@` sender:
+     ```
+     printf '%s' 'Loonext Support <support@loonext.com>' | \
+       wrangler secret put RESEND_REPLY_TO --config apps/api/wrangler.jsonc
+     ```
+     `RESEND_REPLY_TO` is optional in the schema (`apps/api/src/env.ts:53`); leave it
+     unset and `resend.ts` omits `Reply-To` entirely (the pre-hardening behavior), so
+     wiring it here is what makes the "reply to this email" copy actually reach a human.
+     ([06-env-reference](./06-env-reference.md) §A carries it as an optional row too.)
    - `privacy@loonext.com`
    - `security@loonext.com`
+   - `notifications@loonext.com` — the Resend `RESEND_FROM` sender. Routing it means
+     bounces and stray replies to outbound alerts still reach a person instead of
+     bouncing into the void.
+   - `dmarc@loonext.com` — receives the DMARC aggregate (`rua`) reports below. Keep it
+     separate from `support@` so the daily XML reports never clutter the human inbox
+     (a Gmail filter can archive them straight to a `DMARC` label).
 4. Catch-all: set to **Drop** (a catch-all that forwards invites spam; anything real
-   arrives at the three routed names).
+   arrives at the five routed names).
 
 Mail to those addresses now lands in your personal inbox. Filters/labels in Gmail
 ("to: support@loonext.com → label Support") keep them sorted.
@@ -50,9 +67,10 @@ After A and B, the zone should have:
 - **DKIM** → the three CNAME/TXT records from Resend's domain verification (already
   required for transactional sending; verify they are green in Resend).
 - **DMARC** (add manually, TXT on `_dmarc.loonext.com`):
-  `v=DMARC1; p=quarantine; rua=mailto:support@loonext.com; fo=1`
-  Start with `p=none` for the first week if you want to observe reports before
-  enforcement, then move to `p=quarantine`.
+  `v=DMARC1; p=quarantine; rua=mailto:dmarc@loonext.com; fo=1`
+  The `rua` points at the routed `dmarc@loonext.com` address (section A) so aggregate
+  reports stay out of the support inbox. Start with `p=none` for the first week if you
+  want to observe reports before enforcement, then move to `p=quarantine`.
 
 ## D. What this deliberately avoids paying for
 

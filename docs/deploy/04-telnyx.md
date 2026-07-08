@@ -37,7 +37,7 @@ the portal (`apps/api/src/telnyx/voice.ts:1-22,68-118`):
 
 - Telnyx portal → **Voice → Call Control** (a.k.a. Programmable Voice
   application) → create one application.
-- **Webhook URL** = `https://api.loonext.app/webhooks/telnyx` (your
+- **Webhook URL** = `https://api.loonext.com/webhooks/telnyx` (your
   `<API_ORIGIN>/webhooks/telnyx` — the **same endpoint as messaging**; `call.*`
   events are Ed25519-verified exactly like message webhooks).
 - **Webhook failover URL** = the same URL.
@@ -79,8 +79,8 @@ creates each company's messaging profile
 ```
 POST /v2/messaging_profiles
   name                 = <company.id>
-  webhook_url          = https://api.loonext.app/webhooks/telnyx
-  webhook_failover_url = https://api.loonext.app/webhooks/telnyx
+  webhook_url          = https://api.loonext.com/webhooks/telnyx
+  webhook_failover_url = https://api.loonext.com/webhooks/telnyx
   whitelisted_destinations = ["US","CA"]
 ```
 

@@ -55,9 +55,9 @@ Create a webhook endpoint pointing at **`${API_ORIGIN}/webhooks/stripe`** (route
 4. The API auto-creates a per-company **messaging profile** during number provisioning and sets its webhook URL + failover URL to **`${API_ORIGIN}/webhooks/telnyx`** (`apps/api/src/telnyx/provisioning.ts:22-23`, `apps/api/src/telnyx/wizard.ts:141`). No manual profile is required, but the account must permit US/CA geo and 10DLC.
 
 ### 1e. Resend
-1. Verify the sending domain (e.g. `loonext.app`).
+1. Verify the sending domain (e.g. `loonext.com`).
 2. Create an API key `re_...` → `RESEND_API_KEY`.
-3. Set `RESEND_FROM` to `Loonext <notifications@loonext.app>` (the domain must be verified) (`apps/api/src/email/resend.ts:35`).
+3. Set `RESEND_FROM` to `Loonext <notifications@loonext.com>` (the domain must be verified) (`apps/api/src/email/resend.ts:35`).
 
 ### 1f. Sentry
 Create a project, copy the **DSN** → `SENTRY_DSN` (`apps/api/src/observability/sentry.ts:117-125`). No web-side Sentry exists.
@@ -118,7 +118,7 @@ Set these **8 required** repo/environment secrets so CI + Deploy work (`.github/
 
 > **Optional secrets (the deploy job passes both into the web build):**
 > - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`) — only needed if you enable Supabase Auth captcha (§1a step 5), but then it is **required first**: enable captcha in the Supabase dashboard only **after** this secret is set and the web Worker redeployed, or every email/password signup/login/reset breaks (the built pages send no `captchaToken`).
-> - `NEXT_PUBLIC_APP_ORIGIN` (`deploy.yml:27-30`) — the D27 marketing/app host split (`apps/web/src/env.ts:11-16`, `apps/web/src/lib/hosts.ts`). Production value `https://app.loonext.app` (must equal the api `APP_ORIGIN` secret). When set, the middleware serves only marketing on `loonext.app` (+ `www` → apex canonicalization) and only the product on the app origin; blank = no gating (dev/CI). Requires `loonext.app`, `www.loonext.app`, and `app.loonext.app` all attached as custom domains on the one web Worker (§6). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
+> - `NEXT_PUBLIC_APP_ORIGIN` (`deploy.yml:27-30`) — the D27 marketing/app host split (`apps/web/src/env.ts:11-16`, `apps/web/src/lib/hosts.ts`). Production value `https://app.loonext.com` (must equal the api `APP_ORIGIN` secret). When set, the middleware serves only marketing on `loonext.com` (+ `www` → apex canonicalization) and only the product on the app origin; blank = no gating (dev/CI). Requires `loonext.com`, `www.loonext.com`, and `app.loonext.com` all attached as custom domains on the one web Worker (§6). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 ---
 
@@ -182,7 +182,7 @@ Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions); mapped to jobs in `
 
 `API_ORIGIN`, `APP_ORIGIN` (api secrets) and `NEXT_PUBLIC_API_URL` (web) must all agree with the actual deployed Worker URLs, or webhooks/CORS/links break.
 
-**Custom domains (D27):** the ONE `loonext-web` Worker carries **three** custom domains — `loonext.app`, `www.loonext.app`, and `app.loonext.app`; `loonext-api` carries `api.loonext.app`. With the optional `NEXT_PUBLIC_APP_ORIGIN` secret set (§3), the middleware serves only marketing on the apex (+ `www` → apex) and only the product on `app.` (`apps/web/src/lib/hosts.ts`). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
+**Custom domains (D27):** the ONE `loonext-web` Worker carries **three** custom domains — `loonext.com`, `www.loonext.com`, and `app.loonext.com`; `loonext-api` carries `api.loonext.com`. With the optional `NEXT_PUBLIC_APP_ORIGIN` secret set (§3), the middleware serves only marketing on the apex (+ `www` → apex) and only the product on `app.` (`apps/web/src/lib/hosts.ts`). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 ---
 

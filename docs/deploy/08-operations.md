@@ -74,7 +74,7 @@ email with the hosted invoice link; no state change
   (`apps/api/src/observability/sentry.ts:117-125`) — message bodies never reach
   Sentry. Watch for: the `*/5` sweeper's 5th-attempt alerts, cron `AggregateError`s,
   and Resend/Telnyx/Stripe call failures.
-- **`/health`** — `GET https://api.loonext.app/health` re-runs env validation; a 500
+- **`/health`** — `GET https://api.loonext.com/health` re-runs env validation; a 500
   naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`). Good
   target for an uptime monitor / the status page.
 - **PostHog** — optional product analytics (`POSTHOG_API_KEY`,

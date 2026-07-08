@@ -20,8 +20,8 @@ You should already have (from [02](./02-supabase.md)–[04](./04-telnyx.md)):
 - `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID` (the
   Call-Control application id from [04](./04-telnyx.md) §1).
 - Resend key + verified `RESEND_FROM`; Sentry DSN.
-- The two chosen origins: `APP_ORIGIN=https://app.loonext.app`,
-  `API_ORIGIN=https://api.loonext.app` (PLACEHOLDERS).
+- The two chosen origins: `APP_ORIGIN=https://app.loonext.com`,
+  `API_ORIGIN=https://api.loonext.com` (PLACEHOLDERS).
 - Optionally a PostHog project API key (`POSTHOG_API_KEY`) — analytics are a
   silent no-op without it ([06](./06-env-reference.md) §E).
 
@@ -150,7 +150,7 @@ cron triggers** (§6) — no dashboard action needed.
 # The NEXT_PUBLIC_* vars are inlined at build time and MUST be in the shell env.
 NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
-NEXT_PUBLIC_API_URL=https://api.loonext.app \
+NEXT_PUBLIC_API_URL=https://api.loonext.com \
   pnpm --filter @loonext/web run deploy
 ```
 
@@ -172,8 +172,8 @@ Worker → **Settings → Domains & Routes → Add Custom Domain**, or `wrangler
 
 | Worker | Custom domain(s) |
 |--------|------------------|
-| `loonext-api` | `api.loonext.app` |
-| `loonext-web` | `app.loonext.app` **and** `loonext.app` **and** `www.loonext.app` — all three on the one Worker (D27) |
+| `loonext-api` | `api.loonext.com` |
+| `loonext-web` | `app.loonext.com` **and** `loonext.com` **and** `www.loonext.com` — all three on the one Worker (D27) |
 
 Adding a custom domain creates the proxied DNS record automatically (see
 [01](./01-accounts-and-domain.md) §3). With the optional `NEXT_PUBLIC_APP_ORIGIN`
@@ -181,8 +181,8 @@ build var set (§5), the middleware enforces the D27 host split across those thr
 hostnames: marketing only on the apex (`www` → apex), the product only on `app.`
 (`apps/web/src/lib/hosts.ts`). After this, confirm:
 
-- `https://api.loonext.app/health` returns `{"ok":true}` (`apps/api/src/index.ts:88-92`).
-- `https://app.loonext.app` loads the app.
+- `https://api.loonext.com/health` returns `{"ok":true}` (`apps/api/src/index.ts:88-92`).
+- `https://app.loonext.com` loads the app.
 
 The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildcard**
 (`apps/api/src/index.ts:75`); the Telnyx/Stripe webhook URLs derive from `API_ORIGIN`.
@@ -201,7 +201,7 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `deploy.yml:21` (CI uses a fixed placeholder — `ci.yml:91`) |
 | `NEXT_PUBLIC_API_URL` | web build — `deploy.yml:22` (set to your API origin) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` *(optional)* | web build — `deploy.yml:23-26` (only if Supabase captcha is enabled; see below) |
-| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.loonext.app`, blank = no split) |
+| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.loonext.com`, blank = no split) |
 | `SUPABASE_ACCESS_TOKEN` | migrations — `deploy.yml:52` |
 | `SUPABASE_DB_PASSWORD` | migrations — `deploy.yml:53` |
 | `SUPABASE_PROJECT_REF` | migrations — `deploy.yml:55` |
@@ -282,21 +282,21 @@ Operational details in [08 — operations](./08-operations.md).
 
 ## 8. Register the live webhook URLs back into the vendors
 
-Now that `api.loonext.app` is live:
+Now that `api.loonext.com` is live:
 
 - **Stripe:** create/confirm the webhook endpoint at
-  `https://api.loonext.app/webhooks/stripe` with the 7 events, and set its `whsec_`
+  `https://api.loonext.com/webhooks/stripe` with the 7 events, and set its `whsec_`
   as `STRIPE_WEBHOOK_SECRET` (re-run the relevant `wrangler secret put`). See
   [03](./03-stripe.md) §3.
 - **Telnyx:** messaging needs nothing registered — the webhook URL is set
   **programmatically** per messaging profile from `API_ORIGIN`
   (`apps/api/src/telnyx/wizard.ts:140-142`). Just confirm `API_ORIGIN` on the
-  Worker is `https://api.loonext.app`, and that the **Call-Control application's**
+  Worker is `https://api.loonext.com`, and that the **Call-Control application's**
   webhook + failover URL (entered once in the portal, [04](./04-telnyx.md) §1)
-  point at the same live `https://api.loonext.app/webhooks/telnyx`. See
+  point at the same live `https://api.loonext.com/webhooks/telnyx`. See
   [04](./04-telnyx.md) §3.
 
 After changing any secret, redeploy is **not** required for secret pickup, but
-re-hit `GET https://api.loonext.app/health` to confirm validation passes.
+re-hit `GET https://api.loonext.com/health` to confirm validation passes.
 
 Next: [06 — env reference](./06-env-reference.md).

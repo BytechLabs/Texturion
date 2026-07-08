@@ -139,23 +139,67 @@ Turnstile has **two halves** (`SPEC.md:1052`):
 
 ---
 
-## 7. Resend as Supabase Auth custom SMTP
+## 7. Resend as Supabase Auth custom SMTP + branded email templates
 
 Supabase Auth sends invite/signup/reset emails (e.g. `inviteUserByEmail`) via a
 **custom SMTP = Resend** (`SPEC.md:100,832,1065`). This is separate from the API
 Worker's own Resend usage.
 
-1. In **Resend**: verify your sending domain (e.g. `loonext.app`) — add the DNS
+1. In **Resend**: verify your sending domain (e.g. `loonext.com`) — add the DNS
    records Resend gives you, wait for verification.
 2. In Resend, create an **SMTP** credential (or use the API-key-as-SMTP-password
    flow Resend documents) and note host/port/username/password.
 3. Supabase → **Project Settings → Authentication → SMTP Settings** → enable custom
-   SMTP, enter the Resend SMTP host/port/credentials, and set the **sender** to an
-   address **at the verified Resend domain** (e.g. `notifications@loonext.app`).
+   SMTP, enter the Resend SMTP host/port/credentials, set the **sender address** to
+   an address **at the verified Resend domain** (e.g. `notifications@loonext.com`),
+   and set the **sender name** to **`Loonext`** — this is the From name on every
+   auth email; leaving it blank ships the raw address as the sender.
 
 > The API Worker's transactional email (billing notices, etc.) uses the Resend
 > **REST API** with `RESEND_API_KEY` + `RESEND_FROM` — configured in
 > [06](./06-env-reference.md), not here. Both must sit on the same verified domain.
+
+### 7b. Paste in the branded auth email templates — MANDATORY
+
+Without this step every signup confirmation, invite, magic link, password reset,
+and email-change email goes out as **Supabase's stock boilerplate**. The five
+Loonext templates live in **`supabase/templates/*.html`** and are wired for local
+dev via `[auth.email.template.*]` in `supabase/config.toml` (subjects included).
+**The hosted dashboard does not read `config.toml`** — the templates must be
+pasted in by hand:
+
+1. Supabase → **Authentication → Emails** (email templates).
+2. For each row below, open the matching dashboard tab, set the **Subject**
+   exactly as listed (it must match `supabase/config.toml` so local and hosted
+   emails stay identical), and replace the message body with the **full file
+   contents** (the files are complete HTML documents; paste them as-is in the
+   source/code view):
+
+   | Dashboard template | Subject | File |
+   |--------------------|---------|------|
+   | Confirm sign up | Confirm your email | `supabase/templates/confirmation.html` |
+   | Invite user | You're invited to Loonext | `supabase/templates/invite.html` |
+   | Magic link | Your Loonext sign-in link | `supabase/templates/magic_link.html` |
+   | Change email address | Confirm your new email | `supabase/templates/email_change.html` |
+   | Reset password | Reset your Loonext password | `supabase/templates/recovery.html` |
+
+3. Save each template, then send yourself a **password-reset** email and check
+   it renders as the Loonext template (ink `#10173B` on white, one cobalt
+   `#2740DE` button, plain-text fallback link below the button) and that the
+   From name is **Loonext**.
+
+Template facts:
+
+- Each template uses only the variables Supabase provides for that type:
+  `{{ .ConfirmationURL }}` and `{{ .Email }}` everywhere, plus `{{ .NewEmail }}`
+  in the email-change template and `{{ .Data.company_name }}` /
+  `{{ .Data.invited_by_name }}` in the invite template.
+- The invite template names the inviting company and person **only when** the
+  API passes them via `inviteUserByEmail`'s `data` option; when absent it falls
+  back to "You have been invited to join a team on Loonext." — no broken
+  placeholders either way.
+- If you later edit a template, change the **file** first, then re-paste — the
+  repo copy is canonical.
 
 ---
 
@@ -166,6 +210,7 @@ Worker's own Resend usage.
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` → GitHub
   Actions secrets.
 - ES256 signing key live; migrations applied; `mms-media` bucket present; Turnstile
-  + Resend-SMTP configured.
+  + Resend-SMTP configured; sender name `Loonext`; all five branded auth email
+  templates pasted into the dashboard (§7b).
 
 Next: [03 — Stripe](./03-stripe.md).

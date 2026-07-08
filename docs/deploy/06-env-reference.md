@@ -35,10 +35,10 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_SECRET_KEY` | yes | Stripe → Developers → API keys (**restricted** `rk_` for runtime) | `rk_live_xxxxxxxxxxxx` (or `sk_live_...`) |
 | `STRIPE_WEBHOOK_SECRET` | yes | Stripe → Developers → Webhooks → endpoint → Signing secret | `whsec_xxxxxxxxxxxxxxxx` |
 | `RESEND_API_KEY` | yes | Resend → API Keys | `re_xxxxxxxxxxxxxxxx` |
-| `RESEND_FROM` | yes | Operator-set; address at the verified Resend domain | `Loonext <notifications@loonext.app>` |
+| `RESEND_FROM` | yes | Operator-set; address at the verified Resend domain | `Loonext <notifications@loonext.com>` |
 | `SENTRY_DSN` | yes | Sentry → Project → Client Keys (DSN) | `https://abc123@o0.ingest.sentry.io/0` |
-| `APP_ORIGIN` | yes | Operator decision (web origin) | `https://app.loonext.app` |
-| `API_ORIGIN` | yes | Operator decision (this Worker's origin) | `https://api.loonext.app` |
+| `APP_ORIGIN` | yes | Operator decision (web origin) | `https://app.loonext.com` |
+| `API_ORIGIN` | yes | Operator decision (this Worker's origin) | `https://api.loonext.com` |
 | `VAPID_PUBLIC_KEY` | yes | `npx web-push generate-vapid-keys` (once, forever) | base64url ~87 chars |
 | `VAPID_PRIVATE_KEY` | yes | same command as above | base64url ~43 chars |
 | `STRIPE_STARTER_PRICE_ID` | yes | Printed by `pnpm --filter @loonext/api stripe:setup` | `price_xxxxxxxxxxxx` |
@@ -90,9 +90,9 @@ browser bundle).
 |------|:------:|--------|----------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | no (public) | Same as `SUPABASE_URL` | `https://abcdefghijklmnop.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | no (public) | Supabase → Settings → API → **Publishable key** | `sb_publishable_xxxxxxxxxxxx` |
-| `NEXT_PUBLIC_API_URL` | no (public) | Operator decision; must equal `API_ORIGIN` | `https://api.loonext.app` |
+| `NEXT_PUBLIC_API_URL` | no (public) | Operator decision; must equal `API_ORIGIN` | `https://api.loonext.com` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | no (public) | Cloudflare → Turnstile → your widget → **Site key** | `0x4AAAAAAA...` |
-| `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.app` |
+| `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.com` |
 
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`apps/web/src/env.ts:10`): when set,
 > signup/login/reset-password render Cloudflare Turnstile and pass the
@@ -108,13 +108,13 @@ browser bundle).
 
 > `NEXT_PUBLIC_APP_ORIGIN` (`apps/web/src/env.ts:11-16`): the D27 marketing/app
 > host split (`docs/DECISIONS.md` D27, `apps/web/src/lib/hosts.ts`). When set
-> (production: `https://app.loonext.app`), the middleware serves **only**
-> marketing pages on `loonext.app` (with `www` → apex canonicalization) and
+> (production: `https://app.loonext.com`), the middleware serves **only**
+> marketing pages on `loonext.com` (with `www` → apex canonicalization) and
 > **only** the product on the app origin — app-surface paths on the marketing
 > host 308 to the app origin and vice versa. Unset (dev/CI/previews) = no
 > gating; every route stays on one origin. Deploy passes it from the optional
 > GitHub secret of the same name (`.github/workflows/deploy.yml:27-30`). All
-> three hostnames (`loonext.app`, `www.loonext.app`, `app.loonext.app`) attach
+> three hostnames (`loonext.com`, `www.loonext.com`, `app.loonext.com`) attach
 > as custom domains on the **one** web Worker ([01](./01-accounts-and-domain.md)
 > §2). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 

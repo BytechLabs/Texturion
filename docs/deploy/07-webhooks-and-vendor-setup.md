@@ -16,10 +16,10 @@ Call-Control (voice) events alike.
 | Telnyx | `${API_ORIGIN}/webhooks/telnyx` | **Programmatically**, per messaging profile (not the portal) — plus **once manually** on the Call-Control application ([04](./04-telnyx.md) §1) | Ed25519 |
 | Stripe | `${API_ORIGIN}/webhooks/stripe` | **Manually**, one endpoint in the Stripe dashboard | HMAC |
 
-With `API_ORIGIN=https://api.loonext.app` these are
-`https://api.loonext.app/webhooks/telnyx`
+With `API_ORIGIN=https://api.loonext.com` these are
+`https://api.loonext.com/webhooks/telnyx`
 (`apps/api/src/telnyx/wizard.ts:140-142`) and
-`https://api.loonext.app/webhooks/stripe` (`apps/api/src/index.ts:128`).
+`https://api.loonext.com/webhooks/stripe` (`apps/api/src/index.ts:128`).
 
 ---
 
@@ -160,10 +160,10 @@ Two uses, both need one verified domain and one API key.
 
 **Operator actions in the Resend dashboard:**
 
-1. **Add and verify the sending domain** (e.g. `loonext.app`) — add the DKIM/SPF
+1. **Add and verify the sending domain** (e.g. `loonext.com`) — add the DKIM/SPF
    DNS records Resend gives you and wait for verification. `RESEND_FROM` must use
    an address at this verified domain, e.g.
-   `Loonext <notifications@loonext.app>` (`apps/api/src/env.ts:42-43`,
+   `Loonext <notifications@loonext.com>` (`apps/api/src/env.ts:42-43`,
    `apps/api/.dev.vars.example:18`). An unverified domain makes every
    `sendEmail` throw on the non-2xx (`apps/api/src/email/resend.ts:43-50`).
 2. **Create an API key** → `RESEND_API_KEY` (`re_...`)

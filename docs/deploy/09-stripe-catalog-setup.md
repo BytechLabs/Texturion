@@ -161,7 +161,7 @@ This can only be done once the API custom domain exists (the `API_ORIGIN` value
 — see [runbook.md](./runbook.md) §1/§6). The endpoint URL is:
 
 ```
-https://api.loonext.app/webhooks/stripe
+https://api.loonext.com/webhooks/stripe
 ```
 
 The route is mounted at `/webhooks/stripe`, outside the JWT/CORS chain — the

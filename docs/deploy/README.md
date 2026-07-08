@@ -17,8 +17,8 @@ invented. Where a value is genuinely the operator's choice (domain names,
 account emails) it is marked **PLACEHOLDER** with a worked example.
 
 > **Running example used throughout** (replace with your real values):
-> web = `https://app.loonext.app`, api = `https://api.loonext.app`,
-> marketing root = `https://loonext.app`, Supabase project ref = `abcdefghijklmnop`.
+> web = `https://app.loonext.com`, api = `https://api.loonext.com`,
+> marketing root = `https://loonext.com`, Supabase project ref = `abcdefghijklmnop`.
 
 ---
 
@@ -61,7 +61,7 @@ operator walkthrough — start here.**
 | **Resend** | Any (with a verified sending domain) | Transactional email + Supabase Auth custom SMTP | [02](./02-supabase.md) §7 |
 | **Sentry** | Any (Team+) | API Worker error tracking (DSN only) | [06](./06-env-reference.md) |
 | **PostHog** | Optional (Cloud US) | Product analytics in the API Worker via the optional `POSTHOG_API_KEY` secret — silent no-op when unset, `distinct_id` = company_id only (`apps/api/src/analytics/posthog.ts`). | [06](./06-env-reference.md) §E |
-| **Domain registrar** | — | Register `loonext.app` (or your domain); DNS delegated to Cloudflare | [01](./01-accounts-and-domain.md) |
+| **Domain registrar** | — | Register `loonext.com` (or your domain); DNS delegated to Cloudflare | [01](./01-accounts-and-domain.md) |
 | **Status page** (Instatus / BetterStack free) | — | Launch blocker per marketing (`docs/marketing/BLUEPRINT.md:984`) | [07](./07-go-live-checklist.md) |
 
 ### Toolchain (local operator machine)

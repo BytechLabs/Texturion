@@ -45,7 +45,7 @@ Day one: your number is live and receiving texts, and texting Canadian customers
 away. Texting US customers turns on in about a week, once the phone companies approve you — we
 file everything the minute you pay.
 
-**Hero image caption:** *(none — cut. The `loonext.app/inbox` browser-chrome hint says it's real.
+**Hero image caption:** *(none — cut. The `loonext.com/inbox` browser-chrome hint says it's real.
 Confidence is shown, not asserted.)*
 
 ---

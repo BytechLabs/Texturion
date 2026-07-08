@@ -7,7 +7,7 @@ D12, D14), docs/DESIGN.md (G1–G12), and the three research docs in this folder
 Copy lives in `COPY.md` (home, pricing, plumbers — final quality). Everything sold here exists
 in SPEC v2. Nothing here is a placeholder.
 
-Domain: **https://loonext.app** (marketing at root; the app lives at `/inbox` etc. in the same
+Domain: **https://loonext.com** (marketing at root; the app lives at `/inbox` etc. in the same
 `apps/web` Worker under a `(marketing)` route group — LOOP-STATE iteration 2).
 
 ---
@@ -144,7 +144,7 @@ reuse those exact primitives. Split:
   app's no-card-shadow rule, allowed only on framed product visuals — plus the §1.2 glow on the
   hero only.
 - Desktop shots get a minimal stone-toned browser-chrome hint (three dots + a neutral URL bar
-  reading `loonext.app/inbox`) — quietly reinforces "it's just the web, no download."
+  reading `loonext.com/inbox`) — quietly reinforces "it's just the web, no download."
 - Phone shots use a neutral rounded frame (stone-200 ring, 28px radius). **No Apple/Android
   device chrome** — platform-neutral keeps the PWA story honest.
 - Max settle-tilt on scroll: 2°. No 3D perspective stacks (reads dated/dev-flavored).
@@ -211,7 +211,7 @@ reuse those exact primitives. Split:
 | `/legal/refunds` | 30-day guarantee | Iter 3 | — |
 | `/security` | Security | Iter 3 | — |
 | `/contact` | Contact | Iter 2 | — |
-| `status.loonext.app` | Status (hosted, not built) | Iter 2 | — |
+| `status.loonext.com` | Status (hosted, not built) | Iter 2 | — |
 
 **Decisions locked here:**
 
@@ -245,7 +245,7 @@ reuse those exact primitives. Split:
   page (teardown line 191 names it in the launch baseline), and Loonext hard-gates outbound on
   carrier approval and sells trust-through-honesty — "is it down or is it me?" is a daily question
   for exactly this product. Use a hosted provider (Instatus/BetterStack free tier) at
-  `status.loonext.app`, linked in the footer "Company & legal" column, iteration 2 scope. It does
+  `status.loonext.com`, linked in the footer "Company & legal" column, iteration 2 scope. It does
   not need a custom build, but it must exist and be linked before launch. Shipping a
   deliverability-dependent SMS product with no status page while the whole pitch is "we're the
   honest ones" is a self-inflicted trust hole.
@@ -312,7 +312,7 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   your whole crew can see."** (Alternates recorded in COPY.md for A/B later.) Sub carries: local
   number + flat $29 + month to month + no sales calls. CTAs: primary **"Get your number"** →
   /signup; secondary **"See pricing"** → /pricing (never "Book a demo", never "Contact sales").
-  **No defensive caption** — the browser-chrome `loonext.app/inbox` hint (§1.3) already says
+  **No defensive caption** — the browser-chrome `loonext.com/inbox` hint (§1.3) already says
   "this is real" without a sentence apologizing for it (per the honesty-labeling finding; confidence
   is shown, not asserted). The one honesty label lives on the §3.4 deep-dive demo, not here.
 - **Truth line (under CTAs, 13px stone-500):** the US/CA timing sentence — positioning weapon #5
@@ -839,7 +839,7 @@ build-time blur placeholders via static imports. Static tiles ≤40KB each. **No
 
 ### 11.1 Metadata
 
-- `metadataBase: https://loonext.app`; root layout `title.template: "%s · Loonext"`.
+- `metadataBase: https://loonext.com`; root layout `title.template: "%s · Loonext"`.
 - Home (absolute): **"Loonext — Shared text inbox for your crew | $29/mo flat"**;
   description leads with flat pricing + month to month + US/Canada.
 - Every marketing page: static `metadata` export (zero runtime cost), `alternates.canonical`,
@@ -932,7 +932,7 @@ Four columns + brand block:
 2. **Who it's for:** the six trades.
 3. **Compare:** vs Podium, vs Heymarket, vs Quo.
 4. **Company & legal:** Terms, Privacy, Acceptable use, SMS policy, Sub-processors, Refunds,
-   Security, **Status** (`status.loonext.app`, hosted — §2), **Contact** (→ /contact, a real
+   Security, **Status** (`status.loonext.com`, hosted — §2), **Contact** (→ /contact, a real
    page, not a bare mailto — §2). Still no chat widget, no phone in the footer.
 
 Brand block: wordmark + one-line restatement **"Loonext — the shared text inbox for your
@@ -999,7 +999,7 @@ widget §3.10); (d) /pricing, legal set, /contact, SEO plumbing; (e) hosted /sta
    real names for the home founder-signed line (§3.12) — ship the sentence without names rather
    than fabricate**; refund guarantee wording + one-line Stripe refund runbook (§2); **real
    support-response SLA for /contact** ("we reply within 1 business day" placeholder until
-   confirmed); **stand up `status.loonext.app` on a hosted provider (Instatus/BetterStack free
+   confirmed); **stand up `status.loonext.com` on a hosted provider (Instatus/BetterStack free
    tier) and link it in the footer before launch (§2).**
 4. Screenshot capture (§10.1) is gated on the UI wave + seed script; build the seed script as
    part of iteration 3. **Note: the hero has no raster (§3.1) — capture priority is the static

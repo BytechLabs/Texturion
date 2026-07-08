@@ -52,7 +52,7 @@ Device chrome and background depth for framing screenshots AND live-DOM product 
 
 | Component | Intended use | Key props |
 |---|---|---|
-| **`BrowserFrame`** | Desktop screenshots + live-DOM inbox/thread renders. Minimal stone browser chrome, **petrol leftmost dot**, `loonext.app/inbox` URL slot ("it's just the web"). Feature heroes, bento tiles, deep-dive. | `url?` (default `loonext.app/inbox`), `flat?` (drop shadow), `className`, `contentClassName` |
+| **`BrowserFrame`** | Desktop screenshots + live-DOM inbox/thread renders. Minimal stone browser chrome, **petrol leftmost dot**, `loonext.com/inbox` URL slot ("it's just the web"). Feature heroes, bento tiles, deep-dive. | `url?` (default `loonext.com/inbox`), `flat?` (drop shadow), `className`, `contentClassName` |
 | **`PhoneFrame`** | Mobile screenshots + live-DOM dark-band thread. Neutral rounded bezel (stone ring, 28px), **no Apple/Android chrome** (honest PWA story). Optional web-push banner. | `pushBanner?: { title, body }`, `flat?`, `className`, `contentClassName` |
 | **`GlowFrame`** | Wrap a `BrowserFrame`/`PhoneFrame` (or any node) with a contained petrol glow + gentle **settle-tilt** (capped ±2°, eases flat on scroll-in). The hero/feature-hero depth moment. **The one client island** in the set. | `tilt?` (deg, default 1.5, `0` disables), `glow?: "soft"｜"hero"｜"none"`, `className` |
 | **`Texture`** | Faint section-background depth (dot-grid / line-grid / topographic). Tiny inline SVG tile + edge-fade mask. Kills the "empty" feeling; one or two per section max. | `variant?: "dots"｜"grid"｜"topo"`, `fade?: "radial"｜"top"｜"bottom"｜"none"`, `opacity?`, `className` |

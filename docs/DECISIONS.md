@@ -808,8 +808,8 @@ after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1
 
 ## D27. Marketing/app host split — one Worker, two hostnames, middleware-enforced
 
-**Decision:** the landing site and the product are SEPARATED at the hostname level — `loonext.app`
-(+ `www`) serves ONLY the marketing pages, `app.loonext.app` serves ONLY the product (app, auth,
+**Decision:** the landing site and the product are SEPARATED at the hostname level — `loonext.com`
+(+ `www`) serves ONLY the marketing pages, `app.loonext.com` serves ONLY the product (app, auth,
 onboarding) — WITHOUT adding a deploy surface. Both hostnames attach to the ONE existing web Worker
 (D1's two-Worker architecture is unchanged), and the split is enforced by the session middleware's
 first gate (`lib/hosts.ts`, a pure tested function).
@@ -828,9 +828,9 @@ first gate (`lib/hosts.ts`, a pure tested function).
   changes. A malformed value disables the split rather than breaking requests.
 - **No component knows about hostnames.** Marketing pages keep linking to the app with relative
   paths (`/login`, `/signup` — `APP_LINKS`); the middleware hop makes them land on the app origin.
-  `SITE_URL` (`https://loonext.app`) remains the canonical base for sitemap/SEO/JSON-LD, which never
+  `SITE_URL` (`https://loonext.com`) remains the canonical base for sitemap/SEO/JSON-LD, which never
   emit app paths; robots.txt keeps disallowing the app surfaces.
-- **Operator step:** attach `loonext.app`, `www.loonext.app`, and `app.loonext.app` as custom
+- **Operator step:** attach `loonext.com`, `www.loonext.com`, and `app.loonext.com` as custom
   domains on the web Worker, set the `NEXT_PUBLIC_APP_ORIGIN` GitHub Actions secret, and keep
   Supabase/auth/Stripe return URLs on `APP_ORIGIN` (unchanged — they always pointed at the app host).
 - **Consistency:** D1 (still exactly two Workers), SPEC §10 (auth middleware unchanged, the host gate

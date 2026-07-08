@@ -116,3 +116,13 @@ All 25 routes assemble from these named parts. Nothing bespoke.
 3. Flare audit: count Flare instances per page against §3.4.
 4. Token audit: no petrol in marketing chrome; no cobalt inside product frames.
 5. Reduced-motion pass: hero renders the composed SVG still, nothing is blank.
+
+---
+
+## 2026-07-07 owner amendments (binding, same force as the ten laws)
+
+11. **No fake liveness.** No fabricated live/online/typing indicators, no invented unread counts presented as current, no fake operational dots, no invented uptime numbers, no pulsing "live" ornaments. Anything that looks real-time is either genuinely real or sits inside a SCRIPTED DEMO frame. /status renders no operational indicators until it is wired to a real monitoring provider; until then it plainly states where status will be published.
+12. **Canonical domain is https://loonext.com.** All metadata, canonical URLs, OG tags, sitemap entries, and robots directives use loonext.com. No loonext.app anywhere.
+13. **The /pricing centerpiece is the real plan builder.** Interactive plan + add-on configuration with a live monthly total computed from the product's shared constants (single source, zero retyped numbers), SSR default state, zero fake state. Static plan cards are a compact summary at most, never the centerpiece.
+
+Additional QA gates: (6) liveness grep: no live/online/operational indicator outside a SCRIPTED DEMO frame and no green dot on /status while unwired; (7) domain grep: zero loonext.app hits, metadata/sitemap/robots resolve to https://loonext.com; (8) pricing-source audit: every rendered price traces to the shared constants import, none retyped.

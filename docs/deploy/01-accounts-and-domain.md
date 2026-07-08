@@ -4,7 +4,7 @@ Create the vendor accounts and set up the domain + DNS. Do this first: every
 later step needs credentials and hostnames from here.
 
 > Domain and account emails are **operator decisions** — the values below are
-> **PLACEHOLDERS**. The worked example uses the domain `loonext.app`.
+> **PLACEHOLDERS**. The worked example uses the domain `loonext.com`.
 
 ---
 
@@ -35,14 +35,14 @@ config and env, so decide them before setting secrets.
 
 | Hostname (PLACEHOLDER) | Serves | Cloudflare object | Feeds env |
 |------------------------|--------|-------------------|-----------|
-| `app.loonext.app` | The product (app/auth/onboarding) — `loonext-web` Worker | Custom domain on `loonext-web` | `APP_ORIGIN` (api secret), `NEXT_PUBLIC_APP_ORIGIN` (web build, optional — D27) |
-| `api.loonext.app` | The API + webhooks (`loonext-api` Worker) | Custom domain on `loonext-api` | `API_ORIGIN` (api secret), `NEXT_PUBLIC_API_URL` (web build) |
-| `loonext.app` (root) + `www.loonext.app` | Marketing site **only** (D27) | Custom domains on the same `loonext-web` Worker | — |
-| `status.loonext.app` | Hosted status page | CNAME to the status provider | — |
+| `app.loonext.com` | The product (app/auth/onboarding) — `loonext-web` Worker | Custom domain on `loonext-web` | `APP_ORIGIN` (api secret), `NEXT_PUBLIC_APP_ORIGIN` (web build, optional — D27) |
+| `api.loonext.com` | The API + webhooks (`loonext-api` Worker) | Custom domain on `loonext-api` | `API_ORIGIN` (api secret), `NEXT_PUBLIC_API_URL` (web build) |
+| `loonext.com` (root) + `www.loonext.com` | Marketing site **only** (D27) | Custom domains on the same `loonext-web` Worker | — |
+| `status.loonext.com` | Hosted status page | CNAME to the status provider | — |
 
 > **D27 — marketing/app host split** (`docs/DECISIONS.md` D27): there is still
-> only **one** web Worker. `loonext.app`, `www.loonext.app`, **and**
-> `app.loonext.app` all attach to it as custom domains; the middleware's first
+> only **one** web Worker. `loonext.com`, `www.loonext.com`, **and**
+> `app.loonext.com` all attach to it as custom domains; the middleware's first
 > gate (`apps/web/src/lib/hosts.ts`) decides per request. With
 > `NEXT_PUBLIC_APP_ORIGIN` set, the marketing host serves only marketing pages
 > (app-surface paths 308 to the app origin; `www` canonicalizes to the apex) and
@@ -74,7 +74,7 @@ links, and the host split break.
 ## 3. Cloudflare zone setup
 
 1. In the Cloudflare dashboard, **Add a site** → enter your root domain
-   (`loonext.app`). Choose the Free plan for the zone (Workers Paid is a separate
+   (`loonext.com`). Choose the Free plan for the zone (Workers Paid is a separate
    account-level subscription).
 2. Cloudflare shows two **nameservers**. At your registrar, replace the registrar's
    nameservers with Cloudflare's. Wait for the zone to go **Active** (minutes to a
@@ -84,10 +84,10 @@ links, and the host split break.
    §4 create the routing records for `app.` and `api.` automatically (orange-cloud
    proxied).
 4. For the **marketing** hostnames, the same `loonext-web` Worker serves them —
-   add `loonext.app` **and** `www.loonext.app` as additional custom domains on
+   add `loonext.com` **and** `www.loonext.com` as additional custom domains on
    `loonext-web` in [05](./05-workers-deploy.md) §4. (With the D27 host split
    active, `www` must be attached so the middleware can 308 it to the apex.)
-5. For **`status.loonext.app`**, add a `CNAME` to whatever host your status provider
+5. For **`status.loonext.com`**, add a `CNAME` to whatever host your status provider
    gives you (this is external to the Workers).
 
 > **DNS records are created for you** when you attach a Worker custom domain — you

@@ -21,15 +21,22 @@ prerequisites flagged by the marketing/legal docs.
       redeployed **before** enabling the Supabase captcha setting (site key in
       the build; secret key in the Supabase dashboard) — otherwise every
       email/password signup/login/reset breaks ([06](./06-env-reference.md) §B).
+- [ ] Supabase Auth **sender name = `Loonext`** on the custom SMTP settings, and
+      all **five** branded auth email templates pasted into the dashboard
+      (confirm signup, invite user, magic link, change email, reset password) —
+      subjects and HTML from `supabase/templates/*.html`
+      ([02](./02-supabase.md) §7b). Verify: send yourself a password-reset
+      email; it must be the Loonext template (cobalt button, From name
+      "Loonext"), not Supabase stock copy.
 - [ ] Stripe **live** catalog created; all **10** IDs captured (6 plan/meter +
       the 4 `STRIPE_MODULE_*_PRICE_ID` add-on prices — without the module IDs
       every opt-in add-on is unsellable); Tax active; portal + dunning
       (→ cancel) configured; webhook endpoint at
-      `https://api.loonext.app/webhooks/stripe` with the **7** events; `whsec_`
+      `https://api.loonext.com/webhooks/stripe` with the **7** events; `whsec_`
       captured ([03](./03-stripe.md)).
 - [ ] Telnyx live V2 API key + webhook public key captured; **Call-Control (voice)
       application created** with webhook + failover URL =
-      `https://api.loonext.app/webhooks/telnyx` and its id captured as
+      `https://api.loonext.com/webhooks/telnyx` and its id captured as
       `TELNYX_VOICE_CONNECTION_ID`; account has US/CA + 10DLC
       and funded balance ([04](./04-telnyx.md)).
 - [ ] Resend sending domain verified; `RESEND_FROM` on that domain. Sentry DSN
@@ -38,7 +45,7 @@ prerequisites flagged by the marketing/legal docs.
       including the 4 `STRIPE_MODULE_*_PRICE_ID` secrets, which `/health` does
       **not** check (they are schema-optional so the Worker can boot before the
       catalog exists) — plus optional `POSTHOG_API_KEY` if you use analytics;
-      `GET https://api.loonext.app/health` → `{"ok":true}`
+      `GET https://api.loonext.com/health` → `{"ok":true}`
       ([05](./05-workers-deploy.md) §2). Confirm the modules are actually
       sellable: `GET /v1/billing/modules` must report `available: true` for
       `mms`, `voice`, and `extra_storage` (`regions_ca` stays `false` — coming
@@ -53,16 +60,16 @@ prerequisites flagged by the marketing/legal docs.
       `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`, **required before
       enabling Supabase captcha**) and `NEXT_PUBLIC_APP_ORIGIN`
       (`deploy.yml:27-30`, activates the D27 host split; production value
-      `https://app.loonext.app`) ([05](./05-workers-deploy.md) §5).
-- [ ] Both Workers deployed; custom domains bound — `app.loonext.app`,
-      `loonext.app`, **and** `www.loonext.app` all on the one `loonext-web`
-      Worker (D27), `api.loonext.app` on `loonext-api`; `app.` loads,
+      `https://app.loonext.com`) ([05](./05-workers-deploy.md) §5).
+- [ ] Both Workers deployed; custom domains bound — `app.loonext.com`,
+      `loonext.com`, **and** `www.loonext.com` all on the one `loonext-web`
+      Worker (D27), `api.loonext.com` on `loonext-api`; `app.` loads,
       `api./health` OK ([05](./05-workers-deploy.md) §3–§4,
       [01](./01-accounts-and-domain.md) §2).
 - [ ] D27 host split verified (with `NEXT_PUBLIC_APP_ORIGIN` set):
-      `loonext.app/login` 308s to `app.loonext.app/login`, `www.loonext.app`
-      canonicalizes to `loonext.app`, and a marketing path on `app.loonext.app`
-      308s back to `loonext.app` (`apps/web/src/lib/hosts.ts`).
+      `loonext.com/login` 308s to `app.loonext.com/login`, `www.loonext.com`
+      canonicalizes to `loonext.com`, and a marketing path on `app.loonext.com`
+      308s back to `loonext.com` (`apps/web/src/lib/hosts.ts`).
 - [ ] Cron triggers visible on `loonext-api` (Cloudflare → Worker → Triggers) — all 9
       ([05](./05-workers-deploy.md) §6).
 
@@ -82,7 +89,7 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
       (`docs/marketing/BLUEPRINT.md:980-981`, `docs/marketing/COPY.md:393-394`).
 - [ ] **Support-response SLA** for `/contact` (placeholder "we reply within 1
       business day" until confirmed) (`docs/marketing/BLUEPRINT.md:983-984`).
-- [ ] **Status page live** — stand up `status.loonext.app` on a hosted provider
+- [ ] **Status page live** — stand up `status.loonext.com` on a hosted provider
       (Instatus / BetterStack free tier) and link it in the footer; a
       deliverability-gated SMS product cannot launch without one
       (`docs/marketing/BLUEPRINT.md:984-985,1050`).
@@ -109,10 +116,11 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 Run against **Stripe test mode** and a **Telnyx sandbox number** before flipping to
 live. Use two real phones (or one phone + the Telnyx test tooling).
 
-1. **Sign up** — create an account at `https://app.loonext.app`. Confirm the signup
+1. **Sign up** — create an account at `https://app.loonext.com`. Confirm the signup
    CAPTCHA (Turnstile) appears (it renders only when the build had
    `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set) and the Supabase invite/confirmation email arrives via
-   Resend. Confirm the app can call the API (a `/v1/me`-class request returns 200, not
+   Resend **as the branded Loonext template** (From name "Loonext", cobalt
+   button — stock Supabase copy means §7b of [02](./02-supabase.md) was skipped). Confirm the app can call the API (a `/v1/me`-class request returns 200, not
    401 — this validates the ES256 JWKS path, `apps/api/src/auth/jwt.ts:41-44`).
 2. **Pay in Stripe (test)** — start checkout, pay with `4242 4242 4242 4242`. Confirm
    Stripe fires `checkout.session.completed` and the endpoint returns 2xx (Stripe →
@@ -156,7 +164,7 @@ with `processed_at IS NULL` (the `*/5` sweeper should clear transient failures).
 - [ ] Swap `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` to the live Telnyx account (and
       `TELNYX_VOICE_CONNECTION_ID` to a Call-Control app created in that account);
       confirm 10DLC approval.
-- [ ] Re-hit `https://api.loonext.app/health` → `{"ok":true}`.
+- [ ] Re-hit `https://api.loonext.com/health` → `{"ok":true}`.
 - [ ] Repeat the smoke test's send/receive with a **live** number and a real card
       (small amount), then refund.
 

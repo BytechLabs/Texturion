@@ -122,7 +122,7 @@ ships (`apps/api/src/billing/company-modules.ts:26-33`); it reads as coming-soon
 
 Stripe dashboard → **Developers → Webhooks → Add endpoint**.
 
-- **Endpoint URL:** `https://api.loonext.app/webhooks/stripe`
+- **Endpoint URL:** `https://api.loonext.com/webhooks/stripe`
   (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:128`,
   handled at `apps/api/src/webhooks/stripe.ts:48`). This route is **outside** the
   JWT/CORS chain — the HMAC signature is the authentication.
@@ -147,7 +147,7 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
 > You can only get the final URL after the API Worker's custom domain is live
 > ([05](./05-workers-deploy.md) §4). Create the endpoint then, and set
 > `STRIPE_WEBHOOK_SECRET` **before** relying on webhook processing. In test mode,
-> `stripe listen --forward-to https://api.loonext.app/webhooks/stripe` works too.
+> `stripe listen --forward-to https://api.loonext.com/webhooks/stripe` works too.
 
 ---
 
