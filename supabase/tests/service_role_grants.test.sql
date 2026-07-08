@@ -24,6 +24,11 @@ begin
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public'
     and c.relkind in ('r', 'p')
+    -- contact_messages is intentionally append-only (SELECT + INSERT only, no
+    -- UPDATE/DELETE grant): a public contact-form store the Worker writes and
+    -- reads but never mutates (20260707200000_contact_messages.sql). Exempt it
+    -- from the blanket full-DML invariant rather than weakening its posture.
+    and c.relname <> 'contact_messages'
     and not (
       has_table_privilege('service_role', c.oid, 'SELECT')
       and has_table_privilege('service_role', c.oid, 'INSERT')
@@ -32,7 +37,7 @@ begin
   if bad is not null then
     raise exception 'G1 FAILED: service_role missing DML privilege on: %', bad;
   end if;
-  raise notice 'G1 PASSED: service_role has SELECT/INSERT/UPDATE/DELETE on every public table';
+  raise notice 'G1 PASSED: service_role has SELECT/INSERT/UPDATE/DELETE on every public table (contact_messages append-only, exempt)';
 end $$;
 
 -- ===========================================================================

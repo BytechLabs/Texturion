@@ -195,7 +195,7 @@ function StorageBar({
  * D30 + #12: the two separate storage pools — files you attach to notes, and
  * picture messages customers text you. Each has its own budget (base plan + the
  * extra_storage add-on) and its own full behaviour (files: uploads pause;
- * pictures: new ones are held, text always arrives), so they get their own bar.
+ * pictures: new ones stop being saved, text always arrives), so they get their own bar.
  */
 function StorageMeter({ storage }: { storage: UsageStorage }) {
   return (
@@ -210,7 +210,7 @@ function StorageMeter({ storage }: { storage: UsageStorage }) {
         label="Picture messages"
         used={storage.mms_bytes}
         budget={storage.mms_budget_bytes || null}
-        help="Pictures customers text you are saved here. When it's full, new pictures are held (the message text always comes through) until you free up space or move to a larger plan."
+        help="Pictures customers text you are saved here. When it's full, new pictures stop being saved (the message text always comes through) until you free up space or move to a larger plan."
       />
     </div>
   );

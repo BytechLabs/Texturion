@@ -15,6 +15,11 @@ RESEND_API_KEY=
 SENTRY_DSN=
 APP_ORIGIN=
 API_ORIGIN=
+# OPTIONAL — canonical MARKETING origin (D27 host split), e.g. https://loonext.com.
+# REQUIRED in production when marketing (loonext.com) and app (app.loonext.com)
+# are different origins, or the public /contact form is CORS-blocked. Unset in
+# single-host dev (marketing is same-origin with APP_ORIGIN).
+SITE_ORIGIN=
 RESEND_FROM=
 # Web Push VAPID key pair (SPEC §8) — generate once with `npx web-push generate-vapid-keys`.
 VAPID_PUBLIC_KEY=

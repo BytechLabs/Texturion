@@ -37,8 +37,9 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `RESEND_API_KEY` | yes | Resend → API Keys | `re_xxxxxxxxxxxxxxxx` |
 | `RESEND_FROM` | yes | Operator-set; address at the verified Resend domain | `Loonext <notifications@loonext.com>` |
 | `SENTRY_DSN` | yes | Sentry → Project → Client Keys (DSN) | `https://abc123@o0.ingest.sentry.io/0` |
-| `APP_ORIGIN` | yes | Operator decision (web origin) | `https://app.loonext.com` |
+| `APP_ORIGIN` | yes | Operator decision (app origin) | `https://app.loonext.com` |
 | `API_ORIGIN` | yes | Operator decision (this Worker's origin) | `https://api.loonext.com` |
+| `SITE_ORIGIN` | **required with the D27 host split** (optional otherwise) | Operator decision (marketing origin) | `https://loonext.com` |
 | `VAPID_PUBLIC_KEY` | yes | `npx web-push generate-vapid-keys` (once, forever) | base64url ~87 chars |
 | `VAPID_PRIVATE_KEY` | yes | same command as above | base64url ~43 chars |
 | `STRIPE_STARTER_PRICE_ID` | yes | Printed by `pnpm --filter @loonext/api stripe:setup` | `price_xxxxxxxxxxxx` |

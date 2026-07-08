@@ -39,6 +39,14 @@ const envSchema = z.object({
   APP_ORIGIN: z.url(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
   API_ORIGIN: z.url(),
+  /**
+   * Canonical MARKETING origin (D27 host split), e.g. `https://loonext.com`.
+   * The public /contact form is served from here, a DIFFERENT origin than the
+   * app (APP_ORIGIN = app.loonext.com), so the contact CORS must allow it or
+   * every real submission is blocked. Optional: unset (single-host dev/deploy,
+   * where marketing is same-origin with APP_ORIGIN) falls back to APP_ORIGIN.
+   */
+  SITE_ORIGIN: z.url().optional(),
   /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
   /**

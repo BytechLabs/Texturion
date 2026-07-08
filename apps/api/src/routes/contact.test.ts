@@ -393,8 +393,32 @@ describe("POST /contact — CORS (exact APP_ORIGIN, no wildcard)", () => {
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
   });
 
-  it("refuses any other origin (no echo)", async () => {
-    const env = completeEnv();
+  it("answers a preflight for the marketing SITE_ORIGIN when set (D27 host split)", async () => {
+    // The contact form is served from the marketing origin, which under the
+    // host split is a different origin than APP_ORIGIN. Without this the real
+    // form would be CORS-blocked.
+    const env = { ...completeEnv(), SITE_ORIGIN: "https://loonext.com" };
+    stubFetch();
+    const res = await buildApp().request(
+      "/contact",
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://loonext.com",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      },
+      env,
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "https://loonext.com",
+    );
+  });
+
+  it("refuses any other origin (no echo), even with SITE_ORIGIN set", async () => {
+    const env = { ...completeEnv(), SITE_ORIGIN: "https://loonext.com" };
     stubFetch();
     const res = await buildApp().request(
       "/contact",

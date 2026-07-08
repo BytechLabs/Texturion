@@ -13,11 +13,11 @@
  *   - full (`fullLabels`): "United States" / "Canada", for the mobile sheet.
  */
 
-import { type KeyboardEvent } from "react";
+import { type KeyboardEvent, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { COUNTRY_OPTIONS, useCountry } from "./country-context";
+import { COUNTRY_OPTIONS, type Country, useCountry } from "./country-context";
 
 export function CountrySelector({
   className,
@@ -27,11 +27,19 @@ export function CountrySelector({
   fullLabels?: boolean;
 }) {
   const { country, setCountry } = useCountry();
+  // Roving tabindex (WAI-ARIA radiogroup): only the checked radio is tabbable;
+  // arrows move both selection and focus. Refs let us focus the sibling.
+  const refs = useRef<Partial<Record<Country, HTMLButtonElement | null>>>({});
+
+  function select(next: Country) {
+    setCountry(next);
+    refs.current[next]?.focus();
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
-      setCountry(country === "us" ? "ca" : "us");
+      select(country === "us" ? "ca" : "us");
     }
   }
 
@@ -49,17 +57,22 @@ export function CountrySelector({
         return (
           <button
             key={option.id}
+            ref={(el) => {
+              refs.current[option.id] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={selected}
             aria-label={option.aria}
-            onClick={() => setCountry(option.id)}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => select(option.id)}
             onKeyDown={onKeyDown}
             className={cn(
-              "frn-focus font-body-mkt rounded-full font-semibold transition-colors duration-200 ease-out",
+              "frn-focus font-body-mkt inline-flex items-center justify-center rounded-full font-semibold transition-colors duration-200 ease-out",
+              // Target size floor 24px (WCAG 2.5.8 AA) even in the compact bar.
               fullLabels
-                ? "flex-1 px-4 py-2 text-center text-sm"
-                : "px-2.5 py-1 text-xs leading-none",
+                ? "min-h-9 flex-1 px-4 py-2 text-center text-sm"
+                : "min-h-6 px-2.5 py-1 text-xs leading-none",
               selected
                 ? "bg-[color:var(--fr-cobalt)] text-white"
                 : "text-[color:var(--fr-ink-70)] hover:text-[color:var(--fr-ink)]",

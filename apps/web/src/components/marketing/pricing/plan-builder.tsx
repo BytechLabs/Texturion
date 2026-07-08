@@ -25,7 +25,7 @@
  * buttons for the add-ons, and an aria-live receipt.
  */
 
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import { CtaButton } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
@@ -111,6 +111,7 @@ function Switch({ on }: { on: boolean }) {
 export function PlanBuilder({ plans }: { plans: Plan[] }) {
   const { country } = useCountry();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_SELECTION.plan);
+  const planRefs = useRef<Partial<Record<PlanId, HTMLButtonElement | null>>>({});
   const [addons, setAddons] = useState<readonly PlanModule[]>(
     DEFAULT_SELECTION.addons,
   );
@@ -128,11 +129,16 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
     );
   }
 
-  /** Standard radiogroup keyboard behavior: arrows move the selection. */
+  /**
+   * WAI-ARIA radiogroup keyboard behavior: arrows move both the selection and
+   * focus (roving tabindex below makes only the checked radio tabbable).
+   */
   function onPlanKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
-      setPlan((current) => (current === "starter" ? "pro" : "starter"));
+      const next: PlanId = plan === "starter" ? "pro" : "starter";
+      setPlan(next);
+      planRefs.current[next]?.focus();
     }
   }
 
@@ -155,9 +161,13 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
             return (
               <button
                 key={p.id}
+                ref={(el) => {
+                  planRefs.current[p.id] = el;
+                }}
                 type="button"
                 role="radio"
                 aria-checked={selected}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => setPlan(p.id)}
                 onKeyDown={onPlanKeyDown}
                 className={cn(

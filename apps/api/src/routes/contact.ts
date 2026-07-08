@@ -67,13 +67,23 @@ type ContactBody = z.infer<typeof contactBodySchema>;
 
 export const contactRoutes = new Hono<AppEnv>();
 
-// Same CORS posture as the /v1 chain (SPEC §7): exact APP_ORIGIN, enumerated
-// method/headers, no wildcard. Applied here (not index.ts) so the whole
-// public surface of this route lives in one file.
+// Exact-origin CORS, enumerated method/headers, no wildcard (SPEC §7 posture).
+// UNLIKE the /v1 chain (called only by the app at APP_ORIGIN), the contact form
+// is served from the MARKETING origin. Under the D27 host split that is a
+// DIFFERENT origin (loonext.com) than the app (app.loonext.com = APP_ORIGIN),
+// so we allow SITE_ORIGIN too or every real submission is CORS-blocked. When
+// SITE_ORIGIN is unset (single-host dev/deploy, same-origin) only APP_ORIGIN
+// is allowed, which is correct there.
 contactRoutes.use(
   "/contact",
   cors({
-    origin: (origin, c) => (origin === getEnv(c.env).APP_ORIGIN ? origin : null),
+    origin: (origin, c) => {
+      const env = getEnv(c.env);
+      return origin === env.APP_ORIGIN ||
+        (env.SITE_ORIGIN !== undefined && origin === env.SITE_ORIGIN)
+        ? origin
+        : null;
+    },
     allowMethods: ["POST"],
     allowHeaders: ["Content-Type"],
   }),
