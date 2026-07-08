@@ -47,9 +47,11 @@ function ContactLink({
 
 /**
  * CONTACT (DESIGN-DIRECTION v4 §6, COPY-DECK v2): the short work-order form
- * plus the founder reply promise. Email is the only support channel; the form
- * composes a mailto so the promise ("a real person answers") stays literally
- * true, no marketing backend pretending otherwise.
+ * plus the founder reply promise. The form POSTs to the PUBLIC POST /contact
+ * endpoint (apps/api/src/routes/contact.ts), which forwards the message to the
+ * support inbox and acknowledges the sender, so "a real person answers" stays
+ * literally true. A pre-filled mailto remains as a fallback for people who
+ * prefer their own mail client.
  */
 export default function ContactPage() {
   return (

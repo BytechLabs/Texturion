@@ -1,14 +1,23 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-
-import { buildMailto, ContactForm } from "./contact-form";
-import ContactPage, { metadata } from "./page";
+import { describe, expect, it, vi } from "vitest";
 
 /**
  * /contact guards (COPY-DECK v2): the deck's dateline and H1, the short
- * work-order form (name, business, message), the mailto submit path, and
- * never a placeholder identity line (purge 7).
+ * work-order form (name, email, business, message), the REAL submit path (a
+ * fetch to POST /contact, not a mailto), the hidden honeypot, and never a
+ * placeholder identity line (purge 7). The pure submit/validation logic is
+ * covered in contact-form-logic.test.ts; this renders the component and page.
+ *
+ * The form now imports publicEnv, whose env module validates NEXT_PUBLIC_* at
+ * import time. Stub the required values (test fixtures, not product config)
+ * before the dynamic import so the module evaluates.
  */
+vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.local");
+vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "stub-publishable-key");
+vi.stubEnv("NEXT_PUBLIC_API_URL", "https://stub-api.local");
+
+const { ContactForm } = await import("./contact-form");
+const { default: ContactPage, metadata } = await import("./page");
 
 const pageHtml = renderToStaticMarkup(<ContactPage />);
 const formHtml = renderToStaticMarkup(<ContactForm />);
@@ -26,40 +35,37 @@ describe("/contact — the work-order page", () => {
     );
   });
 
-  it("the form is the deck's short work order: name, business, message", () => {
+  it("renders the short work order: name, email, business, message", () => {
     expect(formHtml).toContain('id="contact-name"');
+    expect(formHtml).toContain('id="contact-email"');
     expect(formHtml).toContain('id="contact-business"');
     expect(formHtml).toContain('id="contact-message"');
-    expect(formHtml).not.toContain('type="email"');
+    // Email is now a real, typed, required field (the endpoint requires it).
+    expect(formHtml).toContain('type="email"');
+    // Autocomplete is wired for the browser's contact autofill (attribute
+    // casing varies by renderer, so match case-insensitively).
+    expect(formHtml).toMatch(/autocomplete="name"/i);
+    expect(formHtml).toMatch(/autocomplete="email"/i);
   });
 
-  it("submits via the honest mailto path to the real support address", () => {
-    expect(formHtml).toContain("Open in your email app");
+  it("submits to the real endpoint, not a mailto (button is a plain verb)", () => {
+    expect(formHtml).toContain("Send message");
+    expect(formHtml).not.toContain("Open in your email app");
+    // No copy claiming the button opens the visitor's mail app.
+    expect(formHtml).not.toMatch(/opens your email app/i);
+  });
+
+  it("hides a honeypot field from humans and the a11y tree", () => {
+    expect(formHtml).toContain('id="contact-website"');
+    expect(formHtml).toContain('name="website"');
+    expect(formHtml).toContain('aria-hidden="true"');
+    expect(formHtml).toMatch(/tabindex="-1"/i);
+    expect(formHtml).toMatch(/autocomplete="off"/i);
+  });
+
+  it("keeps a pre-filled mailto as the fallback link (not the primary path)", () => {
     expect(formHtml).toContain("mailto:support@loonext.com");
-    expect(formHtml).toContain("That address works too.");
-  });
-
-  it("percent-encodes the mailto draft per RFC 6068 (spaces are %20, never +)", () => {
-    const href = buildMailto(
-      "Dale Reyes",
-      "Reyes Plumbing",
-      "My water heater quote question",
-    );
-    expect(href).toContain("mailto:support@loonext.com?subject=");
-    // Spaces must be %20; a "+" would render literally in the mail client.
-    expect(href).toContain("subject=Loonext%20question%20from%20Dale%20Reyes");
-    expect(href).toContain("body=My%20water%20heater%20quote%20question");
-    expect(href).not.toContain("+");
-    // Newlines before the signature are %0A, and the comma is encoded too.
-    expect(href).toContain("%0A%0ADale%20Reyes%2C%20Reyes%20Plumbing");
-  });
-
-  it("omits the signature block when name and business are empty", () => {
-    const href = buildMailto("", "", "Question about porting");
-    expect(href).toContain("subject=Loonext%20question&");
-    expect(href).toContain("body=Question%20about%20porting");
-    expect(href).not.toContain("%0A");
-    expect(href).not.toContain("+");
+    expect(formHtml).toMatch(/Prefer your own email app/i);
   });
 
   it("routes to security disclosure and status with real links", () => {
