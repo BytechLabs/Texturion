@@ -57,16 +57,15 @@ function PlanStep() {
   const [formError, setFormError] = useState<string | null>(null);
   // #12 plan builder: opt-in add-ons carried into checkout.
   const [modules, setModules] = useState<PlanModule[]>([]);
-  // The /pricing plan builder's configuration, stashed at signup (or carried
-  // in this URL on a deep link) — "what you build here is exactly what
-  // checkout starts from". Consumed exactly once (URL wins over stash, stash
-  // cleared) in an effect so the SSR pass renders identically; the intent
-  // pre-toggles the add-ons and moves the emphasized plan card.
-  const [intentPlan, setIntentPlan] = useState<PlanId | null>(null);
+  // Selected plan (radio-style): the cards select, a single "Continue to
+  // checkout" button below commits. Starts on Starter, or the /pricing
+  // plan-builder intent when one arrived (stashed at signup or carried in this
+  // URL). Consumed exactly once in an effect so the SSR pass renders identically.
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>("starter");
   useEffect(() => {
     const intent = consumePlanIntent(window.location.search);
     if (!intent) return;
-    setIntentPlan(intent.plan);
+    setSelectedPlan(intent.plan);
     setModules(intent.modules);
   }, []);
 
@@ -158,66 +157,88 @@ function PlanStep() {
           </p>
         ) : null}
 
-        {/* Edit-until-checkout (G7): the two fields that lock at provisioning —
-            workspace name + pending area code — stay editable here, the last
-            step before payment. Area-code edit is hidden for a port-in. */}
+        {/* Edit-until-checkout (G7): the fields that lock at provisioning —
+            workspace name + number (country, area code, US-texting) — stay
+            editable here, the last step before payment. A country change
+            re-routes the wizard. Number edit is hidden for a port-in. */}
         <WorkspaceSummary
           companyId={companyId}
           name={company.name}
           country={company.country}
           areaCode={company.requested_area_code}
-          canEditAreaCode={!porting}
+          usTexting={company.us_texting_enabled}
+          canEditNumber={!porting}
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className="flex flex-col rounded-lg border border-border bg-card p-5"
-            >
-              <h2 className="text-sm font-medium text-muted-foreground">
-                {plan.name}
-              </h2>
-              <p className="mt-1 flex items-baseline gap-1.5">
-                {/* §3.4: the price in the tokens-track emotional-number scale. */}
-                <span className="app-emotional-number">{plan.price}</span>
-                <span className="text-sm text-muted-foreground">/month</span>
-              </p>
-              <ul className="mt-4 flex-1 space-y-2">
-                {plan.lines.map((line) => (
-                  <li key={line} className="flex items-start gap-2 text-sm">
-                    <Check
-                      className="mt-0.5 size-4 shrink-0 text-primary"
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    {line}
-                  </li>
-                ))}
-              </ul>
-              {plan.id === "pro" && soleProp ? (
-                <p className="mt-3 text-[13px] text-muted-foreground">
-                  Sole proprietor registrations are limited to 1 number by
-                  carriers. Pro still adds teammates and texts.
-                </p>
-              ) : null}
-              <Button
-                size="lg"
-                className="mt-5 w-full"
-                // The petrol emphasis follows the pricing-builder intent when
-                // one arrived with this signup; Starter stays the default.
-                variant={
-                  plan.id === (intentPlan ?? "starter") ? "default" : "outline"
-                }
-                onClick={() => choose(plan.id)}
+        {/* Select a plan (radio-style cards), tune add-ons below, then one
+            "Continue to checkout" button commits — plan isn't charged on tap. */}
+        <div
+          role="radiogroup"
+          aria-label="Plan"
+          className="grid gap-4 sm:grid-cols-2"
+        >
+          {PLANS.map((plan) => {
+            const selected = selectedPlan === plan.id;
+            return (
+              <button
+                key={plan.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setSelectedPlan(plan.id)}
                 disabled={choosing !== null}
+                className={cn(
+                  "flex flex-col rounded-lg border bg-card p-5 text-left transition-colors",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  selected
+                    ? "border-primary ring-1 ring-primary"
+                    : "border-border hover:bg-accent/40",
+                )}
               >
-                {choosing === plan.id
-                  ? "Sending you to checkout…"
-                  : `Choose ${plan.name}`}
-              </Button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="text-sm font-medium text-muted-foreground">
+                    {plan.name}
+                  </h2>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border",
+                    )}
+                  >
+                    {selected ? (
+                      <Check className="size-3.5" strokeWidth={2.5} />
+                    ) : null}
+                  </span>
+                </div>
+                <p className="mt-1 flex items-baseline gap-1.5">
+                  {/* §3.4: the price in the tokens-track emotional-number scale. */}
+                  <span className="app-emotional-number">{plan.price}</span>
+                  <span className="text-sm text-muted-foreground">/month</span>
+                </p>
+                <ul className="mt-4 flex-1 space-y-2">
+                  {plan.lines.map((line) => (
+                    <li key={line} className="flex items-start gap-2 text-sm">
+                      <Check
+                        className="mt-0.5 size-4 shrink-0 text-primary"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+                {plan.id === "pro" && soleProp ? (
+                  <p className="mt-3 text-[13px] text-muted-foreground">
+                    Sole proprietor registrations are limited to 1 number by
+                    carriers. Pro still adds teammates and texts.
+                  </p>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
 
         {/* #12 plan builder: opt-in add-ons. Toggle before choosing a plan;
@@ -325,6 +346,17 @@ function PlanStep() {
             ))}
           </ul>
         </div>
+
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={() => choose(selectedPlan)}
+          disabled={choosing !== null}
+        >
+          {choosing !== null
+            ? "Sending you to checkout…"
+            : "Continue to checkout"}
+        </Button>
 
         <p className="text-[13px] text-muted-foreground">
           A &ldquo;text&rdquo; is one 160-character message segment. Long

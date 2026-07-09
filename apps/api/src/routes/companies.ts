@@ -61,9 +61,12 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
-    // Onboarding "edit until checkout": the pending number's area code. Mutable
-    // only while the company is pre-checkout (validated + gated in the handler).
+    // Onboarding "edit until checkout": the pending number's area code, country,
+    // and US-texting choice. Mutable only while the company is pre-checkout
+    // (validated + gated in the handler; a country change needs a new area code).
     requested_area_code: z.string().regex(/^\d{3}$/).optional(),
+    country: z.enum(["US", "CA"]).optional(),
+    us_texting_enabled: z.boolean().optional(),
     // #12 Phase 0.3: the overage cap is an un-defeatable ceiling — bounded to
     // the (0, 10] safety range. `null` ("no cap") is still accepted for
     // backward-compat but resolves to the 10x hard maximum below.
@@ -95,6 +98,8 @@ const patchSchema = z
       body.name !== undefined ||
       body.timezone !== undefined ||
       body.requested_area_code !== undefined ||
+      body.country !== undefined ||
+      body.us_texting_enabled !== undefined ||
       "overage_cap_multiplier" in body ||
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
@@ -262,18 +267,22 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     );
   }
 
-  // Onboarding "edit until checkout": the requested area code is only mutable
-  // while the company is still pre-checkout. Once checkout completes the number
-  // is provisioned from it and it locks. Validate the new code against the
-  // company's own country — the same geographic-NANP rule as creation.
-  if (body.requested_area_code !== undefined) {
+  // Onboarding "edit until checkout": country, US-texting, and the requested
+  // area code are mutable ONLY while the company is still pre-checkout. Once
+  // checkout completes the number is provisioned from them and they lock. A
+  // country change requires a matching new area code (geographic-NANP rule).
+  if (
+    body.country !== undefined ||
+    body.requested_area_code !== undefined ||
+    body.us_texting_enabled !== undefined
+  ) {
     const current = unwrap<{ country: string; subscription_status: string }[]>(
       await db
         .from("companies")
         .select("country, subscription_status")
         .eq("id", c.get("companyId"))
         .is("deleted_at", null),
-      "company area-code precheck",
+      "company location precheck",
     );
     const row = current[0];
     if (!row) return errorResponse(c, "not_found", "No such company.");
@@ -283,17 +292,43 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     ) {
       throw new ApiError(
         "conflict",
-        "Your number has already been ordered, so its area code is locked.",
+        "Your number has already been ordered, so its country and area code are locked.",
       );
     }
-    const entry = NANP_AREA_CODES[body.requested_area_code];
-    if (!entry || !entry.geographic || entry.country !== row.country) {
+    const nextCountry = body.country ?? row.country;
+    if (
+      body.country !== undefined &&
+      body.country !== row.country &&
+      body.requested_area_code === undefined
+    ) {
       throw new ApiError(
         "validation_failed",
-        `requested_area_code: ${body.requested_area_code} is not an assigned geographic ${row.country} area code.`,
+        "requested_area_code: pick an area code for the new country.",
       );
     }
-    patch.requested_area_code = body.requested_area_code;
+    if (body.requested_area_code !== undefined) {
+      const entry = NANP_AREA_CODES[body.requested_area_code];
+      if (!entry || !entry.geographic || entry.country !== nextCountry) {
+        throw new ApiError(
+          "validation_failed",
+          `requested_area_code: ${body.requested_area_code} is not an assigned geographic ${nextCountry} area code.`,
+        );
+      }
+      patch.requested_area_code = body.requested_area_code;
+    }
+    if (body.country !== undefined) patch.country = body.country;
+    // US always texts US; CA honors the toggle.
+    if (nextCountry === "US" && body.us_texting_enabled === false) {
+      throw new ApiError(
+        "validation_failed",
+        "us_texting_enabled: US companies always have US texting enabled.",
+      );
+    }
+    if (body.country === "US") {
+      patch.us_texting_enabled = true;
+    } else if (body.us_texting_enabled !== undefined) {
+      patch.us_texting_enabled = body.us_texting_enabled;
+    }
   }
 
   const rows = unwrap<Record<string, unknown>[]>(

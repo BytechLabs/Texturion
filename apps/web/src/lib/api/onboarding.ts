@@ -153,6 +153,8 @@ export function useOnboardingUpdateCompany() {
       companyId: string;
       name?: string;
       requested_area_code?: string;
+      country?: "US" | "CA";
+      us_texting_enabled?: boolean;
     }) =>
       apiFetch<Omit<CompanyView, "numbers" | "registration">>("/v1/company", {
         method: "PATCH",
@@ -160,8 +162,11 @@ export function useOnboardingUpdateCompany() {
         body: patch,
       }),
     onSuccess: (_updated, { companyId }) => {
-      // The wizard summary reads GET /v1/company; the sidebar/name reads /me.
+      // The wizard summary reads GET /v1/company; the sidebar/name reads /me. A
+      // country / US-texting change flips whether US registration is owed, so
+      // the wizard must re-route — refetch registration too.
       queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      queryClient.invalidateQueries({ queryKey: keys.registration(companyId) });
       queryClient.invalidateQueries({ queryKey: keys.me });
     },
   });
