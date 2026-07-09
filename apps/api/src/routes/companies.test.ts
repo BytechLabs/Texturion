@@ -313,6 +313,68 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     expect(cap.status).toBe(403);
   });
 
+  it("lets the owner change the pending area code before checkout", async () => {
+    const sb = stubWithRole("owner");
+    // Pre-checkout precheck: incomplete company in the US.
+    sb.on("GET", "/rest/v1/companies", () => [
+      { country: "US", subscription_status: "incomplete" },
+    ]);
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      { id: COMPANY_ID, requested_area_code: "212" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { requested_area_code: "212" }, // Manhattan, a US geographic code
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      requested_area_code: "212",
+    });
+  });
+
+  it("409s an area-code change once the number has been ordered (past checkout)", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { country: "US", subscription_status: "active" },
+    ]);
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { requested_area_code: "212" },
+    });
+    expect(res.status).toBe(409);
+    expect(await errorCodeOf(res)).toBe("conflict");
+    // Gated before the write — the area code never reaches the DB.
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("422s an area code that isn't geographic for the company's country", async () => {
+    for (const bad of ["416", "800", "999"]) {
+      // 416 = Canadian code on a US company; 800 = non-geographic; 999 = unassigned.
+      const sb = stubWithRole("owner");
+      sb.on("GET", "/rest/v1/companies", () => [
+        { country: "US", subscription_status: "incomplete" },
+      ]);
+      sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { requested_area_code: bad },
+      });
+      expect(res.status, `area code ${bad}`).toBe(422);
+      expect(await errorCodeOf(res)).toBe("validation_failed");
+      expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+    }
+  });
+
   it("lets the owner set and remove the overage cap", async () => {
     const sb = stubWithRole("owner");
     sb.on("PATCH", "/rest/v1/companies", () => [

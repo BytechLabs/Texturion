@@ -136,3 +136,33 @@ export function useOnboardingResendOtp() {
       }),
   });
 }
+
+/**
+ * PATCH /v1/company for an explicit company id (onboarding runs outside the
+ * CompanyProvider). Powers the plan step's "edit until checkout" summary: change
+ * the workspace name and pending area code before payment. The area-code change
+ * is validated + gated to pre-checkout server-side (routes/companies.ts).
+ */
+export function useOnboardingUpdateCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      companyId,
+      ...patch
+    }: {
+      companyId: string;
+      name?: string;
+      requested_area_code?: string;
+    }) =>
+      apiFetch<Omit<CompanyView, "numbers" | "registration">>("/v1/company", {
+        method: "PATCH",
+        companyId,
+        body: patch,
+      }),
+    onSuccess: (_updated, { companyId }) => {
+      // The wizard summary reads GET /v1/company; the sidebar/name reads /me.
+      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      queryClient.invalidateQueries({ queryKey: keys.me });
+    },
+  });
+}

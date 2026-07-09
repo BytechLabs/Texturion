@@ -38,6 +38,7 @@ import { StepError, StepLoading, StepShell } from "../step-shell";
 import { owesUsRegistration, previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 import { PLANS } from "./plans";
+import { WorkspaceSummary } from "./workspace-summary";
 
 /**
  * G7 step 4 — plan cards (SPEC §2 pricing) with the honest-timeline card
@@ -156,6 +157,17 @@ function PlanStep() {
             whenever you&apos;re ready.
           </p>
         ) : null}
+
+        {/* Edit-until-checkout (G7): the two fields that lock at provisioning —
+            workspace name + pending area code — stay editable here, the last
+            step before payment. Area-code edit is hidden for a port-in. */}
+        <WorkspaceSummary
+          companyId={companyId}
+          name={company.name}
+          country={company.country}
+          areaCode={company.requested_area_code}
+          canEditAreaCode={!porting}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           {PLANS.map((plan) => (

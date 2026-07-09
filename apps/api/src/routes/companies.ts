@@ -61,6 +61,9 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
+    // Onboarding "edit until checkout": the pending number's area code. Mutable
+    // only while the company is pre-checkout (validated + gated in the handler).
+    requested_area_code: z.string().regex(/^\d{3}$/).optional(),
     // #12 Phase 0.3: the overage cap is an un-defeatable ceiling — bounded to
     // the (0, 10] safety range. `null` ("no cap") is still accepted for
     // backward-compat but resolves to the 10x hard maximum below.
@@ -91,6 +94,7 @@ const patchSchema = z
     (body) =>
       body.name !== undefined ||
       body.timezone !== undefined ||
+      body.requested_area_code !== undefined ||
       "overage_cap_multiplier" in body ||
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
@@ -256,6 +260,40 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       "conflict",
       "Call forwarding needs the Call forwarding add-on — turn it on in Settings › Billing.",
     );
+  }
+
+  // Onboarding "edit until checkout": the requested area code is only mutable
+  // while the company is still pre-checkout. Once checkout completes the number
+  // is provisioned from it and it locks. Validate the new code against the
+  // company's own country — the same geographic-NANP rule as creation.
+  if (body.requested_area_code !== undefined) {
+    const current = unwrap<{ country: string; subscription_status: string }[]>(
+      await db
+        .from("companies")
+        .select("country, subscription_status")
+        .eq("id", c.get("companyId"))
+        .is("deleted_at", null),
+      "company area-code precheck",
+    );
+    const row = current[0];
+    if (!row) return errorResponse(c, "not_found", "No such company.");
+    if (
+      row.subscription_status !== "incomplete" &&
+      row.subscription_status !== "incomplete_expired"
+    ) {
+      throw new ApiError(
+        "conflict",
+        "Your number has already been ordered, so its area code is locked.",
+      );
+    }
+    const entry = NANP_AREA_CODES[body.requested_area_code];
+    if (!entry || !entry.geographic || entry.country !== row.country) {
+      throw new ApiError(
+        "validation_failed",
+        `requested_area_code: ${body.requested_area_code} is not an assigned geographic ${row.country} area code.`,
+      );
+    }
+    patch.requested_area_code = body.requested_area_code;
   }
 
   const rows = unwrap<Record<string, unknown>[]>(
