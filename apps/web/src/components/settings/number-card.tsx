@@ -132,8 +132,10 @@ function ReleaseNumberDialog({
           <DialogTitle>Release {display}?</DialogTitle>
           <DialogDescription>
             This gives the number up for good. Customers who text it won&apos;t
-            reach you, and you can&apos;t get the same number back. Type the
-            number to confirm.
+            reach you, and you can&apos;t get the same number back. It
+            doesn&apos;t change your plan or what you pay — a number is included,
+            so you can set up a new one here afterward. Type the number to
+            confirm.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">

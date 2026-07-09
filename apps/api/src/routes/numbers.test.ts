@@ -62,6 +62,21 @@ function installSlotRpc(rest: FakeRest) {
     if (nonReleased.length >= Number(args.p_max_numbers)) {
       return { outcome: "plan_limit", number: null };
     }
+    // #74 churn cap (mirrors the RPC): a lifetime per-company counter, checked
+    // under the company row before the insert; incremented on every created.
+    const company = rest
+      .rows("companies")
+      .find((row) => row.id === args.p_company_id);
+    if (args.p_provision_cap != null) {
+      const provisioned = Number(company?.number_provision_count ?? 0);
+      if (provisioned >= Number(args.p_provision_cap)) {
+        return {
+          outcome: "provision_cap",
+          limit: args.p_provision_cap,
+          number: null,
+        };
+      }
+    }
     const row = rest.insert("phone_numbers", {
       company_id: args.p_company_id,
       status: "provisioning",
@@ -72,6 +87,10 @@ function installSlotRpc(rest: FakeRest) {
       // orders it exactly (null = a bare area-code pick → in-area-code search).
       chosen_number_e164: args.p_chosen_number_e164 ?? null,
     });
+    if (company) {
+      company.number_provision_count =
+        Number(company.number_provision_count ?? 0) + 1;
+    }
     return { outcome: "created", number: row };
   });
 }
@@ -421,6 +440,37 @@ describe("POST /v1/numbers/provision", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { message: string } };
     expect(body.error.message).toContain("plan includes 1");
+  });
+
+  it("409s once the lifetime provision (churn) cap is reached (#74)", async () => {
+    const harness = buildHarness();
+    // Pin the company at the churn cap (NUMBER_PROVISION_CHURN_CAP = 20).
+    harness.rest.rows("companies")[0].number_provision_count = 20;
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Contact support");
+    // No Telnyx order was placed — the cap stops us before any purchase.
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+  });
+
+  it("counts a successful provision toward the churn cap (#74)", async () => {
+    const harness = buildHarness();
+    harness.rest.rows("companies")[0].number_provision_count = 19; // one below cap
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(201);
+    // The lifetime counter advanced, so the next provision would hit the cap.
+    expect(harness.rest.rows("companies")[0].number_provision_count).toBe(20);
   });
 
   it("409s for sole-prop companies with a number already (§4.2)", async () => {

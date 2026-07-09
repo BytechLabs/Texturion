@@ -178,15 +178,15 @@ end $$;
 do $$
 begin
   if has_function_privilege('anon',
-       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text,int)', 'execute') then
     raise exception 'P8 FAILED: anon can execute provision_number_slot';
   end if;
   if has_function_privilege('authenticated',
-       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text,int)', 'execute') then
     raise exception 'P8 FAILED: authenticated can execute provision_number_slot';
   end if;
   if not has_function_privilege('service_role',
-       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text,int)', 'execute') then
     raise exception 'P8 FAILED: service_role cannot execute provision_number_slot';
   end if;
   raise notice 'P8 PASSED: execute is service-role-only';
@@ -303,6 +303,56 @@ begin
       if sqlerrm like 'P12 FAILED%' then raise; end if;
       raise notice 'P12 PASSED: chosen number persisted; malformed rejected (%)', sqlerrm;
   end;
+end $$;
+
+-- ===========================================================================
+-- P13. Issue #74 churn cap: a lifetime per-company provision counter blocks
+--      release->re-provision cycling. At the cap → 'provision_cap' with NO row
+--      inserted; under the cap → 'created' and the counter increments.
+-- ===========================================================================
+do $$
+declare
+  result   jsonb;
+  v_before int;
+begin
+  -- Open Starter Co's slot so the plan-limit check clears first (the cap check
+  -- sits after it), and count is authoritative.
+  update public.phone_numbers set status = 'released', released_at = now()
+    where company_id = 'c0000000-0000-4000-8000-000000000001' and status <> 'released';
+
+  -- At the cap → provision_cap, no insert, echoes the limit.
+  update public.companies set number_provision_count = 3
+    where id = 'c0000000-0000-4000-8000-000000000001';
+  select count(*) into v_before from public.phone_numbers
+    where company_id = 'c0000000-0000-4000-8000-000000000001' and status <> 'released';
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000001', 'key-cap-1', '212', 'US', 1, null, 3);
+  if result->>'outcome' <> 'provision_cap' then
+    raise exception 'P13 FAILED: expected provision_cap, got %', result->>'outcome';
+  end if;
+  if (result->>'limit')::int <> 3 then
+    raise exception 'P13 FAILED: cap limit not echoed (got %)', result->>'limit';
+  end if;
+  if (select count(*) from public.phone_numbers
+      where company_id = 'c0000000-0000-4000-8000-000000000001' and status <> 'released')
+     <> v_before then
+    raise exception 'P13 FAILED: a capped call still inserted a row';
+  end if;
+
+  -- Under the cap → created, and the lifetime counter increments.
+  update public.companies set number_provision_count = 0
+    where id = 'c0000000-0000-4000-8000-000000000001';
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000001', 'key-cap-2', '212', 'US', 1, null, 3);
+  if result->>'outcome' <> 'created' then
+    raise exception 'P13 FAILED: expected created under cap, got %', result->>'outcome';
+  end if;
+  if (select number_provision_count from public.companies
+      where id = 'c0000000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'P13 FAILED: counter did not increment on created';
+  end if;
+
+  raise notice 'P13 PASSED: churn cap blocks at limit (no insert), increments on create';
 end $$;
 
 rollback;

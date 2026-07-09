@@ -69,7 +69,7 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a second number</DialogTitle>
+          <DialogTitle>Add a number</DialogTitle>
           <DialogDescription>
             Choose the number your customers will see. It&apos;s ready in about a
             minute.

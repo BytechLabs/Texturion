@@ -21,6 +21,17 @@ export const PLAN_LIMITS: Record<PlanId, { seats: number; numbers: number }> = {
   pro: { seats: 10, numbers: 2 },
 };
 
+/**
+ * #74 lifetime churn cap on manual number provisions (POST /v1/numbers/provision).
+ * A released number frees its plan slot, so release -> re-provision could cycle
+ * without limit — each cycle buys a fresh Telnyx number (a real cost + carrier
+ * reputation churn). 20 lifetime manual provisions is far above any legitimate
+ * need (a Pro's 2nd number plus the odd number change), while bounding worst-case
+ * exposure to ~$20/company; support can reset the counter. The checkout
+ * first-number buy does not go through this endpoint and is never counted.
+ */
+export const NUMBER_PROVISION_CHURN_CAP = 20;
+
 /** Included outbound segments per month (SPEC §2). */
 export const PLAN_INCLUDED_SEGMENTS: Record<PlanId, number> = {
   starter: 500,

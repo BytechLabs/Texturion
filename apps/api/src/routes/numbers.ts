@@ -4,7 +4,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import {
+  NUMBER_PROVISION_CHURN_CAP,
+  PLAN_LIMITS,
+  type PlanId,
+} from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -112,7 +116,12 @@ const provisionBodySchema = z
 const idempotencyKeySchema = z.uuid();
 
 interface SlotResult {
-  outcome: "created" | "exists" | "plan_limit" | "sole_prop_cap";
+  outcome:
+    | "created"
+    | "exists"
+    | "plan_limit"
+    | "sole_prop_cap"
+    | "provision_cap";
   number: NumberRowFull | null;
 }
 
@@ -214,6 +223,7 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
       p_country: company.country,
       p_max_numbers: PLAN_LIMITS[company.plan].numbers,
       p_chosen_number_e164: chosen,
+      p_provision_cap: NUMBER_PROVISION_CHURN_CAP,
     },
   );
   if (slotError) {
@@ -221,7 +231,13 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
   }
   const slot = parseWith(
     z.object({
-      outcome: z.enum(["created", "exists", "plan_limit", "sole_prop_cap"]),
+      outcome: z.enum([
+        "created",
+        "exists",
+        "plan_limit",
+        "sole_prop_cap",
+        "provision_cap",
+      ]),
       number: z.record(z.string(), z.unknown()).nullable(),
     }),
     slotData,
@@ -240,6 +256,16 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
       c,
       "conflict",
       "Sole Proprietor registration allows 1 phone number.",
+    );
+  }
+  if (slot.outcome === "provision_cap") {
+    // #74 churn cap: too many lifetime provisions on this company. Each buys a
+    // fresh Telnyx number, so we stop the cycle and hand off to support (who can
+    // reset the counter) rather than keep purchasing.
+    return errorResponse(
+      c,
+      "conflict",
+      "You've set up new numbers many times on this account. Contact support to add another.",
     );
   }
   if (!slot.number) throw new Error("provision_number_slot returned no row");

@@ -68,41 +68,52 @@ export default function NumbersSettingsPage() {
             provisioned.length > 0 ||
             hosted.length > 0 ||
             (ports.data?.data.length ?? 0) > 0;
-          // The Pro second-number slot counts ALL non-released numbers
-          // (a ported row holds the same one slot as a provisioned one), so the
-          // affordance never appears once a port already fills the seat.
+          // A number slot counts ALL non-released numbers (a ported row holds
+          // the same one slot as a provisioned one), so the affordance never
+          // appears once a port already fills the seat.
           const usedSlots = numbers.data.data.filter(
             (n) => n.status !== "released",
           ).length;
+          const limit = company.data.plan
+            ? PLAN_NUMBER_LIMIT[company.data.plan]
+            : 0;
+          // #74: a plan-included number can be (re)provisioned in-app whenever a
+          // slot is open — NOT just Pro's second number. This is what lets a
+          // Starter who released their only number get a replacement (their plan
+          // still includes one), instead of being stranded. Gated on an active
+          // subscription (the server refuses otherwise) and owner/admin.
+          const canProvision =
+            (role === "owner" || role === "admin") &&
+            company.data.subscription_status === "active" &&
+            usedSlots < limit;
 
           return (
             <div className="space-y-6">
-              {!hasAnyNumber ? (
+              {hasAnyNumber ? (
+                provisioned.map((number) => (
+                  <NumberCard key={number.id} number={number} />
+                ))
+              ) : canProvision ? null : (
+                // No number AND no open slot to fill in-app (e.g. pre-checkout):
+                // the first number is created automatically once the plan starts.
                 <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
                   No number yet. It&apos;s created automatically when your
                   subscription starts.
                 </p>
-              ) : (
-                provisioned.map((number) => (
-                  <NumberCard key={number.id} number={number} />
-                ))
               )}
 
-              {/* Post-payment action (same gate as the port/text-enable start
-                  affordances): never offer a second number the server would
-                  refuse while the subscription isn't active. */}
-              {(role === "owner" || role === "admin") &&
-                company.data.subscription_status === "active" &&
-                company.data.plan === "pro" &&
-                usedSlots < PLAN_NUMBER_LIMIT.pro && (
-                  <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Pro includes a second number, handy for a second crew or
-                      service area.
-                    </p>
-                    <ProvisionNumberDialog country={company.data.country} />
-                  </div>
-                )}
+              {canProvision && (
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    {usedSlots === 0
+                      ? // A released/first included number: getting one back is
+                        // part of the plan they already pay for.
+                        "Choose the number your customers will text — it's included in your plan, at no extra cost."
+                      : "Pro includes a second number, handy for a second crew or service area."}
+                  </p>
+                  <ProvisionNumberDialog country={company.data.country} />
+                </div>
+              )}
 
               <PortSection company={company.data} />
 
