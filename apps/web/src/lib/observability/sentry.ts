@@ -45,3 +45,24 @@ export async function initSentryClient(): Promise<void> {
     console.error("Sentry browser init failed:", cause);
   }
 }
+
+/**
+ * Report an unexpected client-side error to Sentry, best-effort. No-op when the
+ * browser client was never initialized (NEXT_PUBLIC_SENTRY_DSN unset). Used for
+ * API failures the UI handled (a real 5xx or a network / CORS error) so they
+ * are observable in Sentry, not just swallowed by an inline message or toast.
+ * Events pass through the same §10 beforeSend scrubber configured at init.
+ */
+export function reportClientError(
+  error: unknown,
+  tags?: Record<string, string>,
+): void {
+  if (!publicEnv.NEXT_PUBLIC_SENTRY_DSN) return;
+  void import("@sentry/browser")
+    .then((Sentry) =>
+      Sentry.captureException(error, tags ? { tags } : undefined),
+    )
+    .catch(() => {
+      /* observability must never break the app */
+    });
+}
