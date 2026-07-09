@@ -29,7 +29,9 @@ import {
   useUpdateContact,
   type ContactPatch,
 } from "@/lib/api/contacts";
+import { useConversations } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
+import { flattenPages } from "@/lib/api/pagination";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
@@ -133,6 +135,13 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const revoke = useRevokeOptOut();
   const deleteContact = useDeleteContact();
 
+  // #82: the Message button is contextual — if this contact already has a
+  // conversation, open it directly instead of the compose screen. (Compose
+  // reuses the same thread on send, so the compose fallback is safe while this
+  // loads or when there's no thread yet.)
+  const conversations = useConversations({ q: contact.phone_e164 });
+  const existingConversation = flattenPages(conversations.data)[0] ?? null;
+
   const name = useAutosave(contact.id, "name", contact.name ?? "");
   const address = useAutosave(contact.id, "address", contact.address ?? "");
   const notes = useAutosave(contact.id, "notes", contact.notes ?? "");
@@ -162,14 +171,20 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             Opted out
           </Badge>
         )}
-        {/* #73: start texting this contact without retyping — the app's compose
-            flow prefills the recipient from ?contact= (same path as inbox
-            search). Opted-out contacts are gated honestly by the composer's own
-            opt-out banner, so the action stays available. */}
+        {/* #73/#82: message this contact. Contextual — if a conversation already
+            exists, open it; otherwise start one via the compose flow (which
+            prefills the recipient from ?contact=). Opted-out contacts are gated
+            honestly by the composer's own opt-out banner. */}
         <Button asChild className="ml-auto">
-          <Link href={`/inbox/new?contact=${contact.id}`}>
+          <Link
+            href={
+              existingConversation
+                ? `/inbox/${existingConversation.id}`
+                : `/inbox/new?contact=${contact.id}`
+            }
+          >
             <SquarePen strokeWidth={1.75} />
-            Message
+            {existingConversation ? "Open conversation" : "Message"}
           </Link>
         </Button>
       </div>

@@ -8,7 +8,10 @@ import type { ContactDetail } from "@/lib/api/types";
  * texting a known contact without retyping their number — it routes to the
  * compose flow with the recipient prefilled (/inbox/new?contact=<id>).
  */
-const state = { contact: null as unknown as ContactDetail };
+const state = {
+  contact: null as unknown as ContactDetail,
+  conversations: undefined as unknown,
+};
 
 vi.mock("next/link", () => ({
   default: ({
@@ -43,6 +46,9 @@ vi.mock("@/lib/api/contacts", () => ({
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
+vi.mock("@/lib/api/conversations", () => ({
+  useConversations: () => ({ data: state.conversations }),
+}));
 
 import ContactDetailPage from "./page";
 
@@ -75,6 +81,7 @@ function render(id = "c-1"): string {
 
 beforeEach(() => {
   state.contact = contact();
+  state.conversations = undefined; // no existing conversation by default
 });
 
 describe("/contacts/[id] Message action (#73)", () => {
@@ -91,5 +98,16 @@ describe("/contacts/[id] Message action (#73)", () => {
     const html = render("c-1");
     expect(html).toContain('href="/inbox/new?contact=c-1"');
     expect(html).toContain("Opted out");
+  });
+
+  it("opens the existing conversation instead of composing (#82)", () => {
+    state.conversations = {
+      pages: [{ data: [{ id: "conv-9", status: "open" }], next_cursor: null }],
+      pageParams: [],
+    };
+    const html = render("c-1");
+    expect(html).toContain('href="/inbox/conv-9"');
+    expect(html).toContain("Open conversation");
+    expect(html).not.toContain("/inbox/new?contact=c-1");
   });
 });

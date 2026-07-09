@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Ban, Check, Copy, Plus, Undo2, X } from "lucide-react";
+import { ArrowUpRight, Ban, Check, Copy, Plus, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -231,6 +231,17 @@ export function ContactPanel({
                 </Button>
               </div>
             </div>
+            {/* #82: jump from the conversation to the full contact page. */}
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Open full contact page"
+            >
+              <Link href={`/contacts/${contact.id}`}>
+                <ArrowUpRight strokeWidth={1.75} />
+              </Link>
+            </Button>
           </div>
           <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
             <InlineTextField
