@@ -9,6 +9,7 @@ import {
   registrationDraftComplete,
   type RegistrationRow as DraftGateRow,
 } from "../billing/registration-draft";
+import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
@@ -438,26 +439,77 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
     });
   }
 
-  const stripe = getStripe(env);
-  const invoice = await stripe.invoices.create({
-    customer: company.stripe_customer_id,
-    collection_method: "charge_automatically",
-    auto_advance: true,
-    metadata: { purpose: "us_registration", company_id: companyId },
-  });
-  if (!invoice.id) throw new Error("Stripe invoice create returned no id");
-  await stripe.invoiceItems.create({
-    customer: company.stripe_customer_id,
-    invoice: invoice.id,
-    pricing: { price: env.STRIPE_US_FEE_PRICE_ID },
-  });
-  // Finalize now → Stripe attempts the default payment method immediately;
-  // `invoice.paid` (§9) stamps the fee and triggers the §4.4 R1 submission.
-  await stripe.invoices.finalizeInvoice(invoice.id);
+  // §2 double-charge fail-safe: claim the fee charge atomically BEFORE invoicing.
+  // registration_fee_paid_at is stamped only LATER, by the async invoice.paid
+  // webhook — so two concurrent enable-us calls both saw it null and each
+  // finalized a $29 invoice. This start-marker (set only when the fee is neither
+  // in-flight nor paid) lets exactly ONE request create the invoice; the marker
+  // is cleared on invoice.payment_failed (webhooks/stripe.ts) so a genuine retry
+  // after a decline is never blocked.
+  const { data: claimed, error: claimError } = await db
+    .from("companies")
+    .update({ registration_fee_charge_started_at: new Date().toISOString() })
+    .eq("id", companyId)
+    .is("registration_fee_charge_started_at", null)
+    .is("registration_fee_paid_at", null)
+    .select("id");
+  if (claimError) {
+    throw new Error(`registration fee claim failed: ${claimError.message}`);
+  }
+  if (!claimed || claimed.length === 0) {
+    // Another request already started (or completed) the $29 charge — never
+    // invoice twice. It resolves via that request's invoice + the invoice.paid
+    // webhook (which submits the §4.4 registration).
+    return c.json({
+      us_texting_enabled: true,
+      invoice_id: null,
+      action: "charge_in_progress",
+    });
+  }
 
-  return c.json({
-    us_texting_enabled: true,
-    invoice_id: invoice.id,
-    action: "invoice_created",
-  });
+  const stripe = getStripe(env);
+  // Stable keys (backstop): if this request crashes between the claim and the
+  // POSTs and is retried, Stripe replays the same invoice instead of a second.
+  const feeKey = idempotencyKey(companyId, "us_registration_fee");
+  try {
+    const invoice = await stripe.invoices.create(
+      {
+        customer: company.stripe_customer_id,
+        collection_method: "charge_automatically",
+        auto_advance: true,
+        metadata: { purpose: "us_registration", company_id: companyId },
+      },
+      { idempotencyKey: feeKey },
+    );
+    if (!invoice.id) throw new Error("Stripe invoice create returned no id");
+    await stripe.invoiceItems.create(
+      {
+        customer: company.stripe_customer_id,
+        invoice: invoice.id,
+        pricing: { price: env.STRIPE_US_FEE_PRICE_ID },
+      },
+      { idempotencyKey: `${feeKey}:item` },
+    );
+    // Finalize now → Stripe attempts the default payment method immediately;
+    // `invoice.paid` (§9) stamps the fee and triggers the §4.4 R1 submission.
+    await stripe.invoices.finalizeInvoice(invoice.id, undefined, {
+      idempotencyKey: `${feeKey}:finalize`,
+    });
+
+    return c.json({
+      us_texting_enabled: true,
+      invoice_id: invoice.id,
+      action: "invoice_created",
+    });
+  } catch (invoiceError) {
+    // The charge never got off the ground — roll back the start-marker so the
+    // owner can retry (otherwise a failed create would wedge enable-us forever).
+    const { error: rollbackError } = await db
+      .from("companies")
+      .update({ registration_fee_charge_started_at: null })
+      .eq("id", companyId)
+      .is("registration_fee_paid_at", null);
+    if (rollbackError) Sentry.captureException(rollbackError);
+    throw invoiceError;
+  }
 });

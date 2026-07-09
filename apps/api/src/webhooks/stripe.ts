@@ -748,10 +748,31 @@ async function handleInvoicePaymentFailed(
   env: Env,
   invoice: Stripe.Invoice,
 ): Promise<void> {
+  const db = getDb(env);
+
+  // §2: the one-time US-registration fee invoice failed to collect. Clear the
+  // start-marker so the CA owner can re-attempt enable-us — the marker only
+  // guarded against a concurrent double-invoice, never a declined one. Gated on
+  // registration_fee_paid_at IS NULL so a late failure event for a since-paid
+  // fee can't wrongly reopen it. (This invoice carries no subscription, so it
+  // must be handled before the subscription-dunning path returns below.)
+  if (
+    invoice.metadata?.purpose === "us_registration" &&
+    typeof invoice.metadata.company_id === "string"
+  ) {
+    const { error } = await db
+      .from("companies")
+      .update({ registration_fee_charge_started_at: null })
+      .eq("id", invoice.metadata.company_id)
+      .is("registration_fee_paid_at", null);
+    if (error) {
+      throw new Error(`enable-us fee marker clear failed: ${error.message}`);
+    }
+  }
+
   const subscriptionId = invoiceSubscriptionId(invoice);
   if (!subscriptionId) return;
 
-  const db = getDb(env);
   const companies = await syncSubscription(env, subscriptionId, db);
   for (const company of companies) {
     // #52: ONE dunning email per payment ATTEMPT — the key carries

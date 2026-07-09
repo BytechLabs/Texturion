@@ -843,6 +843,35 @@ describe("§9 event → state table", () => {
     expect(email.text).toContain("https://invoice.stripe.test/i/in_1");
   });
 
+  it("invoice.payment_failed with us_registration metadata clears the fee start-marker (retry unblocked, §2)", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf(
+        "invoice.payment_failed",
+        invoiceFixture({
+          metadata: { purpose: "us_registration", company_id: COMPANY_ID },
+          parent: null, // one-off fee invoice — not subscription-linked
+        }),
+      ),
+      harness,
+    );
+    const patches = harness.callsTo("PATCH", /companies/);
+    expect(patches).toHaveLength(1);
+    // Gated on registration_fee_paid_at IS NULL (a since-paid fee never reopens).
+    expect(patches[0].url.searchParams.get("registration_fee_paid_at")).toBe(
+      "is.null",
+    );
+    expect(patches[0].json()).toEqual({
+      registration_fee_charge_started_at: null,
+    });
+    // No subscription on the fee invoice → no dunning email, no status mirror.
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
+    expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
   it("invoice.payment_action_required: SCA email only, NO state change", async () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),

@@ -591,11 +591,16 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
 });
 
 describe("POST /v1/registration/enable-us", () => {
-  function stripeRoute(calls: { path: string; body: URLSearchParams }[]): FetchRoute {
+  type StripeCall = { path: string; body: URLSearchParams; headers: Headers };
+  function stripeRoute(calls: StripeCall[]): FetchRoute {
     return async (url, request) => {
       if (url.origin !== "https://api.stripe.com") return undefined;
       const body = new URLSearchParams(await request.clone().text());
-      calls.push({ path: url.pathname, body });
+      calls.push({
+        path: url.pathname,
+        body,
+        headers: new Headers(request.headers),
+      });
       if (url.pathname === "/v1/invoices" && request.method === "POST") {
         return Response.json({ id: "in_1", object: "invoice", status: "draft" });
       }
@@ -673,7 +678,7 @@ describe("POST /v1/registration/enable-us", () => {
     });
     harness.state.role = "owner";
     seedCompleteWizard(harness);
-    const stripeCalls: { path: string; body: URLSearchParams }[] = [];
+    const stripeCalls: StripeCall[] = [];
     harness.addRoute(stripeRoute(stripeCalls));
 
     const res = await harness.request("/v1/registration/enable-us", {
@@ -686,6 +691,17 @@ describe("POST /v1/registration/enable-us", () => {
     };
     expect(body.us_texting_enabled).toBe(true);
     expect(body.invoice_id).toBe("in_1");
+
+    // §2 double-charge fail-safe: a stable, company-derived Idempotency-Key on
+    // the invoice so a retry replays the one $29 charge rather than a second.
+    const invoiceHeaderKey = stripeCalls
+      .find((call) => call.path === "/v1/invoices")
+      ?.headers.get("Idempotency-Key");
+    expect(invoiceHeaderKey).toBe(`${COMPANY_ID}:us_registration_fee`);
+    // The charge was claimed atomically before invoicing (the marker is set).
+    expect(
+      harness.rest.rows("companies")[0].registration_fee_charge_started_at,
+    ).toEqual(expect.any(String));
 
     expect(harness.rest.rows("companies")[0].us_texting_enabled).toBe(true);
 
@@ -731,5 +747,31 @@ describe("POST /v1/registration/enable-us", () => {
     expect(body.invoice_id).toBeNull();
     expect(body.action).toBe("brand_submitted");
     expect(harness.telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
+  });
+
+  it("never invoices the $29 twice: a concurrent call with the charge already started is a no-op (§2)", async () => {
+    // The race: registration_fee_paid_at is stamped only later (invoice.paid),
+    // so the marker is what stops a second concurrent enable-us from invoicing.
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: null,
+      // The first request already claimed the charge (marker set).
+      registration_fee_charge_started_at: "2026-07-09T00:00:00.000Z",
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    const stripeCalls: StripeCall[] = [];
+    harness.addRoute(stripeRoute(stripeCalls));
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { action: string; invoice_id: null };
+    expect(body.action).toBe("charge_in_progress");
+    expect(body.invoice_id).toBeNull();
+    // The whole point: NO second invoice was created.
+    expect(stripeCalls.filter((call) => call.path === "/v1/invoices")).toHaveLength(0);
   });
 });
