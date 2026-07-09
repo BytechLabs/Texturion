@@ -10,7 +10,9 @@ import { useRegistration } from "@/lib/api/registration";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 
-import { REGISTRATION_COPY } from "./copy";
+import { useNow } from "@/lib/use-now";
+
+import { provisioningWaitCopy, REGISTRATION_COPY } from "./copy";
 import {
   deriveRegistrationUiState,
   type RegistrationUiState,
@@ -31,6 +33,7 @@ export function WorkspaceStatusBanner() {
   const company = useCompany();
   const registration = useRegistration();
   const { role } = useActiveCompany();
+  const now = useNow(); // ticks the progressive provisioning copy
 
   const state: RegistrationUiState | null = company.data
     ? deriveRegistrationUiState({
@@ -84,7 +87,7 @@ export function WorkspaceStatusBanner() {
         : state.kind === "payment_issue"
           ? REGISTRATION_COPY.paymentIssue
           : state.kind === "number_provisioning"
-            ? REGISTRATION_COPY.numberProvisioning
+            ? provisioningWaitCopy(state.createdAt, now)
             : state.kind === "number_delayed"
               ? REGISTRATION_COPY.numberDelayed
               : state.kind === "number_action_needed"

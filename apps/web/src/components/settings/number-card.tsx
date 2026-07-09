@@ -23,12 +23,10 @@ import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 
-import { ChooseNumberDialog } from "./choose-number-dialog";
+import { provisioningWaitCopy } from "@/components/registration/copy";
+import { useNow } from "@/lib/use-now";
 
-/** Customer-facing provisioning copy — exact strings (SPEC §4.4). */
-const STATUS_COPY: Partial<Record<PhoneNumberSummary["status"], string>> = {
-  provisioning: "Setting up your business number, usually under a minute.",
-};
+import { ChooseNumberDialog } from "./choose-number-dialog";
 
 /**
  * A provision_failed number the automatic retry loop can't fix on its own — the
@@ -48,6 +46,10 @@ function needsNumberChoice(n: PhoneNumberSummary): boolean {
 function failedCopy(n: PhoneNumberSummary): string {
   if (!needsNumberChoice(n)) {
     return "We're still setting up your number. This is taking a little longer than usual.";
+  }
+  if (n.failure_reason === "timeout") {
+    // A Telnyx order that stalled — nothing broke, and the paid slot is intact.
+    return "Setup is taking longer than expected. Choose a number to finish — you won't be charged again.";
   }
   if (n.failure_reason === "no_inventory" && n.requested_area_code) {
     return `Area code ${n.requested_area_code} is out of new numbers right now. Choose another number to finish setup.`;
@@ -73,15 +75,18 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
     case "provisioning":
       return amber("Setting up");
     case "provision_failed":
-      // The lie ends here: a stuck provision (no inventory / out of attempts) is
-      // a DISTINCT destructive state, never the same amber "Setting up" as a
-      // number that's actually still being set up.
-      return needsNumberChoice(number) ? (
+      // The lie ends here: a stuck provision is a DISTINCT state, never the same
+      // amber "Setting up" as a number actually still being set up. A 'timeout'
+      // (a Telnyx order that stalled) is a calm amber "Action needed" — nothing
+      // broke, just pick a number; a real failure (no inventory / out of
+      // attempts) is the red "Couldn't set up".
+      if (!needsNumberChoice(number)) return amber("Setting up");
+      return number.failure_reason === "timeout" ? (
+        amber("Action needed")
+      ) : (
         <Badge className="border-transparent bg-destructive/10 text-destructive">
           Couldn&apos;t set up
         </Badge>
-      ) : (
-        amber("Setting up")
       );
     case "suspended":
       return amber("Suspended");
@@ -181,6 +186,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  const now = useNow();
   const released = number.status === "released";
   const canManage = role === "owner" || role === "admin";
 
@@ -217,7 +223,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
       </div>
       {number.status === "provisioning" && (
         <p className="mt-2 text-sm text-muted-foreground">
-          {STATUS_COPY.provisioning}
+          {provisioningWaitCopy(number.created_at, now)}
         </p>
       )}
       {number.status === "provision_failed" && (

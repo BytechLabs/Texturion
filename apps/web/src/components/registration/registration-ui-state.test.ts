@@ -87,12 +87,26 @@ describe("deriveRegistrationUiState — number lifecycle (§4.4 rows 1–2)", ()
       deriveRegistrationUiState(
         input({ numbers: [{ status: "provisioning" }] }),
       ),
-    ).toEqual({ kind: "number_provisioning" });
+    ).toEqual({ kind: "number_provisioning", createdAt: null });
+  });
+
+  it("carries created_at so the banner copy de-escalates over time", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [{ status: "provisioning", created_at: "2026-07-09T00:00:00.000Z" }],
+        }),
+      ),
+    ).toEqual({
+      kind: "number_provisioning",
+      createdAt: "2026-07-09T00:00:00.000Z",
+    });
   });
 
   it("no number row yet (webhook processing) reads as provisioning", () => {
     expect(deriveRegistrationUiState(input({ numbers: [] }))).toEqual({
       kind: "number_provisioning",
+      createdAt: null,
     });
   });
 
@@ -148,7 +162,9 @@ describe("deriveRegistrationUiState — number lifecycle (§4.4 rows 1–2)", ()
           ],
         }),
       ),
-    ).toEqual({ kind: "number_action_needed", areaCode: "212" });
+      // Out of attempts → action needed, but the area code isn't the problem for
+      // a carrier failure, so it reads the honest generic line (areaCode null).
+    ).toEqual({ kind: "number_action_needed", areaCode: null });
   });
 
   it("an active number silences the number states", () => {
@@ -197,7 +213,7 @@ describe("deriveRegistrationUiState — hosted text-enablement rows (voice wave)
           ],
         }),
       ),
-    ).toEqual({ kind: "number_provisioning" });
+    ).toEqual({ kind: "number_provisioning", createdAt: null });
   });
 
   it("a failed purchased provision alongside a hosted row still reads delayed", () => {

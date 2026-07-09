@@ -7,7 +7,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { PORT_STATE_COPY } from "@/components/porting/copy";
-import { REGISTRATION_COPY } from "@/components/registration/copy";
+import {
+  provisioningWaitCopy,
+  REGISTRATION_COPY,
+} from "@/components/registration/copy";
+import { useNow } from "@/lib/use-now";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberReveal } from "@/components/ui/number-reveal";
@@ -345,6 +349,8 @@ function SettingUp() {
   const confirmInFlight = useRef(false);
 
   useProvisioningEvents(state.companyId);
+  // Ticks the progressive provisioning copy (before any early return — hook order).
+  const now = useNow();
   // A port-in signup replaces the provisioning row (PORTING.md §8.1) — the
   // list rides the same cache the Settings tracker uses, refreshed by the
   // `port.updated` broadcast wired in useProvisioningEvents.
@@ -469,6 +475,9 @@ function SettingUp() {
       )
     : undefined;
   const numberActionNeeded = Boolean(failedNeedsChoice);
+  const provisioningNumber = company.numbers.find(
+    (n) => n.status === "provisioning",
+  );
   // Non-cancelled port + no active number → the honest transfer item replaces
   // the provisioning row. Everyone else keeps today's behavior.
   const portItem = resolvePortChecklistItem(
@@ -570,7 +579,12 @@ function SettingUp() {
               <div className="space-y-2">
                 <p className="text-sm text-foreground">
                   {REGISTRATION_COPY.numberActionNeeded(
-                    failedNeedsChoice?.requested_area_code ?? null,
+                    // Only interpolate the area code for a real no-inventory
+                    // failure; a 'timeout' flip must read the honest generic line,
+                    // never a false "couldn't get a number in area code X".
+                    failedNeedsChoice?.failure_reason === "no_inventory"
+                      ? (failedNeedsChoice?.requested_area_code ?? null)
+                      : null,
                   )}
                 </p>
                 <Link
@@ -584,7 +598,7 @@ function SettingUp() {
               <p className="text-sm text-muted-foreground">
                 {provisionFailed
                   ? REGISTRATION_COPY.numberDelayed
-                  : REGISTRATION_COPY.numberProvisioning}
+                  : provisioningWaitCopy(provisioningNumber?.created_at, now)}
               </p>
             )}
           </ChecklistRow>

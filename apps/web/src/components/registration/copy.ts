@@ -51,6 +51,32 @@ export const REGISTRATION_COPY = {
 } as const;
 
 /**
+ * Progressive, honest "still setting up" copy for a number that is provisioning.
+ * It de-escalates the "usually under a minute" promise as time passes, so a slow
+ * setup is never a frozen lie. Tiered on (now - createdAt): <90s reads the
+ * under-a-minute line (held ~30s past the 60s promise so we never contradict it
+ * at the boundary), 90s–4min a calm "taking a little longer, hang tight", 4–10min
+ * "you don't have to wait here." Past ~10min the BACKEND flips the row to
+ * provision_failed (reason 'timeout') and the choose-a-number action takes over.
+ * Pure + shared by the number card, the setting-up screen, and the status banner
+ * so the copy can never drift; a missing/unparseable createdAt reads as tier 1.
+ */
+export function provisioningWaitCopy(
+  createdAtIso: string | null | undefined,
+  now: number,
+): string {
+  const created = createdAtIso ? Date.parse(createdAtIso) : NaN;
+  const elapsed = Number.isFinite(created) ? now - created : 0;
+  if (elapsed >= 4 * 60_000) {
+    return "Your number is taking a little longer than usual. We're still on it — you don't have to wait here.";
+  }
+  if (elapsed >= 90_000) {
+    return "Still setting up your number — this is taking a little longer than usual. Hang tight.";
+  }
+  return REGISTRATION_COPY.numberProvisioning;
+}
+
+/**
  * SPEC §4.1 step 4 checkout copy (verbatim, shown before payment) — rendered
  * as the honest-timeline card on the plan step (DESIGN.md G7 step 4).
  */

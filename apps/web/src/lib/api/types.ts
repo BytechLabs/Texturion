@@ -29,7 +29,11 @@ export type NumberStatus =
   | "provision_failed";
 
 /** Coarse, customer-safe reason a number provision failed (mirrors the API). */
-export type ProvisionFailureReason = "no_inventory" | "carrier" | "unknown";
+export type ProvisionFailureReason =
+  | "no_inventory"
+  | "carrier"
+  | "unknown"
+  | "timeout";
 /**
  * Where a `phone_numbers` row came from (`number_source` enum): a bought
  * number, a full port-in, or a keep-your-number text-enablement (hosted SMS —

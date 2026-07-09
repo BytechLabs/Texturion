@@ -30,6 +30,8 @@ export interface NumberRowInput {
   failure_reason?: ProvisionFailureReason | null;
   provision_attempts?: number;
   requested_area_code?: string | null;
+  /** Immutable creation time — drives the progressive provisioning wait copy. */
+  created_at?: string | null;
 }
 
 export interface RegistrationRowInput {
@@ -60,7 +62,7 @@ export type RegistrationUiState =
   | { kind: "subscription_canceled" }
   /** past_due / unpaid — a failed payment paused outbound texting. */
   | { kind: "payment_issue" }
-  | { kind: "number_provisioning" }
+  | { kind: "number_provisioning"; createdAt: string | null }
   | { kind: "number_delayed" }
   /**
    * A number provision the automatic retry loop can't fix — the area code is out
@@ -154,11 +156,22 @@ export function deriveRegistrationUiState(
       return actionable
         ? {
             kind: "number_action_needed",
-            areaCode: actionable.requested_area_code ?? null,
+            // Only a real no-inventory failure names the area code; a 'timeout'
+            // flip must read the honest generic "couldn't finish" line.
+            areaCode:
+              actionable.failure_reason === "no_inventory"
+                ? (actionable.requested_area_code ?? null)
+                : null,
           }
         : { kind: "number_delayed" };
     }
-    return { kind: "number_provisioning" };
+    const provisioning = input.numbers.find(
+      (n) => n.status === "provisioning",
+    );
+    return {
+      kind: "number_provisioning",
+      createdAt: provisioning?.created_at ?? null,
+    };
   }
 
   if (!owesUsRegistration(input)) return { kind: "none" };
