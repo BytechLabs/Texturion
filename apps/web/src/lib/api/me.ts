@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch } from "./client";
+import { ApiError } from "./error";
 import { keys } from "./keys";
 import type { Me } from "./types";
 
@@ -32,5 +33,17 @@ export function useMe(enabled = true) {
     queryFn: fetchMe,
     staleTime: 5 * 60_000,
     enabled,
+    // The first /me after a brand-new signup can hit a cold api Worker isolate
+    // that briefly returns a CORS-less runtime error (a raw fetch TypeError,
+    // not an ApiError) or a transient 5xx; the isolate warms server-side over
+    // ~60-90s, which a manual refresh can't hurry. Ride through it with backoff
+    // instead of dead-ending after the global 2 retries and forcing the user to
+    // refresh by hand. Auth/permission failures (non-retryable ApiError) still
+    // fail fast — a second attempt can't succeed.
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && !error.retryable) return false;
+      return failureCount < 8;
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000),
   });
 }

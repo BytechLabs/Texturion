@@ -244,8 +244,68 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   "0 15 * * *": [runSubscriptionReconcileJob],
 };
 
-const handler = {
-  fetch: app.fetch,
+// Exported (not just the Sentry-wrapped default) so the outermost fetch guard
+// below can be unit-tested directly, without standing up the Sentry wrapper.
+export const handler = {
+  /**
+   * Outermost safety net (D13/§10). Hono's `onError` only routes `Error`
+   * instances to the handler — a non-Error throw (or a throw inside onError
+   * itself) unwinds past it and out of `app.fetch`, which Cloudflare turns
+   * into a bare 1101 page carrying NO Access-Control-Allow-Origin. The browser
+   * then reports a spurious "CORS error" and the real failure never reaches
+   * Sentry. Catch everything the app can throw: capture it (so it is finally
+   * observable), re-echo the allowed CORS origin, and return the readable §7
+   * envelope with the ray as `request_id` — never a header-less 1101.
+   */
+  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+    try {
+      return await app.fetch(request, env, ctx);
+    } catch (error) {
+      const rayId = request.headers.get("cf-ray") ?? undefined;
+      try {
+        Sentry.captureException(error, {
+          tags: {
+            route: `${request.method} ${new URL(request.url).pathname}`,
+            escaped_onerror: "true",
+            ...(rayId ? { cf_ray: rayId } : {}),
+          },
+        });
+      } catch {
+        // Reporting must never mask the response.
+      }
+      console.error(
+        `[fetch-guard] uncaught ${request.method} ${request.url} ray=${rayId ?? "-"}:`,
+        error,
+      );
+      const res = Response.json(
+        {
+          error: {
+            code: INTERNAL_ERROR_CODE,
+            message: "Something went wrong.",
+            ...(rayId ? { request_id: rayId } : {}),
+          },
+        },
+        { status: INTERNAL_ERROR_STATUS },
+      );
+      try {
+        const origin = request.headers.get("origin");
+        if (origin) {
+          const validated = getEnv(env);
+          if (
+            origin === validated.APP_ORIGIN ||
+            origin === validated.SITE_ORIGIN
+          ) {
+            res.headers.set("Access-Control-Allow-Origin", origin);
+            res.headers.set("Vary", "Origin");
+          }
+        }
+      } catch {
+        // Env unavailable (persistent misconfig, not this transient) — return
+        // the envelope without ACAO; still far better than a bare 1101.
+      }
+      return res;
+    }
+  },
 
   /**
    * Cron entry point (SPEC §11): validate the environment (a misconfigured

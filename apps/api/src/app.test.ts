@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getEnv, type Bindings } from "./env";
-import { app } from "./index";
+import { app, handler } from "./index";
 import { completeEnv as sharedCompleteEnv } from "./test/support";
 
 // Test-only route to drive the onError hook. Registered at module scope
@@ -9,6 +9,20 @@ import { completeEnv as sharedCompleteEnv } from "./test/support";
 app.get("/__test__/boom", () => {
   throw new Error("secret internal detail");
 });
+
+// A deliberately non-Error thrown value: Hono's onError only routes `Error`
+// instances, so this unwinds past it and out of `app.fetch` — the exact shape
+// that becomes a header-less Cloudflare 1101 the browser mislabels as a "CORS
+// error". Drives the outermost fetch guard (handler.fetch).
+const nonErrorThrow: unknown = { detail: "not-an-Error-instance" };
+app.get("/__test__/nonerror", () => {
+  throw nonErrorThrow;
+});
+
+const executionCtx = {
+  waitUntil: () => {},
+  passThroughOnException: () => {},
+} as unknown as ExecutionContext;
 
 /**
  * A complete set of bindings, as `wrangler dev` would supply from .dev.vars.
@@ -71,5 +85,56 @@ describe("error envelope (SPEC §7)", () => {
       error: { code: "internal_error", message: "Something went wrong." },
     });
     expect(JSON.stringify(body)).not.toContain("secret internal detail");
+  });
+});
+
+describe("outermost fetch guard (escaped-onError safety net)", () => {
+  it("turns a non-Error escaping onError into a CORS-readable 500 envelope with the ray as request_id", async () => {
+    const env = completeEnv();
+    const appOrigin = getEnv(env).APP_ORIGIN;
+    const res = await handler.fetch(
+      new Request("https://api.loonext.com/__test__/nonerror", {
+        headers: { origin: appOrigin, "cf-ray": "ray-guard-test" },
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(500);
+    // The whole point: without this, the response ships no ACAO and the browser
+    // reports a spurious "CORS error" that masks the real failure.
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(appOrigin);
+    const body = await res.json();
+    expect(body).toEqual({
+      error: {
+        code: "internal_error",
+        message: "Something went wrong.",
+        request_id: "ray-guard-test",
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("not-an-Error-instance");
+  });
+
+  it("omits Access-Control-Allow-Origin for a disallowed origin", async () => {
+    const env = completeEnv();
+    const res = await handler.fetch(
+      new Request("https://api.loonext.com/__test__/nonerror", {
+        headers: { origin: "https://evil.example.com" },
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("passes normal responses through untouched", async () => {
+    const env = completeEnv();
+    const res = await handler.fetch(
+      new Request("https://api.loonext.com/health"),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
   });
 });

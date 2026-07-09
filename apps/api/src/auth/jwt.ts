@@ -17,7 +17,16 @@ const jwksResolvers = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 function remoteJwks(url: string) {
   let resolver = jwksResolvers.get(url);
   if (!resolver) {
-    resolver = createRemoteJWKSet(new URL(url));
+    // Explicit options rather than jose's defaults. The one that matters is
+    // `cooldownDuration`: a freshly-signed token whose `kid` is not yet in the
+    // cached JWKS (Supabase edge-caches it ~10 min upstream) must trigger a
+    // prompt refetch — jose's default 30s cooldown would 401 the very first
+    // authenticated call after a brand-new signup for up to half a minute.
+    resolver = createRemoteJWKSet(new URL(url), {
+      cooldownDuration: 5_000,
+      timeoutDuration: 5_000,
+      cacheMaxAge: 600_000,
+    });
     jwksResolvers.set(url, resolver);
   }
   return resolver;
