@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ModuleCard } from "@/components/billing/module-card";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { type BillingModule, useModules, useSetModule } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -120,43 +120,21 @@ export function PlanModulesCard() {
             // regions_ca is inert in today's single-region model (a company's
             // numbers are fixed to its own country), so it isn't offered yet.
             .filter((mod) => mod.available && mod.id !== "regions_ca")
-            .map((mod) => {
-              const busy =
-                setModule.isPending && setModule.variables?.module === mod.id;
-              return (
-                <div
-                  key={mod.id}
-                  className="flex items-start justify-between gap-4 rounded-lg border border-border p-3"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium">{mod.label}</span>
-                      <span className="text-sm tabular-nums text-muted-foreground">
-                        {formatMonthlyCents(mod.monthly_cents)}/mo
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[13px] text-muted-foreground">
-                      {mod.blurb}
-                    </p>
-                    {mod.detail ? (
-                      <p className="mt-1 text-[13px] font-medium text-foreground/80">
-                        {mod.detail}
-                      </p>
-                    ) : null}
-                  </div>
-                  <Switch
-                    checked={mod.enabled}
-                    disabled={setModule.isPending}
-                    aria-label={`${mod.label} add-on`}
-                    // #45: no instant billing from a single tap — the switch
-                    // proposes; the dialog below states the prorated charge or
-                    // credit and the owner confirms.
-                    onCheckedChange={(next) => request(mod, next)}
-                    data-busy={busy || undefined}
-                  />
-                </div>
-              );
-            })}
+            .map((mod) => (
+              // #45: no instant billing from a single tap — the card proposes;
+              // the dialog below states the prorated charge or credit and the
+              // owner confirms.
+              <ModuleCard
+                key={mod.id}
+                label={mod.label}
+                price={formatMonthlyCents(mod.monthly_cents)}
+                blurb={mod.blurb}
+                detail={mod.detail}
+                on={mod.enabled}
+                disabled={setModule.isPending}
+                onToggle={() => request(mod, !mod.enabled)}
+              />
+            ))}
         </div>
       )}
 
