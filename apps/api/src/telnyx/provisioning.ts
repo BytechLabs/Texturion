@@ -87,10 +87,13 @@ export interface ProvisioningCompany {
   requested_area_code: string;
   telnyx_messaging_profile_id: string | null;
   subscription_status: string;
+  /** A number the user picked in onboarding, staged pre-checkout; drained onto the row here. */
+  chosen_number_e164: string | null;
 }
 
 const COMPANY_COLUMNS =
-  "id,name,country,requested_area_code,telnyx_messaging_profile_id,subscription_status";
+  "id,name,country,requested_area_code,telnyx_messaging_profile_id," +
+  "subscription_status,chosen_number_e164";
 
 const NUMBER_COLUMNS =
   "id,company_id,status,source,provisioning_key,requested_area_code,country," +
@@ -689,12 +692,28 @@ export async function provisionCompanyNumber(
         provisioning_key: input.checkoutSessionId,
         requested_area_code: company.requested_area_code,
         country: company.country,
+        // Carry the onboarding pick onto the row so orderNumberForRow buys the
+        // EXACT number (falling back in-region if it was taken). Null = auto.
+        chosen_number_e164: company.chosen_number_e164,
       },
       { onConflict: "provisioning_key", ignoreDuplicates: true },
     )
     .select(NUMBER_COLUMNS);
   if (insertError) {
     throw new Error(`phone_numbers insert failed: ${insertError.message}`);
+  }
+
+  // Drain the pre-checkout staging on the company so a later re-provision never
+  // re-applies a stale pick (the durable copy now lives on the row above). Only
+  // on the first delivery — a duplicate webhook finds it already null.
+  if (company.chosen_number_e164) {
+    const { error: drainError } = await db
+      .from("companies")
+      .update({ chosen_number_e164: null })
+      .eq("id", company.id);
+    if (drainError) {
+      throw new Error(`company chosen-number drain failed: ${drainError.message}`);
+    }
   }
 
   let row = (inserted?.[0] ?? null) as unknown as PhoneNumberRow | null;
