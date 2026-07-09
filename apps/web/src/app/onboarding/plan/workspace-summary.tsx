@@ -253,12 +253,13 @@ export function WorkspaceSummary({
                 <NumberPicker
                   key={draftCountry}
                   country={draftCountry}
+                  // #78: no default area code, and none carried across a country
+                  // switch. A prior full-number pick still seeds its own code for
+                  // review; otherwise the picker opens on its area-code search.
                   initialAreaCode={
-                    draftChosen
-                      ? isFullNumber(draftChosen)
-                        ? draftChosen.slice(2, 5)
-                        : draftChosen
-                      : areaCode
+                    draftChosen && isFullNumber(draftChosen)
+                      ? draftChosen.slice(2, 5)
+                      : null
                   }
                   selected={draftChosen}
                   onSelect={setDraftChosen}

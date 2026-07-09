@@ -258,9 +258,24 @@ export function stepAllowed(
 ): boolean {
   const { company, draft } = snapshot;
 
-  if (step === "name" || step === "number") {
-    // Company name/country/area code are fixed at creation.
+  if (step === "name") {
+    // The workspace name is fixed at creation here (it stays editable later in
+    // Settings). Locking it keeps the pre-company draft the single source.
     return company === null;
+  }
+
+  if (step === "number") {
+    // Country / area code / number stay editable until CHECKOUT, not just until
+    // company creation (#79): the plan-step summary already PATCHes them
+    // pre-checkout, so a customer who picked the wrong country can step Back and
+    // switch. This mirrors the server PATCH gate (routes/companies.ts) EXACTLY:
+    // only the never-checked-out states. A 'canceled' company already ordered
+    // its number, so it locks like a paid one (the server would 409 an edit).
+    return (
+      company === null ||
+      company.subscription_status === "incomplete" ||
+      company.subscription_status === "incomplete_expired"
+    );
   }
 
   if (company === null) {

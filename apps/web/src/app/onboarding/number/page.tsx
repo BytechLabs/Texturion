@@ -13,6 +13,7 @@ import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useCreateCompany } from "@/lib/api/companies";
+import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
 import { writeCompanyCookie } from "@/lib/company/cookie";
 import { browserTimezone } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import {
   draftOwesUsRegistration,
+  previousStepHref,
   stepProgress,
   type NumberMode,
 } from "../steps";
@@ -32,12 +34,18 @@ import { useWizardStepGuard } from "../use-onboarding-state";
  * CA additionally answers the US-texting question (SPEC §4.2); a CA company
  * that declines US texting skips the registration wizard entirely, so THIS
  * screen collects the AUP and creates the company (POST /v1/companies).
+ *
+ * #79: this step stays editable until checkout. A customer who picked the wrong
+ * country can step Back here and switch; when the company already exists (it was
+ * created on this step for CA-only, or on the business step for US), Continue
+ * PATCHes it pre-checkout instead of creating a second one.
  */
 export default function NumberStepPage() {
   const { state, ready } = useWizardStepGuard("number");
   const router = useRouter();
   const queryClient = useQueryClient();
   const createCompany = useCreateCompany();
+  const updateCompany = useOnboardingUpdateCompany();
 
   const [mode, setMode] = useState<NumberMode>("new");
   const [country, setCountry] = useState<"US" | "CA">("US");
@@ -45,18 +53,34 @@ export default function NumberStepPage() {
   const [usTexting, setUsTexting] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
+  // Held across the whole submit-then-navigate window so a double-click can't
+  // create a second company (mutation isPending flips false the instant the
+  // POST resolves, before the me refetch + router.push complete).
+  const [submitting, setSubmitting] = useState(false);
 
-  // Seed from the saved draft once (resume).
-  const { draft } = state;
+  const { draft, company } = state;
+  // Editing an existing pre-checkout company (stepped Back to switch country),
+  // vs. a fresh signup that still lives in the local draft.
+  const editing = company !== null;
+
+  // Seed once from the company (when it exists) or the saved draft (resume).
   useEffect(() => {
     if (!ready || seeded) return;
     setSeeded(true);
+    if (company) {
+      // No number/area code is pre-filled (#78): the number is re-picked for the
+      // possibly-new country. Porting is a create-time decision, so force "new".
+      setMode("new");
+      setCountry(company.country);
+      setUsTexting(company.us_texting_enabled);
+      return;
+    }
     if (draft.mode) setMode(draft.mode);
     if (draft.country) setCountry(draft.country);
     if (draft.usTexting !== undefined) setUsTexting(draft.usTexting);
     // The pick is a full number (US) or an area code (CA/masked) — resume either.
     setChosenNumber(draft.chosenNumber ?? draft.areaCode ?? null);
-  }, [ready, seeded, draft]);
+  }, [ready, seeded, draft, company]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
@@ -65,10 +89,11 @@ export default function NumberStepPage() {
     ...state.snapshot,
     draft: { ...draft, country, usTexting },
   });
-  const skipsRegistration = !draftOwesUsRegistration({
-    country,
-    usTexting,
-  });
+  const skipsRegistration = !draftOwesUsRegistration({ country, usTexting });
+  const busy = submitting || createCompany.isPending || updateCompany.isPending;
+  // Honest Back: the nearest still-editable preceding step, or none (name locks
+  // at creation, so an editing user has nothing reachable behind this step).
+  const backHref = previousStepHref("number", state.snapshot) ?? undefined;
 
   function pickCountry(next: "US" | "CA") {
     setCountry(next);
@@ -76,15 +101,26 @@ export default function NumberStepPage() {
     setFormError(null);
   }
 
+  function onError(cause: unknown) {
+    setSubmitting(false); // re-enable Continue so the user can retry
+    setFormError(
+      cause instanceof ApiError
+        ? cause.message
+        : "Something went wrong on our end. Try again in a moment.",
+    );
+  }
+
   async function onContinue() {
     setFormError(null);
 
     // D16 fork: bringing an existing number hands off to the port sub-wizard
-    // (PORTING.md §8.1). We don't pick an area code here — the ported number's
-    // own area code defaults `requested_area_code` at company creation
-    // (PORTING.md correction 2). Country + US-texting choice are still needed
-    // (they drive the registration branch), so keep them in the draft.
+    // (PORTING.md §8.1). Only offered on a fresh signup (the mode selector is
+    // hidden while editing an existing company). We don't pick an area code
+    // here — the ported number's own area code defaults `requested_area_code`
+    // at company creation (PORTING.md correction 2). Country + US-texting choice
+    // are still needed (they drive the registration branch), so keep them.
     if (mode === "port") {
+      setSubmitting(true);
       writeOnboardingDraft({
         name: draft.name,
         country,
@@ -105,6 +141,30 @@ export default function NumberStepPage() {
     // requested area code is the fallback / the assignment target.
     const full = isFullNumber(chosenNumber);
     const requestedAreaCode = full ? chosenNumber.slice(2, 5) : chosenNumber;
+    // Latch now (after validation): held through create/PATCH + navigation.
+    setSubmitting(true);
+
+    // #79: editing an existing pre-checkout company — PATCH it (never create a
+    // second one), then move forward on the path the possibly-new country
+    // implies. The hook invalidates company/registration/me so the next step
+    // re-routes when the country change flips whether US registration is owed.
+    if (editing && state.companyId) {
+      try {
+        await updateCompany.mutateAsync({
+          companyId: state.companyId,
+          country,
+          requested_area_code: requestedAreaCode,
+          chosen_number_e164: full ? chosenNumber : null,
+          us_texting_enabled: country === "CA" ? usTexting : true,
+        });
+        trackOnboardingStepCompleted("number");
+        router.push(skipsRegistration ? "/onboarding/plan" : "/onboarding/business");
+      } catch (cause) {
+        onError(cause);
+      }
+      return;
+    }
+
     writeOnboardingDraft({
       name: draft.name,
       country,
@@ -125,7 +185,7 @@ export default function NumberStepPage() {
     // D15: the creating browser's timezone rides along silently.
     const timezone = browserTimezone();
     try {
-      const company = await createCompany.mutateAsync({
+      const created = await createCompany.mutateAsync({
         name: (draft.name ?? "").trim(),
         country: "CA",
         requested_area_code: requestedAreaCode,
@@ -133,7 +193,7 @@ export default function NumberStepPage() {
         us_texting_enabled: false,
         ...(timezone ? { timezone } : {}),
       });
-      writeCompanyCookie(company.id);
+      writeCompanyCookie(created.id);
       // The next step's guard resolves the company through GET /v1/me —
       // wait for the membership to be visible before navigating.
       await queryClient.invalidateQueries({ queryKey: keys.me });
@@ -141,17 +201,13 @@ export default function NumberStepPage() {
       trackOnboardingStepCompleted("number");
       router.push("/onboarding/plan");
     } catch (cause) {
-      setFormError(
-        cause instanceof ApiError
-          ? cause.message
-          : "Something went wrong on our end. Try again in a moment.",
-      );
+      onError(cause);
     }
   }
 
   return (
     <StepShell
-      backHref="/onboarding/name"
+      backHref={backHref}
       index={progress.index}
       total={progress.total}
       title="How do you want your business number?"
@@ -162,60 +218,63 @@ export default function NumberStepPage() {
       }
     >
       <div className="space-y-6">
-        {/* D16 fork (PORTING.md §8.1): new number vs. bring my number. */}
-        <fieldset className="space-y-2">
-          <legend className="sr-only">Number type</legend>
-          <RadioGroup
-            value={mode}
-            onValueChange={(v) => {
-              setMode(v as NumberMode);
-              setFormError(null);
-            }}
-            className="grid gap-3"
-          >
-            {(
-              [
+        {/* D16 fork (PORTING.md §8.1): new number vs. bring my number. Hidden
+            while editing an existing company — porting is a create-time choice. */}
+        {!editing && (
+          <fieldset className="space-y-2">
+            <legend className="sr-only">Number type</legend>
+            <RadioGroup
+              value={mode}
+              onValueChange={(v) => {
+                setMode(v as NumberMode);
+                setFormError(null);
+              }}
+              className="grid gap-3"
+            >
+              {(
                 [
-                  "new",
-                  "Get a new number",
-                  "We set up a fresh local number for your area.",
-                ],
-                [
-                  "port",
-                  "Bring my existing number",
-                  "Transfer the number you already use. It's free.",
-                ],
-              ] as const
-            ).map(([value, label, hint]) => (
-              <Label
-                key={value}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 text-sm transition-colors duration-150 ease-out",
-                  mode === value
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-card hover:bg-accent",
-                )}
-              >
-                <RadioGroupItem value={value} className="mt-0.5" />
-                <span className="space-y-0.5">
-                  <span className="block font-medium">{label}</span>
-                  <span className="block text-[13px] text-muted-foreground">
-                    {hint}
+                  [
+                    "new",
+                    "Get a new number",
+                    "We set up a fresh local number for your area.",
+                  ],
+                  [
+                    "port",
+                    "Bring my existing number",
+                    "Transfer the number you already use. It's free.",
+                  ],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <Label
+                  key={value}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 text-sm transition-colors duration-150 ease-out",
+                    mode === value
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-card hover:bg-accent",
+                  )}
+                >
+                  <RadioGroupItem value={value} className="mt-0.5" />
+                  <span className="space-y-0.5">
+                    <span className="block font-medium">{label}</span>
+                    <span className="block text-[13px] text-muted-foreground">
+                      {hint}
+                    </span>
                   </span>
-                </span>
-              </Label>
-            ))}
-          </RadioGroup>
-          {/* Path B (keep number AND carrier) is deliberately not a third
-              wizard fork — it's a Settings flow after signup. One honest
-              mention here so landline owners know it exists. */}
-          <p className="text-[13px] text-muted-foreground">
-            Have a landline you&apos;d rather keep with its current carrier?
-            After signup you can add texting to it from Settings → Numbers.
-            Calls don&apos;t change, and the carrier review takes a few
-            business days.
-          </p>
-        </fieldset>
+                </Label>
+              ))}
+            </RadioGroup>
+            {/* Path B (keep number AND carrier) is deliberately not a third
+                wizard fork — it's a Settings flow after signup. One honest
+                mention here so landline owners know it exists. */}
+            <p className="text-[13px] text-muted-foreground">
+              Have a landline you&apos;d rather keep with its current carrier?
+              After signup you can add texting to it from Settings → Numbers.
+              Calls don&apos;t change, and the carrier review takes a few
+              business days.
+            </p>
+          </fieldset>
+        )}
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">Country</legend>
@@ -247,13 +306,15 @@ export default function NumberStepPage() {
         </fieldset>
 
         {/* Choose-your-number: search an area code, then pick a real available
-            number from the live Telnyx list (the same picker settings uses). */}
+            number from the live Telnyx list (the same picker settings uses).
+            No area code is pre-filled, and it resets on a country switch (#78):
+            the picker starts on its area-code search, remounted per country. */}
         <div className={cn("space-y-2", mode === "port" && "hidden")}>
           <Label>Pick your number</Label>
           <NumberPicker
             key={country}
             country={country}
-            initialAreaCode={draft.areaCode ?? null}
+            initialAreaCode={null}
             selected={chosenNumber}
             onSelect={(e164) => {
               setChosenNumber(e164);
@@ -309,9 +370,9 @@ export default function NumberStepPage() {
           size="lg"
           className="w-full"
           onClick={onContinue}
-          disabled={createCompany.isPending}
+          disabled={busy}
         >
-          {createCompany.isPending ? (
+          {busy ? (
             "Setting up your workspace…"
           ) : mode === "port" ? (
             "Continue"

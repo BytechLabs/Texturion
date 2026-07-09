@@ -379,13 +379,26 @@ describe("resolveOnboardingLocation", () => {
 // ---------------------------------------------------------------------------
 
 describe("stepAllowed", () => {
-  it("name/number only exist before the company does", () => {
+  it("name locks at creation; number stays editable until checkout (#79)", () => {
     const before = snapshot({ company: null });
     expect(stepAllowed("name", before)).toBe(true);
     expect(stepAllowed("number", before)).toBe(true);
-    const after = snapshot({ company: {} });
-    expect(stepAllowed("name", after)).toBe(false);
-    expect(stepAllowed("number", after)).toBe(false);
+    // Company exists but unpaid: the workspace name is fixed at creation, but the
+    // number/country step stays open so a wrong-country pick can be switched (#79).
+    const unpaid = snapshot({ company: {} });
+    expect(stepAllowed("name", unpaid)).toBe(false);
+    expect(stepAllowed("number", unpaid)).toBe(true);
+    // Once paid, provisioning has begun and the number step locks too.
+    const paid = snapshot({ company: { status: "active" } });
+    expect(stepAllowed("number", paid)).toBe(false);
+    // 'incomplete_expired' never checked out → still editable; 'canceled' already
+    // ordered its number (server 409s the edit) → locks like a paid company.
+    expect(
+      stepAllowed("number", snapshot({ company: { status: "incomplete_expired" } })),
+    ).toBe(true);
+    expect(
+      stepAllowed("number", snapshot({ company: { status: "canceled" } })),
+    ).toBe(false);
   });
 
   it("business needs a complete local draft when the company is missing", () => {
@@ -448,9 +461,11 @@ describe("applicableSteps / stepProgress", () => {
 });
 
 describe("previousStepHref (honest Back navigation)", () => {
-  it("returns null on plan for CA-no-US — the only steps behind are the locked name/number (the reported 'Back does nothing')", () => {
+  it("walks back to number on plan for CA-no-US (editable until checkout, #79)", () => {
+    // Formerly null (name/number locked at creation); #79 keeps the number step
+    // open pre-checkout, so Back now honestly reaches it.
     const caOnly = snapshot({ company: { country: "CA", usTexting: false } });
-    expect(previousStepHref("plan", caOnly)).toBeNull();
+    expect(previousStepHref("plan", caOnly)).toBe("/onboarding/number");
   });
 
   it("walks back to the nearest EDITABLE step for a US company", () => {
@@ -460,14 +475,22 @@ describe("previousStepHref (honest Back navigation)", () => {
     expect(previousStepHref("texting", us)).toBe("/onboarding/business");
   });
 
-  it("returns null on business once the company exists — name/number are locked", () => {
-    expect(previousStepHref("business", snapshot({ company: {} }))).toBeNull();
+  it("walks back to number on business once the company exists (editable until checkout, #79)", () => {
+    expect(previousStepHref("business", snapshot({ company: {} }))).toBe(
+      "/onboarding/number",
+    );
   });
 
   it("still allows Back to number pre-company (name/number editable until creation)", () => {
     const draftUs = snapshot({ company: null, draft: COMPLETE_DRAFT });
     expect(previousStepHref("business", draftUs)).toBe("/onboarding/number");
     expect(previousStepHref("number", draftUs)).toBe("/onboarding/name");
+  });
+
+  it("hides Back on the number step while editing an existing company (name is locked)", () => {
+    // From the number step, the only preceding step is name, which stays locked
+    // at creation — so an editing user has no honest Back target.
+    expect(previousStepHref("number", snapshot({ company: {} }))).toBeNull();
   });
 
   it("returns null on the first step", () => {

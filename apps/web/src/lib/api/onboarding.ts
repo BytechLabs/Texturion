@@ -166,10 +166,15 @@ export function useOnboardingUpdateCompany() {
     onSuccess: (_updated, { companyId }) => {
       // The wizard summary reads GET /v1/company; the sidebar/name reads /me. A
       // country / US-texting change flips whether US registration is owed, so
-      // the wizard must re-route — refetch registration too.
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
-      queryClient.invalidateQueries({ queryKey: keys.registration(companyId) });
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      // the wizard must re-route — refetch registration too. RETURN the promise
+      // so mutateAsync resolves only after the refetch lands: the number step
+      // navigates on Continue, and routing on stale company data would bounce
+      // the user through a wrong intermediate page for a round-trip (#79).
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.company(companyId) }),
+        queryClient.invalidateQueries({ queryKey: keys.registration(companyId) }),
+        queryClient.invalidateQueries({ queryKey: keys.me }),
+      ]);
     },
   });
 }
