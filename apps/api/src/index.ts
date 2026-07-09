@@ -163,14 +163,29 @@ app.onError((error, c) => {
   if (error instanceof ApiError) {
     return errorResponse(c, error.code, error.message);
   }
-  // Log + report the real error server-side (IDs only, never message bodies —
-  // SPEC §10; the Sentry event passes through the §10 beforeSend scrubber);
-  // clients get the stable envelope shape without internals. SPEC §7 defines
-  // no 500 code, so the shared INTERNAL_ERROR_CODE fallback is used here.
-  console.error("unhandled error:", error);
-  Sentry.captureException(error);
+  // A real, unexpected 500. Make it observable three ways without leaking
+  // internals to the client (SPEC §10):
+  //   1. a rich server log with the failing route + Cloudflare ray id — shows
+  //      up in `wrangler tail` and the Worker's Logs (observability is on);
+  //   2. a Sentry event tagged with that route + ray (PII-scrubbed by the §10
+  //      beforeSend), so it is searchable;
+  //   3. a `request_id` (the ray) returned to the client, so a founder can jump
+  //      straight from a failed request to the exact log/Sentry event.
+  const method = c.req.method;
+  const path = new URL(c.req.url).pathname;
+  const rayId = c.req.header("cf-ray") ?? undefined;
+  Sentry.captureException(error, {
+    tags: { route: `${method} ${path}`, ...(rayId ? { cf_ray: rayId } : {}) },
+  });
+  console.error(`[500] ${method} ${path} ray=${rayId ?? "-"}:`, error);
   return c.json(
-    { error: { code: INTERNAL_ERROR_CODE, message: "Something went wrong." } },
+    {
+      error: {
+        code: INTERNAL_ERROR_CODE,
+        message: "Something went wrong.",
+        ...(rayId ? { request_id: rayId } : {}),
+      },
+    },
     INTERNAL_ERROR_STATUS,
   );
 });
