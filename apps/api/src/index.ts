@@ -139,6 +139,27 @@ app.route("/", contactRoutes);
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 
 app.onError((error, c) => {
+  // A thrown error unwinds past the CORS middleware before its post-`next()`
+  // header pass runs, so this response would otherwise ship WITHOUT
+  // Access-Control-Allow-Origin — which the browser reports as a "CORS error",
+  // masking the real 4xx/5xx (e.g. a transient failure looks like a CORS bug).
+  // Re-echo the request origin here, only when it is an allowed one, so the
+  // client can read the SPEC §7 envelope and show the actual message. Wrapped
+  // defensively: onError must never itself throw.
+  try {
+    const origin = c.req.header("origin");
+    if (origin) {
+      const env = getEnv(c.env);
+      if (origin === env.APP_ORIGIN || origin === env.SITE_ORIGIN) {
+        c.header("Access-Control-Allow-Origin", origin);
+        c.header("Vary", "Origin");
+      }
+    }
+  } catch {
+    // Env unavailable (should not happen after a healthy boot) — still return
+    // the envelope below; the client just cannot read it cross-origin.
+  }
+
   if (error instanceof ApiError) {
     return errorResponse(c, error.code, error.message);
   }
