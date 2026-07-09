@@ -11,6 +11,7 @@ import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { parseJsonBody, parseWith, pathUuid } from "./core/http";
 import {
+  areaCodeOf,
   MAX_PROVISION_ATTEMPTS,
   releaseNumberRow,
   resumeProvisioning,
@@ -237,4 +238,124 @@ numbersRoutes.delete("/:id", requireRole("owner"), async (c) => {
 
   const released = await releaseNumberRow(env, row);
   return c.json(sanitizeNumber(released as NumberRowFull));
+});
+
+const remediateBodySchema = z.strictObject({
+  requested_area_code: z
+    .string()
+    .trim()
+    .regex(/^[2-9]\d{2}$/, "must be a 3-digit area code")
+    .optional(),
+  chosen_number_e164: z
+    .string()
+    .trim()
+    .regex(/^\+1\d{10}$/, "must be an E.164 NANP number")
+    .optional(),
+});
+
+/**
+ * POST /v1/numbers/:id/remediate — owner/admin: finish a provision_failed number
+ * WITHOUT a new charge. Re-arms the EXISTING paid row (resets the attempt budget,
+ * status → provisioning) and re-runs the saga via resumeProvisioning — it NEVER
+ * calls provision_number_slot (the paid slot claim) and NEVER touches Stripe.
+ * The user can change the area code and/or pick a specific number; a chosen
+ * number is validated against its OWN area code's country (never the old
+ * requested code — that would reject the exhausted-416 → pick-a-647 remedy).
+ */
+numbersRoutes.post("/:id/remediate", requireRole("admin"), async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const companyId = c.get("companyId");
+  const id = pathUuid(c, "id");
+  const body = await parseJsonBody(c, remediateBodySchema);
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select(NUMBER_COLUMNS)
+    .eq("id", id)
+    .eq("company_id", companyId)
+    .limit(1);
+  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+  const row = (data?.[0] ?? null) as unknown as NumberRowFull | null;
+  if (!row) return errorResponse(c, "not_found", "No such number.");
+  // Only a failed BUY-saga row is remediable: a ported/hosted number has no
+  // inventory to search, and an active/released one is nothing to fix.
+  if (row.source !== "provisioned") {
+    return errorResponse(c, "conflict", "This number can't be set up this way.");
+  }
+  if (row.status !== "provision_failed") {
+    return errorResponse(c, "conflict", "This number isn't waiting to be set up.");
+  }
+
+  const { data: companyRows, error: companyError } = await db
+    .from("companies")
+    .select("country")
+    .eq("id", companyId)
+    .limit(1);
+  if (companyError) throw new Error(`company lookup failed: ${companyError.message}`);
+  const country = (companyRows?.[0] as { country?: string } | undefined)?.country;
+  if (country !== "US" && country !== "CA") {
+    return errorResponse(c, "not_found", "No such company.");
+  }
+
+  let chosen: string | null = null;
+  let areaCode: string | null = null;
+  if (body.chosen_number_e164) {
+    const ndc = areaCodeOf(body.chosen_number_e164);
+    const entry = ndc ? NANP_AREA_CODES[ndc] : undefined;
+    if (!ndc || !entry || !entry.geographic || entry.country !== country) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        `That number isn't a ${country} local number.`,
+      );
+    }
+    // A live order for the auto-searched number would pre-empt the pick (and
+    // clearing it blindly risks a double-buy). Require a clean order slate; the
+    // common no-inventory remedy always has a null order id anyway.
+    if (row.telnyx_order_id) {
+      return errorResponse(
+        c,
+        "conflict",
+        "We're finishing an earlier order. Try choosing again in a minute.",
+      );
+    }
+    chosen = body.chosen_number_e164;
+    areaCode = ndc;
+  } else if (body.requested_area_code) {
+    const entry = NANP_AREA_CODES[body.requested_area_code];
+    if (!entry || !entry.geographic || entry.country !== country) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        `Area code ${body.requested_area_code} isn't a ${country} area code.`,
+      );
+    }
+    areaCode = body.requested_area_code;
+  }
+
+  // Atomic re-arm on the existing PAID row. The `status = 'provision_failed'`
+  // guard is also the concurrency lock: a double-clicked retry updates 0 rows.
+  const { data: armedRows, error: armError } = await db
+    .from("phone_numbers")
+    .update({
+      status: "provisioning",
+      provision_attempts: 0,
+      last_provision_error: null,
+      provision_failure_reason: null,
+      chosen_number_e164: chosen,
+      ...(areaCode ? { requested_area_code: areaCode } : {}),
+    })
+    .eq("id", id)
+    .eq("company_id", companyId)
+    .eq("status", "provision_failed")
+    .select(NUMBER_COLUMNS);
+  if (armError) throw new Error(`remediate update failed: ${armError.message}`);
+  const armed = (armedRows?.[0] ?? null) as unknown as PhoneNumberRow | null;
+  if (!armed) {
+    return errorResponse(c, "conflict", "A retry is already in progress.");
+  }
+
+  const result = await resumeProvisioning(env, armed);
+  return c.json(sanitizeNumber(result as NumberRowFull));
 });

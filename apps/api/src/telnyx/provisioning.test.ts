@@ -469,6 +469,91 @@ describe("S2 no-inventory 400 (Telnyx code 10031) is not fatal", () => {
   });
 });
 
+describe("chosen-number ordering (choose-your-number)", () => {
+  it("orders the EXACT chosen number and skips the inventory search", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    // Deliberately NO available_phone_numbers handler: if the saga searches,
+    // the mock 404s and the test fails — proving the chosen number is ordered
+    // directly.
+    telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: {
+        id: "order-c",
+        status: "success",
+        phone_numbers: [{ phone_number: "+12125550188" }],
+      },
+    }));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+12125550188"
+        ? { data: [{ id: "pn-c", phone_number: "+12125550188" }] }
+        : { data: [] },
+    );
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "cs_choose",
+      country: "US",
+      requested_area_code: "212",
+      chosen_number_e164: "+12125550188",
+    });
+    const row = rest.rows("phone_numbers").at(-1) as unknown as PhoneNumberRow;
+
+    const result = await resumeProvisioning(env, row);
+    expect(result.status).toBe("active");
+    expect(result.number_e164).toBe("+12125550188");
+    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    expect(order.body).toMatchObject({
+      phone_numbers: [{ phone_number: "+12125550188" }],
+    });
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(0);
+    // The pick is consumed on success.
+    expect(result.chosen_number_e164).toBeNull();
+  });
+
+  it("falls back to an in-region search when the chosen number is taken (4xx), never double-buying", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("POST", /^\/v2\/number_orders$/, (call) => {
+      const num = (call.body as { phone_numbers: { phone_number: string }[] })
+        .phone_numbers[0].phone_number;
+      // The chosen number was taken in the seconds since the pick.
+      if (num === "+12125550188") return telnyxError(422, "10015");
+      return {
+        data: { id: "order-f", status: "success", phone_numbers: [{ phone_number: num }] },
+      };
+    });
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, (call) =>
+      call.query.get("filter[national_destination_code]") === "212"
+        ? { data: [{ phone_number: "+12125550200" }] }
+        : { data: [] },
+    );
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+12125550200"
+        ? { data: [{ id: "pn-f", phone_number: "+12125550200" }] }
+        : { data: [] },
+    );
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "cs_taken",
+      country: "US",
+      requested_area_code: "212",
+      chosen_number_e164: "+12125550188",
+    });
+    const row = rest.rows("phone_numbers").at(-1) as unknown as PhoneNumberRow;
+
+    const result = await resumeProvisioning(env, row);
+    expect(result.status).toBe("active");
+    // A nearby local number in the SAME area code the user picked from.
+    expect(result.number_e164).toBe("+12125550200");
+    // Exactly two order attempts: the taken pick, then the fallback — never a
+    // duplicate of a successful order.
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(2);
+    const search = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    expect(search.query.get("filter[national_destination_code]")).toBe("212");
+  });
+});
+
 describe("failure handling (§4.3)", () => {
   it("records provision_failed + emails the owner on the first failure", async () => {
     const { env, rest, telnyx, emails } = setup();

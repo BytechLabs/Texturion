@@ -70,7 +70,14 @@ export interface PhoneNumberRow {
   last_provision_error: string | null;
   /** Coarse, customer-safe failure classification; null until a failure, cleared on activation. */
   provision_failure_reason: ProvisionFailureReason | null;
+  /** A user-picked specific number to order exactly; null = auto-search. Cleared on activation / taken-fallback. */
+  chosen_number_e164: string | null;
   updated_at?: string;
+}
+
+/** The NANP area code (NDC) of a +1 E.164, or null if not a NANP number. */
+export function areaCodeOf(e164: string): string | null {
+  return /^\+1(\d{3})\d{7}$/.exec(e164)?.[1] ?? null;
 }
 
 export interface ProvisioningCompany {
@@ -88,7 +95,7 @@ const COMPANY_COLUMNS =
 const NUMBER_COLUMNS =
   "id,company_id,status,source,provisioning_key,requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
-  "last_provision_error,provision_failure_reason,updated_at";
+  "last_provision_error,provision_failure_reason,chosen_number_e164,updated_at";
 
 /** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
@@ -326,6 +333,9 @@ async function activateRow(
     telnyx_phone_number_id: telnyxPhoneNumberId,
     last_provision_error: null,
     provision_failure_reason: null,
+    // The pick is fulfilled (or was replaced by a fallback) — clear it so a
+    // later re-provision never re-applies a stale choice.
+    chosen_number_e164: null,
     suspended_at: null,
   });
 }
@@ -429,7 +439,24 @@ async function adoptOrphanNumber(
   return activateRow(db, row, orphan.phone_number as string, orphan.id as string);
 }
 
-/** S2 + S3 for one row — search, order, persist-order-id-first, activate. */
+function placeNumberOrder(
+  env: Env,
+  phoneNumber: string,
+  profileId: string,
+  companyId: string,
+): Promise<NumberOrderResponse> {
+  return telnyxRequest<NumberOrderResponse>(env, {
+    method: "POST",
+    path: "/v2/number_orders",
+    body: {
+      phone_numbers: [{ phone_number: phoneNumber }],
+      messaging_profile_id: profileId,
+      customer_reference: companyId,
+    },
+  });
+}
+
+/** S2 + S3 for one row — pick, order, persist-order-id-first, activate. */
 async function orderNumberForRow(
   env: Env,
   db: SupabaseClient,
@@ -437,18 +464,44 @@ async function orderNumberForRow(
   row: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
   const profileId = await ensureMessagingProfile(env, db, company);
-  const areaCode = row.requested_area_code ?? company.requested_area_code;
-  const phoneNumber = await searchAvailableNumber(env, row.country, areaCode);
 
-  const order = await telnyxRequest<NumberOrderResponse>(env, {
-    method: "POST",
-    path: "/v2/number_orders",
-    body: {
-      phone_numbers: [{ phone_number: phoneNumber }],
-      messaging_profile_id: profileId,
-      customer_reference: company.id,
-    },
-  });
+  // A user-CHOSEN specific number (onboarding pick / remediation) is ordered
+  // EXACTLY. Otherwise, auto-search the requested area code (unchanged path).
+  const chosen = row.chosen_number_e164;
+  let phoneNumber = chosen ?? null;
+  if (!phoneNumber) {
+    const areaCode = row.requested_area_code ?? company.requested_area_code;
+    phoneNumber = await searchAvailableNumber(env, row.country, areaCode);
+  }
+
+  let order: NumberOrderResponse;
+  try {
+    order = await placeNumberOrder(env, phoneNumber, profileId, company.id);
+  } catch (error) {
+    // A raced chosen number — taken/expired in the seconds since the pick —
+    // is a Telnyx 4xx. Drop the pick and fall back to a search in the SAME
+    // area code the user picked from, so they still get a nearby local number
+    // rather than being stranded. A non-4xx (transport/5xx) propagates: the
+    // order may be in flight, so we must NOT reorder (double-buy).
+    if (
+      chosen &&
+      error instanceof TelnyxApiError &&
+      error.status >= 400 &&
+      error.status < 500
+    ) {
+      await updateNumberRow(db, row.id, { chosen_number_e164: null });
+      row = { ...row, chosen_number_e164: null };
+      const areaCode =
+        areaCodeOf(chosen) ??
+        row.requested_area_code ??
+        company.requested_area_code;
+      phoneNumber = await searchAvailableNumber(env, row.country, areaCode);
+      order = await placeNumberOrder(env, phoneNumber, profileId, company.id);
+    } else {
+      throw error;
+    }
+  }
+
   const orderId = order.data?.id;
   if (!orderId) throw new Error("Telnyx number order returned no id");
 

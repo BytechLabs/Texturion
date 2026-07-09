@@ -87,6 +87,44 @@ export function useProvisionNumber() {
 }
 
 /**
+ * POST /v1/numbers/:id/remediate — owner/admin: finish a provision_failed number
+ * on the EXISTING paid row (choose a number and/or a new area code, or just
+ * retry). No Idempotency-Key / slot claim — it never re-charges. Patches the
+ * numbers cache + refreshes the company view.
+ */
+export function useRemediateNumber(numberId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      requested_area_code?: string;
+      chosen_number_e164?: string;
+    }) =>
+      apiFetch<PhoneNumberSummary>(`/v1/numbers/${numberId}/remediate`, {
+        method: "POST",
+        companyId,
+        body,
+      }),
+    onSuccess: (number) => {
+      queryClient.setQueryData<Page<PhoneNumberSummary>>(
+        keys.numbers(companyId),
+        (page) =>
+          page
+            ? {
+                ...page,
+                data: page.data.map((n) => (n.id === number.id ? number : n)),
+              }
+            : page,
+      );
+      queryClient.invalidateQueries({
+        queryKey: keys.company(companyId),
+        refetchType: "active",
+      });
+    },
+  });
+}
+
+/**
  * DELETE /v1/numbers/:id — owner only, type-to-confirm in the UI (G8);
  * needed pre-downgrade, never automatic (SPEC §7).
  */

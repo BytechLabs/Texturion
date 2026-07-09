@@ -482,3 +482,126 @@ describe("DELETE /v1/numbers/:id", () => {
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("suspended");
   });
 });
+
+describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
+  const remediateInit = (body: Record<string, unknown>): RequestInit => ({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  function insertFailed(
+    harness: ReturnType<typeof buildHarness>,
+    extra: Record<string, unknown> = {},
+  ) {
+    return harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: "cs_fail",
+      country: "US",
+      requested_area_code: "416",
+      provision_attempts: 1,
+      last_provision_error: "no US inventory for area code 416",
+      provision_failure_reason: "no_inventory",
+      ...extra,
+    });
+  }
+
+  it("orders the chosen number on the EXISTING paid row — no new row, no slot claim", async () => {
+    const harness = buildHarness();
+    harness.telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    harness.telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: { id: "order-r", status: "success", phone_numbers: [{ phone_number: "+12125550188" }] },
+    }));
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+12125550188"
+        ? { data: [{ id: "pn-r", phone_number: "+12125550188" }] }
+        : { data: [] },
+    );
+    const row = insertFailed(harness);
+    const before = harness.rest.rows("phone_numbers").length;
+
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ chosen_number_e164: "+12125550188" }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.status).toBe("active");
+    expect(body.number_e164).toBe("+12125550188");
+    // No new phone_numbers row => provision_number_slot (the paid claim) was
+    // never called => no second charge; the existing paid row was finished.
+    expect(harness.rest.rows("phone_numbers")).toHaveLength(before);
+    expect(harness.rest.rows("phone_numbers")[0].provision_attempts).toBe(0);
+  });
+
+  it("accepts a DIFFERENT-area-code pick (the exhausted-416 → 647 remedy)", async () => {
+    const harness = buildHarness({ country: "CA", requested_area_code: "416" });
+    harness.telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    harness.telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: { id: "order-ca", status: "success", phone_numbers: [{ phone_number: "+16475550100" }] },
+    }));
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+16475550100"
+        ? { data: [{ id: "pn-ca", phone_number: "+16475550100" }] }
+        : { data: [] },
+    );
+    const row = insertFailed(harness, { country: "CA" });
+
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ chosen_number_e164: "+16475550100" }),
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Record<string, unknown>).number_e164).toBe(
+      "+16475550100",
+    );
+  });
+
+  it("rejects a chosen number from a different country (422)", async () => {
+    const harness = buildHarness(); // US company
+    const row = insertFailed(harness);
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ chosen_number_e164: "+14165550100" }), // 416 is CA
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("409s when a chosen-number remediation collides with a live order (double-buy guard)", async () => {
+    const harness = buildHarness();
+    const row = insertFailed(harness, { telnyx_order_id: "order-inflight" });
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ chosen_number_e164: "+12125550188" }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("409s on a non-failed (active) row", async () => {
+    const harness = buildHarness();
+    const row = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_active",
+      country: "US",
+      number_e164: "+12125550111",
+    });
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ requested_area_code: "646" }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("is owner/admin only", async () => {
+    const harness = buildHarness();
+    harness.state.role = "member";
+    const row = insertFailed(harness);
+    const res = await harness.request(
+      `/v1/numbers/${row.id as string}/remediate`,
+      remediateInit({ requested_area_code: "646" }),
+    );
+    expect(res.status).toBe(403);
+  });
+});

@@ -23,6 +23,8 @@ import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 
+import { ChooseNumberDialog } from "./choose-number-dialog";
+
 /** Customer-facing provisioning copy — exact strings (SPEC §4.4). */
 const STATUS_COPY: Partial<Record<PhoneNumberSummary["status"], string>> = {
   provisioning: "Setting up your business number, usually under a minute.",
@@ -178,7 +180,9 @@ function ReleaseNumberDialog({
 export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const released = number.status === "released";
+  const canManage = role === "owner" || role === "admin";
 
   return (
     <div className="rounded-lg border bg-card px-4 py-4 sm:px-5">
@@ -249,6 +253,18 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
           })}
           .
         </p>
+      )}
+      {canManage && number.status === "provision_failed" && (
+        <div className="mt-3 border-t pt-3">
+          <Button size="sm" onClick={() => setChoosing(true)}>
+            Choose a number
+          </Button>
+          <ChooseNumberDialog
+            number={number}
+            open={choosing}
+            onOpenChange={setChoosing}
+          />
+        </div>
       )}
       {role === "owner" && !released && number.number_e164 && (
         <div className="mt-3 border-t pt-3">
