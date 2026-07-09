@@ -365,6 +365,110 @@ describe("S2 region fallback (§4.3)", () => {
   });
 });
 
+describe("S2 no-inventory 400 (Telnyx code 10031) is not fatal", () => {
+  // Telnyx answers an unsatisfiable filter with a 400 (code 10031), NOT an
+  // empty 200 — the real failure that stranded a paid company on an exhausted
+  // area code (416 Toronto). The saga must fall through, not abort.
+  it("falls back to the region when the NDC search 400s with no inventory", async () => {
+    const { env, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, (call) => {
+      if (call.query.get("filter[national_destination_code]") === "212") {
+        return telnyxError(400, "10031");
+      }
+      if (call.query.get("filter[administrative_area]") === "NY") {
+        return { data: [{ phone_number: "+13475550123" }] };
+      }
+      return { data: [] };
+    });
+    telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: { id: "order-2", status: "success", phone_numbers: [{ phone_number: "+13475550123" }] },
+    }));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+13475550123"
+        ? { data: [{ id: "pn-2", phone_number: "+13475550123" }] }
+        : { data: [] },
+    );
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    expect(row?.status).toBe("active");
+    expect(row?.number_e164).toBe("+13475550123");
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(2);
+  });
+
+  it("falls back to a country-wide search when NDC and region both 400", async () => {
+    const { env, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, (call) => {
+      if (
+        call.query.get("filter[national_destination_code]") ||
+        call.query.get("filter[administrative_area]")
+      ) {
+        return telnyxError(400, "10031");
+      }
+      return { data: [{ phone_number: "+16045550111" }] };
+    });
+    telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: { id: "order-3", status: "success", phone_numbers: [{ phone_number: "+16045550111" }] },
+    }));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+16045550111"
+        ? { data: [{ id: "pn-3", phone_number: "+16045550111" }] }
+        : { data: [] },
+    );
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    expect(row?.status).toBe("active");
+    expect(row?.number_e164).toBe("+16045550111");
+    const searches = telnyx.callsTo("GET", /available_phone_numbers/);
+    expect(searches).toHaveLength(3);
+    // Final search drops geography but keeps features strict (never unusable).
+    expect(searches[2].query.get("filter[national_destination_code]")).toBeNull();
+    expect(searches[2].query.get("filter[administrative_area]")).toBeNull();
+    expect(searches[2].query.get("filter[features]")).toBe("sms");
+    expect(searches[2].query.get("filter[phone_number_type]")).toBe("local");
+  });
+
+  it("records provision_failed only when every search 400s with no inventory", async () => {
+    const { env, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => telnyxError(400, "10031"));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({ data: [] }));
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    expect(row?.status).toBe("provision_failed");
+    expect(row?.last_provision_error).toContain("no US inventory");
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(3);
+  });
+
+  it("propagates a non-inventory error (503) instead of falling through", async () => {
+    const { env, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () =>
+      telnyxError(503, "service_unavailable"),
+    );
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({ data: [] }));
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    // A transient 503 aborts the saga (the §11 cron retries) — it must NOT be
+    // swallowed as "no inventory", so only the first (NDC) search runs.
+    expect(row?.status).toBe("provision_failed");
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(1);
+  });
+});
+
 describe("failure handling (§4.3)", () => {
   it("records provision_failed + emails the owner on the first failure", async () => {
     const { env, rest, telnyx, emails } = setup();

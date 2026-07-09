@@ -219,29 +219,61 @@ async function searchAvailableNumber(
     "filter[features]": "sms",
     "filter[phone_number_type]": "local",
   };
-  const byNdc = await telnyxRequest<AvailableNumbersResponse>(env, {
-    method: "GET",
-    path: "/v2/available_phone_numbers",
-    query: { ...baseQuery, "filter[national_destination_code]": areaCode },
-  });
-  const ndcHit = byNdc.data?.find((entry) => entry.phone_number);
-  if (ndcHit?.phone_number) return ndcHit.phone_number;
 
+  // Telnyx answers a filter combination with NO matching inventory with a 400
+  // (code 10031), NOT an empty 200 — common for exhausted area codes (e.g. 416
+  // Toronto). Treat that as "nothing here" and fall through instead of aborting
+  // the whole saga; any other Telnyx error still propagates (the §11 cron
+  // retries it).
+  const searchOnce = async (
+    extra: Record<string, string>,
+  ): Promise<string | null> => {
+    try {
+      const res = await telnyxRequest<AvailableNumbersResponse>(env, {
+        method: "GET",
+        path: "/v2/available_phone_numbers",
+        query: { ...baseQuery, ...extra },
+      });
+      return res.data?.find((entry) => entry.phone_number)?.phone_number ?? null;
+    } catch (error) {
+      if (error instanceof TelnyxApiError && error.hasCode("10031")) return null;
+      throw error;
+    }
+  };
+
+  // 1. The exact requested area code (NDC).
+  const byNdc = await searchOnce({
+    "filter[national_destination_code]": areaCode,
+  });
+  if (byNdc) return byNdc;
+
+  // 2. The area code's state/province from the shared NANP table — a nearby
+  //    local number keeps the business's regional presence (416 → ON → 647/437).
   const entry = NANP_AREA_CODES[areaCode];
   const region = entry?.geographic ? entry.region : null;
   if (region) {
-    const byRegion = await telnyxRequest<AvailableNumbersResponse>(env, {
-      method: "GET",
-      path: "/v2/available_phone_numbers",
-      query: { ...baseQuery, "filter[administrative_area]": region },
-    });
-    const regionHit = byRegion.data?.find((item) => item.phone_number);
-    if (regionHit?.phone_number) return regionHit.phone_number;
+    const byRegion = await searchOnce({ "filter[administrative_area]": region });
+    if (byRegion) return byRegion;
+  }
+
+  // 3. Last resort: any SMS-capable local number in the country, so a PAID
+  //    company is never stranded when the requested area code AND its region
+  //    are dry. Only geography is dropped — features stay strict (sms + local)
+  //    so a fallback number is never unusable.
+  const byCountry = await searchOnce({});
+  if (byCountry) {
+    console.warn(
+      `[provisioning] ${country} area code ${areaCode}` +
+        (region ? ` and region ${region}` : "") +
+        " had no inventory; assigned a country-wide fallback number",
+    );
+    return byCountry;
   }
 
   throw new Error(
     `no ${country} inventory for area code ${areaCode}` +
-      (region ? ` or region ${region}` : ""),
+      (region ? `, region ${region},` : "") +
+      " or country-wide",
   );
 }
 
