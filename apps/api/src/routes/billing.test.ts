@@ -308,6 +308,8 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.get("mode")).toBe("subscription");
     expect(form.get("client_reference_id")).toBe(COMPANY_ID);
     expect(form.get("automatic_tax[enabled]")).toBe("true");
+    // Promo/coupon field shown at checkout (marketing promos + comp accounts).
+    expect(form.get("allow_promotion_codes")).toBe("true");
     expect(form.get("line_items[0][price]")).toBe(env.STRIPE_STARTER_PRICE_ID);
     expect(form.get("line_items[0][quantity]")).toBe("1");
     expect(form.get("line_items[1][price]")).toBe(

@@ -243,8 +243,23 @@ async function claimEmailOnce(
 }
 
 /**
- * §9 `checkout.session.completed` row: `payment_status=='paid'` guard;
- * `incomplete → active`; store customer/subscription/plan/period; stamp
+ * A completed Checkout session that should provision the company: a real
+ * payment ('paid'), OR a $0 session from a 100%-off coupon, which Stripe
+ * reports as 'no_payment_required' (comp / free accounts). Both create the
+ * subscription + customer and fire checkout.session.completed identically.
+ */
+export function isProvisionableCheckout(
+  session: Stripe.Checkout.Session,
+): boolean {
+  return (
+    session.payment_status === "paid" ||
+    session.payment_status === "no_payment_required"
+  );
+}
+
+/**
+ * §9 `checkout.session.completed` row: provisions on paid OR $0-coupon
+ * ('no_payment_required'); `incomplete → active`; store customer/subscription/plan/period; stamp
  * `registration_fee_paid_at` when the fee line is present; un-suspend numbers
  * (resubscribe-within-grace); start the provisioning saga — the saga's
  * `provisioning_key` (= this checkout session id) is the ordering backstop —
@@ -258,7 +273,7 @@ export async function handleCheckoutCompleted(
   env: Env,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  if (session.payment_status !== "paid") return; // §9 guard — ack as no-op
+  if (!isProvisionableCheckout(session)) return; // §9 guard — ack as no-op
 
   const companyId = session.client_reference_id;
   if (!companyId) {

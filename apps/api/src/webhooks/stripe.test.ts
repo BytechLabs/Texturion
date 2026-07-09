@@ -525,6 +525,39 @@ describe("§9 event → state table", () => {
     expect(harness.callsTo("PATCH", /webhook_events/)).toHaveLength(1);
   });
 
+  it("checkout.session.completed (no_payment_required / 100%-off coupon): provisions like paid", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({
+          object: "list",
+          data: [{ id: "li_1", price: { id: env.STRIPE_STARTER_PRICE_ID } }],
+        }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+    ]);
+    const response = await deliver(
+      eventOf(
+        "checkout.session.completed",
+        checkoutSessionFixture({ payment_status: "no_payment_required" }),
+      ),
+      harness,
+    );
+    expect(response.status).toBe(200);
+    // NOT a no-op: a comp'd $0 company activates + provisions exactly like paid.
+    expect(harness.callsTo("GET", /subscriptions\/sub_1/)).toHaveLength(1);
+    expect(harness.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
+      subscription_status: "active",
+    });
+    expect(provisionCompanyNumber).toHaveBeenCalled();
+  });
+
   it.each(["customer.subscription.created", "customer.subscription.updated"])(
     "%s mirrors the RE-FETCHED status, not the event payload's",
     async (type) => {

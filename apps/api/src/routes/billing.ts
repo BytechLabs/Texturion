@@ -28,7 +28,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { handleCheckoutCompleted } from "../webhooks/stripe";
+import { handleCheckoutCompleted, isProvisionableCheckout } from "../webhooks/stripe";
 
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
@@ -202,6 +202,11 @@ billingRoutes.post("/checkout", async (c) => {
   const session = await getStripe(env).checkout.sessions.create({
     mode: "subscription",
     client_reference_id: company.id,
+    // Let customers enter a Stripe promo code at checkout (marketing promos and
+    // comp accounts). A 100%-off code makes a $0 session that reports
+    // payment_status 'no_payment_required'; handleCheckoutCompleted provisions
+    // on that too, so a comp'd company still gets its number.
+    allow_promotion_codes: true,
     // Resubscribes reuse the existing Stripe customer so invoices, tax state,
     // and the meter's customer mapping stay on one object.
     ...(company.stripe_customer_id
@@ -261,7 +266,7 @@ billingRoutes.post("/confirm-checkout", async (c) => {
       "That checkout session isn't for this company.",
     );
   }
-  if (session.payment_status !== "paid") {
+  if (!isProvisionableCheckout(session)) {
     // Still settling on Stripe's side — the setting-up poller retries.
     return c.json({ confirmed: false });
   }
