@@ -141,9 +141,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   });
 
   it("409s when active members + pending invites would exceed plan seats", async () => {
-    // Starter = 5 seats; 4 active + 1 pending = full (a 6th would exceed).
+    // Starter = 3 seats; 2 active + 1 pending = full (a 4th would exceed).
     const sb = stubWithRole("owner");
-    seatStub(sb, "starter", 4, 1);
+    seatStub(sb, "starter", 2, 1);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -154,6 +154,24 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: { code: "conflict", message: expect.stringContaining("Seat limit") },
+    });
+    expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
+  });
+
+  it("409s at the Pro seat cap (15); unlimited is the Enterprise tier, not Pro", async () => {
+    // Pro = 15 seats; 14 active + 1 pending = full (a 16th would exceed).
+    const sb = stubWithRole("owner");
+    seatStub(sb, "pro", 14, 1);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "sixteenth@crew.example", role: "member" },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: { code: "conflict", message: expect.stringContaining("15 seats") },
     });
     expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
   });
@@ -340,10 +358,10 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
   });
 
   it("re-checks the seat formula at acceptance (409 when members grew meanwhile)", async () => {
-    // Starter = 5 seats. 5 active + this pending invite → 6 > 5 → 409.
+    // Starter = 3 seats. 3 active + this pending invite → 4 > 3 → 409.
     const sb = acceptStub(pendingInvite(), authUser(), {
       plan: "starter",
-      active: 5,
+      active: 3,
       pending: 1,
     });
     stubFetch(jwksRoute(auth), sb.route);

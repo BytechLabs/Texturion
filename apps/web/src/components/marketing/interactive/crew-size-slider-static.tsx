@@ -7,7 +7,7 @@
  *
  * Values and color law mirror the interactive slider exactly (cobalt flat
  * Loonext line, Flare rival climbing line per whitelist §3.4.5, mono ink
- * figures): Loonext is flat ($29 up to 5 people, $79 for 6 and up); the
+ * figures): Loonext is flat ($29 up to 3 people, $79 for 4 and up); the
  * per-user figure is the dated, sourced $19/user/mo (July 2026), linked to
  * /compare/quo. At the default 6 people that is $79 flat vs 6 × $19 = $114,
  * so the island swap is seamless.
@@ -21,7 +21,7 @@ const SEATS = 6;
 // Largest crew the slider illustrates. Pro's seats are unlimited (#83), so this
 // is a fixed marketing range, mirroring the interactive slider's MAX_CREW.
 const MAX_CREW = 10;
-// 6 and up is Pro (SPEC §2) — sourced, never retyped.
+// 4 and up is Pro (SPEC §2) — sourced, never retyped.
 const LOONEXT_PRICE = PLAN_PRICING.pro.monthlyDollars; // $79
 const PER_USER = SEATS * PER_USER_MONTHLY; // $114
 const SAVINGS = PER_USER - LOONEXT_PRICE; // $35

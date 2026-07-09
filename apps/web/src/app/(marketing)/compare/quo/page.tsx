@@ -191,7 +191,7 @@ export default function CompareQuoPage() {
 
       <CompareCta
         heading="Flat for the crew, texts included."
-        sub="$29 a month covers up to five people and 500 texts; $79 covers your whole crew and 2,500, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you."
+        sub="$29 a month covers up to three people and 500 texts; $79 covers up to fifteen and 2,500, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you."
       />
     </>
   );

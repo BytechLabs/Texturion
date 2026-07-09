@@ -57,9 +57,9 @@ export const HOME_PLANS: readonly HomePlan[] = [
   {
     name: "Starter",
     price: "$29",
-    audience: "For crews of one to five.",
+    audience: "For crews of one to three.",
     items: [
-      [{ m: "5" }, " teammates included"],
+      [{ m: "3" }, " teammates included"],
       [{ m: "1" }, " local business number"],
       [
         { m: "500" },
@@ -76,9 +76,9 @@ export const HOME_PLANS: readonly HomePlan[] = [
     name: "Pro",
     price: "$79",
     badge: "For bigger crews",
-    audience: "For any size crew, and a second number.",
+    audience: "For crews up to fifteen, and a second number.",
     items: [
-      ["Unlimited teammates included"],
+      [{ m: "15" }, " teammates included"],
       [
         { m: "2" },
         " local business numbers (two locations, or office and field)",
@@ -213,6 +213,19 @@ export function TheDeal() {
           aria-hidden
         />
         <CountryText us={GUARANTEE_MICROCOPY} ca={GUARANTEE_MICROCOPY_CA} />
+      </p>
+
+      {/* Enterprise escape hatch: Pro caps at 15, so a bigger crew needs to know
+          the contact-sales tier exists (#83). One quiet line, not a third card. */}
+      <p className="font-body-mkt mx-auto mt-4 max-w-4xl text-center text-sm text-[color:var(--fr-ink-70)]">
+        More than 15 on the crew?{" "}
+        <Link
+          href={LIVE_ROUTES.contact}
+          className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        >
+          Talk to us about Enterprise
+        </Link>
+        , unlimited seats at the same flat, no-per-user price.
       </p>
 
       <CountryOnly country="us">

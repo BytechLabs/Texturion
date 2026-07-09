@@ -18,7 +18,7 @@ const STEPS: readonly { title: string; body: string }[] = [
   },
   {
     title: "Invite the crew.",
-    body: "Send your team a link. They open it on whatever phone they already have. Nothing to install, nothing to configure. Starter covers 5 people, Pro covers your whole crew.",
+    body: "Send your team a link. They open it on whatever phone they already have. Nothing to install, nothing to configure. Starter covers 3 people, Pro covers 15.",
   },
   {
     title: "Text customers.",

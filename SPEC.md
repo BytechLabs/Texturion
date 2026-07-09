@@ -33,11 +33,15 @@ Loonext is a shared SMS inbox for small service businesses. A company buys a sub
 
 | | **Starter — $29/mo** | **Pro — $79/mo** |
 |---|---|---|
-| Users (seats) | 5 | Unlimited |
+| Users (seats) | 3 | 15 |
 | Phone numbers | 1 | 2 |
 | Included **outbound** segments / month | 500 | 2,500 |
 | Overage per extra outbound segment | $0.03 | $0.025 |
 | Inbound SMS & MMS | Free, unmetered | Free, unmetered |
+
+> **Enterprise (contact-sales, #83):** unlimited seats for crews larger than 15. Not a
+> self-serve billable plan (`plan_id` stays `starter`/`pro`) — no Stripe price, no DB enum
+> change; a "talk to us" tier that keeps the flat, no-per-user model at custom scale.
 
 - **Metered:** outbound SMS segments only. Outbound **MMS meters as 3 segments**. Notes are free. Inbound SMS and MMS are free and unmetered (market table-stakes; COGS ~0.7¢/segment absorbed).
 - **No per-seat add-ons in MVP.** The upgrade path is Starter → Pro. Seat and number limits are enforced server-side (§7, §10).

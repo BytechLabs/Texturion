@@ -6,9 +6,9 @@ import { PLAN_PRICING } from "@/lib/api/types";
 import { CrewSizeSlider, MAX_CREW, loonextPrice } from "./crew-size-slider";
 import { CrewSizeSliderStatic } from "./crew-size-slider-static";
 
-// Starter's included seats is always a real number (5); Pro's is null =
-// unlimited (#83), so it never bounds the slider.
-const STARTER_SEATS = PLAN_PRICING.starter.seats ?? 0;
+// Starter's included seats is the slider's flat-price threshold (3). The Pro
+// cap (15) is beyond the slider's 1..10 illustration range (#83).
+const STARTER_SEATS = PLAN_PRICING.starter.seats;
 
 describe("crew-size slider plan figures trace to PLAN_PRICING (finding 5)", () => {
   it("prices the crew from the shared constants, never a retyped literal", () => {
@@ -32,11 +32,11 @@ describe("crew-size slider plan figures trace to PLAN_PRICING (finding 5)", () =
     });
   });
 
-  it("offers a fixed marketing crew range; Pro's seats are unlimited (#83)", () => {
-    // Pro no longer caps seats, so the slider's ceiling is a fixed marketing
-    // range decoupled from the plan.
-    expect(PLAN_PRICING.pro.seats).toBeNull();
+  it("offers a fixed marketing crew range, decoupled from the plan seat caps (#83)", () => {
+    // The slider's 1..10 range illustrates flat-vs-per-user savings; it is not
+    // the Starter cap (3) nor the Pro cap (15).
     expect(MAX_CREW).toBe(10);
+    expect(MAX_CREW).not.toBe(PLAN_PRICING.pro.seats);
   });
 
   it("renders the derived Pro price at the default 6-person crew", () => {

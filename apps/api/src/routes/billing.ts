@@ -394,7 +394,7 @@ billingRoutes.post("/change-plan", async (c) => {
   }
   const memberCount = await countActiveMembers(db, company.id);
   const starterSeats = PLAN_LIMITS.starter.seats;
-  if (starterSeats !== null && memberCount > starterSeats) {
+  if (memberCount > starterSeats) {
     return errorResponse(
       c,
       "conflict",

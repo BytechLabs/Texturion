@@ -72,7 +72,7 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "Build your plan and see the total before you pay: Starter $29/mo (5 people, 500 texts), Pro $79/mo (unlimited people, 2,500). Optional add-ons: picture messages $5, call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
+    "Build your plan and see the total before you pay: Starter $29/mo (3 people, 500 texts), Pro $79/mo (15 people, 2,500). Optional add-ons: picture messages $5, call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
@@ -163,6 +163,32 @@ export default function PricingPage() {
               <PlanBuilder plans={PLANS} />
             </div>
           </div>
+        </FrSection>
+
+        {/* Enterprise: the contact-sales tier for crews past Pro's 15 seats
+            (#83). Deliberately NOT part of the interactive builder above (no
+            self-serve checkout, no Stripe price) — a quiet "talk to us" card
+            that keeps the flat, no-per-user promise at custom scale. */}
+        <FrSection>
+          <FrCard className="mx-auto flex max-w-3xl flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+            <div>
+              <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+                More than 15 on your crew?
+              </h2>
+              <p className="fr-body mt-2 max-w-xl text-[color:var(--fr-ink-70)]">
+                Enterprise is unlimited seats with the same flat pricing, no
+                per-user fees, sized to your team. Tell us who you are and
+                we&apos;ll sort out the rest.
+              </p>
+            </div>
+            <CtaButton
+              href={LIVE_ROUTES.contact}
+              variant="secondary"
+              className="shrink-0"
+            >
+              Talk to us
+            </CtaButton>
+          </FrCard>
         </FrSection>
 
         {/* The add-on fine print: the exact limits behind the three toggles. */}

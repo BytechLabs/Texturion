@@ -24,8 +24,7 @@ function planFacts(id: PlanId, name: string): PlanFacts {
     name,
     price: `$${p.monthlyDollars}/mo`,
     included: `${p.includedTexts.toLocaleString("en-US")} outgoing texts included each month`,
-    seats:
-      p.seats === null ? "Unlimited team members" : `${p.seats} team members`,
+    seats: `${p.seats} team members`,
     numbers: `${p.numbers} phone number${p.numbers === 1 ? "" : "s"}`,
     overage: `${p.overageCentsPerText}¢ per extra text after that`,
   };

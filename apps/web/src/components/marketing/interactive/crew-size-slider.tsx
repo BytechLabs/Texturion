@@ -13,8 +13,9 @@
  * The per-user figure is REAL, labeled, and dated: a leading tool's published
  * monthly Starter seat price, $19/user/mo as of July 2026, sourced in full on
  * /compare/quo (that tool also bills texting separately, so the comparison is
- * conservative in Loonext's favor). Loonext follows SPEC §2: up to 5 people =
- * Starter $29, 6 and up = Pro $79 (Pro seats are unlimited), both flat.
+ * conservative in Loonext's favor). Loonext follows SPEC §2: up to 3 people =
+ * Starter $29, 4 and up = Pro $79 (Pro seats up to 15; unlimited is the
+ * contact-sales Enterprise tier), both flat.
  *
  * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
@@ -27,12 +28,13 @@ import { PLAN_PRICING } from "@/lib/api/types";
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 const PER_USER_MONTHLY = 19;
 
-/** Largest crew the slider illustrates. Pro's seats are unlimited (#83), so this
- *  is a fixed marketing range, not a plan ceiling. */
+/** Largest crew the slider illustrates. A fixed marketing range, decoupled from
+ *  the plan seat caps (Starter 3, Pro 15) — the slider only shows the flat-vs-
+ *  per-user story, not the caps. */
 export const MAX_CREW = 10;
 
-/** Starter's included seats (never null; the fallback just satisfies the type). */
-const STARTER_SEATS = PLAN_PRICING.starter.seats ?? 0;
+/** Starter's included seats — the flat-price threshold the slider draws. */
+const STARTER_SEATS = PLAN_PRICING.starter.seats;
 
 /**
  * Loonext's flat plan for a crew of `seats`, sourced from PLAN_PRICING (never

@@ -16,18 +16,19 @@ export const SUBSCRIPTION_STATUSES = [
 export type LocalSubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 /**
- * SPEC §2 plan limits, enforced server-side. `seats: null` = unlimited users
- * (Pro), bound by the fair-use policy rather than a hard count (#83). Enforcement
- * is TypeScript-only (routes/team.ts counts members/invites and compares), so a
- * null seat cap simply skips the comparison — no DB param, no Infinity to
- * serialize.
+ * SPEC §2 plan limits, enforced server-side (routes/team.ts counts members +
+ * invites and compares). Both self-serve plans have a hard seat cap (#83:
+ * Starter 3, Pro 15). "Unlimited" seats are only sold on the Enterprise tier,
+ * which is contact-sales (not a billable plan_id, no self-serve checkout), so
+ * it never appears here — a company in the billing system is always starter or
+ * pro with a finite cap.
  */
 export const PLAN_LIMITS: Record<
   PlanId,
-  { seats: number | null; numbers: number }
+  { seats: number; numbers: number }
 > = {
-  starter: { seats: 5, numbers: 1 },
-  pro: { seats: null, numbers: 2 },
+  starter: { seats: 3, numbers: 1 },
+  pro: { seats: 15, numbers: 2 },
 };
 
 /**

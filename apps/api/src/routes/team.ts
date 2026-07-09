@@ -236,8 +236,7 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
   const plan = await companyPlan(db, companyId);
   const seats = seatLimit(plan);
   const { active, pending } = await seatUsage(db, companyId);
-  // seats === null → unlimited (Pro, #83): no seat cap, only the fair-use policy.
-  if (seats !== null && active + pending + 1 > seats) {
+  if (active + pending + 1 > seats) {
     return errorResponse(
       c,
       "conflict",
@@ -368,8 +367,7 @@ teamRoutes.post("/invites/accept", async (c) => {
   const plan = await companyPlan(db, invite.company_id);
   const seats = seatLimit(plan);
   const { active, pending } = await seatUsage(db, invite.company_id);
-  // seats === null → unlimited (Pro, #83).
-  if (seats !== null && active + pending > seats) {
+  if (active + pending > seats) {
     return errorResponse(
       c,
       "conflict",

@@ -36,11 +36,5 @@ export const PLANS: PlanCard[] = [
     "Starter",
     `Your whole crew, ${PLAN_PRICING.starter.seats} teammates`,
   ),
-  planCard(
-    "pro",
-    "Pro",
-    PLAN_PRICING.pro.seats === null
-      ? "Unlimited teammates"
-      : `${PLAN_PRICING.pro.seats} teammates`,
-  ),
+  planCard("pro", "Pro", `${PLAN_PRICING.pro.seats} teammates`),
 ];

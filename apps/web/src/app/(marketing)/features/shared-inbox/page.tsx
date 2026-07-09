@@ -137,7 +137,7 @@ export default function SharedInboxPage() {
             good: true,
           },
           {
-            text: "Starter seats 5 people, Pro is unlimited. No per-seat billing, ever.",
+            text: "Starter seats 3 people, Pro seats 15. Real limits, never per-seat billing.",
           },
           {
             text: "Loonext is a texting inbox, not a phone system. The optional call forwarding add-on ($8/mo) rings your cell and texts back missed calls.",
@@ -148,8 +148,8 @@ export default function SharedInboxPage() {
       <PricingSnippet>
         <p>
           The shared inbox is the whole product, at one flat price for the
-          whole crew: $29/mo on Starter for up to 5 people and one local
-          number, $79/mo on Pro for any size crew and two numbers. 500
+          whole crew: $29/mo on Starter for up to 3 people and one local
+          number, $79/mo on Pro for up to 15 people and two numbers. 500
           outgoing texts a month on Starter, 2,500 on Pro, and receiving texts
           is always free and unlimited.
         </p>
@@ -200,7 +200,7 @@ export default function SharedInboxPage() {
         faqs={[
           {
             q: "How many people can share one inbox?",
-            a: "Five on Starter, unlimited on Pro, a flat price either way, never per seat. Everyone shares the same inbox and the same business number; they just open a link on their own phone. There are no extra charges as you add teammates.",
+            a: "Three on Starter, fifteen on Pro, a flat price either way, never per seat. Everyone shares the same inbox and the same business number; they just open a link on their own phone. There are no extra charges as you add teammates up to your plan's limit.",
           },
           {
             q: "Can two people reply to the same customer by accident?",

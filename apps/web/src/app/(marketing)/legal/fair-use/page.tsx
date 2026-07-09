@@ -61,8 +61,8 @@ export default function FairUsePage() {
         heading="What your plan includes"
       >
         <p>
-          Starter is $29/mo for up to 5 people and includes 500 texts a month on
-          one number. Pro is $79/mo for any size crew, includes 2,500 texts,
+          Starter is $29/mo for up to 3 people and includes 500 texts a month on
+          one number. Pro is $79/mo for up to 15 people, includes 2,500 texts,
           and adds a second number. A text is counted in segments (about 160
           characters each), the same way the carriers count them, so one long
           message can use more than one segment. The current allowances are

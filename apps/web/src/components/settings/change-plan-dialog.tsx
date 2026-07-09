@@ -22,10 +22,9 @@ import { useMembers } from "@/lib/api/team";
 import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
 
 /** SPEC §2 Starter limits — what a downgrade must fit into. Derived from the
- *  shared PLAN_PRICING so a seat retune (e.g. #83) can't leave this stale;
- *  Starter's seat count is always a real number (only Pro is null=unlimited). */
+ *  shared PLAN_PRICING so a seat retune (e.g. #83) can't leave this stale. */
 const STARTER_LIMITS = {
-  seats: PLAN_PRICING.starter.seats ?? 0,
+  seats: PLAN_PRICING.starter.seats,
   numbers: PLAN_PRICING.starter.numbers,
 };
 
@@ -167,9 +166,10 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           </DialogTitle>
           {upgrading ? (
             <DialogDescription>
-              Pro is $79/mo: 2,500 outgoing texts included, unlimited seats, and
-              a second phone number. You&apos;re charged the prorated difference
-              for the rest of this period today.
+              Pro is $79/mo: 2,500 outgoing texts included,{" "}
+              {PLAN_PRICING.pro.seats} seats, and a second phone number.
+              You&apos;re charged the prorated difference for the rest of this
+              period today.
             </DialogDescription>
           ) : (
             <DialogDescription>

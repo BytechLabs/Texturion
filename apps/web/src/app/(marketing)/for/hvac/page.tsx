@@ -125,7 +125,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month, flat. Cold snap or slow week.",
   pricingBody:
-    "Starter covers 5 people, 1 local number, and 500 texts a month. A surge week will send more, and that's fine: extra texts are 3¢ each up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is $79, covers any size crew, and includes a second number for exactly that.",
+    "Starter covers 3 people, 1 local number, and 500 texts a month. A surge week will send more, and that's fine: extra texts are 3¢ each up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is $79, covers up to 15 people, and includes a second number for exactly that.",
 
   faqH2: "HVAC questions, straight answers.",
   faqs: [
@@ -143,7 +143,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We add techs for the busy season. Do we pay per person?",
-      a: "No per-user fees. Starter is $29 for 5 people; scale to Pro at $79 for any size crew during the surge, then drop back when it quiets down. It's month to month.",
+      a: "No per-user fees. Starter is $29 for 3 people; scale to Pro at $79 for up to 15 during the surge, then drop back when it quiets down. It's month to month.",
     },
     {
       q: "How do we keep install quotes from going cold?",

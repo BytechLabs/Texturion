@@ -80,9 +80,9 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(starter?.features.join(" ")).toContain(
       `${PLAN_PRICING.starter.seats} teammates`,
     );
-    // Pro's seats are null = unlimited (#83); the card says so in words.
-    expect(PLAN_PRICING.pro.seats).toBeNull();
-    expect(pro?.features.join(" ")).toContain("Unlimited teammates");
+    expect(pro?.features.join(" ")).toContain(
+      `${PLAN_PRICING.pro.seats} teammates`,
+    );
     expect(starter?.features.join(" ")).toContain("500 texts a month");
     expect(pro?.features.join(" ")).toContain("2,500 texts a month");
     expect(starter?.features.join(" ")).toContain(

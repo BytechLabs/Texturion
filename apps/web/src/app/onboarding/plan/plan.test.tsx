@@ -22,9 +22,9 @@ describe("onboarding plan cards trace to PLAN_PRICING (finding 7)", () => {
     expect(starter.lines.join(" ")).toContain(
       `${PLAN_PRICING.starter.seats} teammates`,
     );
-    // Pro's seats are null = unlimited (#83); the crew line says so in words.
-    expect(PLAN_PRICING.pro.seats).toBeNull();
-    expect(pro.lines.join(" ")).toContain("Unlimited teammates");
+    expect(pro.lines.join(" ")).toContain(
+      `${PLAN_PRICING.pro.seats} teammates`,
+    );
   });
 
   it("derives the business-number count, pluralized", () => {
