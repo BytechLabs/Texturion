@@ -61,17 +61,22 @@ export function useAvailableNumbers(params: {
 /**
  * POST /v1/numbers/provision — Pro's 2nd number (owner/admin). Requires a
  * client-UUID Idempotency-Key (SPEC §7); the same key replays the same row.
+ * The user picks a specific number first (issue #75): a full E.164 is ordered
+ * exactly; a bare area code (masked/CA) assigns a number in that code.
  */
 export function useProvisionNumber() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (requestedAreaCode: string) =>
+    mutationFn: (body: {
+      chosen_number_e164?: string;
+      requested_area_code?: string;
+    }) =>
       apiFetch<PhoneNumberSummary>("/v1/numbers/provision", {
         method: "POST",
         companyId,
         idempotencyKey: crypto.randomUUID(),
-        body: { requested_area_code: requestedAreaCode },
+        body,
       }),
     onSuccess: (number) => {
       queryClient.setQueryData<Page<PhoneNumberSummary>>(

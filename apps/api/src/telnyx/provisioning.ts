@@ -370,19 +370,12 @@ async function searchAvailableNumber(
     if (byRegion) return byRegion;
   }
 
-  // 3. Last resort: any SMS-capable local number in the country, so a PAID
-  //    company is never stranded when the requested area code AND its region
-  //    are dry. Only geography is dropped — features stay strict (sms + local)
-  //    so a fallback number is never unusable.
-  const byCountry = await searchOnce({});
-  if (byCountry) {
-    console.warn(
-      `[provisioning] ${country} area code ${areaCode}` +
-        (region ? ` and region ${region}` : "") +
-        " had no inventory; assigned a country-wide fallback number",
-    );
-    return byCountry;
-  }
+  // NO country-wide "any number" fallback (issue #75): we never auto-order a
+  // number outside the area code the user chose (and its immediate NANP region).
+  // Assigning a random far-region number is exactly the automatic assignment the
+  // customer must never get — a dry area code + region fails honestly below into
+  // provision_failed(no_inventory), which opens the self-service "Choose a
+  // number" remediation so the user picks a different area code themselves.
 
   if (sawMasked) {
     // The country's inventory is masked / un-orderable at this Telnyx account
@@ -402,8 +395,7 @@ async function searchAvailableNumber(
 
   throw new Error(
     `no ${country} inventory for area code ${areaCode}` +
-      (region ? `, region ${region},` : "") +
-      " or country-wide",
+      (region ? `, region ${region}` : ""),
   );
 }
 

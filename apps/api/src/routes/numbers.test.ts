@@ -68,6 +68,9 @@ function installSlotRpc(rest: FakeRest) {
       provisioning_key: args.p_provisioning_key,
       requested_area_code: args.p_requested_area_code,
       country: args.p_country,
+      // Issue #75: a user-chosen specific number rides onto the row so the saga
+      // orders it exactly (null = a bare area-code pick → in-area-code search).
+      chosen_number_e164: args.p_chosen_number_e164 ?? null,
     });
     return { outcome: "created", number: row };
   });
@@ -332,6 +335,74 @@ describe("POST /v1/numbers/provision", () => {
     const secondBody = (await second.json()) as { id: string };
     expect(secondBody.id).toBe(firstBody.id);
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
+  });
+
+  it("orders the EXACT number the user chose, skipping the search (issue #75)", async () => {
+    const harness = buildHarness();
+    // Deliberately NO available_phone_numbers handler: if the saga searches, the
+    // Telnyx mock 404s and the test fails — proving the chosen number is ordered
+    // directly, never auto-searched.
+    harness.telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
+      data: {
+        id: "order-c",
+        status: "success",
+        phone_numbers: [{ phone_number: "+16465550777" }],
+      },
+    }));
+    harness.telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+16465550777"
+        ? { data: [{ id: "pn-c", phone_number: "+16465550777" }] }
+        : { data: [] },
+    );
+
+    const res = await harness.request("/v1/numbers/provision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ chosen_number_e164: "+16465550777" }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.status).toBe("active");
+    expect(body.number_e164).toBe("+16465550777");
+    // The area code is derived from the chosen number (646 = NY).
+    expect(body.requested_area_code).toBe("646");
+    // The exact pick was ordered — the inventory search never ran.
+    expect(
+      harness.telnyx.callsTo("GET", /available_phone_numbers/),
+    ).toHaveLength(0);
+    const order = harness.telnyx.callsTo("POST", /number_orders/)[0];
+    expect(order.body).toMatchObject({
+      phone_numbers: [{ phone_number: "+16465550777" }],
+    });
+  });
+
+  it("rejects a chosen number from a different country (422)", async () => {
+    const harness = buildHarness(); // US company
+    const res = await harness.request("/v1/numbers/provision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ chosen_number_e164: "+14165550100" }), // 416 is CA
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("422s when neither a number nor an area code is given", async () => {
+    const harness = buildHarness();
+    const res = await harness.request("/v1/numbers/provision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(422);
   });
 
   it("409s at the plan allowance (atomic count-vs-plan)", async () => {

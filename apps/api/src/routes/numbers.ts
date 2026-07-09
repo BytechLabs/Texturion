@@ -88,12 +88,26 @@ numbersRoutes.get("/", async (c) => {
   return c.json({ data: rows.map(sanitizeNumber), next_cursor: null });
 });
 
-const provisionBodySchema = z.strictObject({
-  requested_area_code: z
-    .string()
-    .trim()
-    .regex(/^[2-9]\d{2}$/, "must be a 3-digit area code"),
-});
+const provisionBodySchema = z
+  .strictObject({
+    // The user must give agency to their number BEFORE we order (issue #75): a
+    // specific E.164 (US, and any revealed number) is ordered exactly; a bare
+    // area code (masked/CA inventory) assigns a number in that code. One is
+    // required — we never auto-pick a number the user hasn't chosen.
+    requested_area_code: z
+      .string()
+      .trim()
+      .regex(/^[2-9]\d{2}$/, "must be a 3-digit area code")
+      .optional(),
+    chosen_number_e164: z
+      .string()
+      .trim()
+      .regex(/^\+1\d{10}$/, "must be an E.164 NANP number")
+      .optional(),
+  })
+  .refine((b) => Boolean(b.chosen_number_e164 || b.requested_area_code), {
+    message: "a chosen number or an area code is required",
+  });
 
 const idempotencyKeySchema = z.uuid();
 
@@ -142,18 +156,45 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
   } | null;
   if (!company) throw new ApiError("not_found", "Company not found.");
 
-  const entry = NANP_AREA_CODES[body.requested_area_code];
-  if (!entry || !entry.geographic) {
-    throw new ApiError(
-      "validation_failed",
-      "requested_area_code is not an assigned US/CA geographic area code.",
-    );
-  }
-  if (entry.country !== company.country) {
-    throw new ApiError(
-      "validation_failed",
-      `requested_area_code must be a ${company.country} area code (the company's country).`,
-    );
+  // Resolve the request to a concrete area code (fixed to the company's country)
+  // and, when the user picked a specific number, the exact E.164 to order. A
+  // chosen number is validated against its OWN area code's country (issue #75:
+  // pick-then-order, never auto-assign).
+  let chosen: string | null = null;
+  let areaCode: string;
+  if (body.chosen_number_e164) {
+    const ndc = areaCodeOf(body.chosen_number_e164);
+    const entry = ndc ? NANP_AREA_CODES[ndc] : undefined;
+    if (!ndc || !entry || !entry.geographic) {
+      throw new ApiError(
+        "validation_failed",
+        "chosen_number_e164 is not an assigned US/CA geographic number.",
+      );
+    }
+    if (entry.country !== company.country) {
+      throw new ApiError(
+        "validation_failed",
+        `chosen_number_e164 must be a ${company.country} number (the company's country).`,
+      );
+    }
+    chosen = body.chosen_number_e164;
+    areaCode = ndc;
+  } else {
+    const code = body.requested_area_code as string;
+    const entry = NANP_AREA_CODES[code];
+    if (!entry || !entry.geographic) {
+      throw new ApiError(
+        "validation_failed",
+        "requested_area_code is not an assigned US/CA geographic area code.",
+      );
+    }
+    if (entry.country !== company.country) {
+      throw new ApiError(
+        "validation_failed",
+        `requested_area_code must be a ${company.country} area code (the company's country).`,
+      );
+    }
+    areaCode = code;
   }
 
   if (company.subscription_status !== "active" || company.plan === null) {
@@ -169,9 +210,10 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
     {
       p_company_id: companyId,
       p_provisioning_key: parsedKey.data,
-      p_requested_area_code: body.requested_area_code,
+      p_requested_area_code: areaCode,
       p_country: company.country,
       p_max_numbers: PLAN_LIMITS[company.plan].numbers,
+      p_chosen_number_e164: chosen,
     },
   );
   if (slotError) {

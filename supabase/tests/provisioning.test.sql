@@ -178,15 +178,15 @@ end $$;
 do $$
 begin
   if has_function_privilege('anon',
-       'public.provision_number_slot(uuid,text,text,text,int)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
     raise exception 'P8 FAILED: anon can execute provision_number_slot';
   end if;
   if has_function_privilege('authenticated',
-       'public.provision_number_slot(uuid,text,text,text,int)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
     raise exception 'P8 FAILED: authenticated can execute provision_number_slot';
   end if;
   if not has_function_privilege('service_role',
-       'public.provision_number_slot(uuid,text,text,text,int)', 'execute') then
+       'public.provision_number_slot(uuid,text,text,text,int,text)', 'execute') then
     raise exception 'P8 FAILED: service_role cannot execute provision_number_slot';
   end if;
   raise notice 'P8 PASSED: execute is service-role-only';
@@ -269,6 +269,40 @@ begin
     raise exception 'P11 FAILED: service_role cannot execute a fail-safe RPC';
   end if;
   raise notice 'P11 PASSED: fail-safe RPCs are service-role-only';
+end $$;
+
+-- ===========================================================================
+-- P12. Issue #75 (explicit number action): a chosen_number_e164 is persisted
+--      onto the new row so the §4.3 saga orders that exact number; a malformed
+--      chosen number is rejected loudly before any slot is claimed.
+-- ===========================================================================
+do $$
+declare
+  result jsonb;
+begin
+  -- Free a slot on Pro Co (P5 filled both) so the chosen-number claim can create.
+  update public.phone_numbers set status = 'released', released_at = now()
+    where provisioning_key = 'key-pro-2';
+
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000002', 'key-chosen-1', '415', 'US', 2, '+14155550142');
+  if result->>'outcome' <> 'created' then
+    raise exception 'P12 FAILED: expected created, got %', result->>'outcome';
+  end if;
+  if (result->'number'->>'chosen_number_e164') <> '+14155550142' then
+    raise exception 'P12 FAILED: chosen_number_e164 not persisted (got %)',
+      result->'number'->>'chosen_number_e164';
+  end if;
+
+  begin
+    perform public.provision_number_slot(
+      'c0000000-0000-4000-8000-000000000002', 'key-chosen-2', '415', 'US', 2, '5551234');
+    raise exception 'P12 FAILED: a malformed chosen number was accepted';
+  exception
+    when raise_exception then
+      if sqlerrm like 'P12 FAILED%' then raise; end if;
+      raise notice 'P12 PASSED: chosen number persisted; malformed rejected (%)', sqlerrm;
+  end;
 end $$;
 
 rollback;

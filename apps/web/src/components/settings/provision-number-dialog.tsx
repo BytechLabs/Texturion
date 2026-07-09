@@ -1,9 +1,9 @@
 "use client";
 
-import { NANP_AREA_CODES } from "@loonext/shared";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,47 +14,52 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { useProvisionNumber } from "@/lib/api/numbers";
 import type { Country } from "@/lib/api/types";
 
-const REGION_NAMES: Record<Country, string> = { US: "US", CA: "Canada" };
-
-/** Live hint for a typed area code, from the shared NANP table. */
-function areaCodeHint(code: string, country: Country): string | null {
-  if (!/^\d{3}$/.test(code)) return null;
-  const entry = NANP_AREA_CODES[code];
-  if (!entry || !entry.geographic) {
-    return `${code} isn't an assigned ${REGION_NAMES[country]} area code.`;
-  }
-  if (entry.country !== country) {
-    return `${code} is a ${REGION_NAMES[entry.country]} area code. Your account texts from ${REGION_NAMES[country]} numbers.`;
-  }
-  return `(${code}): ${entry.region}, ${REGION_NAMES[entry.country]}`;
-}
-
 /**
- * Pro's second number (SPEC §7 POST /v1/numbers/provision): owner/admin, area
- * code picked against the shared NANP table with a live hint.
+ * Pro's second number (SPEC §7 POST /v1/numbers/provision): owner/admin picks a
+ * SPECIFIC number from the shared NumberPicker before we ever order — the user
+ * is given agency to choose their number, never auto-assigned a random one
+ * (issue #75). A full E.164 pick (US, and any revealed number) is ordered
+ * exactly; a masked/CA area-code pick assigns a number in that area code. This
+ * mirrors the choose-your-number remediation dialog.
  */
 export function ProvisionNumberDialog({ country }: { country: Country }) {
   const provision = useProvisionNumber();
   const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const hint = areaCodeHint(code, country);
-  const entry = /^\d{3}$/.test(code) ? NANP_AREA_CODES[code] : undefined;
-  const valid = Boolean(entry?.geographic && entry.country === country);
 
   function reset(next: boolean) {
     if (!next) {
-      setCode("");
+      setPicked(null);
       setError(null);
     }
     setOpen(next);
+  }
+
+  function submit() {
+    if (!picked) return;
+    setError(null);
+    provision.mutate(
+      isFullNumber(picked)
+        ? { chosen_number_e164: picked }
+        : { requested_area_code: picked },
+      {
+        onSuccess: () => {
+          reset(false);
+          toast.success("Number on the way, usually under a minute.");
+        },
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't start the number setup. Try again.",
+          ),
+      },
+    );
   }
 
   return (
@@ -66,37 +71,11 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
         <DialogHeader>
           <DialogTitle>Add a second number</DialogTitle>
           <DialogDescription>
-            Pick the area code your customers know. The number is ready in
-            about a minute.
+            Choose the number your customers will see. It&apos;s ready in about a
+            minute.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor="area-code">Area code</Label>
-          <Input
-            id="area-code"
-            value={code}
-            onChange={(event) => {
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 3));
-              if (error) setError(null); // clear stale submit error on edit
-            }}
-            placeholder={country === "CA" ? "416" : "212"}
-            inputMode="numeric"
-            autoComplete="off"
-            className="w-28 tabular-nums"
-          />
-          {hint && (
-            <p
-              className={
-                valid
-                  ? "text-sm text-muted-foreground"
-                  : // amber-700 in light for the G11 4.5:1 text bar.
-                    "text-sm text-amber-700 dark:text-warning"
-              }
-            >
-              {hint}
-            </p>
-          )}
-        </div>
+        <NumberPicker country={country} selected={picked} onSelect={setPicked} />
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -106,23 +85,7 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
           <Button variant="outline" onClick={() => reset(false)}>
             Cancel
           </Button>
-          <Button
-            disabled={!valid || provision.isPending}
-            onClick={() =>
-              provision.mutate(code, {
-                onSuccess: () => {
-                  reset(false);
-                  toast.success("Number on the way, usually under a minute.");
-                },
-                onError: (cause) =>
-                  setError(
-                    cause instanceof ApiError
-                      ? cause.message
-                      : "Couldn't start the number setup. Try again.",
-                  ),
-              })
-            }
-          >
+          <Button disabled={!picked || provision.isPending} onClick={submit}>
             {provision.isPending ? "Setting up…" : "Add number"}
           </Button>
         </DialogFooter>

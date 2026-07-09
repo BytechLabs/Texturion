@@ -405,7 +405,7 @@ describe("S2 no-inventory 400 (Telnyx code 10031) is not fatal", () => {
     expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(2);
   });
 
-  it("falls back to a country-wide search when NDC and region both 400", async () => {
+  it("does NOT fall back country-wide when NDC and region both 400 (issue #75)", async () => {
     const { env, telnyx } = setup();
     telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
     telnyx.on("GET", /^\/v2\/available_phone_numbers$/, (call) => {
@@ -415,33 +415,31 @@ describe("S2 no-inventory 400 (Telnyx code 10031) is not fatal", () => {
       ) {
         return telnyxError(400, "10031");
       }
+      // A geography-free "any number in the country" search would match HERE.
+      // It must never run — assigning a random far-region number is exactly the
+      // automatic assignment #75 forbids.
       return { data: [{ phone_number: "+16045550111" }] };
     });
     telnyx.on("POST", /^\/v2\/number_orders$/, () => ({
       data: { id: "order-3", status: "success", phone_numbers: [{ phone_number: "+16045550111" }] },
     }));
-    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
-      call.query.get("filter[phone_number]") === "+16045550111"
-        ? { data: [{ id: "pn-3", phone_number: "+16045550111" }] }
-        : { data: [] },
-    );
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({ data: [] }));
 
     const row = await provisionCompanyNumber(env, {
       companyId: COMPANY_ID,
       checkoutSessionId: CHECKOUT,
     });
-    expect(row?.status).toBe("active");
-    expect(row?.number_e164).toBe("+16045550111");
-    const searches = telnyx.callsTo("GET", /available_phone_numbers/);
-    expect(searches).toHaveLength(3);
-    // Final search drops geography but keeps features strict (never unusable).
-    expect(searches[2].query.get("filter[national_destination_code]")).toBeNull();
-    expect(searches[2].query.get("filter[administrative_area]")).toBeNull();
-    expect(searches[2].query.get("filter[features]")).toBe("sms");
-    expect(searches[2].query.get("filter[phone_number_type]")).toBe("local");
+    // Dry area code + region → provision_failed(no_inventory), which opens the
+    // self-service "Choose a number" remediation — never a random country buy.
+    expect(row?.status).toBe("provision_failed");
+    expect(row?.provision_failure_reason).toBe("no_inventory");
+    expect(row?.last_provision_error).toContain("no US inventory");
+    // NDC + region only — no country-wide third search, no order placed.
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(2);
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
   });
 
-  it("records provision_failed only when every search 400s with no inventory", async () => {
+  it("records provision_failed when NDC and region searches both 400 with no inventory", async () => {
     const { env, telnyx } = setup();
     telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
     telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => telnyxError(400, "10031"));
@@ -453,7 +451,7 @@ describe("S2 no-inventory 400 (Telnyx code 10031) is not fatal", () => {
     });
     expect(row?.status).toBe("provision_failed");
     expect(row?.last_provision_error).toContain("no US inventory");
-    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(3);
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(2);
   });
 
   it("propagates a non-inventory error (503) instead of falling through", async () => {
