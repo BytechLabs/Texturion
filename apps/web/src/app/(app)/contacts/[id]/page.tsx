@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Copy } from "lucide-react";
+import { ChevronLeft, Copy, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
@@ -162,6 +162,16 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             Opted out
           </Badge>
         )}
+        {/* #73: start texting this contact without retyping — the app's compose
+            flow prefills the recipient from ?contact= (same path as inbox
+            search). Opted-out contacts are gated honestly by the composer's own
+            opt-out banner, so the action stays available. */}
+        <Button asChild className="ml-auto">
+          <Link href={`/inbox/new?contact=${contact.id}`}>
+            <SquarePen strokeWidth={1.75} />
+            Message
+          </Link>
+        </Button>
       </div>
 
       {contact.opted_out && (

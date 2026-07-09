@@ -255,20 +255,23 @@ export function ContactPanel({
           {contact.opted_out && (
             <div className="flex items-center gap-2 px-2 pt-1.5">
               <Badge variant="destructive">Opted out</Badge>
-              <button
-                type="button"
+              {/* #73: the shared Button (matching the contact detail page's
+                  opt-in), never a raw <button> — consistent styling, focus ring
+                  and disabled state across the app. */}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={revoke.isPending}
                 onClick={() =>
                   revoke.mutate(contact.id, {
                     onSuccess: () => toast.success("Marked opted in again."),
                     onError: (e) => onApiError(e, "Couldn't update opt-out."),
                   })
                 }
-                disabled={revoke.isPending}
-                className="inline-flex items-center gap-1 text-[13px] font-medium text-primary underline-offset-2 hover:underline disabled:opacity-50"
               >
-                <Undo2 className="size-3" strokeWidth={1.75} aria-hidden />
-                Mark opted in again
-              </button>
+                <Undo2 strokeWidth={1.75} aria-hidden />
+                {revoke.isPending ? "Working…" : "Mark opted in again"}
+              </Button>
             </div>
           )}
         </QuietGroup>
@@ -305,19 +308,23 @@ export function ContactPanel({
         </QuietGroup>
       </div>
 
-      {/* §3.3 quiet danger zone: opting out is routine and reversible, so it
-          sits alone, neutral (stone-500) until hovered — no red scare-styling.
-          The confirm dialog still guards the actual action. */}
+      {/* §3.3 quiet danger zone: opting out is routine and reversible, so the
+          trigger sits alone, neutral at rest and only reddening on hover — no
+          resting scare-styling. #73: the shared Button (ghost/sm, matching the
+          contact detail page's opt-out) rather than a raw <button>, for
+          consistent styling and a focus ring. The confirm dialog still guards
+          the actual action. */}
       {!contact.opted_out && (
         <div className="mt-auto border-t border-app-line p-4">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
             onClick={() => setConfirmOptOut(true)}
-            className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
           >
-            <Ban className="size-3.5" strokeWidth={1.75} aria-hidden />
+            <Ban strokeWidth={1.75} aria-hidden />
             Opt out this contact
-          </button>
+          </Button>
         </div>
       )}
 
