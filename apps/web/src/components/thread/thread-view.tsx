@@ -263,6 +263,8 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           onToggleContactPanel={togglePanel}
           panelOpen={panelOpen}
           onOpenGallery={openGallery}
+          filter={threadFilter}
+          onFilterChange={setThreadFilter}
         />
         <MessageList
           key={conversationId}

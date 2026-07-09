@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Ban,
+  Check,
   ChevronDown,
   Copy,
   Images,
@@ -51,7 +52,14 @@ import type {
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { useIsBelowMd } from "@/lib/use-is-below-md";
 import { cn } from "@/lib/utils";
+
+import {
+  THREAD_FILTERS,
+  THREAD_FILTER_LABELS,
+  type ThreadFilter,
+} from "./thread-filter";
 
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
 
@@ -76,6 +84,8 @@ export function ThreadHeader({
   onToggleContactPanel,
   panelOpen,
   onOpenGallery,
+  filter,
+  onFilterChange,
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
@@ -83,6 +93,10 @@ export function ThreadHeader({
   panelOpen: boolean;
   /** Open the attachments gallery — §5.2 single entry point. */
   onOpenGallery: () => void;
+  /** #76: the in-thread view filter. On a phone the segmented bar is hidden and
+   *  filtering lives in the overflow "Show" menu; desktop keeps the visible bar. */
+  filter: ThreadFilter;
+  onFilterChange: (next: ThreadFilter) => void;
 }) {
   const update = useUpdateConversation(conversation.id);
   const optOut = useOptOutContact();
@@ -91,6 +105,12 @@ export function ThreadHeader({
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
   const [confirmOptOut, setConfirmOptOut] = useState(false);
+  // #76: the phone-only "Show" filter items are MOUNTED conditionally (not just
+  // md:hidden) — a display:none menu item still lives in Radix's menu collection
+  // and can silently capture typeahead ("m" → hidden "Messages" instead of "Mark
+  // as spam") on a mouse-opened desktop menu. Mounting them only below md keeps
+  // the desktop overflow menu byte-identical.
+  const isBelowMd = useIsBelowMd();
 
   const name = contactDisplayName(conversation.contact);
   const assigneeName = conversation.assigned_user_id
@@ -173,7 +193,7 @@ export function ThreadHeader({
   };
 
   return (
-    <header className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-2.5 md:gap-3 md:px-4">
+    <header className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5">
       <Button
         asChild
         variant="ghost"
@@ -203,12 +223,15 @@ export function ThreadHeader({
           type="button"
           onClick={onToggleContactPanel}
           aria-pressed={panelOpen}
-          aria-label={`View contact details for ${name}`}
-          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold text-app-ink transition-colors duration-150 ease-out hover:bg-app-stone-1"
+          aria-label={`View contact details for ${name}, ${formatPhone(phone)}`}
+          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-stone-1 md:leading-normal"
         >
           {name}
         </button>
-        <div className="flex items-center gap-1 px-1">
+        {/* #76: on a phone the number+copy is a duplicate second header line
+            (the contact panel — one tap on the name — shows both). Hidden below
+            md; the number is folded into the name button's aria-label. */}
+        <div className="hidden items-center gap-1 px-1 md:flex">
           <span className="truncate text-[12.5px] tabular-nums text-app-muted">
             {formatPhone(phone)}
           </span>
@@ -331,6 +354,29 @@ export function ThreadHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {/* #76: on a phone the segmented filter bar is hidden, so filtering
+                lives here as a "Show" section. Mounted only below md (not
+                md:hidden) so these items never enter the desktop menu's
+                typeahead/roving-focus collection. */}
+            {isBelowMd && (
+              <>
+                <DropdownMenuLabel>Show</DropdownMenuLabel>
+                {THREAD_FILTERS.map((f) => (
+                  <DropdownMenuItem key={f} onSelect={() => onFilterChange(f)}>
+                    <Check
+                      className={cn(
+                        "size-4",
+                        filter === f ? "opacity-100" : "opacity-0",
+                      )}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    {THREAD_FILTER_LABELS[f]}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onSelect={togglePin}>
               {pinned ? (
                 <PinOff className="size-4" strokeWidth={1.75} />

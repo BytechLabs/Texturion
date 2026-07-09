@@ -1,7 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -25,11 +25,16 @@ import { cn } from "@/lib/utils";
 
 import { buildThreadItems, type ThreadItem } from "./clusters";
 import { MessageBubble } from "./message-bubble";
-import { PinnedBanner, sortPinned } from "./pinned-banner";
+import {
+  MobilePinnedDisclosure,
+  PinnedBanner,
+  sortPinned,
+} from "./pinned-banner";
 import { DayDivider, SystemLine } from "./system-line";
 import { ThreadFilterBar } from "./thread-filter-bar";
 import {
   filterThreadItems,
+  THREAD_FILTER_LABELS,
   threadFilterEmptyCopy,
   type ThreadFilter,
 } from "./thread-filter";
@@ -301,18 +306,50 @@ export function MessageList({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* §5.1: in-thread filter, pinned above the scroll region, inside the
-          same 42rem reading track (§1.2) as the messages and composer. */}
-      <div className="shrink-0 px-4 pb-1 pt-2 md:px-6">
+          same 42rem reading track (§1.2) as the messages and composer.
+          #76: the segmented bar is desktop/tablet only — on a phone it never
+          docks above the thread; filtering lives in the header's "Show" menu. */}
+      <div className="hidden shrink-0 px-4 pb-1 pt-2 md:block md:px-6">
         <div className="mx-auto flex max-w-[42rem] justify-center md:justify-start">
           <ThreadFilterBar value={filter} onChange={onFilterChange} />
         </div>
       </div>
-      {pinnedMessages.length > 0 && (
-        <div className="shrink-0 px-4 pb-1 md:px-6">
-          <div className="mx-auto w-full max-w-[42rem]">
-            <PinnedBanner messages={pinnedMessages} onJump={scrollToMessage} />
+      {/* #76: on a phone, a non-default filter shows only as a slim removable
+          chip — so a filtered view is never a silent one (messages never look
+          deleted) — while the default "All" view shows no filter chrome at all. */}
+      {filter !== "all" && (
+        <div className="shrink-0 px-4 pb-1 pt-2 md:hidden">
+          <div className="mx-auto flex max-w-[42rem] justify-center">
+            <button
+              type="button"
+              onClick={() => onFilterChange("all")}
+              aria-label={`Showing ${THREAD_FILTER_LABELS[filter]} only. Clear filter.`}
+              className="tap-target inline-flex items-center gap-1 rounded-full bg-app-tint px-3 py-1 text-[13px] font-medium text-app-petrol-deep"
+            >
+              Showing {THREAD_FILTER_LABELS[filter]}
+              <X className="size-3.5" strokeWidth={1.75} aria-hidden />
+            </button>
           </div>
         </div>
+      )}
+      {pinnedMessages.length > 0 && (
+        <>
+          {/* Desktop/tablet: the full always-open card (unchanged). */}
+          <div className="hidden shrink-0 px-4 pb-1 md:block md:px-6">
+            <div className="mx-auto w-full max-w-[42rem]">
+              <PinnedBanner messages={pinnedMessages} onJump={scrollToMessage} />
+            </div>
+          </div>
+          {/* Phone: collapsed one-line disclosure (#76). */}
+          <div className="shrink-0 px-4 pb-1 pt-2 md:hidden">
+            <div className="mx-auto w-full max-w-[42rem]">
+              <MobilePinnedDisclosure
+                messages={pinnedMessages}
+                onJump={scrollToMessage}
+              />
+            </div>
+          </div>
+        </>
       )}
       <div
         ref={scrollRef}

@@ -1,8 +1,14 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { Message } from "@/lib/api/types";
 
-import { pinnedSnippet, sortPinned } from "./pinned-banner";
+import {
+  MobilePinnedDisclosure,
+  pinnedSnippet,
+  sortPinned,
+} from "./pinned-banner";
 
 /** Minimal shape — the helpers only read body/attachments/pinned_at/id. */
 const m = (over: Partial<Message>) => over as Message;
@@ -47,5 +53,41 @@ describe("sortPinned", () => {
 
   it("returns empty when nothing is pinned", () => {
     expect(sortPinned([m({ id: "a", pinned_at: null })])).toEqual([]);
+  });
+});
+
+describe("MobilePinnedDisclosure (#76 mobile collapse)", () => {
+  const pins = [
+    m({ id: "a", pinned_at: "2026-07-04T12:00:00Z", body: "Gate code 4821", attachments: [] }),
+    m({ id: "b", pinned_at: "2026-07-04T10:00:00Z", body: "Dog is friendly", attachments: [] }),
+  ];
+
+  it("shows a compact 'Pinned · N' summary, collapsed by default", () => {
+    const html = renderToStaticMarkup(
+      createElement(MobilePinnedDisclosure, { messages: pins, onJump: () => {} }),
+    );
+    expect(html).toContain("Pinned · 2");
+    // Collapsed → the jump list and its rows/affordance are not rendered yet.
+    expect(html).not.toContain("Jump");
+    expect(html).not.toContain("Gate code 4821");
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  it("drops the count for a single pin", () => {
+    const html = renderToStaticMarkup(
+      createElement(MobilePinnedDisclosure, {
+        messages: [pins[0]],
+        onJump: () => {},
+      }),
+    );
+    expect(html).toContain("Pinned");
+    expect(html).not.toContain("Pinned ·");
+  });
+
+  it("renders nothing when there are no pinned messages", () => {
+    const html = renderToStaticMarkup(
+      createElement(MobilePinnedDisclosure, { messages: [], onJump: () => {} }),
+    );
+    expect(html).toBe("");
   });
 });

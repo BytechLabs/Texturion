@@ -66,13 +66,16 @@ export function eventSentence(
     case "tag_removed":
       return `${by} removed a tag`;
     case "opted_out":
+      // #76: the timeline keeps its when/who audit role but no longer echoes the
+      // composer's "This customer opted out of texting. Sends are blocked."
+      // banner word-for-word (that banner stays the single present-state surface).
       return actor
         ? `${actor} marked this customer as opted out`
-        : "This customer opted out of texting";
+        : "Opted out of texting";
     case "opt_out_revoked":
       return actor
         ? `${actor} marked this customer as opted in`
-        : "This customer opted back in";
+        : "Opted back in";
     case "consent_attested":
       return `${by} recorded that this customer asked to be texted`;
     case "quiet_hours_confirmed":
