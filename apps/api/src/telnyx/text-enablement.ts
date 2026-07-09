@@ -87,6 +87,65 @@ import type { Env } from "../env";
 
 export const MAX_ENABLEMENT_ATTEMPTS = 5;
 
+/**
+ * §4.3 double-order fail-safe (mirrors the numbers saga). The hosted-order create
+ * is a paid, committing action, and resumeTextEnablement is re-entered by the
+ * resubmit route AND the reconcile cron — with no lock, two concurrent passes
+ * both POSTed messaging_hosted_number_orders and bought TWO carrier-reviewed
+ * orders for one number. A per-row lease serializes them; a deterministic Telnyx
+ * Idempotency-Key persisted before the POST collapses a crash-then-retry replay.
+ */
+const TEXT_ENABLEMENT_LEASE_SECONDS = 180;
+
+/** Atomic per-row lease claim (claim_text_enablement_lease). Null = held elsewhere. */
+async function claimTextEnablementLease(
+  db: SupabaseClient,
+  orderId: string,
+): Promise<TextEnablementOrderRow | null> {
+  const { data, error } = await db.rpc("claim_text_enablement_lease", {
+    p_row_id: orderId,
+    p_lease_seconds: TEXT_ENABLEMENT_LEASE_SECONDS,
+  });
+  if (error) {
+    throw new Error(`claim_text_enablement_lease failed: ${error.message}`);
+  }
+  return (data ?? null) as unknown as TextEnablementOrderRow | null;
+}
+
+/** Release the lease at end-of-pass; the persisted order id / key guard re-entry. */
+async function releaseTextEnablementLease(
+  db: SupabaseClient,
+  orderId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("text_enablement_orders")
+    .update({ provisioning_lease_until: null })
+    .eq("id", orderId);
+  // Best-effort: a failed release just means the lease expires on its own.
+  if (error) {
+    Sentry.captureException(
+      new Error(`text-enablement lease release failed: ${error.message}`),
+    );
+  }
+}
+
+/** COALESCE-claim the deterministic Telnyx Idempotency-Key for this order's create. */
+async function claimTextEnablementOrderKey(
+  db: SupabaseClient,
+  orderId: string,
+): Promise<string> {
+  const { data, error } = await db.rpc("claim_text_enablement_order_key", {
+    p_row_id: orderId,
+  });
+  if (error) {
+    throw new Error(`claim_text_enablement_order_key failed: ${error.message}`);
+  }
+  if (typeof data !== "string" || data.length === 0) {
+    throw new Error("claim_text_enablement_order_key returned no key");
+  }
+  return data;
+}
+
 export interface TextEnablementOrderRow {
   id: string;
   company_id: string;
@@ -527,6 +586,16 @@ export async function resumeTextEnablement(
   order: TextEnablementOrderRow,
 ): Promise<TextEnablementOrderRow> {
   const db = getDb(env);
+
+  // §4.3 double-order fail-safe: claim the per-row lease at the single chokepoint
+  // both the resubmit route and the reconcile cron funnel through. Exactly one
+  // execution runs the saga; the rest return the order untouched — so ONE hosted
+  // number never places TWO carrier-reviewed orders. Released at end-of-pass; a
+  // crash mid-lease is healed by expiry + the persisted order id / idempotency key.
+  const leased = await claimTextEnablementLease(db, order.id);
+  if (!leased) return order;
+  order = leased;
+
   try {
     const company = await fetchProvisioningCompany(db, order.company_id);
 
@@ -545,9 +614,13 @@ export async function resumeTextEnablement(
         });
       }
       const profileId = await ensureMessagingProfile(env, db, company);
+      // Deterministic key persisted BEFORE the POST — a crash-then-retry replays
+      // THIS order rather than buying a second (the lease's cross-isolate backstop).
+      const idempotencyKey = await claimTextEnablementOrderKey(db, order.id);
       const created = await telnyxRequest<HostedOrderResponse>(env, {
         method: "POST",
         path: "/v2/messaging_hosted_number_orders",
+        idempotencyKey,
         body: {
           messaging_profile_id: profileId,
           phone_numbers: [order.phone_e164],
@@ -667,6 +740,11 @@ export async function resumeTextEnablement(
       );
     }
     return updateOrderUnlessCancelled(env, db, order.id, patch);
+  } finally {
+    // Release the saga lease on every pass (success, pending, or failure). The
+    // persisted telnyx_hosted_order_id guards a later create; a crash skips the
+    // finally and the lease expires on its own.
+    await releaseTextEnablementLease(db, order.id);
   }
 }
 

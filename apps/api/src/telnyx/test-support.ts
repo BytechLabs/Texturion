@@ -275,6 +275,42 @@ export function registerProvisioningRpcs(rest: FakeRest): void {
   });
 }
 
+/**
+ * The text-enablement twins (claim_text_enablement_lease +
+ * claim_text_enablement_order_key over text_enablement_orders) — same §4.3
+ * fail-safe pattern as {@link registerProvisioningRpcs}, for suites that drive
+ * the real resumeTextEnablement saga.
+ */
+export function registerTextEnablementRpcs(rest: FakeRest): void {
+  rest.rpc("claim_text_enablement_lease", (args) => {
+    const row = rest
+      .rows("text_enablement_orders")
+      .find((r) => r.id === args.p_row_id);
+    if (!row) return null;
+    const now = Date.now();
+    const until =
+      typeof row.provisioning_lease_until === "string"
+        ? Date.parse(row.provisioning_lease_until)
+        : null;
+    if (until !== null && until >= now) return null; // held by another execution
+    row.provisioning_lease_until = new Date(
+      now + Number(args.p_lease_seconds) * 1000,
+    ).toISOString();
+    row.updated_at = new Date().toISOString();
+    return structuredClone(row);
+  });
+  rest.rpc("claim_text_enablement_order_key", (args) => {
+    const row = rest
+      .rows("text_enablement_orders")
+      .find((r) => r.id === args.p_row_id);
+    if (!row) return null;
+    if (!row.telnyx_order_idempotency_key) {
+      row.telnyx_order_idempotency_key = crypto.randomUUID();
+    }
+    return row.telnyx_order_idempotency_key;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Telnyx endpoint mock
 // ---------------------------------------------------------------------------

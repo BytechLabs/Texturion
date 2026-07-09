@@ -16,7 +16,12 @@ import { textEnablementRoutes } from "./text-enablement";
 import type { AppEnv, MemberRole } from "../context";
 import type { Bindings, RateLimiter } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { FakeRest, resendRoute, TelnyxMock } from "../telnyx/test-support";
+import {
+  FakeRest,
+  registerTextEnablementRpcs,
+  resendRoute,
+  TelnyxMock,
+} from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
@@ -135,6 +140,8 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
   rest.table("text_enablement_orders", ORDER_DEFAULTS);
   rest.table("company_members");
   rest.table("messaging_registrations");
+  // §4.3 double-order fail-safe: the saga claims a per-row lease + order key.
+  registerTextEnablementRpcs(rest);
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
     id: COMPANY_ID,

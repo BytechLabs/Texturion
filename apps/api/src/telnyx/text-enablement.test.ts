@@ -13,7 +13,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { releaseNumberRow, type PhoneNumberRow } from "./provisioning";
-import { FakeRest, TelnyxMock, telnyxError } from "./test-support";
+import {
+  FakeRest,
+  registerTextEnablementRpcs,
+  TelnyxMock,
+  telnyxError,
+} from "./test-support";
 import {
   cancelTextEnablement,
   mapHostedStatus,
@@ -57,6 +62,8 @@ function setup() {
   rest.table("companies");
   rest.table("phone_numbers", PHONE_DEFAULTS);
   rest.table("text_enablement_orders", ORDER_DEFAULTS);
+  // §4.3 double-order fail-safe: the saga claims a per-row lease + order key.
+  registerTextEnablementRpcs(rest);
   rest.insert("companies", {
     id: COMPANY_ID,
     name: "Acme Plumbing",
@@ -189,6 +196,57 @@ describe("resumeTextEnablement — attempt budget", () => {
     expect(result.status).toBe("failed"); // visible to the owner, not silent
     expect(result.attempts).toBe(MAX_ENABLEMENT_ATTEMPTS);
     expect(result.last_error).toContain("Telnyx 500");
+  });
+});
+
+describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
+  it("the loser of a concurrent resubmit/cron race creates NOTHING (lease held)", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_hosted_number_orders$/, () => ({
+      data: { id: "ho-x", status: "pending", phone_numbers: [{ id: "hn-x", phone_number: E164 }] },
+    }));
+    const { order } = seedHosted(rest, {
+      // A live lease held by the concurrent winner (3 minutes out).
+      provisioning_lease_until: new Date(Date.now() + 180_000).toISOString(),
+    });
+
+    const result = await resumeTextEnablement(env, order);
+
+    expect(result.telnyx_hosted_order_id ?? null).toBeNull(); // untouched
+    expect(
+      telnyx.callsTo("POST", /messaging_hosted_number_orders$/),
+    ).toHaveLength(0);
+  });
+
+  it("sends a deterministic Idempotency-Key on the hosted-order create, matching the persisted key", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_hosted_number_orders$/, () => ({
+      data: { id: "ho-k", status: "pending", phone_numbers: [{ id: "hn-k", phone_number: E164 }] },
+    }));
+    const { order } = seedHosted(rest);
+
+    await resumeTextEnablement(env, order);
+
+    const create = telnyx.callsTo("POST", /messaging_hosted_number_orders$/)[0];
+    const sentKey = create.headers.get("Idempotency-Key");
+    expect(sentKey).toBeTruthy();
+    // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
+    expect(sentKey).toBe(
+      rest.rows("text_enablement_orders")[0].telnyx_order_idempotency_key,
+    );
+  });
+
+  it("releases the lease at end-of-pass so the next trigger can proceed", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_hosted_number_orders$/, () => ({
+      data: { id: "ho-r", status: "pending", phone_numbers: [{ id: "hn-r", phone_number: E164 }] },
+    }));
+    const { order } = seedHosted(rest);
+
+    await resumeTextEnablement(env, order);
+    expect(
+      rest.rows("text_enablement_orders")[0].provisioning_lease_until,
+    ).toBeNull();
   });
 });
 

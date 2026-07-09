@@ -538,10 +538,13 @@ textEnablementRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
   };
   if (order.status === "failed" && order.telnyx_hosted_order_id) {
     // The dead order can't be revived — remove it on Telnyx and detach it so
-    // resumeTextEnablement's create branch starts a fresh one.
+    // resumeTextEnablement's create branch starts a fresh one. Null the
+    // idempotency key too, so the fresh create mints a FRESH key rather than
+    // replaying the just-deleted order (§4.3 backstop).
     await deleteHostedOrder(env, order.telnyx_hosted_order_id);
     reset.telnyx_hosted_order_id = null;
     reset.telnyx_hosted_number_id = null;
+    reset.telnyx_order_idempotency_key = null;
   }
 
   const { data, error } = await db
@@ -549,6 +552,10 @@ textEnablementRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
     .update(reset)
     .eq("id", id)
     .eq("company_id", companyId)
+    // Double-click lock: a losing concurrent resubmit finds the row already
+    // flipped off its expected status and matches 0 rows (the saga lease is the
+    // primary double-order guard; this just stops a second saga launch).
+    .eq("status", order.status)
     .select(ORDER_COLUMNS);
   if (error) {
     throw new Error(`text_enablement_orders update failed: ${error.message}`);
