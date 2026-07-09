@@ -11,6 +11,7 @@ import {
 } from "./provisioning";
 import {
   FakeRest,
+  registerProvisioningRpcs,
   resendRoute,
   TelnyxMock,
   telnyxError,
@@ -45,6 +46,9 @@ function setup(companyOverrides: Record<string, unknown> = {}) {
   // reconcileNumbers now excludes in-flight ports from the orphan scan
   // (PORTING.md §5.2) — the table must exist for the query even when empty.
   rest.table("port_requests");
+  // §4.3 double-order fail-safe: the saga claims a per-row lease + a per-order
+  // idempotency key via these RPCs on every run.
+  registerProvisioningRpcs(rest);
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
     id: COMPANY_ID,
@@ -817,6 +821,194 @@ describe("reconcileNumbers — §11 crash-window recovery", () => {
       expect(row.status).toBe("provisioning"); // untouched
       expect(row.number_e164).toMatch(/^\+1613555/); // never overwritten
     }
+  });
+});
+
+describe("double-order fail-safes (§4.3)", () => {
+  it("the loser of a concurrent race orders NOTHING (per-row lease held)", async () => {
+    // Simulate the PRIMARY race: thread A already holds the lease on the row.
+    // Thread B (this resume) must return the row untouched and place NO order —
+    // one paid slot, at most one number_order.
+    const { env, rest, telnyx } = setup();
+    happyPathTelnyx(telnyx);
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: CHECKOUT,
+      requested_area_code: "212",
+      country: "US",
+      // A live lease held by the concurrent winner (3 minutes out).
+      provisioning_lease_until: new Date(Date.now() + 180_000).toISOString(),
+    });
+    const row = rest.rows("phone_numbers")[0] as unknown as PhoneNumberRow;
+
+    const result = await resumeProvisioning(env, row);
+
+    expect(result.status).toBe("provisioning"); // untouched
+    expect(result.number_e164 ?? null).toBeNull();
+    // The whole point: the loser never searched, never ordered.
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(0);
+  });
+
+  it("releases the lease on activation so a later resume can proceed", async () => {
+    const { env, rest, telnyx } = setup();
+    happyPathTelnyx(telnyx);
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    expect(row?.status).toBe("active");
+    // Lease cleared on the terminal success — nothing waits on it.
+    expect(rest.rows("phone_numbers")[0].provisioning_lease_until).toBeNull();
+  });
+
+  it("sends a deterministic Idempotency-Key on the order POST, matching the persisted key", async () => {
+    const { env, rest, telnyx } = setup();
+    happyPathTelnyx(telnyx);
+    await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    const sentKey = order.headers.get("Idempotency-Key");
+    expect(sentKey).toBeTruthy();
+    // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
+    expect(sentKey).toBe(
+      rest.rows("phone_numbers")[0].telnyx_order_idempotency_key,
+    );
+  });
+
+  it("uses a FRESH idempotency key for the taken-fallback order (never deduped against the rejected pick)", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    telnyx.on("POST", /^\/v2\/number_orders$/, (call) => {
+      const num = (call.body as { phone_numbers: { phone_number: string }[] })
+        .phone_numbers[0].phone_number;
+      if (num === "+12125550188") return telnyxError(422, "10015"); // chosen taken
+      return {
+        data: { id: "order-f", status: "success", phone_numbers: [{ phone_number: num }] },
+      };
+    });
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({
+      data: [{ phone_number: "+12125550200" }],
+    }));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, (call) =>
+      call.query.get("filter[phone_number]") === "+12125550200"
+        ? { data: [{ id: "pn-f", phone_number: "+12125550200" }] }
+        : { data: [] },
+    );
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "cs_taken",
+      country: "US",
+      requested_area_code: "212",
+      chosen_number_e164: "+12125550188",
+    });
+    const row = rest.rows("phone_numbers").at(-1) as unknown as PhoneNumberRow;
+
+    await resumeProvisioning(env, row);
+
+    const orders = telnyx.callsTo("POST", /number_orders/);
+    expect(orders).toHaveLength(2);
+    const rejectedKey = orders[0].headers.get("Idempotency-Key");
+    const fallbackKey = orders[1].headers.get("Idempotency-Key");
+    expect(rejectedKey).toBeTruthy();
+    expect(fallbackKey).toBeTruthy();
+    // Distinct keys: the fallback is a genuinely new order, not a replay.
+    expect(fallbackKey).not.toBe(rejectedKey);
+  });
+
+  it("clears the idempotency key when the order is authoritatively dead (fresh key on reorder)", async () => {
+    const { env, rest, telnyx } = setup();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: CHECKOUT,
+      requested_area_code: "212",
+      country: "US",
+      telnyx_order_id: "order-dead",
+      telnyx_order_idempotency_key: "key-dead",
+    });
+    telnyx.on("GET", /^\/v2\/number_orders\/order-dead$/, () => ({
+      data: { id: "order-dead", status: "failed", phone_numbers: [] },
+    }));
+
+    const stored = rest.rows("phone_numbers")[0] as unknown as PhoneNumberRow;
+    await resumeProvisioning(env, stored);
+
+    // Both the dead order id AND its key are cleared, so the retry orders fresh
+    // instead of replaying (and re-reading) the failed order.
+    expect(rest.rows("phone_numbers")[0].telnyx_order_id).toBeNull();
+    expect(rest.rows("phone_numbers")[0].telnyx_order_idempotency_key).toBeNull();
+  });
+
+  it("reclaims a double-buy orphan owned by a SETTLED company with nothing in flight", async () => {
+    const { env, rest, telnyx } = setup();
+    // The company already holds its live number (settled) and has no provisioning
+    // row — yet Telnyx reports an EXTRA number tagged to it: a pre-lease double-buy.
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: CHECKOUT,
+      country: "US",
+      number_e164: "+12125550001",
+      telnyx_phone_number_id: "pn-live",
+    });
+    let deleted: string | null = null;
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+      data: [
+        { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID },
+        { id: "pn-orphan", phone_number: "+12125550999", customer_reference: COMPANY_ID },
+      ],
+      meta: { total_pages: 1 },
+    }));
+    telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-orphan$/, () => {
+      deleted = "pn-orphan";
+      return new Response(null, { status: 204 });
+    });
+
+    const summary = await reconcileNumbers(env);
+    expect(summary.orphansReleased).toBe(1);
+    expect(summary.orphansFlagged).toBe(0);
+    expect(deleted).toBe("pn-orphan"); // the extra number was reclaimed
+  });
+
+  it("NEVER deletes an orphan while the company still has a row provisioning", async () => {
+    const { env, rest, telnyx } = setup();
+    // The company is BOTH settled (a live number) AND mid-provisioning a second
+    // one (Pro). The unknown number may be exactly what the provisioning row is
+    // about to adopt — deleting it would be catastrophic, so only flag it. This
+    // exercises the in-flight guard specifically (settled alone would reclaim).
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_live",
+      country: "US",
+      number_e164: "+12125550001",
+      telnyx_phone_number_id: "pn-live",
+    });
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: CHECKOUT,
+      country: "US",
+      updated_at: new Date().toISOString(), // fresh → retry loop skips (backoff)
+      provision_attempts: 1,
+    });
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
+      data: [
+        { id: "pn-live", phone_number: "+12125550001", customer_reference: COMPANY_ID },
+        { id: "pn-maybe", phone_number: "+12125550999", customer_reference: COMPANY_ID },
+      ],
+      meta: { total_pages: 1 },
+    }));
+
+    const summary = await reconcileNumbers(env);
+    expect(summary.orphansReleased).toBe(0);
+    expect(summary.orphansFlagged).toBe(1); // pn-maybe flagged, pn-live known
+    expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
   });
 });
 

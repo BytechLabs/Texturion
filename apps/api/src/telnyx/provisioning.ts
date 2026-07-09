@@ -72,6 +72,10 @@ export interface PhoneNumberRow {
   provision_failure_reason: ProvisionFailureReason | null;
   /** A user-picked specific number to order exactly; null = auto-search. Cleared on activation / taken-fallback. */
   chosen_number_e164: string | null;
+  /** Per-row saga lease (§4.3 double-order fail-safe); null when free. Managed via {@link claimProvisioningLease}. */
+  provisioning_lease_until?: string | null;
+  /** Deterministic Telnyx Idempotency-Key for this row's order; null until claimed. Managed via {@link claimOrderIdempotencyKey}. */
+  telnyx_order_idempotency_key?: string | null;
   updated_at?: string;
 }
 
@@ -102,6 +106,60 @@ const NUMBER_COLUMNS =
 
 /** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
+
+/**
+ * §4.3 double-order fail-safe — the per-row saga lease duration. The saga has
+ * five triggers that can fire on one row at once (paid webhook, confirm-checkout,
+ * the 15-minute cron, remediation, /provision); {@link resumeProvisioning} claims
+ * this lease at the single chokepoint they all funnel through, so exactly one
+ * execution runs the saga and ONE paid slot never places TWO number_orders. 3
+ * minutes comfortably covers a Telnyx search+order round-trip; a crash mid-lease
+ * heals by EXPIRY (the next execution reclaims and recovers from the persisted
+ * order id / customer_reference orphan), never a double purchase.
+ */
+const PROVISIONING_LEASE_SECONDS = 180;
+
+/**
+ * Atomically claim the per-row provisioning lease (SQL: claim_provisioning_lease).
+ * Returns the FRESH row — so the winner acts on the latest chosen_number_e164 /
+ * requested_area_code (e.g. a remediation written an instant earlier) rather than
+ * a stale caller snapshot — or null when another execution already holds it.
+ */
+async function claimProvisioningLease(
+  db: SupabaseClient,
+  rowId: string,
+): Promise<PhoneNumberRow | null> {
+  const { data, error } = await db.rpc("claim_provisioning_lease", {
+    p_row_id: rowId,
+    p_lease_seconds: PROVISIONING_LEASE_SECONDS,
+  });
+  if (error) {
+    throw new Error(`claim_provisioning_lease failed: ${error.message}`);
+  }
+  return (data ?? null) as unknown as PhoneNumberRow | null;
+}
+
+/**
+ * COALESCE-claim the deterministic Telnyx Idempotency-Key for this row's order
+ * (SQL: claim_order_idempotency_key), persisted BEFORE the POST. Concurrent
+ * executions and post-crash retries share ONE key, so a replayed order POST
+ * collapses to a single Telnyx number_order instead of buying a second number.
+ */
+async function claimOrderIdempotencyKey(
+  db: SupabaseClient,
+  rowId: string,
+): Promise<string> {
+  const { data, error } = await db.rpc("claim_order_idempotency_key", {
+    p_row_id: rowId,
+  });
+  if (error) {
+    throw new Error(`claim_order_idempotency_key failed: ${error.message}`);
+  }
+  if (typeof data !== "string" || data.length === 0) {
+    throw new Error("claim_order_idempotency_key returned no key");
+  }
+  return data;
+}
 
 /**
  * Fetch the provisioning-shaped company row. Exported for the port saga
@@ -368,6 +426,8 @@ async function activateRow(
     // The pick is fulfilled (or was replaced by a fallback) — clear it so a
     // later re-provision never re-applies a stale choice.
     chosen_number_e164: null,
+    // Terminal success — release the saga lease (§4.3) so nothing waits on it.
+    provisioning_lease_until: null,
     suspended_at: null,
   });
 }
@@ -476,10 +536,14 @@ function placeNumberOrder(
   phoneNumber: string,
   profileId: string,
   companyId: string,
+  idempotencyKey: string,
 ): Promise<NumberOrderResponse> {
   return telnyxRequest<NumberOrderResponse>(env, {
     method: "POST",
     path: "/v2/number_orders",
+    // Deterministic per-row key (§4.3 backstop): a crash-then-retry replays this
+    // order instead of buying a second number.
+    idempotencyKey,
     body: {
       phone_numbers: [{ phone_number: phoneNumber }],
       messaging_profile_id: profileId,
@@ -506,9 +570,15 @@ async function orderNumberForRow(
     phoneNumber = await searchAvailableNumber(env, row.country, areaCode);
   }
 
+  // Claim the deterministic order Idempotency-Key BEFORE the POST (§4.3 backstop):
+  // if this execution crashes after the buy but before telnyx_order_id lands (and
+  // the lease later expires), the next execution re-sends this SAME key and Telnyx
+  // replays the first order instead of buying a second number.
+  let idempotencyKey = await claimOrderIdempotencyKey(db, row.id);
+
   let order: NumberOrderResponse;
   try {
-    order = await placeNumberOrder(env, phoneNumber, profileId, company.id);
+    order = await placeNumberOrder(env, phoneNumber, profileId, company.id, idempotencyKey);
   } catch (error) {
     // A raced chosen number — taken/expired in the seconds since the pick —
     // is a Telnyx 4xx. Drop the pick and fall back to a search in the SAME
@@ -521,14 +591,20 @@ async function orderNumberForRow(
       error.status >= 400 &&
       error.status < 500
     ) {
-      await updateNumberRow(db, row.id, { chosen_number_e164: null });
+      // Drop the pick AND its idempotency key so the fallback order is a FRESH
+      // idempotent request — never deduped against the rejected chosen one.
+      await updateNumberRow(db, row.id, {
+        chosen_number_e164: null,
+        telnyx_order_idempotency_key: null,
+      });
       row = { ...row, chosen_number_e164: null };
       const areaCode =
         areaCodeOf(chosen) ??
         row.requested_area_code ??
         company.requested_area_code;
       phoneNumber = await searchAvailableNumber(env, row.country, areaCode);
-      order = await placeNumberOrder(env, phoneNumber, profileId, company.id);
+      idempotencyKey = await claimOrderIdempotencyKey(db, row.id);
+      order = await placeNumberOrder(env, phoneNumber, profileId, company.id, idempotencyKey);
     } else {
       throw error;
     }
@@ -596,6 +672,9 @@ async function recordProvisionFailure(
     last_provision_error: message.slice(0, 2000),
     provision_failure_reason: classifyProvisionFailure(cause),
     provision_attempts: attempts,
+    // Terminal failure — release the saga lease (§4.3) so the retry cron can
+    // reclaim this row (with backoff) rather than waiting out the lease.
+    provisioning_lease_until: null,
   });
 
   if (row.provision_attempts === 0) {
@@ -634,16 +713,32 @@ export async function resumeProvisioning(
     return row;
   }
   const db = getDb(env);
+
+  // §4.3 double-order fail-safe — PRIMARY. Claim the per-row lease at the single
+  // chokepoint all five triggers funnel through (paid webhook, confirm-checkout,
+  // the 15-minute cron, remediation, /provision). An atomic, server-timestamped
+  // claim serializes concurrent executions ACROSS Worker isolates: exactly one
+  // holds the lease and runs the saga, the rest return the row untouched — so ONE
+  // paid slot never places TWO number_orders. We continue on the FRESH returned
+  // row (picks up a remediation's just-written chosen_number/area code). The lease
+  // is released on the terminal activate/fail; a crash mid-lease heals by expiry
+  // (the next execution recovers from the persisted order id / orphan), not a buy.
+  const leased = await claimProvisioningLease(db, row.id);
+  if (!leased) return row;
+  row = leased;
+
   const company = await fetchCompany(db, row.company_id);
   try {
     const fromOrder = await recoverFromOrder(env, db, row);
     if (fromOrder) return fromOrder;
   } catch (cause) {
     if (cause instanceof OrderDeadError) {
-      // Telnyx AUTHORITATIVELY reported the order dead: clear the id so the next
-      // retry orders fresh (no live order exists to double-buy against).
+      // Telnyx AUTHORITATIVELY reported the order dead: clear the id AND its
+      // idempotency key so the next retry orders fresh (no live order exists to
+      // double-buy against, and the fresh order mints a fresh key).
       const cleared = await updateNumberRow(db, row.id, {
         telnyx_order_id: null,
+        telnyx_order_idempotency_key: null,
       });
       return recordProvisionFailure(env, db, company, cleared, cause);
     }
@@ -936,6 +1031,8 @@ export interface ReconcileSummary {
   retried: number;
   activated: number;
   orphansFlagged: number;
+  /** §4.3 cost-protection: double-buy orphans conservatively reclaimed (DELETEd). */
+  orphansReleased: number;
 }
 
 /**
@@ -954,7 +1051,12 @@ export async function reconcileNumbers(
   now: Date = new Date(),
 ): Promise<ReconcileSummary> {
   const db = getDb(env);
-  const summary: ReconcileSummary = { retried: 0, activated: 0, orphansFlagged: 0 };
+  const summary: ReconcileSummary = {
+    retried: 0,
+    activated: 0,
+    orphansFlagged: 0,
+    orphansReleased: 0,
+  };
 
   // Work-set: ONLY source='provisioned' rows. Ported rows sit at
   // status='provisioning' for the whole multi-week transfer (the port saga's
@@ -991,24 +1093,45 @@ export async function reconcileNumbers(
   // Orphan scan: every Telnyx-owned number must be known to phone_numbers.
   const { data: knownRows, error: knownError } = await db
     .from("phone_numbers")
-    .select("number_e164,telnyx_phone_number_id")
+    .select("company_id,status,source,number_e164,telnyx_phone_number_id")
     .neq("status", "released");
   if (knownError) {
     throw new Error(`phone_numbers lookup failed: ${knownError.message}`);
   }
-  const knownE164 = new Set(
-    (knownRows ?? [])
-      .map((item) => (item as { number_e164: string | null }).number_e164)
-      .filter(Boolean),
-  );
+  type KnownRow = {
+    company_id: string;
+    status: string;
+    source: string;
+    number_e164: string | null;
+    telnyx_phone_number_id: string | null;
+  };
+  const known = (knownRows ?? []) as unknown as KnownRow[];
+  const knownE164 = new Set(known.map((r) => r.number_e164).filter(Boolean));
   const knownIds = new Set(
-    (knownRows ?? [])
-      .map(
-        (item) =>
-          (item as { telnyx_phone_number_id: string | null })
-            .telnyx_phone_number_id,
+    known.map((r) => r.telnyx_phone_number_id).filter(Boolean),
+  );
+
+  // §4.3 cost-protection: which companies is it SAFE to auto-reclaim a stray
+  // Telnyx number from? Only a SETTLED tenant — one that already holds a live
+  // (active/suspended) number — AND has NOTHING still provisioning (no row that
+  // could legitimately adopt the number via adoptOrphanNumber, which the retry
+  // loop above already ran). An extra owned number tagged to such a company is
+  // the double-buy the pre-lease race produced; anything less certain is only
+  // flagged, never deleted (deleting a number a company is mid-provisioning
+  // would be catastrophic).
+  const settledCompanies = new Set(
+    known
+      .filter((r) => r.status === "active" || r.status === "suspended")
+      .map((r) => r.company_id),
+  );
+  const inFlightCompanies = new Set(
+    known
+      .filter(
+        (r) =>
+          r.source === "provisioned" &&
+          (r.status === "provisioning" || r.status === "provision_failed"),
       )
-      .filter(Boolean),
+      .map((r) => r.company_id),
   );
 
   // PORTING.md §5.2 orphan-scan exclusion (required edit): an open port row is
@@ -1046,6 +1169,35 @@ export async function reconcileNumbers(
       if (owned.phone_number && knownE164.has(owned.phone_number)) continue;
       // An in-flight port owns this number even before P6a adopts the row.
       if (owned.phone_number && portingE164.has(owned.phone_number)) continue;
+
+      // §4.3 cost-protection safety net: reclaim (DELETE) a well-attributed
+      // double-buy orphan — one tagged to a SETTLED company (already holds a live
+      // number) with NOTHING still provisioning, so no row will ever adopt it.
+      // Every other unknown number is only flagged, never deleted.
+      const ref = owned.customer_reference ?? null;
+      if (ref && settledCompanies.has(ref) && !inFlightCompanies.has(ref)) {
+        try {
+          await telnyxRequest(env, {
+            method: "DELETE",
+            path: `/v2/phone_numbers/${owned.id}`,
+          });
+        } catch (cause) {
+          // Already gone → done; anything else stays flagged for the next pass.
+          if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
+            summary.orphansFlagged += 1;
+            Sentry.captureException(cause);
+            continue;
+          }
+        }
+        summary.orphansReleased += 1;
+        // IDs only — never the number itself (SPEC §10 telemetry policy).
+        Sentry.captureMessage(
+          `reconcile: reclaimed orphaned Telnyx number ${owned.id} (customer_reference=${ref}) — a settled company owned an extra number no row claims (double-buy safety net)`,
+          "warning",
+        );
+        continue;
+      }
+
       summary.orphansFlagged += 1;
       // IDs only — never the number itself (SPEC §10 telemetry policy).
       Sentry.captureMessage(

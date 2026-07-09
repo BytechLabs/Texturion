@@ -192,4 +192,83 @@ begin
   raise notice 'P8 PASSED: execute is service-role-only';
 end $$;
 
+-- ===========================================================================
+-- P9. claim_provisioning_lease (§4.3 double-order fail-safe): claims once,
+--     BLOCKS while held, re-claims after expiry. The block-while-held case is
+--     the whole point — the per-row lock that stops the webhook racing
+--     confirm-checkout from placing a second number_order for one paid slot.
+-- ===========================================================================
+do $$
+declare
+  v_row_id uuid;
+  r jsonb;
+begin
+  insert into public.phone_numbers (company_id, status, provisioning_key, country)
+  values ('c0000000-0000-4000-8000-000000000001', 'provisioning', 'lease-key-1', 'US')
+  returning id into v_row_id;
+
+  r := public.claim_provisioning_lease(v_row_id, 180);
+  if r is null then raise exception 'P9 FAILED: first claim returned null'; end if;
+  if (r->>'id')::uuid <> v_row_id then raise exception 'P9 FAILED: wrong row returned'; end if;
+
+  r := public.claim_provisioning_lease(v_row_id, 180);
+  if r is not null then
+    raise exception 'P9 FAILED: a held lease was re-claimed (the double-order window)';
+  end if;
+
+  update public.phone_numbers set provisioning_lease_until = now() - interval '1 minute'
+    where id = v_row_id;
+  r := public.claim_provisioning_lease(v_row_id, 180);
+  if r is null then raise exception 'P9 FAILED: expired lease not re-claimable'; end if;
+
+  raise notice 'P9 PASSED: lease claims, blocks while held, re-claims after expiry';
+end $$;
+
+-- ===========================================================================
+-- P10. claim_order_idempotency_key (§4.3 backstop): COALESCE returns ONE stable
+--      key across calls (so a replayed order POST collapses to a single Telnyx
+--      order), and mints a fresh key once the old one is cleared.
+-- ===========================================================================
+do $$
+declare
+  v_row_id uuid;
+  k1 text; k2 text;
+begin
+  insert into public.phone_numbers (company_id, status, provisioning_key, country)
+  values ('c0000000-0000-4000-8000-000000000001', 'provisioning', 'idem-key-1', 'US')
+  returning id into v_row_id;
+
+  k1 := public.claim_order_idempotency_key(v_row_id);
+  k2 := public.claim_order_idempotency_key(v_row_id);
+  if k1 is null then raise exception 'P10 FAILED: no key returned'; end if;
+  if k1 <> k2 then raise exception 'P10 FAILED: key not stable (% vs %)', k1, k2; end if;
+
+  -- Cleared (the OrderDeadError / taken-fallback path) → a fresh reorder mints
+  -- a NEW key rather than replaying a dead/rejected order.
+  update public.phone_numbers set telnyx_order_idempotency_key = null where id = v_row_id;
+  if public.claim_order_idempotency_key(v_row_id) = k1 then
+    raise exception 'P10 FAILED: a cleared key was not regenerated';
+  end if;
+
+  raise notice 'P10 PASSED: idempotency key is stable, and regenerated after clear';
+end $$;
+
+-- ===========================================================================
+-- P11. Both fail-safe RPCs are service-role-only (SPEC §6 RLS posture).
+-- ===========================================================================
+do $$
+begin
+  if has_function_privilege('anon', 'public.claim_provisioning_lease(uuid,int)', 'execute')
+     or has_function_privilege('authenticated', 'public.claim_provisioning_lease(uuid,int)', 'execute')
+     or has_function_privilege('anon', 'public.claim_order_idempotency_key(uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.claim_order_idempotency_key(uuid)', 'execute') then
+    raise exception 'P11 FAILED: anon/authenticated can execute a fail-safe RPC';
+  end if;
+  if not has_function_privilege('service_role', 'public.claim_provisioning_lease(uuid,int)', 'execute')
+     or not has_function_privilege('service_role', 'public.claim_order_idempotency_key(uuid)', 'execute') then
+    raise exception 'P11 FAILED: service_role cannot execute a fail-safe RPC';
+  end if;
+  raise notice 'P11 PASSED: fail-safe RPCs are service-role-only';
+end $$;
+
 rollback;

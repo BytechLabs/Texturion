@@ -62,6 +62,12 @@ export interface TelnyxRequestOptions {
   query?: Record<string, string>;
   /** JSON body; omitted entirely when undefined. */
   body?: unknown;
+  /**
+   * Telnyx `Idempotency-Key` header. On a repeated POST with the same key Telnyx
+   * REPLAYS the first response instead of acting twice — the §4.3 backstop that
+   * stops a crashed-then-retried number order from buying a second number.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -85,6 +91,9 @@ export async function telnyxRequest<T = unknown>(
   };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
+  }
+  if (options.idempotencyKey) {
+    headers["Idempotency-Key"] = options.idempotencyKey;
   }
 
   const response = await fetch(url.toString(), {

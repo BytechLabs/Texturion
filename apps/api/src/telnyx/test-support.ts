@@ -234,6 +234,47 @@ export class FakeRest {
   }
 }
 
+/**
+ * Register faithful in-memory doubles of the two atomic-claim RPCs the §4.3 saga
+ * calls on every run (claim_provisioning_lease at the top of resumeProvisioning,
+ * claim_order_idempotency_key before every order POST). The SQL itself is the
+ * source of truth; these mirror its outcomes over the FakeRest phone_numbers
+ * table so any suite driving the real saga exercises the real code paths. Any
+ * harness that reaches resumeProvisioning MUST install these.
+ */
+export function registerProvisioningRpcs(rest: FakeRest): void {
+  // claim_provisioning_lease: atomic conditional lease claim. Returns the fresh
+  // row when free/expired, null when another execution holds it.
+  rest.rpc("claim_provisioning_lease", (args) => {
+    const row = rest
+      .rows("phone_numbers")
+      .find((r) => r.id === args.p_row_id);
+    if (!row) return null;
+    const now = Date.now();
+    const until =
+      typeof row.provisioning_lease_until === "string"
+        ? Date.parse(row.provisioning_lease_until)
+        : null;
+    if (until !== null && until >= now) return null; // held by another execution
+    row.provisioning_lease_until = new Date(
+      now + Number(args.p_lease_seconds) * 1000,
+    ).toISOString();
+    row.updated_at = new Date().toISOString();
+    return structuredClone(row);
+  });
+  // claim_order_idempotency_key: COALESCE-claim — the same key on repeat calls.
+  rest.rpc("claim_order_idempotency_key", (args) => {
+    const row = rest
+      .rows("phone_numbers")
+      .find((r) => r.id === args.p_row_id);
+    if (!row) return null;
+    if (!row.telnyx_order_idempotency_key) {
+      row.telnyx_order_idempotency_key = crypto.randomUUID();
+    }
+    return row.telnyx_order_idempotency_key;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Telnyx endpoint mock
 // ---------------------------------------------------------------------------
@@ -243,6 +284,8 @@ export interface TelnyxCall {
   path: string;
   query: URLSearchParams;
   body: unknown;
+  /** Request headers (e.g. to assert the §4.3 Idempotency-Key on an order POST). */
+  headers: Headers;
 }
 
 type TelnyxHandler = (
@@ -281,6 +324,7 @@ export class TelnyxMock {
         path: url.pathname,
         query: url.searchParams,
         body,
+        headers: new Headers(request.headers),
       };
       this.calls.push(call);
       for (const entry of this.handlers) {

@@ -7,6 +7,7 @@ import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   FakeRest,
+  registerProvisioningRpcs,
   resendRoute,
   TelnyxMock,
   telnyxError,
@@ -97,6 +98,9 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     deactivated_at: null,
   });
   installSlotRpc(rest);
+  // §4.3 double-order fail-safe: remediate + provision routes drive the real
+  // saga, which claims a per-row lease + per-order idempotency key via these RPCs.
+  registerProvisioningRpcs(rest);
 
   const telnyx = new TelnyxMock();
   const emails: SentEmailCapture[] = [];
