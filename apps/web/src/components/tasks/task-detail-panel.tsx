@@ -2,11 +2,12 @@
 
 import { format } from "date-fns";
 import {
+  Archive,
   ArrowUpRight,
+  Check,
   Loader2,
   MoreHorizontal,
   Paperclip,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -25,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { TaskDoneCheckbox } from "./task-atoms";
+import { useTaskDone } from "./use-task-mutations";
 import { taskEventSentence } from "./task-activity";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
@@ -125,6 +128,7 @@ function TaskDetailLoaded({
 
   const update = useUpdateTask(conversationId);
   const del = useDeleteTask(conversationId);
+  const done = useTaskDone();
 
   // Local field state, seeded from the task and kept in sync when the server
   // row changes (a realtime refetch, or another surface's edit).
@@ -181,20 +185,35 @@ function TaskDetailLoaded({
     role === "admin" ||
     me.data?.user_id === task.created_by_user_id;
 
-  const runDelete = () => {
+  const runArchive = () => {
     del.mutate(task.id, {
       onSuccess: () => {
-        toast.success("Task deleted.");
+        toast.success("Task archived.");
         onClose?.();
       },
-      onError: () => toast.error("Couldn't delete this task."),
+      onError: () => toast.error("Couldn't archive this task."),
     });
+  };
+
+  // Same derived-done write as the check-circle (PATCH the source message).
+  const toggleDone = () => {
+    done.mutate(
+      {
+        taskId: task.id,
+        messageId: task.message_id,
+        conversationId,
+        done: !task.done,
+      },
+      { onError: () => toast.error("Couldn't update this task.") },
+    );
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header: done state + overflow (delete). */}
-      <div className="flex items-start gap-3 border-b border-app-line px-5 pb-4 pt-5">
+      {/* Header: done state + title + actions menu. pr-12 reserves the drawer's
+          own close (X, top-right) so the actions menu no longer sits under it
+          (#81 — an accidental archive when reaching for close). */}
+      <div className="flex items-start gap-3 border-b border-app-line pb-4 pl-5 pr-12 pt-5">
         <TaskDoneCheckbox task={task} className="mt-1" />
         <div className="min-w-0 flex-1">
           <input
@@ -216,29 +235,35 @@ function TaskDetailLoaded({
             )}
           />
         </div>
-        {canDelete && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="Task actions"
-                className="tap-target -mr-1 mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={runDelete}
-                disabled={del.isPending}
-              >
-                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                Delete task
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Task actions"
+              className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {/* Mirrors the check-circle — the same derived-done write. */}
+            <DropdownMenuItem onSelect={toggleDone} disabled={done.isPending}>
+              <Check className="size-4" strokeWidth={1.75} aria-hidden />
+              {task.done ? "Mark not done" : "Mark done"}
+            </DropdownMenuItem>
+            {/* Archive is the existing soft-delete (recoverable), just named
+                honestly (#81) — creator or owner/admin only. */}
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={runArchive} disabled={del.isPending}>
+                  <Archive className="size-4" strokeWidth={1.75} aria-hidden />
+                  Archive task
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Scrollable body. */}

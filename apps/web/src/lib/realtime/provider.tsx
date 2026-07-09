@@ -331,6 +331,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         queryKey: keys.tasks.lists(companyId),
         refetchType: "active",
       });
+      // #81: the source message's Task chip (has_task / promoted_task) rides the
+      // thread read, so a task created/removed by another crew member updates the
+      // message live too — not just the checklist and the /tasks page.
+      void queryClient.invalidateQueries({
+        queryKey: keys.thread(companyId, event.conversation_id),
+        refetchType: "active",
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, event.conversation_id),
+        refetchType: "active",
+      });
     }
 
     function handleProvisioningUpdate() {

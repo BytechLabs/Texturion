@@ -38,7 +38,11 @@ export function useTaskDone() {
         body: { done: input.done },
       }),
     onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: keys.tasks.lists(companyId) });
+      const detailKey = keys.tasks.detail(companyId, input.taskId);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: keys.tasks.lists(companyId) }),
+        queryClient.cancelQueries({ queryKey: detailKey }),
+      ]);
 
       const snapshots: [readonly unknown[], unknown][] = [];
       const patchRow = (task: Task): Task =>
@@ -62,6 +66,15 @@ export function useTaskDone() {
           })),
         });
       }
+
+      // #81: also flip the open task-detail drawer, whose check-circle + title
+      // strikethrough read keys.tasks.detail — the lists patch alone left the
+      // drawer's circle looking unchanged.
+      const detail = queryClient.getQueryData<Task>(detailKey);
+      if (detail && detail.id === input.taskId) {
+        snapshots.push([detailKey, detail]);
+        queryClient.setQueryData(detailKey, patchRow(detail));
+      }
       return { snapshots };
     },
     onError: (_error, _input, context) => {
@@ -73,6 +86,9 @@ export function useTaskDone() {
       // The lists re-read the derived done; the affected thread + checklist +
       // its audit timeline pick up the real message write.
       void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.checklist(companyId, input.conversationId),
       });

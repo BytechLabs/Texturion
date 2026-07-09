@@ -193,7 +193,23 @@ export function ThreadHeader({
   };
 
   return (
-    <header className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5">
+    // #81: the whole header opens the contact panel, not just the name. The
+    // onClick guard skips the toggle when the click lands on an interactive
+    // control (buttons/links/menu triggers keep their own behavior); the name
+    // and Info buttons still open it via their own handlers. It also skips
+    // clicks that bubble up the React tree from PORTALED content (dropdown menu
+    // items, dialogs) — those aren't DOM descendants of the header, so
+    // e.currentTarget.contains(target) is false and selecting a menu item
+    // never spuriously toggles the panel.
+    <header
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (!e.currentTarget.contains(target)) return;
+        if (target.closest("button, a")) return;
+        onToggleContactPanel();
+      }}
+      className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5"
+    >
       <Button
         asChild
         variant="ghost"

@@ -250,6 +250,15 @@ export function useCreateTaskFromMessage(conversationId: string) {
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
       });
+      // #81: the source message's Task chip (has_task / promoted_task) rides the
+      // thread + conversation-detail reads (attached by loadMessageTaskFlags), so
+      // refetch them or the chip only appears after a manual page refresh.
+      void queryClient.invalidateQueries({
+        queryKey: keys.thread(companyId, conversationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, conversationId),
+      });
     },
   });
 }
@@ -414,6 +423,15 @@ export function useDeleteTask(conversationId: string) {
     },
     onSettled: () => {
       invalidateTasks(queryClient, companyId, conversationId);
+      // #81: clear the source message's Task chip (has_task / promoted_task) in
+      // the actor's own thread immediately — otherwise an archived task's chip
+      // lingers and re-opens a now-removed task. Mirrors the create path.
+      void queryClient.invalidateQueries({
+        queryKey: keys.thread(companyId, conversationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, conversationId),
+      });
     },
   });
 }
