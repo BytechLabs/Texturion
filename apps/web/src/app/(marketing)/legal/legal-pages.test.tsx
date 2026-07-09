@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import AupPage, { metadata as aupMetadata } from "./aup/page";
+import FairUsePage, { metadata as fairUseMetadata } from "./fair-use/page";
 import MessagingPolicyPage, {
   metadata as messagingMetadata,
 } from "./messaging/page";
@@ -13,7 +14,7 @@ import SubprocessorsPage, {
 import TermsPage, { metadata as termsMetadata } from "./terms/page";
 
 /**
- * The six legal pages (COPY-DECK v2, V4 coverage map): quiet register,
+ * The seven legal pages (COPY-DECK v2, V4 coverage map): quiet register,
  * substance unchanged, every em-dash and en-dash converted (Law 6), a true
  * Plain English summary atop each, and the load-bearing billing/policy facts
  * intact.
@@ -26,9 +27,11 @@ const PAGES = [
   { name: "messaging", html: renderToStaticMarkup(<MessagingPolicyPage />), meta: messagingMetadata },
   { name: "subprocessors", html: renderToStaticMarkup(<SubprocessorsPage />), meta: subprocessorsMetadata },
   { name: "refunds", html: renderToStaticMarkup(<RefundsPage />), meta: refundsMetadata },
+  // Appended last so the index-based per-page blocks above keep their indices.
+  { name: "fair-use", html: renderToStaticMarkup(<FairUsePage />), meta: fairUseMetadata },
 ];
 
-describe("legal pages — Laws 1 and 6 across all six", () => {
+describe("legal pages — Laws 1 and 6 across all seven", () => {
   it("no em-dash or en-dash anywhere in the rendered pages", () => {
     for (const { name, html } of PAGES) {
       expect(html, `em-dash on /legal/${name}`).not.toContain("—");
@@ -146,5 +149,19 @@ describe("refunds — the guarantee promise survives, word for word where it cou
   });
   it("keeps the bank settlement window in 'to' phrasing", () => {
     expect(html).toContain("5 to 10 business days");
+  });
+});
+
+describe("fair-use — the plain limits survive", () => {
+  const html = PAGES[6].html;
+  it("states the included allowances and the spending-cap pause", () => {
+    expect(html).toContain("500 texts");
+    expect(html).toContain("2,500 texts");
+    expect(html).toContain("spending cap");
+    expect(html).toContain("80% and again at 100%");
+  });
+  it("keeps the reasonable-use reservation and the not-a-blaster scope", () => {
+    expect(html).toContain("normal, fair, and reasonable");
+    expect(html).toContain("application-to-person (A2P)");
   });
 });

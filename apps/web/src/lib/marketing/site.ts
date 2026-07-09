@@ -35,6 +35,7 @@ export const LIVE_ROUTES = {
   messaging: "/legal/messaging",
   subprocessors: "/legal/subprocessors",
   refunds: "/legal/refunds",
+  fairUse: "/legal/fair-use",
 
   // Feature pages (BLUEPRINT §2, §5).
   featuresSharedInbox: "/features/shared-inbox",

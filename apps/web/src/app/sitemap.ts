@@ -88,6 +88,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "yearly",
     },
     { path: LIVE_ROUTES.refunds, priority: 0.3, changeFrequency: "yearly" },
+    { path: LIVE_ROUTES.fairUse, priority: 0.3, changeFrequency: "yearly" },
   ];
 
   return entries.map(({ path, priority, changeFrequency }) => ({

@@ -8,7 +8,7 @@ import { LIVE_ROUTES } from "@/lib/marketing/site";
  * "night outside the window", one of the site's two sanctioned dark
  * surfaces. White-at-70% links in four columns covering every route in the
  * coverage map (Product 7 · Who it's for 6 · Compare 2 · Company and legal
- * 9), the brand line, the conditional identity line, and the sign-off.
+ * 10), the brand line, the conditional identity line, and the sign-off.
  * Server component, zero JS, shared by every marketing page.
  *
  * Law 1: no credits of any kind (no fonts, no framework, nothing about what
@@ -51,6 +51,7 @@ const COMPANY_AND_LEGAL: FooterLinkItem[] = [
   { label: "Terms of service", href: LIVE_ROUTES.terms },
   { label: "Privacy policy", href: LIVE_ROUTES.privacy },
   { label: "Acceptable use", href: LIVE_ROUTES.aup },
+  { label: "Fair use", href: LIVE_ROUTES.fairUse },
   { label: "SMS messaging policy", href: LIVE_ROUTES.messaging },
   { label: "Sub-processors", href: LIVE_ROUTES.subprocessors },
   { label: "30-day guarantee", href: LIVE_ROUTES.refunds },
