@@ -23,36 +23,66 @@ import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 
-/** SPEC §4.4 customer-facing provisioning copy — exact strings. */
+/** Customer-facing provisioning copy — exact strings (SPEC §4.4). */
 const STATUS_COPY: Partial<Record<PhoneNumberSummary["status"], string>> = {
   provisioning: "Setting up your business number, usually under a minute.",
-  provision_failed:
-    "We're setting up your number. This is taking longer than usual. You don't need to do anything.",
 };
 
-function StatusBadge({ status }: { status: PhoneNumberSummary["status"] }) {
-  switch (status) {
+/**
+ * A provision_failed number the automatic retry loop can't fix on its own — the
+ * requested area code is out of inventory, or we're out of attempts — so the
+ * user must choose another number to finish setup. A transient failure the cron
+ * is still retrying is NOT this. (The "Choose a number" action ships with the
+ * remediation phase; here we already stop the lie and tell the honest truth.)
+ */
+function needsNumberChoice(n: PhoneNumberSummary): boolean {
+  return (
+    n.status === "provision_failed" &&
+    (n.failure_reason === "no_inventory" || (n.provision_attempts ?? 0) >= 5)
+  );
+}
+
+/** Honest, reason-driven copy for a provision_failed number. */
+function failedCopy(n: PhoneNumberSummary): string {
+  if (!needsNumberChoice(n)) {
+    return "We're still setting up your number. This is taking a little longer than usual.";
+  }
+  if (n.failure_reason === "no_inventory" && n.requested_area_code) {
+    return `Area code ${n.requested_area_code} is out of new numbers right now. Choose another number to finish setup.`;
+  }
+  return "We couldn't finish setting up your number. Choose a number to try again.";
+}
+
+function StatusBadge({ number }: { number: PhoneNumberSummary }) {
+  // Amber badge text is amber-800 in light (status-pill convention):
+  // --warning (amber-600) misses the G11 4.5:1 bar as text on the tint.
+  const amber = (label: string) => (
+    <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
+      {label}
+    </Badge>
+  );
+  switch (number.status) {
     case "active":
       return (
         <Badge className="border-transparent bg-success/10 text-success">
           Active
         </Badge>
       );
-    // Amber badge text is amber-800 in light (status-pill convention):
-    // --warning (amber-600) misses the G11 4.5:1 bar as text on the tint.
     case "provisioning":
+      return amber("Setting up");
     case "provision_failed":
-      return (
-        <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
-          Setting up
+      // The lie ends here: a stuck provision (no inventory / out of attempts) is
+      // a DISTINCT destructive state, never the same amber "Setting up" as a
+      // number that's actually still being set up.
+      return needsNumberChoice(number) ? (
+        <Badge className="border-transparent bg-destructive/10 text-destructive">
+          Couldn&apos;t set up
         </Badge>
+      ) : (
+        amber("Setting up")
       );
     case "suspended":
-      return (
-        <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
-          Suspended
-        </Badge>
-      );
+      return amber("Suspended");
     case "released":
       return <Badge variant="secondary">Released</Badge>;
   }
@@ -178,12 +208,23 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
           </Button>
         )}
         <div className="ml-auto">
-          <StatusBadge status={number.status} />
+          <StatusBadge number={number} />
         </div>
       </div>
-      {STATUS_COPY[number.status] && (
+      {number.status === "provisioning" && (
         <p className="mt-2 text-sm text-muted-foreground">
-          {STATUS_COPY[number.status]}
+          {STATUS_COPY.provisioning}
+        </p>
+      )}
+      {number.status === "provision_failed" && (
+        <p
+          className={
+            needsNumberChoice(number)
+              ? "mt-2 text-sm text-foreground"
+              : "mt-2 text-sm text-muted-foreground"
+          }
+        >
+          {failedCopy(number)}
         </p>
       )}
       {number.status === "suspended" && (

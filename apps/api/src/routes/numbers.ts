@@ -11,6 +11,7 @@ import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { parseJsonBody, parseWith, pathUuid } from "./core/http";
 import {
+  MAX_PROVISION_ATTEMPTS,
   releaseNumberRow,
   resumeProvisioning,
   type PhoneNumberRow,
@@ -27,13 +28,19 @@ const NUMBER_COLUMNS =
   "id,company_id,status,source,voice_enabled,provisioning_key," +
   "requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
-  "last_provision_error,updated_at,created_at,suspended_at,released_at";
+  "last_provision_error,provision_failure_reason,updated_at,created_at," +
+  "suspended_at,released_at";
 
 type NumberRowFull = PhoneNumberRow & {
   voice_enabled?: boolean;
 } & Record<string, unknown>;
 
-/** Vendor ids and provisioning internals stay server-side. */
+/**
+ * Vendor ids and provisioning internals stay server-side. The COARSE
+ * failure_reason + provision_attempts + a derived `retrying` flag ARE exposed
+ * so the UI can render provision_failed honestly and actionably — but the raw
+ * last_provision_error and every telnyx_* id are never sent.
+ */
 function sanitizeNumber(row: NumberRowFull) {
   return {
     id: row.id,
@@ -45,6 +52,13 @@ function sanitizeNumber(row: NumberRowFull) {
     number_e164: row.number_e164,
     country: row.country,
     requested_area_code: row.requested_area_code,
+    failure_reason: row.provision_failure_reason,
+    provision_attempts: row.provision_attempts,
+    // Still auto-retrying under the cron budget vs. genuinely stuck (out of
+    // attempts) — drives "we're retrying" vs "choose a number" copy.
+    retrying:
+      row.status === "provision_failed" &&
+      row.provision_attempts < MAX_PROVISION_ATTEMPTS,
     created_at: row.created_at ?? null,
     suspended_at: row.suspended_at ?? null,
     released_at: row.released_at ?? null,

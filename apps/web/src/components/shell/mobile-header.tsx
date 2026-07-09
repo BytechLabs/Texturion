@@ -15,7 +15,7 @@ import { useActiveCompany } from "@/lib/company/provider";
 
 import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
-import { CopyableNumberRow, companyInitials } from "./workspace-bits";
+import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
 
 /**
  * Mobile top header (<1000px). The desktop sidebar — which carries the
@@ -34,10 +34,7 @@ export function MobileHeader() {
   const numbers = useNumbers();
 
   const multi = memberships.length > 1;
-  const activeNumbers = (numbers.data?.data ?? []).filter(
-    (n): n is typeof n & { number_e164: string } =>
-      n.status === "active" && Boolean(n.number_e164),
-  );
+  const numberRows = numbers.data?.data ?? [];
 
   const workspaceTile = (
     <span className="flex min-w-0 items-center gap-2">
@@ -118,15 +115,12 @@ export function MobileHeader() {
       </div>
 
       {/* The copyable business number(s) — the same useful strip the desktop
-          sidebar shows, so a mobile user can read + copy their number and see
-          every number when they have more than one. */}
-      {activeNumbers.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-app-line-soft px-3 py-1.5">
-          {activeNumbers.map((n) => (
-            <CopyableNumberRow key={n.id} e164={n.number_e164} />
-          ))}
-        </div>
-      )}
+          sidebar shows, so a mobile user can read + copy their number, see
+          every number when they have more than one, and get an HONEST failed
+          state (never "Setting up…" over a real failure). */}
+      <div className="border-t border-app-line-soft px-3 py-1.5">
+        <WorkspaceNumbers numbers={numberRows} />
+      </div>
     </header>
   );
 }

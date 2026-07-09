@@ -87,8 +87,10 @@ export function WorkspaceStatusBanner() {
             ? REGISTRATION_COPY.numberProvisioning
             : state.kind === "number_delayed"
               ? REGISTRATION_COPY.numberDelayed
-              : state.kind === "number_hosted_review"
-                ? REGISTRATION_COPY.hostedReview
+              : state.kind === "number_action_needed"
+                ? REGISTRATION_COPY.numberActionNeeded(state.areaCode)
+                : state.kind === "number_hosted_review"
+                  ? REGISTRATION_COPY.hostedReview
                 : state.kind === "otp_pending"
                   ? REGISTRATION_COPY.otpPending(otpPhone)
                   : state.kind === "rejected"
@@ -109,7 +111,9 @@ export function WorkspaceStatusBanner() {
             ? { href: "/onboarding/setting-up", label: "Enter code" }
             : state.kind === "rejected"
               ? { href: "/settings/numbers", label: "Fix and resubmit" }
-              : { href: "/settings/numbers", label: "Details" };
+              : state.kind === "number_action_needed"
+                ? { href: "/settings/numbers", label: "Choose a number" }
+                : { href: "/settings/numbers", label: "Details" };
 
   return (
     <div

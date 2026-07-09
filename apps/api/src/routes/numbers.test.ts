@@ -197,6 +197,35 @@ describe("GET /v1/numbers", () => {
     expect(body.data[0].telnyx_order_id).toBeUndefined();
     expect(body.data[0].provisioning_key).toBeUndefined();
   });
+
+  it("exposes coarse failure_reason + retrying for a failed row, never the raw error", async () => {
+    const harness = buildHarness();
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: "cs_2",
+      country: "CA",
+      requested_area_code: "416",
+      provision_attempts: 1,
+      last_provision_error: "Telnyx 400 [codes 10031] Invalid request filter…",
+      provision_failure_reason: "no_inventory",
+    });
+
+    const res = await harness.request("/v1/numbers");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const row = body.data[0];
+    expect(row).toMatchObject({
+      status: "provision_failed",
+      failure_reason: "no_inventory",
+      provision_attempts: 1,
+      retrying: true, // attempts (1) < MAX_PROVISION_ATTEMPTS (5)
+    });
+    // The raw vendor error + ids never leave the server.
+    expect(row.last_provision_error).toBeUndefined();
+    expect(row.telnyx_order_id).toBeUndefined();
+    expect(row.telnyx_phone_number_id).toBeUndefined();
+  });
 });
 
 describe("POST /v1/numbers/provision", () => {

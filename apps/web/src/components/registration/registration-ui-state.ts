@@ -2,6 +2,7 @@ import type {
   MemberRole,
   NumberSource,
   NumberStatus,
+  ProvisionFailureReason,
   RegistrationStatus,
   SubscriptionStatus,
 } from "@/lib/api/types";
@@ -25,6 +26,10 @@ import type {
 export interface NumberRowInput {
   status: NumberStatus;
   source?: NumberSource;
+  /** Honest-status inputs for a provision_failed row (§4.4 truthful copy). */
+  failure_reason?: ProvisionFailureReason | null;
+  provision_attempts?: number;
+  requested_area_code?: string | null;
 }
 
 export interface RegistrationRowInput {
@@ -57,6 +62,13 @@ export type RegistrationUiState =
   | { kind: "payment_issue" }
   | { kind: "number_provisioning" }
   | { kind: "number_delayed" }
+  /**
+   * A number provision the automatic retry loop can't fix — the area code is out
+   * of inventory, or attempts are exhausted — so the user must CHOOSE another
+   * number. Distinct from the transient number_delayed so the banner + checklist
+   * stop lying ("you don't need to do anything") and offer the real action.
+   */
+  | { kind: "number_action_needed"; areaCode: string | null }
   /** No live number except a hosted text-enablement in carrier review (days). */
   | { kind: "number_hosted_review" }
   | { kind: "otp_pending" }
@@ -127,8 +139,26 @@ export function deriveRegistrationUiState(
     if (hostedReviewOnly(input.numbers)) {
       return { kind: "number_hosted_review" };
     }
-    const failed = input.numbers.some((n) => n.status === "provision_failed");
-    return failed ? { kind: "number_delayed" } : { kind: "number_provisioning" };
+    const failed = input.numbers.filter(
+      (n) => n.status === "provision_failed",
+    );
+    if (failed.length > 0) {
+      // Out of inventory or out of automatic attempts → the retry loop can't
+      // help; the user must pick another number. Otherwise it's a transient
+      // failure the cron is still retrying (honest "taking a little longer").
+      const actionable = failed.find(
+        (n) =>
+          n.failure_reason === "no_inventory" ||
+          (n.provision_attempts ?? 0) >= 5,
+      );
+      return actionable
+        ? {
+            kind: "number_action_needed",
+            areaCode: actionable.requested_area_code ?? null,
+          }
+        : { kind: "number_delayed" };
+    }
+    return { kind: "number_provisioning" };
   }
 
   if (!owesUsRegistration(input)) return { kind: "none" };

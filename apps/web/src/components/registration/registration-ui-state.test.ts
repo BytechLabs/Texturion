@@ -44,7 +44,14 @@ describe("SPEC §4.4 banner copy — exact strings", () => {
       "Setting up your business number, usually under a minute.",
     );
     expect(REGISTRATION_COPY.numberDelayed).toBe(
-      "We're setting up your number. This is taking longer than usual. You don't need to do anything.",
+      "We're still setting up your number. This is taking a little longer than usual.",
+    );
+    // The lie is gone: a delayed provision never claims there's nothing to do.
+    expect(REGISTRATION_COPY.numberDelayed).not.toMatch(
+      /don't need to do anything/i,
+    );
+    expect(REGISTRATION_COPY.numberActionNeeded("416")).toBe(
+      "We couldn't get a number in area code 416. Choose another to finish setup.",
     );
     expect(REGISTRATION_COPY.registrationPending).toBe(
       "US texting activates in ~3 to 7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",
@@ -89,12 +96,59 @@ describe("deriveRegistrationUiState — number lifecycle (§4.4 rows 1–2)", ()
     });
   });
 
-  it("provision_failed → number_delayed (never a dead end)", () => {
+  it("transient provision_failed (still retrying) → number_delayed", () => {
     expect(
       deriveRegistrationUiState(
         input({ numbers: [{ status: "provision_failed" }] }),
       ),
     ).toEqual({ kind: "number_delayed" });
+    // A carrier blip with attempts still left is transient, not action-needed.
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            {
+              status: "provision_failed",
+              failure_reason: "carrier",
+              provision_attempts: 2,
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_delayed" });
+  });
+
+  it("no-inventory provision_failed → number_action_needed (choose a number)", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            {
+              status: "provision_failed",
+              failure_reason: "no_inventory",
+              requested_area_code: "416",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_action_needed", areaCode: "416" });
+  });
+
+  it("out of attempts → number_action_needed even without no_inventory", () => {
+    expect(
+      deriveRegistrationUiState(
+        input({
+          numbers: [
+            {
+              status: "provision_failed",
+              failure_reason: "carrier",
+              provision_attempts: 5,
+              requested_area_code: "212",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "number_action_needed", areaCode: "212" });
   });
 
   it("an active number silences the number states", () => {

@@ -20,10 +20,14 @@ export const COMPANY_COLUMNS =
   "created_at,updated_at";
 
 // source + voice_enabled (FEATURE-GAPS voice wave): hosted-vs-purchased and
-// voice status, so the web can label keep-your-number rows.
+// voice status, so the web can label keep-your-number rows. failure_reason
+// (aliased from provision_failure_reason) + provision_attempts let the app-wide
+// banner + the onboarding setting-up checklist branch honestly on a
+// provision_failed number — the field name matches GET /v1/numbers' sanitized
+// shape. The raw last_provision_error + telnyx_* ids are never selected here.
 const NUMBER_COLUMNS =
   "id,status,source,voice_enabled,country,number_e164,requested_area_code," +
-  "created_at";
+  "created_at,failure_reason:provision_failure_reason,provision_attempts";
 
 const REGISTRATION_COLUMNS =
   "kind,status,sole_proprietor,rejection_reason,submission_count," +

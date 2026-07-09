@@ -38,6 +38,15 @@ import type { Env } from "../env";
  * `customer_reference = company_id`.
  */
 
+/**
+ * A coarse, customer-SAFE classification of why a number provision failed, so
+ * the UI can tell the truth ("no numbers in 416, pick another") and offer the
+ * right action without ever leaking the raw vendor error. `no_inventory` is the
+ * common, user-actionable case (an exhausted area code); `carrier` is any other
+ * Telnyx-side rejection; `unknown` is everything else.
+ */
+export type ProvisionFailureReason = "no_inventory" | "carrier" | "unknown";
+
 export interface PhoneNumberRow {
   id: string;
   company_id: string;
@@ -59,6 +68,8 @@ export interface PhoneNumberRow {
   telnyx_order_id: string | null;
   provision_attempts: number;
   last_provision_error: string | null;
+  /** Coarse, customer-safe failure classification; null until a failure, cleared on activation. */
+  provision_failure_reason: ProvisionFailureReason | null;
   updated_at?: string;
 }
 
@@ -77,7 +88,7 @@ const COMPANY_COLUMNS =
 const NUMBER_COLUMNS =
   "id,company_id,status,source,provisioning_key,requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
-  "last_provision_error,updated_at";
+  "last_provision_error,provision_failure_reason,updated_at";
 
 /** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
@@ -314,6 +325,7 @@ async function activateRow(
     number_e164: numberE164,
     telnyx_phone_number_id: telnyxPhoneNumberId,
     last_provision_error: null,
+    provision_failure_reason: null,
     suspended_at: null,
   });
 }
@@ -460,6 +472,23 @@ async function orderNumberForRow(
  * customer-facing "taking longer than usual" note — SPEC copy, no action
  * required); Sentry escalation when the attempt budget is exhausted.
  */
+/**
+ * Coarse, customer-safe classification of a provisioning failure — the ONLY
+ * failure detail exposed to the client (the raw message stays server-side).
+ * A no-inventory 400 (code 10031) or the "no <country> inventory for area
+ * code…" exhaustion Error is the common, user-actionable case (pick another);
+ * any other Telnyx rejection is `carrier`; everything else is `unknown`.
+ */
+function classifyProvisionFailure(cause: unknown): ProvisionFailureReason {
+  if (cause instanceof TelnyxApiError) {
+    return cause.hasCode("10031") ? "no_inventory" : "carrier";
+  }
+  if (cause instanceof Error && /no .*inventory/i.test(cause.message)) {
+    return "no_inventory";
+  }
+  return "unknown";
+}
+
 async function recordProvisionFailure(
   env: Env,
   db: SupabaseClient,
@@ -480,6 +509,7 @@ async function recordProvisionFailure(
   const updated = await updateNumberRow(db, row.id, {
     status: "provision_failed",
     last_provision_error: message.slice(0, 2000),
+    provision_failure_reason: classifyProvisionFailure(cause),
     provision_attempts: attempts,
   });
 

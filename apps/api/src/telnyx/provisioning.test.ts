@@ -483,6 +483,8 @@ describe("failure handling (§4.3)", () => {
     expect(row?.status).toBe("provision_failed");
     expect(row?.provision_attempts).toBe(1);
     expect(row?.last_provision_error).toContain("no US inventory");
+    // Classified into a coarse, customer-safe reason for the honest-status UI.
+    expect(row?.provision_failure_reason).toBe("no_inventory");
 
     expect(emails).toHaveLength(1);
     expect(emails[0].to).toContain("owner@acme.example");

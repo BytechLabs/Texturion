@@ -457,6 +457,18 @@ function SettingUp() {
   const activeNumber = company.numbers.find((n) => n.status === "active");
   const provisionFailed =
     !activeNumber && company.numbers.some((n) => n.status === "provision_failed");
+  // A failed provision the retry loop can't fix (no inventory / out of attempts):
+  // the user must CHOOSE another number. Honest + actionable, never a passive
+  // "stalled, nothing to do" row.
+  const failedNeedsChoice = !activeNumber
+    ? company.numbers.find(
+        (n) =>
+          n.status === "provision_failed" &&
+          (n.failure_reason === "no_inventory" ||
+            (n.provision_attempts ?? 0) >= 5),
+      )
+    : undefined;
+  const numberActionNeeded = Boolean(failedNeedsChoice);
   // Non-cancelled port + no active number → the honest transfer item replaces
   // the provisioning row. Everyone else keeps today's behavior.
   const portItem = resolvePortChecklistItem(
@@ -486,11 +498,13 @@ function SettingUp() {
 
   const numberStatus: RowStatus = activeNumber
     ? "done"
-    : provisionFailed
-      ? "stalled"
-      : portItem?.actionNeeded
-        ? "action"
-        : "working";
+    : numberActionNeeded
+      ? "action"
+      : provisionFailed
+        ? "stalled"
+        : portItem?.actionNeeded
+          ? "action"
+          : "working";
   const registrationStatus: RowStatus =
     !owes || campaignApproved ? "done" : confirming ? "waiting" : "working";
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
@@ -511,9 +525,9 @@ function SettingUp() {
         <p className="text-sm text-muted-foreground">
           {numberReady
             ? "Everything below is live. Text your new number to see it land."
-            : portItem?.actionNeeded
-              ? // "Updates itself" would be a lie while the transfer waits on
-                // the user — say so instead.
+            : numberActionNeeded || portItem?.actionNeeded
+              ? // "Updates itself" would be a lie while it waits on the user —
+                // say so instead.
                 "One step below needs you. The rest updates itself."
               : "This screen updates itself. No refreshing needed."}
         </p>
@@ -548,13 +562,29 @@ function SettingUp() {
                 copyValue={formatPhone(activeNumber.number_e164)}
                 copyable
               />
+            ) : confirming ? (
+              <p className="text-sm text-muted-foreground">
+                Confirming your payment. A few seconds.
+              </p>
+            ) : numberActionNeeded ? (
+              <div className="space-y-2">
+                <p className="text-sm text-foreground">
+                  {REGISTRATION_COPY.numberActionNeeded(
+                    failedNeedsChoice?.requested_area_code ?? null,
+                  )}
+                </p>
+                <Link
+                  href="/settings/numbers"
+                  className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Choose your number
+                </Link>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {confirming
-                  ? "Confirming your payment. A few seconds."
-                  : provisionFailed
-                    ? REGISTRATION_COPY.numberDelayed
-                    : REGISTRATION_COPY.numberProvisioning}
+                {provisionFailed
+                  ? REGISTRATION_COPY.numberDelayed
+                  : REGISTRATION_COPY.numberProvisioning}
               </p>
             )}
           </ChecklistRow>

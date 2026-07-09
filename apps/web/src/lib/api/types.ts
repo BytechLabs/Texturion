@@ -27,6 +27,9 @@ export type NumberStatus =
   | "suspended"
   | "released"
   | "provision_failed";
+
+/** Coarse, customer-safe reason a number provision failed (mirrors the API). */
+export type ProvisionFailureReason = "no_inventory" | "carrier" | "unknown";
 /**
  * Where a `phone_numbers` row came from (`number_source` enum): a bought
  * number, a full port-in, or a keep-your-number text-enablement (hosted SMS —
@@ -126,6 +129,17 @@ export interface PhoneNumberSummary {
   /** Present on GET /v1/numbers rows; absent from the company-view embed. */
   suspended_at?: string | null;
   released_at?: string | null;
+  /**
+   * Honest-status fields — present on BOTH read surfaces for a provision_failed
+   * number (optional so cached pre-fix shapes stay assignable). `failure_reason`
+   * is the coarse, customer-safe cause (never the raw vendor error);
+   * `provision_attempts` + `retrying` distinguish "still trying" from "stuck,
+   * choose a number".
+   */
+  failure_reason?: ProvisionFailureReason | null;
+  provision_attempts?: number;
+  /** GET /v1/numbers only: still auto-retrying under the cron budget. */
+  retrying?: boolean;
 }
 
 /** Registration snapshot embedded in company views (no id / wizard data). */

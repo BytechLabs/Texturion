@@ -8,9 +8,17 @@
 export const REGISTRATION_COPY = {
   /** §4.4 "Number provisioning". */
   numberProvisioning: "Setting up your business number, usually under a minute.",
-  /** §4.4 "Provisioning delayed/failed (internal)". */
+  /** A transient provision failure the cron is still retrying — honest, no false "nothing to do". */
   numberDelayed:
-    "We're setting up your number. This is taking longer than usual. You don't need to do anything.",
+    "We're still setting up your number. This is taking a little longer than usual.",
+  /**
+   * A number provision the retry loop can't fix (out of inventory / attempts) —
+   * the honest, actionable line. {areaCode} interpolated when known.
+   */
+  numberActionNeeded: (areaCode: string | null) =>
+    areaCode
+      ? `We couldn't get a number in area code ${areaCode}. Choose another to finish setup.`
+      : "We couldn't finish setting up your number. Choose a number to finish setup.",
   /**
    * FEATURE-GAPS voice wave (not a §4.4 row): the only live number is a
    * keep-your-number text-enablement in carrier review — an honest multi-day

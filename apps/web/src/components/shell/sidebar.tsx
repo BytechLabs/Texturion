@@ -36,7 +36,7 @@ import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
-import { CopyableNumberRow, companyInitials } from "./workspace-bits";
+import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
@@ -193,12 +193,6 @@ export function Sidebar({
   const numbers = useNumbers();
 
   const multi = memberships.length > 1;
-  // The company's live business numbers — active + actually provisioned. Drives
-  // the copyable number strip under the workspace tile.
-  const activeNumbers = (numbers.data?.data ?? []).filter(
-    (n): n is typeof n & { number_e164: string } =>
-      n.status === "active" && Boolean(n.number_e164),
-  );
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   const logo = (
@@ -230,18 +224,7 @@ export function Sidebar({
   // outside the switcher trigger so its copy buttons never nest in a button.
   const numbersStrip = !collapsed && (
     <div className="shrink-0 border-b border-app-line px-3 py-2">
-      {activeNumbers.length > 0 ? (
-        <div className="space-y-1">
-          {activeNumbers.map((n) => (
-            <CopyableNumberRow key={n.id} e164={n.number_e164} />
-          ))}
-        </div>
-      ) : (
-        <span className="flex items-center gap-1.5 text-[11.5px] text-app-muted-2">
-          <span aria-hidden className="size-1.5 rounded-full bg-app-muted-2" />
-          Setting up your number…
-        </span>
-      )}
+      <WorkspaceNumbers numbers={numbers.data?.data ?? []} />
     </div>
   );
 
