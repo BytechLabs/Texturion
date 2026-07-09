@@ -12,6 +12,7 @@ import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
 type Country = "US" | "CA";
+type DigitMatch = "anywhere" | "start" | "end";
 
 /**
  * A NumberPicker pick is either a full E.164 (order that exact number) or a
@@ -20,6 +21,20 @@ type Country = "US" | "CA";
  */
 export function isFullNumber(value: string): boolean {
   return /^\+1\d{10}$/.test(value);
+}
+
+/**
+ * Client-side digit filter over the fetched batch. Telnyx's server-side digit
+ * filters (contains/starts_with/ends_with) are silently ignored on this
+ * endpoint, so we filter the numbers we already have — instant, honest, and
+ * "Refresh"/"nearby" pull a different batch when a pattern is rare.
+ */
+function matchesDigits(e164: string, digits: string, match: DigitMatch): boolean {
+  if (!digits) return true;
+  const local = e164.replace(/^\+1/, "");
+  if (match === "start") return local.startsWith(digits);
+  if (match === "end") return local.endsWith(digits);
+  return local.includes(digits);
 }
 
 /** The filled/empty select indicator — makes the chosen row unmistakable. */
@@ -63,6 +78,8 @@ export function NumberPicker({
   const [areaCode, setAreaCode] = useState<string | null>(initialAreaCode);
   const [query, setQuery] = useState("");
   const [bestEffort, setBestEffort] = useState(false);
+  const [digits, setDigits] = useState("");
+  const [match, setMatch] = useState<DigitMatch>("anywhere");
 
   const areaResults = useMemo(
     () => (areaCode === null ? searchAreaCodes(query, country) : []),
@@ -118,6 +135,9 @@ export function NumberPicker({
   const hint = areaCodeHint(areaCode, country);
   const numbers = list.data?.data ?? [];
   const masked = list.data?.masked ?? false;
+  const filtered = numbers.filter((n) =>
+    matchesDigits(n.phone_number, digits, match),
+  );
 
   return (
     <div className="space-y-3">
@@ -131,11 +151,40 @@ export function NumberPicker({
           onClick={() => {
             setAreaCode(null);
             setBestEffort(false);
+            setDigits("");
           }}
         >
           Change area code
         </Button>
       </div>
+
+      {/* Optional digit filter — one clean field + a small anywhere/start/end
+          selector. Filters the fetched batch instantly (client-side). Hidden
+          for the masked area-code choice. */}
+      {!masked ? (
+        <div className="flex items-center gap-2">
+          <Input
+            value={digits}
+            onChange={(e) =>
+              setDigits(e.target.value.replace(/\D/g, "").slice(0, 7))
+            }
+            placeholder="Digits you'd like (optional)"
+            inputMode="numeric"
+            aria-label="Filter by digits"
+            className="h-9 flex-1"
+          />
+          <select
+            value={match}
+            onChange={(e) => setMatch(e.target.value as DigitMatch)}
+            aria-label="Where those digits appear"
+            className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="anywhere">anywhere</option>
+            <option value="start">at start</option>
+            <option value="end">at end</option>
+          </select>
+        </div>
+      ) : null}
 
       {list.isError ? (
         <p className="text-sm text-destructive">
@@ -173,9 +222,9 @@ export function NumberPicker({
             </span>
           </span>
         </button>
-      ) : numbers.length > 0 ? (
+      ) : filtered.length > 0 ? (
         <ul className="max-h-64 divide-y divide-border overflow-auto rounded-lg border">
-          {numbers.map((n) => {
+          {filtered.map((n) => {
             const on = selected === n.phone_number;
             return (
               <li key={n.phone_number}>
@@ -208,6 +257,17 @@ export function NumberPicker({
             );
           })}
         </ul>
+      ) : digits && numbers.length > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          None of the available numbers{" "}
+          {match === "start"
+            ? "start with"
+            : match === "end"
+              ? "end in"
+              : "contain"}{" "}
+          {digits}. Try fewer digits, Refresh for a new batch, or turn on nearby
+          numbers.
+        </p>
       ) : (
         <p className="text-sm text-muted-foreground">
           {bestEffort

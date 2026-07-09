@@ -48,6 +48,9 @@ export function useAvailableNumbers(params: {
           country: params.country,
           area_code: params.areaCode ?? undefined,
           best_effort: params.bestEffort ? "true" : undefined,
+          // Fetch a fuller batch — the picker filters it client-side by digits
+          // (Telnyx's own digit filters are silently ignored on this endpoint).
+          limit: 50,
         },
       }),
     enabled: Boolean(params.areaCode),
