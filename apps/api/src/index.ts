@@ -42,7 +42,7 @@ import { templatesRoutes } from "./routes/templates";
 import { textEnablementRoutes } from "./routes/text-enablement";
 import { usageRoutes } from "./routes/usage";
 import { pollPortRequests } from "./telnyx/porting";
-import { reconcileNumbers } from "./telnyx/provisioning";
+import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
 import { reconcileTextEnablement } from "./telnyx/text-enablement";
 import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
@@ -205,7 +205,10 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // Piggybacked on the same cadence (#20): fail out outbound rows stuck
   // 'queued' with no telnyx_message_id (a send that crashed before the
   // Telnyx call) so they surface as retryable failures.
-  "*/5 * * * *": [sweepWebhookEvents, failStuckOutboundSends],
+  // Also flips a genuinely-stuck 'provisioning' number (a Telnyx order pending
+  // past the dwell) to provision_failed so the customer reaches remediation in
+  // ~10-15 min instead of waiting on the 15-min reconcile (§4.3 honest status).
+  "*/5 * * * *": [sweepWebhookEvents, failStuckOutboundSends, sweepStuckProvisioning],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
   // number-assignments. Also reclaims soft-deleted attachment objects/rows past

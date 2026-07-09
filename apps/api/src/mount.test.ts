@@ -24,7 +24,7 @@ import {
 import { composeRoutes } from "./routes/compose";
 import { conversationsRoutes } from "./routes/conversations";
 import { pollPortRequests } from "./telnyx/porting";
-import { reconcileNumbers } from "./telnyx/provisioning";
+import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
 import { reconcileTextEnablement } from "./telnyx/text-enablement";
 import { reconcileVoiceEnablement } from "./telnyx/voice";
 import {
@@ -420,6 +420,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["*/5 * * * *"]).toEqual([
       sweepWebhookEvents,
       failStuckOutboundSends,
+      sweepStuckProvisioning,
     ]);
     expect(CRON_JOBS["*/15 * * * *"]).toEqual([
       reconcileNumbers,

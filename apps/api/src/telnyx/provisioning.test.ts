@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 import {
+  MAX_PROVISION_ATTEMPTS,
   provisionCompanyNumber,
   reconcileNumbers,
   releaseCompanyNumbers,
   resumeProvisioning,
   suspendCompanyNumbers,
+  sweepStuckProvisioning,
   type PhoneNumberRow,
 } from "./provisioning";
 import {
@@ -1009,6 +1011,161 @@ describe("double-order fail-safes (§4.3)", () => {
     expect(summary.orphansReleased).toBe(0);
     expect(summary.orphansFlagged).toBe(1); // pn-maybe flagged, pn-live known
     expect(telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+  });
+});
+
+describe("stuck-pending provisioning → provision_failed (§4.3 honest status)", () => {
+  function seedPendingOrder(
+    rest: ReturnType<typeof setup>["rest"],
+    createdAt: string | null,
+    key = "cs_pending",
+  ): PhoneNumberRow {
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: key,
+      requested_area_code: "212",
+      country: "US",
+      telnyx_order_id: "order-pending",
+      created_at: createdAt,
+    });
+    return rest.rows("phone_numbers").at(-1) as unknown as PhoneNumberRow;
+  }
+
+  it("waits while a pending order is still within the dwell window", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("GET", /^\/v2\/number_orders\/order-pending$/, () => ({
+      data: { id: "order-pending", status: "pending", phone_numbers: [] },
+    }));
+    const now = new Date();
+    const row = seedPendingOrder(
+      rest,
+      new Date(now.getTime() - 5 * 60_000).toISOString(),
+    );
+
+    const result = await resumeProvisioning(env, row, now);
+
+    expect(result.status).toBe("provisioning"); // still setting up
+    expect(rest.rows("phone_numbers")[0].telnyx_order_id).toBe("order-pending");
+    expect(
+      rest.rows("phone_numbers")[0].provision_failure_reason ?? null,
+    ).toBeNull();
+  });
+
+  it("flips a perpetually-pending order to provision_failed past the dwell", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("GET", /^\/v2\/number_orders\/order-pending$/, () => ({
+      data: { id: "order-pending", status: "pending", phone_numbers: [] },
+    }));
+    const now = new Date();
+    const row = seedPendingOrder(
+      rest,
+      new Date(now.getTime() - 11 * 60_000).toISOString(),
+    );
+
+    const result = await resumeProvisioning(env, row, now);
+
+    expect(result.status).toBe("provision_failed");
+    expect(result.provision_failure_reason).toBe("timeout");
+    expect(result.provision_attempts).toBe(MAX_PROVISION_ATTEMPTS);
+    const stored = rest.rows("phone_numbers")[0];
+    // Order id + key cleared so a remediation orders fresh; lease released.
+    expect(stored.telnyx_order_id).toBeNull();
+    expect(stored.telnyx_order_idempotency_key ?? null).toBeNull();
+    expect(stored.provisioning_lease_until ?? null).toBeNull();
+    // Never ordered a replacement in the same pass.
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+  });
+
+  it("keeps waiting when created_at is missing (never a false abandon)", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("GET", /^\/v2\/number_orders\/order-pending$/, () => ({
+      data: { id: "order-pending", status: "pending", phone_numbers: [] },
+    }));
+    const row = seedPendingOrder(rest, null);
+
+    const result = await resumeProvisioning(env, row, new Date());
+    expect(result.status).toBe("provisioning");
+  });
+
+  it("refuses to auto-order a second number for a MAX'd provision_failed row (duplicate-checkout guard)", async () => {
+    const { env, rest, telnyx } = setup();
+    happyPathTelnyx(telnyx);
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: CHECKOUT,
+      country: "US",
+      requested_area_code: "212",
+      provision_attempts: MAX_PROVISION_ATTEMPTS,
+      provision_failure_reason: "timeout",
+    });
+    const row = rest.rows("phone_numbers")[0] as unknown as PhoneNumberRow;
+
+    const result = await resumeProvisioning(env, row);
+
+    expect(result.status).toBe("provision_failed"); // untouched
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    expect(telnyx.callsTo("GET", /available_phone_numbers/)).toHaveLength(0);
+    expect(rest.rows("phone_numbers")[0].provisioning_lease_until ?? null).toBeNull();
+  });
+
+  it("sweepStuckProvisioning flips a stuck row and leaves a fresh one alone", async () => {
+    const { env, rest, telnyx } = setup();
+    telnyx.on("GET", /^\/v2\/number_orders\/order-old$/, () => ({
+      data: { id: "order-old", status: "pending", phone_numbers: [] },
+    }));
+    const now = new Date();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "k-old",
+      country: "US",
+      requested_area_code: "212",
+      telnyx_order_id: "order-old",
+      created_at: new Date(now.getTime() - 11 * 60_000).toISOString(),
+    });
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "k-fresh",
+      country: "US",
+      telnyx_order_id: "order-fresh",
+      created_at: new Date(now.getTime() - 30_000).toISOString(),
+    });
+
+    const summary = await sweepStuckProvisioning(env, now);
+
+    expect(summary.swept).toBe(1);
+    const old = rest.rows("phone_numbers").find((r) => r.provisioning_key === "k-old");
+    expect(old?.status).toBe("provision_failed");
+    expect(old?.provision_failure_reason).toBe("timeout");
+    // The fresh row was never selected → never touched, never GET'd.
+    const fresh = rest.rows("phone_numbers").find((r) => r.provisioning_key === "k-fresh");
+    expect(fresh?.status).toBe("provisioning");
+    expect(telnyx.callsTo("GET", /order-fresh/)).toHaveLength(0);
+  });
+
+  it("sweepStuckProvisioning skips canceled-subscription companies", async () => {
+    const { env, rest, telnyx } = setup({ subscription_status: "canceled" });
+    telnyx.on("GET", /^\/v2\/number_orders\/order-old$/, () => ({
+      data: { id: "order-old", status: "pending", phone_numbers: [] },
+    }));
+    const now = new Date();
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "k-old",
+      country: "US",
+      telnyx_order_id: "order-old",
+      created_at: new Date(now.getTime() - 11 * 60_000).toISOString(),
+    });
+
+    const summary = await sweepStuckProvisioning(env, now);
+
+    expect(summary.swept).toBe(0);
+    expect(rest.rows("phone_numbers")[0].status).toBe("provisioning"); // grace path owns it
+    expect(telnyx.callsTo("GET", /order-old/)).toHaveLength(0);
   });
 });
 

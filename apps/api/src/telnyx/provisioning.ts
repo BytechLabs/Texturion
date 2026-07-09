@@ -45,7 +45,11 @@ import type { Env } from "../env";
  * common, user-actionable case (an exhausted area code); `carrier` is any other
  * Telnyx-side rejection; `unknown` is everything else.
  */
-export type ProvisionFailureReason = "no_inventory" | "carrier" | "unknown";
+export type ProvisionFailureReason =
+  | "no_inventory"
+  | "carrier"
+  | "unknown"
+  | "timeout";
 
 export interface PhoneNumberRow {
   id: string;
@@ -76,6 +80,8 @@ export interface PhoneNumberRow {
   provisioning_lease_until?: string | null;
   /** Deterministic Telnyx Idempotency-Key for this row's order; null until claimed. Managed via {@link claimOrderIdempotencyKey}. */
   telnyx_order_idempotency_key?: string | null;
+  /** Immutable row-creation time — the dwell anchor for the stuck-pending flip (never updated_at, which the lease bumps every cron). */
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -102,7 +108,8 @@ const COMPANY_COLUMNS =
 const NUMBER_COLUMNS =
   "id,company_id,status,source,provisioning_key,requested_area_code,country," +
   "number_e164,telnyx_phone_number_id,telnyx_order_id,provision_attempts," +
-  "last_provision_error,provision_failure_reason,chosen_number_e164,updated_at";
+  "last_provision_error,provision_failure_reason,chosen_number_e164," +
+  "created_at,updated_at";
 
 /** SPEC §4.3: Sentry escalates (page the operator) after 5 failed attempts. */
 export const MAX_PROVISION_ATTEMPTS = 5;
@@ -118,6 +125,21 @@ export const MAX_PROVISION_ATTEMPTS = 5;
  * order id / customer_reference orphan), never a double purchase.
  */
 const PROVISIONING_LEASE_SECONDS = 180;
+
+/**
+ * §4.3 honest-status dwell bound. A Telnyx number_order normally reaches
+ * 'success'/'failed' in seconds; one that sits 'pending' this long is effectively
+ * stuck. Before this, {@link recoverFromOrder} returned such a row UNCHANGED
+ * forever (never incrementing attempts), pinning it at status='provisioning' and
+ * showing "usually under a minute" indefinitely. Past this threshold we flip the
+ * row to provision_failed (reason 'timeout') so the customer gets an honest status
+ * and the self-service "Choose a number" remediation. 10 minutes is ~2 orders of
+ * magnitude beyond a normal order and sits clear of the retry-backoff budget
+ * (which governs provision_FAILED rows, never a genuinely-stuck 'provisioning'
+ * one). A false trip is harmless: a pending order owns no number, and any late
+ * completion is reclaimed by the reconcile orphan-release net.
+ */
+const STUCK_PENDING_MS = 10 * 60_000;
 
 /**
  * Atomically claim the per-row provisioning lease (SQL: claim_provisioning_lease).
@@ -463,6 +485,7 @@ async function recoverFromOrder(
   env: Env,
   db: SupabaseClient,
   row: PhoneNumberRow,
+  now: Date,
 ): Promise<PhoneNumberRow | null> {
   if (!row.telnyx_order_id) return null;
   const order = await telnyxRequest<NumberOrderResponse>(env, {
@@ -475,9 +498,50 @@ async function recoverFromOrder(
     const owned = await lookupOwnedNumber(env, orderedNumber);
     return activateRow(db, row, orderedNumber, owned?.id ?? null);
   }
-  if (status === "pending") return row; // order in flight — wait, don't reorder
+  if (status === "pending") {
+    // Bound the pending dwell (§4.3 honest status). A perpetually-pending order
+    // used to leave the row 'provisioning' forever; past STUCK_PENDING_MS we flip
+    // it to provision_failed so remediation opens. Anchor on the IMMUTABLE
+    // created_at — never updated_at, which the lease claim bumps every cron pass.
+    // Unparseable/absent created_at → keep waiting (never a false abandon).
+    const anchor = row.created_at ? Date.parse(row.created_at) : NaN;
+    if (Number.isFinite(anchor) && now.getTime() - anchor >= STUCK_PENDING_MS) {
+      return failStuckPendingOrder(db, row);
+    }
+    return row; // order in flight, still within the window — wait, don't reorder
+  }
   // Authoritatively dead (failed/unknown): safe to clear + reorder fresh.
   throw new OrderDeadError(row.telnyx_order_id, status ?? "unknown");
+}
+
+/**
+ * A Telnyx number_order stuck 'pending' past {@link STUCK_PENDING_MS}: flip the
+ * row to provision_failed so the customer gets an honest status and the
+ * self-service "Choose a number" remediation. attempts is set to the MAX so the
+ * retry cron leaves it alone (it needs a user pick, not another auto-search) and
+ * needsNumberChoice is true; the order id + idempotency key are cleared (like the
+ * OrderDeadError abandon) so a remediation orders fresh — any number the stuck
+ * order later completes is reclaimed by the reconcile orphan-release net. The
+ * lease is released so a remediation an instant later can claim it.
+ */
+async function failStuckPendingOrder(
+  db: SupabaseClient,
+  row: PhoneNumberRow,
+): Promise<PhoneNumberRow> {
+  Sentry.captureMessage(
+    `provisioning: Telnyx order ${row.telnyx_order_id} for company ${row.company_id} ` +
+      `stuck pending > 10m — flipping row ${row.id} to provision_failed for user remediation`,
+    "warning",
+  );
+  return updateNumberRow(db, row.id, {
+    status: "provision_failed",
+    provision_attempts: MAX_PROVISION_ATTEMPTS,
+    provision_failure_reason: "timeout",
+    last_provision_error: `number order ${row.telnyx_order_id} stuck pending > 10m`,
+    telnyx_order_id: null,
+    telnyx_order_idempotency_key: null,
+    provisioning_lease_until: null,
+  });
 }
 
 /**
@@ -700,6 +764,7 @@ async function recordProvisionFailure(
 export async function resumeProvisioning(
   env: Env,
   row: PhoneNumberRow,
+  now: Date = new Date(),
 ): Promise<PhoneNumberRow> {
   // Belt-and-braces: this saga BUYS inventory, so it must never run on a
   // keep-your-number row. A ported row is fulfilled by the port saga and a
@@ -727,9 +792,23 @@ export async function resumeProvisioning(
   if (!leased) return row;
   row = leased;
 
+  // §4.3 double-buy guard: a row already failed AND out of attempts is
+  // user-remediation-only (e.g. the stuck-pending 'timeout' flip, or an exhausted
+  // budget). Never auto-order a second number for it — a duplicate
+  // checkout.session.completed reaches provisionCompanyNumber → here, and the
+  // 15-min cron already skips attempts>=MAX, but this is the only chokepoint the
+  // webhook/confirm paths pass through. Remediation re-arms attempts=0 first, so
+  // a legitimate user retry is unaffected. Release the lease and return as-is.
+  if (
+    row.status === "provision_failed" &&
+    row.provision_attempts >= MAX_PROVISION_ATTEMPTS
+  ) {
+    return updateNumberRow(db, row.id, { provisioning_lease_until: null });
+  }
+
   const company = await fetchCompany(db, row.company_id);
   try {
-    const fromOrder = await recoverFromOrder(env, db, row);
+    const fromOrder = await recoverFromOrder(env, db, row, now);
     if (fromOrder) return fromOrder;
   } catch (cause) {
     if (cause instanceof OrderDeadError) {
@@ -1086,7 +1165,7 @@ export async function reconcileNumbers(
     if (status === "canceled") continue; // grace/release path owns these
 
     summary.retried += 1;
-    const result = await resumeProvisioning(env, row);
+    const result = await resumeProvisioning(env, row, now);
     if (result.status === "active") summary.activated += 1;
   }
 
@@ -1208,5 +1287,55 @@ export async function reconcileNumbers(
     page += 1;
   }
 
+  return summary;
+}
+
+/**
+ * §4.3 honest-status — a frequent (every 5 min) sweep that flips a genuinely
+ * stuck 'provisioning' row (a Telnyx order 'pending' past {@link STUCK_PENDING_MS})
+ * to provision_failed so the customer reaches remediation in ~10-15 min rather
+ * than waiting on the 15-minute reconcile. This only SELECTs candidates and calls
+ * {@link resumeProvisioning}; the flip STILL happens solely inside
+ * {@link recoverFromOrder} under the per-row lease, so there is exactly one writer
+ * and no race with reconcileNumbers. Canceled-subscription companies are skipped
+ * (the grace/release path owns them). The candidate set is empty in the normal
+ * case, so the sweep is nearly free.
+ */
+export async function sweepStuckProvisioning(
+  env: Env,
+  now: Date = new Date(),
+): Promise<{ swept: number; failed: number }> {
+  const db = getDb(env);
+  const summary = { swept: 0, failed: 0 };
+  const cutoff = new Date(now.getTime() - STUCK_PENDING_MS).toISOString();
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select(NUMBER_COLUMNS)
+    .eq("source", "provisioned")
+    .eq("status", "provisioning")
+    .not("telnyx_order_id", "is", null)
+    // Strictly older than the cutoff; a row exactly at the boundary is caught by
+    // the next 5-min sweep. recoverFromOrder makes the actual (>=) flip decision.
+    .lt("created_at", cutoff);
+  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+
+  for (const row of (data ?? []) as unknown as PhoneNumberRow[]) {
+    const { data: companyRows, error: companyError } = await db
+      .from("companies")
+      .select("subscription_status")
+      .eq("id", row.company_id)
+      .limit(1);
+    if (companyError) {
+      throw new Error(`companies lookup failed: ${companyError.message}`);
+    }
+    const status = (companyRows?.[0] as { subscription_status?: string })
+      ?.subscription_status;
+    if (status === "canceled") continue; // grace/release path owns these
+
+    const result = await resumeProvisioning(env, row, now);
+    if (result.status === "provision_failed") summary.swept += 1;
+    else if (result.status === "provisioning") summary.failed += 1;
+  }
   return summary;
 }
