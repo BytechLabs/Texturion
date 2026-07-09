@@ -1,20 +1,15 @@
 /*
- * Loonext service worker (DESIGN.md G9, SPEC §8).
+ * Loonext service worker.
  *
  * Three jobs, nothing speculative:
- *   1. push          → show "contact name + snippet" notifications from the
- *                      server payload (apps/api/src/notifications/inbound.ts
- *                      sends `{ title, body, url }`).
- *   2. notificationclick → focus an open Loonext tab on the deep-linked
- *                      thread, or open one.
- *   3. offline       → precached app-shell fallback (offline.html) for
- *                      navigations that can't reach the network. No other
- *                      caching: the app is realtime, staleness is worse than
- *                      a spinner.
- *
- * The pure helpers up top are the unit-tested surface — vitest evaluates this
- * exact file in a VM sandbox (src/lib/push/sw.test.ts) and drives the
- * listeners with fake events, so what ships is what's tested.
+ *   1. push              -> show "contact name + snippet" notifications from
+ *                           the server payload ({ title, body, url }).
+ *   2. notificationclick -> focus an open Loonext tab on the deep-linked
+ *                           thread, or open one.
+ *   3. offline           -> precached app-shell fallback (offline.html) for
+ *                           navigations that can't reach the network. No other
+ *                           caching: the app is realtime, staleness is worse
+ *                           than a spinner.
  */
 "use strict";
 
@@ -26,11 +21,10 @@ const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
 /**
  * Map a notification deep link onto an app path on THIS origin.
  *
- * The API's push payload links to `/conversations/{id}` (see
- * apps/api/src/notifications/inbound.ts); the thread route in the app is
- * `/inbox/{id}` (DESIGN.md G3) — normalize here so a tap always lands on the
- * real screen. Foreign or unparseable URLs fall back to the inbox rather
- * than opening an arbitrary destination from a push payload.
+ * The push payload links to `/conversations/{id}`; the thread route in the app
+ * is `/inbox/{id}`, so normalize here so a tap always lands on the real screen.
+ * Foreign or unparseable URLs fall back to the inbox rather than opening an
+ * arbitrary destination from a push payload.
  */
 function normalizeNotificationUrl(rawUrl, origin) {
   if (typeof rawUrl !== "string" || rawUrl.length === 0) return "/inbox";
@@ -47,10 +41,10 @@ function normalizeNotificationUrl(rawUrl, origin) {
 }
 
 /**
- * Pure formatter: raw push payload text → showNotification arguments.
- * Payload shape (SPEC §8): { title: contact display name, body: 80-char
- * snippet, url: deep link }. Anything malformed still produces a calm,
- * honest notification — a subscribed push should never be silently dropped.
+ * Pure formatter: raw push payload text -> showNotification arguments.
+ * Payload shape: { title: contact display name, body: 80-char snippet,
+ * url: deep link }. Anything malformed still produces a calm, honest
+ * notification; a subscribed push should never be silently dropped.
  */
 function formatPushNotification(rawText, origin) {
   let payload = null;
@@ -77,7 +71,7 @@ function formatPushNotification(rawText, origin) {
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-72.png",
       // One notification per thread: a second text from the same customer
-      // replaces the first instead of stacking (calm, G1) but still alerts.
+      // replaces the first instead of stacking, but still alerts.
       tag: `loonext:${url}`,
       renotify: true,
       data: { url },
@@ -99,11 +93,10 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        // Drop EVERY prior cache but the current shell — including this app's
-        // own superseded versions and the pre-rename `jobtext-shell-*` caches a
-        // long-lived install may still hold (a stale offline.html that still
-        // said "JobText"). The origin is single-tenant, so a blanket sweep is
-        // safe and keeps no ghosts around.
+        // Drop EVERY prior cache but the current shell, including this app's
+        // own superseded versions and any caches a long-lived install may still
+        // hold. The origin is single-tenant, so a blanket sweep is safe and
+        // keeps no ghosts around.
         Promise.all(
           keys
             .filter((key) => key !== SHELL_CACHE)
@@ -166,8 +159,8 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // App-shell fallback for page loads only (G9). Everything else — API calls,
-  // realtime, assets — goes straight to the network untouched.
+  // App-shell fallback for page loads only. Everything else (API calls,
+  // realtime, assets) goes straight to the network untouched.
   if (event.request.mode !== "navigate") return;
   event.respondWith(
     fetch(event.request).catch(() =>
@@ -186,9 +179,9 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Test seam: the pure helpers above are asserted directly by
-// src/lib/push/sw.test.ts, which evaluates this file in a VM with a stubbed
-// `self`. Harmless in production (an extra property on the worker global).
+// Test seam: the pure helpers above are asserted directly by the unit tests,
+// which evaluate this file in a VM with a stubbed `self`. Harmless in
+// production (an extra property on the worker global).
 self.__loonextSw = {
   SHELL_CACHE,
   OFFLINE_URL,
