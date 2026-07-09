@@ -246,6 +246,12 @@ async function searchAvailableNumber(
   // Toronto). Treat that as "nothing here" and fall through instead of aborting
   // the whole saga; any other Telnyx error still propagates (the §11 cron
   // retries it).
+  // Only fully-revealed numbers are individually orderable. Telnyx MASKS some
+  // inventory (e.g. Canadian numbers read "+18253------") that this account
+  // level cannot order directly (number_reservations returns 10038); ordering a
+  // masked number fails with 10027 — so a masked entry is NEVER a hit.
+  let sawMasked = false;
+  const isOrderable = (n: string): boolean => /^\+1\d{10}$/.test(n);
   const searchOnce = async (
     extra: Record<string, string>,
   ): Promise<string | null> => {
@@ -255,7 +261,14 @@ async function searchAvailableNumber(
         path: "/v2/available_phone_numbers",
         query: { ...baseQuery, ...extra },
       });
-      return res.data?.find((entry) => entry.phone_number)?.phone_number ?? null;
+      const numbers = res.data ?? [];
+      const hit = numbers.find(
+        (entry) => entry.phone_number && isOrderable(entry.phone_number),
+      )?.phone_number;
+      if (!hit && numbers.some((entry) => entry.phone_number)) {
+        sawMasked = true; // inventory exists but is masked/un-orderable
+      }
+      return hit ?? null;
     } catch (error) {
       if (error instanceof TelnyxApiError && error.hasCode("10031")) return null;
       throw error;
@@ -289,6 +302,22 @@ async function searchAvailableNumber(
         " had no inventory; assigned a country-wide fallback number",
     );
     return byCountry;
+  }
+
+  if (sawMasked) {
+    // The country's inventory is masked / un-orderable at this Telnyx account
+    // level (number_reservations → 10038). This is an OPERATOR problem, not the
+    // customer's — alert loudly with the actionable cause so it gets fixed, and
+    // fail honestly rather than ordering a masked number (10027) on a loop that
+    // shows a false "still setting up".
+    Sentry.captureMessage(
+      `Provisioning blocked: ${country} numbers are masked and un-orderable at this Telnyx account ` +
+        `level (number_reservations returns 10038). Upgrade/verify the Telnyx account to order ${country} numbers.`,
+      "error",
+    );
+    throw new Error(
+      `no orderable ${country} inventory: numbers are masked (Telnyx account upgrade required for ${country})`,
+    );
   }
 
   throw new Error(

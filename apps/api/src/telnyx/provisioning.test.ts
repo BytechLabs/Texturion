@@ -554,6 +554,31 @@ describe("chosen-number ordering (choose-your-number)", () => {
   });
 });
 
+describe("masked inventory (numbers not orderable at this Telnyx account level)", () => {
+  it("never orders a masked number — fails honestly instead of looping on 10027", async () => {
+    const { env, telnyx } = setup();
+    telnyx.on("POST", /^\/v2\/messaging_profiles$/, () => ({ data: { id: "profile-1" } }));
+    // Telnyx MASKS un-orderable inventory (as it does for Canada): "+18253------".
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({
+      data: [
+        { phone_number: "+18253------" },
+        { phone_number: "+18253------" },
+      ],
+    }));
+    telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({ data: [] }));
+
+    const row = await provisionCompanyNumber(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: CHECKOUT,
+    });
+    expect(row?.status).toBe("provision_failed");
+    // The masked number is NEVER ordered — no 10027 loop, no false "still setting up".
+    expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    expect(row?.provision_failure_reason).toBe("no_inventory");
+    expect(row?.last_provision_error).toContain("masked");
+  });
+});
+
 describe("failure handling (§4.3)", () => {
   it("records provision_failed + emails the owner on the first failure", async () => {
     const { env, rest, telnyx, emails } = setup();
