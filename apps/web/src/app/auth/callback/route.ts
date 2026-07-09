@@ -5,8 +5,8 @@ import { getSupabaseServer } from "@/lib/supabase/server";
 
 /**
  * OAuth callback Route Handler (D18 / APP-FEATURES-V2 §1.3) — the single,
- * one-and-only OAuth server touchpoint. The "Continue with Google/Apple"
- * buttons send the provider here with `?code=…&next=…`; this handler runs the
+ * one-and-only OAuth server touchpoint. The "Continue with Google"
+ * button sends the provider here with `?code=…&next=…`; this handler runs the
  * PKCE `exchangeCodeForSession(code)` against a request-bound Supabase client
  * (so the session cookie is written on the response), then redirects.
  *

@@ -22,8 +22,8 @@
 
 import { safeNextPath } from "./redirects";
 
-/** The OAuth providers Loonext offers alongside email/password (D18). */
-export type OAuthProvider = "google" | "apple";
+/** The OAuth provider Loonext offers alongside email/password (D18). */
+export type OAuthProvider = "google";
 
 /** The path the callback Route Handler lives at (apps/web). */
 export const AUTH_CALLBACK_PATH = "/auth/callback";
