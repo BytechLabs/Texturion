@@ -1,18 +1,18 @@
 # Loonext
 
-Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors with 1 to 10 field staff. A business gets its own local phone number, either a new one or the number it already has, ported in free. Every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
+Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors, from a solo owner to a whole crew. A business gets its own local phone number, either a new one or the number it already has, ported in free. Every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
 
 Website: https://loonext.com
 
 ## Positioning
-- Flat per-company pricing, not per seat: $29/mo covers 3 people; $79/mo covers 10.
+- Flat per-company pricing, not per seat: $29/mo covers 5 people; $79/mo covers your whole crew (unlimited).
 - Transparent and self-serve: see the price, pay, start texting. No demo, no sales call, no annual contract, no phone number in the nav.
 - Month to month. Cancel anytime from billing settings. 30-day money-back guarantee (full first-invoice refund, registration fee included).
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
 
 ## Pricing (USD, plus sales tax where applicable)
-- Starter, $29/mo: 3 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
-- Pro, $79/mo: 10 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving texts free and unlimited.
+- Starter, $29/mo: 5 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
+- Pro, $79/mo: unlimited teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving texts free and unlimited.
 - A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send.
 - One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever, never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.
 - Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.

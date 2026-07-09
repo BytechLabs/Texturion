@@ -12,10 +12,10 @@ const FUTURE = "2026-07-08T12:00:00Z";
 const PAST = "2026-06-24T12:00:00Z";
 
 describe("seatLimit", () => {
-  it("mirrors SPEC §2: Starter 3, Pro 10, NULL plan reads as Starter", () => {
-    expect(seatLimit("starter")).toBe(3);
-    expect(seatLimit("pro")).toBe(10);
-    expect(seatLimit(null)).toBe(3);
+  it("mirrors SPEC §2: Starter 5, Pro unlimited (null), NULL plan reads as Starter", () => {
+    expect(seatLimit("starter")).toBe(5);
+    expect(seatLimit("pro")).toBeNull();
+    expect(seatLimit(null)).toBe(5);
   });
 });
 
@@ -49,34 +49,38 @@ describe("countPendingInvites", () => {
 
 describe("seatUsage", () => {
   it("produces the G8 line at Starter capacity", () => {
-    const usage = seatUsage(3, 0, "starter");
+    const usage = seatUsage(5, 0, "starter");
     expect(usage).toEqual({
-      used: 3,
-      limit: 3,
+      used: 5,
+      limit: 5,
       full: true,
-      line: "3 of 3 seats. Upgrade for more",
+      line: "5 of 5 seats. Upgrade for more",
     });
   });
 
   it("counts pending invites toward the seat total (API formula)", () => {
-    const usage = seatUsage(2, 1, "starter");
-    expect(usage.used).toBe(3);
+    const usage = seatUsage(4, 1, "starter");
+    expect(usage.used).toBe(5);
     expect(usage.full).toBe(true);
-    expect(usage.line).toBe("3 of 3 seats. Upgrade for more");
+    expect(usage.line).toBe("5 of 5 seats. Upgrade for more");
   });
 
   it("stays factual below capacity", () => {
-    expect(seatUsage(2, 0, "starter").line).toBe("2 of 3 seats");
+    expect(seatUsage(2, 0, "starter").line).toBe("2 of 5 seats");
     expect(seatUsage(2, 0, "starter").full).toBe(false);
   });
 
-  it("never suggests an upgrade at Pro capacity (no bigger plan)", () => {
-    const usage = seatUsage(9, 1, "pro");
-    expect(usage.full).toBe(true);
-    expect(usage.line).toBe("10 of 10 seats");
+  it("is never full on Pro (unlimited seats, #83) and drops the ceiling", () => {
+    // A large crew: no cap, no upgrade nudge, no "of N" ceiling.
+    const usage = seatUsage(40, 3, "pro");
+    expect(usage.limit).toBeNull();
+    expect(usage.full).toBe(false);
+    expect(usage.line).toBe("43 teammates");
+    // Singular teammate reads naturally too.
+    expect(seatUsage(1, 0, "pro").line).toBe("1 teammate");
   });
 
   it("treats a NULL plan as the Starter allowance", () => {
-    expect(seatUsage(3, 0, null).line).toBe("3 of 3 seats. Upgrade for more");
+    expect(seatUsage(5, 0, null).line).toBe("5 of 5 seats. Upgrade for more");
   });
 });

@@ -293,8 +293,8 @@ export default function CanadaPage() {
 
       <PricingSnippet>
         <p>
-          Same flat price as everyone: $29/mo on Starter for up to 3 people
-          and one local number, $79/mo on Pro for up to 10 people and two
+          Same flat price as everyone: $29/mo on Starter for up to 5 people
+          and one local number, $79/mo on Pro for any size crew and two
           numbers. Receiving texts is always free and unlimited, month to
           month.
         </p>

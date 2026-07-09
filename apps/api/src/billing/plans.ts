@@ -15,10 +15,19 @@ export const SUBSCRIPTION_STATUSES = [
 ] as const;
 export type LocalSubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
-/** SPEC §2 plan limits, enforced server-side. */
-export const PLAN_LIMITS: Record<PlanId, { seats: number; numbers: number }> = {
-  starter: { seats: 3, numbers: 1 },
-  pro: { seats: 10, numbers: 2 },
+/**
+ * SPEC §2 plan limits, enforced server-side. `seats: null` = unlimited users
+ * (Pro), bound by the fair-use policy rather than a hard count (#83). Enforcement
+ * is TypeScript-only (routes/team.ts counts members/invites and compares), so a
+ * null seat cap simply skips the comparison — no DB param, no Infinity to
+ * serialize.
+ */
+export const PLAN_LIMITS: Record<
+  PlanId,
+  { seats: number | null; numbers: number }
+> = {
+  starter: { seats: 5, numbers: 1 },
+  pro: { seats: null, numbers: 2 },
 };
 
 /**

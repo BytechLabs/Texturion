@@ -141,9 +141,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   });
 
   it("409s when active members + pending invites would exceed plan seats", async () => {
-    // Starter = 3 seats; 2 active + 1 pending = full.
+    // Starter = 5 seats; 4 active + 1 pending = full (a 6th would exceed).
     const sb = stubWithRole("owner");
-    seatStub(sb, "starter", 2, 1);
+    seatStub(sb, "starter", 4, 1);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -340,10 +340,10 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
   });
 
   it("re-checks the seat formula at acceptance (409 when members grew meanwhile)", async () => {
-    // Starter = 3 seats. 3 active + this pending invite → 4 > 3 → 409.
+    // Starter = 5 seats. 5 active + this pending invite → 6 > 5 → 409.
     const sb = acceptStub(pendingInvite(), authUser(), {
       plan: "starter",
-      active: 3,
+      active: 5,
       pending: 1,
     });
     stubFetch(jwksRoute(auth), sb.route);

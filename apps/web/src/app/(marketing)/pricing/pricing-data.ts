@@ -72,7 +72,7 @@ export const PLANS: Plan[] = [
     id: "starter",
     name: "Starter",
     price: usd(S.monthlyDollars),
-    tagline: "For crews of one to three.",
+    tagline: "For crews of one to five.",
     features: [
       `${S.seats} teammates included`,
       `${S.numbers} local business number (US or Canada, your area code)`,
@@ -87,11 +87,13 @@ export const PLANS: Plan[] = [
     id: "pro",
     name: "Pro",
     price: usd(P.monthlyDollars),
-    tagline: "For crews up to ten, and a second number.",
+    tagline: "For any size crew, and a second number.",
     badge: "For bigger crews",
     highlighted: true,
     features: [
-      `${P.seats} teammates included`,
+      P.seats === null
+        ? "Unlimited teammates included"
+        : `${P.seats} teammates included`,
       `${P.numbers} local business numbers (two locations, or office and field)`,
       `${P.includedTexts.toLocaleString("en-US")} texts a month (same count rule; the composer always shows it before you send)`,
       "Receiving texts: free and unlimited; photos free to receive",
@@ -110,7 +112,7 @@ export const LEDGER: LedgerEntry[] = [
   {
     term: "Your plan",
     figure: `${usd(S.monthlyDollars)} or ${usd(P.monthlyDollars)}/mo`,
-    detail: `Month to month. Starter covers ${S.seats} people, Pro covers ${P.seats}, flat either way.`,
+    detail: `Month to month. Starter covers ${S.seats} people, Pro is unlimited, flat either way.`,
   },
   {
     term: "Register with the phone companies",

@@ -839,16 +839,17 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
  * PLAN_MODULE_CARDS above — every rendered plan figure must trace to THIS
  * object, never be retyped at a call site. WHEN RETUNING A PLAN you must edit
  * plans.ts / the Stripe prices AND this mirror; there is no runtime link.
- * Values as of 2026-07-07: Starter $29 / 3 seats / 1 number / 500 segments /
- * 3¢ overage; Pro $79 / 10 seats / 2 numbers / 2,500 segments / 2.5¢ overage.
+ * Values as of 2026-07-09: Starter $29 / 5 seats / 1 number / 500 segments /
+ * 3¢ overage; Pro $79 / unlimited seats / 2 numbers / 2,500 segments / 2.5¢
+ * overage.
  */
 export const PLAN_PRICING: Record<
   PlanId,
   {
     /** Flat monthly price in whole USD (SPEC §2). */
     monthlyDollars: number;
-    /** Teammates included (PLAN_LIMITS.seats). */
-    seats: number;
+    /** Teammates included (PLAN_LIMITS.seats); null = unlimited (Pro, #83). */
+    seats: number | null;
     /** Business numbers included (PLAN_LIMITS.numbers). */
     numbers: number;
     /** Outgoing texts (segments) included per month (PLAN_INCLUDED_SEGMENTS). */
@@ -859,14 +860,14 @@ export const PLAN_PRICING: Record<
 > = {
   starter: {
     monthlyDollars: 29,
-    seats: 3,
+    seats: 5,
     numbers: 1,
     includedTexts: 500,
     overageCentsPerText: 3,
   },
   pro: {
     monthlyDollars: 79,
-    seats: 10,
+    seats: null,
     numbers: 2,
     includedTexts: 2500,
     overageCentsPerText: 2.5,

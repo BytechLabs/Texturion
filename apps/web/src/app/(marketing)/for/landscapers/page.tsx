@@ -124,7 +124,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month, flat. Even in April.",
   pricingBody:
-    "Starter is 3 people, 1 local number, and 500 texts a month. In the spring rush you'll send more; extra texts are 3¢ each with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for up to 10 people and a second number, then drop back when the season winds down.",
+    "Starter is 5 people, 1 local number, and 500 texts a month. In the spring rush you'll send more; extra texts are 3¢ each with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for any size crew and a second number, then drop back when the season winds down.",
 
   faqH2: "Landscaper questions, straight answers.",
   faqs: [
@@ -134,7 +134,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We add crew for the season. Do we pay per person?",
-      a: "No per-user fee, ever. Starter covers 3 people for $29; when you scale up for the busy months, Pro is $79 for up to 10. Drop back down between seasons, since it's month to month.",
+      a: "No per-user fee, ever. Starter covers 5 people for $29; when you scale up for the busy months, Pro is $79 for any size crew. Drop back down between seasons, since it's month to month.",
     },
     {
       q: "Can the whole crew see a property's address and gate code?",

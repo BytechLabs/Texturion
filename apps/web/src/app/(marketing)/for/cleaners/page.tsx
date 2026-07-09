@@ -124,7 +124,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month for the whole team.",
   pricingBody:
-    "Starter is 3 people, 1 local number, and 500 texts a month, plenty for confirming a route of recurring clients; a plain confirmation counts as one, and the composer shows the count before you send. Growing past three cleaners, or running residential and commercial lines separately? Pro is $79 for up to 10 people and a second number.",
+    "Starter is 5 people, 1 local number, and 500 texts a month, plenty for confirming a route of recurring clients; a plain confirmation counts as one, and the composer shows the count before you send. Growing past five cleaners, or running residential and commercial lines separately? Pro is $79 for any size crew and a second number.",
 
   faqH2: "Cleaner questions, straight answers.",
   faqs: [

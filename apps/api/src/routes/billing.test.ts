@@ -632,7 +632,8 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
         proSubscription(),
       ),
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
-      endpoint("HEAD", /\/rest\/v1\/company_members/, () => countResponse(4)),
+      // 6 members > the Starter cap of 5 (#83) — must deactivate first.
+      endpoint("HEAD", /\/rest\/v1\/company_members/, () => countResponse(6)),
     ]);
     const response = await post(
       "/v1/billing/change-plan",

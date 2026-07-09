@@ -57,9 +57,9 @@ export const HOME_PLANS: readonly HomePlan[] = [
   {
     name: "Starter",
     price: "$29",
-    audience: "For crews of one to three.",
+    audience: "For crews of one to five.",
     items: [
-      [{ m: "3" }, " teammates included"],
+      [{ m: "5" }, " teammates included"],
       [{ m: "1" }, " local business number"],
       [
         { m: "500" },
@@ -76,9 +76,9 @@ export const HOME_PLANS: readonly HomePlan[] = [
     name: "Pro",
     price: "$79",
     badge: "For bigger crews",
-    audience: "For crews up to ten, and a second number.",
+    audience: "For any size crew, and a second number.",
     items: [
-      [{ m: "10" }, " teammates included"],
+      ["Unlimited teammates included"],
       [
         { m: "2" },
         " local business numbers (two locations, or office and field)",

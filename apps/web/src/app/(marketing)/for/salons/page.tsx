@@ -127,7 +127,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month for the whole salon.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and 500 texts a month, enough to confirm a full book and work a waitlist; a plain confirmation counts as one, and the composer shows the count before you send. More chairs, or a second location? Pro is $79 for up to 10 people and a second number to keep two shops separate.",
+    "Starter covers 5 people, 1 local number, and 500 texts a month, enough to confirm a full book and work a waitlist; a plain confirmation counts as one, and the composer shows the count before you send. More chairs, or a second location? Pro is $79 for any size crew and a second number to keep two shops separate.",
 
   faqH2: "Salon questions, straight answers.",
   faqs: [

@@ -126,9 +126,9 @@ export default function CompareHeymarketPage() {
           <>
             Straight up: if you need SOC 2, a HIPAA BAA, a text-and-email
             inbox, or CRM-deep automations, buy Heymarket. It&apos;s built for
-            that and does it well. If you&apos;re a crew of ten or fewer that
-            wants texting to land in one place at one flat price, that&apos;s
-            the job Loonext was built for.
+            that and does it well. If you&apos;re a service crew that wants
+            texting to land in one place at one flat price, no matter how many
+            people you add, that&apos;s the job Loonext was built for.
           </>
         }
       />

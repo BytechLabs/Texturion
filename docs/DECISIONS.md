@@ -84,8 +84,10 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
 
 ## D5. Pricing & packaging
 
-- **Starter $29/mo**: 3 users, 1 number, 500 outbound segments included, $0.03/extra segment.
-- **Pro $79/mo**: 10 users, 2 numbers, 2,500 outbound segments included, $0.025/extra segment.
+- **Starter $29/mo**: 5 users, 1 number, 500 outbound segments included, $0.03/extra segment.
+  (Seat cap raised 3→5 by #83, 2026-07-09.)
+- **Pro $79/mo**: unlimited users, 2 numbers, 2,500 outbound segments included, $0.025/extra segment.
+  (Seat cap 10→unlimited by #83, 2026-07-09; enforced in TS as `seats: null`, no DB cap.)
 - Positioning: flat team pricing ("one price for your whole crew") vs per-seat rivals
   (Quo $19/user, Heymarket $49/user). No per-seat add-ons in MVP; upgrade is the path.
 - **Inbound is free and unmetered** (market table-stakes; COGS ~0.7¢/segment absorbed).

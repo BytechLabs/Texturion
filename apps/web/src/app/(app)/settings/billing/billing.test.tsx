@@ -31,7 +31,9 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
     expect(PLAN_FACTS.starter.seats).toBe(
       `${PLAN_PRICING.starter.seats} team members`,
     );
-    expect(PLAN_FACTS.pro.seats).toBe(`${PLAN_PRICING.pro.seats} team members`);
+    // Pro's seats are null = unlimited (#83), spelled out for the plan card.
+    expect(PLAN_PRICING.pro.seats).toBeNull();
+    expect(PLAN_FACTS.pro.seats).toBe("Unlimited team members");
 
     // Starter's single number is singular; Pro's pair is plural.
     expect(PLAN_FACTS.starter.numbers).toBe(

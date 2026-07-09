@@ -4,15 +4,20 @@ import type { Invite, Member, PlanId } from "@/lib/api/types";
  * Seat math for /settings/team (G8), mirroring the API's seat formula
  * (apps/api/src/routes/team.ts + routes/core/plans.ts): seat usage = active
  * members (deactivated_at IS NULL) + pending unexpired invites, compared to
- * the plan's seat allowance (SPEC §2: Starter 3, Pro 10; plan NULL reads as
- * the Starter allowance).
+ * the plan's seat allowance (SPEC §2: Starter 5, Pro unlimited; plan NULL reads
+ * as the Starter allowance).
  */
 
-/** Seats per plan (SPEC §2) — mirror of the API's PLAN_SEATS table. */
-export const PLAN_SEATS: Record<PlanId, number> = { starter: 3, pro: 10 };
+/** Seats per plan (SPEC §2) — mirror of the API's PLAN_SEATS. Pro is `null` =
+ *  unlimited (#83). */
+export const PLAN_SEATS: Record<PlanId, number | null> = {
+  starter: 5,
+  pro: null,
+};
 
-/** Mirror of the API's `seatLimit`: plan NULL gets the Starter allowance. */
-export function seatLimit(plan: PlanId | null): number {
+/** Mirror of the API's `seatLimit`: plan NULL gets the Starter allowance; Pro
+ *  returns null = unlimited. */
+export function seatLimit(plan: PlanId | null): number | null {
   return plan === "pro" ? PLAN_SEATS.pro : PLAN_SEATS.starter;
 }
 
@@ -42,17 +47,18 @@ export function countPendingInvites(
 export interface SeatUsage {
   /** Seats in use: active members + pending invites. */
   used: number;
-  /** The plan's seat allowance. */
-  limit: number;
+  /** The plan's seat allowance; null = unlimited (Pro, #83). */
+  limit: number | null;
   /** No more invites possible without freeing a seat (or upgrading). */
   full: boolean;
-  /** The G8 seat line, e.g. "3 of 3 seats — upgrade for more". */
+  /** The G8 seat line, e.g. "3 of 5 seats. Upgrade for more". */
   line: string;
 }
 
 /**
- * The G8 seat usage line. Starter at capacity points at the upgrade path;
- * Pro at capacity has no bigger plan, so the line stays factual.
+ * The G8 seat usage line. Starter shows "used of N seats" and points at the
+ * upgrade path at capacity; Pro is unlimited (#83) — never full, and the line
+ * drops the "of N" ceiling entirely.
  */
 export function seatUsage(
   activeMembers: number,
@@ -61,10 +67,17 @@ export function seatUsage(
 ): SeatUsage {
   const limit = seatLimit(plan);
   const used = activeMembers + pendingInvites;
+  if (limit === null) {
+    return {
+      used,
+      limit,
+      full: false,
+      line: `${used} ${used === 1 ? "teammate" : "teammates"}`,
+    };
+  }
   const full = used >= limit;
-  const line =
-    full && plan !== "pro"
-      ? `${used} of ${limit} seats. Upgrade for more`
-      : `${used} of ${limit} seats`;
+  const line = full
+    ? `${used} of ${limit} seats. Upgrade for more`
+    : `${used} of ${limit} seats`;
   return { used, limit, full, line };
 }

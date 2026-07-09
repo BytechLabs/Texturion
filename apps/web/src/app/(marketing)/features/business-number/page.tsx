@@ -214,8 +214,8 @@ export default function BusinessNumberPage() {
 
       <PricingSnippet>
         <p>
-          One local number comes with Starter at $29/mo for up to 3 people; a
-          second number comes with Pro at $79/mo for up to 10. Both are flat,
+          One local number comes with Starter at $29/mo for up to 5 people; a
+          second number comes with Pro at $79/mo for any size crew. Both are flat,
           month to month, with receiving texts always free and unlimited. Porting a
           number in is free.
         </p>

@@ -13,8 +13,8 @@
  * The per-user figure is REAL, labeled, and dated: a leading tool's published
  * monthly Starter seat price, $19/user/mo as of July 2026, sourced in full on
  * /compare/quo (that tool also bills texting separately, so the comparison is
- * conservative in Loonext's favor). Loonext follows SPEC §2: up to 3 people =
- * Starter $29, 4 to 10 = Pro $79, both flat.
+ * conservative in Loonext's favor). Loonext follows SPEC §2: up to 5 people =
+ * Starter $29, 6 and up = Pro $79 (Pro seats are unlimited), both flat.
  *
  * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
@@ -27,8 +27,12 @@ import { PLAN_PRICING } from "@/lib/api/types";
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 const PER_USER_MONTHLY = 19;
 
-/** Largest crew the slider offers — Pro's included-seat ceiling (SPEC §2). */
-export const MAX_CREW = PLAN_PRICING.pro.seats;
+/** Largest crew the slider illustrates. Pro's seats are unlimited (#83), so this
+ *  is a fixed marketing range, not a plan ceiling. */
+export const MAX_CREW = 10;
+
+/** Starter's included seats (never null; the fallback just satisfies the type). */
+const STARTER_SEATS = PLAN_PRICING.starter.seats ?? 0;
 
 /**
  * Loonext's flat plan for a crew of `seats`, sourced from PLAN_PRICING (never
@@ -37,7 +41,7 @@ export const MAX_CREW = PLAN_PRICING.pro.seats;
 export function loonextPrice(
   seats: number,
 ): { plan: "Starter" | "Pro"; price: number } {
-  return seats <= PLAN_PRICING.starter.seats
+  return seats <= STARTER_SEATS
     ? { plan: "Starter", price: PLAN_PRICING.starter.monthlyDollars }
     : { plan: "Pro", price: PLAN_PRICING.pro.monthlyDollars };
 }

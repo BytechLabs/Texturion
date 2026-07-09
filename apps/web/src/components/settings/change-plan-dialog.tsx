@@ -19,10 +19,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useChangePlan } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import type { CompanyView } from "@/lib/api/types";
+import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
 
-/** SPEC §2 Starter limits — what a downgrade must fit into. */
-const STARTER_LIMITS = { seats: 3, numbers: 1 };
+/** SPEC §2 Starter limits — what a downgrade must fit into. Derived from the
+ *  shared PLAN_PRICING so a seat retune (e.g. #83) can't leave this stale;
+ *  Starter's seat count is always a real number (only Pro is null=unlimited). */
+const STARTER_LIMITS = {
+  seats: PLAN_PRICING.starter.seats ?? 0,
+  numbers: PLAN_PRICING.starter.numbers,
+};
 
 function Requirement({
   met,
@@ -103,10 +108,11 @@ function DowngradeBody({
           {activeMembers === null ? (
             <>Couldn&apos;t check your member count. Try again.</>
           ) : seatsOk ? (
-            <>Up to 3 members; you have {activeMembers}.</>
+            <>Up to {STARTER_LIMITS.seats} members; you have {activeMembers}.</>
           ) : (
             <>
-              Starter includes 3 members; you have {activeMembers} active.{" "}
+              Starter includes {STARTER_LIMITS.seats} members; you have{" "}
+              {activeMembers} active.{" "}
               <Link
                 href="/settings/team"
                 className="font-medium text-primary underline-offset-4 hover:underline"
@@ -161,14 +167,14 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           </DialogTitle>
           {upgrading ? (
             <DialogDescription>
-              Pro is $79/mo: 2,500 outgoing texts included, 10 seats, and a
-              second phone number. You&apos;re charged the prorated difference
+              Pro is $79/mo: 2,500 outgoing texts included, unlimited seats, and
+              a second phone number. You&apos;re charged the prorated difference
               for the rest of this period today.
             </DialogDescription>
           ) : (
             <DialogDescription>
-              Starter is $29/mo: 500 outgoing texts included, 3 seats, 1
-              number.
+              Starter is $29/mo: 500 outgoing texts included,{" "}
+              {STARTER_LIMITS.seats} seats, 1 number.
             </DialogDescription>
           )}
         </DialogHeader>

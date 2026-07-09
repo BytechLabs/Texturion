@@ -33,7 +33,7 @@ Loonext is a shared SMS inbox for small service businesses. A company buys a sub
 
 | | **Starter — $29/mo** | **Pro — $79/mo** |
 |---|---|---|
-| Users (seats) | 3 | 10 |
+| Users (seats) | 5 | Unlimited |
 | Phone numbers | 1 | 2 |
 | Included **outbound** segments / month | 500 | 2,500 |
 | Overage per extra outbound segment | $0.03 | $0.025 |

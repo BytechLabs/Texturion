@@ -43,8 +43,8 @@ export const HOME_FAQS: readonly HomeFaq[] = [
   },
   {
     q: "Is it really $29 for the whole team?",
-    a: "Yes. $29 a month for up to 3 people on Starter, $79 for up to 10 on Pro. We don't charge per user. One thing to know up front: there's also a one-time $29 fee to register with the phone companies, so your first month is $58 and every month after is $29. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
-    aCa: "Yes. $29 a month for up to 3 people on Starter, $79 for up to 10 on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so $29 is $29 from your first month on. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
+    a: "Yes. $29 a month for up to 5 people on Starter, $79 for any size crew on Pro. We don't charge per user. One thing to know up front: there's also a one-time $29 fee to register with the phone companies, so your first month is $58 and every month after is $29. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
+    aCa: "Yes. $29 a month for up to 5 people on Starter, $79 for any size crew on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so $29 is $29 from your first month on. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
   },
   {
     q: "What counts as one of my 500 texts?",

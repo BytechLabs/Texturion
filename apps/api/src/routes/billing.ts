@@ -393,11 +393,12 @@ billingRoutes.post("/change-plan", async (c) => {
     );
   }
   const memberCount = await countActiveMembers(db, company.id);
-  if (memberCount > PLAN_LIMITS.starter.seats) {
+  const starterSeats = PLAN_LIMITS.starter.seats;
+  if (starterSeats !== null && memberCount > starterSeats) {
     return errorResponse(
       c,
       "conflict",
-      `Starter allows ${PLAN_LIMITS.starter.seats} members — deactivate extra members before downgrading.`,
+      `Starter allows ${starterSeats} members — deactivate extra members before downgrading.`,
     );
   }
 

@@ -202,8 +202,8 @@ export default function TemplatesAndTagsPage() {
         <p>
           Saved replies, tags, statuses, done-marks, search, CSV import, and
           contact notes are included on every plan. There&apos;s no workflow
-          upsell: Starter is $29/mo for up to 3 people, Pro is $79/mo for up
-          to 10 and a second number.
+          upsell: Starter is $29/mo for up to 5 people, Pro is $79/mo for any
+          size crew and a second number.
         </p>
         <CountryOnly country="us">
           <p>

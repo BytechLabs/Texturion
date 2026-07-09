@@ -158,8 +158,8 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toContain("$29");
     expect(html).toContain("$79");
     expect(html).toContain("2,500");
-    expect(html).toMatch(/up to 3 people/);
-    expect(html).toMatch(/up to 10 people/);
+    expect(html).toMatch(/up to 5 people/);
+    expect(html).toMatch(/any size crew/);
     expect(html).toMatch(/first month is \$58/);
     expect(html).toMatch(/Receiving texts is free and unlimited/i);
     expect(html).toMatch(/\$8\/mo/); // the call-forwarding add-on fact

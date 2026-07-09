@@ -21,18 +21,19 @@ export {
   type PlanId,
 };
 
-/** Seats per plan (SPEC §2), derived from the canonical limits table. */
-export const PLAN_SEATS: Record<PlanId, number> = {
+/** Seats per plan (SPEC §2), derived from the canonical limits table. Pro is
+ *  `null` = unlimited (#83). */
+export const PLAN_SEATS: Record<PlanId, number | null> = {
   starter: PLAN_LIMITS.starter.seats,
   pro: PLAN_LIMITS.pro.seats,
 };
 
 /**
- * Seat allowance for a company. A company that has never checked out has
- * plan NULL (SPEC §6) — it gets the Starter allowance until a plan exists,
- * so a team can be assembled before payment without exceeding what the
- * smallest plan would permit.
+ * Seat allowance for a company; `null` = unlimited (Pro, #83). A company that
+ * has never checked out has plan NULL (SPEC §6) — it gets the Starter allowance
+ * until a plan exists, so a team can be assembled before payment without
+ * exceeding what the smallest plan would permit.
  */
-export function seatLimit(plan: string | null): number {
+export function seatLimit(plan: string | null): number | null {
   return plan === "pro" ? PLAN_SEATS.pro : PLAN_SEATS.starter;
 }
