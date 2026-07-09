@@ -109,6 +109,43 @@ describe("POST /v1/companies (company-exempt)", () => {
     });
   });
 
+  it("stages a chosen number on create when its area code matches the country", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: {
+        ...validBody,
+        country: "US",
+        requested_area_code: "212",
+        chosen_number_e164: "+12125550188",
+      },
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      chosen_number_e164: "+12125550188",
+    });
+  });
+
+  it("422s a chosen number whose area code is a different country", async () => {
+    stubFetch(jwksRoute(auth), supabaseStub(env).route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: {
+        ...validBody,
+        country: "US",
+        requested_area_code: "212",
+        chosen_number_e164: "+14165550100", // 416 is a Canadian area code
+      },
+    });
+    expect(res.status).toBe(422);
+  });
+
   it("422s when the area code is not US/CA-assigned or mismatches the country", async () => {
     stubFetch(jwksRoute(auth), supabaseStub(env).route);
     const cases = [
@@ -332,6 +369,8 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     expect(res.status).toBe(200);
     expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
       requested_area_code: "212",
+      // An area-code change clears any stale onboarding number pick.
+      chosen_number_e164: null,
     });
   });
 
@@ -392,6 +431,8 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
       requested_area_code: "416",
       country: "CA",
+      // A country change clears any stale onboarding number pick.
+      chosen_number_e164: null,
     });
   });
 

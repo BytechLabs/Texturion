@@ -23,6 +23,8 @@ export interface CreateCompanyInput {
   name: string;
   country: Country;
   requested_area_code: string;
+  /** Choose-your-number: the specific number picked in onboarding (E.164); omitted = auto-assign. */
+  chosen_number_e164?: string;
   /** CA only — US companies always have US texting enabled. */
   us_texting_enabled?: boolean;
   /** D15: the creating browser's IANA zone, captured silently at onboarding. */

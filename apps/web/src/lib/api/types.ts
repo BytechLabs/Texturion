@@ -177,6 +177,8 @@ export interface CompanyView {
   country: Country;
   us_texting_enabled: boolean;
   requested_area_code: string;
+  /** Choose-your-number: the staged onboarding pick shown in the plan-step review; null = auto-assign. */
+  chosen_number_e164?: string | null;
   /** D15: workspace IANA timezone (business-facing daily framing). */
   timezone: string;
   plan: PlanId | null;

@@ -23,6 +23,12 @@ export function parseDraft(raw: string | null): OnboardingDraft {
     if (typeof obj.areaCode === "string" && /^\d{3}$/.test(obj.areaCode)) {
       draft.areaCode = obj.areaCode;
     }
+    if (
+      typeof obj.chosenNumber === "string" &&
+      /^\+1\d{10}$/.test(obj.chosenNumber)
+    ) {
+      draft.chosenNumber = obj.chosenNumber;
+    }
     if (typeof obj.usTexting === "boolean") draft.usTexting = obj.usTexting;
     if (obj.mode === "new" || obj.mode === "port") draft.mode = obj.mode;
     if (typeof obj.port === "object" && obj.port !== null) {

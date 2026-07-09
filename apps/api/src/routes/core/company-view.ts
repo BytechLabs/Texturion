@@ -17,6 +17,9 @@ export const COMPANY_COLUMNS =
   "business_hours,away_enabled,away_message," +
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   "mctb_enabled,mctb_message,forward_to_cell," +
+  // Choose-your-number: the staged onboarding pick, so the plan-step review can
+  // show "your number" pre-checkout. Cleared once provisioning drains it.
+  "chosen_number_e164," +
   "created_at,updated_at";
 
 // source + voice_enabled (FEATURE-GAPS voice wave): hosted-vs-purchased and

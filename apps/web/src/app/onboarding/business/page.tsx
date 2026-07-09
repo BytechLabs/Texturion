@@ -315,6 +315,10 @@ export default function BusinessIdentityPage() {
           name: state.draft.name?.trim() ?? "",
           country,
           requested_area_code: state.draft.areaCode ?? "",
+          // Choose-your-number: carry the onboarding pick through to the order.
+          ...(state.draft.chosenNumber
+            ? { chosen_number_e164: state.draft.chosenNumber }
+            : {}),
           ...(country === "CA" ? { us_texting_enabled: true } : {}),
           ...(timezone ? { timezone } : {}),
         });

@@ -165,6 +165,7 @@ function PlanStep() {
           companyId={companyId}
           name={company.name}
           country={company.country}
+          chosenNumber={company.chosen_number_e164 ?? null}
           areaCode={company.requested_area_code}
           usTexting={company.us_texting_enabled}
           canEditNumber={!porting}

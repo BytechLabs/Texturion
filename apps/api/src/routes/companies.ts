@@ -41,6 +41,13 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(200),
   country: z.enum(["US", "CA"]),
   requested_area_code: z.string().regex(/^\d{3}$/),
+  // Choose-your-number: a specific onboarding pick to order exactly (validated
+  // against its own area code's country below). Omitted = auto-search.
+  chosen_number_e164: z
+    .string()
+    .trim()
+    .regex(/^\+1\d{10}$/)
+    .optional(),
   us_texting_enabled: z.boolean().optional(),
   // D15: onboarding sends the browser's IANA zone; validated below against
   // the runtime's timezone database (a zod enum cannot express it).
@@ -67,6 +74,15 @@ const patchSchema = z
     requested_area_code: z.string().regex(/^\d{3}$/).optional(),
     country: z.enum(["US", "CA"]).optional(),
     us_texting_enabled: z.boolean().optional(),
+    // Choose-your-number: the onboarding pick (null clears it). Mutable only
+    // pre-checkout; validated against its own NDC's country; auto-nulled on a
+    // country / area-code change (a stale pick would be for the wrong region).
+    chosen_number_e164: z
+      .string()
+      .trim()
+      .regex(/^\+1\d{10}$/)
+      .nullable()
+      .optional(),
     // #12 Phase 0.3: the overage cap is an un-defeatable ceiling — bounded to
     // the (0, 10] safety range. `null` ("no cap") is still accepted for
     // backward-compat but resolves to the 10x hard maximum below.
@@ -100,6 +116,7 @@ const patchSchema = z
       body.requested_area_code !== undefined ||
       body.country !== undefined ||
       body.us_texting_enabled !== undefined ||
+      "chosen_number_e164" in body ||
       "overage_cap_multiplier" in body ||
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
@@ -116,6 +133,23 @@ function assertValidTimezone(timezone: string): void {
     throw new ApiError(
       "validation_failed",
       `timezone: ${timezone} is not a valid IANA timezone.`,
+    );
+  }
+}
+
+/**
+ * Choose-your-number: a picked E.164 must be a geographic NANP number in the
+ * company's country — validated against its OWN area code's NDC, NOT the
+ * requested area code (a "show nearby" pick legitimately lands on a different
+ * area code — e.g. an exhausted 416 → a 647).
+ */
+function assertChosenNumberCountry(e164: string, country: string): void {
+  const ndc = /^\+1(\d{3})\d{7}$/.exec(e164)?.[1];
+  const entry = ndc ? NANP_AREA_CODES[ndc] : undefined;
+  if (!ndc || !entry || !entry.geographic || entry.country !== country) {
+    throw new ApiError(
+      "validation_failed",
+      `chosen_number_e164: ${e164} is not a ${country} local number.`,
     );
   }
 }
@@ -137,6 +171,9 @@ companiesRoutes.post("/companies", async (c) => {
       "validation_failed",
       "us_texting_enabled: US companies always have US texting enabled.",
     );
+  }
+  if (body.chosen_number_e164) {
+    assertChosenNumberCountry(body.chosen_number_e164, body.country);
   }
   if (body.timezone !== undefined) assertValidTimezone(body.timezone);
 
@@ -165,6 +202,18 @@ companiesRoutes.post("/companies", async (c) => {
       "conflict",
       `You already own ${String(company.limit)} workspaces — the most an account can create. Delete one you no longer use first.`,
     );
+  }
+  // Stage the onboarding pick on the fresh company (the create RPC signature is
+  // fixed, so it rides a follow-up update). provisionCompanyNumber drains it
+  // onto the ordered number at checkout.
+  if (body.chosen_number_e164) {
+    const { error: chosenError } = await db
+      .from("companies")
+      .update({ chosen_number_e164: body.chosen_number_e164 })
+      .eq("id", company.id as string);
+    if (chosenError) {
+      throw new Error(`chosen number persist failed: ${chosenError.message}`);
+    }
   }
   return c.json(company, 201);
 });
@@ -274,7 +323,8 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if (
     body.country !== undefined ||
     body.requested_area_code !== undefined ||
-    body.us_texting_enabled !== undefined
+    body.us_texting_enabled !== undefined ||
+    "chosen_number_e164" in body
   ) {
     const current = unwrap<{ country: string; subscription_status: string }[]>(
       await db
@@ -328,6 +378,23 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       patch.us_texting_enabled = true;
     } else if (body.us_texting_enabled !== undefined) {
       patch.us_texting_enabled = body.us_texting_enabled;
+    }
+
+    // The staged onboarding pick. An explicit value is validated against the
+    // effective country (null clears it); otherwise a country/area-code change
+    // invalidates any prior pick (it was for the old region) and clears it.
+    const regionChanged =
+      (body.country !== undefined && body.country !== row.country) ||
+      body.requested_area_code !== undefined;
+    if ("chosen_number_e164" in body) {
+      if (body.chosen_number_e164) {
+        assertChosenNumberCountry(body.chosen_number_e164, nextCountry);
+        patch.chosen_number_e164 = body.chosen_number_e164;
+      } else {
+        patch.chosen_number_e164 = null;
+      }
+    } else if (regionChanged) {
+      patch.chosen_number_e164 = null;
     }
   }
 

@@ -62,6 +62,8 @@ export interface OnboardingDraft {
   name?: string;
   country?: "US" | "CA";
   areaCode?: string;
+  /** Choose-your-number: the specific E.164 picked in the number step (new mode). */
+  chosenNumber?: string;
   /** CA only — "Do you also text US customers?"; undefined = default yes. */
   usTexting?: boolean;
   /** New-number vs. bring-my-number fork (D16). Defaults to "new". */

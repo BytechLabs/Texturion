@@ -155,6 +155,8 @@ export function useOnboardingUpdateCompany() {
       requested_area_code?: string;
       country?: "US" | "CA";
       us_texting_enabled?: boolean;
+      /** Choose-your-number: a specific pick (E.164), or null to clear it. */
+      chosen_number_e164?: string | null;
     }) =>
       apiFetch<Omit<CompanyView, "numbers" | "registration">>("/v1/company", {
         method: "PATCH",

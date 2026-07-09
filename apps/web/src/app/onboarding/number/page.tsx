@@ -3,10 +3,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
+import { NumberPicker } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
@@ -17,7 +17,6 @@ import { writeCompanyCookie } from "@/lib/company/cookie";
 import { browserTimezone } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
-import { areaCodeHint, searchAreaCodes } from "../area-codes";
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import {
@@ -42,8 +41,7 @@ export default function NumberStepPage() {
 
   const [mode, setMode] = useState<NumberMode>("new");
   const [country, setCountry] = useState<"US" | "CA">("US");
-  const [query, setQuery] = useState("");
-  const [areaCode, setAreaCode] = useState<string | null>(null);
+  const [chosenNumber, setChosenNumber] = useState<string | null>(null);
   const [usTexting, setUsTexting] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -56,20 +54,8 @@ export default function NumberStepPage() {
     if (draft.mode) setMode(draft.mode);
     if (draft.country) setCountry(draft.country);
     if (draft.usTexting !== undefined) setUsTexting(draft.usTexting);
-    if (
-      draft.areaCode &&
-      draft.country &&
-      areaCodeHint(draft.areaCode, draft.country)
-    ) {
-      setAreaCode(draft.areaCode);
-    }
+    if (draft.chosenNumber) setChosenNumber(draft.chosenNumber);
   }, [ready, seeded, draft]);
-
-  const results = useMemo(
-    () => searchAreaCodes(query, country),
-    [query, country],
-  );
-  const selected = areaCode ? areaCodeHint(areaCode, country) : null;
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
@@ -85,8 +71,7 @@ export default function NumberStepPage() {
 
   function pickCountry(next: "US" | "CA") {
     setCountry(next);
-    setAreaCode(null); // codes belong to one country
-    setQuery("");
+    setChosenNumber(null); // numbers belong to one country
     setFormError(null);
   }
 
@@ -110,14 +95,18 @@ export default function NumberStepPage() {
       return;
     }
 
-    if (!selected) {
-      setFormError("Pick an area code for your number first.");
+    if (!chosenNumber) {
+      setFormError("Pick a number to continue.");
       return;
     }
+    // The chosen number's own area code (NDC) is the requested area code — the
+    // fallback if the exact number is taken by checkout time.
+    const chosenAreaCode = chosenNumber.slice(2, 5);
     writeOnboardingDraft({
       name: draft.name,
       country,
-      areaCode: selected.code,
+      areaCode: chosenAreaCode,
+      chosenNumber,
       usTexting: country === "CA" ? usTexting : true,
       mode: "new",
     });
@@ -136,7 +125,8 @@ export default function NumberStepPage() {
       const company = await createCompany.mutateAsync({
         name: (draft.name ?? "").trim(),
         country: "CA",
-        requested_area_code: selected.code,
+        requested_area_code: chosenAreaCode,
+        chosen_number_e164: chosenNumber,
         us_texting_enabled: false,
         ...(timezone ? { timezone } : {}),
       });
@@ -253,81 +243,20 @@ export default function NumberStepPage() {
           </RadioGroup>
         </fieldset>
 
+        {/* Choose-your-number: search an area code, then pick a real available
+            number from the live Telnyx list (the same picker settings uses). */}
         <div className={cn("space-y-2", mode === "port" && "hidden")}>
-          <Label htmlFor="area-code-search">
-            {country === "US"
-              ? "City, state, or area code"
-              : "City, province, or area code"}
-          </Label>
-          {selected ? (
-            <div className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4 py-3">
-              <span className="text-base font-medium tabular-nums">
-                {selected.label}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setAreaCode(null);
-                  setQuery("");
-                }}
-              >
-                Change
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Input
-                id="area-code-search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={country === "US" ? "Denver or 720" : "Toronto or 416"}
-                autoComplete="off"
-                inputMode="search"
-                className="h-12 text-base"
-                role="combobox"
-                aria-expanded={results.length > 0}
-                aria-controls="area-code-results"
-              />
-              {query.trim() === "" ? (
-                <p className="text-[13px] text-muted-foreground">
-                  Type a city, a{" "}
-                  {country === "US" ? "state" : "province"}, or the 3-digit
-                  code you want.
-                </p>
-              ) : results.length === 0 ? (
-                <p className="text-[13px] text-muted-foreground">
-                  No {country === "US" ? "US" : "Canadian"} area codes match
-                  &ldquo;{query.trim()}&rdquo;. Try the{" "}
-                  {country === "US" ? "state" : "province"} name or a code.
-                </p>
-              ) : (
-                <ul
-                  id="area-code-results"
-                  className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card"
-                >
-                  {results.map((hint) => (
-                    <li key={hint.code}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAreaCode(hint.code);
-                          setFormError(null); // clear "pick an area code" once fixed
-                        }}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors duration-150 ease-out hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                      >
-                        <span className="tabular-nums">{hint.label}</span>
-                        <span className="text-[13px] text-muted-foreground">
-                          {hint.region}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
+          <Label>Pick your number</Label>
+          <NumberPicker
+            key={country}
+            country={country}
+            initialAreaCode={draft.areaCode ?? null}
+            selected={chosenNumber}
+            onSelect={(e164) => {
+              setChosenNumber(e164);
+              setFormError(null);
+            }}
+          />
         </div>
 
         {country === "CA" ? (
@@ -386,7 +315,7 @@ export default function NumberStepPage() {
           ) : (
             <>
               Continue
-              {selected ? <Check className="size-4" aria-hidden /> : null}
+              {chosenNumber ? <Check className="size-4" aria-hidden /> : null}
             </>
           )}
         </Button>
