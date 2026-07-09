@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNumbers } from "@/lib/api/numbers";
 import { useActiveCompany } from "@/lib/company/provider";
+import { cn } from "@/lib/utils";
 
 import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
@@ -27,8 +28,14 @@ import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
  * on the left, notifications + the account avatar (opening the member menu) on
  * the right, and the copyable number strip beneath. Hidden at lg+, where the
  * sidebar owns all of this.
+ *
+ * `inThread` (#76): on a phone a conversation is a full-screen pushed view whose
+ * own ThreadHeader already carries a back button and the contact's identity, so
+ * this workspace-chrome header (name + business number) is redundant and just
+ * pushes the messages down. Below md we drop it entirely on thread routes; at
+ * md–lg the inbox is a two-pane view where the header still belongs.
  */
-export function MobileHeader() {
+export function MobileHeader({ inThread = false }: { inThread?: boolean }) {
   const { membership, memberships, switchCompany, displayName } =
     useActiveCompany();
   const numbers = useNumbers();
@@ -58,7 +65,14 @@ export function MobileHeader() {
   );
 
   return (
-    <header className="shrink-0 border-b border-app-line bg-app-white lg:hidden">
+    <header
+      className={cn(
+        "shrink-0 border-b border-app-line bg-app-white lg:hidden",
+        // Full-screen conversation on a phone: the ThreadHeader is the top bar,
+        // so this workspace chrome only clutters. Kept in the md–lg two-pane band.
+        inThread && "max-md:hidden",
+      )}
+    >
       <div className="flex h-14 items-center justify-between gap-2 px-3">
         {multi ? (
           <DropdownMenu>
