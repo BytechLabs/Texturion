@@ -8,6 +8,7 @@ import { companyContext } from "./auth/company";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
@@ -226,9 +227,11 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
     // later-added numbers, and settings-time enables that failed transiently).
     reconcileVoiceEnablement,
   ],
-  // Usage re-reporter, then the 80%/100% usage-alert check (§9 metering
-  // pipeline tail) over the freshly-reported state.
-  "0 * * * *": [reportUnreportedUsage, runUsageAlertsJob],
+  // Usage re-reporter, then the static 80%/100% usage-alert check (§9 metering
+  // pipeline tail) over the freshly-reported state, then the #85 dynamic
+  // overage warning (once per period when a tenant is projected to cost more
+  // than they pay — the static alerts stay as the backstop).
+  "0 * * * *": [reportUnreportedUsage, runUsageAlertsJob, runOverageWarningJob],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [nudgeSoleProprietorOtp],
   // Contact geocoding backfill (D25): geocode addressed contacts via Nominatim,

@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -432,6 +433,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["0 * * * *"]).toEqual([
       reportUnreportedUsage,
       runUsageAlertsJob,
+      runOverageWarningJob,
     ]);
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
     expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);

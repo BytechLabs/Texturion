@@ -41,9 +41,11 @@ export type UsageAlertMetric =
   | "attachment_storage"
   | "voice_minutes"
   | "mms_messages"
-  | "egress";
+  | "egress"
+  // #85/#92: dynamic overage warning — one ledger row per (company, period).
+  | "cost_projection";
 
-interface ActiveCompanyRow {
+export interface ActiveCompanyRow {
   id: string;
   name: string;
   plan: PlanId;
@@ -264,7 +266,7 @@ function egressAlertCopy(
  * and only send when the insert actually landed (the grace-notice pattern,
  * §11). Returns whether this call sent the email.
  */
-async function recordAndSendAlert(
+export async function recordAndSendAlert(
   env: Env,
   company: ActiveCompanyRow,
   metric: UsageAlertMetric,
