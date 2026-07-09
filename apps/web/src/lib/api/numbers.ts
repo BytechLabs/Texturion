@@ -8,7 +8,11 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { Page, PhoneNumberSummary } from "./types";
+import type {
+  AvailableNumbersResult,
+  Page,
+  PhoneNumberSummary,
+} from "./types";
 
 /** GET /v1/numbers — number cards with status (G8 Numbers). */
 export function useNumbers() {
@@ -17,6 +21,37 @@ export function useNumbers() {
     queryKey: keys.numbers(companyId),
     queryFn: () =>
       apiFetch<Page<PhoneNumberSummary>>("/v1/numbers", { companyId }),
+  });
+}
+
+/**
+ * GET /v1/available-numbers — the number-picker feed (choose-your-number).
+ * Company-EXEMPT (no X-Company-Id): the US onboarding number step runs before
+ * the company exists. Only fires once an area code is chosen; `staleTime: 0`
+ * and the returned `refetch` back the picker's Refresh button (Telnyx inventory
+ * rotates). `bestEffort` is the user's "show nearby numbers" toggle.
+ */
+export function useAvailableNumbers(params: {
+  country: "US" | "CA";
+  areaCode: string | null;
+  bestEffort: boolean;
+}) {
+  return useQuery({
+    queryKey: keys.availableNumbers(
+      params.country,
+      params.areaCode,
+      params.bestEffort,
+    ),
+    queryFn: () =>
+      apiFetch<AvailableNumbersResult>("/v1/available-numbers", {
+        searchParams: {
+          country: params.country,
+          area_code: params.areaCode ?? undefined,
+          best_effort: params.bestEffort ? "true" : undefined,
+        },
+      }),
+    enabled: Boolean(params.areaCode),
+    staleTime: 0,
   });
 }
 

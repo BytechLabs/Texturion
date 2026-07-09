@@ -21,6 +21,10 @@ const COMPANY_EXEMPT_ROUTES = new Set([
   "GET /v1/me",
   "POST /v1/companies",
   "POST /v1/invites/accept",
+  // The number picker feed: the US onboarding number step runs before the
+  // company row exists, so it can't carry X-Company-Id. Read-only, public
+  // Telnyx inventory only (routes/available-numbers.ts).
+  "GET /v1/available-numbers",
 ]);
 
 /**

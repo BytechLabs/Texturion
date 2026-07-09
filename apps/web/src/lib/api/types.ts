@@ -142,6 +142,21 @@ export interface PhoneNumberSummary {
   retrying?: boolean;
 }
 
+/** A pickable available number from GET /v1/available-numbers (choose-your-number). */
+export interface AvailableNumber {
+  /** E.164. */
+  phone_number: string;
+  region: string | null;
+  features: string[];
+}
+
+/** GET /v1/available-numbers response — the picker feed. */
+export interface AvailableNumbersResult {
+  data: AvailableNumber[];
+  /** True when the exact filters matched nothing — the UI prompts to widen the search. */
+  best_effort_exhausted: boolean;
+}
+
 /** Registration snapshot embedded in company views (no id / wizard data). */
 export interface RegistrationSummary {
   kind: "brand" | "campaign";

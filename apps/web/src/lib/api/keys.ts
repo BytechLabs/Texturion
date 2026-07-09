@@ -9,6 +9,12 @@ import type { TaskListFilters } from "./task-filters";
 export const keys = {
   /** Company-exempt. */
   me: ["me"] as const,
+  /** Company-exempt (public Telnyx inventory) — the number-picker feed. */
+  availableNumbers: (
+    country: string,
+    areaCode: string | null,
+    bestEffort: boolean,
+  ) => ["available-numbers", country, areaCode, bestEffort] as const,
 
   company: (companyId: string) => [companyId, "company"] as const,
   usage: (companyId: string) => [companyId, "usage"] as const,

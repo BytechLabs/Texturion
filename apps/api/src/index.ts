@@ -20,6 +20,7 @@ import {
 } from "./messaging/crons";
 import { sentryOptions } from "./observability/sentry";
 import { attachmentsRoutes } from "./routes/attachments";
+import { availableNumbersRoutes } from "./routes/available-numbers";
 import { billingRoutes } from "./routes/billing";
 import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
@@ -104,6 +105,7 @@ app.route("/v1", companiesRoutes);
 app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
 app.route("/v1/numbers", numbersRoutes);
+app.route("/v1/available-numbers", availableNumbersRoutes);
 app.route("/v1/port-requests", portingRoutes);
 app.route("/v1/text-enablements", textEnablementRoutes);
 app.route("/v1/registration", registrationRoutes);
