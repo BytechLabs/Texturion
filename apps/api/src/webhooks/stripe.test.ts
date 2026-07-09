@@ -159,9 +159,31 @@ function invoiceFixture(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * The §9 checkout activation claim (claim_checkout_activation) — the
+ * double-charge fail-safe that replaced the unconditional activation PATCH.
+ * Defaults to 'claimed' with no existing modules (the fresh-checkout path);
+ * a test prepends its own stub to exercise 'duplicate'. Non-checkout webhook
+ * tests never call the RPC, so this is inert for them.
+ */
+function activationRpc(
+  opts: {
+    outcome?: "claimed" | "noop" | "duplicate";
+    existingSub?: string | null;
+    modules?: unknown[];
+  } = {},
+): StubEndpoint {
+  return endpoint("POST", /\/rest\/v1\/rpc\/claim_checkout_activation/, () => ({
+    outcome: opts.outcome ?? "claimed",
+    existing_subscription_id: opts.existingSub ?? null,
+    modules: opts.modules ?? [],
+  }));
+}
+
 /** webhook_events ledger: dedupes on event_id like the real PK does. */
 function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
   return [
+    activationRpc(),
     endpoint("POST", /\/rest\/v1\/webhook_events/, (call) => {
       const row = call.json() as { event_id: string };
       if (seen.has(row.event_id)) return [];
@@ -314,12 +336,16 @@ describe("replay: the webhook_events ledger makes redelivery a no-op", () => {
     expect(responseB.status).toBe(200);
     expect(await responseB.json()).toEqual({ received: true, duplicate: true });
 
-    // First delivery: ledger write + full processing (one companies write).
-    expect(firstHarness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    // First delivery: ledger write + full processing (one activation claim).
+    expect(
+      firstHarness.callsTo("POST", /rpc\/claim_checkout_activation/),
+    ).toHaveLength(1);
     expect(firstHarness.callsTo("GET", /subscriptions/)).toHaveLength(1);
     // Replay: the ONLY PostgREST traffic is the conflicting ledger insert.
     expect(secondHarness.callsTo("POST", /webhook_events/)).toHaveLength(1);
-    expect(secondHarness.callsTo("PATCH", /companies/)).toHaveLength(0);
+    expect(
+      secondHarness.callsTo("POST", /rpc\/claim_checkout_activation/),
+    ).toHaveLength(0);
     expect(secondHarness.callsTo("GET", /subscriptions/)).toHaveLength(0);
     expect(provisionCompanyNumber).toHaveBeenCalledTimes(1);
     expect(submitRegistration).toHaveBeenCalledTimes(1);
@@ -356,22 +382,26 @@ describe("§9 event → state table", () => {
     // Re-fetch-from-Stripe guard: the subscription was retrieved.
     expect(harness.callsTo("GET", /subscriptions\/sub_1/)).toHaveLength(1);
 
-    const companyPatches = harness.callsTo("PATCH", /companies/);
-    expect(companyPatches).toHaveLength(2);
-    const activate = companyPatches[0];
-    expect(activate.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
-    expect(activate.json()).toEqual({
-      stripe_customer_id: "cus_1",
-      stripe_subscription_id: "sub_1",
-      subscription_status: "active",
-      plan: "starter",
-      current_period_start: new Date(PERIOD_START * 1000).toISOString(),
-      current_period_end: new Date(PERIOD_END * 1000).toISOString(),
-      canceled_at: null,
-      cancel_at_period_end: false,
+    // §9 double-charge fail-safe: activation is an ATOMIC claim (one live
+    // subscription per company), not the old unconditional PATCH.
+    const claims = harness.callsTo("POST", /rpc\/claim_checkout_activation/);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].json()).toEqual({
+      p_company_id: COMPANY_ID,
+      p_customer_id: "cus_1",
+      p_subscription_id: "sub_1",
+      p_status: "active",
+      p_plan: "starter",
+      p_period_start: new Date(PERIOD_START * 1000).toISOString(),
+      p_period_end: new Date(PERIOD_END * 1000).toISOString(),
+      p_cancel_at_period_end: false,
     });
+
+    // The ONLY companies PATCH now is the fee stamp (the claim owns activation).
+    const companyPatches = harness.callsTo("PATCH", /companies/);
+    expect(companyPatches).toHaveLength(1);
     // Fee stamp: gated on registration_fee_paid_at IS NULL (once ever, §2).
-    const feeStamp = companyPatches[1];
+    const feeStamp = companyPatches[0];
     expect(feeStamp.url.searchParams.get("registration_fee_paid_at")).toBe("is.null");
     expect(feeStamp.json()).toEqual({
       registration_fee_paid_at: expect.any(String),
@@ -390,6 +420,36 @@ describe("§9 event → state table", () => {
     // §4.1 step 5c / §9: the paid checkout submits the 10DLC registration
     // (R1, or the §4.4 post-grace campaign reactivation) — never manual.
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+  });
+
+  it("checkout.session.completed (DUPLICATE): cancels the orphan subscription and does NOT provision", async () => {
+    // §9 double-charge fail-safe: a raced second checkout completes while a live
+    // subscription already owns the company. The claim returns 'duplicate' → the
+    // handler cancels THIS subscription (so it never bills) and skips provisioning.
+    const harness = makeHarness([
+      // Prepended so it wins the shared 'claimed' default.
+      activationRpc({ outcome: "duplicate", existingSub: "sub_old" }),
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("DELETE", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "canceled" }),
+      ),
+    ]);
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // The duplicate subscription was cancelled…
+    expect(harness.callsTo("DELETE", /subscriptions\/sub_1/)).toHaveLength(1);
+    // …and NOTHING was provisioned or activated for it (no orphan number/fee).
+    expect(provisionCompanyNumber).not.toHaveBeenCalled();
+    expect(submitRegistration).not.toHaveBeenCalled();
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
+    expect(harness.callsTo("GET", /checkout\/sessions\/cs_1\/line_items/)).toHaveLength(0);
   });
 
   it("checkout.session.completed enables the purchased plan-builder modules (#12)", async () => {
@@ -480,7 +540,9 @@ describe("§9 event → state table", () => {
       withoutKey,
     );
     expect(withoutKey.callsTo("POST", /posthog/)).toHaveLength(0);
-    expect(withoutKey.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(
+      withoutKey.callsTo("POST", /rpc\/claim_checkout_activation/),
+    ).toHaveLength(1);
   });
 
   it("checkout.session.completed without the fee line does not stamp the fee", async () => {
@@ -504,7 +566,9 @@ describe("§9 event → state table", () => {
       eventOf("checkout.session.completed", checkoutSessionFixture()),
       harness,
     );
-    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1); // activate only
+    // No fee line → no fee stamp; activation is the claim RPC, not a PATCH.
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /rpc\/claim_checkout_activation/)).toHaveLength(1);
   });
 
   it("checkout.session.completed guard: payment_status != 'paid' is a pure no-op", async () => {
@@ -552,9 +616,9 @@ describe("§9 event → state table", () => {
     expect(response.status).toBe(200);
     // NOT a no-op: a comp'd $0 company activates + provisions exactly like paid.
     expect(harness.callsTo("GET", /subscriptions\/sub_1/)).toHaveLength(1);
-    expect(harness.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
-      subscription_status: "active",
-    });
+    expect(
+      harness.callsTo("POST", /rpc\/claim_checkout_activation/)[0].json(),
+    ).toMatchObject({ p_status: "active" });
     expect(provisionCompanyNumber).toHaveBeenCalled();
   });
 
@@ -842,6 +906,8 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     // The #17 leak: enable mms+voice, cancel, resubscribe base-only — the
     // stale rows used to stay enabled (free MMS + forwarded voice) forever.
     const harness = makeHarness([
+      // The claim returns the stale modules (prepended so it wins the shared default).
+      activationRpc({ modules: [moduleRow("mms"), moduleRow("voice")] }),
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture(), // base plan only — no module line items
@@ -851,7 +917,8 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
         () => ({ object: "list", data: [] }),
       ),
-      companiesWithModules([moduleRow("mms"), moduleRow("voice")]),
+      // The voice-disable's forwarding clear is the only remaining companies PATCH.
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
     ]);
@@ -868,10 +935,11 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     expect(disables[0].json()).toEqual({ disabled_at: expect.any(String) });
     // …nothing re-enabled…
     expect(harness.callsTo("POST", /\/rest\/v1\/company_modules/)).toHaveLength(0);
-    // …and the voice disable cleared forwarding exactly like the manual path.
+    // …and the voice disable cleared forwarding exactly like the manual path
+    // (the ONLY companies PATCH now the activation claim owns the write).
     const companyPatches = harness.callsTo("PATCH", /companies/);
-    expect(companyPatches).toHaveLength(2); // activate, then voice clear
-    expect(companyPatches[1].json()).toEqual({
+    expect(companyPatches).toHaveLength(1);
+    expect(companyPatches[0].json()).toEqual({
       forward_to_cell: null,
       mctb_enabled: false,
     });
@@ -879,6 +947,13 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
 
   it("grandfathered seed modules survive a base-only checkout untouched", async () => {
     const harness = makeHarness([
+      // The claim returns the grandfathered rows (prepended to win the default).
+      activationRpc({
+        modules: [
+          moduleRow("mms", { grandfathered: true }),
+          moduleRow("voice", { grandfathered: true }),
+        ],
+      }),
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture(),
@@ -888,10 +963,6 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
         () => ({ object: "list", data: [] }),
       ),
-      companiesWithModules([
-        moduleRow("mms", { grandfathered: true }),
-        moduleRow("voice", { grandfathered: true }),
-      ]),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
     ]);
     await deliver(
@@ -900,13 +971,14 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     );
 
     // No company_modules traffic at all, no voice clearing — and the event
-    // fully processed (nothing threw on an unexpected write).
+    // fully processed (nothing threw on an unexpected write). Activation is the
+    // claim RPC now, so there is NO companies PATCH.
     expect(
       harness.calls.filter((call) =>
         /\/rest\/v1\/company_modules/.test(call.url.href),
       ),
     ).toHaveLength(0);
-    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
     expect(harness.callsTo("PATCH", /webhook_events/)[0].json()).toEqual({
       processed_at: expect.any(String),
     });

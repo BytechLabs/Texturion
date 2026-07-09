@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
@@ -301,27 +302,53 @@ export async function handleCheckoutCompleted(
   const plan = subscriptionPlan(env, subscription);
 
   const db = getDb(env);
-  const { data: activated, error } = await db
-    .from("companies")
-    .update({
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscriptionId,
-      subscription_status: status,
-      current_period_start: period.start,
-      current_period_end: period.end,
-      canceled_at: null,
-      cancel_at_period_end: subscription.cancel_at_period_end === true,
-      ...(plan ? { plan } : {}),
-    })
-    .eq("id", companyId)
-    // company_modules embedded so the #17 module reconcile below needs no
-    // second read — the activation write and the module truth arrive together.
-    .select("id,company_modules(module,disabled_at,grandfathered)");
-  if (error) throw new Error(`companies activate failed: ${error.message}`);
-  const moduleRows =
-    ((activated ?? [])[0] as
-      | { company_modules?: CompanyModuleRow[] }
-      | undefined)?.company_modules ?? [];
+  // §9 double-charge fail-safe: attach EXACTLY ONE live subscription per company,
+  // atomically (row-locked conditional claim). Two checkout completions — a raced
+  // second checkout — used to both run this activation as an UNCONDITIONAL
+  // overwrite: last-write-wins attached the second subscription and orphaned the
+  // first, which then billed the founder forever, invisibly.
+  const { data: claim, error: claimError } = await db.rpc(
+    "claim_checkout_activation",
+    {
+      p_company_id: companyId,
+      p_customer_id: customerId,
+      p_subscription_id: subscriptionId,
+      p_status: status,
+      p_period_start: period.start,
+      p_period_end: period.end,
+      p_cancel_at_period_end: subscription.cancel_at_period_end === true,
+      p_plan: plan ?? null,
+    },
+  );
+  if (claimError) {
+    throw new Error(`checkout activation claim failed: ${claimError.message}`);
+  }
+  const claimResult = claim as {
+    outcome?: string;
+    existing_subscription_id?: string | null;
+    modules?: CompanyModuleRow[];
+  } | null;
+  if (claimResult?.outcome === "duplicate") {
+    // A DIFFERENT live subscription already owns this company — this completion is
+    // a raced duplicate. Cancel THIS subscription so it never bills, and do NOT
+    // provision (the winning session owns the number). Best-effort cancel: a
+    // failure is logged so the subscription reconcile / an operator can reclaim it.
+    try {
+      await stripe.subscriptions.cancel(subscriptionId);
+    } catch (cancelError) {
+      Sentry.captureException(cancelError);
+    }
+    Sentry.captureMessage(
+      `checkout: duplicate subscription ${subscriptionId} for company ${companyId} cancelled — a live subscription (${claimResult.existing_subscription_id ?? "?"}) already exists`,
+      "warning",
+    );
+    return;
+  }
+  // 'claimed' (fresh, or replacing a dead sub on resubscribe) or 'noop' (the
+  // confirm-checkout vs webhook double-fire on the SAME session): the activation
+  // is applied and every step below is idempotent. The claim returns the
+  // company_modules truth alongside it (as the old embedded activation select did).
+  const moduleRows = claimResult?.modules ?? [];
 
   // $29 US-registration fee line present → stamp, once per company ever.
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {

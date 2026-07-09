@@ -326,6 +326,15 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       `${env.APP_ORIGIN}/onboarding/plan?checkout=canceled`,
     );
     expect(form.has("customer")).toBe(false);
+
+    // §9 double-charge fail-safe: a stable, cart-derived Idempotency-Key so two
+    // concurrent identical submits collapse to ONE Checkout Session (Stripe
+    // replays the first) — a double-click can never start two subscriptions.
+    expect(
+      harness.callsTo("POST", /checkout\/sessions/)[0].headers.get(
+        "Idempotency-Key",
+      ),
+    ).toBe(`${COMPANY_ID}:checkout:starter:`);
   });
 
   it("US company, fee already paid: no one-time line (never charged twice, SPEC §2)", async () => {

@@ -11,6 +11,8 @@ export interface StubCall {
   method: string;
   url: URL;
   body: string | null;
+  /** Request headers (e.g. to assert the §9 Idempotency-Key on a Stripe write). */
+  headers: Headers;
   /** Stripe requests are application/x-www-form-urlencoded. */
   form(): URLSearchParams;
   /** PostgREST/Resend requests are JSON. */
@@ -61,6 +63,7 @@ export function makeHarness(endpoints: StubEndpoint[]): Harness {
       method: request.method,
       url,
       body,
+      headers: new Headers(request.headers),
       form: () => new URLSearchParams(body ?? ""),
       json: () => JSON.parse(body ?? "null"),
     };

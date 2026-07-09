@@ -12,6 +12,7 @@ import {
   type PlanId,
 } from "../billing/plans";
 import { enabledModules, isSellableModule } from "../billing/company-modules";
+import { idempotencyKey } from "../billing/idempotency";
 import {
   MODULE_CATALOG,
   moduleForPrice,
@@ -199,7 +200,8 @@ billingRoutes.post("/checkout", async (c) => {
     lineItems.push({ price, quantity: 1 });
   }
 
-  const session = await getStripe(env).checkout.sessions.create({
+  const session = await getStripe(env).checkout.sessions.create(
+    {
     mode: "subscription",
     client_reference_id: company.id,
     // Let customers enter a Stripe promo code at checkout (marketing promos and
@@ -220,7 +222,21 @@ billingRoutes.post("/checkout", async (c) => {
     // service worker could mask as "You're offline" on a slow return.
     success_url: `${env.APP_ORIGIN}/onboarding/setting-up?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.APP_ORIGIN}/onboarding/plan?checkout=canceled`,
-  });
+    },
+    // Stable, cart-derived key: two concurrent identical submits collapse to ONE
+    // Checkout Session (Stripe replays the first), so a double-click can never
+    // start two subscriptions. A genuinely different cart (plan/modules) yields a
+    // different key and its own session, as intended. handleCheckoutCompleted's
+    // activation claim is the completion-side backstop for the different-cart case.
+    {
+      idempotencyKey: idempotencyKey(
+        company.id,
+        "checkout",
+        plan,
+        selectedModules.slice().sort().join(","),
+      ),
+    },
+  );
 
   if (!session.url) {
     throw new Error(`Stripe checkout session ${session.id} returned no URL.`);
