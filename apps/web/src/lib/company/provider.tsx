@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/lib/api/me";
 import type { MemberRole, Membership } from "@/lib/api/types";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { useSessionReady } from "@/lib/auth/use-session-ready";
 
 import {
   readCompanyCookie,
@@ -46,28 +46,10 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
-  // After an OAuth redirect the Supabase browser client hydrates the session a
-  // beat after mount, so the first GET /v1/me could fire tokenless and 401 —
-  // the "couldn't load your workspace" flash that only a manual refresh cleared.
-  // Gate the query on the session being resolved, and re-arm if a late
-  // SIGNED_IN / INITIAL_SESSION lands, so the first call always carries a token.
-  const [sessionReady, setSessionReady] = useState(false);
-  useEffect(() => {
-    const supabase = getSupabaseBrowser();
-    let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) setSessionReady(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setSessionReady(true);
-    });
-    return () => {
-      active = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
-
-  const me = useMe(sessionReady);
+  // Gate /v1/me on the resolved Supabase session so the first call after an
+  // OAuth redirect carries a token (shared with the onboarding wizard, which
+  // loads /me the same way outside this provider).
+  const me = useMe(useSessionReady());
   const [chosen, setChosen] = useState<string | null>(() =>
     readCompanyCookie(),
   );

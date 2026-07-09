@@ -8,6 +8,7 @@ import {
   useOnboardingCompany,
   useOnboardingRegistration,
 } from "@/lib/api/onboarding";
+import { useSessionReady } from "@/lib/auth/use-session-ready";
 import type { CompanyView, RegistrationState } from "@/lib/api/types";
 import {
   readCompanyCookie,
@@ -45,7 +46,10 @@ export interface OnboardingState {
  * membership) — company id is resolved here the same way the provider does.
  */
 export function useOnboardingState(): OnboardingState {
-  const me = useMe();
+  // Gate /v1/me on the resolved session — a fresh OAuth signup lands here (not
+  // in CompanyProvider), so without this the first /me fires tokenless and the
+  // wizard shows "check your connection" until a refresh.
+  const me = useMe(useSessionReady());
   // localStorage is unavailable during SSR; both renders start as {} and the
   // client fills it in before anything user-visible depends on it (the pages
   // render a skeleton until `status === "ready"`).
