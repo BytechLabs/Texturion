@@ -61,17 +61,13 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
           <CountrySelector fullLabels className="flex w-full" />
         </section>
 
-        {/* Log in, a quiet flat row at the bottom of the scroll. */}
-        <div className="mt-6 border-t-0 pt-2">
-          <FlatRow
-            item={{ label: "Log in", href: LOGIN_HREF }}
-            onNavigate={onNavigate}
-          />
-        </div>
       </div>
 
-      {/* Pinned cobalt CTA, the one button, deck label, 48px tap height. */}
-      <div className="bg-[color:var(--fr-frost)] p-4">
+      {/* Pinned actions — the cobalt CTA AND Log in, both always reachable
+          without scrolling so an existing customer never has to hunt for the
+          way in. Log in is a secondary button (not a buried row), matching how
+          the desktop bar keeps both visible side by side. */}
+      <div className="space-y-2 bg-[color:var(--fr-frost)] p-4">
         <SheetClose asChild>
           <Link
             href={SIGNUP_HREF}
@@ -79,6 +75,15 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             className="frn-cta frn-cta-lg frn-focus w-full"
           >
             {PRIMARY_CTA_LABEL}
+          </Link>
+        </SheetClose>
+        <SheetClose asChild>
+          <Link
+            href={LOGIN_HREF}
+            onClick={onNavigate}
+            className="frn-focus font-body-mkt flex min-h-12 w-full items-center justify-center rounded-full border border-black/10 bg-white text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:bg-black/[0.03]"
+          >
+            Log in
           </Link>
         </SheetClose>
       </div>

@@ -4,7 +4,6 @@ import {
   Check,
   CheckSquare,
   ChevronsUpDown,
-  Copy,
   Inbox as InboxIcon,
   PanelLeft,
   Search,
@@ -13,8 +12,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { toast } from "sonner";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
@@ -34,65 +31,16 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import { useNumbers } from "@/lib/api/numbers";
-import { formatPhone } from "@/lib/format/phone";
 
 import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
-
-/**
- * One active business number + a copy button, in the sidebar's number strip.
- * The number itself is the useful thing (not "1 number active"); copy writes
- * the raw E.164 and flips to a check for a beat. Kept OUTSIDE the workspace
- * switcher trigger so it never nests a button inside a button.
- */
-function SidebarNumberRow({ e164 }: { e164: string }) {
-  const [copied, setCopied] = useState(false);
-  const label = formatPhone(e164);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(e164);
-      setCopied(true);
-      toast.success("Number copied.");
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error("Couldn't copy. Your browser blocked clipboard access.");
-    }
-  };
-  return (
-    <div className="flex items-center gap-1.5 text-[12px]">
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-petrol" />
-      <span className="min-w-0 flex-1 truncate tabular-nums text-app-ink">
-        {label}
-      </span>
-      <button
-        type="button"
-        onClick={() => void copy()}
-        aria-label={`Copy ${label}`}
-        className="grid size-6 shrink-0 place-items-center rounded-[6px] text-app-muted-2 outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {copied ? (
-          <Check className="size-3.5" strokeWidth={2} aria-hidden />
-        ) : (
-          <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
-        )}
-      </button>
-    </div>
-  );
-}
+import { CopyableNumberRow, companyInitials } from "./workspace-bits";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
   return n > 9 ? "9+" : `${n}`;
-}
-
-/** The company tile's square logo initials (e.g. "Rivera Plumbing" → "RP"). */
-function companyInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
 }
 
 /** Opens the ⌘K command palette — the app's search + navigator. */
@@ -285,7 +233,7 @@ export function Sidebar({
       {activeNumbers.length > 0 ? (
         <div className="space-y-1">
           {activeNumbers.map((n) => (
-            <SidebarNumberRow key={n.id} e164={n.number_e164} />
+            <CopyableNumberRow key={n.id} e164={n.number_e164} />
           ))}
         </div>
       ) : (

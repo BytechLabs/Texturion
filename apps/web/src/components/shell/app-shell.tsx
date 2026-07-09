@@ -11,6 +11,7 @@ import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
 
 import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
+import { MobileHeader } from "./mobile-header";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
 import { WindowDropGuard } from "./window-drop-guard";
@@ -75,6 +76,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           column (status banner + destination) fills the rest. */}
       <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile-only top header (<1000px): workspace switcher + copyable
+            number(s) + account menu (Sign out) — the sidebar affordances that
+            have no home below lg. Hidden at lg+, where the sidebar owns them. */}
+        <MobileHeader />
         {/* Ambient workspace status (number provisioning / registration / billing).
             Mounted app-wide so a not-ready workspace is obvious on every page;
             renders null when there's nothing to say. */}
