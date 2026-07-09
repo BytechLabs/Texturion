@@ -18,10 +18,19 @@ export function fetchMeWithCompany(companyId: string): Promise<Me> {
   return apiFetch<Me>("/v1/me", { companyId });
 }
 
-export function useMe() {
+/**
+ * GET /v1/me. `enabled` gates the fetch on the Supabase session being resolved
+ * (default true for callers inside the shell, where it always is): right after
+ * an OAuth redirect the browser client hydrates the session a beat after mount,
+ * so firing before then sends a tokenless request that 401s (the CompanyProvider
+ * "couldn't load your workspace" flash). CompanyProvider passes its session-ready
+ * flag so the first call always carries a token.
+ */
+export function useMe(enabled = true) {
   return useQuery({
     queryKey: keys.me,
     queryFn: fetchMe,
     staleTime: 5 * 60_000,
+    enabled,
   });
 }
