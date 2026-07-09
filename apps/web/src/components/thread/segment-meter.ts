@@ -2,13 +2,14 @@ import { estimateSegments, type SmsEncoding } from "@loonext/shared";
 
 /**
  * Composer segment hint (APP-LAYOUT-V2 §3.2): a PASSIVE `stone-400` text line,
- * NOT a control. It appears only past 120 characters, reads "Sent in N parts"
- * (never the word "segment", never a stepper), and turns amber only at ≥4
- * parts. Uses the shared estimator (SPEC §9 GSM-7/UCS-2 rules) — the same math
- * the API pre-checks with, so what the hint says is what the cap counts.
+ * NOT a control. It appears only once a message will actually be sent in 2+
+ * PARTS — that's when it costs an extra segment; a single-part message shows
+ * nothing so short texts stay clean. Reads "Sent in N parts" (never the word
+ * "segment", never a stepper) and turns amber only at ≥4 parts. Uses the shared
+ * estimator (SPEC §9 GSM-7/UCS-2 rules) — the same math the API pre-checks with
+ * and the cap counts, so the hint always matches the bill.
  */
 
-export const METER_VISIBLE_AFTER_CHARS = 120;
 export const METER_WARN_AT_SEGMENTS = 4;
 
 export interface SegmentMeterState {
@@ -25,7 +26,7 @@ export interface SegmentMeterState {
 export function segmentMeter(text: string): SegmentMeterState {
   const estimate = estimateSegments(text);
   return {
-    visible: text.length > METER_VISIBLE_AFTER_CHARS,
+    visible: estimate.segments >= 2,
     segments: estimate.segments,
     encoding: estimate.encoding,
     label: `Sent in ${estimate.segments} part${estimate.segments === 1 ? "" : "s"}`,

@@ -3,16 +3,17 @@ import { describe, expect, it } from "vitest";
 import { segmentMeter } from "./segment-meter";
 
 describe("segmentMeter", () => {
-  it("stays hidden at or under 120 characters", () => {
+  it("stays hidden while the message fits in a single part", () => {
     expect(segmentMeter("").visible).toBe(false);
     expect(segmentMeter("a".repeat(120)).visible).toBe(false);
+    expect(segmentMeter("a".repeat(160)).visible).toBe(false); // still 1 part
   });
 
-  it("appears past 120 characters with the parts label", () => {
-    const state = segmentMeter("a".repeat(121));
+  it("appears once the message splits into 2+ parts", () => {
+    const state = segmentMeter("a".repeat(161)); // 161 → 2 parts
     expect(state.visible).toBe(true);
-    expect(state.segments).toBe(1);
-    expect(state.label).toBe("Sent in 1 part");
+    expect(state.segments).toBe(2);
+    expect(state.label).toBe("Sent in 2 parts");
     expect(state.warn).toBe(false);
   });
 

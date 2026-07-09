@@ -138,9 +138,10 @@ export function admitFiles(
 }
 
 /**
- * §3.2 passive segment hint: a quiet `stone-400` line that appears only past
- * 120 chars, reads "Sent in N parts", turns amber only at ≥4 parts. It is TEXT,
- * not a control — there is no stepper, no +/−. Tabular numerals.
+ * §3.2 passive segment hint: a quiet `stone-400` line that appears only once a
+ * message splits into 2+ parts (when it costs an extra segment), reads "Sent in
+ * N parts", turns amber only at ≥4 parts. It is TEXT, not a control — there is
+ * no stepper, no +/−. Tabular numerals.
  */
 export function SegmentMeterLabel({ text }: { text: string }) {
   const meter = segmentMeter(text);
