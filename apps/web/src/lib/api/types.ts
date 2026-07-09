@@ -155,6 +155,11 @@ export interface AvailableNumbersResult {
   data: AvailableNumber[];
   /** True when the exact filters matched nothing — the UI prompts to widen the search. */
   best_effort_exhausted: boolean;
+  /**
+   * True when Telnyx returned numbers but masked their digits (Canada) so none
+   * is individually orderable — the picker offers area-code choice instead.
+   */
+  masked: boolean;
 }
 
 /** Registration snapshot embedded in company views (no id / wizard data). */

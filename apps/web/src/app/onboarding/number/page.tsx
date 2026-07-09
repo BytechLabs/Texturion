@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { NumberPicker } from "@/components/numbers/number-picker";
+import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -54,7 +54,8 @@ export default function NumberStepPage() {
     if (draft.mode) setMode(draft.mode);
     if (draft.country) setCountry(draft.country);
     if (draft.usTexting !== undefined) setUsTexting(draft.usTexting);
-    if (draft.chosenNumber) setChosenNumber(draft.chosenNumber);
+    // The pick is a full number (US) or an area code (CA/masked) — resume either.
+    setChosenNumber(draft.chosenNumber ?? draft.areaCode ?? null);
   }, [ready, seeded, draft]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
@@ -99,14 +100,16 @@ export default function NumberStepPage() {
       setFormError("Pick a number to continue.");
       return;
     }
-    // The chosen number's own area code (NDC) is the requested area code — the
-    // fallback if the exact number is taken by checkout time.
-    const chosenAreaCode = chosenNumber.slice(2, 5);
+    // A full-number pick (US) orders that exact number; an area-code pick (CA,
+    // where Telnyx masks the digits) auto-assigns within it. Either way the
+    // requested area code is the fallback / the assignment target.
+    const full = isFullNumber(chosenNumber);
+    const requestedAreaCode = full ? chosenNumber.slice(2, 5) : chosenNumber;
     writeOnboardingDraft({
       name: draft.name,
       country,
-      areaCode: chosenAreaCode,
-      chosenNumber,
+      areaCode: requestedAreaCode,
+      chosenNumber: full ? chosenNumber : undefined,
       usTexting: country === "CA" ? usTexting : true,
       mode: "new",
     });
@@ -125,8 +128,8 @@ export default function NumberStepPage() {
       const company = await createCompany.mutateAsync({
         name: (draft.name ?? "").trim(),
         country: "CA",
-        requested_area_code: chosenAreaCode,
-        chosen_number_e164: chosenNumber,
+        requested_area_code: requestedAreaCode,
+        ...(full ? { chosen_number_e164: chosenNumber } : {}),
         us_texting_enabled: false,
         ...(timezone ? { timezone } : {}),
       });

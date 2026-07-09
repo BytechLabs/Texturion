@@ -56,7 +56,36 @@ describe("searchInventory (number-picker feed)", () => {
       country: "CA",
       areaCode: "416",
     });
-    expect(result).toEqual({ data: [], best_effort_exhausted: true });
+    expect(result).toEqual({
+      data: [],
+      best_effort_exhausted: true,
+      masked: false,
+    });
+  });
+
+  it("flags masked (Canadian) inventory and drops the un-orderable numbers", async () => {
+    const env = completeEnv();
+    const telnyx = new TelnyxMock();
+    // Telnyx masks Canadian available numbers — "+14375------" — so none is
+    // individually orderable.
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({
+      data: [
+        { phone_number: "+14375------" },
+        { phone_number: "+14375------" },
+      ],
+    }));
+    stubFetch(telnyx.route());
+
+    const result = await searchInventory(env, {
+      country: "CA",
+      areaCode: "647",
+      bestEffort: true,
+    });
+    expect(result).toEqual({
+      data: [],
+      best_effort_exhausted: false,
+      masked: true,
+    });
   });
 
   it("adds filter[best_effort] only when requested (the 'show nearby' toggle)", async () => {

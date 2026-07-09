@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { NumberPicker } from "@/components/numbers/number-picker";
+import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,8 +48,12 @@ export function ChooseNumberDialog({
   function submit() {
     if (!picked) return;
     setError(null);
+    // A full number (US) is ordered exactly; an area code (CA/masked) re-runs
+    // the auto-search in that area code — both on the existing paid row.
     remediate.mutate(
-      { chosen_number_e164: picked },
+      isFullNumber(picked)
+        ? { chosen_number_e164: picked }
+        : { requested_area_code: picked },
       {
         onSuccess: (updated) => {
           close(false);

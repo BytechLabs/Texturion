@@ -35,6 +35,18 @@ export interface InventoryResult {
   data: AvailableNumber[];
   /** True when the exact filters matched nothing (exhausted) — the UI prompts to widen. */
   best_effort_exhausted: boolean;
+  /**
+   * True when Telnyx returned numbers but MASKED their digits (e.g. Canadian
+   * inventory reads "+14375------") so none is individually orderable. The UI
+   * then offers area-code selection (we assign the number at order) instead of
+   * a confusing list of identical-looking masked numbers.
+   */
+  masked: boolean;
+}
+
+/** A fully-revealed, individually-orderable NANP number (not a masked placeholder). */
+function isOrderable(e164: string): boolean {
+  return /^\+1\d{10}$/.test(e164);
 }
 
 function regionLabel(n: TelnyxAvailableNumber): string | null {
@@ -80,7 +92,7 @@ export async function searchInventory(
       path: "/v2/available_phone_numbers",
       query,
     });
-    const data = (res.data ?? [])
+    const all = (res.data ?? [])
       .filter(
         (n): n is TelnyxAvailableNumber & { phone_number: string } =>
           typeof n.phone_number === "string",
@@ -90,10 +102,17 @@ export async function searchInventory(
         region: regionLabel(n),
         features: featureNames(n),
       }));
-    return { data, best_effort_exhausted: false };
+    // Only fully-revealed numbers are individually orderable; masked ones (CA)
+    // are dropped from the list and flagged so the UI offers area-code choice.
+    const data = all.filter((n) => isOrderable(n.phone_number));
+    return {
+      data,
+      best_effort_exhausted: false,
+      masked: all.length > 0 && data.length === 0,
+    };
   } catch (error) {
     if (error instanceof TelnyxApiError && error.hasCode("10031")) {
-      return { data: [], best_effort_exhausted: true };
+      return { data: [], best_effort_exhausted: true, masked: false };
     }
     throw error;
   }

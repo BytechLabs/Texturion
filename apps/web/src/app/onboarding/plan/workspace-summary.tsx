@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { NumberPicker } from "@/components/numbers/number-picker";
+import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,13 +104,14 @@ export function WorkspaceSummary({
       return;
     }
     setError(null);
+    // A full number (US) is ordered exactly; an area code (CA/masked) clears any
+    // pick and auto-assigns within it.
+    const full = isFullNumber(draftChosen);
     try {
       await update.mutateAsync({
         companyId,
-        chosen_number_e164: draftChosen,
-        // The chosen number's own area code is the requested area code (the
-        // fallback if the exact number is taken by checkout).
-        requested_area_code: draftChosen.slice(2, 5),
+        requested_area_code: full ? draftChosen.slice(2, 5) : draftChosen,
+        chosen_number_e164: full ? draftChosen : null,
         ...(draftCountry !== country ? { country: draftCountry } : {}),
         ...(draftCountry === "CA" ? { us_texting_enabled: draftUsTexting } : {}),
       });
@@ -253,7 +254,11 @@ export function WorkspaceSummary({
                   key={draftCountry}
                   country={draftCountry}
                   initialAreaCode={
-                    draftChosen ? draftChosen.slice(2, 5) : areaCode
+                    draftChosen
+                      ? isFullNumber(draftChosen)
+                        ? draftChosen.slice(2, 5)
+                        : draftChosen
+                      : areaCode
                   }
                   selected={draftChosen}
                   onSelect={setDraftChosen}
