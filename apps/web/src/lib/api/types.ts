@@ -536,6 +536,13 @@ export interface TaskDetail extends Task {
   attachments: TaskAttachmentItem[];
   /** The merged activity+discussion timeline (D-C events + D-D notes). */
   activity: TaskActivityItem[];
+  /**
+   * #107: the caller's #106 access to the task's source number. Tasks are
+   * global, so the identity always resolves, but conversation-derived content
+   * (source_message, attachments, activity) is withheld at 'none' and the
+   * text/reply affordance is hidden at 'note'.
+   */
+  viewer_level: "text" | "note" | "none";
 }
 
 // ---------------------------------------------------------------------------

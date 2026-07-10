@@ -135,6 +135,12 @@ function TaskDetailLoaded({
   const { role } = useActiveCompany();
   const conversationId = task.conversation_id;
 
+  // #107: the task is global (always shown), but its source conversation is on
+  // a number this viewer can't access — the server withheld the message, files,
+  // and discussion. Show the task's own fields, replace the conversation content
+  // with a plain notice, and hide the note composer (posting would be rejected).
+  const noAccess = task.viewer_level === "none";
+
   const update = useUpdateTask(conversationId);
   const del = useDeleteTask(conversationId);
   const done = useTaskDone();
@@ -295,6 +301,20 @@ function TaskDetailLoaded({
 
       {/* Scrollable body. */}
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        {/* #107: no access to the source number — explain the withheld content. */}
+        {noAccess && (
+          <section
+            aria-label="Access notice"
+            className="rounded-app-card border border-app-line bg-app-stone-1 p-3"
+          >
+            <p className="text-[13px] text-app-muted">
+              This task is linked to a number you don&apos;t have access to. You
+              can see the task, but not its messages, files, or discussion — ask
+              an owner or admin for access.
+            </p>
+          </section>
+        )}
+
         {/* Source message + thread link. */}
         {task.source_message && (
           <section aria-label="Source message" className="space-y-1.5">
@@ -363,27 +383,36 @@ function TaskDetailLoaded({
           />
         </section>
 
-        {/* Attachments — the D28 DERIVED union (source-message MMS + files on
-            task-linked notes + legacy rows), a read view: files are attached
-            through the discussion composer below, never uploaded to the task. */}
-        <section className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-            Attachments
-          </p>
-          <TaskAttachments items={task.attachments} />
-        </section>
+        {/* Attachments + activity + discussion are conversation-derived, so a
+            no-access viewer never sees them (the server sent them empty). */}
+        {!noAccess && (
+          <>
+            {/* Attachments — the D28 DERIVED union (source-message MMS + files
+                on task-linked notes + legacy rows), a read view: files are
+                attached through the discussion composer, never the task. */}
+            <section className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+                Attachments
+              </p>
+              <TaskAttachments items={task.attachments} />
+            </section>
 
-        {/* Merged activity + discussion timeline (D-C + D-D). */}
-        <section className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-            Activity
-          </p>
-          <TaskActivityTimeline items={task.activity} />
-        </section>
+            {/* Merged activity + discussion timeline (D-C + D-D). */}
+            <section className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+                Activity
+              </p>
+              <TaskActivityTimeline items={task.activity} />
+            </section>
+          </>
+        )}
       </div>
 
-      {/* Note composer — posts a note linked to conversation + task (D-D). */}
-      <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
+      {/* Note composer — posts a note linked to conversation + task (D-D). A
+          no-access viewer can't note the hidden conversation, so it's hidden. */}
+      {!noAccess && (
+        <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
+      )}
 
       {/* #89: destructive-delete confirm — opened only for a task that carries
           notes or files (an empty task deletes straight from the menu). */}

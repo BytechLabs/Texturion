@@ -374,10 +374,11 @@ begin
 end $$;
 
 -- ===========================================================================
--- N6 (#106). p_hidden_number_ids is a DENY list: hiding FY Co's only number
---     empties the MEMBER's queue (every conversation + task rides that number),
---     zeroes the notification feed + badge, while null (unrestricted) still
---     shows them. Proves the read-model filters, count-consistently.
+-- N6 (#106/#107). p_hidden_number_ids is a DENY list on the CONVERSATION
+--     sections (waiting_on_you / unread / triage — contact identity + snippets)
+--     and the notification feed + badge. The TASK sections stay GLOBAL (#107:
+--     an assigned task is visible on /for-you regardless of number access; its
+--     card carries only a title + ids), so my_tasks is UNCHANGED by the filter.
 -- ===========================================================================
 do $$
 declare
@@ -395,10 +396,15 @@ begin
      or jsonb_array_length(r_open->'my_tasks') = 0 then
     raise exception 'N6 FAILED: baseline (unrestricted) queue is unexpectedly empty: %', r_open;
   end if;
+  -- Conversation sections are hidden…
   if jsonb_array_length(r_hidden->'waiting_on_you') <> 0
-     or jsonb_array_length(r_hidden->'unread') <> 0
-     or jsonb_array_length(r_hidden->'my_tasks') <> 0 then
-    raise exception 'N6 FAILED: hidden number still surfaces in for-you: %', r_hidden;
+     or jsonb_array_length(r_hidden->'unread') <> 0 then
+    raise exception 'N6 FAILED: hidden number still surfaces in conversation sections: %', r_hidden;
+  end if;
+  -- …but the assigned task stays (global, #107).
+  if jsonb_array_length(r_hidden->'my_tasks')
+     <> jsonb_array_length(r_open->'my_tasks') then
+    raise exception 'N6 FAILED: my_tasks must stay global under the deny filter: %', r_hidden;
   end if;
 
   select count(*) into feed_open from public.api_notifications(

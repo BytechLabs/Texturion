@@ -102,6 +102,44 @@ export async function assertNumberLevel(
 }
 
 /**
+ * The caller's effective level for a conversation, resolved from its number
+ * (#106). Owners/admins and no-rules companies are 'text'; an UNKNOWN
+ * conversation is 'text' too (the route's own lookup owns the 404), so this
+ * never turns a missing row into a false 'none'. Used where a route needs the
+ * level itself — the task detail redacts conversation content at 'none' and
+ * hides the text affordance at 'note' (#107).
+ */
+export async function resolveConversationLevel(
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    userId: string;
+    role: MemberRole;
+    conversationId: string;
+  },
+): Promise<NumberAccessLevel> {
+  if (args.role === "owner" || args.role === "admin") return "text";
+
+  // Resolve FIRST: the common no-rules company short-circuits without ever
+  // touching the conversations table.
+  const access = await resolveNumberAccess(db, args);
+  if (access.hiddenNumberIds === null) return "text";
+
+  const { data, error } = await db
+    .from("conversations")
+    .select("phone_number_id")
+    .eq("company_id", args.companyId)
+    .eq("id", args.conversationId)
+    .limit(1);
+  if (error) {
+    throw new Error(`conversation access lookup failed: ${error.message}`);
+  }
+  const row = (data ?? [])[0] as { phone_number_id: string | null } | undefined;
+  if (!row) return "text";
+  return access.levelFor(row.phone_number_id);
+}
+
+/**
  * The conversation-id flavor of {@link assertNumberLevel}, for routes that
  * haven't loaded the row (the pinned + thread lists). Unknown conversations
  * pass through so the route's own lookup produces its usual 404.
@@ -116,26 +154,7 @@ export async function requireConversationAccess(
     need: "read" | "note" | "text";
   },
 ): Promise<void> {
-  if (args.role === "owner" || args.role === "admin") return;
-
-  // Resolve FIRST: the common no-rules company short-circuits without ever
-  // touching the conversations table.
-  const access = await resolveNumberAccess(db, args);
-  if (access.hiddenNumberIds === null) return;
-
-  const { data, error } = await db
-    .from("conversations")
-    .select("phone_number_id")
-    .eq("company_id", args.companyId)
-    .eq("id", args.conversationId)
-    .limit(1);
-  if (error) {
-    throw new Error(`conversation access lookup failed: ${error.message}`);
-  }
-  const row = (data ?? [])[0] as { phone_number_id: string | null } | undefined;
-  if (!row) return;
-
-  const level = access.levelFor(row.phone_number_id);
+  const level = await resolveConversationLevel(db, args);
   if (level === "none") {
     throw new ApiError("not_found", "No such conversation.");
   }

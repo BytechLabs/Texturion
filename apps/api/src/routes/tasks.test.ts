@@ -80,6 +80,16 @@ function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute
       : undefined;
 }
 
+/**
+ * #106/#107: the create/detail/checklist routes resolve the caller's number
+ * access. `[]` = no rules → unrestricted, so the guards short-circuit and the
+ * existing assertions are unchanged. Tests that exercise a hidden number stub
+ * this route with a rule and a conversations lookup explicitly.
+ */
+function numberAccessRoute(rules: unknown[] = []): FetchRoute {
+  return stubRoute(restMatch(env, "GET", "number_access"), () => rules).route;
+}
+
 function taskRow(overrides: Record<string, unknown> = {}) {
   return {
     id: TASK_ID,
@@ -169,7 +179,10 @@ describe("POST /v1/tasks — promote a message", () => {
           }),
       };
     });
-    return { rpc, all: [jwksRoute(auth), membersRoute(), rpc.route] };
+    return {
+      rpc,
+      all: [jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route],
+    };
   }
 
   it("promotes a message via create_task: forwards params, defaults the title, 201", async () => {
@@ -461,11 +474,37 @@ describe("GET /v1/tasks — list filters + derived status", () => {
 
   it("has_location=true joins contacts and filters lat not-null", async () => {
     const list = listStub([]);
-    stubFetch(jwksRoute(auth), membersRoute(), list.route);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route);
     await request("GET", "/v1/tasks?has_location=true");
     const q = list.calls[0].url.searchParams;
     expect(q.get("select")).toContain("contacts!inner");
     expect(q.get("conversations.contacts.lat")).toBe("not.is.null");
+    // Unrestricted caller → no hidden-number exclusion on the map view.
+    expect(q.get("conversations.phone_number_id")).toBeNull();
+  });
+
+  it("#106/#107: the map view excludes tasks on numbers hidden from the caller", async () => {
+    // The map projects the source contact's name + geocode (conversation
+    // content), so a restricted member must not see hidden-number pins. The
+    // exclusion is a DB-level embed filter (keeps the keyset window correct).
+    const HIDDEN_NUM = "f0000000-0000-4000-8000-0000000000f1";
+    const list = listStub([]);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([
+        {
+          phone_number_id: HIDDEN_NUM,
+          principal_kind: "role",
+          principal: "admin",
+          level: "text",
+        },
+      ]),
+      list.route,
+    );
+    await request("GET", "/v1/tasks?has_location=true");
+    const q = list.calls[0].url.searchParams;
+    expect(q.get("conversations.phone_number_id")).toBe(`not.in.(${HIDDEN_NUM})`);
   });
 
   it("q applies a title trgm ilike (escaped)", async () => {
@@ -559,6 +598,7 @@ describe("GET /v1/conversations/:id/tasks — checklist", () => {
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
+      numberAccessRoute(),
       convCheck.route,
       list.route,
       union.mms.route,
@@ -671,6 +711,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
+      numberAccessRoute(),
       detail.route,
       profiles.route,
       attachments.route,
@@ -729,6 +770,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
+      numberAccessRoute(),
       detail.route,
       profiles.route,
       union.mms.route,
@@ -863,6 +905,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
+      numberAccessRoute(),
       detail.route,
       profiles.route,
       mms.route,
@@ -1162,5 +1205,216 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
     stubFetch(jwksRoute(auth), membersRoute(), lookup.route);
     const response = await request("DELETE", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(404);
+  });
+});
+
+// --------------------------------------------------------------------------
+// #107: tasks stay GLOBAL, but the source conversation obeys #106 access.
+// --------------------------------------------------------------------------
+describe("#106/#107 number access on tasks", () => {
+  const HIDDEN_NUM = "f0000000-0000-4000-8000-0000000000f1";
+  const VIS_NUM = "f0000000-0000-4000-8000-0000000000f2";
+
+  /** An admins-only rule the default 'member' caller can never match → none. */
+  const hidingRule = {
+    phone_number_id: HIDDEN_NUM,
+    principal_kind: "role",
+    principal: "admin",
+    level: "text",
+  };
+  /** A note-level rule that names the caller directly. */
+  const noteRule = () => ({
+    phone_number_id: VIS_NUM,
+    principal_kind: "user",
+    principal: auth.subject,
+    level: "note",
+  });
+
+  it("detail: a hidden number redacts conversation content but keeps the task identity", async () => {
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        title: "Follow up",
+        messages: {
+          id: MESSAGE_ID,
+          body: "SECRET customer message",
+          done_at: null,
+          done_by_user_id: null,
+          created_at: "2026-07-02T12:00:00.000Z",
+          direction: "inbound",
+        },
+      }),
+    ]);
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => []);
+    const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+      { phone_number_id: HIDDEN_NUM },
+    ]);
+    // Attachment/activity stubs are present but MUST NOT be hit (short-circuit).
+    const attach = stubRoute(restMatch(env, "GET", "attachments"), () => []);
+    const events = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([hidingRule]),
+      detail.route,
+      profiles.route,
+      conv.route,
+      attach.route,
+      events.route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      id: string;
+      title: string;
+      viewer_level: string;
+      source_message: unknown;
+      attachments: unknown[];
+      activity: unknown[];
+    };
+    // Identity survives (global task); conversation content is withheld.
+    expect(body).toMatchObject({
+      id: TASK_ID,
+      title: "Follow up",
+      viewer_level: "none",
+      source_message: null,
+    });
+    expect(body.attachments).toEqual([]);
+    expect(body.activity).toEqual([]);
+    // The redaction short-circuits BEFORE the attachment/activity loads.
+    expect(attach.calls).toHaveLength(0);
+    expect(events.calls).toHaveLength(0);
+  });
+
+  it("detail: a note-level viewer sees content with viewer_level 'note'", async () => {
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        messages: {
+          id: MESSAGE_ID,
+          body: "hi",
+          done_at: null,
+          done_by_user_id: null,
+          created_at: "2026-07-02T12:00:00.000Z",
+          direction: "inbound",
+        },
+      }),
+    ]);
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => []);
+    const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+      { phone_number_id: VIS_NUM },
+    ]);
+    const attach = stubRoute(restMatch(env, "GET", "attachments"), () => []);
+    const mms = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const noteLinks = stubRoute(
+      restMatch(env, "GET", "messages", (url) =>
+        (url.searchParams.get("task_id") ?? "").startsWith("in."),
+      ),
+      () => [],
+    );
+    const events = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    const notes = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([noteRule()]),
+      detail.route,
+      profiles.route,
+      conv.route,
+      attach.route,
+      mms.route,
+      noteLinks.route,
+      events.route,
+      notes.route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      viewer_level: string;
+      source_message: { id: string } | null;
+    };
+    expect(body.viewer_level).toBe("note");
+    expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
+  });
+
+  it("checklist: 404s when the number is hidden from the caller", async () => {
+    // Existence check + access lookup both read conversations; one row serves both.
+    const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+      { id: CONVERSATION_ID, phone_number_id: HIDDEN_NUM },
+    ]);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([hidingRule]),
+      conv.route,
+    );
+    const response = await request(
+      "GET",
+      `/v1/conversations/${CONVERSATION_ID}/tasks`,
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("create: 404s promoting a message on a hidden number; the RPC is never called", async () => {
+    const source = stubRoute(restMatch(env, "GET", "messages"), () => [
+      { conversation_id: CONVERSATION_ID },
+    ]);
+    const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+      { phone_number_id: HIDDEN_NUM },
+    ]);
+    const rpc = stubRoute(rpcMatch(env, "create_task"), () => ({
+      outcome: "created",
+      task: taskRow(),
+    }));
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([hidingRule]),
+      source.route,
+      conv.route,
+      rpc.route,
+    );
+
+    const response = await request("POST", "/v1/tasks", {
+      message_id: MESSAGE_ID,
+    });
+    expect(response.status).toBe(404);
+    expect(rpc.calls).toHaveLength(0);
+  });
+
+  it("create: a note-level member CAN promote a message (internal coordination)", async () => {
+    const source = stubRoute(restMatch(env, "GET", "messages"), () => [
+      { conversation_id: CONVERSATION_ID },
+    ]);
+    const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+      { phone_number_id: VIS_NUM },
+    ]);
+    const rpc = stubRoute(rpcMatch(env, "create_task"), () => ({
+      outcome: "created",
+      task: taskRow({ title: "noted" }),
+    }));
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute([noteRule()]),
+      source.route,
+      conv.route,
+      rpc.route,
+    );
+
+    const response = await request("POST", "/v1/tasks", {
+      message_id: MESSAGE_ID,
+    });
+    expect(response.status).toBe(201);
+    expect(rpc.calls).toHaveLength(1);
   });
 });

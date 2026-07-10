@@ -52,6 +52,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import {
+  requireConversationAccess,
+  resolveConversationLevel,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -262,6 +267,37 @@ tasksRoutes.post("/tasks", requireRole("member"), async (c) => {
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
 
+  // #106/#107: a member with no access to the source message's number can't
+  // promote it to a task (that number's content is hidden from them). Creating
+  // a task is internal coordination, so 'note' access is enough — a notes-only
+  // member may organize work they can read. An unknown message falls through to
+  // the RPC's own 422. Owners/admins and no-rules companies short-circuit
+  // without touching messages/conversations.
+  const role = c.get("role");
+  if (role !== "owner" && role !== "admin") {
+    const access = await resolveNumberAccess(db, { companyId, userId, role });
+    if (access.hiddenNumberIds !== null) {
+      const sourceRows = unwrap<{ conversation_id: string }[]>(
+        await db
+          .from("messages")
+          .select("conversation_id")
+          .eq("company_id", companyId)
+          .eq("id", body.message_id)
+          .limit(1),
+        "task source lookup",
+      );
+      if (sourceRows[0]) {
+        await requireConversationAccess(db, {
+          companyId,
+          userId,
+          role,
+          conversationId: sourceRows[0].conversation_id,
+          need: "note",
+        });
+      }
+    }
+  }
+
   // T3: the mutation is the `create_task` security-definer RPC — ONE atomic
   // transaction that resolves conversation_id from the source message
   // (company-scoped, §10), validates the assignee, inserts the tasks row (the
@@ -366,7 +402,7 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const select =
     `${TASK_COLUMNS},messages!message_id!inner(id,done_at)` +
     (hasLocation
-      ? ",conversations!inner(id,contacts!inner(id,name,lat,lng))"
+      ? ",conversations!inner(id,phone_number_id,contacts!inner(id,name,lat,lng))"
       : "");
 
   let query = db
@@ -398,6 +434,25 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   }
   if (hasLocation) {
     query = query.not("conversations.contacts.lat", "is", null);
+    // #106/#107: the map view exposes the source contact's NAME + geocode via
+    // the conversations→contacts join — that's conversation content, not the
+    // globally-visible task title. Exclude tasks whose number is hidden from
+    // the caller so the map can never plot a hidden customer. The !inner join
+    // makes this embed filter drop the parent row, so the keyset window stays
+    // correct (no post-filter truncation). Owners/admins and no-rules companies
+    // resolve unrestricted and skip it.
+    const access = await resolveNumberAccess(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+    });
+    if (access.hiddenNumberIds && access.hiddenNumberIds.length > 0) {
+      query = query.not(
+        "conversations.phone_number_id",
+        "in",
+        `(${access.hiddenNumberIds.join(",")})`,
+      );
+    }
   }
   if (rawQ !== undefined && rawQ !== "") {
     if (rawQ.length > 200) {
@@ -518,6 +573,16 @@ tasksRoutes.get(
     if (conversations.length === 0) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
+    // #106: the checklist is a per-conversation view — a member with no access
+    // to this number gets the same 404 as a missing thread (its tasks would
+    // expose the hidden conversation's work).
+    await requireConversationAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId,
+      need: "read",
+    });
 
     interface ChecklistRow {
       id: string;
@@ -731,6 +796,7 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
   interface DetailRow {
     id: string;
     message_id: string;
+    conversation_id: string;
     assigned_user_id: string | null;
     created_by_user_id: string;
     messages: { id: string; body: string; done_at: string | null } | null;
@@ -771,6 +837,40 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
     for (const p of found) profiles.set(p.user_id, p);
   }
 
+  const { messages, ...task } = row;
+  const done = (messages?.done_at ?? null) !== null;
+  const identity = {
+    ...task,
+    done,
+    status: done ? "done" : "open",
+    assignee: row.assigned_user_id
+      ? profiles.get(row.assigned_user_id) ?? null
+      : null,
+    created_by: profiles.get(row.created_by_user_id) ?? null,
+  };
+
+  // #107: tasks are GLOBAL (assignable to anyone, visible on /tasks + /for-you),
+  // but the source conversation obeys #106. A member with no access to the
+  // task's number still sees the task's identity, but every field derived from
+  // the hidden conversation — the source message, its attachments, the note
+  // discussion — is withheld. `viewer_level` lets the web hide the text/reply
+  // affordance at 'note' and show a no-access notice at 'none'.
+  const viewerLevel = await resolveConversationLevel(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId: row.conversation_id,
+  });
+  if (viewerLevel === "none") {
+    return c.json({
+      ...identity,
+      viewer_level: viewerLevel,
+      source_message: null,
+      attachments: [],
+      activity: [],
+    });
+  }
+
   // D28: the derived attachments union (source-message MMS + linked-note files
   // + legacy task-owned rows), gallery-shaped, no pre-signed urls — the web
   // calls GET /v1/attachments/:id/url per item.
@@ -788,16 +888,9 @@ tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
   // like the thread. Author display names are resolved from profiles.
   const activity = await loadTaskActivity(db, companyId, id, profiles);
 
-  const { messages, ...task } = row;
-  const done = (messages?.done_at ?? null) !== null;
   return c.json({
-    ...task,
-    done,
-    status: done ? "done" : "open",
-    assignee: row.assigned_user_id
-      ? profiles.get(row.assigned_user_id) ?? null
-      : null,
-    created_by: profiles.get(row.created_by_user_id) ?? null,
+    ...identity,
+    viewer_level: viewerLevel,
     source_message: messages,
     attachments,
     activity,
