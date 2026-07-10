@@ -47,8 +47,8 @@ export const HOME_FAQS: readonly HomeFaq[] = [
     aCa: "Yes. $29 a month for up to 3 people on Starter, $79 for up to 15 on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so $29 is $29 from your first month on. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
   },
   {
-    q: "What counts as one of my 500 texts?",
-    a: "Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts with emoji, count as more than one, and the composer shows you the count before you send, so there's no mystery. Receiving texts is always free and unlimited. Receiving photos is free too, and they're saved in your included storage. In practice, 500 covers roughly 20 to 25 plain texts every working day for a 2 or 3 person shop. Go over and it's 3¢ a text, with a cap you set. Sending photos is its own add-on; see the photos question below.",
+    q: "What counts as a text I send?",
+    a: "Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts with emoji, count as more than one, and the composer shows you the count before you send, so there's no mystery. Receiving texts is always free and unlimited. Receiving photos is free too, and they're saved for you; storage is free, with no caps. Texting is included under our automated fair-use policy, and almost every crew stays well inside it without thinking about it.",
   },
   {
     q: "Why does texting US customers take about a week?",
@@ -67,11 +67,11 @@ export const HOME_FAQS: readonly HomeFaq[] = [
   },
   {
     q: "Can customers text us photos?",
-    a: "Yes, both directions, on every plan, nothing to turn on. Photos customers send come through in the conversation, full size, and receiving them is free. Sending photos back is included too; each picture you send counts as three texts from your monthly allowance, however long the words.",
+    a: "Yes, both directions, on every plan, nothing to turn on. Photos customers send come through in the conversation, full size, and receiving them is free. Sending photos back is included too, under the same fair-use policy as your texts, and every photo is stored free with no caps.",
   },
   {
-    q: "What happens if we go over 500 texts?",
-    a: "Nothing surprising. Extra texts are 3¢ each on Starter, 2.5¢ on Pro. We email you at 80% and 100% of your allowance, and a spending cap, set to three times your allowance by default, stops things before they run away. You control the cap.",
+    q: "What happens if we go over our included texting?",
+    a: "Nothing surprising. We email you at 80% and again at 100% of your included texting, and past it extra texts bill at a small per-text rate, up to a spending cap you control that stops things before they run away. The exact rates live in our fair use policy.",
   },
   {
     q: "What happens if I cancel?",

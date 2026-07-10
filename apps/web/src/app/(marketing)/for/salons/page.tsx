@@ -148,8 +148,8 @@ const CONTENT: TradeContent = {
       a: "Assign each conversation to the right stylist and it has one clear owner, while the front desk still sees everything to help confirm and rebook. One number, one inbox, but never a free-for-all where two people answer the same client.",
     },
     {
-      q: "Do confirmation texts eat up our 500?",
-      a: "A plain confirmation counts as one text, so 500 covers a lot of “see you tomorrow” messages, and the composer shows the count before you send. Go over on a big week and it's 3¢ each up to a cap you control. No surprise bill.",
+      q: "Do confirmation texts eat up our included texting?",
+      a: "A plain confirmation counts as one text, and texting is included on a fair-use basis sized for a full book, so confirmations are exactly what it's for. The composer shows the count before you send, and if a big week runs past your included texting, extra texts bill at a small per-text rate up to a cap you control. No surprise bill.",
     },
     {
       q: "What does it take to get our salon set up to text?",

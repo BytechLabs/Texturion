@@ -166,14 +166,14 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           </DialogTitle>
           {upgrading ? (
             <DialogDescription>
-              Pro is $79/mo: 2,500 outgoing texts included,{" "}
+              Pro is $79/mo: a bigger fair-use texting allowance,{" "}
               {PLAN_PRICING.pro.seats} seats, and a second phone number.
               You&apos;re charged the prorated difference for the rest of this
               period today.
             </DialogDescription>
           ) : (
             <DialogDescription>
-              Starter is $29/mo: 500 outgoing texts included,{" "}
+              Starter is $29/mo: texting for a small crew under fair use,{" "}
               {STARTER_LIMITS.seats} seats, 1 number.
             </DialogDescription>
           )}

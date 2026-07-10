@@ -15,7 +15,9 @@
  * regions_ca is filtered out ON PURPOSE: the API refuses to sell it until
  * multi-region provisioning ships (SELLABLE_MODULES in
  * apps/api/src/billing/company-modules.ts), and we never advertise what a
- * buyer can't buy.
+ * buyer can't buy. extra_storage is filtered the same way (#121: storage is
+ * free, the add-on is retired); the filter is belt-and-suspenders so the
+ * marketing surfaces stay clean even before the catalog mirror drops it.
  *
  * Plain module (no JSX) so plan-builder.test.tsx can exercise the math
  * without rendering, and so both the client island and server components can
@@ -32,9 +34,13 @@ import {
 } from "@/lib/api/types";
 import { APP_LINKS } from "@/lib/marketing/site";
 
+/** Modules marketing never sells: regions_ca (not purchasable yet) and
+ *  extra_storage (retired by #121: storage is free). */
+const UNSELLABLE_MODULES: readonly string[] = ["regions_ca", "extra_storage"];
+
 /** The add-ons a buyer can actually purchase today (API SELLABLE_MODULES). */
 export const SELLABLE_ADDON_CARDS: PlanModuleCard[] = PLAN_MODULE_CARDS.filter(
-  (card) => card.id !== "regions_ca",
+  (card) => !UNSELLABLE_MODULES.includes(card.id),
 );
 
 /**

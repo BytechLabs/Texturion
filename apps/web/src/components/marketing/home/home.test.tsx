@@ -172,12 +172,30 @@ describe("add-on truth (#28 guard, ported): copy can never disagree with the cat
     // …and the page must not sell it or quote its old $5/150 terms.
     expect(PAGE).not.toContain("Picture messaging is a $5/mo add-on");
     expect(PAGE).not.toContain("Picture messages");
-    // The photos cell + FAQ state the honest included model: 3 texts per picture.
-    expect(PAGE).toContain("counts as three texts");
+    // #121: the three-texts metering detail lives only on /legal/fair-use.
+    expect(PAGE).not.toContain("counts as three texts");
     const photosFaq = HOME_FAQS.find((f) => f.q === "Can customers text us photos?");
     expect(photosFaq?.a).toContain("included");
-    expect(photosFaq?.a).toContain("three texts");
+    expect(photosFaq?.a).toContain("fair-use policy");
+    expect(photosFaq?.a).not.toContain("three texts");
     expect(photosFaq?.a).not.toContain("$5");
+  });
+
+  it("#121: no hard-limit numbers on the home page; the fair-use policy is linked instead", () => {
+    // No allowance figures, per-text rates, GB caps, or storage-cap language.
+    expect(PAGE).not.toMatch(/\b500\b|\b2,500\b/);
+    expect(PAGE).not.toMatch(/\d(\.\d+)?¢/);
+    expect(PAGE).not.toMatch(/\bGB\b/);
+    expect(PAGE).not.toContain("included storage");
+    expect(PAGE).not.toContain("Extra storage");
+    // The concrete numbers live in one place, and the page links to it.
+    expect(PAGE).toContain('href="/legal/fair-use"');
+    // The FAQ keeps the alerts + cap remediation story.
+    const overFaq = HOME_FAQS.find(
+      (f) => f.q === "What happens if we go over our included texting?",
+    );
+    expect(overFaq?.a).toContain("80% and again at 100%");
+    expect(overFaq?.a).toContain("spending cap you control");
   });
 
   it("never advertises the unsellable regions_ca module", () => {

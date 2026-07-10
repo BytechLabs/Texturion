@@ -157,9 +157,14 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     const html = PAGES["shared-inbox"];
     expect(html).toContain("$29");
     expect(html).toContain("$79");
-    // #96: fair-use posture, never a pinned per-plan message count.
+    // #96/#121: fair-use posture, never a pinned per-plan message count, and
+    // the policy where the concrete numbers live is linked. Storage is free,
+    // never an "included storage" pool that implies a cap.
     expect(html).toContain("fair-use basis");
+    expect(html).toContain('href="/legal/fair-use"');
     expect(html).not.toContain("2,500");
+    expect(html).not.toContain("included storage");
+    expect(html).toContain("storage is free");
     expect(html).toMatch(/up to 3 people/);
     expect(html).toMatch(/up to 15 people/);
     expect(html).toMatch(/first month is \$58/);

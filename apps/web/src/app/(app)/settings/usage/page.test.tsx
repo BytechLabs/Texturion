@@ -125,10 +125,11 @@ describe("/settings/usage limit-meter gating (#95)", () => {
     expect(html).not.toContain("Files on notes"); // StorageMeter
   });
 
-  it("surfaces the of-N meter and storage when trending over", () => {
+  it("surfaces the of-N meter when trending over, never storage (#121)", () => {
     const html = render(baseUsage({ used_segments: 480, ...TRENDING }));
     expect(html).toContain("included messages used");
-    expect(html).toContain("Files on notes");
+    // #121: storage is free and capless — no storage card even when trending.
+    expect(html).not.toContain("Files on notes");
     expect(html).not.toContain("comfortably within your plan");
   });
 
@@ -141,7 +142,7 @@ describe("/settings/usage limit-meter gating (#95)", () => {
     expect(html).not.toContain("comfortably within your plan");
   });
 
-  it("surfaces the storage meter when storage is near its budget", () => {
+  it("renders no storage card at any fill level (#121: storage is free)", () => {
     const budget = 1024 ** 3;
     const html = render(
       baseUsage({
@@ -152,8 +153,9 @@ describe("/settings/usage limit-meter gating (#95)", () => {
           mms_budget_bytes: budget,
         },
       }),
-    ); // trending false, but storage 90% of budget
-    expect(html).toContain("Files on notes");
+    ); // even at 90% of the (dying) budget fields, nothing renders
+    expect(html).not.toContain("Files on notes");
+    expect(html).not.toContain("Storage");
   });
 });
 

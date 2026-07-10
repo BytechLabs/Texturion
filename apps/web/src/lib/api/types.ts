@@ -800,10 +800,12 @@ export type ChangePlanResult =
  * #12 plan-builder module ids (mirrors the API company_modules.module).
  * #97/#103: `mms` is RETIRED — pictures are included on every plan (each MMS
  * counts 3 texts from the allowance), so there is no Picture-messages add-on.
- * Old stashed/URL plan intents carrying "mms" are dropped by the plan-intent
- * whitelist exactly like any unknown value.
+ * #121: `extra_storage` is RETIRED — storage is free with no caps or meter;
+ * abusive storage use triggers a human conversation, never a block.
+ * Old stashed/URL plan intents carrying retired ids are dropped by the
+ * plan-intent whitelist exactly like any unknown value.
  */
-export const PLAN_MODULE_IDS = ["voice", "extra_storage", "regions_ca"] as const;
+export const PLAN_MODULE_IDS = ["voice", "regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 
 /**
@@ -838,9 +840,10 @@ export interface PlanModuleCard {
  * WHEN RETUNING A PRICE OR QUANTITY you must edit modules.ts/plans.ts AND
  * this list — there is no runtime link. The real fix (#59's recommendation)
  * is moving the catalog to packages/shared and importing it from both apps;
- * until that lands, do NOT delete this constant. Values as of 2026-07-09:
- * voice $8 / PLAN_VOICE_MINUTES 300, extra_storage $5 / EXTRA_STORAGE_BYTES
- * 10 GB, regions_ca $5. (#103: mms retired — pictures included, 3 texts each.)
+ * until that lands, do NOT delete this constant. Values as of 2026-07-10:
+ * voice $8, regions_ca $5. (#103: mms retired — pictures included. #121:
+ * extra_storage retired — storage is free, no caps; concrete figures live
+ * only in the fair-use policy.)
  */
 export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   // #97/#103: no "Picture messages" card — MMS is included on every plan
@@ -850,14 +853,8 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
     label: "Call forwarding",
     blurb: "Forward calls to your cell and text back the ones you miss.",
     price: "$8",
-    detail: "300 forwarded minutes a month included.",
-  },
-  {
-    id: "extra_storage",
-    label: "Extra storage",
-    blurb: "More room for files on notes and saved picture messages.",
-    price: "$5",
-    detail: "Adds 10 GB to each storage pool (files and pictures).",
+    // #121: the minute figure lives in the fair-use policy, not sales copy.
+    detail: "Generous forwarded minutes under fair use.",
   },
   {
     id: "regions_ca",

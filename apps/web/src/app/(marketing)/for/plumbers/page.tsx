@@ -124,7 +124,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month. The whole crew.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and texting that comfortably covers 20 to 25 plain texts a working day on a fair-use basis, not a hard cap, enough for most 2 or 3 person shops, and the composer shows the count before you send. Bigger crew? Pro runs $79, fits up to 15 people, and adds a second number. Month to month, no contracts.",
+    "Starter covers 3 people, 1 local number, and texting included on a fair-use basis, not a hard cap: almost every 2 or 3 person shop stays comfortably inside it, and the composer shows the count before you send. Bigger crew? Pro runs $79, fits up to 15 people, and adds a second number. Month to month, no contracts.",
 
   faqH2: "Plumber questions, straight answers.",
   faqs: [
@@ -145,8 +145,8 @@ const CONTENT: TradeContent = {
       a: "Starter is $29 for up to 3 people. It's built for exactly two guys and a van. You get the business number, the shared history, and the saved replies; when you hire, they're in with a link.",
     },
     {
-      q: "Do “on my way” texts eat up the 500?",
-      a: "Each plain on-my-way text counts as one, so 500 covers roughly 20 to 25 plain texts a working day, and the composer shows the count as you type. Go over and it's 3¢ a text, with alerts and a spending cap so there are no surprise bills.",
+      q: "Do “on my way” texts eat into our included texting?",
+      a: "Each plain on-my-way text counts as one, and the composer shows the count as you type. Texting is included on a fair-use basis sized for a working crew, so on-my-way texts are exactly what it's for. If a month runs hot, extra texts bill at a small per-text rate, with alerts at 80% and 100% and a spending cap you control, so there are no surprise bills.",
     },
     {
       q: "We're a licensed plumbing company. What's the registration process?",

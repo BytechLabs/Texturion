@@ -34,13 +34,15 @@ describe("onboarding plan cards trace to PLAN_PRICING (finding 7)", () => {
     expect(pro.lines).toContain(`${PLAN_PRICING.pro.numbers} business numbers`);
   });
 
-  it("derives the per-text overage in each plan", () => {
-    expect(starter.lines).toContain(
-      `${PLAN_PRICING.starter.overageCentsPerText}¢ per extra outgoing text`,
-    );
-    expect(pro.lines).toContain(
-      `${PLAN_PRICING.pro.overageCentsPerText}¢ per extra outgoing text`,
-    );
+  it("keeps overage copy number-free (#121: rates live in the fair-use policy)", () => {
+    for (const plan of PLANS) {
+      expect(plan.lines).toContain(
+        "Busy month? Extra texts bill under fair use, capped by you",
+      );
+      for (const line of plan.lines) {
+        expect(line, line).not.toMatch(/¢/);
+      }
+    }
   });
 
   it("keeps customer-facing plan copy free of em-dashes (Law 6)", () => {

@@ -69,6 +69,15 @@ describe("compare ledgers (shared laws)", () => {
         typeof loonextTotal === "string" ? loonextTotal : loonextTotal?.value,
       ).toBe("$29");
     });
+
+    it(`${page.name}: the 500-texts row is an explicit workload scenario, never an allowance claim (#121)`, () => {
+      const workload = page.rows.find((r) => r.label.includes("500"));
+      expect(workload?.label).toBe("500 texts a month, the workload");
+      const loonextCell = workload?.cells[0];
+      const note =
+        typeof loonextCell === "string" ? "" : (loonextCell?.note ?? "");
+      expect(note).toContain("fair-use texting covers this workload");
+    });
   }
 });
 

@@ -6,13 +6,14 @@
  * inbox the whole crew can see." → the real inbox staged mid-task (assign
  * menu open) in a Panel Frame → use cases (morning triage, one owner per
  * thread, search as memory) → Truth Strip (receiving texts is free and
- * unlimited; photos are free to receive and saved in your storage) → pricing
+ * unlimited; photos are free to receive and storage is free) → pricing
  * snippet → unique FAQ → Frost CTA band.
  *
  * Every number is a verified product/billing fact. buildMetadata +
  * BreadcrumbList JSON-LD; no FAQPage.
  */
 
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CountryOnly } from "@/components/marketing/country";
@@ -132,7 +133,7 @@ export default function SharedInboxPage() {
         heading="The plain facts"
         items={[
           {
-            text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
+            text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved for you; storage is free.",
             good: true,
           },
           {
@@ -151,7 +152,14 @@ export default function SharedInboxPage() {
           number, $79/mo on Pro for up to 15 people and two numbers. Texting is
           included on a fair-use basis rather than a hard cap, sized so almost
           every crew stays comfortably inside it, and receiving texts is
-          always free and unlimited.
+          always free and unlimited. The concrete numbers live in our{" "}
+          <Link
+            href="/legal/fair-use"
+            className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+          >
+            fair use policy
+          </Link>
+          .
         </p>
         <CountryOnly country="us">
           <p>

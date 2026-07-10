@@ -29,15 +29,15 @@ import type {
 const S = PLAN_PRICING.starter;
 const P = PLAN_PRICING.pro;
 
-function moduleCard(id: "voice" | "extra_storage") {
+function moduleCard(id: "voice") {
   const card = PLAN_MODULE_CARDS.find((c) => c.id === id);
   if (!card) throw new Error(`Missing module card: ${id}`);
   return card;
 }
 
-// #97/#103: no MMS card — pictures are included on every plan (3 texts each).
+// #97/#103: no MMS card — pictures are included on every plan. #121: no
+// extra-storage card — storage is free, there is nothing to sell.
 const VOICE = moduleCard("voice");
-const STORAGE = moduleCard("extra_storage");
 
 /** "$29" etc., always derived. */
 const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
@@ -65,8 +65,8 @@ export interface Plan {
 }
 
 /* Plan facts from PLAN_PRICING (the plans.ts mirror), in human words, nothing
-   omitted. Photo sending is NOT a base feature (it's the $5/mo Picture
-   messages add-on); the builder's add-on toggles carry the module truth. */
+   omitted. #121: no allowance or per-text figures on marketing surfaces; the
+   concrete numbers live only on /legal/fair-use, which the page links. */
 export const PLANS: Plan[] = [
   {
     id: "starter",
@@ -78,7 +78,7 @@ export const PLANS: Plan[] = [
       `${S.numbers} local business number (US or Canada, your area code)`,
       "Texting included, bound by fair use (a plain text up to 160 characters is one; the composer shows the count before you send)",
       "Receiving texts: free and unlimited; photos free to receive",
-      `Extra texts: ${S.overageCentsPerText}¢ each, with a spending cap you control`,
+      "Extra texts: a small per-text rate if a month runs hot, with a spending cap you control",
       "Month to month, cancel anytime",
     ],
     cta: "Start with Starter",
@@ -95,7 +95,7 @@ export const PLANS: Plan[] = [
       `${P.numbers} local business numbers (two locations, or office and field)`,
       "More texting for a bigger crew, bound by fair use (same count rule; the composer always shows it before you send)",
       "Receiving texts: free and unlimited; photos free to receive",
-      `Extra texts: ${P.overageCentsPerText}¢ each, with a spending cap you control`,
+      "Extra texts: a small per-text rate if a month runs hot, with a spending cap you control",
       "Month to month, cancel anytime",
     ],
     cta: "Start with Pro",
@@ -110,13 +110,13 @@ export const PLANS: Plan[] = [
  * later "hide the raw numbers" work points behind. Dash-free (Law 6).
  */
 export const PLAN_FAIR_USE_NOTE =
-  "The message, picture, forwarding, and storage allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers.";
+  "The message, picture, and forwarding allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Storage is free on every plan, with no caps.";
 
-/* Honesty Ledger (§5.3): every cost, before you pay. Add-on prices and
-   quantities mirror apps/api/src/billing/plans.ts + modules.ts (voice $8/300
-   min, extra_storage $5/10 GB). #97/#103: pictures are included on every
-   plan; an outbound MMS meters as a flat 3 segments (DECISIONS.md D5), so it
-   appears under "Extra texts", not as an add-on. */
+/* Honesty Ledger (§5.3): every cost, before you pay. Add-on price mirrors
+   apps/api/src/billing/plans.ts + modules.ts (voice $8). #97/#103: pictures
+   are included on every plan, so they appear under "Extra texts", not as an
+   add-on. #121: no per-text rates, allowance figures, or minute figures here;
+   the concrete mechanics live only on /legal/fair-use. Storage is free. */
 export const LEDGER: LedgerEntry[] = [
   {
     term: "Your plan",
@@ -131,15 +131,21 @@ export const LEDGER: LedgerEntry[] = [
   },
   {
     term: "Extra texts",
-    figure: `${S.overageCentsPerText}¢ · ${P.overageCentsPerText}¢`,
+    figure: "Capped by you",
     detail:
-      "3¢ each on Starter, 2.5¢ on Pro. Only after your included texts run out, and only up to the cap you control. Pictures are included both ways on every plan; each picture you send counts as three texts from your allowance.",
+      "Texting and pictures are included under our automated fair-use policy, and almost every crew stays well inside it. If a month runs hot, extra texts bill at a small per-text rate, only up to the spending cap you control, and we email you at 80% and 100% of your included texting first. The exact rates live in our fair use policy.",
+  },
+  {
+    term: "Storage",
+    figure: "$0, no caps",
+    detail:
+      "Files you attach and photos customers send are stored free, on every plan. No storage pools, no meter, no storage add-on to buy, and nothing pauses when you save a lot.",
   },
   {
     term: "Optional add-ons, if you turn them on",
-    figure: `${VOICE.price} · ${STORAGE.price}`,
+    figure: `${VOICE.price}/mo`,
     detail:
-      "Call forwarding with missed-call text-back $8/mo (300 minutes included), extra storage $5/mo (10 GB more). Both are off by default, you switch them on at signup or later in settings, and you can switch them off the same way. Nothing here is required to text.",
+      `One add-on exists: call forwarding with missed-call text-back, ${VOICE.price}/mo with generous forwarded minutes under fair use. It's off by default, you switch it on at signup or later in settings, and you can switch it off the same way. Nothing here is required to text.`,
   },
   {
     term: "Tax",
@@ -149,7 +155,7 @@ export const LEDGER: LedgerEntry[] = [
   {
     term: "That's the whole list.",
     detail:
-      'Two plans, two optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+      'Two plans, one optional add-on, one registration fee, and overage you cap. No setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
   },
 ];
 
@@ -173,7 +179,7 @@ export const LEDGER_CA: LedgerEntry[] = LEDGER.map((entry) => {
     return {
       ...entry,
       detail:
-        'Two plans, two optional add-ons, and overage you cap. No registration fee, no setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+        'Two plans, one optional add-on, and overage you cap. No registration fee, no setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
     };
   }
   return entry;
@@ -198,7 +204,9 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = [
     ],
   },
   {
-    label: `The ${S.includedTexts.toLocaleString("en-US")} texts`,
+    // #121: an explicit workload scenario for the competitor math, never an
+    // allowance claim. The competitor cells are their published prices.
+    label: "500 texts a month, the workload",
     cells: [
       "Included",
       "~$15 (3¢/segment × 500)",
@@ -223,27 +231,28 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = [
 export const ELSEWHERE_FOOTNOTE =
   "Competitor prices from their public pricing pages, July 2026; each figure is sourced on the matching comparison page. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus ~$5 of metered texting (1¢/segment) plus their published $1.50 to $3 monthly carrier maintenance, and extra numbers are $5 each. One-time registration fees excluded for all (ours is $29; Quo discloses $19.50; others don't say). If any number changes, tell us and we'll fix it.";
 
-/* Pricing FAQ (9). COPY-DECK v2: all nine kept, dash-free. The photo answer
-   states the included-pictures truth (#97/#103: 3 texts per picture, no
-   add-on), the "not getting" answer carries the $8 call-forwarding module
-   facts, and the keep-my-number answer mirrors the verified porting story.
-   NO FAQPage JSON-LD. */
+/* Pricing FAQ (9). COPY-DECK v2 + #121 amendment: all nine kept, dash-free.
+   The photo answer states the included-pictures and free-storage truth
+   (#97/#103/#121: no add-on, no caps; counting mechanics live on
+   /legal/fair-use), the "not getting" answer carries the $8 call-forwarding
+   module facts, and the keep-my-number answer mirrors the verified porting
+   story. NO FAQPage JSON-LD. */
 export const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
     a: "No, and here's why. A texting number can't really be \"free\": the moment we give you one, the phone companies charge for it, and free numbers attract spammers, which wrecks message delivery for everyone. So Loonext is paid from day one, with a 30-day full money-back guarantee instead. You get a real trial; we keep the network clean.",
   },
   {
-    q: "Do texts customers send me count against my 500?",
+    q: "Do texts customers send me count against my plan?",
     a: "No. Receiving texts is free and unlimited on every plan, and receiving photos is free too. Only what you send counts.",
   },
   {
     q: "How do photo messages work?",
-    a: "Photos work both ways on every plan, nothing to turn on. Receiving them is free, and they're saved in your included storage. Each photo you send counts as a flat three texts from your monthly allowance, however long the words, so they draw from the same 500 (or 2,500) texts and the same overage rules as everything else you send.",
+    a: "Photos work both ways on every plan, nothing to turn on. Receiving them is free, and every photo is saved for you; storage is free, with no caps. Sending photos is included too, under the same fair-use policy and overage rules as everything else you send. The exact counting mechanics live in our fair use policy.",
   },
   {
-    q: "What happens when I hit my allowance?",
-    a: "We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up to a spending cap, 3× your allowance by default. Hit the cap and sending pauses until you raise it; account owners can do that in one click. You'll never get a surprise bill.",
+    q: "What happens if we send more than usual?",
+    a: "We email you at 80% and again at 100% of your included texting, so nothing starts quietly. Past that, extra texts bill at a small per-text rate up to a spending cap you control. Hit the cap and sending pauses until you raise it; account owners can do that in one click. You'll never get a surprise bill. The exact rates live in our fair use policy.",
   },
   {
     q: "Will I ever pay the $29 registration fee twice?",

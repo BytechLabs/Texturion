@@ -1,5 +1,7 @@
 # Loonext Marketing Site — BLUEPRINT
 
+> **#121 AMENDMENT (2026-07-10, binding over every pinned figure below):** Marketing surfaces carry NO hard-limit numbers: no texting allowance figures (500 / 2,500 / "N texts included"), no per-text overage prices (3¢ / 2.5¢), no "a picture counts as three texts", no storage GB figures or pools, no extra-storage add-on, and no blocking language. Storage is free on every plan, with no caps. Replacement story: texting and pictures are included under an automated fair-use policy; almost every crew stays well inside it; a hot month bills extra texts at a small per-text rate up to a spending cap the owner controls, with alerts at 80% and 100% first. Concrete mechanics live ONLY at /legal/fair-use, linked from every page that lost its numbers. The segment-law below (line "human-facing figure stays '500 texts'") is INVERTED by this amendment: no page pins an allowance figure except /legal/fair-use; the one sanctioned 500 on marketing surfaces is the compare/pricing table's explicitly labelled workload row ("500 texts a month, the workload"), and competitor published prices stay as dated competitor math.
+
 **Status: BINDING.** This is the plan iterations 2–10 build from. Same authority as SPEC.md and
 DECISIONS.md: implement, don't re-litigate. Inputs: SPEC.md §1–2, docs/DECISIONS.md (D2–D5, D11,
 D12, D14), docs/DESIGN.md (G1–G12), and the three research docs in this folder
@@ -347,8 +349,8 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   reads as a *designed strip*, not a text list (wrench, shovel, sparkles, fan, scissors →
   plumbers, landscapers, cleaners, HVAC, salons), each linking to its /for/ page; then three
   stat chips, tabular numerals, 600 weight.
-- **Stat chips (revised — every chip is a real product number, no slogan-in-number-costume):**
-  **500 texts included · 2 numbers on Pro · Month to month.** The old "Zero — sales calls,
+- **Stat chips (revised — every chip is a real product truth; #121: no allowance figure):**
+  **Texting included, automated fair use · 2 numbers on Pro · Month to month.** The old "Zero — sales calls,
   demos, or contracts" chip is **cut**: it dressed a slogan as a stat (violating "show the
   number, never adjectives") and repeated what the hero already says twice. "No sales calls" is
   said once, in prose, and lands harder for not being repeated. **"2 numbers on Pro"** surfaces
@@ -511,10 +513,11 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   per-user comparison figure is labeled and dated and links to /compare/quo for the sourced math
   (per §13.7 — no bare unverified competitor number). This replaces the generic missed-text
   calculator as the home page's flagship interactive.
-- **Cards carry exactly:** price (tabular, 48px), seats, numbers, included outgoing texts
-  ("500 texts a month — a plain text up to 160 characters is one; the composer shows the count
-  before you send", per the segment-unit finding), overage rate, "receiving texts is free and
-  unlimited," month-to-month line, CTA "Start with Starter/Pro." Full copy COPY.md §H9.
+- **Cards carry exactly (#121):** price (tabular, 48px), seats, numbers, fair-use texting line
+  ("Texting included, bound by fair use — a plain text up to 160 characters is one; the composer
+  shows the count before you send"), the no-figure overage line ("Extra texts: a small per-text
+  rate, with a spending cap you control"), "receiving texts is free and unlimited,"
+  month-to-month line, CTA "Start with Starter/Pro." Full copy COPY.md §H9 as amended.
 - **Interactive:** crew-size slider (as above). "See full pricing" link under the cards.
 
 ### 3.10 Canada + compliance (interleaved, not stacked)
@@ -713,11 +716,12 @@ page is the market's only Canada-first story; keep it concrete, not patriotic.
 - **Layout order:** H1 + sub → two plan cards (full detail, both CTAs direct to signup) →
   crew-size slider → honesty ledger → "what you'll actually pay elsewhere" table → segment
   explainer + counter widget → guarantee block → FAQ (8) → CTA band.
-- **Plan cards:** everything from SPEC §2, in human words, nothing omitted: price, seats,
-  numbers, 500/2,500 outgoing texts ("billed as segments — plain text up to 160 characters is
-  one segment; the pricing table says this explicitly per SPEC's copy rule"), overage 3¢/2.5¢,
-  free unlimited receiving, sending photos as the opt-in picture-messages add-on ($5/mo, 150
-  picture messages included, each send also meters as 3 texts — the #12 module model supersedes
+- **Plan cards (#121):** everything from SPEC §2, in human words, nothing omitted: price, seats,
+  numbers, fair-use texting ("Texting included, bound by fair use — plain text up to 160
+  characters is one; concrete allowances live only on /legal/fair-use"), the no-figure overage
+  line with the spending cap,
+  free unlimited receiving, sending photos included on every plan (#103/#121 supersede the old
+  picture-messages add-on — the #12 module model supersedes
   the old "photo messages count as 3" plan-included line), spending cap (default 3× included,
   you control it, alerts at 80% and 100%), month to month, upgrade path.
 - **Honesty ledger (the trust centerpiece):** a bordered card titled "Every cost, before you
@@ -779,7 +783,8 @@ Seed company: **"Reyes Plumbing & Heating"**, Toronto, number **(416) 555-0119**
 range = safe fictional numbers; G10 formatting). Team: Priya (owner), Dale, Marcus. Seed data
 must include: 8 inbox conversations with realistic names/snippets spanning statuses (2 New
 w/ unread dots, 3 Open, 2 Waiting, 1 Closed), pre-seeded tags in use, assignee avatars
-(initials), relative times (2m / 1h / Tue), usage meter at 212/500. All message content is
+(initials), relative times (2m / 1h / Tue), usage meter at 212 messages (the calm state: a
+plain count with no of-N denominator, per #85/#95/#121). All message content is
 written (not lorem) — reuse the COPY.md §H4 script plus trade-plausible one-liners.
 
 Live-DOM moments (§1.3) are **not** in this raster shot list — they're built from app
@@ -1047,10 +1052,14 @@ definition all stay and get louder. We removed defensive captions, not truths. *
 on porting that was listed here is superseded: porting shipped — DECISIONS D16 — so the honest
 disclosure is now the real port window, old-carrier-until-cutover reality, not a "not yet.")*
 
-**Segment vs text — the load-bearing number (cro-seo blocker + buyer major).** Two critics, one
-fix: human-facing figure stays "500 texts," but **every first appearance per page pins it** with
-"a plain text up to 160 characters is one; the composer shows the count before you send," and the
-"segment" noun is demoted to a tooltip/footnote everywhere (matching SPEC §2's own UI copy rule).
+**Segment vs text — the load-bearing explainer (cro-seo blocker + buyer major; law INVERTED by
+#121).** The human-facing unit is "texts," and every page that mentions counting pins the
+explainer "a plain text up to 160 characters is one; the composer shows the count before you
+send," with the "segment" noun demoted to a tooltip/footnote everywhere (matching SPEC §2's own
+UI copy rule). #121: NO page pins an allowance figure ("500 texts") anymore — the concrete
+allowances live only on /legal/fair-use, and marketing states the fair-use story instead. The
+only 500 left on marketing surfaces is the compare/pricing table's explicitly labelled workload
+scenario row.
 The plumber-FAQ "20 texts a day" claim is bounded to "plain on-my-way texts" with the same caveat.
 This also fixes the "never touch the limit" overclaim → honest capacity math.
 

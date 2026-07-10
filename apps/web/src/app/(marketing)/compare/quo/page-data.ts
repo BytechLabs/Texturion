@@ -37,7 +37,7 @@ export const QUO_ROWS: LedgerTableRow[] = [
     ],
   },
   {
-    label: "500 texts a month",
+    label: "500 texts a month, the workload",
     cells: [
       {
         value: "Included",

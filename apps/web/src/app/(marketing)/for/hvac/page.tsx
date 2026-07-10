@@ -125,7 +125,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month, flat. Cold snap or slow week.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts are 3¢ each up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is $79, covers up to 15 people, and includes a second number for exactly that.",
+    "Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts bill at a small per-text rate up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is $79, covers up to 15 people, and includes a second number for exactly that.",
 
   faqH2: "HVAC questions, straight answers.",
   faqs: [

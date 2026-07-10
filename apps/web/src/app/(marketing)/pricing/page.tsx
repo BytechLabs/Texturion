@@ -6,7 +6,7 @@
  *
  * Band order: Dateline Header ($58 FIRST MONTH (US) · $29 AFTER) → THE PLAN
  * BUILDER (the centerpiece per the 2026-07-07 owner ruling: pick a plan,
- * toggle the three sellable add-ons, live totals from the shared constants,
+ * toggle the sellable add-ons, live totals from the shared constants,
  * the $29 US registration fee always a separate first-month line, CTA carries
  * the configuration into signup) → add-on fine print (#12 module model;
  * prices render from the shared catalog mirror so nothing can drift from
@@ -73,7 +73,7 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "Build your plan and see the total before you pay: Starter $29/mo (3 people, 500 texts), Pro $79/mo (15 people, 2,500). Pictures included both ways. Optional add-ons: call forwarding $8, extra storage $5. One-time $29 US registration fee. No per-user fees, no quote calls.",
+    "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting and pictures included under automated fair use, storage free. Optional call forwarding $8/mo. One-time $29 US registration fee. No per-user fees, no quote calls.",
   path: PATH,
 });
 
@@ -142,7 +142,7 @@ export default function PricingPage() {
           is server-rendered and complete without JavaScript. */}
       <>
         {/* THE PLAN BUILDER: the page's centerpiece (owner ruling 2026-07-07).
-            Pick Starter or Pro, toggle the three sellable add-ons, and the
+            Pick Starter or Pro, toggle the sellable add-ons, and the
             receipt totals live from the same shared constants checkout bills
             from. Server-rendered at its true default (Starter, no add-ons,
             $29/mo, $58 first month US), so the page is complete without JS. */}
@@ -204,7 +204,7 @@ export default function PricingPage() {
           </FrCard>
         </FrSection>
 
-        {/* The add-on fine print: the exact limits behind the three toggles. */}
+        {/* The add-on fine print: the exact limits behind the builder toggles. */}
         <PlanAddons />
 
         {/* Crew-size slider (demoted below the builder per the owner ruling):
@@ -301,9 +301,9 @@ export default function PricingPage() {
             The same crew, priced elsewhere.
           </h2>
           <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
-            A 3-person crew sending 500 single-segment texts a month, at
-            published prices as of July 2026 (every number below cites its
-            source on our{" "}
+            The workload we price: a 3-person crew sending 500 plain texts a
+            month, at published prices as of July 2026 (every number below
+            cites its source on our{" "}
             <Link
               href={LIVE_ROUTES.compareIndex}
               className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
@@ -339,9 +339,9 @@ export default function PricingPage() {
               A plain text up to 160 characters counts as one text. Longer
               texts, or texts with emoji, count as more than one, the texting
               networks split them behind the scenes (the technical word is
-              &quot;segments,&quot; but you never have to think about it). Your
-              500 is 500 of these, and the composer always shows the count
-              before you send, so there&apos;s no mystery on your bill.
+              &quot;segments,&quot; but you never have to think about it). The
+              composer always shows the count before you send, so there&apos;s
+              no mystery on your bill.
             </p>
           </div>
           <Reveal>

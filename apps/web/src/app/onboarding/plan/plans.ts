@@ -25,7 +25,9 @@ function planCard(id: PlanId, name: string, crewLine: string): PlanCard {
       crewLine,
       `${p.numbers} business number${p.numbers === 1 ? "" : "s"}`,
       "Incoming texts & photos free, always",
-      `${p.overageCentsPerText}¢ per extra outgoing text`,
+      // #121: no per-text price in sales copy; the rate lives in the
+      // fair-use policy the plan step links to.
+      "Busy month? Extra texts bill under fair use, capped by you",
     ],
   };
 }

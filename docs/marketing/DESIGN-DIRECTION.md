@@ -65,7 +65,7 @@ const mono = Spline_Sans_Mono({ subsets: ["latin"], variable: "--font-mono", wei
 | Mono data | Spline Sans Mono 500, `font-variant-numeric: tabular-nums` always | 0.8125rem to 0.9375rem for chips, timestamps, table figures; display numerals (prices-as-art) 3rem to 6rem |
 | Eyebrows / datelines | Spline Sans Mono 500 | 0.75rem, uppercase, letter-spacing 0.08em |
 
-**The mono law:** every countable truth wears Spline Sans Mono with tabular figures: $29, $79, 500, 2,500, 3¢, 2.5¢, $5, $8, 3 to 7 business days, 80%, 100%, phone numbers, timestamps, the segment count, the countdown. If a number could appear on an invoice, it is mono. Numbers inside FAQ prose stay in body face (prose exception), but any number pulled out as a figure, chip, or table cell is mono.
+**The mono law:** every countable truth wears Spline Sans Mono with tabular figures: $29, $79, $8, 3 to 7 business days, 80%, 100%, phone numbers, timestamps, the segment count, the countdown (#121: allowance figures and per-text rates no longer appear on marketing surfaces, so they left this example list; the workload-scenario 500 in the compare tables is still mono). If a number could appear on an invoice, it is mono. Numbers inside FAQ prose stay in body face (prose exception), but any number pulled out as a figure, chip, or table cell is mono.
 
 ## 4. Layout, spacing, radius, motion tokens
 

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
  *
  * Usage:
  *   <MonoFigure value="$29" suffix="/mo · the whole crew" size="display" />
- *   <MonoFigure value="500" size="stat" />
+ *   <MonoFigure value="$79" size="stat" />
  */
 export function MonoFigure({
   value,
@@ -28,7 +28,7 @@ export function MonoFigure({
   tone = "ink",
   className,
 }: {
-  /** The figure itself (mono): "$29", "500", "3¢", "(416) 555-0182". */
+  /** The figure itself (mono): "$29", "$79", "(416) 555-0182". */
   value: string;
   /** Optional quiet unit/label after the figure, body face, ink-55. */
   suffix?: string;

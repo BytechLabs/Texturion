@@ -3,7 +3,7 @@
 /**
  * The /pricing centerpiece (owner ruling 2026-07-07, amendment 13): the REAL
  * interactive plan builder, not static plan cards. Choose Starter or Pro,
- * switch the three sellable add-ons on or off, and the receipt column totals
+ * switch the sellable add-ons on or off, and the receipt column totals
  * it live, computed by plan-math.ts from the product's shared constants
  * (PLAN_PRICING + PLAN_MODULE_CARDS + US_REGISTRATION_FEE_DOLLARS in
  * lib/api/types.ts): zero retyped numbers, zero fake state.
@@ -282,8 +282,8 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
           })}
         </div>
         <p className="mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          All three are off by default and none is required to text. Turn them
-          on here or later in settings, and off the same way.
+          Every add-on is off by default and none is required to text. Turn
+          them on here or later in settings, and off the same way.
         </p>
       </div>
 

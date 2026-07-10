@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+// next/font/local needs the Next build plugin; in vitest we only need the
+// stable variable/class contract (AppSurface mounts --font-golos).
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
+}));
 
 import {
   PLAN_MODULE_CARDS,
   PLAN_PRICING,
   US_REGISTRATION_FEE_DOLLARS,
 } from "@/lib/api/types";
+
+import PricingPage from "./page";
 
 import {
   ELSEWHERE_COLUMNS,
@@ -68,6 +78,40 @@ describe("/pricing rendered strings (Law 6)", () => {
   it("frames the plan allowances as a fair-use line, not a hard wall (#85)", () => {
     expect(PLAN_FAIR_USE_NOTE.toLowerCase()).toContain("fair use");
     expect(PLAN_FAIR_USE_NOTE.toLowerCase()).toContain("not a hard wall");
+    // #121: storage is free, never an "allowance".
+    expect(PLAN_FAIR_USE_NOTE.toLowerCase()).not.toContain("storage allowance");
+    expect(PLAN_FAIR_USE_NOTE).toContain("Storage is free");
+  });
+
+  /**
+   * #121 sweep: no hard-limit numbers anywhere in marketing copy. Allowance
+   * figures, per-text overage prices, the three-texts-per-picture rule,
+   * storage GB figures, and the extra-storage add-on live ONLY on
+   * /legal/fair-use. The one sanctioned exception is the "priced elsewhere"
+   * table (ELSEWHERE_*): its 500 is an explicitly labelled workload scenario
+   * and its ¢ figures are competitors' published prices.
+   */
+  it("carries no allowance figures, per-text rates, GB figures, or extra-storage copy outside the workload table (#121)", () => {
+    const elsewhere = new Set<string>([ELSEWHERE_FOOTNOTE]);
+    for (const row of ELSEWHERE_ROWS) {
+      elsewhere.add(row.label);
+      for (const cell of row.cells) {
+        elsewhere.add(typeof cell === "string" ? cell : cell.value);
+        if (typeof cell !== "string" && cell.note) elsewhere.add(cell.note);
+      }
+    }
+    for (const s of allStrings()) {
+      if (elsewhere.has(s)) continue;
+      expect(s, s).not.toMatch(/\b500\b|\b2,500\b/);
+      expect(s, s).not.toMatch(/\d(\.\d+)?¢/);
+      expect(s, s).not.toMatch(/\bGB\b/);
+      expect(s.toLowerCase(), s).not.toContain("three texts");
+      expect(s.toLowerCase(), s).not.toContain("extra storage");
+      expect(s.toLowerCase(), s).not.toContain("included storage");
+    }
+    // And the workload table frames its 500 as a scenario, not an allowance.
+    const workload = ELSEWHERE_ROWS.find((r) => r.label.includes("500"));
+    expect(workload?.label).toBe("500 texts a month, the workload");
   });
 });
 
@@ -79,7 +123,7 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     );
   });
 
-  it("plan cards carry the mirror's prices, seats, numbers, texts, and overage", () => {
+  it("plan cards carry the mirror's prices and seats, and frame texting/overage as fair use with no figures", () => {
     const starter = PLANS.find((p) => p.id === "starter");
     const pro = PLANS.find((p) => p.id === "pro");
     expect(starter?.price).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
@@ -97,12 +141,14 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(pro?.features.join(" ")).toContain(
       "More texting for a bigger crew, bound by fair use",
     );
-    expect(starter?.features.join(" ")).toContain(
-      `${PLAN_PRICING.starter.overageCentsPerText}¢ each`,
-    );
-    expect(pro?.features.join(" ")).toContain(
-      `${PLAN_PRICING.pro.overageCentsPerText}¢ each`,
-    );
+    // #121: overage exists with a cap you control, but NO per-text ¢ figure
+    // and NO allowance count on the plan cards.
+    for (const plan of PLANS) {
+      const joined = plan.features.join(" ");
+      expect(joined).toContain("spending cap you control");
+      expect(joined).not.toMatch(/\d(\.\d+)?¢/);
+      expect(joined).not.toMatch(/\b500\b|\b2,500\b/);
+    }
     // Plain "texts", never billing jargon, in a plan line item (#70).
     for (const plan of PLANS) {
       for (const f of plan.features) {
@@ -111,11 +157,12 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     }
   });
 
-  it("the ledger names every cost: plans, one-time fee, overage, add-ons, tax, and closes the list", () => {
+  it("the ledger names every cost: plans, one-time fee, overage, storage, add-ons, tax, and closes the list", () => {
     const terms = LEDGER.map((e) => e.term);
     expect(terms).toContain("Your plan");
     expect(terms).toContain("Register with the phone companies");
     expect(terms).toContain("Extra texts");
+    expect(terms).toContain("Storage");
     expect(terms).toContain("Optional add-ons, if you turn them on");
     expect(terms).toContain("Tax");
     expect(terms).toContain("That's the whole list.");
@@ -129,29 +176,43 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(registration?.detail).toContain("$58 your first month");
     expect(registration?.detail).toContain("you won't pay it again");
 
+    // #121: the overage row is the fair-use + cap story with no ¢ figure;
+    // the concrete rates live only on /legal/fair-use.
     const overage = LEDGER.find((e) => e.term === "Extra texts");
-    expect(overage?.figure).toBe(
-      `${PLAN_PRICING.starter.overageCentsPerText}¢ · ${PLAN_PRICING.pro.overageCentsPerText}¢`,
-    );
+    expect(overage?.figure).toBe("Capped by you");
+    expect(overage?.detail).toContain("fair-use policy");
+    expect(overage?.detail).toContain("80% and 100%");
+    expect(overage?.detail).toContain("fair use policy");
+    expect(overage?.detail).not.toMatch(/\d(\.\d+)?¢/);
+    expect(overage?.detail).not.toContain("three texts");
+
+    // #121: storage is free, stated as its own $0 row.
+    const storage = LEDGER.find((e) => e.term === "Storage");
+    expect(storage?.figure).toBe("$0, no caps");
+    expect(storage?.detail).toContain("stored free");
+    expect(storage?.detail).toContain("nothing pauses");
+    expect(storage?.detail).not.toMatch(/\bGB\b/);
 
     // The add-ons figure and prose agree with the module catalog mirror.
-    // #97/#103: two add-ons (voice, extra_storage) — no Picture-messages card.
+    // #97/#103: no Picture-messages card. #121: no Extra-storage card; call
+    // forwarding is the only add-on.
     const addons = LEDGER.find(
       (e) => e.term === "Optional add-ons, if you turn them on",
     );
     const byId = (id: string) =>
       PLAN_MODULE_CARDS.find((c) => c.id === id)!;
-    expect(addons?.figure).toBe(
-      `${byId("voice").price} · ${byId("extra_storage").price}`,
-    );
+    expect(addons?.figure).toBe(`${byId("voice").price}/mo`);
     expect(addons?.detail).not.toContain("Picture messages");
+    expect(addons?.detail).not.toContain("extra storage");
     expect(addons?.detail).toContain(`${byId("voice").price}/mo`);
-    expect(addons?.detail).toContain("300 minutes included");
-    expect(addons?.detail).toContain("10 GB");
-    // The included-pictures truth moved into the Extra-texts line.
-    const overageLine = LEDGER.find((e) => e.term === "Extra texts");
-    expect(overageLine?.detail).toContain("counts as three texts");
-    expect(overageLine?.detail).toContain("Pictures are included");
+    // #121: the voice minute figure lives on /legal/fair-use, not sales copy.
+    expect(addons?.detail).not.toContain("300 minutes");
+    expect(addons?.detail).toContain("One add-on exists");
+
+    // The whole-list row counts one add-on and no storage fees.
+    const whole = LEDGER.find((e) => e.term === "That's the whole list.");
+    expect(whole?.detail).toContain("one optional add-on");
+    expect(whole?.detail).toContain("no storage fees");
 
     // The CAD honesty stays (deck: "we'd rather tell you now").
     const tax = LEDGER.find((e) => e.term === "Tax");
@@ -191,6 +252,7 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     // Still names every cost that actually applies to a Canadian business.
     expect(terms).toContain("Your plan");
     expect(terms).toContain("Extra texts");
+    expect(terms).toContain("Storage");
     expect(terms).toContain("Optional add-ons, if you turn them on");
     expect(terms).toContain("Tax");
     expect(terms).toContain("That's the whole list.");
@@ -219,6 +281,7 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     for (const term of [
       "Your plan",
       "Extra texts",
+      "Storage",
       "Optional add-ons, if you turn them on",
       "Tax",
     ]) {
@@ -248,14 +311,29 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     expect(port?.a).toContain("free");
   });
 
-  it("keeps the included-pictures truth (#97/#103: 3 texts each, no add-on, no cap)", () => {
+  it("keeps the included-pictures truth (#97/#103/#121: included, storage free, mechanics on /legal/fair-use)", () => {
     const photos = FAQS.find((f) => f.q === "How do photo messages work?");
     expect(photos?.a).toContain("both ways on every plan");
-    expect(photos?.a).toContain("three texts");
+    expect(photos?.a).toContain("storage is free");
+    expect(photos?.a).toContain("fair use policy");
+    // #121: the three-texts metering detail lives only on /legal/fair-use.
+    expect(photos?.a).not.toContain("three texts");
+    expect(photos?.a).not.toContain("included storage");
     // Retired terms must be gone: no $5 add-on, no 150 cap, no cap-and-drop.
     expect(photos?.a).not.toContain("$5");
     expect(photos?.a).not.toContain("150");
     expect(photos?.a).not.toContain("dropped");
+  });
+
+  it("the over-usage answer keeps the alerts + cap story with no rates or multiplier (#121)", () => {
+    const over = FAQS.find(
+      (f) => f.q === "What happens if we send more than usual?",
+    );
+    expect(over?.a).toContain("80% and again at 100%");
+    expect(over?.a).toContain("spending cap you control");
+    expect(over?.a).toContain("fair use policy");
+    expect(over?.a).not.toMatch(/\d(\.\d+)?¢/);
+    expect(over?.a).not.toContain("3×");
   });
 
   it("keeps the voice add-on facts in the what-am-I-not-getting answer", () => {
@@ -271,5 +349,22 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
       (f) => f.q === "Will I ever pay the $29 registration fee twice?",
     );
     expect(fee?.a).toContain("once per company, ever");
+  });
+});
+
+describe("/pricing rendered page (#121)", () => {
+  const html = renderToStaticMarkup(createElement(PricingPage));
+
+  it("links the fair-use policy, where the concrete numbers live", () => {
+    expect(html).toContain('href="/legal/fair-use"');
+  });
+
+  it("never sells extra storage or states GB caps / allowance counts / picture metering", () => {
+    expect(html).not.toContain("Extra storage");
+    expect(html).not.toContain("extra storage");
+    expect(html).not.toMatch(/\bGB\b/);
+    expect(html).not.toContain("2,500");
+    expect(html).not.toContain("counts as three texts");
+    expect(html).not.toContain("included storage");
   });
 });

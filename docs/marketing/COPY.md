@@ -1,5 +1,7 @@
 # Loonext Marketing Copy Deck — v1 (final quality)
 
+> **#121 AMENDMENT (2026-07-10, binding over every pinned figure below):** Marketing surfaces carry NO hard-limit numbers: no texting allowance figures (500 / 2,500 / "N texts included"), no per-text overage prices (3¢ / 2.5¢), no "a picture counts as three texts", no storage GB figures or pools, no extra-storage add-on, and no blocking language. Storage is free on every plan, with no caps. The replacement story: texting and pictures are included under an automated fair-use policy; almost every crew stays well inside it; if a month runs hot, extra texts bill at a small per-text rate up to a spending cap you control, with alerts at 80% and 100% first. Concrete mechanics live ONLY at /legal/fair-use, linked from every page that lost its numbers. The one sanctioned 500 is the "priced elsewhere" table's explicitly labelled workload row ("500 texts a month, the workload"); competitor published prices stay. The pinned sections below have been rewritten in place and are marked (#121); COPY-V2.md (as amended) carries the shipped wording.
+
 **Status: BINDING copy for iterations 2+.** Covers the home page, the pricing page, and
 /for/plumbers (the master template for the other five trade pages). Voice per DESIGN.md G10:
 sentence case, contractions, second person, plain and warm, buttons are verbs, no exclamation
@@ -60,7 +62,7 @@ $29 — /mo · the whole crew
 
 **Stat chips (figure / label — every chip is a real product number; "no sales calls" is said once
 in prose elsewhere, not dressed as a stat here):**
-- 500 — outgoing texts included
+- Texting included — automated fair use (#121)
 - 2 — numbers on Pro
 - Month to month — cancel anytime
 
@@ -230,19 +232,18 @@ a month against the number above.
 For crews of one to three.
 - 3 teammates included
 - 1 local business number
-- 500 texts a month (a plain text up to 160 characters is one; the composer shows the count
-  before you send)
+- Texting included, bound by fair use (the composer shows the count before you send) (#121)
 - Receiving texts: free, unlimited
-- Extra texts: 3¢ each, with a spending cap you control
+- Extra texts: a small per-text rate, with a spending cap you control (#121)
 [Start with Starter]
 
 **Pro card — $79/mo** *(badge: For bigger crews)*
 For crews up to ten — and a second number.
 - 10 teammates included
 - 2 local business numbers (two locations, or office and field)
-- 2,500 texts a month (same count rule; the composer always shows it before you send)
+- More texting for a bigger crew, bound by fair use (same count rule) (#121)
 - Receiving texts: free, unlimited
-- Extra texts: 2.5¢ each, with a spending cap you control
+- Extra texts: a small per-text rate, with a spending cap you control (#121)
 [Start with Pro]
 
 **Honesty strip (three lines, icons — the first-month sum is owned out loud, right next to $29):**
@@ -337,13 +338,12 @@ user. One thing to know up front for US shops: there's also a one-time $29 fee t
 the phone companies, so your first month is $58 and every month after is $29. A 6-person crew on
 a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.
 
-**Q: What counts as one of my 500 texts?**
+**Q: What counts as a text I send? (#121)**
 A: Each text you send counts. A plain text up to 160 characters is one; longer texts, or texts
 with emoji, count as more than one — and the composer shows you the count before you send, so
-there's no mystery. Receiving texts and photos is always free and unlimited. In practice, 500
-covers roughly 20 to 25 plain texts every working day for a 2–3 person shop. Go over and it's
-3¢ a text, with a cap you set. (Sending photos is its own add-on — see the photos question
-below.)
+there's no mystery. Receiving texts is always free and unlimited. Receiving photos is free too,
+and they're saved for you; storage is free, with no caps. Texting is included under our
+automated fair-use policy, and almost every crew stays well inside it without thinking about it.
 
 **Q: Why does texting US customers take about a week?**
 A: The phone companies require every business that texts to register first — it's an industry
@@ -357,18 +357,15 @@ A: You can text Canadian customers immediately — no US registration needed. If
 text US numbers, you can turn that on anytime; the one-time $29 fee and the roughly-one-week
 approval apply then.
 
-**Q: Can customers text us photos?**
-A: Yes. Photos come through in the conversation, full size, and receiving them is free on every
-plan — nothing to turn on. Sending photos back is an add-on: picture messaging is $5 a month
-and includes 150 outgoing picture messages, and each photo you send also counts as three texts
-from your allowance. We email you before you run out — at 80% and again at 100% of your included
-picture messages — and if a photo can't go, the composer tells you right there; the words in
-your message still send.
+**Q: Can customers text us photos? (#97/#103/#121)**
+A: Yes, both directions, on every plan, nothing to turn on. Photos customers send come through
+in the conversation, full size, and receiving them is free. Sending photos back is included too,
+under the same fair-use policy as your texts, and every photo is stored free with no caps.
 
-**Q: What happens if we go over 500 texts?**
-A: Nothing surprising. Extra texts are 3¢ each on Starter (2.5¢ on Pro), we email you at 80%
-and 100% of your allowance, and a spending cap — set to 3× your allowance by default — stops
-things before they run away. You control the cap.
+**Q: What happens if we go over our included texting? (#121)**
+A: Nothing surprising. We email you at 80% and again at 100% of your included texting, and past
+it extra texts bill at a small per-text rate, up to a spending cap you control that stops things
+before they run away. The exact rates live in our fair use policy.
 
 **Q: What happens if I cancel?**
 A: Your subscription is month to month — cancel anytime from your billing settings, no phone
@@ -431,9 +428,10 @@ launch; never fabricated, never omitted.
 # PRICING PAGE (§PR)
 
 **Meta title:** Pricing — $29/mo flat for the whole crew
-**Meta description:** Loonext pricing, all of it: Starter $29/mo (3 people, 500 texts), Pro
-$79/mo (10 people, 2,500 texts). One-time $29 US registration fee, month to month, 30-day
-money-back guarantee. No per-user fees, no quote calls.
+**Meta description (#121):** Build your plan and see the total before you pay: Starter $29/mo
+for up to 3 people, Pro $79/mo for up to 15. Texting and pictures included under automated fair
+use, storage free. One-time $29 US registration fee, month to month, 30-day money-back
+guarantee. No per-user fees, no quote calls.
 
 ## Hero
 
@@ -448,12 +446,11 @@ can't find a price on a texting company's pricing page, that's the price talking
 For crews of one to three.
 - 3 teammates included
 - 1 local business number (US or Canada, your area code)
-- 500 texts a month (a plain text up to 160 characters is one; the composer shows the count
-  before you send)
-- Receiving texts and photos: free, unlimited
-- Extra texts: 3¢ each
-- Sending photos: optional add-on, $5/mo for 150 picture messages (each also counts as 3 texts)
-- Spending cap you control (default 3× your allowance) with alerts at 80% and 100%
+- Texting included, bound by fair use (a plain text up to 160 characters is one; the composer
+  shows the count before you send) (#121)
+- Receiving texts and photos: free, unlimited; photos included both ways (#103/#121)
+- Extra texts: a small per-text rate if a month runs hot, with a spending cap you control and
+  alerts at 80% and 100% (#121)
 - Month to month, cancel anytime
 [Start with Starter]
 
@@ -461,11 +458,10 @@ For crews of one to three.
 For crews up to ten — and a second number.
 - 10 teammates included
 - 2 local business numbers (two locations, or office and field)
-- 2,500 texts a month (same count rule; the composer always shows it before you send)
-- Receiving texts and photos: free, unlimited
-- Extra texts: 2.5¢ each
-- Sending photos: optional add-on, $5/mo for 150 picture messages (each also counts as 3 texts)
-- Spending cap you control (default 3× your allowance) with alerts at 80% and 100%
+- More texting for a bigger crew, bound by fair use (same count rule) (#121)
+- Receiving texts and photos: free, unlimited; photos included both ways (#103/#121)
+- Extra texts: a small per-text rate if a month runs hot, with a spending cap you control and
+  alerts at 80% and 100% (#121)
 - Month to month, cancel anytime
 [Start with Pro]
 
@@ -495,8 +491,13 @@ totals run higher). See the named, sourced math on our comparison pages.
   Cancel and come back next year: you won't pay it again. Canadian businesses that don't text US
   numbers never pay it. **For a US shop, that means $58 your first month, then $29 every month
   after.**
-- **Extra texts:** 3¢ each on Starter, 2.5¢ on Pro — only after your included texts run out,
-  only up to the cap you control.
+- **Extra texts (#121):** texting and pictures are included under our automated fair-use policy,
+  and almost every crew stays well inside it. If a month runs hot, extra texts bill at a small
+  per-text rate, only up to the spending cap you control, and we email you at 80% and 100% of
+  your included texting first. The exact rates live in our fair use policy.
+- **Storage (#121):** $0, no caps. Files you attach and photos customers send are stored free,
+  on every plan. No storage pools, no meter, no storage add-on to buy, and nothing pauses when
+  you save a lot.
 - **Tax:** prices are in USD, plus sales tax where it applies, calculated at checkout. (CAD
   billing isn't here yet — we'd rather tell you now than surprise you at checkout.)
 - **That's the whole list.** No setup fees, no per-user fees, no monthly "compliance" or
@@ -512,13 +513,13 @@ you're approved.
 
 **H2:** The same crew, priced elsewhere.
 
-**Lead:** A 3-person crew sending 500 single-segment texts a month, at published prices as of
-July 2026 (every number below cites its source in our comparison pages):
+**Lead (#121):** The workload we price: a 3-person crew sending 500 plain texts a month, at
+published prices as of July 2026 (every number below cites its source in our comparison pages):
 
 | | Loonext Starter | Heymarket Standard | Quo | Podium |
 |---|---|---|---|---|
 | Monthly software | $29 flat | $49/user/mo × 3 = $147 | $19/user/mo × 3 = $57 (monthly billing) | Not published |
-| The 500 texts | Included | ~$15 (3¢/segment × 500) | Not included — metered at 1¢/segment (~$5) | Not published |
+| 500 texts a month, the workload (#121) | Included | ~$15 (3¢/segment × 500) | Not included — metered at 1¢/segment (~$5) | Not published |
 | Monthly carrier line item | $0 | $10/mo | $0 | Not published |
 | **Monthly total** | **$29** | **~$172** | **~$62 + extra numbers at $5 ea.** | **Ask their sales team** |
 
@@ -533,10 +534,10 @@ we'll fix it.
 
 **H2:** What's a "text," exactly?
 
-**Body:** A plain text up to 160 characters counts as one text. Longer texts, or texts with
-emoji, count as more than one — the texting networks split them behind the scenes (the technical
-word is "segments," but you never have to think about it). Your 500 is 500 of these, and the
-composer always shows the count before you send, so there's no mystery on your bill.
+**Body (#121):** A plain text up to 160 characters counts as one text. Longer texts, or texts
+with emoji, count as more than one — the texting networks split them behind the scenes (the
+technical word is "segments," but you never have to think about it). The composer always shows
+the count before you send, so there's no mystery on your bill.
 
 **Widget label:** Type your usual message — we'll count it with the same code that does our
 billing.
@@ -561,21 +562,21 @@ phone companies charge for it, and free numbers attract spammers, which wrecks m
 for everyone. So Loonext is paid from day one, with a 30-day full money-back guarantee instead.
 You get a real trial; we keep the network clean.
 
-**Q: Do texts customers send me count against my 500?**
+**Q: Do texts customers send me count against my plan? (#121)**
 A: No. Receiving texts and photos is free and unlimited on every plan. Only what you send
 counts.
 
-**Q: How do photo messages count?**
-A: Receiving photos is free on every plan. Sending photos is an optional add-on: $5 a month
-turns on picture messaging with 150 outgoing picture messages included, and each photo you send
-also counts as three texts from your allowance. We email you as you get close — at 80% and again
-at 100%. Past the limit, the words in your message still send and the composer tells you the
-photo didn't; photo sending comes back when your new month starts.
+**Q: How do photo messages work? (#97/#103/#121)**
+A: Photos work both ways on every plan, nothing to turn on. Receiving them is free, and every
+photo is saved for you; storage is free, with no caps. Sending photos is included too, under the
+same fair-use policy and overage rules as everything else you send. The exact counting mechanics
+live in our fair use policy.
 
-**Q: What happens when I hit my allowance?**
-A: We email you at 80% and again at 100%. Past that, extra texts are 3¢ each (2.5¢ on Pro) up
-to a spending cap — 3× your allowance by default. Hit the cap and sending pauses until you
-raise it; account owners can do that in one click. You'll never get a surprise bill.
+**Q: What happens if we send more than usual? (#121)**
+A: We email you at 80% and again at 100% of your included texting, so nothing starts quietly.
+Past that, extra texts bill at a small per-text rate up to a spending cap you control. Hit the
+cap and sending pauses until you raise it; account owners can do that in one click. You'll never
+get a surprise bill. The exact rates live in our fair use policy.
 
 **Q: Will I ever pay the $29 registration fee twice?**
 A: No. It's charged at most once per company, ever — even if you cancel and come back. It only
@@ -715,13 +716,13 @@ pings, push notifications are per-person, so only the on-call tech gets buzzed.
 
 **H2:** $29 a month. The whole crew.
 
-**Body:** Starter covers 3 people, 1 local number, and 500 texts a month — that's roughly 20 to
-25 plain texts a working day, enough for most 2–3 person shops (the composer shows the count as
-you type). Receiving texts and photos is always free; sending photos back is a $5/mo add-on
-with 150 picture messages included. Bigger crew? Pro is $79 for 10 people and 2 numbers. Month
-to month, 30-day money-back guarantee, and for US shops the only other cost is a one-time $29
-to register with the phone companies — charged once, ever, so your first month is $58 and every
-month after is $29.
+**Body (#121):** Starter covers 3 people, 1 local number, and texting included on a fair-use
+basis, not a hard cap: almost every 2 or 3 person shop stays comfortably inside it (the composer
+shows the count as you type). Receiving texts and photos is always free; sending photos is
+included too. Bigger crew? Pro is $79 for up to 15 people and 2 numbers. Month to month, 30-day
+money-back guarantee, and for US shops the only other cost is a one-time $29 to register with
+the phone companies — charged once, ever, so your first month is $58 and every month after
+is $29.
 
 [See full pricing]
 
@@ -744,11 +745,11 @@ A: Starter is $29 for up to 3 people — it's built for exactly two guys and a v
 business number, the shared history, and the saved replies; when you hire, they're in with a
 link.
 
-**Q: Do "on my way" texts eat up the 500?**
-A: Each plain on-my-way text counts as one, so 500 covers more than 20 plain texts every working
-day — the composer shows the count as you type. (If you add the picture-messages add-on, each
-photo you send counts as three, so a photo-heavy day adds up faster.) Go over and it's 3¢ a
-text, with alerts and a spending cap so there are no surprise bills.
+**Q: Do "on my way" texts eat into our included texting? (#121)**
+A: Each plain on-my-way text counts as one, and the composer shows the count as you type.
+Texting is included on a fair-use basis sized for a working crew, so on-my-way texts are exactly
+what it's for. If a month runs hot, extra texts bill at a small per-text rate, with alerts at
+80% and 100% and a spending cap you control, so there are no surprise bills.
 
 **Q: We're a licensed company — what do you need from us to register with the phone companies?**
 A: About two minutes of plain questions at signup: legal business name, address, and your EIN.

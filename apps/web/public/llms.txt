@@ -11,19 +11,18 @@ Website: https://loonext.com
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
 
 ## Pricing (USD, plus sales tax where applicable)
-- Starter, $29/mo: 3 teammates, 1 local number, generous texting included on a fair-use basis (roughly 500 outgoing texts/month; extra billed at 3¢ each, up to a spending cap you set), receiving texts free and unlimited. The plan is not marketed as a hard message cap; almost every crew stays well inside, and we watch usage dynamically and reach out early rather than surprise anyone.
-- Pro, $79/mo: 15 teammates, 2 local numbers, more texting on the same fair-use basis (roughly 2,500 outgoing texts/month; extra 2.5¢ each up to your cap), receiving texts free and unlimited.
+- Starter, $29/mo: 3 teammates, 1 local number, texting included under an automated fair-use policy, receiving texts free and unlimited. There is no hard message cap: almost every crew stays well inside fair use, and if a month runs hot, extra texts bill at a small per-text rate, only up to a spending cap you control, with email alerts at 80% and 100% first. The concrete numbers live at https://loonext.com/legal/fair-use.
+- Pro, $79/mo: 15 teammates, 2 local numbers, more texting for a bigger crew on the same fair-use basis, receiving texts free and unlimited.
 - Enterprise: unlimited teammates for crews larger than 15. Contact-sales only (talk to us at support@loonext.com or the contact page); not a self-serve plan, same flat, no-per-user philosophy priced to your size.
 - A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send.
 - One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever, never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.
-- Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.
-- Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro. When a pool is full, new file uploads pause and new inbound pictures stop being saved (for pictures, the message text still arrives); free space or add the extra-storage add-on to keep saving them.
+- Spending cap you control, with email alerts at 80% and 100% of your included texting; hit the cap and sending pauses until you raise it (one click for account owners). No surprise bills.
+- Storage is free on every plan: files on notes and saved picture messages are kept with no caps, no meter, and no storage add-on. Uploads never pause and inbound pictures never stop being saved because of space.
 
-- Picture messages (MMS) are included on every plan, both directions, nothing to turn on: receiving photos is free, and each photo you send counts as three texts from the plan allowance (however long the words), drawing on the same fair-use texting and overage rules as everything else you send.
+- Picture messages (MMS) are included on every plan, both directions, nothing to turn on: receiving photos is free, and sending photos draws on the same fair-use texting and overage rules as everything else you send (counting mechanics at https://loonext.com/legal/fair-use).
 
 ## Optional add-on modules (opt in at signup or later, cancel monthly)
-- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with 300 forwarded minutes a month included, and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere.
-- Extra storage, $5/mo: adds 10 GB to each storage pool (files and pictures).
+- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with generous forwarded minutes under fair use, and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. Concrete minute figures live at https://loonext.com/legal/fair-use.
 - Canadian numbers alongside a US number: coming soon; listed in the catalog but not yet purchasable.
 
 ## Keep your existing number (porting)
@@ -41,7 +40,7 @@ Website: https://loonext.com
 - Internal notes (marked, never sent to the customer).
 - Saved replies (templates) via a "/" shortcut.
 - Tags for how you sell (Quote sent, Scheduled, Won, Lost).
-- Pictures both ways: receiving photos is free on every plan and saved to your included picture-messages storage; sending photos is the $5/mo picture-messages module above.
+- Pictures both ways: receiving photos is free on every plan and sending photos is included on every plan too; every photo is stored free, with no caps.
 - After-hours auto-reply: outside your business hours, a message you wrote yourself is sent back automatically (at most once per conversation per burst, so nobody gets spammed).
 - Missed-call text-back and call forwarding via the $8/mo module above.
 - Search across every message and contact; CSV contact import with a dry-run preview.
@@ -81,4 +80,4 @@ Website: https://loonext.com
 - [Security](https://loonext.com/security): tenant isolation, encryption, and what stays out of logs.
 - [Status](https://loonext.com/status): live service status.
 - [Contact](https://loonext.com/contact): reach support.
-- [Terms](https://loonext.com/legal/terms), [Privacy](https://loonext.com/legal/privacy), [Messaging policy](https://loonext.com/legal/messaging), and [Refunds](https://loonext.com/legal/refunds): the legal pages in plain language.
+- [Terms](https://loonext.com/legal/terms), [Privacy](https://loonext.com/legal/privacy), [Messaging policy](https://loonext.com/legal/messaging), [Fair use](https://loonext.com/legal/fair-use), and [Refunds](https://loonext.com/legal/refunds): the legal pages in plain language. The fair-use page is the one place the concrete texting numbers live.

@@ -31,7 +31,8 @@ function planFacts(id: PlanId, name: string): PlanFacts {
     included: "Texting for your crew, bound by fair use",
     seats: `${p.seats} team members`,
     numbers: `${p.numbers} phone number${p.numbers === 1 ? "" : "s"}`,
-    overage: `${p.overageCentsPerText}¢ per extra outgoing text`,
+    // #121: the concrete rate lives in the fair-use policy the card links to.
+    overage: "Extra texts bill under fair use, up to a cap you control",
   };
 }
 

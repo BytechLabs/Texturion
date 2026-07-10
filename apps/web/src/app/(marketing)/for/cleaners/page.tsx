@@ -145,8 +145,8 @@ const CONTENT: TradeContent = {
       a: "It looks and works like texting, on the phone they already have. They open a link, and they're in. Nothing to install, no training day. Access notes and assignments just appear in the conversation.",
     },
     {
-      q: "Do confirmation texts use up our 500?",
-      a: "A plain confirmation counts as one text, so 500 covers a lot of “see you tomorrow” messages, and the composer shows the count before you send. Go over and it's 3¢ each with a cap you control, so there's no surprise bill during a busy stretch.",
+      q: "Do confirmation texts use up our included texting?",
+      a: "A plain confirmation counts as one text, and texting is included on a fair-use basis sized for exactly this, so a route of “see you tomorrow” messages is fine. The composer shows the count before you send, and if a busy stretch runs past your included texting, extra texts bill at a small per-text rate with a cap you control, so there's no surprise bill.",
     },
     {
       q: "What's involved in getting our cleaning business registered to text?",

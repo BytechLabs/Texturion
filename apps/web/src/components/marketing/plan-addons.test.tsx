@@ -10,12 +10,10 @@ import {
 } from "./plan-addons";
 
 describe("pricing add-ons strip (#28 truth guard)", () => {
-  it("advertises exactly the sellable modules — regions_ca is not purchasable and never shown", () => {
-    // #97/#103: no "mms" card — pictures are included on every plan, not an add-on.
-    expect(SELLABLE_ADDON_CARDS.map((card) => card.id)).toEqual([
-      "voice",
-      "extra_storage",
-    ]);
+  it("advertises exactly the sellable modules — regions_ca and the retired extra_storage never show", () => {
+    // #97/#103: no "mms" card — pictures are included on every plan, not an
+    // add-on. #121: no "extra_storage" card — storage is free.
+    expect(SELLABLE_ADDON_CARDS.map((card) => card.id)).toEqual(["voice"]);
   });
 
   it("renders the catalog mirror's own cards, so prices/quantities are written once", () => {
@@ -36,6 +34,14 @@ describe("pricing add-ons strip (#28 truth guard)", () => {
   it("#103: never advertises a Picture-messages add-on (pictures are included)", () => {
     const html = renderToStaticMarkup(<PlanAddons />);
     expect(html).not.toContain("Picture messages");
+  });
+
+  it("#121: never advertises an Extra-storage add-on or a storage cap (storage is free)", () => {
+    const html = renderToStaticMarkup(<PlanAddons />);
+    expect(html).not.toContain("Extra storage");
+    expect(html).not.toMatch(/\bGB\b/);
+    expect(html).not.toContain("stop being saved");
+    expect(html).not.toContain("included storage");
   });
 
   it("renders every sellable label, price, and quantity line — and no Canada card", () => {

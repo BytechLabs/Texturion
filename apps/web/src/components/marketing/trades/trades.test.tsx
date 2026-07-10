@@ -205,10 +205,12 @@ describe("Law 11: no fake liveness, no rasters, no added tab stops", () => {
 
 describe("factual claims (Law 7): the billing truths render on every page", () => {
   it.each(PAGES)("$name carries the standard Truth Strip facts", (page) => {
-    // Receiving is free on every plan.
+    // Receiving is free on every plan; storage is free (#121: never an
+    // "included storage" pool that implies a cap).
     expect(page.html).toContain(
-      "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
+      "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved for you; storage is free.",
     );
+    expect(page.html).not.toContain("included storage");
     // Owner ruling (2026-07-08): the registration Truth Strip is now
     // country-conditional. The SSR default is "us", so the static markup shows
     // ONLY the US registration arithmetic, never the paired Canada+US line and
@@ -222,12 +224,17 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     expect(page.html).not.toContain(
       "Text your Canadian customers the same day your number is active.",
     );
-    // The pricing snippet figure and the deck's pricing link line. #96: the
-    // pricing body speaks fair use, never a pinned per-plan message count.
+    // The pricing snippet figure and the deck's pricing link line. #96/#121:
+    // the pricing body speaks fair use, never a pinned per-plan message count,
+    // never a per-text ¢ rate, and links the policy where the numbers live.
     expect(page.html).toContain("$29");
     expect(page.html).toContain("$79");
     expect(page.html).toContain("fair-use basis");
     expect(page.html).not.toContain("500 texts a month");
+    expect(page.html).not.toMatch(/\b500\b|\b2,500\b/);
+    expect(page.html).not.toMatch(/\d(\.\d+)?¢/);
+    expect(page.html).not.toContain("three texts");
+    expect(page.html).toContain('href="/legal/fair-use"');
     expect(page.html).toContain(
       "See full pricing. Every cost is on that page.",
     );

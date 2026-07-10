@@ -1,17 +1,18 @@
 import { FrSection, MonoFigure } from "@/components/marketing/fr";
 
 /**
- * S2 · TRUTH BAR (COPY-DECK v2). Conversion job: anchor the flat price and
- * kill the "what's the catch" reflex before the scroll continues.
+ * S2 · TRUTH BAR (COPY-DECK v2 + #121 amendment). Conversion job: anchor the
+ * flat price and kill the "what's the catch" reflex before the scroll
+ * continues.
  *
  * One display-scale mono figure ($29, prices-as-art per §3) and three stat
- * chips (the Frost fixture). The mono law applies to the countable truth
- * (500); the two chips without an invoice-number stay in the body face.
- * Server component, zero JS.
+ * chips (the Frost fixture). #121: no allowance figure on the chips; texting
+ * is included under the automated fair-use policy and the concrete numbers
+ * live only on /legal/fair-use. Server component, zero JS.
  */
 
 const CHIPS: readonly { figure?: string; label: string }[] = [
-  { figure: "500", label: "outgoing texts included" },
+  { label: "Texting included, automated fair use" },
   { label: "Receiving texts: free, unlimited" },
   { label: "Month to month, cancel anytime" },
 ];

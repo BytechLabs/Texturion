@@ -18,7 +18,6 @@ import { useUsage } from "@/lib/api/usage";
 import type {
   Usage,
   UsageMonth,
-  UsageStorage,
   UsageVoice,
 } from "@/lib/api/types";
 import {
@@ -141,84 +140,6 @@ function PeriodMeter({ usage }: { usage: Usage }) {
           </p>
         )}
       </div>
-    </div>
-  );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 ** 2) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
-/** One labelled storage budget bar (files, or picture messages). */
-function StorageBar({
-  label,
-  used,
-  budget,
-  help,
-}: {
-  label: string;
-  used: number;
-  budget: number | null;
-  help: string;
-}) {
-  const ratio = budget ? used / budget : 0;
-  const percent = Math.min(100, Math.round(ratio * 100));
-  const warning = ratio >= 0.8;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-        <span className="font-medium">{label}</span>
-        <span className="tabular-nums text-muted-foreground">
-          {formatBytes(used)} of {budget ? formatBytes(budget) : "–"}
-        </span>
-      </div>
-      {budget !== null && (
-        <div
-          role="meter"
-          aria-valuemin={0}
-          aria-valuemax={budget}
-          aria-valuenow={Math.min(used, budget)}
-          aria-label={`${label}: ${formatBytes(used)} of ${formatBytes(budget)} used`}
-          className="h-2 w-full overflow-hidden rounded-full bg-secondary"
-        >
-          <div
-            className={cn(
-              "h-full rounded-full transition-all duration-200 ease-out",
-              warning ? "bg-warning" : "bg-primary",
-            )}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-      )}
-      <p className="text-sm text-muted-foreground">{help}</p>
-    </div>
-  );
-}
-
-/**
- * D30 + #12: the two separate storage pools — files you attach to notes, and
- * picture messages customers text you. Each has its own budget (base plan + the
- * extra_storage add-on) and its own full behaviour (files: uploads pause;
- * pictures: new ones stop being saved, text always arrives), so they get their own bar.
- */
-function StorageMeter({ storage }: { storage: UsageStorage }) {
-  return (
-    <div className="space-y-6">
-      <StorageBar
-        label="Files on notes"
-        used={storage.attachments_bytes}
-        budget={storage.attachment_budget_bytes || null}
-        help="Files you attach to notes are saved here. When it's full, delete files you no longer need to free up space."
-      />
-      <StorageBar
-        label="Picture messages"
-        used={storage.mms_bytes}
-        budget={storage.mms_budget_bytes || null}
-        help="Pictures customers text you are saved here. When it's full, new pictures stop being saved (the message text always comes through) until you free up space or move to a larger plan."
-      />
     </div>
   );
 }
@@ -417,14 +338,8 @@ export default function UsageSettingsPage() {
   const showMessages =
     trending ||
     (!!data && nearLimit(data.used_segments, data.included_segments));
-  const showStorage =
-    trending ||
-    (!!data &&
-      (nearLimit(
-        data.storage.attachments_bytes,
-        data.storage.attachment_budget_bytes,
-      ) ||
-        nearLimit(data.storage.mms_bytes, data.storage.mms_budget_bytes)));
+  // #121: no storage gate — storage is free and capless, so it is not a
+  // usage concern and has no card on this page at all.
   const showVoice =
     !!data &&
     data.voice.included_minutes > 0 &&
@@ -479,12 +394,6 @@ export default function UsageSettingsPage() {
               near its own limit, or the tenant is trending over. The matching
               static alert emails at the same threshold, so nothing goes
               unwatched — the meter just stays calm until it matters. */}
-          {showStorage && (
-            <SettingsCard title="Storage">
-              <StorageMeter storage={usage.data.storage} />
-            </SettingsCard>
-          )}
-
           {showVoice && (
             <SettingsCard title="Call forwarding">
               <VoiceMeter voice={usage.data.voice} />

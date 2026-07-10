@@ -36,11 +36,13 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
       `${PLAN_PRICING.pro.numbers} phone numbers`,
     );
 
+    // #121: no per-text rate on the card; the figure lives in the fair-use
+    // policy the billing page links to.
     expect(PLAN_FACTS.starter.overage).toBe(
-      `${PLAN_PRICING.starter.overageCentsPerText}¢ per extra outgoing text`,
+      "Extra texts bill under fair use, up to a cap you control",
     );
     expect(PLAN_FACTS.pro.overage).toBe(
-      `${PLAN_PRICING.pro.overageCentsPerText}¢ per extra outgoing text`,
+      "Extra texts bill under fair use, up to a cap you control",
     );
   });
 });

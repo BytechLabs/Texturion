@@ -11,6 +11,7 @@
  * anywhere in rendered text (Law 6).
  */
 
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CountryOnly } from "@/components/marketing/country";
@@ -38,7 +39,7 @@ const PATH = LIVE_ROUTES.compareHeymarket;
 export const metadata: Metadata = buildMetadata({
   title: "Loonext vs Heymarket: flat $29 vs $49 a person",
   description:
-    "A dated, sourced comparison. Loonext is $29/mo flat with 500 texts included; Heymarket is $49/user with a 2-user minimum, texts at 3¢/segment, and a $10/mo carrier fee. About $172 vs $29 for a 3-person crew, July 2026.",
+    "A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Heymarket is $49/user with a 2-user minimum, texts at 3¢/segment, and a $10/mo carrier fee. About $172 vs $29 for a 3-person crew, July 2026.",
   path: PATH,
 });
 
@@ -61,7 +62,23 @@ export default function CompareHeymarketPage() {
 
       <LedgerBand
         heading="A 3-person crew, side by side."
-        lead="Same crew, same 500 texts a month, at published prices. Every Heymarket figure cites the exact line item from their public pricing page, including the rows that count in their favor."
+        lead={
+          <>
+            Same crew, same workload of 500 texts a month, at published prices.
+            Every Heymarket figure cites the exact line item from their public
+            pricing page, including the rows that count in their favor. On
+            Loonext, texting is included under an automated fair-use policy
+            that covers this workload comfortably; the concrete numbers live
+            in our{" "}
+            <Link
+              href={LIVE_ROUTES.fairUse}
+              className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+            >
+              fair use policy
+            </Link>
+            .
+          </>
+        }
         footnote={HEYMARKET_FOOTNOTE}
       >
         <LedgerTable

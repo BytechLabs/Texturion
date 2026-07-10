@@ -1,20 +1,19 @@
 /**
  * Add-on fine print for /pricing (#28), v4 "FIRST RESPONSE": the plain-words
- * limits behind the three toggles in the plan builder above it. Fully static,
+ * limits behind the plan builder's toggles above it. Fully static,
  * server-rendered, zero JS. The builder is where a buyer switches an add-on
  * on; this band is where the exact behavior of each one is stated BEFORE
  * purchase instead of discovered after.
  *
  * Truth source: PLAN_MODULE_CARDS in @/lib/api/types is the web mirror of the
- * API module catalog (apps/api/src/billing/modules.ts; quantities from
- * apps/api/src/billing/plans.ts: 300 minutes, 10 GB). Labels,
- * prices, and quantity lines render from that one list (via plan-math's
+ * API module catalog (apps/api/src/billing/modules.ts). Labels, prices, and
+ * quantity lines render from that one list (via plan-math's
  * SELLABLE_ADDON_CARDS, the same array the builder totals), so this section
- * can never drift from what checkout actually charges. `regions_ca` (Canada
- * numbers) is excluded on purpose: the API refuses to sell it until
- * multi-region provisioning ships (SELLABLE_MODULES in
- * apps/api/src/billing/company-modules.ts), and we don't advertise what a
- * buyer can't buy.
+ * can never drift from what checkout actually charges. `regions_ca` (Canada numbers) is excluded on
+ * purpose: the API refuses to sell it until multi-region provisioning ships
+ * (SELLABLE_MODULES in apps/api/src/billing/company-modules.ts), and we don't
+ * advertise what a buyer can't buy. `extra_storage` is retired (#121: storage
+ * is free on every plan, with no caps; there is nothing to sell).
  */
 
 import type { PlanModule, PlanModuleCard } from "@/lib/api/types";
@@ -29,21 +28,17 @@ export { SELLABLE_ADDON_CARDS };
  * enforces (apps/api/src/billing/plans.ts; the 80% warning is the owner email
  * from billing/usage-alerts.ts), stated before purchase rather than
  * discovered after. No em-dashes (Law 6). (#97/#103: there is no
- * Picture-messages add-on anymore; sending photos is included on every plan
- * and each picture counts as three texts from the allowance.)
+ * Picture-messages add-on anymore; sending photos is included on every plan.
+ * #121: there is no Extra-storage add-on anymore; storage is free with no
+ * caps, so there is nothing to buy and nothing that pauses.)
  */
-export const ADDON_FINE_PRINT: Record<
-  Exclude<PlanModule, "regions_ca">,
-  string
-> = {
+export const ADDON_FINE_PRINT: Partial<Record<PlanModule, string>> = {
   voice:
     "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Loonext itself doesn't place calls.",
-  extra_storage:
-    "Your plan's storage holds the files you attach to notes and the photos customers text you; when a pool is full, new photos stop being saved (the message text still arrives), so free up space or add storage to keep saving them. This add-on gives you more room: it stacks on top of your included storage (5 GB on Starter, 25 GB on Pro, per pool).",
 };
 
 function AddonCard({ card }: { card: PlanModuleCard }) {
-  const id = card.id as Exclude<PlanModule, "regions_ca">;
+  const finePrint = ADDON_FINE_PRINT[card.id];
   return (
     <FrCard className="flex h-full flex-col p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -57,9 +52,11 @@ function AddonCard({ card }: { card: PlanModuleCard }) {
         {card.blurb}
         {card.detail ? ` ${card.detail}` : ""}
       </p>
-      <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        {ADDON_FINE_PRINT[id]}
-      </p>
+      {finePrint ? (
+        <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+          {finePrint}
+        </p>
+      ) : null}
     </FrCard>
   );
 }
@@ -77,11 +74,11 @@ export function PlanAddons() {
         </h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
           The base plan is the complete shared inbox, nothing above is held
-          back. These three are the only add-ons that exist, each optional and
+          back. Call forwarding is the only add-on that exists, optional and
           priced right here, with the limits written out before you pay.
         </p>
       </div>
-      <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3">
+      <div className="mx-auto mt-10 grid max-w-xl gap-6">
         {SELLABLE_ADDON_CARDS.map((card) => (
           <Reveal key={card.id} className="h-full">
             <AddonCard card={card} />
@@ -89,8 +86,8 @@ export function PlanAddons() {
         ))}
       </div>
       <p className="mt-6 text-center text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-        The same three add-ons, at the same prices, are what you&apos;ll see at
-        signup and in billing settings. There is no other list.
+        The same add-on, at the same price, is what you&apos;ll see at signup
+        and in billing settings. There is no other list.
       </p>
     </FrSection>
   );

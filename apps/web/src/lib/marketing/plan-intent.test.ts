@@ -39,9 +39,9 @@ afterEach(() => {
 
 describe("parsePlanIntent (whitelist validation of the /pricing builder URL)", () => {
   it("parses the builder's canonical output", () => {
-    expect(parsePlanIntent("?plan=pro&modules=voice%2Cextra_storage")).toEqual({
+    expect(parsePlanIntent("?plan=pro&modules=voice")).toEqual({
       plan: "pro",
-      modules: ["voice", "extra_storage"],
+      modules: ["voice"],
     });
     expect(parsePlanIntent("plan=starter")).toEqual({
       plan: "starter",
@@ -75,12 +75,13 @@ describe("parsePlanIntent (whitelist validation of the /pricing builder URL)", (
         "?plan=pro&modules=<script>,__proto__,regions_ca,mms,mms,voice",
       ),
     ).toEqual({ plan: "pro", modules: ["voice"] });
-    // #97/#103: an OLD stashed/emailed link carrying the retired mms add-on
-    // must still check out cleanly — mms is dropped like any unknown value,
-    // never forwarded to the API (whose schema would 422 it).
-    expect(parsePlanIntent("?plan=pro&modules=mms,extra_storage")).toEqual({
+    // #97/#103 + #121: an OLD stashed/emailed link carrying a retired add-on
+    // (mms, extra_storage) must still check out cleanly — retired ids are
+    // dropped like any unknown value, never forwarded to the API (whose
+    // schema would 422 them).
+    expect(parsePlanIntent("?plan=pro&modules=mms,extra_storage,voice")).toEqual({
       plan: "pro",
-      modules: ["extra_storage"],
+      modules: ["voice"],
     });
   });
 
@@ -96,10 +97,10 @@ describe("planIntentSearch (canonical serialization)", () => {
   it("round-trips through parsePlanIntent", () => {
     const intent = {
       plan: "pro" as const,
-      modules: ["voice" as const, "extra_storage" as const],
+      modules: ["voice" as const],
     };
     const search = planIntentSearch(intent);
-    expect(search).toBe("plan=pro&modules=voice%2Cextra_storage");
+    expect(search).toBe("plan=pro&modules=voice");
     expect(parsePlanIntent(search)).toEqual(intent);
   });
 
@@ -112,7 +113,7 @@ describe("planIntentSearch (canonical serialization)", () => {
   it("stays safeNextPath-compatible (no spaces, backslashes, or control chars)", () => {
     const search = planIntentSearch({
       plan: "pro",
-      modules: ["voice", "extra_storage"],
+      modules: ["voice"],
     });
     expect(search).not.toMatch(/[\s\\]/);
   });
@@ -179,15 +180,15 @@ describe("stashPlanIntentFromSearch (signup / onboarding landing)", () => {
   });
 
   it("falls back to (and preserves) an existing stash when the URL has none", () => {
-    stashPlanIntent({ plan: "starter", modules: ["extra_storage"] });
+    stashPlanIntent({ plan: "starter", modules: ["voice"] });
     expect(stashPlanIntentFromSearch("")).toEqual({
       plan: "starter",
-      modules: ["extra_storage"],
+      modules: ["voice"],
     });
     // Not cleared — only the plan step consumes.
     expect(readPlanIntentStash()).toEqual({
       plan: "starter",
-      modules: ["extra_storage"],
+      modules: ["voice"],
     });
   });
 
@@ -211,10 +212,10 @@ describe("consumePlanIntent (plan step hydration)", () => {
   });
 
   it("falls back to the stash and clears it (consumed exactly once)", () => {
-    stashPlanIntent({ plan: "pro", modules: ["voice", "extra_storage"] });
+    stashPlanIntent({ plan: "pro", modules: ["voice"] });
     expect(consumePlanIntent("")).toEqual({
       plan: "pro",
-      modules: ["voice", "extra_storage"],
+      modules: ["voice"],
     });
     expect(consumePlanIntent("")).toBeNull();
   });

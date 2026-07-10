@@ -334,7 +334,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           <div className="mt-6 space-y-2.5">
             <TruthStrip
               line={{
-                text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved in your included storage.",
+                text: "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved for you; storage is free.",
                 good: true,
               }}
             />
@@ -357,6 +357,20 @@ export function TradePage({ content }: { content: TradeContent }) {
               <TruthStrip key={i} line={line} />
             ))}
           </div>
+          {/* #121: trade pages carry no allowance or per-text figures; the
+              concrete mechanics live in one place, linked here. */}
+          <p className="font-body-mkt mt-4 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+            Texting and pictures are included under an automated fair-use
+            policy, and almost every crew stays well inside it. The concrete
+            numbers live in our{" "}
+            <Link
+              href="/legal/fair-use"
+              className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+            >
+              fair use policy
+            </Link>
+            .
+          </p>
           <Link
             href="/pricing"
             className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"

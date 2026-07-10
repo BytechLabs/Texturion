@@ -12,6 +12,7 @@
  * anywhere in rendered text (Law 6).
  */
 
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CountryOnly } from "@/components/marketing/country";
@@ -35,7 +36,7 @@ const PATH = LIVE_ROUTES.compareQuo;
 export const metadata: Metadata = buildMetadata({
   title: "Loonext vs Quo: flat beats per-user",
   description:
-    "A dated, sourced comparison. Loonext is $29/mo flat with 500 texts included; Quo (formerly OpenPhone) is $19/user/mo on monthly billing with texting metered at 1¢/segment and extra numbers at $5/mo. Where Quo's calling genuinely wins, we say so.",
+    "A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Quo (formerly OpenPhone) is $19/user/mo on monthly billing with texting metered at 1¢/segment and extra numbers at $5/mo. Where Quo's calling genuinely wins, we say so.",
   path: PATH,
 });
 
@@ -58,7 +59,23 @@ export default function CompareQuoPage() {
 
       <LedgerBand
         heading="A 3-person crew, side by side."
-        lead="Same crew, same 500 texts a month, at published prices. Quo's texting cell states its real metered terms, we won't print a bundled allowance it doesn't sell, and the row where Quo flatly beats us is in the table too."
+        lead={
+          <>
+            Same crew, same workload of 500 texts a month, at published prices.
+            Quo&apos;s texting cell states its real metered terms, we won&apos;t
+            print a bundled allowance it doesn&apos;t sell, and the row where
+            Quo flatly beats us is in the table too. On Loonext, texting is
+            included under an automated fair-use policy that covers this
+            workload comfortably; the concrete numbers live in our{" "}
+            <Link
+              href={LIVE_ROUTES.fairUse}
+              className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+            >
+              fair use policy
+            </Link>
+            .
+          </>
+        }
         footnote={QUO_FOOTNOTE}
       >
         <LedgerTable
@@ -191,7 +208,7 @@ export default function CompareQuoPage() {
 
       <CompareCta
         heading="Flat for the crew, texts included."
-        sub="$29 a month covers up to three people and 500 texts; $79 covers up to fifteen and 2,500, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you."
+        sub="$29 a month covers up to three people with texting included; $79 covers up to fifteen, with a second number in the price. No seat math, no per-segment meter, and a full refund in your first 30 days if it's not for you."
       />
     </>
   );

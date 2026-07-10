@@ -63,7 +63,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
       [{ m: "1" }, " local business number"],
       ["Texting included, bound by fair use (the composer shows the count before you send)"],
       ["Receiving texts: free, unlimited"],
-      ["Extra texts: ", { m: "3¢" }, " each, with a spending cap you control"],
+      ["Extra texts: a small per-text rate, with a spending cap you control"],
     ],
     cta: "Start with Starter",
   },
@@ -80,11 +80,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
       ],
       ["More texting for a bigger crew, bound by fair use (same count rule)"],
       ["Receiving texts: free, unlimited"],
-      [
-        "Extra texts: ",
-        { m: "2.5¢" },
-        " each, with a spending cap you control",
-      ],
+      ["Extra texts: a small per-text rate, with a spending cap you control"],
     ],
     cta: "Start with Pro",
   },
@@ -208,6 +204,19 @@ export function TheDeal() {
           aria-hidden
         />
         <CountryText us={GUARANTEE_MICROCOPY} ca={GUARANTEE_MICROCOPY_CA} />
+      </p>
+
+      {/* #121: the home page carries no allowance or per-text figures; the
+          concrete mechanics live in one place, and this is the link to it. */}
+      <p className="font-body-mkt mx-auto mt-3 max-w-4xl text-center text-sm text-[color:var(--fr-ink-70)]">
+        Texting and pictures are included under an automated fair-use policy,
+        and almost every crew stays well inside it.{" "}
+        <Link
+          href={LIVE_ROUTES.fairUse}
+          className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        >
+          The concrete numbers live in our fair use policy.
+        </Link>
       </p>
 
       {/* Enterprise escape hatch: Pro caps at 15, so a bigger crew needs to know

@@ -39,7 +39,7 @@ const PATH = LIVE_ROUTES.compareIndex;
 export const metadata: Metadata = buildMetadata({
   title: "Compare Loonext: the same crew, priced elsewhere",
   description:
-    "Loonext next to Heymarket and Quo for a 3-person crew sending 500 texts a month: every competitor price dated July 2026 and sourced from their own pricing page, and every place they fit better named outright.",
+    "One workload, priced three ways: Loonext next to Heymarket and Quo for a 3-person crew sending 500 texts a month. Every competitor price dated July 2026 and sourced from their own pricing page, and every place they fit better named outright.",
   path: PATH,
 });
 
@@ -74,7 +74,7 @@ export default function CompareIndexPage() {
       <CompareHero
         dateline="3 PEOPLE · 500 TEXTS · JULY 2026"
         title="The same crew, priced elsewhere."
-        lead="One 3-person crew sending 500 texts a month, priced at Loonext and at the two tools you're most likely weighing it against. Every competitor number is dated, comes from their own public pricing page, and is sourced cell by cell on the matching head-to-head page, where we also say when the other tool fits you better."
+        lead="One workload, priced three ways: a 3-person crew sending 500 texts a month, at Loonext and at the two tools you're most likely weighing it against. Every competitor number is dated, comes from their own public pricing page, and is sourced cell by cell on the matching head-to-head page, where we also say when the other tool fits you better."
       />
 
       <LedgerBand

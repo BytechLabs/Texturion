@@ -118,13 +118,13 @@ const CONTENT: TradeContent = {
     },
     {
       title: "Photos in and out.",
-      body: "Customers send the before, you send the after. Photos are included both ways on every plan; each one you send counts as three texts from your monthly allowance.",
+      body: "Customers send the before, you send the after. Photos are included both ways on every plan, sending and receiving, and every photo is stored free.",
     },
   ],
 
   pricingH2: "$29 a month, flat. Even in April.",
   pricingBody:
-    "Starter is 3 people, 1 local number, and texting sized for a working crew on a fair-use basis, not a hard cap. The spring rush is fine: past your included texting, extra texts are 3¢ each with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for up to 15 people and a second number, then drop back when the season winds down.",
+    "Starter is 3 people, 1 local number, and texting sized for a working crew on a fair-use basis, not a hard cap. The spring rush is fine: past your included texting, extra texts bill at a small per-text rate with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for up to 15 people and a second number, then drop back when the season winds down.",
 
   faqH2: "Landscaper questions, straight answers.",
   faqs: [
