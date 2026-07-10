@@ -50,6 +50,7 @@ const COMPARE: FooterLinkItem[] = [
 const COMPANY_AND_LEGAL: FooterLinkItem[] = [
   { label: "Terms of service", href: LIVE_ROUTES.terms },
   { label: "Privacy policy", href: LIVE_ROUTES.privacy },
+  { label: "Cookies", href: LIVE_ROUTES.cookies },
   { label: "Acceptable use", href: LIVE_ROUTES.aup },
   { label: "Fair use", href: LIVE_ROUTES.fairUse },
   { label: "SMS messaging policy", href: LIVE_ROUTES.messaging },

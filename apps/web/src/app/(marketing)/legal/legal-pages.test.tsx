@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import AupPage, { metadata as aupMetadata } from "./aup/page";
+import CookiesPage, { metadata as cookiesMetadata } from "./cookies/page";
 import FairUsePage, { metadata as fairUseMetadata } from "./fair-use/page";
 import MessagingPolicyPage, {
   metadata as messagingMetadata,
@@ -29,6 +30,7 @@ const PAGES = [
   { name: "refunds", html: renderToStaticMarkup(<RefundsPage />), meta: refundsMetadata },
   // Appended last so the index-based per-page blocks above keep their indices.
   { name: "fair-use", html: renderToStaticMarkup(<FairUsePage />), meta: fairUseMetadata },
+  { name: "cookies", html: renderToStaticMarkup(<CookiesPage />), meta: cookiesMetadata },
 ];
 
 describe("legal pages — Laws 1 and 6 across all seven", () => {
@@ -167,5 +169,21 @@ describe("fair-use — the plain limits survive", () => {
   it("frames the allowances as a fair-use line and states the dynamic watch (#85)", () => {
     expect(html).toContain("fair-use line");
     expect(html).toContain("reach out early");
+  });
+});
+
+describe("cookies — the honest, essential-only disclosure (#87)", () => {
+  const html = PAGES[7].html;
+  it("names the two essential first-party cookies (session + workspace)", () => {
+    expect(html).toContain("keeps you signed in");
+    expect(html).toContain("remembers which workspace");
+  });
+  it("states analytics is cookieless and there is no tracking/advertising", () => {
+    expect(html).toContain("cookieless");
+    expect(html).toContain("no ad networks");
+    expect(html).toContain("cross-site tracking");
+  });
+  it("explains why there is no consent banner (nothing non-essential)", () => {
+    expect(html).toContain("no consent banner");
   });
 });

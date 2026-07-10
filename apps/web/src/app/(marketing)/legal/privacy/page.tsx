@@ -86,7 +86,9 @@ export default function PrivacyPage() {
           <li>
             <strong>Product analytics:</strong> cookieless, event-level usage
             (page views, feature clicks, counts). We do not put message content,
-            names, addresses, or phone numbers into analytics.
+            names, addresses, or phone numbers into analytics. Our{" "}
+            <LegalLink href="/legal/cookies">cookie policy</LegalLink> lists every
+            cookie and browser-storage item we use.
           </li>
         </ul>
       </LegalSectionBlock>
