@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "./client";
 import { ApiError } from "./error";
@@ -8,6 +8,24 @@ import type { Me } from "./types";
 /** GET /v1/me — profile + memberships. Company-exempt (no X-Company-Id). */
 export function fetchMe(): Promise<Me> {
   return apiFetch<Me>("/v1/me");
+}
+
+/**
+ * PATCH /v1/me — set your own display name (#112). Company-exempt: the invite
+ * flow collects the name BEFORE the caller belongs to any workspace.
+ */
+export function useUpdateDisplayName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (display_name: string) =>
+      apiFetch<{ display_name: string }>("/v1/me", {
+        method: "PATCH",
+        body: { display_name },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.me });
+    },
+  });
 }
 
 /**

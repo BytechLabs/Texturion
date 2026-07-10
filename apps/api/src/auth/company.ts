@@ -19,6 +19,9 @@ const memberRowSchema = z.object({
  */
 const COMPANY_EXEMPT_ROUTES = new Set([
   "GET /v1/me",
+  // #112: setting your own display name — the invite flow needs it BEFORE the
+  // caller is a member of any company.
+  "PATCH /v1/me",
   "POST /v1/companies",
   "POST /v1/invites/accept",
   // #109: the caller's own pending invites, matched on their confirmed email —

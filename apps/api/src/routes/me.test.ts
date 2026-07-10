@@ -168,3 +168,42 @@ describe("GET /v1/me", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("PATCH /v1/me (#112: set your own display name)", () => {
+  it("upserts the caller's profile name, company-exempt (no X-Company-Id)", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/profiles", () => [{ display_name: "Pat Rivera" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      method: "PATCH",
+      companyId: null,
+      body: { display_name: "  Pat Rivera  " },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ display_name: "Pat Rivera" });
+
+    // Upsert on user_id, scoped to the CALLER (the sub, never a body field),
+    // with the whitespace trimmed.
+    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    expect(upsert.url.searchParams.get("on_conflict")).toBe("user_id");
+    expect(upsert.body).toMatchObject({
+      user_id: auth.subject,
+      display_name: "Pat Rivera",
+    });
+  });
+
+  it("422s an empty or over-long name", async () => {
+    const sb = supabaseStub(env);
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const display_name of ["", "   ", "x".repeat(81)]) {
+      const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+        method: "PATCH",
+        companyId: null,
+        body: { display_name },
+      });
+      expect(res.status, JSON.stringify(display_name)).toBe(422);
+    }
+    expect(sb.find("POST", "/rest/v1/profiles")).toHaveLength(0);
+  });
+});

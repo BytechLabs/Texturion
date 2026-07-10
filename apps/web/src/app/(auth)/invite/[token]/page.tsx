@@ -3,15 +3,21 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
+import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
 import { writeCompanyCookie } from "@/lib/company/cookie";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type SessionState = "checking" | "authed" | "anonymous";
+/** Once authed: are we still checking the profile, asking for a name, or done. */
+type NameState = "checking" | "needs-name" | "ready";
 
 function inviteErrorCopy(error: unknown): {
   title: string;
@@ -59,8 +65,15 @@ export default function InviteAcceptPage() {
   const token = params.token;
   const router = useRouter();
   const accept = useAcceptInvite();
+  const updateName = useUpdateDisplayName();
   const attempted = useRef(false);
   const [sessionState, setSessionState] = useState<SessionState>("checking");
+  // #112: an invitee must have a display name before joining — the team sees
+  // it everywhere (members list, avatars, notes). Existing accounts and
+  // invite-created ones can arrive with an empty profile name (they never pass
+  // through the signup form), so gate acceptance on it.
+  const [nameState, setNameState] = useState<NameState>("checking");
+  const [name, setName] = useState("");
 
   // Wait for the session — the invite link's tokens are consumed client-side
   // just after load, so "no session yet" isn't "signed out" for a moment.
@@ -95,9 +108,8 @@ export default function InviteAcceptPage() {
     };
   }, []);
 
-  // Authenticated → accept exactly once, then land in the inbox.
-  useEffect(() => {
-    if (sessionState !== "authed" || attempted.current) return;
+  const acceptInvite = useRef(() => {
+    if (attempted.current) return;
     attempted.current = true;
     accept.mutate(token, {
       onSuccess: (membership) => {
@@ -107,7 +119,47 @@ export default function InviteAcceptPage() {
         router.refresh();
       },
     });
-  }, [sessionState, token, accept, router]);
+  });
+
+  // Authenticated → check the profile name. Has one → accept immediately;
+  // empty → ask for it (the form below), then accept.
+  useEffect(() => {
+    if (sessionState !== "authed") return;
+    let cancelled = false;
+    void fetchMe()
+      .then((me) => {
+        if (cancelled) return;
+        if (me.display_name.trim()) {
+          setNameState("ready");
+          acceptInvite.current();
+        } else {
+          setNameState("needs-name");
+        }
+      })
+      .catch(() => {
+        // /me is unreachable — don't strand the invitee: let them accept, and
+        // set a name later from the account sheet.
+        if (cancelled) return;
+        setNameState("ready");
+        acceptInvite.current();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionState]);
+
+  function submitName(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed === "") return;
+    updateName.mutate(trimmed, {
+      onSuccess: () => {
+        setNameState("ready");
+        acceptInvite.current();
+      },
+      onError: () => toast.error("Couldn't save your name. Try again."),
+    });
+  }
 
   async function signOutAndLogin() {
     await getSupabaseBrowser().auth.signOut();
@@ -150,6 +202,41 @@ export default function InviteAcceptPage() {
           .
         </p>
       </div>
+    );
+  }
+
+  // #112: authed but no profile name yet — collect it before joining.
+  if (sessionState === "authed" && nameState === "needs-name") {
+    return (
+      <form onSubmit={submitName} className="space-y-4">
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            What&apos;s your name?
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Your teammates will see this on messages, notes, and tasks.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="invite-name">Your name</Label>
+          <Input
+            id="invite-name"
+            autoFocus
+            autoComplete="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            placeholder="Alex Rivera"
+          />
+        </div>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={name.trim() === "" || updateName.isPending}
+        >
+          {updateName.isPending ? "Joining…" : "Continue"}
+        </Button>
+      </form>
     );
   }
 
