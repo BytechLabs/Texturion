@@ -136,6 +136,41 @@ export function softwareApplicationJsonLd() {
   } as const;
 }
 
+/**
+ * BlogPosting node for /blog/<slug> pages (#127). Author and publisher are the
+ * Organization (solo-founder company; no personal author entity to claim).
+ * Deliberately no `image` — Next wires the og image per route and we do not
+ * hardcode asset URLs that could drift (same reasoning as buildMetadata).
+ */
+export function blogPostingJsonLd({
+  headline,
+  description,
+  path,
+  datePublishedIso,
+  dateModifiedIso,
+}: {
+  headline: string;
+  description: string;
+  path: string;
+  datePublishedIso: string;
+  dateModifiedIso?: string;
+}) {
+  const url = absoluteUrl(path);
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": `${url}#article`,
+    headline,
+    description,
+    url,
+    mainEntityOfPage: url,
+    datePublished: datePublishedIso,
+    dateModified: dateModifiedIso ?? datePublishedIso,
+    author: { "@id": ORG_ID },
+    publisher: { "@id": ORG_ID },
+  } as const;
+}
+
 export interface Breadcrumb {
   name: string;
   path: string;

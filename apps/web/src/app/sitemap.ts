@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
 
 /**
@@ -19,6 +20,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }> = [
     { path: LIVE_ROUTES.home, priority: 1, changeFrequency: "weekly" },
     { path: LIVE_ROUTES.pricing, priority: 0.9, changeFrequency: "weekly" },
+
+    // Blog (#127): the index plus every post from the BLOG_POSTS registry.
+    { path: LIVE_ROUTES.blog, priority: 0.6, changeFrequency: "weekly" },
+    ...BLOG_POSTS.map((post) => ({
+      path: blogPostPath(post.slug),
+      priority: 0.5,
+      changeFrequency: "monthly" as const,
+    })),
 
     // Feature pages (BLUEPRINT §2, §5).
     {

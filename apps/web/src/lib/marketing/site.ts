@@ -26,6 +26,10 @@ export function absoluteUrl(path: string): string {
 export const LIVE_ROUTES = {
   home: "/",
   pricing: "/pricing",
+  // Blog index (#127). Individual post paths live in lib/marketing/blog.ts —
+  // the registry that also drives the index page, the sitemap, and the RSS
+  // feed — so LIVE_ROUTES stays a fixed-route inventory.
+  blog: "/blog",
   security: "/security",
   contact: "/contact",
   status: "/status",

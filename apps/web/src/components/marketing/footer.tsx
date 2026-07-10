@@ -48,6 +48,9 @@ const COMPARE: FooterLinkItem[] = [
 ];
 
 const COMPANY_AND_LEGAL: FooterLinkItem[] = [
+  // #127: the blog joins the company column (the deck §F inventory predates
+  // it; the nav bar stays deliberately lean, so the footer carries the link).
+  { label: "Blog", href: LIVE_ROUTES.blog },
   { label: "Terms of service", href: LIVE_ROUTES.terms },
   { label: "Privacy policy", href: LIVE_ROUTES.privacy },
   { label: "Cookies", href: LIVE_ROUTES.cookies },
