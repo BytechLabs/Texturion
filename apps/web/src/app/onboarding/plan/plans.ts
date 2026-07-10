@@ -21,7 +21,7 @@ function planCard(id: PlanId, name: string, crewLine: string): PlanCard {
     name,
     price: `$${p.monthlyDollars}`,
     lines: [
-      `${p.includedTexts.toLocaleString("en-US")} outgoing texts included each month`,
+      "Texting included, bound by fair use",
       crewLine,
       `${p.numbers} business number${p.numbers === 1 ? "" : "s"}`,
       "Incoming texts & photos free, always",

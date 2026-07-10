@@ -76,7 +76,7 @@ export const PLANS: Plan[] = [
     features: [
       `${S.seats} teammates included`,
       `${S.numbers} local business number (US or Canada, your area code)`,
-      `${S.includedTexts.toLocaleString("en-US")} texts a month (a plain text up to 160 characters is one; the composer shows the count before you send)`,
+      "Texting included, bound by fair use (a plain text up to 160 characters is one; the composer shows the count before you send)",
       "Receiving texts: free and unlimited; photos free to receive",
       `Extra texts: ${S.overageCentsPerText}¢ each, with a spending cap you control`,
       "Month to month, cancel anytime",
@@ -93,7 +93,7 @@ export const PLANS: Plan[] = [
     features: [
       `${P.seats} teammates included`,
       `${P.numbers} local business numbers (two locations, or office and field)`,
-      `${P.includedTexts.toLocaleString("en-US")} texts a month (same count rule; the composer always shows it before you send)`,
+      "More texting for a bigger crew, bound by fair use (same count rule; the composer always shows it before you send)",
       "Receiving texts: free and unlimited; photos free to receive",
       `Extra texts: ${P.overageCentsPerText}¢ each, with a spending cap you control`,
       "Month to month, cancel anytime",

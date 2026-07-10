@@ -90,8 +90,13 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(pro?.features.join(" ")).toContain(
       `${PLAN_PRICING.pro.seats} teammates`,
     );
-    expect(starter?.features.join(" ")).toContain("500 texts a month");
-    expect(pro?.features.join(" ")).toContain("2,500 texts a month");
+    // #85: the plan card frames texting as fair use, not a hard message count.
+    expect(starter?.features.join(" ")).toContain(
+      "Texting included, bound by fair use",
+    );
+    expect(pro?.features.join(" ")).toContain(
+      "More texting for a bigger crew, bound by fair use",
+    );
     expect(starter?.features.join(" ")).toContain(
       `${PLAN_PRICING.starter.overageCentsPerText}¢ each`,
     );

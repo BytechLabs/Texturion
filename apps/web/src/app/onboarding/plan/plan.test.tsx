@@ -13,9 +13,9 @@ describe("onboarding plan cards trace to PLAN_PRICING (finding 7)", () => {
     expect(pro.price).toBe(`$${PLAN_PRICING.pro.monthlyDollars}`);
   });
 
-  it("derives the included texts with the thousands separator", () => {
-    expect(starter.lines).toContain("500 outgoing texts included each month");
-    expect(pro.lines).toContain("2,500 outgoing texts included each month");
+  it("frames texting as fair use, not a hard message count (#85)", () => {
+    expect(starter.lines).toContain("Texting included, bound by fair use");
+    expect(pro.lines).toContain("Texting included, bound by fair use");
   });
 
   it("derives the seat counts in each plan's crew line", () => {

@@ -11,8 +11,8 @@ Website: https://loonext.com
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
 
 ## Pricing (USD, plus sales tax where applicable)
-- Starter, $29/mo: 3 teammates, 1 local number, 500 outgoing texts/month, extra texts 3¢ each, receiving texts free and unlimited.
-- Pro, $79/mo: 15 teammates, 2 local numbers, 2,500 outgoing texts/month, extra texts 2.5¢ each, receiving texts free and unlimited.
+- Starter, $29/mo: 3 teammates, 1 local number, generous texting included on a fair-use basis (roughly 500 outgoing texts/month; extra billed at 3¢ each, up to a spending cap you set), receiving texts free and unlimited. The plan is not marketed as a hard message cap; almost every crew stays well inside, and we watch usage dynamically and reach out early rather than surprise anyone.
+- Pro, $79/mo: 15 teammates, 2 local numbers, more texting on the same fair-use basis (roughly 2,500 outgoing texts/month; extra 2.5¢ each up to your cap), receiving texts free and unlimited.
 - Enterprise: unlimited teammates for crews larger than 15. Contact-sales only (talk to us at support@loonext.com or the contact page); not a self-serve plan, same flat, no-per-user philosophy priced to your size.
 - A plain text up to 160 characters counts as one text; longer or emoji texts count as more; the composer shows the count before you send.
 - One-time $29 fee to register with the phone companies, for US businesses (and Canadian businesses that enable US texting). Charged once, ever, never again after a cancel/return. So a US shop pays $58 the first month, then $29 every month after. Canadian businesses that don't text US numbers never pay it.

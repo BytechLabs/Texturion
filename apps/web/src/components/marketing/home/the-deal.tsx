@@ -61,12 +61,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
     items: [
       [{ m: "3" }, " teammates included"],
       [{ m: "1" }, " local business number"],
-      [
-        { m: "500" },
-        " texts a month (a plain text up to ",
-        { m: "160" },
-        " characters is one; the composer shows the count before you send)",
-      ],
+      ["Texting included, bound by fair use (the composer shows the count before you send)"],
       ["Receiving texts: free, unlimited"],
       ["Extra texts: ", { m: "3¢" }, " each, with a spending cap you control"],
     ],
@@ -83,7 +78,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
         { m: "2" },
         " local business numbers (two locations, or office and field)",
       ],
-      [{ m: "2,500" }, " texts a month (same count rule)"],
+      ["More texting for a bigger crew, bound by fair use (same count rule)"],
       ["Receiving texts: free, unlimited"],
       [
         "Extra texts: ",
@@ -254,8 +249,9 @@ export function TheDeal() {
 
         <div>
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
-            This is the usage meter you&apos;ll see in the app. You set the
-            cap; we email you at 80% and 100%. No surprise bills.
+            This is the usage screen you&apos;ll see in the app: your count and
+            your spending cap, with a heads-up only if you start heading over.
+            No surprise bills.
           </p>
           <PanelFrame
             className="mt-5"

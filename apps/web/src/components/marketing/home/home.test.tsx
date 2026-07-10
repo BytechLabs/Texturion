@@ -134,14 +134,14 @@ describe("laws that hold across the whole page (Laws 1, 6, 11)", () => {
 });
 
 describe("plan cards (#70 unit-language guard, ported from night/pricing.test.ts)", () => {
-  it("states the allowances in plain 'texts', matching /pricing's numbers", () => {
+  it("frames texting as fair use, not a hard message count (#85)", () => {
     const starter = HOME_PLANS.find((plan) => plan.name === "Starter");
     const pro = HOME_PLANS.find((plan) => plan.name === "Pro");
     expect(starter?.items.map(planItemText).join(" ")).toContain(
-      "500 texts a month",
+      "Texting included, bound by fair use",
     );
     expect(pro?.items.map(planItemText).join(" ")).toContain(
-      "2,500 texts a month",
+      "More texting for a bigger crew, bound by fair use",
     );
   });
 
@@ -235,7 +235,9 @@ describe("product embeds keep APP tokens (Law 2)", () => {
 
   it("the embeds draw with the app's own utility tokens", () => {
     expect(EMBEDS.assignTrack).toMatch(/text-app-ink/);
-    expect(EMBEDS.usageMeter).toMatch(/bg-primary/); // the petrol fill
+    // #85/#95: the usage embed is the CALM resting state now (count + cap, no
+    // "of N" fill bar), so it uses the app's surface/secondary tokens.
+    expect(EMBEDS.usageMeter).toMatch(/bg-secondary/);
     expect(EMBEDS.savedReplies).toContain("{first_name}");
     expect(EMBEDS.darkPhoneThread).toContain("On my way, should be with you");
   });
