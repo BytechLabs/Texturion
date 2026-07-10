@@ -18,7 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { escapeHtml } from "../email/html";
+import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { sendWebPush } from "./webpush";
@@ -155,11 +155,12 @@ export async function notifyMissedCall(
           to,
           subject: `Missed call from ${contactName}`,
           text,
-          html:
+          html: emailLayout(
             `<p><strong>${escapeHtml(contactName)}</strong> called and no one picked up.</p>` +
-            `<p>${escapeHtml(sentLine)}</p>` +
-            `<p><a href="${link}">Open the conversation</a></p>` +
-            `<p><a href="${settingsUrl}">Turn these alerts off</a></p>`,
+              `<p>${escapeHtml(sentLine)}</p>` +
+              `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Open the conversation</a></p>` +
+              `<p style="font-size:14px;color:#7a828c;"><a href="${settingsUrl}" style="color:#7a828c;">Turn these alerts off</a></p>`,
+          ),
           headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
       }

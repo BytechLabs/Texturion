@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { escapeHtml, toHtml } from "./html";
+import {
+  emailLayout,
+  escapeHtml,
+  linkifyUrls,
+  renderEmailHtml,
+  toHtml,
+} from "./html";
 
 describe("escapeHtml", () => {
   it("escapes every HTML-significant character", () => {
@@ -44,5 +50,39 @@ describe("toHtml", () => {
     expect(html).toBe(
       "<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;</p>",
     );
+  });
+});
+
+describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () => {
+  it("frames body html in the branded, email-client-safe container", () => {
+    const html = emailLayout("<p>Hello</p>");
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("Loonext"); // the wordmark
+    expect(html).toContain("<p>Hello</p>"); // the body, untouched
+    expect(html).toContain("service message about your Loonext account"); // footer
+    // Email clients strip <style>/<head> CSS, so layout is tables + INLINE styles.
+    expect(html).toContain('role="presentation"');
+    expect(html).toContain("max-width:560px");
+    expect(html).not.toContain("<style");
+  });
+
+  it("renders plain text as a full branded email, escaping the copy", () => {
+    const html = renderEmailHtml("Hi,\n\nSmith & <Sons> did a thing.\n\nLoonext");
+    expect(html).toContain("Smith &amp; &lt;Sons&gt;");
+    expect(html).not.toContain("<Sons>");
+    expect(html).toContain("max-width:560px"); // wrapped in the layout
+  });
+
+  it("linkifies bare URLs so transactional CTAs are clickable", () => {
+    expect(linkifyUrls("See usage: https://app.loonext.com/x")).toBe(
+      'See usage: <a href="https://app.loonext.com/x" style="color:#2740de;text-decoration:underline;">https://app.loonext.com/x</a>',
+    );
+  });
+
+  it("linkify stops at the paragraph tag after a trailing URL", () => {
+    // toHtml turns the trailing blank line into </p>; the link must not swallow it.
+    const html = renderEmailHtml("Open: https://x.example/a\n\nLoonext");
+    expect(html).toContain('<a href="https://x.example/a"');
+    expect(html).not.toContain('href="https://x.example/a</p>');
   });
 });

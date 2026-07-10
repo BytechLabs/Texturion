@@ -1,6 +1,6 @@
 import { billingRecipients } from "./recipients";
 import { getDb } from "../db";
-import { toHtml } from "../email/html";
+import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { deactivateCampaign } from "../telnyx/registration";
@@ -121,7 +121,7 @@ export async function recordAndSendGraceNotice(
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return false;
   const { subject, text } = warningCopy(company, thresholdDay, env);
-  await sendEmail(env, { to, subject, text, html: toHtml(text) });
+  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
   return true;
 }
 
@@ -195,7 +195,7 @@ async function releaseExpiredCompany(
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return;
   const { subject, text } = releasedCopy(company);
-  await sendEmail(env, { to, subject, text, html: toHtml(text) });
+  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
 }
 
 /**

@@ -21,7 +21,7 @@ import {
   type PlanId,
 } from "./plans";
 import { getDb } from "../db";
-import { toHtml } from "../email/html";
+import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
@@ -301,7 +301,7 @@ export async function recordAndSendAlert(
     to,
     subject: copy.subject,
     text: copy.text,
-    html: toHtml(copy.text),
+    html: renderEmailHtml(copy.text),
   });
   return true;
 }

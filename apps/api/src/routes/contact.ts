@@ -30,7 +30,7 @@ import { z } from "zod";
 
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { escapeHtml, toHtml } from "../email/html";
+import { emailLayout, escapeHtml, renderEmailHtml, toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
@@ -194,7 +194,7 @@ contactRoutes.post("/contact", async (c) => {
       to: body.email,
       subject: ack.subject,
       text: ack.text,
-      html: toHtml(ack.text),
+      html: renderEmailHtml(ack.text),
     });
   } catch (cause) {
     console.error("contact acknowledgment email failed:", cause);
@@ -237,18 +237,19 @@ function supportText(body: ContactBody, ip: string): string {
   );
 }
 
-/** Every interpolated field is submitter-controlled — escape all of them. */
+/** Every interpolated field is submitter-controlled — escape all of them. The
+ *  composed body is framed by the shared branded email layout (#88). */
 function supportHtml(body: ContactBody, ip: string): string {
-  return (
+  return emailLayout(
     `<p>New contact form submission on loonext.com</p>` +
-    `<p><strong>Name:</strong> ${escapeHtml(body.name)}<br>` +
-    `<strong>Email:</strong> ${escapeHtml(body.email)}<br>` +
-    (body.company !== undefined && body.company !== ""
-      ? `<strong>Company:</strong> ${escapeHtml(body.company)}<br>`
-      : "") +
-    `<strong>IP:</strong> ${escapeHtml(ip)}</p>` +
-    `<blockquote>${toHtml(body.message)}</blockquote>` +
-    `<p>Reply to this email to answer them directly.</p>`
+      `<p><strong>Name:</strong> ${escapeHtml(body.name)}<br>` +
+      `<strong>Email:</strong> ${escapeHtml(body.email)}<br>` +
+      (body.company !== undefined && body.company !== ""
+        ? `<strong>Company:</strong> ${escapeHtml(body.company)}<br>`
+        : "") +
+      `<strong>IP:</strong> ${escapeHtml(ip)}</p>` +
+      `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #e6e8ec;color:#3b4252;">${toHtml(body.message)}</blockquote>` +
+      `<p>Reply to this email to answer them directly.</p>`,
   );
 }
 

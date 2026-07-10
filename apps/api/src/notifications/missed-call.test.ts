@@ -86,9 +86,11 @@ describe("notifyMissedCall (email)", () => {
     );
     const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
     expect(email.text).toContain(`Turn these alerts off: ${settingsUrl}`);
-    expect(email.html).toContain(
-      `<a href="${settingsUrl}">Turn these alerts off</a>`,
-    );
+    // The opt-out link is present (styled by the #88 branded layout).
+    expect(email.html).toContain(`href="${settingsUrl}"`);
+    expect(email.html).toContain("Turn these alerts off");
+    // The whole email is framed by the shared branded layout.
+    expect(email.html).toContain("max-width:560px");
     expect(email.headers).toEqual({ "List-Unsubscribe": `<${settingsUrl}>` });
   });
 

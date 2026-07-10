@@ -19,7 +19,7 @@ import { effectiveStorageBudgets } from "../billing/company-modules";
 import type { PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
-import { toHtml } from "../email/html";
+import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
@@ -235,7 +235,7 @@ async function sendNotificationBudgetAlert(
     to,
     subject: copy.subject,
     text: copy.text,
-    html: toHtml(copy.text),
+    html: renderEmailHtml(copy.text),
   });
 }
 

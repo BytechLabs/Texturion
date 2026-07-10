@@ -1,4 +1,4 @@
-import { toHtml } from "../email/html";
+import { renderEmailHtml } from "../email/html";
 import type { Env } from "../env";
 
 /**
@@ -15,7 +15,7 @@ export interface EmailCopy {
 }
 
 function copy(subject: string, text: string): EmailCopy {
-  return { subject, text, html: toHtml(text) };
+  return { subject, text, html: renderEmailHtml(text) };
 }
 
 /** SPEC §4.3 failure handling — reassuring, no action required (exact tone). */

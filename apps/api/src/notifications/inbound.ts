@@ -25,7 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { escapeHtml } from "../email/html";
+import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { sendWebPush } from "./webpush";
@@ -179,11 +179,12 @@ export async function notifyInboundMessage(
           to,
           subject: `New text from ${contactName}`,
           text,
-          html:
+          html: emailLayout(
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
-            `<blockquote>${escapeHtml(snippet)}</blockquote>` +
-            `<p><a href="${link}">Reply in Loonext</a></p>` +
-            `<p><a href="${settingsUrl}">Turn these alerts off</a></p>`,
+              `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #e6e8ec;color:#3b4252;">${escapeHtml(snippet)}</blockquote>` +
+              `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Reply in Loonext</a></p>` +
+              `<p style="font-size:14px;color:#7a828c;"><a href="${settingsUrl}" style="color:#7a828c;">Turn these alerts off</a></p>`,
+          ),
           headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
       }

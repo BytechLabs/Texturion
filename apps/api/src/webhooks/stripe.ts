@@ -26,7 +26,7 @@ import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe"
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
-import { toHtml } from "../email/html";
+import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { portDocumentsNeededCopy } from "../telnyx/emails";
 import { sendPortEmail, startPortSaga } from "../telnyx/porting";
@@ -801,8 +801,8 @@ async function handleInvoicePaymentFailed(
       to,
       subject: "Your Loonext payment failed: outbound texting is paused",
       text,
-      // toHtml escapes — company.name is customer-controlled input.
-      html: toHtml(text),
+      // renderEmailHtml escapes — company.name is customer-controlled input.
+      html: renderEmailHtml(text),
     });
   }
 }
@@ -842,7 +842,7 @@ async function handlePaymentActionRequired(
     to,
     subject: "Action needed: confirm your Loonext payment",
     text,
-    // toHtml escapes — company.name is customer-controlled input.
-    html: toHtml(text),
+    // renderEmailHtml escapes — company.name is customer-controlled input.
+    html: renderEmailHtml(text),
   });
 }
