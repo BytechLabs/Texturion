@@ -9,12 +9,12 @@ import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/fair-use";
-const LAST_UPDATED = "July 9, 2026";
+const LAST_UPDATED = "July 10, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Fair use policy",
   description:
-    "Loonext is flat-rate texting for a real crew: Starter includes 500 texts a month, Pro 2,500, and any extra is billed per segment up to a spending cap you set. We state those limits plainly so nothing surprises you, and hold one reasonable-use line so a single heavy sender can't raise the price for everyone.",
+    "Loonext is flat-rate texting for a real crew under an automated fair-use policy. This page is the one place the concrete numbers live: Starter includes 500 texts a month, Pro 2,500, extra texts are 3¢ (Starter) or 2.5¢ (Pro) each up to a spending cap you control, a sent photo counts as three texts, and storage is free with no caps.",
   path: PATH,
 });
 
@@ -26,15 +26,16 @@ const sections = [
   { id: "reasonable", number: "5", heading: "Reasonable use" },
   { id: "numbers", number: "6", heading: "Phone numbers" },
   { id: "add-ons", number: "7", heading: "Voice and picture messages" },
-  { id: "enforcement", number: "8", heading: "If usage is out of bounds" },
-  { id: "contact", number: "9", heading: "Contact" },
+  { id: "storage", number: "8", heading: "Storage" },
+  { id: "enforcement", number: "9", heading: "If usage is out of bounds" },
+  { id: "contact", number: "10", heading: "Contact" },
 ];
 
 export default function FairUsePage() {
   return (
     <LegalPage
       title="Fair use policy"
-      summary="Loonext is a flat monthly price with a real allowance of texts included, not a bottomless pipe. Starter includes 500 texts a month and Pro includes 2,500; anything beyond that is billed per segment, and you set a monthly spending cap that pauses sending before a bill can surprise you. This page states those limits plainly, and reserves a narrow right to step in only when usage stops looking like one business texting its own customers."
+      summary="Loonext is a flat monthly price with texting included under an automated fair-use policy, and this page is the one place the concrete mechanics live. Starter includes 500 texts a month and Pro includes 2,500; extra texts are billed at 3¢ (Starter) or 2.5¢ (Pro) each up to a monthly spending cap you control, which pauses sending before a bill can surprise you. Storage is free, with no caps. We reserve a narrow right to step in only when usage stops looking like one business texting its own customers."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-09"
       breadcrumbLabel="Fair use"
@@ -65,9 +66,11 @@ export default function FairUsePage() {
           one number. Pro is $79/mo for up to 15 people, includes 2,500 texts,
           and adds a second number. A text is counted in segments (about 160
           characters each), the same way the carriers count them, so one long
-          message can use more than one segment. The current allowances are
-          always on the <LegalLink href="/pricing">pricing page</LegalLink>.
-          Think of them as a fair-use line for one business texting its own
+          message can use more than one segment. This page is the canonical
+          home of those figures; the{" "}
+          <LegalLink href="/pricing">pricing page</LegalLink> describes plans
+          in plain fair-use terms and points here for the mechanics.
+          Think of the allowances as a fair-use line for one business texting its own
           customers, not a target: almost every crew stays well inside them
           without thinking about it, and a busy month now and then is fine.
         </p>
@@ -80,8 +83,9 @@ export default function FairUsePage() {
       >
         <p>
           If you send more than your plan includes, each extra segment is billed
-          at your plan&apos;s published per-segment rate, up to a monthly
-          spending cap you set. You are never billed by surprise: we alert the
+          at 3&cent; on Starter or 2.5&cent; on Pro, up to a monthly spending
+          cap you control (3&times; your included texts by default, adjustable
+          in billing settings). You are never billed by surprise: we alert the
           account owner at 80% and again at 100% of your included texts, so paid
           overage never begins unnoticed, and sending pauses the moment you reach
           your cap. Raise the cap, upgrade, or wait for the next cycle. Your call.
@@ -144,8 +148,8 @@ export default function FairUsePage() {
           Receiving photos is free; each photo you send counts as three texts
           from your monthly allowance and follows the same overage rules as any
           other text you send. The optional call-forwarding add-on is a flat
-          monthly price with a monthly minute allowance included, shown on the{" "}
-          <LegalLink href="/pricing">pricing page</LegalLink>. When you reach
+          monthly price with 300 forwarded minutes a month included. When you
+          reach
           its allowance we alert the owner at 80% and pause just that feature
           for the rest of the cycle, rather than billing a surprise: call
           forwarding stops until the cycle resets, and missed callers still get
@@ -154,9 +158,23 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
+      <LegalSectionBlock id="storage" number="8" heading="Storage">
+        <p>
+          Storage is free. Files you attach to notes and the pictures customers
+          send you are kept with no storage caps, no storage add-on, and no
+          meter: uploads never pause and inbound photos never stop being saved
+          because of space. The one line we hold is the same reasonable-use
+          line as everything else: if a workspace&apos;s storage stops looking
+          like one business keeping its own customer conversations (for
+          example, using Loonext as a general file locker), we will contact
+          you and work it out person to person. Nothing is blocked
+          automatically.
+        </p>
+      </LegalSectionBlock>
+
       <LegalSectionBlock
         id="enforcement"
-        number="8"
+        number="9"
         heading="If usage is out of bounds"
       >
         <p>
@@ -173,7 +191,7 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" number="9" heading="Contact">
+      <LegalSectionBlock id="contact" number="10" heading="Contact">
         <p>
           Expecting a busy month, or not sure whether a use fits? Tell us first
           and we will help you land on the right plan:{" "}
