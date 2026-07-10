@@ -109,13 +109,19 @@ const MEMBER_PAYLOAD = {
   triage: null,
 };
 
-function forYouStub(role: MemberRole, payload: unknown): SupabaseStub {
+function forYouStub(
+  role: MemberRole,
+  payload: unknown,
+  numberAccess: unknown[] = [],
+): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "GET",
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, role),
   );
+  // #106: the route resolves number_access for members ([] = unrestricted).
+  sb.on("GET", "/rest/v1/number_access", () => numberAccess);
   sb.on("POST", "/rest/v1/rpc/api_for_you", () => payload);
   return sb;
 }
@@ -140,6 +146,28 @@ describe("GET /v1/for-you", () => {
     });
     // The clock is injected (testable "overdue") — a real ISO timestamp.
     expect(typeof (rpc.body as Record<string, unknown>).p_now).toBe("string");
+  });
+
+  it("#106: a restricted member's RPC receives the hidden-number deny list", async () => {
+    const HIDDEN = "dddddddd-0000-4000-8000-00000000000d";
+    const sb = forYouStub("member", MEMBER_PAYLOAD, [
+      {
+        phone_number_id: HIDDEN,
+        principal_kind: "role",
+        principal: "admin", // a plain member can't match → hidden
+        level: "text",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/for-you", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
+    expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
+      HIDDEN,
+    ]);
   });
 
   it("owner/admin get the triage strip: p_is_lead is true (role-derived)", async () => {

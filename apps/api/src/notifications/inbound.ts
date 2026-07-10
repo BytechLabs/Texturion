@@ -24,6 +24,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
+import type { MemberRole } from "../context";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -45,6 +47,7 @@ interface ConversationView {
   id: string;
   assigned_user_id: string | null;
   is_spam: boolean;
+  phone_number_id: string | null;
   contacts: { name: string | null; phone_e164: string };
 }
 
@@ -89,7 +92,9 @@ export async function notifyInboundMessage(
   const conversations = unwrapRows<ConversationView>(
     await db
       .from("conversations")
-      .select("id,assigned_user_id,is_spam,contacts(name,phone_e164)")
+      .select(
+        "id,assigned_user_id,is_spam,phone_number_id,contacts(name,phone_e164)",
+      )
       .eq("company_id", input.companyId)
       .eq("id", input.conversationId)
       .limit(1),
@@ -108,20 +113,44 @@ export async function notifyInboundMessage(
   // Audience (§8): assignee, else all active members. An assignee who is no
   // longer an active member cannot be notified, so the thread falls back to
   // the whole team rather than silently alerting nobody.
-  const members = unwrapRows<{ user_id: string }>(
+  const memberRows = unwrapRows<{ user_id: string; role: MemberRole }>(
     await db
       .from("company_members")
-      .select("user_id")
+      .select("user_id,role")
       .eq("company_id", input.companyId)
       .is("deactivated_at", null),
     "company members lookup",
-  ).map((row) => row.user_id);
-  const audience =
+  );
+  const members = memberRows.map((row) => row.user_id);
+  let audience =
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
       : members;
   if (audience.length === 0) return;
+
+  // #106: never alert a member who can't see this number — the snippet + contact
+  // name would leak a hidden conversation. Notes-only members CAN read the
+  // thread, so only level 'none' is dropped; owners/admins always keep access.
+  if (conversation.phone_number_id) {
+    const rules = unwrapRows<NumberAccessRule>(
+      await db
+        .from("number_access")
+        .select("phone_number_id,principal_kind,principal,level")
+        .eq("company_id", input.companyId)
+        .eq("phone_number_id", conversation.phone_number_id),
+      "number access lookup",
+    );
+    if (rules.length > 0) {
+      const roleOf = new Map(memberRows.map((row) => [row.user_id, row.role]));
+      audience = audience.filter((userId) => {
+        const role = roleOf.get(userId) ?? "member";
+        if (role === "owner" || role === "admin") return true;
+        return levelFromRules(rules, userId, role) !== "none";
+      });
+      if (audience.length === 0) return;
+    }
+  }
 
   // Per-user prefs; a missing row carries the §6 defaults (true/true).
   const prefRows = unwrapRows<PrefsRow>(

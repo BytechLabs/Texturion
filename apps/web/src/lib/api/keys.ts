@@ -20,6 +20,9 @@ export const keys = {
   usage: (companyId: string) => [companyId, "usage"] as const,
   modules: (companyId: string) => [companyId, "modules"] as const,
   numbers: (companyId: string) => [companyId, "numbers"] as const,
+  /** #106: one number's access shape (who can use it, at what level). */
+  numberAccess: (companyId: string, numberId: string) =>
+    [companyId, "numbers", "access", numberId] as const,
   registration: (companyId: string) => [companyId, "registration"] as const,
   portRequests: {
     /** Root for the company's port list + every port detail. */

@@ -183,6 +183,8 @@ function sendStubs(options: {
   const companyPlan = stubRoute(restMatch(env, "GET", "companies"), () => [
     { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
   ]);
+  // #106: no access rules → the member caller is unrestricted.
+  const numberAccess = stubRoute(restMatch(env, "GET", "number_access"), () => []);
 
   return {
     conversationView,
@@ -209,6 +211,7 @@ function sendStubs(options: {
       sign.route,
       modulesLookup.route,
       companyPlan.route,
+      numberAccess.route,
     ],
   };
 }
@@ -502,6 +505,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
       failingTelnyx.route,
       stubs.persist.route,
       stubs.attachmentsLookup.route,
+      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
     );
 
     const response = await postSend({
@@ -1051,6 +1055,8 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
         lookup.route,
         rpc.route,
         attachmentsLookup.route,
+        // #106: no access rules → the member caller is unrestricted.
+        stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
       ],
     };
   }
@@ -1248,6 +1254,8 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
         lookup.route,
         rpc.route,
         attachmentsLookup.route,
+        // #106: no access rules → the member caller is unrestricted.
+        stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
       ],
     };
   }
@@ -1407,6 +1415,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
       conversationCheck.route,
       list.route,
       tasks.route,
+      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
     );
 
     const response = await app.fetch(

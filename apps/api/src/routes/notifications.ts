@@ -38,6 +38,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -258,6 +259,12 @@ notificationsRoutes.get(
     const cursor = parseCursor(c);
     const db = getDb(getEnv(c.env));
 
+    // #106: a restricted member's feed must exclude hidden-number threads/tasks.
+    const access = await resolveNumberAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
     const rows = unwrap<NotificationRow[]>(
       await db.rpc("api_notifications", {
         p_company_id: c.get("companyId"),
@@ -265,6 +272,7 @@ notificationsRoutes.get(
         p_limit: limit + 1,
         p_before_ts: cursor?.ts ?? null,
         p_before_id: cursor?.id ?? null,
+        p_hidden_number_ids: access.hiddenNumberIds,
       }),
       "notifications list",
     );
@@ -277,11 +285,18 @@ notificationsRoutes.get(
   requireRole("member"),
   async (c) => {
     const db = getDb(getEnv(c.env));
+    // #106: the badge must agree with the filtered feed.
+    const access = await resolveNumberAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
     const count = Number(
       unwrap<number | string>(
         await db.rpc("api_notifications_unread_count", {
           p_company_id: c.get("companyId"),
           p_user_id: c.get("userId"),
+          p_hidden_number_ids: access.hiddenNumberIds,
         }),
         "notifications unread count",
       ),

@@ -10,6 +10,7 @@ import { apiFetch } from "./client";
 import { keys } from "./keys";
 import type {
   AvailableNumbersResult,
+  NumberAccess,
   Page,
   PhoneNumberSummary,
 } from "./types";
@@ -162,6 +163,39 @@ export function useReleaseNumber() {
       queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
+      });
+    },
+  });
+}
+
+/** #106: the number's access shape (GET /v1/numbers/:id/access, O/A). */
+export function useNumberAccess(numberId: string, enabled = true) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.numberAccess(companyId, numberId),
+    queryFn: () =>
+      apiFetch<NumberAccess>(`/v1/numbers/${numberId}/access`, { companyId }),
+    enabled,
+  });
+}
+
+/** #106: replace the number's access rules (PUT, O/A). */
+export function useSetNumberAccess(numberId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (access: NumberAccess) =>
+      apiFetch<NumberAccess>(`/v1/numbers/${numberId}/access`, {
+        method: "PUT",
+        companyId,
+        body: access,
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(keys.numberAccess(companyId, numberId), saved);
+      // A tightened rule changes what the inbox may list for teammates; the
+      // caller's own view refreshes lazily (owners/admins are unrestricted).
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
       });
     },
   });

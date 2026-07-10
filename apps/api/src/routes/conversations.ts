@@ -30,6 +30,11 @@ import { z } from "zod";
 
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import { requireRole } from "../auth/company";
+import {
+  assertNumberLevel,
+  requireConversationAccess,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -162,6 +167,13 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
   const cursor = parseCursor(c);
 
   const db = getDb(getEnv(c.env));
+  // #106: a restricted member's inbox only lists conversations on numbers they
+  // can see (null = unrestricted, the common owner/admin/no-rules path).
+  const access = await resolveNumberAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
   const rows = unwrap<Record<string, unknown>[]>(
     await db.rpc("api_list_conversations", {
       p_company_id: c.get("companyId"),
@@ -176,6 +188,7 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
       p_pinned: query.pinned ?? null,
+      p_hidden_number_ids: access.hiddenNumberIds,
     }),
     "conversations list",
   );
@@ -201,6 +214,13 @@ conversationsRoutes.get(
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
+    await requireConversationAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId: id,
+      need: "read",
+    });
 
     const rows = unwrap<MsgRow[]>(
       await db
@@ -254,6 +274,16 @@ conversationsRoutes.get(
       return errorResponse(c, "not_found", "No such conversation.");
     }
 
+    // #106: hidden numbers 404; the level rides the payload as `viewer_level`
+    // so the composer can gate its SMS mode ('note' = notes-only member).
+    const viewerLevel = await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: row.phone_number_id as string | null,
+      need: "read",
+    });
+
     const messageLimit = 50;
     interface MessageRow {
       id: string;
@@ -293,6 +323,7 @@ conversationsRoutes.get(
     const { contacts, conversation_tags, ...conversation } = row;
     return c.json({
       ...conversation,
+      viewer_level: viewerLevel,
       contact: contacts,
       tags: conversation_tags
         .map((entry) => entry.tags)
@@ -330,6 +361,14 @@ conversationsRoutes.patch(
     if (!current) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
+
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: current.phone_number_id as string | null,
+      need: "note",
+    });
 
     const now = new Date().toISOString();
     const patch: Record<string, unknown> = {};
@@ -442,6 +481,14 @@ conversationsRoutes.post(
       return errorResponse(c, "not_found", "No such conversation.");
     }
 
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "note",
+    });
+
     // TASKS-V2 (D17 D-D): a task-linked note must point at a LIVE task in the
     // SAME conversation + company. Anything else (a task in another thread,
     // another company, or a soft-deleted/absent task) is 422 validation_failed
@@ -527,6 +574,14 @@ conversationsRoutes.post(
       return errorResponse(c, "not_found", "No such conversation.");
     }
 
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
+
     const read = {
       conversation_id: id,
       user_id: c.get("userId"),
@@ -556,6 +611,14 @@ conversationsRoutes.get(
     if (!conversation) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
+
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
 
     let query = db
       .from("conversation_events")
@@ -589,6 +652,14 @@ conversationsRoutes.post(
     if (!conversation) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
+
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "note",
+    });
 
     interface TagRow {
       id: string;
@@ -693,6 +764,14 @@ conversationsRoutes.delete(
       return errorResponse(c, "not_found", "No such conversation.");
     }
 
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "note",
+    });
+
     const deleted = unwrap<unknown[]>(
       await db
         .from("conversation_tags")
@@ -787,6 +866,14 @@ conversationsRoutes.get(
     if (!conversation) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
+
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
 
     // Over-fetch limit+1 per arm so the merged, sliced result is correct
     // regardless of how the page boundary falls across the two arms.

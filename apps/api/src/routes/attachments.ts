@@ -38,7 +38,7 @@
  * bucket) is untouched. Inbound MMS is NEVER blocked on the D30 budget — it is
  * bounded per message instead (messaging/media.ts MAX_INBOUND_MEDIA_ITEMS).
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import {
@@ -46,6 +46,10 @@ import {
   companyPlanRow,
 } from "../attachments/egress";
 import { requireRole } from "../auth/company";
+import {
+  requireConversationAccess,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import { effectiveStorageBudgets } from "../billing/company-modules";
 import { type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
@@ -212,6 +216,16 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   if (!owner) {
     return errorResponse(c, "not_found", "No such note.");
   }
+
+  // #106: uploading to a note is a note-level action — a member with no access
+  // to the owning conversation's number gets the same 404 as a missing note.
+  await requireConversationAccess(db, {
+    companyId,
+    userId,
+    role: c.get("role"),
+    conversationId: owner.conversationId,
+    need: "note",
+  });
 
   // Soft per-owner cap of 10 (D19 §2.4) — count live rows first.
   const existing = unwrap<{ id: string }[]>(
@@ -443,6 +457,20 @@ attachmentsRoutes.get("/attachments", requireRole("member"), async (c) => {
       .order("id", { ascending: true }),
     "attachment list",
   );
+  // #106: an owner's attachments all share one conversation — if that number is
+  // hidden from the caller, so is the list (404, indistinguishable from empty).
+  // Zero rows leak nothing, so the check only runs when there's something to
+  // hide.
+  const conversationId = rows[0]?.conversation_id;
+  if (typeof conversationId === "string") {
+    await requireConversationAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId,
+      need: "read",
+    });
+  }
   return c.json({ data: rows });
 });
 
@@ -455,10 +483,16 @@ attachmentsRoutes.get(
     const db = getDb(getEnv(c.env));
 
     // Generic (note/task) arm first — the D19 table. Only live rows.
-    const generic = unwrap<{ storage_path: string; size_bytes: number | null }[]>(
+    const generic = unwrap<
+      {
+        storage_path: string;
+        size_bytes: number | null;
+        conversation_id: string | null;
+      }[]
+    >(
       await db
         .from("attachments")
-        .select("storage_path,size_bytes")
+        .select("storage_path,size_bytes,conversation_id")
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
@@ -466,6 +500,9 @@ attachmentsRoutes.get(
       "generic attachment lookup",
     );
     if (generic[0]) {
+      // #106: gate the mint on access to the owning conversation's number —
+      // a signed URL is the whole payload, so a hidden number must 404 here.
+      await assertConversationVisible(db, c, generic[0].conversation_id);
       // #16: claim the egress BEFORE signing — over the allowance, no URL.
       await assertEgressWithinAllowance(db, companyId, [
         { bucket: ATTACHMENTS_BUCKET, sizeBytes: generic[0].size_bytes },
@@ -474,17 +511,24 @@ attachmentsRoutes.get(
     }
 
     // Fall back to the MMS arm (message_attachments / mms-media) — kept intact.
-    // company_id lives on message_attachments so no join is needed.
-    const mms = unwrap<{ storage_path: string; size_bytes: number | null }[]>(
+    // company_id lives on message_attachments so no join is needed; message_id
+    // gets us to the conversation for the #106 gate.
+    const mms = unwrap<
+      { storage_path: string; size_bytes: number | null; message_id: string }[]
+    >(
       await db
         .from("message_attachments")
-        .select("storage_path,size_bytes")
+        .select("storage_path,size_bytes,message_id")
         .eq("company_id", companyId)
         .eq("id", id)
         .limit(1),
       "mms attachment lookup",
     );
     if (mms[0]) {
+      // #106: an MMS image on a hidden number must not be signable. Resolve the
+      // media's conversation (message → conversation) only when the caller is
+      // actually restricted — unrestricted callers skip the extra lookup.
+      await assertMmsVisible(db, c, mms[0].message_id);
       // #16: MMS media downloads draw on the same per-company egress pool.
       await assertEgressWithinAllowance(db, companyId, [
         { bucket: MMS_BUCKET, sizeBytes: mms[0].size_bytes },
@@ -497,6 +541,60 @@ attachmentsRoutes.get(
     return errorResponse(c, "not_found", "No such attachment.");
   },
 );
+
+/**
+ * #106 gate for the `/url` route: 404 the mint when the caller can't see the
+ * media's conversation. A null conversation_id (legacy/edge rows) resolves to
+ * visible — consistent with the deny-list model (an un-numbered row is never
+ * hidden). Owner/admin and no-rules companies short-circuit inside.
+ */
+async function assertConversationVisible(
+  db: Db,
+  c: Context<AppEnv>,
+  conversationId: string | null,
+): Promise<void> {
+  if (!conversationId) return;
+  await requireConversationAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId,
+    need: "read",
+  });
+}
+
+/**
+ * The MMS flavor of {@link assertConversationVisible}: message_attachments has
+ * no conversation_id, so the owning conversation is resolved via the message —
+ * but only when the caller is restricted (owner/admin and no-rules companies
+ * short-circuit without the extra lookup).
+ */
+async function assertMmsVisible(
+  db: Db,
+  c: Context<AppEnv>,
+  messageId: string,
+): Promise<void> {
+  const role = c.get("role");
+  if (role === "owner" || role === "admin") return;
+  const companyId = c.get("companyId");
+  const access = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role,
+  });
+  if (access.hiddenNumberIds === null) return; // no rules → nothing hidden
+
+  const rows = unwrap<{ conversation_id: string | null }[]>(
+    await db
+      .from("messages")
+      .select("conversation_id")
+      .eq("company_id", companyId)
+      .eq("id", messageId)
+      .limit(1),
+    "mms message lookup",
+  );
+  await assertConversationVisible(db, c, rows[0]?.conversation_id ?? null);
+}
 
 /** Mint one short-lived signed Storage URL and its expiry (D19 §2.5 / §7). */
 async function signObject(

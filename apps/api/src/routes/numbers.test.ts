@@ -104,6 +104,7 @@ function buildHarness(
   rest.table("companies");
   rest.table("phone_numbers", NUMBER_DEFAULTS);
   rest.table("company_members");
+  rest.table("number_access");
   rest.table("messaging_registrations");
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
@@ -254,6 +255,176 @@ describe("GET /v1/numbers", () => {
     expect(row.last_provision_error).toBeUndefined();
     expect(row.telnyx_order_id).toBeUndefined();
     expect(row.telnyx_phone_number_id).toBeUndefined();
+  });
+
+  it("#106: a restricted member never sees a number hidden from them", async () => {
+    const harness = buildHarness();
+    harness.state.role = "member";
+    const visibleId = "aaaaaaaa-0000-4000-8000-0000000000a1";
+    const hiddenId = "aaaaaaaa-0000-4000-8000-0000000000a2";
+    harness.rest.insert("phone_numbers", {
+      id: visibleId,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125550001",
+    });
+    harness.rest.insert("phone_numbers", {
+      id: hiddenId,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125550002",
+    });
+    // Admins-only rule on the second number → the member (role 'member') can't
+    // match → hidden. The first number has no rule → open to everyone.
+    harness.rest.insert("number_access", {
+      company_id: COMPANY_ID,
+      phone_number_id: hiddenId,
+      principal_kind: "role",
+      principal: "admin",
+      level: "text",
+    });
+
+    const res = await harness.request("/v1/numbers");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { id: string }[] };
+    expect(body.data.map((n) => n.id)).toEqual([visibleId]);
+  });
+});
+
+describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
+  const NUMBER_ID = "aaaaaaaa-0000-4000-8000-0000000000a9";
+  const ALICE = "bbbbbbbb-0000-4000-8000-0000000000b1";
+  const BOB = "bbbbbbbb-0000-4000-8000-0000000000b2";
+
+  function withNumber(harness: ReturnType<typeof buildHarness>) {
+    harness.rest.insert("phone_numbers", {
+      id: NUMBER_ID,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125559000",
+    });
+  }
+
+  function putInit(body: unknown): RequestInit {
+    return {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
+  }
+
+  it("requires owner/admin", async () => {
+    const harness = buildHarness();
+    withNumber(harness);
+    harness.state.role = "member";
+    const res = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "everyone" }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("404s a number outside the company", async () => {
+    const harness = buildHarness();
+    const res = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "everyone" }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("round-trips a role rule (GET reflects the saved PUT)", async () => {
+    const harness = buildHarness();
+    withNumber(harness);
+
+    const put = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "role", role: "admin", level: "note" }),
+    );
+    expect(put.status).toBe(200);
+
+    const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
+    expect(await get.json()).toEqual({
+      access: "role",
+      role: "admin",
+      level: "note",
+    });
+  });
+
+  it("saves a specific-people rule and rejects a non-member", async () => {
+    const harness = buildHarness();
+    withNumber(harness);
+    harness.rest.user(ALICE, "alice@acme.example");
+    harness.rest.insert("company_members", {
+      company_id: COMPANY_ID,
+      user_id: ALICE,
+      role: "member",
+      deactivated_at: null,
+    });
+
+    // BOB is not a member → rejected.
+    const bad = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "users", user_ids: [ALICE, BOB], level: "text" }),
+    );
+    expect(bad.status).toBe(422);
+
+    // Just ALICE → saved; GET reflects it.
+    const ok = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "users", user_ids: [ALICE], level: "text" }),
+    );
+    expect(ok.status).toBe(200);
+    const get = (await (
+      await harness.request(`/v1/numbers/${NUMBER_ID}/access`)
+    ).json()) as { access: string; user_ids: string[] };
+    expect(get.access).toBe("users");
+    expect(get.user_ids).toEqual([ALICE]);
+  });
+
+  it("dedupes duplicate user_ids instead of 500ing on the unique constraint", async () => {
+    const harness = buildHarness();
+    withNumber(harness);
+    harness.rest.user(ALICE, "alice@acme.example");
+    harness.rest.insert("company_members", {
+      company_id: COMPANY_ID,
+      user_id: ALICE,
+      role: "member",
+      deactivated_at: null,
+    });
+
+    const res = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "users", user_ids: [ALICE, ALICE], level: "text" }),
+    );
+    expect(res.status).toBe(200);
+    // Exactly one rule row was written for ALICE.
+    const rows = harness.rest.rows("number_access") as { principal: string }[];
+    expect(rows.filter((r) => r.principal === ALICE)).toHaveLength(1);
+  });
+
+  it("'everyone' clears the rules (GET falls back to everyone)", async () => {
+    const harness = buildHarness();
+    withNumber(harness);
+    harness.rest.insert("number_access", {
+      company_id: COMPANY_ID,
+      phone_number_id: NUMBER_ID,
+      principal_kind: "role",
+      principal: "admin",
+      level: "text",
+    });
+
+    const put = await harness.request(
+      `/v1/numbers/${NUMBER_ID}/access`,
+      putInit({ access: "everyone" }),
+    );
+    expect(put.status).toBe(200);
+    const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
+    expect(await get.json()).toEqual({ access: "everyone" });
+    expect(harness.rest.rows("number_access")).toHaveLength(0);
   });
 });
 

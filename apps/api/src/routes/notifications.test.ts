@@ -45,6 +45,9 @@ function memberStub(): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, "member"),
   );
+  // #106: the read-model routes resolve number_access; [] = no rules →
+  // unrestricted (p_hidden_number_ids null), so the RPC assertions are unchanged.
+  sb.on("GET", "/rest/v1/number_access", () => []);
   return sb;
 }
 
@@ -436,6 +439,41 @@ describe("GET /v1/notifications", () => {
     });
   });
 
+  it("#106: a restricted member's list RPC receives the hidden-number deny list", async () => {
+    const HIDDEN = "dddddddd-0000-4000-8000-00000000000d";
+    // Build the stub directly so the hiding rule is the FIRST number_access
+    // responder (responders resolve in registration order).
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: HIDDEN,
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_notifications", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[0];
+    expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
+      HIDDEN,
+    ]);
+  });
+
   it("emits a next_cursor when the page is full (limit+1 rows returned)", async () => {
     const sb = memberStub();
     // limit=1 → route fetches 2; the extra row signals a next page and is
@@ -528,6 +566,8 @@ describe("GET /v1/notifications/unread-count", () => {
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
+      // #106: unrestricted caller → null deny list (no filter).
+      p_hidden_number_ids: null,
     });
   });
 

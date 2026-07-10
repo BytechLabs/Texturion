@@ -364,7 +364,16 @@ export interface ConversationDetail extends Conversation {
   contact: ConversationDetailContact;
   tags: Tag[];
   messages: Page<Message>;
+  /** #106: the caller's access level on this conversation's number — 'note'
+   *  means read + internal notes only (the composer hides its SMS mode). */
+  viewer_level: "text" | "note";
 }
+
+/** #106: a number's access shape (GET/PUT /v1/numbers/:id/access). */
+export type NumberAccess =
+  | { access: "everyone" }
+  | { access: "role"; role: "admin" | "member"; level: "text" | "note" }
+  | { access: "users"; user_ids: string[]; level: "text" | "note" };
 
 /** GET /v1/conversations/:id/events row. */
 export interface ConversationEvent {

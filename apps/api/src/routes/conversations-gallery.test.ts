@@ -52,6 +52,8 @@ function memberStub(): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, "member"),
   );
+  // #106: no access rules → the member caller is unrestricted.
+  sb.on("GET", "/rest/v1/number_access", () => []);
   // The conversation existence gate (findConversation).
   sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
   // #16 egress-claim stubs every non-empty page needs (mirrors the
@@ -209,6 +211,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       "/rest/v1/company_members",
       membershipResponder(MEMBER_ID, "member"),
     );
+    sb.on("GET", "/rest/v1/number_access", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
     sb.on("GET", "/rest/v1/message_attachments", () => [
       {
@@ -250,6 +253,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       "/rest/v1/company_members",
       membershipResponder(MEMBER_ID, "member"),
     );
+    sb.on("GET", "/rest/v1/number_access", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
     sb.on("GET", "/rest/v1/message_attachments", () => [
       {

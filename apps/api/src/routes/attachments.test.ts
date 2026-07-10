@@ -64,6 +64,10 @@ function stubWithRole(role: string | null): SupabaseStub {
   // #12: the storage budget reads company_modules; [] = extra_storage off →
   // base plan budget, so the D30 boundary assertions are unchanged.
   sb.on("GET", "/rest/v1/company_modules", () => []);
+  // #106: the access guards resolve number_access for members; [] = no rules →
+  // unrestricted, so the guard short-circuits and these assertions are
+  // unchanged. Tests that exercise a hidden number stub this route explicitly.
+  sb.on("GET", "/rest/v1/number_access", () => []);
   return sb;
 }
 
@@ -997,5 +1001,159 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
     );
     expect(res.status).toBe(404);
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+});
+
+describe("#106 number access — attachments never leak a hidden number", () => {
+  const HIDDEN_NUMBER = "99999999-8888-4777-8666-555555555555";
+
+  /**
+   * A member whose access to CONV_ID's number resolves to 'none': one
+   * admins-only rule the member (role 'member') can't match, plus the
+   * conversation → phone_number_id lookup requireConversationAccess runs.
+   * Built directly (not via stubWithRole) so the hiding rule is the FIRST
+   * number_access responder — responders resolve in registration order.
+   */
+  function memberHiddenStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: HIDDEN_NUMBER,
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { phone_number_id: HIDDEN_NUMBER },
+    ]);
+    return sb;
+  }
+
+  it("GET /:id/url — generic arm 404s a hidden number's attachment; nothing is signed", async () => {
+    const sb = memberHiddenStub();
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { storage_path: "p", size_bytes: 2048, conversation_id: CONV_ID },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    // No egress claim and no Storage sign for a hidden number.
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(0);
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("GET /:id/url — MMS arm 404s a hidden number's media (resolves message → conversation)", async () => {
+    const sb = memberHiddenStub();
+    sb.on("GET", "/rest/v1/attachments", () => []); // fall through to MMS
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      { storage_path: `mms-media/${COMPANY_ID}/msg-1/0`, size_bytes: 100, message_id: NOTE_ID },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => [{ conversation_id: CONV_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("GET /attachments — 404s the list when the owner's number is hidden", async () => {
+    const sb = memberHiddenStub();
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        owner_type: "note",
+        owner_id: NOTE_ID,
+        conversation_id: CONV_ID,
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        created_at: "2026-07-02T10:00:00+00:00",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments?owner_type=note&owner_id=${NOTE_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("POST /attachments — 404s an upload to a hidden number's note; no budget claim", async () => {
+    const sb = memberHiddenStub();
+    sb.on("GET", "/rest/v1/messages", () => [
+      { conversation_id: CONV_ID, direction: "note" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/attachments",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("note", NOTE_ID, {
+          name: "photo.png",
+          type: "image/png",
+          bytes: pngBytes(),
+        }),
+      },
+    );
+    expect(res.status).toBe(404);
+    // Blocked before the byte-cap count and the D30 budget claim.
+    expect(sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")).toHaveLength(0);
+  });
+
+  it("owner sees everything — the guards short-circuit with no number_access read", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        owner_type: "note",
+        owner_id: NOTE_ID,
+        conversation_id: CONV_ID,
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        created_at: "2026-07-02T10:00:00+00:00",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments?owner_type=note&owner_id=${NOTE_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    // Owner is unrestricted: the access guard never queries number_access.
+    expect(sb.find("GET", "/rest/v1/number_access")).toHaveLength(0);
   });
 });

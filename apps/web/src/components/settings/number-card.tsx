@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
+import { NumberAccessDialog } from "@/components/settings/number-access-dialog";
 import { useReleaseNumber } from "@/lib/api/numbers";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -188,6 +189,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  const [managingAccess, setManagingAccess] = useState(false);
   const now = useNow();
   const released = number.status === "released";
   const canManage = role === "owner" || role === "admin";
@@ -271,6 +273,25 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
             number={number}
             open={choosing}
             onOpenChange={setChoosing}
+          />
+        </div>
+      )}
+      {canManage && !released && number.number_e164 && (
+        <div className="mt-3 border-t pt-3">
+          {/* #106: per-number access — who can use it, at what level. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={() => setManagingAccess(true)}
+          >
+            Who can use this number…
+          </Button>
+          <NumberAccessDialog
+            numberId={number.id}
+            numberLabel={formatPhone(number.number_e164)}
+            open={managingAccess}
+            onOpenChange={setManagingAccess}
           />
         </div>
       )}

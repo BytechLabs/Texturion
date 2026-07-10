@@ -74,7 +74,7 @@ end $$;
 -- ===========================================================================
 do $$
 declare
-  foid oid := 'public.api_search_v2(uuid, text, int, int, int, int, int, timestamptz, uuid)'::regprocedure;
+  foid oid := 'public.api_search_v2(uuid, text, int, int, int, int, int, timestamptz, uuid, uuid[])'::regprocedure;
 begin
   if has_function_privilege('anon', foid, 'execute') then
     raise exception 'G2 FAILED: anon can execute api_search_v2';
@@ -506,6 +506,49 @@ begin
   end if;
 
   raise notice 'G9 PASSED: ilike arms escape %%, _, and \\ as literals';
+end $$;
+
+-- ===========================================================================
+-- G10 (#106). p_hidden_number_ids denies EVERY conversation-anchored arm
+--     (conversations, tasks, attachments) — a restricted member can't discover
+--     hidden-number content through search; templates (not number-anchored)
+--     are untouched. Filtering in SQL keeps the keyset window full of visible
+--     hits, so the cursor never truncates.
+-- ===========================================================================
+do $$
+declare
+  f record;
+  num uuid;
+  r_open jsonb; r_hidden jsonb;
+begin
+  select * into f from gs_fixture;
+  select phone_number_id into num from public.conversations where id = f.cv_a;
+
+  -- Baseline: 'invoice' hits the conversation, the task, and the attachment.
+  r_open := public.api_search_v2(f.cid_a, 'invoice', 10, 10, 10, 10, 10);
+  if jsonb_array_length(r_open->'conversations') = 0
+     or jsonb_array_length(r_open->'tasks') = 0
+     or jsonb_array_length(r_open->'attachments') = 0 then
+    raise exception 'G10 FAILED: baseline arms unexpectedly empty: %', r_open;
+  end if;
+
+  -- Hiding the conversation's number empties all three anchored arms; the
+  -- template hit (Quote follow-up body has 'invoice' in B, but A's template is
+  -- name-matched only — assert templates arm is simply untouched by the filter).
+  r_hidden := public.api_search_v2(
+    f.cid_a, 'invoice', 10, 10, 10, 10, 10, null, null, array[num]::uuid[]);
+  if jsonb_array_length(r_hidden->'conversations') <> 0
+     or jsonb_array_length(r_hidden->'tasks') <> 0
+     or jsonb_array_length(r_hidden->'attachments') <> 0 then
+    raise exception 'G10 FAILED: hidden number still surfaces in search: %', r_hidden;
+  end if;
+  -- Templates are not number-anchored, so the deny list must not touch them.
+  if jsonb_array_length(r_hidden->'templates')
+     <> jsonb_array_length(r_open->'templates') then
+    raise exception 'G10 FAILED: templates arm changed under the deny filter';
+  end if;
+
+  raise notice 'G10 PASSED: p_hidden_number_ids denies conversation/task/attachment arms';
 end $$;
 
 rollback;

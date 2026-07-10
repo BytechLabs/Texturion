@@ -285,7 +285,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             <Composer conversationId={conversationId} noteOnly />
           </>
         ) : (
-          <Composer conversationId={conversationId} />
+          // #106: a notes-only member (viewer_level 'note') gets the note
+          // composer — texting the customer needs level 'text' on this number.
+          <Composer
+            conversationId={conversationId}
+            noteOnly={conversation.viewer_level === "note"}
+          />
         )}
       </div>
 

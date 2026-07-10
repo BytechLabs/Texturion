@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -43,6 +44,16 @@ searchRoutes.get("/search", requireRole("member"), async (c) => {
   const cursor = parseCursor(c);
 
   const db = getDb(getEnv(c.env));
+
+  // #106: the deny filter lives INSIDE the RPC (every conversation-anchored arm
+  // — conversations, tasks, attachments), so the keyset window holds limit+1
+  // VISIBLE hits and the cursor never truncates for a restricted member. Owner/
+  // admin and no-rules companies resolve unrestricted (null → no filter).
+  const access = await resolveNumberAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
   const result = unwrap<SearchResult>(
     await db.rpc("api_search_v2", {
       p_company_id: c.get("companyId"),
@@ -56,6 +67,7 @@ searchRoutes.get("/search", requireRole("member"), async (c) => {
       p_template_limit: cursor ? 0 : PALETTE_ARM_LIMIT,
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
+      p_hidden_number_ids: access.hiddenNumberIds,
     }),
     "search",
   );

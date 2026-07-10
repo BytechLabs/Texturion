@@ -27,6 +27,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { assertNumberLevel } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -342,6 +343,15 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     "phone number lookup",
   )[0];
   if (!number) throw new ApiError("not_found", "No such phone number.");
+  // #106: composing from a number needs level 'text' on it (hidden → 404,
+  // notes-only → the honest 403).
+  await assertNumberLevel(db, {
+    companyId,
+    userId,
+    role: c.get("role"),
+    phoneNumberId: number.id,
+    need: "text",
+  });
   if (!number.number_e164 || number.status !== "active") {
     throw new ApiError("conflict", "This number is not ready to send yet.");
   }

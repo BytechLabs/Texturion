@@ -39,6 +39,10 @@ import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import {
+  assertNumberLevel,
+  requireConversationAccess,
+} from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -235,6 +239,15 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
 
   const db = getDb(env);
   const view = await loadSendView(db, companyId, body.conversation_id);
+  // #106: sending needs level 'text' on the conversation's number (notes-only
+  // members get the honest 403; hidden numbers already 404 upstream).
+  await assertNumberLevel(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    phoneNumberId: view.phone_number_id ?? null,
+    need: "text",
+  });
   const fromNumber = requireActiveSendingNumber(view);
 
   // §7 gate order: subscription → destination US/CA → registration.
@@ -356,6 +369,14 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   }
 
   const view = await loadSendView(db, companyId, message.conversation_id);
+  // #106: a retry re-sends to the customer — same level-'text' bar as a send.
+  await assertNumberLevel(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    phoneNumberId: view.phone_number_id ?? null,
+    need: "text",
+  });
   const fromNumber = requireActiveSendingNumber(view);
 
   // Gates re-run: the world may have changed since the failed attempt.
@@ -451,6 +472,16 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   const message = rows[0];
   if (!message) throw new ApiError("not_found", "No such message.");
 
+  // #106: done/pin are workflow actions — any visible level ('note'+) may
+  // flip them; a hidden number's messages 404 like a wrong id.
+  await requireConversationAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId: message.conversation_id,
+    need: "note",
+  });
+
   // D14/D22: the flip AND its audit event are ONE atomic transaction via the
   // set_message_done security-definer RPC — never two PostgREST round-trips (a
   // crash between them left the audit and the done-state permanently
@@ -512,10 +543,10 @@ messageRoutes.get(
     const db = getDb(env);
 
     // Company-scoped existence check (§10) — 404 before listing.
-    const conversations = unwrap<{ id: string }[]>(
+    const conversations = unwrap<{ id: string; phone_number_id: string | null }[]>(
       await db
         .from("conversations")
-        .select("id")
+        .select("id,phone_number_id")
         .eq("company_id", companyId)
         .eq("id", conversationId)
         .limit(1),
@@ -524,6 +555,14 @@ messageRoutes.get(
     if (conversations.length === 0) {
       throw new ApiError("not_found", "No such conversation.");
     }
+    // #106: a hidden number's thread 404s exactly like a wrong id.
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversations[0].phone_number_id,
+      need: "read",
+    });
 
     let query = db
       .from("messages")

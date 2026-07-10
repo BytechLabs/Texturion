@@ -373,4 +373,61 @@ begin
   raise notice 'N5 PASSED: read-models are company-scoped (tenant isolation)';
 end $$;
 
+-- ===========================================================================
+-- N6 (#106). p_hidden_number_ids is a DENY list: hiding FY Co's only number
+--     empties the MEMBER's queue (every conversation + task rides that number),
+--     zeroes the notification feed + badge, while null (unrestricted) still
+--     shows them. Proves the read-model filters, count-consistently.
+-- ===========================================================================
+do $$
+declare
+  hidden uuid[] := array['d0000000-0000-4000-8000-000000000001']::uuid[];
+  r_open jsonb; r_hidden jsonb;
+  feed_open int; feed_hidden int;
+  badge_open bigint; badge_hidden bigint;
+begin
+  r_open := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', false, now(), 20, null);
+  r_hidden := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', false, now(), 20, hidden);
+
+  if jsonb_array_length(r_open->'waiting_on_you') = 0
+     or jsonb_array_length(r_open->'my_tasks') = 0 then
+    raise exception 'N6 FAILED: baseline (unrestricted) queue is unexpectedly empty: %', r_open;
+  end if;
+  if jsonb_array_length(r_hidden->'waiting_on_you') <> 0
+     or jsonb_array_length(r_hidden->'unread') <> 0
+     or jsonb_array_length(r_hidden->'my_tasks') <> 0 then
+    raise exception 'N6 FAILED: hidden number still surfaces in for-you: %', r_hidden;
+  end if;
+
+  select count(*) into feed_open from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null, null) x;
+  select count(*) into feed_hidden from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null, hidden) x;
+  if feed_open = 0 then
+    raise exception 'N6 FAILED: baseline notification feed is unexpectedly empty';
+  end if;
+  if feed_hidden <> 0 then
+    raise exception 'N6 FAILED: hidden number still surfaces in notifications (got %)', feed_hidden;
+  end if;
+
+  badge_open := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', null);
+  badge_hidden := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', hidden);
+  if badge_open = 0 then
+    raise exception 'N6 FAILED: baseline unread badge is unexpectedly zero';
+  end if;
+  if badge_hidden <> 0 then
+    raise exception 'N6 FAILED: hidden number still counted in the badge (got %)', badge_hidden;
+  end if;
+
+  raise notice 'N6 PASSED: p_hidden_number_ids denies read-model rows, count-consistently';
+end $$;
+
 rollback;

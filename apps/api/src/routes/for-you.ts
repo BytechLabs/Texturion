@@ -26,6 +26,7 @@
 import { Hono } from "hono";
 
 import { requireRole } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -48,6 +49,14 @@ forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
   // the request — so a member can't ask for the triage section.
   const isLead = role === "owner" || role === "admin";
 
+  // #106: a restricted member's queue must exclude hidden-number work (leads
+  // resolve unrestricted → null → no filter).
+  const access = await resolveNumberAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role,
+  });
+
   const result = unwrap<Record<string, unknown>>(
     await db.rpc("api_for_you", {
       p_company_id: c.get("companyId"),
@@ -55,6 +64,7 @@ forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
       p_is_lead: isLead,
       p_now: new Date().toISOString(),
       p_limit: SECTION_LIMIT,
+      p_hidden_number_ids: access.hiddenNumberIds,
     }),
     "for-you read-model",
   );

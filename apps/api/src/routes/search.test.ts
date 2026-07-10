@@ -49,6 +49,8 @@ function memberStub(): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, "member"),
   );
+  // #106: no access rules → the member caller is unrestricted.
+  sb.on("GET", "/rest/v1/number_access", () => []);
   return sb;
 }
 
@@ -147,6 +149,8 @@ describe("GET /v1/search", () => {
       p_template_limit: 5,
       p_cursor_ts: null,
       p_cursor_id: null,
+      // #106: unrestricted caller → null deny list (the RPC filters nothing).
+      p_hidden_number_ids: null,
     });
   });
 
@@ -236,6 +240,49 @@ describe("GET /v1/search", () => {
       templates: [],
       next_cursor: null,
     });
+  });
+
+  it("#106: a restricted member's search RPC receives the hidden-number deny list", async () => {
+    // The deny filter is applied INSIDE api_search_v2 (SQL-tested in
+    // global_search.test.sql, arm-by-arm); the Worker's job is to resolve the
+    // caller's hidden numbers and pass them, so the RPC returns limit+1 VISIBLE
+    // hits and the cursor never truncates.
+    const HIDDEN_NUM = "ffffffff-2222-4222-8333-444444444444";
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: HIDDEN_NUM,
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_search_v2", () => ({
+      conversations: [],
+      contacts: [],
+      tasks: [],
+      attachments: [],
+      templates: [],
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/search?q=quote",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
+      HIDDEN_NUM,
+    ]);
   });
 
   it("422s a missing or empty q", async () => {

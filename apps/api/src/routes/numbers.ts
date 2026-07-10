@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import {
   convergeExtraNumberQuantity,
   countNonReleasedNumbers,
@@ -98,9 +99,23 @@ async function listCompanyNumbers(
 numbersRoutes.get("/", async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = await listCompanyNumbers(db, c.get("companyId"));
+  // #106: a restricted member must not even see a number hidden from them (the
+  // composer's "text from" picker reads this list). Owners/admins and no-rules
+  // companies resolve unrestricted and skip the filter.
+  const access = await resolveNumberAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
+  const visible =
+    access.hiddenNumberIds === null
+      ? rows
+      : ((hidden) => rows.filter((row) => !hidden.has(row.id)))(
+          new Set(access.hiddenNumberIds),
+        );
   // A company holds at most 2 numbers (SPEC §2) — the list envelope keeps the
   // §7 shape with no second page ever.
-  return c.json({ data: rows.map(sanitizeNumber), next_cursor: null });
+  return c.json({ data: visible.map(sanitizeNumber), next_cursor: null });
 });
 
 const provisionBodySchema = z
@@ -493,6 +508,170 @@ numbersRoutes.delete("/:id", requireRole("owner"), async (c) => {
   }
 
   return c.json(sanitizeNumber(released as NumberRowFull));
+});
+
+/**
+ * #106: who can use a number, in the settings model's three shapes. `everyone`
+ * clears the rules (the default — full use for the whole team); `role` and
+ * `users` restrict to that principal set at ONE level ('text' = full,
+ * 'note' = read + internal notes only). Anyone outside the set has no access:
+ * the number and its conversations are hidden. Owners/admins always retain
+ * full access (enforced in the resolver — no self-lockout).
+ */
+const accessBodySchema = z.discriminatedUnion("access", [
+  z.strictObject({ access: z.literal("everyone") }),
+  z.strictObject({
+    access: z.literal("role"),
+    role: z.enum(["admin", "member"]),
+    level: z.enum(["text", "note"]),
+  }),
+  z.strictObject({
+    access: z.literal("users"),
+    user_ids: z.array(z.uuid()).min(1).max(50),
+    level: z.enum(["text", "note"]),
+  }),
+]);
+
+/** GET /v1/numbers/:id/access — the number's current access shape (O/A). */
+numbersRoutes.get("/:id/access", requireRole("admin"), async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+
+  const { data: numberRows, error: numberError } = await db
+    .from("phone_numbers")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("id", id)
+    .limit(1);
+  if (numberError) {
+    throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
+  }
+  if ((numberRows ?? []).length === 0) {
+    return errorResponse(c, "not_found", "No such number.");
+  }
+
+  const { data, error } = await db
+    .from("number_access")
+    .select("principal_kind,principal,level")
+    .eq("company_id", companyId)
+    .eq("phone_number_id", id);
+  if (error) throw new Error(`number_access lookup failed: ${error.message}`);
+  const rules = (data ?? []) as {
+    principal_kind: "all" | "role" | "user";
+    principal: string | null;
+    level: "text" | "note";
+  }[];
+
+  if (rules.length === 0) return c.json({ access: "everyone" });
+  const roleRule = rules.find((rule) => rule.principal_kind === "role");
+  if (roleRule) {
+    return c.json({
+      access: "role",
+      role: roleRule.principal,
+      level: roleRule.level,
+    });
+  }
+  return c.json({
+    access: "users",
+    user_ids: rules
+      .filter((rule) => rule.principal_kind === "user")
+      .map((rule) => rule.principal),
+    level: rules[0]?.level ?? "text",
+  });
+});
+
+/** PUT /v1/numbers/:id/access — replace the number's access rules (O/A). */
+numbersRoutes.put("/:id/access", requireRole("admin"), async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const body = await parseJsonBody(c, accessBodySchema);
+
+  const { data: numberRows, error: numberError } = await db
+    .from("phone_numbers")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("id", id)
+    .limit(1);
+  if (numberError) {
+    throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
+  }
+  if ((numberRows ?? []).length === 0) {
+    return errorResponse(c, "not_found", "No such number.");
+  }
+
+  // Dedupe the people list up front: a repeated user id would insert two rows
+  // for the same (number, principal) and trip the unique constraint (500). The
+  // deduped set is what we validate AND insert below.
+  const userIds =
+    body.access === "users" ? [...new Set(body.user_ids)] : [];
+
+  if (body.access === "users") {
+    // Every listed person must be an ACTIVE member — a rule naming a stranger
+    // (or a deactivated seat) would silently mean "nobody".
+    const { data: memberRows, error: memberError } = await db
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .is("deactivated_at", null)
+      .in("user_id", userIds);
+    if (memberError) {
+      throw new Error(`company_members lookup failed: ${memberError.message}`);
+    }
+    const active = new Set(
+      ((memberRows ?? []) as { user_id: string }[]).map((row) => row.user_id),
+    );
+    const unknown = userIds.filter((userId) => !active.has(userId));
+    if (unknown.length > 0) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "Every person must be an active member of this workspace.",
+      );
+    }
+  }
+
+  // Replace-all: delete then insert. The tiny crash window between the two
+  // fails OPEN to "everyone" (today's default) — never a lockout, and the
+  // owner simply re-saves. Both writes are company-scoped (§10).
+  const { error: deleteError } = await db
+    .from("number_access")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("phone_number_id", id);
+  if (deleteError) {
+    throw new Error(`number_access delete failed: ${deleteError.message}`);
+  }
+
+  if (body.access !== "everyone") {
+    const rows =
+      body.access === "role"
+        ? [
+            {
+              company_id: companyId,
+              phone_number_id: id,
+              principal_kind: "role",
+              principal: body.role,
+              level: body.level,
+            },
+          ]
+        : userIds.map((userId) => ({
+            company_id: companyId,
+            phone_number_id: id,
+            principal_kind: "user",
+            principal: userId,
+            level: body.level,
+          }));
+    const { error: insertError } = await db.from("number_access").insert(rows);
+    if (insertError) {
+      throw new Error(`number_access insert failed: ${insertError.message}`);
+    }
+  }
+
+  return c.json(body);
 });
 
 const remediateBodySchema = z.strictObject({

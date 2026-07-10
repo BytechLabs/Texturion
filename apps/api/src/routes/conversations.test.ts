@@ -48,6 +48,8 @@ function memberStub(): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, "member"),
   );
+  // #106: no access rules → every member unrestricted (today's default).
+  sb.on("GET", "/rest/v1/number_access", () => []);
   return sb;
 }
 
@@ -112,6 +114,8 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_cursor_ts: "2026-07-01T10:00:00+00:00",
       p_cursor_id: CONV_ID,
       p_pinned: null,
+      // #106: unrestricted callers pass null (no deny filter).
+      p_hidden_number_ids: null,
     });
   });
 

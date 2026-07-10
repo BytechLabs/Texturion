@@ -239,6 +239,22 @@ export class FakeRest {
           : new Response(null, { status: 204 });
       }
 
+      if (request.method === "DELETE") {
+        const prefer = parsePrefer(request);
+        // Remove every row matching the URL predicates in place (preserving the
+        // array identity insert()/rows() share); return the removed set when a
+        // representation is asked for (`.select()` after `.delete()`).
+        const removed: Row[] = [];
+        for (let i = spec.rows.length - 1; i >= 0; i--) {
+          if (rowMatches(spec.rows[i], url)) {
+            removed.unshift(spec.rows.splice(i, 1)[0]);
+          }
+        }
+        return prefer.representation
+          ? Response.json(structuredClone(removed))
+          : new Response(null, { status: 204 });
+      }
+
       throw new Error(
         `FakeRest: unsupported method ${request.method} on ${url.pathname}`,
       );

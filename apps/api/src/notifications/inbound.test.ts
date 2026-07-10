@@ -7,6 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { NumberAccessRule } from "../auth/number-access";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { notificationSnippet, notifyInboundMessage } from "./inbound";
@@ -14,6 +15,7 @@ import { notificationSnippet, notifyInboundMessage } from "./inbound";
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
+const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
 const OWNER = "10000000-aaaa-4000-8000-000000000001";
 const MEMBER = "10000000-aaaa-4000-8000-000000000002";
 const SUB_ID = "20000000-aaaa-4000-8000-000000000001";
@@ -34,6 +36,10 @@ function buildWorld(options: {
   assignedUserId?: string | null;
   isSpam?: boolean;
   members?: string[];
+  /** Role per user id; anything unmapped defaults to 'member' (OWNER→owner). */
+  roles?: Record<string, string>;
+  /** #106 rules for NUMBER_ID; default none → no filtering. */
+  numberAccess?: NumberAccessRule[];
   prefs?: { user_id: string; email_enabled: boolean; push_enabled: boolean }[];
   subscriptions?: {
     id: string;
@@ -50,12 +56,17 @@ function buildWorld(options: {
       id: CONVERSATION_ID,
       assigned_user_id: options.assignedUserId ?? null,
       is_spam: options.isSpam ?? false,
+      phone_number_id: NUMBER_ID,
       contacts: { name: "Dana Smith", phone_e164: "+16135551000" },
     },
   ]);
   sb.on("GET", "/rest/v1/company_members", () =>
-    (options.members ?? [OWNER, MEMBER]).map((user_id) => ({ user_id })),
+    (options.members ?? [OWNER, MEMBER]).map((user_id) => ({
+      user_id,
+      role: options.roles?.[user_id] ?? (user_id === OWNER ? "owner" : "member"),
+    })),
   );
+  sb.on("GET", "/rest/v1/number_access", () => options.numberAccess ?? []);
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => options.subscriptions ?? []);
   sb.on("DELETE", "/rest/v1/push_subscriptions", () => []);
@@ -190,6 +201,47 @@ describe("notifyInboundMessage (§8)", () => {
     // Push subscriptions were queried for the assignee only.
     const subsCall = world.sb.find("GET", "/rest/v1/push_subscriptions")[0];
     expect(subsCall.url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
+  });
+
+  it("#106: a member with no access to the number is dropped from the audience", async () => {
+    // An admins-only rule: OWNER keeps full access (always), MEMBER resolves to
+    // 'none' and must not receive the snippet/contact name.
+    const world = buildWorld({
+      numberAccess: [
+        {
+          phone_number_id: NUMBER_ID,
+          principal_kind: "role",
+          principal: "admin",
+          level: "text",
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    const email = world.resend.calls[0] as { to: string[] };
+    expect(email.to).toEqual([`${OWNER}@team.example`]);
+  });
+
+  it("#106: notes-only members still get notified (they can read the thread)", async () => {
+    const world = buildWorld({
+      members: [MEMBER],
+      numberAccess: [
+        {
+          phone_number_id: NUMBER_ID,
+          principal_kind: "user",
+          principal: MEMBER,
+          level: "note",
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    const email = world.resend.calls[0] as { to: string[] };
+    expect(email.to).toEqual([`${MEMBER}@team.example`]);
   });
 
   it("a deactivated assignee falls back to all active members", async () => {

@@ -235,6 +235,8 @@ function composeStubs(options: {
     restMatch(env, "GET", "company_modules"),
     () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
   );
+  // #106: no access rules → the member caller is unrestricted.
+  const numberAccess = stubRoute(restMatch(env, "GET", "number_access"), () => []);
   const attachmentsLookup = stubRoute(
     restMatch(env, "GET", "message_attachments"),
     () => options.attachments ?? [],
@@ -294,6 +296,7 @@ function composeStubs(options: {
       telnyx.route,
       persist.route,
       modulesLookup.route,
+      numberAccess.route,
       attachmentsLookup.route,
       upload.route,
       attachmentInsert.route,
@@ -557,6 +560,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
       stubs.replayLookup.route,
       stubs.numberLookup.route,
       stubs.companyLookup.route,
+      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
       optedOut.route,
       stubs.contactLookup.route,
       stubs.contactInsert.route,
