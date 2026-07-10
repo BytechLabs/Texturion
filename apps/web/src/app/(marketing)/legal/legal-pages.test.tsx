@@ -1,5 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The cookies page mounts the consent preferences control (#124), which reads
+// publicEnv. Mock the env module (hoisted above the page imports) so the
+// suite runs without the required NEXT_PUBLIC_* build vars; GTM stays unset,
+// matching every non-production build.
+vi.mock("@/env", () => ({ publicEnv: { NEXT_PUBLIC_GTM_ID: undefined } }));
 
 import AupPage, { metadata as aupMetadata } from "./aup/page";
 import CookiesPage, { metadata as cookiesMetadata } from "./cookies/page";
@@ -172,18 +178,25 @@ describe("fair-use — the plain limits survive", () => {
   });
 });
 
-describe("cookies — the honest, essential-only disclosure (#87)", () => {
+describe("cookies — essential cookies plus consent-gated GTM (#87, #124)", () => {
   const html = PAGES[7].html;
-  it("names the two essential first-party cookies (session + workspace)", () => {
+  it("names the three essential first-party cookies (session + workspace + consent choice)", () => {
     expect(html).toContain("keeps you signed in");
     expect(html).toContain("remembers which workspace");
+    expect(html).toContain("loonext.consent");
+    expect(html).toContain("180");
   });
-  it("states analytics is cookieless and there is no tracking/advertising", () => {
+  it("states tracking cookies exist only after a yes to the banner (#124)", () => {
+    expect(html).toContain("Google Tag Manager");
+    expect(html).toContain("denied-by-default");
+    expect(html).toContain("only if you say yes");
+  });
+  it("keeps the cookieless product-analytics promise and the no-ad-networks stance", () => {
     expect(html).toContain("cookieless");
     expect(html).toContain("no ad networks");
-    expect(html).toContain("cross-site tracking");
   });
-  it("explains why there is no consent banner (nothing non-essential)", () => {
-    expect(html).toContain("no consent banner");
+  it("offers the change-your-mind path on the page itself", () => {
+    expect(html).toContain("changeable right here");
+    expect(html).toContain("changing your mind is one tap");
   });
 });

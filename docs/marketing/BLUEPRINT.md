@@ -901,8 +901,10 @@ the fold otherwise (mobile nav = smallest possible island or CSS-only); self-hos
 images are pre-sized AVIF/WebP produced by a sharp build step + static imports** (dimensions +
 blur baked in) — `sizes`/`srcset` do nothing, so ship one right-sized file per breakpoint via
 `<picture>` (mandatory for every static product visual, not optional); reveals animate
-transform/opacity in reserved boxes only; no consent banner (see §11.5) and any future banner
-overlays, never inserts; verify CLS in CrUX/Search Console post-launch, not just Lighthouse
+transform/opacity in reserved boxes only; no consent banner (see §11.5; AMENDED by #124,
+2026-07-10 — builds with `NEXT_PUBLIC_GTM_ID` set show the GTM consent banner) and any banner
+overlays, never inserts (the #124 banner is `position: fixed`, CLS 0, honoring this law);
+verify CLS in CrUX/Search Console post-launch, not just Lighthouse
 (scroll-shift is invisible in lab runs); no animation libraries, no third-party scripts except
 PostHog.
 
@@ -913,6 +915,13 @@ same D8 PII posture as the app). No cookies → no consent banner → no CLS ris
 25 opt-in-cookie rules stay satisfied. Events: page views, CTA clicks, calculator/slider
 interactions, signup starts. Wire the funnel to the SPEC's north-star metric events
 (`checkout_completed` → `first_outbound_sent`).
+
+**AMENDED by #124 (2026-07-10):** the founder added Google Tag Manager (`GTM-MTL658DD`) to the
+marketing pages, gated on `NEXT_PUBLIC_GTM_ID` (production only). Because GTM tags CAN set
+cookies, those builds ship a consent banner (fixed overlay, never inserts — the CLS law above
+holds) with Consent Mode v2 denied-by-default; /legal/cookies was rewritten to match and
+carries a change-your-mind control. PostHog itself stays cookieless and consent-free. The
+"no consent banner" sentence above describes builds without GTM configured (dev/CI/previews).
 
 ---
 

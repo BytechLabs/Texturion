@@ -34,6 +34,13 @@ jobs:
       # they must be present at BUILD time here, not as runtime Worker vars.
       NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
       NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+      # Optional (blank = no GTM, no consent banner). #124: marketing-only
+      # Google Tag Manager. When set, the marketing pages load the container
+      # under Consent Mode v2 (default denied) and show the consent banner.
+      # The id is public (it ships in the browser bundle); it lives in a secret
+      # only to follow the pattern above. CI's build job deliberately omits it —
+      # that artifact is never deployed and dev/CI builds must not load GTM.
+      NEXT_PUBLIC_GTM_ID: ${{ secrets.NEXT_PUBLIC_GTM_ID }}
     steps:
       - uses: actions/checkout@v4
         with:

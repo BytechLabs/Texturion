@@ -1052,3 +1052,28 @@ Founder ruling (supersedes D30's enforcement posture and the #12 extra_storage m
   fair-use + spending-cap story and link there. The composer's "Sent in N parts" hint and the
   billing spending-cap control (with its concrete usage figures) stay — they are honesty and
   remediation surfaces, not marketing. Binding copy decks carry dated #121 amendments.
+
+## D35. GTM ships consent-first: banner + Consent Mode v2, no noscript iframe (#124, 2026-07-10)
+
+Founder asked for GTM (`GTM-MTL658DD`) on the marketing site, then for the consent banner and a
+cookie-policy update so tags added in the GTM UI are lawful (GDPR/PIPEDA/Quebec Law 25).
+
+- **Consent-first loading.** The GTM loader (marketing layout only, gated on
+  `NEXT_PUBLIC_GTM_ID`) seeds a Consent Mode v2 default IN THE SAME inline script, BEFORE
+  gtm.js: all four v2 signals (`ad_storage`, `ad_user_data`, `ad_personalization`,
+  `analytics_storage`) denied unless the `loonext.consent` cookie says granted;
+  `security_storage` always granted. `consentSignals()` in
+  `components/marketing/consent/consent.ts` is the single source of truth for both the inline
+  default and the banner's update push (which must be a genuine Arguments object — GTM ignores
+  plain-array consent pushes).
+- **One yes/no, equal weight, 180 days.** The banner (fixed overlay, never inserts — BLUEPRINT
+  CLS law) offers "Allow cookies" / "No thanks" at equal prominence; the choice lives in the
+  first-party `loonext.consent` cookie (Max-Age 180 days, SameSite=Lax, host-only) and expiry
+  re-asks. Withdrawal is as easy as consent: /legal/cookies §6 embeds a live preferences
+  control, synced with the banner via a window event.
+- **No GTM `<noscript>` iframe.** It cannot read consent state, so it would fire the container
+  unconditionally for no-JS visitors. With JS off, GTM never loads and the banner never shows.
+- **Gate = GTM configured.** No `NEXT_PUBLIC_GTM_ID` (dev/CI/previews/forks) → no GTM, no
+  banner, no preferences control; there is nothing to consent to. deploy.yml carries the var as
+  a repo secret (set 2026-07-10) so production builds with it.
+- **PostHog unchanged:** cookieless, memory-persistence, consent-free by design (D8/D12).

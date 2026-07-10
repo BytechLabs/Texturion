@@ -1,3 +1,4 @@
+import { ConsentBanner } from "@/components/marketing/consent";
 import { CountryProvider } from "@/components/marketing/country";
 import { Footer } from "@/components/marketing/footer";
 import { GoogleTagManager } from "@/components/marketing/google-tag-manager";
@@ -51,8 +52,12 @@ export default function MarketingLayout({
         <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
       </noscript>
       {/* #124: Google Tag Manager — marketing pages only, gated on
-          NEXT_PUBLIC_GTM_ID (off in dev/CI). Never mounted by the app groups. */}
+          NEXT_PUBLIC_GTM_ID (off in dev/CI). Never mounted by the app groups.
+          The ConsentBanner shares the same gate: it asks (once) whether GTM
+          tags may set cookies, and the loader's Consent Mode v2 default stays
+          denied until the visitor says yes. Overlay, never inserts (CLS 0). */}
       <GoogleTagManager />
+      <ConsentBanner />
       <JsonLd data={organizationJsonLd()} />
       {/* The shared drawn-affordance CSS (.jt-meta, .jt-arrow-link, the
           delivered check): mounted here because ArrowLink and the meta voice

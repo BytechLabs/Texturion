@@ -97,12 +97,17 @@ browser bundle).
 | `NEXT_PUBLIC_GTM_ID` — **OPTIONAL** | no (public) | Google Tag Manager → container → **Container ID** (#124) | `GTM-MTL658DD` |
 
 > `NEXT_PUBLIC_GTM_ID` (`apps/web/src/env.ts`, #124): when set, the MARKETING
-> layout loads Google Tag Manager (marketing pages only — never the app).
-> Unset (dev/CI/previews) = GTM off. COMPLIANCE: an empty GTM container sets no
-> cookies, so /legal/cookies ("no advertising or cross-site tracking cookies,
-> no consent banner") stays accurate at install. The moment a cookie-setting
-> tag (GA4, ads pixels) is added in the GTM UI, update that page and add GTM
-> Consent Mode or a consent banner (GDPR/PIPEDA).
+> layout loads Google Tag Manager (marketing pages only — never the app) under
+> **Consent Mode v2 with a consent banner built in**: the loader seeds a
+> denied-by-default consent state from the visitor's stored choice (the
+> `loonext.consent` cookie) before gtm.js loads, the banner asks once, and
+> /legal/cookies carries a change-your-mind control. Cookie-setting tags
+> (GA4, ads pixels) added in the GTM UI therefore fire only for visitors who
+> said yes — provided the tags use GTM's built-in consent checks (they read
+> exactly these signals; leave "additional consent checks" at its default).
+> There is deliberately NO GTM `<noscript>` iframe: it cannot respect consent.
+> Unset (dev/CI/previews) = GTM off and no banner. deploy.yml carries this
+> var as a repo secret (set 2026-07-10), so production builds ship with it.
 >
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`apps/web/src/env.ts:10`): when set,
 > signup/login/reset-password render Cloudflare Turnstile and pass the
