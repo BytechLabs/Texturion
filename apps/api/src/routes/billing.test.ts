@@ -813,18 +813,22 @@ describe("plan-builder modules (#12)", () => {
   it("GET /modules lists the catalog with enabled state", async () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
-      endpoint("GET", /\/rest\/v1\/company_modules/, () => [{ module: "mms" }]),
+      endpoint("GET", /\/rest\/v1\/company_modules/, () => [
+        { module: "extra_storage" },
+      ]),
     ]);
     const response = await get("/v1/billing/modules", harness);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       modules: { id: string; enabled: boolean }[];
     };
-    const mms = body.modules.find((m) => m.id === "mms");
+    const storage = body.modules.find((m) => m.id === "extra_storage");
     const voice = body.modules.find((m) => m.id === "voice");
-    expect(mms?.enabled).toBe(true);
+    expect(storage?.enabled).toBe(true);
     expect(voice?.enabled).toBe(false);
-    expect(body.modules).toHaveLength(4);
+    expect(body.modules).toHaveLength(3);
+    // #103: the retired mms module is gone from the catalog entirely.
+    expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
   });
 
   it("POST /modules enable adds the line item + enables the module", async () => {
@@ -897,7 +901,7 @@ describe("plan-builder modules (#12)", () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);
     const response = await post(
       "/v1/billing/modules",
-      { module: "mms", enabled: true },
+      { module: "voice", enabled: true },
       harness,
     );
     expect(response.status).toBe(409);
@@ -918,7 +922,7 @@ describe("plan-builder modules (#12)", () => {
     ]);
     const response = await post(
       "/v1/billing/modules",
-      { module: "mms", enabled: true },
+      { module: "voice", enabled: true },
       harness,
     );
     expect(response.status).toBe(409);
@@ -951,8 +955,16 @@ describe("plan-builder modules (#12)", () => {
     expect(body.modules.find((m) => m.id === "regions_ca")?.available).toBe(false);
     // A still-sellable module reports available: true.
     expect(body.modules.find((m) => m.id === "voice")?.available).toBe(true);
-    // #97: mms is retired — reported unavailable like regions_ca.
-    expect(body.modules.find((m) => m.id === "mms")?.available).toBe(false);
+    // #103: mms is retired — not merely unavailable, absent from the catalog.
+    expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
+
+    // The retired id is refused outright (422, not a module anymore).
+    const retiredToggle = await post(
+      "/v1/billing/modules",
+      { module: "mms", enabled: true },
+      harness,
+    );
+    expect(retiredToggle.status).toBe(422);
   });
 });
 

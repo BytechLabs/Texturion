@@ -193,57 +193,21 @@ begin
 end $$;
 
 -- ===========================================================================
--- M-9. api_period_outbound_mms (#12 outbound-MMS metering) counts the DISTINCT
---      outbound messages IN period that Telnyx accepted (telnyx_message_id set)
---      AND carry media, and excludes: text-only (no attachment), unsent (null
---      telnyx id), inbound, and pre-period sends.
+-- M-9. #97/#103: api_period_outbound_mms is RETIRED (dropped by migration
+--      20260709001000). Picture messages have no separate meter — each MMS
+--      counts 3 segments through usage_events / api_period_segments. A
+--      surviving function here would mean the retirement migration didn't run.
 -- ===========================================================================
 do $$
-declare v bigint;
+declare fn_count int;
 begin
-  -- AA: accepted outbound with 1 media  → counts.
-  -- BB: accepted outbound with 2 media  → counts ONCE (distinct message).
-  -- CC: accepted outbound, NO media     → excluded (text-only).
-  -- DD: outbound with media, NULL telnyx → excluded (never accepted, cost-free).
-  -- EE: inbound with media               → excluded (direction).
-  -- FF: accepted outbound with media, 40 days old → excluded (before period).
-  insert into public.messages
-    (id, company_id, conversation_id, direction, body, status, telnyx_message_id, sent_by_user_id, created_at)
-  values
-    ('66666666-6666-4666-8666-666000000a01', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'outbound', 'aa', 'sent',     'tmid-mms-aa', '66666666-6666-4666-8666-666666666666', now()),
-    ('66666666-6666-4666-8666-666000000a02', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'outbound', 'bb', 'sent',     'tmid-mms-bb', '66666666-6666-4666-8666-666666666666', now()),
-    ('66666666-6666-4666-8666-666000000a03', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'outbound', 'cc', 'sent',     'tmid-mms-cc', '66666666-6666-4666-8666-666666666666', now()),
-    ('66666666-6666-4666-8666-666000000a04', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'outbound', 'dd', 'queued',   null,          '66666666-6666-4666-8666-666666666666', now()),
-    ('66666666-6666-4666-8666-666000000a05', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'inbound',  'ee', 'received', 'tmid-mms-ee', null,                                   now()),
-    ('66666666-6666-4666-8666-666000000a06', '66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000003', 'outbound', 'ff', 'sent',     'tmid-mms-ff', '66666666-6666-4666-8666-666666666666', now() - interval '40 days');
-  insert into public.message_attachments (message_id, company_id, storage_path, content_type, source_url)
-  values
-    ('66666666-6666-4666-8666-666000000a01', '66666666-6666-4666-8666-666000000000', 'mms-media/a01/0', 'image/jpeg', null),
-    ('66666666-6666-4666-8666-666000000a02', '66666666-6666-4666-8666-666000000000', 'mms-media/a02/0', 'image/jpeg', null),
-    ('66666666-6666-4666-8666-666000000a02', '66666666-6666-4666-8666-666000000000', 'mms-media/a02/1', 'image/jpeg', null),
-    ('66666666-6666-4666-8666-666000000a04', '66666666-6666-4666-8666-666000000000', 'mms-media/a04/0', 'image/jpeg', null),
-    ('66666666-6666-4666-8666-666000000a05', '66666666-6666-4666-8666-666000000000', 'mms-media/a05/0', 'image/jpeg', 'https://telnyx.example/ee'),
-    ('66666666-6666-4666-8666-666000000a06', '66666666-6666-4666-8666-666000000000', 'mms-media/a06/0', 'image/jpeg', null);
-
-  v := public.api_period_outbound_mms(
-    '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
-  if v <> 2 then
-    raise exception 'M-9 FAILED: expected 2 in-period accepted outbound MMS (AA, BB), got %', v;
-  end if;
-  raise notice 'M-9 PASSED: api_period_outbound_mms counts distinct accepted outbound-with-media, excludes text-only/unsent/inbound/pre-period';
-end $$;
-
--- ===========================================================================
--- M-10. api_period_outbound_mms is service-role only.
--- ===========================================================================
-do $$
-declare acl boolean;
-begin
-  select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
+  select count(*) into fn_count
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'api_period_outbound_mms' limit 1;
-  if acl then raise exception 'M-10 FAILED: api_period_outbound_mms executable by authenticated'; end if;
-  raise notice 'M-10 PASSED: api_period_outbound_mms is service-role only';
+   where n.nspname = 'public' and p.proname = 'api_period_outbound_mms';
+  if fn_count <> 0 then
+    raise exception 'M-9 FAILED: api_period_outbound_mms still exists — the #103 retirement migration did not run';
+  end if;
+  raise notice 'M-9 PASSED: api_period_outbound_mms is dropped (#103 — MMS meters as segments)';
 end $$;
 
 rollback;

@@ -118,7 +118,7 @@ const CONTENT: TradeContent = {
     },
     {
       title: "Photos in and out.",
-      body: "Customers send the before, you send the after. Receiving photos is free on every plan; sending them back is a $5/mo add-on with 150 picture messages included.",
+      body: "Customers send the before, you send the after. Photos are included both ways on every plan; each one you send counts as three texts from your monthly allowance.",
     },
   ],
 

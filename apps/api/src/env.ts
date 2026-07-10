@@ -85,6 +85,12 @@ const envSchema = z.object({
    * OPTIONAL so the Worker boots before the module catalog is provisioned;
    * checkout validates presence only when a customer actually selects the
    * module (billing/modules.ts modulePrice()).
+   *
+   * MMS is RETIRED (#103) — its price no longer sells or maps to a catalog
+   * module. Keep the env var SET where it was ever provisioned: the daily
+   * reconcile uses it (billing/modules.ts retiredModulePrices) to strip stale
+   * $5 items off live subscriptions with a prorated credit. Unset = never
+   * provisioned = the sweep is a no-op.
    */
   STRIPE_MODULE_MMS_PRICE_ID: z.string().min(1).optional(),
   STRIPE_MODULE_VOICE_PRICE_ID: z.string().min(1).optional(),

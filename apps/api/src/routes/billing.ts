@@ -24,6 +24,7 @@ import {
   registrationDraftComplete,
   type RegistrationRow,
 } from "../billing/registration-draft";
+import { applyPriceToSchedulePhases } from "../billing/schedule-phases";
 import { getStripe, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -479,55 +480,6 @@ billingRoutes.get("/modules", async (c) => {
 });
 
 /**
- * #18: rebuild the remaining phases of a subscription schedule so a module's
- * flat price is present in (or absent from) EVERY phase — the current one
- * (which updates the live subscription, prorated onto an immediate invoice)
- * and the scheduled-downgrade one (so the rollover carries the new module set
- * instead of the stale items pinned at downgrade time). Phase boundaries and
- * the other items' prices/quantities are passed through untouched; completed
- * phases cannot be re-supplied to Stripe and are dropped.
- */
-async function applyModuleToSchedulePhases(
-  stripe: Stripe,
-  scheduleId: string,
-  price: string,
-  enabled: boolean,
-): Promise<void> {
-  const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] =
-    schedule.phases
-      // Stripe requires the supplied list to start at the CURRENT phase.
-      .filter((phase) => phase.end_date > nowSeconds)
-      .map((phase) => {
-        const items = phase.items
-          .map((item) => ({
-            price: typeof item.price === "string" ? item.price : item.price.id,
-            quantity: item.quantity,
-          }))
-          .filter((item) => enabled || item.price !== price)
-          .map((item) =>
-            // Metered items carry no quantity (SPEC §9) — omit, don't null.
-            item.quantity == null
-              ? { price: item.price }
-              : { price: item.price, quantity: item.quantity },
-          );
-        if (enabled && !items.some((item) => item.price === price)) {
-          items.push({ price, quantity: 1 });
-        }
-        return {
-          items,
-          start_date: phase.start_date,
-          end_date: phase.end_date,
-        };
-      });
-  await stripe.subscriptionSchedules.update(scheduleId, {
-    phases,
-    proration_behavior: "always_invoice",
-  });
-}
-
-/**
  * POST /v1/billing/modules (#12 plan builder) — turn a module on/off on an
  * existing subscription. Enabling adds the module's flat line item (prorated
  * now); disabling removes it AND clears any capability it gated (voice →
@@ -605,7 +557,7 @@ billingRoutes.post("/modules", async (c) => {
 
   if (enabled) {
     if (scheduleId) {
-      await applyModuleToSchedulePhases(stripe, scheduleId, price, true);
+      await applyPriceToSchedulePhases(stripe, scheduleId, price, true);
     } else if (!existingItem) {
       await stripe.subscriptionItems.create({
         subscription: subscription.id,
@@ -631,7 +583,7 @@ billingRoutes.post("/modules", async (c) => {
 
   // Disable: drop the line item, mark disabled, and clear the gated capability.
   if (scheduleId) {
-    await applyModuleToSchedulePhases(stripe, scheduleId, price, false);
+    await applyPriceToSchedulePhases(stripe, scheduleId, price, false);
   } else if (existingItem) {
     await stripe.subscriptionItems.del(existingItem.id, {
       proration_behavior: "always_invoice",

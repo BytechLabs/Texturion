@@ -2,11 +2,11 @@
  * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms; #16 egress arm):
  * when a company crosses 80% or 100% of a budget, email the owner + active
  * admins — exactly once per (company, period, metric, threshold), gated by the
- * `usage_alerts` ledger PK. Six metrics: outbound `segments` vs the plan's
- * INCLUDED quota (never the cap); `mms_storage` + `attachment_storage` vs
- * their #12 storage budgets; `voice_minutes` vs the plan's call-forwarding
- * allowance; `mms_messages` vs the plan's included outbound picture messages;
- * and `egress` vs the #16 signed-URL download allowance. Runs from the hourly
+ * `usage_alerts` ledger PK. Five static metrics: outbound `segments` vs the
+ * plan's INCLUDED quota (never the cap); `mms_storage` + `attachment_storage`
+ * vs their #12 storage budgets; `voice_minutes` vs the plan's call-forwarding
+ * allowance; and `egress` vs the #16 signed-URL download allowance. (#103: no
+ * `mms_messages` arm — pictures meter as segments now.) Runs from the hourly
  * cron right after the usage re-reporter (§11 idempotency style: work is
  * selected by state — sums vs the ledger — never by "last run" bookkeeping),
  * so re-runs and overlaps can never double-send.
@@ -16,7 +16,6 @@ import { effectiveStorageBudgets } from "./company-modules";
 import { egressAllowanceBytes } from "../attachments/egress";
 import {
   PLAN_INCLUDED_SEGMENTS,
-  PLAN_MMS_INCLUDED,
   PLAN_VOICE_MINUTES,
   type PlanId,
 } from "./plans";
@@ -40,7 +39,9 @@ export type UsageAlertMetric =
   | "mms_storage"
   | "attachment_storage"
   | "voice_minutes"
-  | "mms_messages"
+  // "mms_messages" retired with the Picture-messages module (#103) — historic
+  // ledger rows keep the value (the DB CHECK still allows it), we just never
+  // write it again.
   | "egress"
   // #85/#92: dynamic overage warning — one ledger row per (company, period).
   | "cost_projection";
@@ -180,42 +181,6 @@ function voiceAlertCopy(
       `call-forwarding minutes included in your plan this billing period. Once ` +
       `they're used up, new incoming calls stop forwarding to your cell (callers ` +
       `get your missed-call text instead). Move to a larger plan to avoid that.\n\n` +
-      `See usage: ${usageUrl}\n\nLoonext`,
-  };
-}
-
-/**
- * #12 picture-message alert copy. Over the allowance, new sends drop the PICTURE
- * and go out text-only (the customer still gets the message) — the copy says so
- * plainly so a busy shop upgrades before its photos stop going through.
- */
-function mmsAlertCopy(
-  company: ActiveCompanyRow,
-  threshold: UsageAlertThreshold,
-  includedMessages: number,
-  usedMessages: number,
-  env: Env,
-): { subject: string; text: string } {
-  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
-  if (threshold === 100) {
-    return {
-      subject: `${company.name} has used all its included picture messages`,
-      text:
-        `Hi,\n\n${company.name} has sent all ${includedMessages} picture ` +
-        `messages included in your plan this billing period. New picture sends ` +
-        `now go out as text only (the message still reaches your customer, ` +
-        `without the photo), so your messaging bill can't run past your plan. ` +
-        `Move to a larger plan to keep sending pictures.\n\n` +
-        `See usage: ${usageUrl}\n\nLoonext`,
-    };
-  }
-  return {
-    subject: `${company.name} is nearing its picture-message limit`,
-    text:
-      `Hi,\n\n${company.name} has sent ${usedMessages} of the ${includedMessages} ` +
-      `picture messages included in your plan this billing period. Once they're ` +
-      `used up, new picture sends go out as text only (the message still reaches ` +
-      `your customer, without the photo). Move to a larger plan to avoid that.\n\n` +
       `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
@@ -442,29 +407,8 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         }
       }
 
-      // #12 mms arm: warn before the hard cap (send.ts) starts stripping the
-      // picture off new sends. Counts the outbound MMS already accepted this
-      // period — the same RPC the send-time cap and GET /v1/usage read.
-      const { data: mmsUsed, error: mmsError } = await db.rpc(
-        "api_period_outbound_mms",
-        { p_company_id: company.id, p_since: company.current_period_start },
-      );
-      if (mmsError) {
-        throw new Error(`mms usage failed: ${mmsError.message}`);
-      }
-      const usedMms = Number(mmsUsed);
-      const includedMms = PLAN_MMS_INCLUDED[company.plan];
-      for (const threshold of USAGE_ALERT_THRESHOLDS) {
-        if (usedMms * 100 >= includedMms * threshold) {
-          await recordAndSendAlert(
-            env,
-            company,
-            "mms_messages",
-            threshold,
-            mmsAlertCopy(company, threshold, includedMms, usedMms, env),
-          );
-        }
-      }
+      // #97/#103: no mms arm — picture messages have no separate cap anymore
+      // (each MMS meters as 3 segments, so the `segments` arm above covers it).
 
       // #16 egress arm: warn before the hard cap (routes/attachments.ts) starts
       // refusing signed download URLs. The allowance is derived from the SAME

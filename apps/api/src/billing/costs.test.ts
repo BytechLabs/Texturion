@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { MODULE_CATALOG } from "./modules";
-import { PLAN_MMS_INCLUDED, PLAN_VOICE_MINUTES } from "./plans";
+import { PLAN_VOICE_MINUTES } from "./plans";
 import {
   companyRevenueCents,
   FIXED_MONTHLY_COST_CENTS,
@@ -14,20 +14,24 @@ describe("UNIT_COST_CENTS matches the audited provider basis (PRICING-AUDIT §4)
   it("encodes the high end of each cost range in cents", () => {
     expect(UNIT_COST_CENTS.outboundSegment).toBe(0.85); // $0.007–0.0085, high end
     expect(UNIT_COST_CENTS.inboundSegment).toBe(0.7); // SPEC §2 COGS ~0.7¢
-    expect(UNIT_COST_CENTS.outboundMms).toBe(2.5); // $0.015 + up to $0.01 carrier
-    expect(UNIT_COST_CENTS.inboundMms).toBe(0.5); // $0.005 receive
     expect(UNIT_COST_CENTS.voiceMinute).toBe(1.2); // ~$0.012 both legs, high end
+    expect(UNIT_COST_CENTS.voiceTransfer).toBe(10); // ~$0.10 per forwarded call (#98)
     expect(UNIT_COST_CENTS.storageGbMonth).toBe(2.1); // $0.021/GB/mo
     expect(UNIT_COST_CENTS.egressGb).toBe(9); // $0.09/GB
   });
 
+  // #103: MMS has no dedicated unit — each outbound MMS meters as 3 segments,
+  // and 3 × the segment rate must stay ≥ its ~2.5¢ true cost (Telnyx $0.015 +
+  // up to $0.01 carrier), or the fold-into-segments model would under-count.
+  it("covers the true outbound MMS cost through the 3-segment metering", () => {
+    expect(3 * UNIT_COST_CENTS.outboundSegment).toBeGreaterThanOrEqual(2.5);
+  });
+
   // The cost table must agree with the margin math already written beside the
   // module caps — if a cost is retuned here without updating those, this breaks.
-  it("reproduces the documented voice/MMS/egress margin arithmetic", () => {
+  it("reproduces the documented voice/egress margin arithmetic", () => {
     // plans.ts:69 — "300 × $0.012 = $3.60" is the max voice cost per period.
     expect(PLAN_VOICE_MINUTES.starter * UNIT_COST_CENTS.voiceMinute).toBe(360);
-    // plans.ts:91 — "150 × $0.025 = $3.75" is the max MMS cost per period.
-    expect(PLAN_MMS_INCLUDED.starter * UNIT_COST_CENTS.outboundMms).toBe(375);
     // egress.ts:41 — "200 GB × $0.09/GB ≈ $18" is the worst-case Pro egress.
     expect(200 * UNIT_COST_CENTS.egressGb).toBe(1800);
   });
@@ -68,11 +72,13 @@ describe("companyRevenueCents", () => {
   });
 
   it("adds each enabled module's catalog price", () => {
-    const mms = MODULE_CATALOG.mms.monthlyCents; // 500
     const voice = MODULE_CATALOG.voice.monthlyCents; // 800
-    expect(companyRevenueCents("pro", ["mms", "voice"])).toBe(7900 + mms + voice);
+    const storage = MODULE_CATALOG.extra_storage.monthlyCents; // 500
+    expect(companyRevenueCents("pro", ["voice", "extra_storage"])).toBe(
+      7900 + voice + storage,
+    );
     expect(companyRevenueCents("starter", ["extra_storage"])).toBe(
-      2900 + MODULE_CATALOG.extra_storage.monthlyCents,
+      2900 + storage,
     );
   });
 });

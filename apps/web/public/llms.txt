@@ -19,8 +19,9 @@ Website: https://loonext.com
 - Spending cap you control (default 3× your included texts), with email alerts at 80% and 100%.
 - Included storage, in two pools (files on notes, and saved picture messages): 5 GB per pool on Starter, 25 GB per pool on Pro. When a pool is full, new file uploads pause and new inbound pictures stop being saved (for pictures, the message text still arrives); free space or add the extra-storage add-on to keep saving them.
 
+- Picture messages (MMS) are included on every plan, both directions, nothing to turn on: receiving photos is free, and each photo you send counts as three texts from the plan allowance (however long the words), drawing on the same fair-use texting and overage rules as everything else you send.
+
 ## Optional add-on modules (opt in at signup or later, cancel monthly)
-- Picture messages (MMS), $5/mo: send photos in your texts, with 150 outgoing picture messages a month included; a photo send also counts as three texts from the plan allowance. At the cap, more photos can't be sent until the period resets. The composer says so the moment a photo doesn't go, the text part of the message still sends, and email alerts warn at 80% and 100% of the included picture messages. Receiving photos is free on every plan, with or without this module.
 - Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with 300 forwarded minutes a month included, and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere.
 - Extra storage, $5/mo: adds 10 GB to each storage pool (files and pictures).
 - Canadian numbers alongside a US number: coming soon; listed in the catalog but not yet purchasable.

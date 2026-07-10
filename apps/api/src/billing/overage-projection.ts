@@ -11,9 +11,14 @@
  *
  * MODEL (documented decisions):
  * - FLOW usage (outbound/inbound segments, voice minutes + forwarded-call
- *   transfers, outbound MMS, egress) accrues over the period, so its volume is
- *   extrapolated to month-end by periodDays/elapsedDays, then priced with
- *   UNIT_COST_CENTS (costs.ts).
+ *   transfers, egress) accrues over the period, so its volume is extrapolated
+ *   to month-end by periodDays/elapsedDays, then priced with UNIT_COST_CENTS
+ *   (costs.ts).
+ * - MMS has NO separate term (#103): every outbound MMS meters as 3 segments
+ *   into usage_events (messaging/status.ts), so it is already inside
+ *   outboundSegments at 3 × 0.85¢ = 2.55¢ ≥ its ~2.5¢ true cost — and it bills
+ *   customer overage through the same segments. A dedicated MMS line would
+ *   DOUBLE-count (the pre-#103 model did exactly that).
  * - STORAGE is a STOCK, not a flow (api_storage_usage is a point-in-time total).
  *   Extrapolating it by elapsed days would wildly over-count (5 GB on day 2 ->
  *   x15). We price the CURRENT stock as the month's storage cost, un-extrapolated.
@@ -24,7 +29,7 @@
  *   full cost AND their overage REVENUE (3c/2.5c, a surplus over the 0.85c cost)
  *   is added to revenue. Projected outbound is bounded by the spending-cap
  *   ceiling (included x overage_cap_multiplier, or unbounded when the owner
- *   cleared the cap), because sending pauses there. Voice MINUTES + MMS are
+ *   cleared the cap), because sending pauses there. Voice MINUTES are
  *   cap-and-drop, so their projected volume is capped at the plan ceiling — but
  *   the per-forwarded-call TRANSFER fee is NOT (call count isn't bounded by the
  *   minute cap), so it is extrapolated uncapped. The uncovered, uncapped drivers
@@ -54,7 +59,6 @@ import {
 import { enabledModules } from "./company-modules";
 import {
   PLAN_INCLUDED_SEGMENTS,
-  PLAN_MMS_INCLUDED,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -87,8 +91,6 @@ export interface PeriodUsage {
   /** Forwarded-call COUNT this period (api_period_forwarded_calls) — the
    *  per-transfer fee scales with this, not with seconds. */
   forwardedCalls: number;
-  /** Outbound MMS count this period (api_period_outbound_mms). */
-  outboundMms: number;
   /** Signed-URL egress bytes this period (api_period_egress_bytes). */
   egressBytes: number;
   /** Current stored bytes, both pools combined (api_storage_usage) — a STOCK. */
@@ -187,18 +189,14 @@ export function projectUsage(
   // 300-min voice ceiling bounds minutes, not call count (#98): a short/
   // unanswered-call flood accrues ~0 minutes yet a real $0.10 each.
   const projectedForwardedCalls = usage.forwardedCalls * multiplier;
-  const projectedMms = Math.min(
-    usage.outboundMms * multiplier,
-    PLAN_MMS_INCLUDED[plan],
-  );
   const projectedEgressBytes = usage.egressBytes * multiplier;
 
+  // #103: no MMS term — each MMS is already 3 of outboundSegments (see header).
   const costCents =
     projectedOutbound * UNIT_COST_CENTS.outboundSegment +
     projectedInbound * UNIT_COST_CENTS.inboundSegment +
     (projectedVoiceSeconds / 60) * UNIT_COST_CENTS.voiceMinute +
     projectedForwardedCalls * UNIT_COST_CENTS.voiceTransfer +
-    projectedMms * UNIT_COST_CENTS.outboundMms +
     (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
 
   const overageRevenueGrossCents =
@@ -317,7 +315,6 @@ export async function readPeriodUsage(
     inbound,
     voiceSeconds,
     forwardedCalls,
-    outboundMms,
     egressBytes,
     storage,
   ] = await Promise.all([
@@ -325,7 +322,6 @@ export async function readPeriodUsage(
     rpcNumber(db, "api_period_inbound_segments", windowed),
     rpcNumber(db, "api_period_voice_seconds", windowed),
     rpcNumber(db, "api_period_forwarded_calls", windowed),
-    rpcNumber(db, "api_period_outbound_mms", windowed),
     rpcNumber(db, "api_period_egress_bytes", windowed),
     (async () => {
       const { data, error } = await db.rpc("api_storage_usage", {
@@ -344,7 +340,6 @@ export async function readPeriodUsage(
     inboundSegments: inbound,
     voiceSeconds,
     forwardedCalls,
-    outboundMms,
     egressBytes,
     storageBytes: storage,
   };

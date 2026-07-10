@@ -166,20 +166,18 @@ describe("plan cards (#70 unit-language guard, ported from night/pricing.test.ts
 });
 
 describe("add-on truth (#28 guard, ported): copy can never disagree with the catalog", () => {
-  const mms = PLAN_MODULE_CARDS.find((card) => card.id === "mms");
-
-  it("the S6 photos cell and the FAQ quote the catalog's MMS price and quantity", () => {
-    // Deck copy states $5/mo and 150 sends; the catalog mirror is the source
-    // of truth, so assert the deck strings against it (no silent drift).
-    expect(mms?.price).toBe("$5");
-    expect(mms?.detail).toContain("150");
-    expect(PAGE).toContain(
-      `Picture messaging is a ${mms?.price}/mo add-on with 150 sends a month included.`,
-    );
+  it("#97/#103: pictures are included — no Picture-messages add-on is sold anywhere", () => {
+    // The retired module must be gone from the catalog mirror…
+    expect(PLAN_MODULE_CARDS.map((card) => String(card.id))).not.toContain("mms");
+    // …and the page must not sell it or quote its old $5/150 terms.
+    expect(PAGE).not.toContain("Picture messaging is a $5/mo add-on");
+    expect(PAGE).not.toContain("Picture messages");
+    // The photos cell + FAQ state the honest included model: 3 texts per picture.
+    expect(PAGE).toContain("counts as three texts");
     const photosFaq = HOME_FAQS.find((f) => f.q === "Can customers text us photos?");
-    expect(photosFaq?.a).toContain(
-      `picture messaging is ${mms?.price} a month and includes 150`,
-    );
+    expect(photosFaq?.a).toContain("included");
+    expect(photosFaq?.a).toContain("three texts");
+    expect(photosFaq?.a).not.toContain("$5");
   });
 
   it("never advertises the unsellable regions_ca module", () => {

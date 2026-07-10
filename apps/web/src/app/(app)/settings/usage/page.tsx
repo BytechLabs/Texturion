@@ -17,7 +17,6 @@ import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
 import type {
   Usage,
-  UsageMms,
   UsageMonth,
   UsageStorage,
   UsageVoice,
@@ -268,48 +267,6 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
   );
 }
 
-/** #12: outbound picture messages used vs the plan allowance. */
-function MmsMeter({ mms }: { mms: UsageMms }) {
-  const ratio =
-    mms.included_messages > 0 ? mms.used_messages / mms.included_messages : 0;
-  const percent = Math.min(100, Math.round(ratio * 100));
-  const warning = ratio >= 0.8;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-        <span className="font-medium tabular-nums">
-          {mms.used_messages.toLocaleString()}
-        </span>
-        <span className="text-muted-foreground">
-          of {mms.included_messages.toLocaleString()} included
-        </span>
-      </div>
-      <div
-        role="meter"
-        aria-valuemin={0}
-        aria-valuemax={mms.included_messages}
-        aria-valuenow={Math.min(mms.used_messages, mms.included_messages)}
-        aria-label={`${mms.used_messages} of ${mms.included_messages} included picture messages used`}
-        className="h-2 w-full overflow-hidden rounded-full bg-secondary"
-      >
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-200 ease-out",
-            warning ? "bg-warning" : "bg-primary",
-          )}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Photos you send in texts use these. When they&apos;re used up, new sends
-        go out as text only. Your message still reaches your customer, without
-        the photo, so your messaging bill can&apos;t run past your plan.
-      </p>
-    </div>
-  );
-}
-
 function monthLabel(month: string, long = false): string {
   const [year, monthNumber] = month.split("-").map(Number);
   return new Date(year, (monthNumber ?? 1) - 1, 1).toLocaleDateString(
@@ -473,10 +430,8 @@ export default function UsageSettingsPage() {
     data.voice.included_minutes > 0 &&
     (trending ||
       nearLimit(data.voice.used_minutes, data.voice.included_minutes));
-  const showMms =
-    !!data &&
-    data.mms.included_messages > 0 &&
-    (trending || nearLimit(data.mms.used_messages, data.mms.included_messages));
+  // #97/#103: no picture-message meter — pictures count 3 segments each in the
+  // message meter above, with no separate cap.
 
   return (
     <SettingsPage
@@ -533,12 +488,6 @@ export default function UsageSettingsPage() {
           {showVoice && (
             <SettingsCard title="Call forwarding">
               <VoiceMeter voice={usage.data.voice} />
-            </SettingsCard>
-          )}
-
-          {showMms && (
-            <SettingsCard title="Picture messages">
-              <MmsMeter mms={usage.data.mms} />
             </SettingsCard>
           )}
 

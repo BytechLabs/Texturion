@@ -23,8 +23,8 @@ import {
 
 describe("plan-math (owner ruling 13: totals from shared constants, zero retyped numbers)", () => {
   it("sells exactly the API's sellable modules; regions_ca is never offered", () => {
+    // #97/#103: no "mms" card — pictures are included, not an add-on.
     expect(SELLABLE_ADDON_CARDS.map((card) => card.id)).toEqual([
-      "mms",
       "voice",
       "extra_storage",
     ]);
@@ -41,7 +41,7 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
   it("throws on an unparseable catalog price instead of rendering a wrong total", () => {
     expect(() =>
       addonMonthlyDollars({
-        id: "mms",
+        id: "voice",
         label: "Broken",
         blurb: "",
         price: "call us",
@@ -59,7 +59,7 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
   it("totals plan + enabled add-ons, and first month adds the one-time fee exactly once", () => {
     const everything = {
       plan: "pro",
-      addons: ["mms", "voice", "extra_storage"],
+      addons: ["voice", "extra_storage"],
     } as const;
     const expected =
       PLAN_PRICING.pro.monthlyDollars +
@@ -84,8 +84,8 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
   it("carries the chosen configuration into signup, in stable catalog order", () => {
     expect(signupHref(DEFAULT_SELECTION)).toBe("/signup?plan=starter");
     expect(
-      signupHref({ plan: "pro", addons: ["extra_storage", "mms"] }),
-    ).toBe("/signup?plan=pro&modules=mms%2Cextra_storage");
+      signupHref({ plan: "pro", addons: ["extra_storage", "voice"] }),
+    ).toBe("/signup?plan=pro&modules=voice%2Cextra_storage");
   });
 });
 
@@ -120,7 +120,8 @@ describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake stat
 
   it("starts with Starter selected and every add-on off (real control state)", () => {
     expect(html).toContain('aria-checked="true"');
-    expect(html.match(/role="switch" aria-checked="false"/g)).toHaveLength(3);
+    // #103: two sellable add-ons (voice, extra_storage) — mms is retired.
+    expect(html.match(/role="switch" aria-checked="false"/g)).toHaveLength(2);
     expect(html).not.toContain('role="switch" aria-checked="true"');
   });
 

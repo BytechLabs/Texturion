@@ -57,7 +57,7 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 | `STRIPE_PRO_OVERAGE_PRICE_ID` | Req · Script | Pro graduated metered overage (0–2,500 free, then 2.5¢) |
 | `STRIPE_US_FEE_PRICE_ID` | Req · Script | One-time $29 US registration fee price |
 | `STRIPE_SMS_METER_EVENT_NAME` | Req · Script | Billing meter event name (`sms_segments`) |
-| `STRIPE_MODULE_MMS_PRICE_ID` | Opt · Script | $5/mo Picture-messages add-on. **Required to sell that module** |
+| `STRIPE_MODULE_MMS_PRICE_ID` | Opt · Script | RETIRED (#103): the module is gone (pictures are included, 3 texts each). **Keep it SET wherever the price was ever created** — the daily reconcile uses it to strip stale $5 items off live subscriptions. Unsetting it silently disables that sweep. |
 | `STRIPE_MODULE_VOICE_PRICE_ID` | Opt · Script | $8/mo Call-forwarding add-on. Required to sell it |
 | `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` | Opt · Script | $5/mo Extra-storage add-on. Required to sell it |
 | `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | Opt · Script | Canada-numbers module (not yet sold; create for parity) |

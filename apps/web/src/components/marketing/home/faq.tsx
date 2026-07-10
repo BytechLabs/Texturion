@@ -67,7 +67,7 @@ export const HOME_FAQS: readonly HomeFaq[] = [
   },
   {
     q: "Can customers text us photos?",
-    a: "Yes. Photos come through in the conversation, full size, and receiving them is free on every plan, nothing to turn on. Sending photos back is an add-on: picture messaging is $5 a month and includes 150 outgoing picture messages, and each photo you send also counts as three texts from your allowance. We email you at 80% and again at 100% of your included picture messages, and if a photo can't go, the composer tells you right there; the words in your message still send.",
+    a: "Yes, both directions, on every plan, nothing to turn on. Photos customers send come through in the conversation, full size, and receiving them is free. Sending photos back is included too; each picture you send counts as three texts from your monthly allowance, however long the words.",
   },
   {
     q: "What happens if we go over 500 texts?",

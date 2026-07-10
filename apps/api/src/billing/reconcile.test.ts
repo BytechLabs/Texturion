@@ -93,6 +93,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       staleInvites: 0,
       orphanSubscriptionsCancelled: 0,
       orphanSubscriptionsFlagged: 0,
+      retiredModuleItemsRemoved: 0,
     });
     // The mirror wrote Stripe's CURRENT truth (missed-webhook backstop).
     expect(patches).toEqual([
@@ -121,6 +122,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       staleInvites: 3,
       orphanSubscriptionsCancelled: 0,
       orphanSubscriptionsFlagged: 0,
+      retiredModuleItemsRemoved: 0,
     });
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
     // Report only — no invite row was mutated (§11: acceptance already checks).
@@ -329,5 +331,228 @@ describe("orphan-subscription sweep (§11 double-buy safety net)", () => {
     const summary = await runSubscriptionReconcileJob(env, NOW);
     expect(summary.orphanSubscriptionsCancelled).toBe(0);
     expect(harness.callsTo("DELETE", /\/v1\/subscriptions/)).toHaveLength(0);
+  });
+});
+
+describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () => {
+  const CUSTOMER = "cus_1";
+  const STORED = "sub_stored";
+  const nowEpoch = Math.floor(NOW.getTime() / 1000);
+
+  const sweepCompany = {
+    id: COMPANY_ID,
+    stripe_customer_id: CUSTOMER,
+    stripe_subscription_id: STORED,
+  };
+  /** A stored subscription whose items carry the given price ids. */
+  function storedWithItems(...priceIds: string[]) {
+    return {
+      id: STORED,
+      object: "subscription",
+      status: "active",
+      created: nowEpoch - 7200,
+      cancel_at_period_end: false,
+      items: {
+        object: "list",
+        has_more: false,
+        data: priceIds.map((priceId, i) => ({
+          id: `si_${i}`,
+          object: "subscription_item",
+          price: { id: priceId, object: "price" },
+        })),
+      },
+    };
+  }
+  const listEndpoint = (body: unknown) =>
+    endpoint("GET", /\/v1\/subscriptions\?customer=/, () => ({
+      object: "list",
+      url: "/v1/subscriptions",
+      has_more: false,
+      data: [body],
+    }));
+
+  it("deletes the mms item with a prorated credit and a derived idempotency key", async () => {
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      listEndpoint(
+        storedWithItems(
+          env.STRIPE_STARTER_PRICE_ID,
+          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_VOICE_PRICE_ID as string, // live module — untouched
+        ),
+      ),
+      endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () => ({
+        id: "si_1",
+        object: "subscription_item",
+        deleted: true,
+      })),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+
+    expect(summary.retiredModuleItemsRemoved).toBe(1);
+    const dels = harness.callsTo("DELETE", /\/v1\/subscription_items/);
+    expect(dels).toHaveLength(1);
+    expect(dels[0].url.pathname).toBe("/v1/subscription_items/si_1");
+    // The unused remainder is credited back — never keep the customer's money
+    // for a module that no longer exists. (stripe-node encodes DELETE params
+    // into the query string.)
+    expect(dels[0].url.searchParams.get("proration_behavior")).toBe(
+      "create_prorations",
+    );
+    // Date-scoped: yesterday's cached Stripe FAILURE can never replay as
+    // today's result — each daily sweep is a fresh attempt.
+    expect(dels[0].headers.get("Idempotency-Key")).toBe(
+      `${COMPANY_ID}:retired_item:si_1:2026-07-01`,
+    );
+  });
+
+  it("a schedule-managed subscription strips the price from every phase instead of deleting the item (#18)", async () => {
+    // A pending downgrade pins items into schedule phases; Stripe rejects a
+    // direct item delete AND the pinned phases would re-apply the $5 item at
+    // rollover. The sweep must go through the schedule, like the module toggle.
+    // Phase boundaries use the REAL clock: applyPriceToSchedulePhases filters
+    // completed phases by Date.now(), not the job's injected `now`.
+    const NOW_EPOCH = Math.floor(Date.now() / 1000);
+    const scheduleUpdates: unknown[] = [];
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      listEndpoint({
+        ...storedWithItems(
+          env.STRIPE_STARTER_PRICE_ID,
+          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+        ),
+        schedule: "sub_sched_1",
+      }),
+      endpoint(
+        "GET",
+        /\/v1\/subscription_schedules\/sub_sched_1/,
+        () => ({
+          id: "sub_sched_1",
+          object: "subscription_schedule",
+          phases: [
+            {
+              start_date: NOW_EPOCH - 86_400,
+              end_date: NOW_EPOCH + 86_400,
+              items: [
+                { price: env.STRIPE_STARTER_PRICE_ID, quantity: 1 },
+                { price: env.STRIPE_MODULE_MMS_PRICE_ID, quantity: 1 },
+              ],
+            },
+            {
+              start_date: NOW_EPOCH + 86_400,
+              end_date: NOW_EPOCH + 30 * 86_400,
+              items: [
+                { price: env.STRIPE_STARTER_PRICE_ID, quantity: 1 },
+                { price: env.STRIPE_MODULE_MMS_PRICE_ID, quantity: 1 },
+              ],
+            },
+          ],
+        }),
+      ),
+      endpoint("POST", /\/v1\/subscription_schedules\/sub_sched_1/, (call) => {
+        scheduleUpdates.push(call.form());
+        return { id: "sub_sched_1", object: "subscription_schedule" };
+      }),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+
+    expect(summary.retiredModuleItemsRemoved).toBe(1);
+    // The item was NEVER deleted directly (Stripe would reject it)…
+    expect(harness.callsTo("DELETE", /\/v1\/subscription_items/)).toHaveLength(0);
+    // …the schedule phases were rebuilt WITHOUT the retired price, with the
+    // credit riding the next invoice.
+    expect(scheduleUpdates).toHaveLength(1);
+    const form = scheduleUpdates[0] as URLSearchParams;
+    expect(form.get("proration_behavior")).toBe("create_prorations");
+    const flat = form.toString();
+    expect(flat).toContain(encodeURIComponent(env.STRIPE_STARTER_PRICE_ID));
+    expect(flat).not.toContain(
+      encodeURIComponent(env.STRIPE_MODULE_MMS_PRICE_ID as string),
+    );
+  });
+
+  it("no retired items on the subscription: deletes nothing", async () => {
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      listEndpoint(
+        storedWithItems(
+          env.STRIPE_STARTER_PRICE_ID,
+          env.STRIPE_MODULE_VOICE_PRICE_ID as string,
+        ),
+      ),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+    expect(summary.retiredModuleItemsRemoved).toBe(0);
+    expect(harness.callsTo("DELETE", /\/v1\/subscription_items/)).toHaveLength(0);
+  });
+
+  it("the mms price was never provisioned (env unset): the sweep is a no-op", async () => {
+    const bare = { ...env, STRIPE_MODULE_MMS_PRICE_ID: undefined };
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      // The item still carries the old price id, but without the env var we
+      // cannot know it is ours — never delete on a guess.
+      listEndpoint(
+        storedWithItems(env.STRIPE_STARTER_PRICE_ID, "price_module_mms_0001"),
+      ),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(bare, NOW);
+    expect(summary.retiredModuleItemsRemoved).toBe(0);
+    expect(harness.callsTo("DELETE", /\/v1\/subscription_items/)).toHaveLength(0);
+  });
+
+  it("an already-deleted item (lost race) is treated as done, not an error", async () => {
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      listEndpoint(
+        storedWithItems(
+          env.STRIPE_STARTER_PRICE_ID,
+          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+        ),
+      ),
+      endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
+        new Response(
+          JSON.stringify({
+            error: { code: "resource_missing", message: "No such item" },
+          }),
+          { status: 404 },
+        ),
+      ),
+    ]);
+    stubFetch(harness.route);
+
+    // The run succeeds; nothing counted, nothing flagged as removed.
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+    expect(summary.retiredModuleItemsRemoved).toBe(0);
+  });
+
+  it("a thrown item delete does NOT redden the run (retried next sweep)", async () => {
+    const harness = makeHarness([
+      ...baseEndpoints([], 0, [sweepCompany]),
+      listEndpoint(
+        storedWithItems(
+          env.STRIPE_STARTER_PRICE_ID,
+          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+        ),
+      ),
+      endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
+        new Response(
+          JSON.stringify({ error: { message: "delete failed" } }),
+          { status: 500 },
+        ),
+      ),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+    expect(summary.retiredModuleItemsRemoved).toBe(0);
   });
 });

@@ -13,19 +13,16 @@
  * `company-modules.ts` reads it, checkout writes it.
  */
 import type { Env } from "../env";
-import {
-  EXTRA_STORAGE_BYTES,
-  PLAN_MMS_INCLUDED,
-  PLAN_VOICE_MINUTES,
-} from "./plans";
+import { EXTRA_STORAGE_BYTES, PLAN_VOICE_MINUTES } from "./plans";
 
-/** The toggleable modules (mirrors the company_modules.module CHECK). */
-export const PLAN_MODULES = [
-  "mms",
-  "voice",
-  "extra_storage",
-  "regions_ca",
-] as const;
+/**
+ * The toggleable modules (mirrors the company_modules.module CHECK).
+ * #97/#103: `mms` is RETIRED — picture messages are free and meter as segments
+ * (3 per MMS through the normal usage pipeline), so the paid add-on is gone
+ * from the catalog. Stale Stripe line items are stripped by the daily
+ * reconcile's retired-price sweep (billing/reconcile.ts).
+ */
+export const PLAN_MODULES = ["voice", "extra_storage", "regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
 
 export interface ModuleSpec {
@@ -49,16 +46,6 @@ export interface ModuleSpec {
 }
 
 export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
-  mms: {
-    id: "mms",
-    label: "Picture messages",
-    blurb:
-      "Send photos and images in your texts. (Incoming pictures are always received.)",
-    detail: `${PLAN_MMS_INCLUDED.starter} picture messages a month included.`,
-    monthlyCents: 500,
-    gates: "sending picture (MMS) messages",
-    priceEnvKey: "STRIPE_MODULE_MMS_PRICE_ID",
-  },
   voice: {
     id: "voice",
     label: "Call forwarding",
@@ -102,8 +89,6 @@ export function isPlanModule(value: string): value is PlanModule {
  */
 export function modulePrice(env: Env, module: PlanModule): string | null {
   switch (module) {
-    case "mms":
-      return env.STRIPE_MODULE_MMS_PRICE_ID ?? null;
     case "voice":
       return env.STRIPE_MODULE_VOICE_PRICE_ID ?? null;
     case "extra_storage":
@@ -119,4 +104,18 @@ export function moduleForPrice(env: Env, priceId: string): PlanModule | null {
     if (modulePrice(env, module) === priceId) return module;
   }
   return null;
+}
+
+/**
+ * #103: Stripe prices of RETIRED modules. These no longer sell or map to a
+ * catalog module, but an existing subscription may still carry a line item on
+ * one — the daily reconcile (billing/reconcile.ts) strips such items with a
+ * prorated credit so the customer stops being billed for a module that no
+ * longer exists. Empty when the price was never provisioned in this
+ * environment (then the sweep is a no-op).
+ */
+export function retiredModulePrices(env: Env): string[] {
+  return [env.STRIPE_MODULE_MMS_PRICE_ID].filter(
+    (price): price is string => typeof price === "string" && price.length > 0,
+  );
 }

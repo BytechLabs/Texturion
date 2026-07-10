@@ -140,14 +140,17 @@ export default function FairUsePage() {
         heading="Voice and picture messages"
       >
         <p>
-          The optional voice and picture-message add-ons are flat monthly prices
-          with a monthly allowance included, shown on the{" "}
-          <LegalLink href="/pricing">pricing page</LegalLink>. When you reach an
-          add-on&apos;s allowance we alert the owner at 80% and pause just that
-          feature for the rest of the cycle, rather than billing a surprise:
-          picture messages fall back to text only, and call forwarding stops
-          until the cycle resets. The texting in your base plan keeps working
-          either way.
+          Picture messages are included on every plan, both directions.
+          Receiving photos is free; each photo you send counts as three texts
+          from your monthly allowance and follows the same overage rules as any
+          other text you send. The optional call-forwarding add-on is a flat
+          monthly price with a monthly minute allowance included, shown on the{" "}
+          <LegalLink href="/pricing">pricing page</LegalLink>. When you reach
+          its allowance we alert the owner at 80% and pause just that feature
+          for the rest of the cycle, rather than billing a surprise: call
+          forwarding stops until the cycle resets, and missed callers still get
+          your text-back. The texting in your base plan keeps working either
+          way.
         </p>
       </LegalSectionBlock>
 

@@ -16,21 +16,16 @@ import {
 import { isPlanModule, PLAN_MODULES, type PlanModule } from "./modules";
 
 /**
- * #41: the subset of the catalog we actually SELL today.
- *
- * `regions_ca` is inert — nothing in number provisioning reads it yet — so
- * selling it would charge $5/mo for nothing (a chargeback/trust risk). It stays
- * in the catalog (reported `available: false`, coming-soon) until multi-region
- * provisioning ships.
- *
- * #97: `mms` is being RETIRED — picture messages are now free and fair-use
- * metered (as segments), so the paid add-on is no longer sold. It stays in the
- * catalog only until phase 2 (#103) removes it and migrates existing
- * subscribers off the Stripe item; making it non-sellable now closes new sales
- * immediately. Grandfathered seed rows are untouched.
+ * #41: the subset of the catalog we actually SELL today. `regions_ca` is
+ * admittedly inert — nothing in number provisioning reads it yet — so selling
+ * it would charge $5/mo for nothing (a chargeback/trust risk). It stays in the
+ * catalog (GET /v1/billing/modules reports it with `available: false` as
+ * coming-soon), but checkout and the module toggle refuse it server-side until
+ * multi-region provisioning ships. Grandfathered seed rows are untouched.
+ * (#103: `mms` left the catalog entirely — picture messages are free now.)
  */
 export const SELLABLE_MODULES: readonly PlanModule[] = PLAN_MODULES.filter(
-  (module) => module !== "regions_ca" && module !== "mms",
+  (module) => module !== "regions_ca",
 );
 
 /** Is the module deliverable — i.e. allowed to be sold — today? (#41) */

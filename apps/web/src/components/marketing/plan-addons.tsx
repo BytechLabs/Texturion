@@ -7,7 +7,7 @@
  *
  * Truth source: PLAN_MODULE_CARDS in @/lib/api/types is the web mirror of the
  * API module catalog (apps/api/src/billing/modules.ts; quantities from
- * apps/api/src/billing/plans.ts: 150 pictures, 300 minutes, 10 GB). Labels,
+ * apps/api/src/billing/plans.ts: 300 minutes, 10 GB). Labels,
  * prices, and quantity lines render from that one list (via plan-math's
  * SELLABLE_ADDON_CARDS, the same array the builder totals), so this section
  * can never drift from what checkout actually charges. `regions_ca` (Canada
@@ -26,18 +26,16 @@ export { SELLABLE_ADDON_CARDS };
 
 /**
  * The plain-words fine print per add-on: the limits and behaviors the product
- * enforces (apps/api/src/billing/plans.ts + messaging/send.ts cap-and-drop;
- * outbound MMS meters as a flat 3 segments per MMS_SEGMENTS in
- * messaging/media.ts, DECISIONS.md D5; the 80% warning is the owner email
- * from billing/usage-alerts.ts, and the composer reports a dropped photo
- * right after the send via thread/mms-gate.ts), stated before purchase
- * rather than discovered after. No em-dashes (Law 6).
+ * enforces (apps/api/src/billing/plans.ts; the 80% warning is the owner email
+ * from billing/usage-alerts.ts), stated before purchase rather than
+ * discovered after. No em-dashes (Law 6). (#97/#103: there is no
+ * Picture-messages add-on anymore; sending photos is included on every plan
+ * and each picture counts as three texts from the allowance.)
  */
 export const ADDON_FINE_PRINT: Record<
   Exclude<PlanModule, "regions_ca">,
   string
 > = {
-  mms: "Each picture message you send counts as three texts from your allowance, however long the words. Past 150 in a month, the photo is dropped and your message still sends as text. The account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go. Receiving photos is free on every plan, add-on or not.",
   voice:
     "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Loonext itself doesn't place calls.",
   extra_storage:

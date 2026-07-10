@@ -9,7 +9,7 @@ insert into auth.users (id, email, raw_user_meta_data)
 values ('77777777-7777-4777-8777-777777777777', 'owner@modules.test',
         '{"display_name":"Modules Owner"}'::jsonb);
 
--- A CA company WITH a forward number → grandfathered into mms + voice + regions_ca.
+-- A CA company WITH a forward number → grandfathered into voice + regions_ca.
 insert into public.companies
   (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, forward_to_cell)
 values ('77777777-7777-4777-8777-777000000000', 'Modules HVAC',
@@ -21,8 +21,8 @@ values ('77777777-7777-4777-8777-777000000000', 'Modules HVAC',
 do $$
 begin
   insert into public.company_modules (company_id, module) values
-    ('77777777-7777-4777-8777-777000000000', 'mms'),
-    ('77777777-7777-4777-8777-777000000000', 'mms');
+    ('77777777-7777-4777-8777-777000000000', 'voice'),
+    ('77777777-7777-4777-8777-777000000000', 'voice');
   raise exception 'MOD-1 FAILED: duplicate (company, module) accepted';
 exception
   when unique_violation then
@@ -30,7 +30,10 @@ exception
 end $$;
 
 -- ===========================================================================
--- MOD-2. an unknown module is rejected by the check constraint.
+-- MOD-2. unknown AND retired modules are rejected by the check constraint.
+--        (#97/#103: 'mms' left the module set — the tightened CHECK must
+--        refuse it exactly like any unknown value, so the retired module can
+--        never be re-seeded.)
 -- ===========================================================================
 do $$
 begin
@@ -42,17 +45,24 @@ exception
     raise notice 'MOD-2 PASSED: unknown module rejected by the check';
 end $$;
 
+do $$
+begin
+  insert into public.company_modules (company_id, module)
+  values ('77777777-7777-4777-8777-777000000000', 'mms');
+  raise exception 'MOD-2b FAILED: retired mms module accepted';
+exception
+  when check_violation then
+    raise notice 'MOD-2b PASSED: retired mms module rejected by the tightened check (#103)';
+end $$;
+
 -- ===========================================================================
 -- MOD-3. the grandfathering queries: a CA company with a forward number seeds
---        exactly mms + voice + regions_ca (not extra_storage).
+--        exactly voice + regions_ca (not extra_storage; #103: mms is retired
+--        and no longer seedable).
 -- ===========================================================================
 do $$
 declare mods text[];
 begin
-  insert into public.company_modules (company_id, module)
-    select id, 'mms' from public.companies
-     where id = '77777777-7777-4777-8777-777000000000' and deleted_at is null
-    on conflict do nothing;
   insert into public.company_modules (company_id, module)
     select id, 'voice' from public.companies
      where id = '77777777-7777-4777-8777-777000000000'
@@ -67,8 +77,8 @@ begin
   select array_agg(module order by module) into mods
     from public.company_modules
    where company_id = '77777777-7777-4777-8777-777000000000';
-  if mods <> array['mms', 'regions_ca', 'voice'] then
-    raise exception 'MOD-3 FAILED: grandfather seeded %, expected mms/regions_ca/voice', mods;
+  if mods <> array['regions_ca', 'voice'] then
+    raise exception 'MOD-3 FAILED: grandfather seeded %, expected regions_ca/voice', mods;
   end if;
   raise notice 'MOD-3 PASSED: grandfathering seeds the live capabilities only';
 end $$;
@@ -83,8 +93,8 @@ begin
    where company_id = '77777777-7777-4777-8777-777000000000' and module = 'voice';
   select count(*) into n from public.company_modules
    where company_id = '77777777-7777-4777-8777-777000000000' and disabled_at is null;
-  if n <> 2 then
-    raise exception 'MOD-4 FAILED: expected 2 enabled modules after disabling voice, got %', n;
+  if n <> 1 then
+    raise exception 'MOD-4 FAILED: expected 1 enabled module after disabling voice, got %', n;
   end if;
   raise notice 'MOD-4 PASSED: disabled_at excludes a module from the enabled set';
 end $$;
@@ -103,9 +113,12 @@ begin
     raise exception 'MOD-5 FAILED: fresh rows must default grandfathered = false';
   end if;
 
-  -- mms plays a protected pre-#12 seed; regions_ca a normal enabled row.
+  -- regions_ca plays a protected pre-#12 seed; extra_storage a normal
+  -- (purchased, unpaid) enabled row.
+  insert into public.company_modules (company_id, module)
+  values ('77777777-7777-4777-8777-777000000000', 'extra_storage');
   update public.company_modules set grandfathered = true
-   where company_id = '77777777-7777-4777-8777-777000000000' and module = 'mms';
+   where company_id = '77777777-7777-4777-8777-777000000000' and module = 'regions_ca';
 
   -- The #17 reconcile disable shape: enabled, not grandfathered, no paid item.
   select array_agg(module order by module) into victims
@@ -113,8 +126,8 @@ begin
    where company_id = '77777777-7777-4777-8777-777000000000'
      and disabled_at is null
      and not grandfathered;
-  if victims <> array['regions_ca'] then
-    raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected regions_ca only', victims;
+  if victims <> array['extra_storage'] then
+    raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected extra_storage only', victims;
   end if;
   raise notice 'MOD-5 PASSED: grandfathered rows are exempt from the reconcile disable predicate';
 end $$;

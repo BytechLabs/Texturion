@@ -29,7 +29,7 @@ const TYPOGRAPHIC_CELLS: readonly { title: string; body: React.ReactNode }[] = [
   },
   {
     title: "Photos, both ways.",
-    body: "Customers text you a picture of the problem, and receiving photos is always free, on every plan. Want to text back a photo of the finished job? Picture messaging is a $5/mo add-on with 150 sends a month included.",
+    body: "Customers text you a picture of the problem, and receiving photos is always free, on every plan. Texting back a photo of the finished job is included too; each picture you send counts as three texts from your monthly allowance.",
   },
   {
     title: "Search everything.",

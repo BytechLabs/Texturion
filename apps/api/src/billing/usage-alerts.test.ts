@@ -31,8 +31,6 @@ interface UsageState {
   attachmentBytes?: number;
   /** api_period_voice_seconds (default 0 → no voice alerts). */
   voiceSeconds?: number;
-  /** api_period_outbound_mms (default 0 → no mms alerts). */
-  mmsMessages?: number;
   /** api_period_egress_bytes (default 0 → no egress alerts). */
   egressBytes?: number;
 }
@@ -56,11 +54,6 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       "POST",
       /\/rest\/v1\/rpc\/api_period_voice_seconds/,
       () => state.voiceSeconds ?? 0,
-    ),
-    endpoint(
-      "POST",
-      /\/rest\/v1\/rpc\/api_period_outbound_mms/,
-      () => state.mmsMessages ?? 0,
     ),
     endpoint(
       "POST",
@@ -218,29 +211,18 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(harness)).toHaveLength(0);
   });
 
-  it("picture messages at 100% (150) sends both picture-message alerts", async () => {
-    const state: UsageState = { used: 0, ledger: new Set(), mmsMessages: 150 };
-    const { harness, done } = run(state);
-    await done;
-    const subjects = sentEmails(harness).map((email) => email.subject);
-    expect(subjects).toHaveLength(2);
-    expect(subjects[0]).toContain("nearing its picture-message limit");
-    expect(subjects[1]).toContain("used all its included picture messages");
-    expect(state.ledger).toEqual(
-      new Set(["mms_messages:80", "mms_messages:100"]),
-    );
-
-    // Converged: the next run is a pure no-op.
-    const again = run(state);
-    await again.done;
-    expect(sentEmails(again.harness)).toHaveLength(0);
-  });
-
-  it("picture messages below 80% sends nothing", async () => {
-    const state: UsageState = { used: 0, ledger: new Set(), mmsMessages: 100 };
+  it("#103: never reads or alerts on a picture-message count (the cap is gone)", async () => {
+    // Pictures meter as segments now — a heavy-MMS period surfaces through the
+    // `segments` arm, never a phantom "picture-message limit" warning about a
+    // cap that no longer exists. The endpoint list carries NO stub for the
+    // dropped api_period_outbound_mms RPC, so a read of it would fail loudly.
+    const state: UsageState = { used: 0, ledger: new Set() };
     const { harness, done } = run(state);
     await done;
     expect(sentEmails(harness)).toHaveLength(0);
+    expect(
+      harness.callsTo("POST", /api_period_outbound_mms/),
+    ).toHaveLength(0);
   });
 
   it("egress at 100% (starter: 40 GB allowance) sends both download alerts (#16)", async () => {
@@ -339,7 +321,6 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         mms_bytes: 0,
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
-      endpoint("POST", /\/rest\/v1\/rpc\/api_period_outbound_mms/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
       endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {

@@ -25,21 +25,22 @@ import type { PlanId } from "./plans";
 /**
  * Per-unit VARIABLE cost, in cents. These scale with usage and are what the
  * period-sum RPCs (api_period_segments, api_period_inbound_segments,
- * api_period_voice_seconds, api_period_outbound_mms, api_storage_usage,
+ * api_period_voice_seconds, api_period_forwarded_calls, api_storage_usage,
  * api_period_egress_bytes) get multiplied by to reconstruct cost-so-far.
  */
 export const UNIT_COST_CENTS = {
   /** Outbound US SMS segment: $0.004 base + $0.003–0.0045 carrier ⇒ ~$0.007–0.0085.
-   *  High end (PRICING-AUDIT §4). NB: unrelated to the 3¢/2.5¢ overage PRICE. */
+   *  High end (PRICING-AUDIT §4). NB: unrelated to the 3¢/2.5¢ overage PRICE.
+   *  #103: outbound MMS (~$0.025 true cost: Telnyx $0.015 + up to $0.01 carrier)
+   *  is covered THROUGH this rate — each MMS meters as 3 segments into
+   *  usage_events, and 3 × 0.85¢ = 2.55¢ ≥ its true cost, so no separate MMS
+   *  term exists (it would double-count). */
   outboundSegment: 0.85,
   /** Inbound US SMS segment: $0.004 base + $0.003 T-Mobile receive surcharge on
-   *  registered traffic (SPEC §2 "COGS ~0.7¢/segment"; PRICING-AUDIT §4). */
+   *  registered traffic (SPEC §2 "COGS ~0.7¢/segment"; PRICING-AUDIT §4).
+   *  Inbound MMS receive ($0.005) rides within this conservatism; its stored
+   *  media draws storage + egress cost, counted via those units. */
   inboundSegment: 0.7,
-  /** Outbound MMS: Telnyx $0.015 + up to $0.01 carrier ⇒ ~$0.025 (plans.ts:83). */
-  outboundMms: 2.5,
-  /** Inbound MMS receive: $0.005 (PRICING-AUDIT §4). The stored media then also
-   *  draws storage + egress cost, counted via those units. */
-  inboundMms: 0.5,
   /** Forwarded voice minute: ~$0.01–0.012 for both legs; high end (plans.ts:67,
    *  PRICING-AUDIT §4). */
   voiceMinute: 1.2,

@@ -29,13 +29,13 @@ import type {
 const S = PLAN_PRICING.starter;
 const P = PLAN_PRICING.pro;
 
-function moduleCard(id: "mms" | "voice" | "extra_storage") {
+function moduleCard(id: "voice" | "extra_storage") {
   const card = PLAN_MODULE_CARDS.find((c) => c.id === id);
   if (!card) throw new Error(`Missing module card: ${id}`);
   return card;
 }
 
-const MMS = moduleCard("mms");
+// #97/#103: no MMS card — pictures are included on every plan (3 texts each).
 const VOICE = moduleCard("voice");
 const STORAGE = moduleCard("extra_storage");
 
@@ -113,9 +113,10 @@ export const PLAN_FAIR_USE_NOTE =
   "The message, picture, forwarding, and storage allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers.";
 
 /* Honesty Ledger (§5.3): every cost, before you pay. Add-on prices and
-   quantities mirror apps/api/src/billing/plans.ts + modules.ts (mms $5/150,
-   voice $8/300 min, extra_storage $5/10 GB; an outbound MMS meters as a flat
-   3 segments, DECISIONS.md D5). */
+   quantities mirror apps/api/src/billing/plans.ts + modules.ts (voice $8/300
+   min, extra_storage $5/10 GB). #97/#103: pictures are included on every
+   plan; an outbound MMS meters as a flat 3 segments (DECISIONS.md D5), so it
+   appears under "Extra texts", not as an add-on. */
 export const LEDGER: LedgerEntry[] = [
   {
     term: "Your plan",
@@ -132,13 +133,13 @@ export const LEDGER: LedgerEntry[] = [
     term: "Extra texts",
     figure: `${S.overageCentsPerText}¢ · ${P.overageCentsPerText}¢`,
     detail:
-      "3¢ each on Starter, 2.5¢ on Pro. Only after your included texts run out, and only up to the cap you control.",
+      "3¢ each on Starter, 2.5¢ on Pro. Only after your included texts run out, and only up to the cap you control. Pictures are included both ways on every plan; each picture you send counts as three texts from your allowance.",
   },
   {
     term: "Optional add-ons, if you turn them on",
-    figure: `${MMS.price} · ${VOICE.price} · ${STORAGE.price}`,
+    figure: `${VOICE.price} · ${STORAGE.price}`,
     detail:
-      "Picture messages $5/mo (150 a month included; each one you send also counts as three texts from your allowance), call forwarding with missed-call text-back $8/mo (300 minutes included), extra storage $5/mo (10 GB more). All three are off by default, you switch them on at signup or later in settings, and you can switch them off the same way. Nothing here is required to text.",
+      "Call forwarding with missed-call text-back $8/mo (300 minutes included), extra storage $5/mo (10 GB more). Both are off by default, you switch them on at signup or later in settings, and you can switch them off the same way. Nothing here is required to text.",
   },
   {
     term: "Tax",
@@ -148,7 +149,7 @@ export const LEDGER: LedgerEntry[] = [
   {
     term: "That's the whole list.",
     detail:
-      'Two plans, three optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+      'Two plans, two optional add-ons, one registration fee, and overage you cap. No setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
   },
 ];
 
@@ -172,7 +173,7 @@ export const LEDGER_CA: LedgerEntry[] = LEDGER.map((entry) => {
     return {
       ...entry,
       detail:
-        'Two plans, three optional add-ons, and overage you cap. No registration fee, no setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+        'Two plans, two optional add-ons, and overage you cap. No registration fee, no setup fees, no per-user fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
     };
   }
   return entry;
@@ -223,9 +224,10 @@ export const ELSEWHERE_FOOTNOTE =
   "Competitor prices from their public pricing pages, July 2026; each figure is sourced on the matching comparison page. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus ~$5 of metered texting (1¢/segment) plus their published $1.50 to $3 monthly carrier maintenance, and extra numbers are $5 each. One-time registration fees excluded for all (ours is $29; Quo discloses $19.50; others don't say). If any number changes, tell us and we'll fix it.";
 
 /* Pricing FAQ (9). COPY-DECK v2: all nine kept, dash-free. The photo answer
-   states the $5 add-on + 150 cap-and-drop truth, the "not getting" answer
-   carries the $8 call-forwarding module facts, and the keep-my-number answer
-   mirrors the verified porting story. NO FAQPage JSON-LD. */
+   states the included-pictures truth (#97/#103: 3 texts per picture, no
+   add-on), the "not getting" answer carries the $8 call-forwarding module
+   facts, and the keep-my-number answer mirrors the verified porting story.
+   NO FAQPage JSON-LD. */
 export const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
@@ -237,7 +239,7 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How do photo messages work?",
-    a: "Receiving photos is free on every plan, and they're saved in your included storage. Sending them is the Picture messages add-on: $5 a month with 150 picture messages included. Each one you send also counts as a flat three texts from your monthly allowance, however long the words. Past 150 in a month, the photo is dropped and your message still goes out as plain text. The account owner gets an email at 80% of the cap, and the composer tells you right away when a photo didn't go.",
+    a: "Photos work both ways on every plan, nothing to turn on. Receiving them is free, and they're saved in your included storage. Each photo you send counts as a flat three texts from your monthly allowance, however long the words, so they draw from the same 500 (or 2,500) texts and the same overage rules as everything else you send.",
   },
   {
     q: "What happens when I hit my allowance?",

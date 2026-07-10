@@ -135,20 +135,23 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     );
 
     // The add-ons figure and prose agree with the module catalog mirror.
+    // #97/#103: two add-ons (voice, extra_storage) — no Picture-messages card.
     const addons = LEDGER.find(
       (e) => e.term === "Optional add-ons, if you turn them on",
     );
     const byId = (id: string) =>
       PLAN_MODULE_CARDS.find((c) => c.id === id)!;
     expect(addons?.figure).toBe(
-      `${byId("mms").price} · ${byId("voice").price} · ${byId("extra_storage").price}`,
+      `${byId("voice").price} · ${byId("extra_storage").price}`,
     );
-    expect(addons?.detail).toContain(`${byId("mms").price}/mo`);
-    expect(addons?.detail).toContain("150 a month included");
-    expect(addons?.detail).toContain("counts as three texts");
+    expect(addons?.detail).not.toContain("Picture messages");
     expect(addons?.detail).toContain(`${byId("voice").price}/mo`);
     expect(addons?.detail).toContain("300 minutes included");
     expect(addons?.detail).toContain("10 GB");
+    // The included-pictures truth moved into the Extra-texts line.
+    const overageLine = LEDGER.find((e) => e.term === "Extra texts");
+    expect(overageLine?.detail).toContain("counts as three texts");
+    expect(overageLine?.detail).toContain("Pictures are included");
 
     // The CAD honesty stays (deck: "we'd rather tell you now").
     const tax = LEDGER.find((e) => e.term === "Tax");
@@ -245,13 +248,14 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     expect(port?.a).toContain("free");
   });
 
-  it("keeps the photo cap-and-drop truth (dropped photo, text still sends, 80% email)", () => {
+  it("keeps the included-pictures truth (#97/#103: 3 texts each, no add-on, no cap)", () => {
     const photos = FAQS.find((f) => f.q === "How do photo messages work?");
-    expect(photos?.a).toContain("$5 a month");
-    expect(photos?.a).toContain("150");
+    expect(photos?.a).toContain("both ways on every plan");
     expect(photos?.a).toContain("three texts");
-    expect(photos?.a).toContain("dropped");
-    expect(photos?.a).toContain("80%");
+    // Retired terms must be gone: no $5 add-on, no 150 cap, no cap-and-drop.
+    expect(photos?.a).not.toContain("$5");
+    expect(photos?.a).not.toContain("150");
+    expect(photos?.a).not.toContain("dropped");
   });
 
   it("keeps the voice add-on facts in the what-am-I-not-getting answer", () => {

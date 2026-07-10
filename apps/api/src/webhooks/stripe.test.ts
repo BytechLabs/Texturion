@@ -459,7 +459,7 @@ describe("§9 event → state table", () => {
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
           modulePriceIds: [
-            env.STRIPE_MODULE_MMS_PRICE_ID!,
+            env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!,
             env.STRIPE_MODULE_VOICE_PRICE_ID!,
           ],
         }),
@@ -490,7 +490,7 @@ describe("§9 event → state table", () => {
       module: string;
       disabled_at: string | null;
     }[];
-    expect(rows.map((r) => r.module).sort()).toEqual(["mms", "voice"]);
+    expect(rows.map((r) => r.module).sort()).toEqual(["extra_storage", "voice"]);
     expect(rows.every((r) => r.company_id === COMPANY_ID)).toBe(true);
     expect(rows.every((r) => r.disabled_at === null)).toBe(true);
   });
@@ -932,11 +932,11 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
   }
 
   it("checkout on a base-only resubscribe DISABLES stale modules and clears voice settings", async () => {
-    // The #17 leak: enable mms+voice, cancel, resubscribe base-only — the
-    // stale rows used to stay enabled (free MMS + forwarded voice) forever.
+    // The #17 leak: enable extra_storage+voice, cancel, resubscribe base-only —
+    // the stale rows used to stay enabled (free capability) forever.
     const harness = makeHarness([
       // The claim returns the stale modules (prepended so it wins the shared default).
-      activationRpc({ modules: [moduleRow("mms"), moduleRow("voice")] }),
+      activationRpc({ modules: [moduleRow("extra_storage"), moduleRow("voice")] }),
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture(), // base plan only — no module line items
@@ -959,7 +959,9 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     // Both unpaid modules disabled in one guarded update…
     const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
     expect(disables).toHaveLength(1);
-    expect(disables[0].url.searchParams.get("module")).toBe("in.(mms,voice)");
+    expect(disables[0].url.searchParams.get("module")).toBe(
+      "in.(extra_storage,voice)",
+    );
     expect(disables[0].url.searchParams.get("disabled_at")).toBe("is.null");
     expect(disables[0].json()).toEqual({ disabled_at: expect.any(String) });
     // …nothing re-enabled…
@@ -979,7 +981,7 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       // The claim returns the grandfathered rows (prepended to win the default).
       activationRpc({
         modules: [
-          moduleRow("mms", { grandfathered: true }),
+          moduleRow("extra_storage", { grandfathered: true }),
           moduleRow("voice", { grandfathered: true }),
         ],
       }),
@@ -1014,17 +1016,17 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
   });
 
   it("customer.subscription.updated converges enables AND disables onto the paid set", async () => {
-    // Paid: mms (currently disabled row). Unpaid: voice (currently enabled).
+    // Paid: extra_storage (currently disabled row). Unpaid: voice (enabled).
     const moduleUpserts: unknown[] = [];
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
-          modulePriceIds: [env.STRIPE_MODULE_MMS_PRICE_ID!],
+          modulePriceIds: [env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!],
         }),
       ),
       companiesWithModules([
-        moduleRow("mms", { disabled_at: "2026-06-01T00:00:00.000Z" }),
+        moduleRow("extra_storage", { disabled_at: "2026-06-01T00:00:00.000Z" }),
         moduleRow("voice"),
       ]),
       endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
@@ -1038,12 +1040,12 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       harness,
     );
 
-    // mms re-enabled with the grandfather flag cleared (it is paid now)…
+    // extra_storage re-enabled with the grandfather flag cleared (paid now)…
     expect(moduleUpserts).toEqual([
       [
         {
           company_id: COMPANY_ID,
-          module: "mms",
+          module: "extra_storage",
           enabled_at: expect.any(String),
           disabled_at: null,
           grandfathered: false,

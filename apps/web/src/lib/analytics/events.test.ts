@@ -62,12 +62,12 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
   it("signup_started fires bare, and with plan/module enums when intent exists", async () => {
     const { trackSignupStarted } = await importEvents();
     trackSignupStarted();
-    trackSignupStarted({ plan: "pro", modules: ["mms", "voice"] });
+    trackSignupStarted({ plan: "pro", modules: ["voice", "extra_storage"] });
     await flush();
     expect(captureSpy).toHaveBeenNthCalledWith(1, "signup_started", undefined);
     expect(captureSpy).toHaveBeenNthCalledWith(2, "signup_started", {
       plan: "pro",
-      modules: ["mms", "voice"],
+      modules: ["voice", "extra_storage"],
     });
   });
 
@@ -120,8 +120,8 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
       events.trackSignupStarted({ plan: "pro", modules: [] });
       events.trackSignupCompleted();
       events.trackOnboardingStepCompleted("plan");
-      events.trackPlanSelected("pro", ["mms"]);
-      events.trackCheckoutStarted("pro", ["mms"]);
+      events.trackPlanSelected("pro", ["voice"]);
+      events.trackCheckoutStarted("pro", ["voice"]);
       events.trackCheckoutCompleted();
     }).not.toThrow();
     await flush();

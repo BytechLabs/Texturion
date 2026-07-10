@@ -661,14 +661,6 @@ export interface UsageVoice {
   included_minutes: number;
 }
 
-/** #12 outbound picture messages embedded in GET /v1/usage. */
-export interface UsageMms {
-  /** Outbound picture messages sent this period (accepted by the carrier). */
-  used_messages: number;
-  /** Included outbound picture messages for the plan (0 pre-checkout). */
-  included_messages: number;
-}
-
 /** #85 dynamic overage projection embedded in GET /v1/usage. */
 export interface UsageOverageProjection {
   /** True when the tenant is projected to run past what their plan covers — the
@@ -699,8 +691,8 @@ export interface Usage {
   storage: UsageStorage;
   /** #12: call-forwarding minutes used vs the plan allowance. */
   voice: UsageVoice;
-  /** #12: outbound picture messages used vs the plan allowance. */
-  mms: UsageMms;
+  // #97/#103: no `mms` meter — pictures count 3 segments each in the message
+  // meter, with no separate cap.
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
@@ -777,13 +769,14 @@ export type ChangePlanResult =
   | { plan: "pro"; effective: "now" }
   | { plan: "starter"; effective: "period_end"; effective_at: string };
 
-/** #12 plan-builder module ids (mirrors the API company_modules.module). */
-export const PLAN_MODULE_IDS = [
-  "mms",
-  "voice",
-  "extra_storage",
-  "regions_ca",
-] as const;
+/**
+ * #12 plan-builder module ids (mirrors the API company_modules.module).
+ * #97/#103: `mms` is RETIRED — pictures are included on every plan (each MMS
+ * counts 3 texts from the allowance), so there is no Picture-messages add-on.
+ * Old stashed/URL plan intents carrying "mms" are dropped by the plan-intent
+ * whitelist exactly like any unknown value.
+ */
+export const PLAN_MODULE_IDS = ["voice", "extra_storage", "regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 
 /**
@@ -818,18 +811,13 @@ export interface PlanModuleCard {
  * WHEN RETUNING A PRICE OR QUANTITY you must edit modules.ts/plans.ts AND
  * this list — there is no runtime link. The real fix (#59's recommendation)
  * is moving the catalog to packages/shared and importing it from both apps;
- * until that lands, do NOT delete this constant. Values as of 2026-07-07:
- * mms $5 / PLAN_MMS_INCLUDED 150, voice $8 / PLAN_VOICE_MINUTES 300,
- * extra_storage $5 / EXTRA_STORAGE_BYTES 10 GB, regions_ca $5.
+ * until that lands, do NOT delete this constant. Values as of 2026-07-09:
+ * voice $8 / PLAN_VOICE_MINUTES 300, extra_storage $5 / EXTRA_STORAGE_BYTES
+ * 10 GB, regions_ca $5. (#103: mms retired — pictures included, 3 texts each.)
  */
 export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
-  {
-    id: "mms",
-    label: "Picture messages",
-    blurb: "Send photos in your texts. Incoming photos are always free.",
-    price: "$5",
-    detail: "150 picture messages a month included.",
-  },
+  // #97/#103: no "Picture messages" card — MMS is included on every plan
+  // (each picture counts as three texts from the monthly allowance).
   {
     id: "voice",
     label: "Call forwarding",

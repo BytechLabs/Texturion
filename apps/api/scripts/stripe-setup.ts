@@ -30,6 +30,9 @@ const SAAS_TAX_CODE = "txcd_10103000";
  * unlocks a capability that is itself cap-protected — no per-use metering yet).
  * MUST stay in sync with MODULE_CATALOG in src/billing/modules.ts (id, monthly
  * price, env key); this operator script is standalone so the list is inlined.
+ * (#103: `mms` is retired — never provision it again. If a price was created
+ * before retirement, KEEP its STRIPE_MODULE_MMS_PRICE_ID env var set so the
+ * daily reconcile can strip stale items off live subscriptions.)
  */
 const MODULE_PRICES: {
   id: string;
@@ -37,7 +40,6 @@ const MODULE_PRICES: {
   monthlyCents: number;
   envKey: string;
 }[] = [
-  { id: "mms", label: "Picture messages", monthlyCents: 500, envKey: "STRIPE_MODULE_MMS_PRICE_ID" },
   { id: "voice", label: "Call forwarding", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
   { id: "extra_storage", label: "Extra storage", monthlyCents: 500, envKey: "STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID" },
   { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },

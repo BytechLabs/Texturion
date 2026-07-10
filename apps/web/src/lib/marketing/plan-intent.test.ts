@@ -39,9 +39,9 @@ afterEach(() => {
 
 describe("parsePlanIntent (whitelist validation of the /pricing builder URL)", () => {
   it("parses the builder's canonical output", () => {
-    expect(parsePlanIntent("?plan=pro&modules=mms%2Cextra_storage")).toEqual({
+    expect(parsePlanIntent("?plan=pro&modules=voice%2Cextra_storage")).toEqual({
       plan: "pro",
-      modules: ["mms", "extra_storage"],
+      modules: ["voice", "extra_storage"],
     });
     expect(parsePlanIntent("plan=starter")).toEqual({
       plan: "starter",
@@ -56,15 +56,15 @@ describe("parsePlanIntent (whitelist validation of the /pricing builder URL)", (
   });
 
   it("rejects unknown plans outright", () => {
-    expect(parsePlanIntent("?plan=enterprise&modules=mms")).toBeNull();
-    expect(parsePlanIntent("?plan=&modules=mms")).toBeNull();
-    expect(parsePlanIntent("?modules=mms")).toBeNull();
+    expect(parsePlanIntent("?plan=enterprise&modules=voice")).toBeNull();
+    expect(parsePlanIntent("?plan=&modules=voice")).toBeNull();
+    expect(parsePlanIntent("?modules=voice")).toBeNull();
     expect(parsePlanIntent("")).toBeNull();
     expect(parsePlanIntent(null)).toBeNull();
     expect(parsePlanIntent(undefined)).toBeNull();
   });
 
-  it("keeps only sellable modules: regions_ca and junk are dropped, not fatal", () => {
+  it("keeps only sellable modules: regions_ca, retired mms, and junk are dropped, not fatal", () => {
     // The hostile case from the brief: ?modules=regions_ca,voice keeps voice.
     expect(parsePlanIntent("?plan=starter&modules=regions_ca,voice")).toEqual({
       plan: "starter",
@@ -74,22 +74,32 @@ describe("parsePlanIntent (whitelist validation of the /pricing builder URL)", (
       parsePlanIntent(
         "?plan=pro&modules=<script>,__proto__,regions_ca,mms,mms,voice",
       ),
-    ).toEqual({ plan: "pro", modules: ["mms", "voice"] });
+    ).toEqual({ plan: "pro", modules: ["voice"] });
+    // #97/#103: an OLD stashed/emailed link carrying the retired mms add-on
+    // must still check out cleanly — mms is dropped like any unknown value,
+    // never forwarded to the API (whose schema would 422 it).
+    expect(parsePlanIntent("?plan=pro&modules=mms,extra_storage")).toEqual({
+      plan: "pro",
+      modules: ["extra_storage"],
+    });
   });
 
   it("dedupes repeated modules", () => {
-    expect(parsePlanIntent("?plan=pro&modules=mms,mms,mms")).toEqual({
+    expect(parsePlanIntent("?plan=pro&modules=voice,voice,voice")).toEqual({
       plan: "pro",
-      modules: ["mms"],
+      modules: ["voice"],
     });
   });
 });
 
 describe("planIntentSearch (canonical serialization)", () => {
   it("round-trips through parsePlanIntent", () => {
-    const intent = { plan: "pro" as const, modules: ["mms" as const, "voice" as const] };
+    const intent = {
+      plan: "pro" as const,
+      modules: ["voice" as const, "extra_storage" as const],
+    };
     const search = planIntentSearch(intent);
-    expect(search).toBe("plan=pro&modules=mms%2Cvoice");
+    expect(search).toBe("plan=pro&modules=voice%2Cextra_storage");
     expect(parsePlanIntent(search)).toEqual(intent);
   });
 
@@ -102,7 +112,7 @@ describe("planIntentSearch (canonical serialization)", () => {
   it("stays safeNextPath-compatible (no spaces, backslashes, or control chars)", () => {
     const search = planIntentSearch({
       plan: "pro",
-      modules: ["mms", "voice", "extra_storage"],
+      modules: ["voice", "extra_storage"],
     });
     expect(search).not.toMatch(/[\s\\]/);
   });
@@ -120,13 +130,14 @@ describe("stash round trip (sessionStorage, loonext.plan_intent)", () => {
   it("re-validates the stash: tampered plans read as null, tampered modules are filtered", () => {
     store.setItem(
       PLAN_INTENT_STORAGE_KEY,
-      JSON.stringify({ plan: "free_forever", modules: ["mms"] }),
+      JSON.stringify({ plan: "free_forever", modules: ["voice"] }),
     );
     expect(readPlanIntentStash()).toBeNull();
 
     store.setItem(
       PLAN_INTENT_STORAGE_KEY,
-      JSON.stringify({ plan: "pro", modules: ["regions_ca", "voice", 42] }),
+      // "mms" is a stale pre-#103 stash — dropped like the other junk.
+      JSON.stringify({ plan: "pro", modules: ["regions_ca", "mms", "voice", 42] }),
     );
     expect(readPlanIntentStash()).toEqual({ plan: "pro", modules: ["voice"] });
   });
@@ -162,9 +173,9 @@ describe("stash round trip (sessionStorage, loonext.plan_intent)", () => {
 
 describe("stashPlanIntentFromSearch (signup / onboarding landing)", () => {
   it("stashes a URL intent and returns it", () => {
-    const intent = stashPlanIntentFromSearch("?plan=pro&modules=mms");
-    expect(intent).toEqual({ plan: "pro", modules: ["mms"] });
-    expect(readPlanIntentStash()).toEqual({ plan: "pro", modules: ["mms"] });
+    const intent = stashPlanIntentFromSearch("?plan=pro&modules=voice");
+    expect(intent).toEqual({ plan: "pro", modules: ["voice"] });
+    expect(readPlanIntentStash()).toEqual({ plan: "pro", modules: ["voice"] });
   });
 
   it("falls back to (and preserves) an existing stash when the URL has none", () => {
@@ -200,10 +211,10 @@ describe("consumePlanIntent (plan step hydration)", () => {
   });
 
   it("falls back to the stash and clears it (consumed exactly once)", () => {
-    stashPlanIntent({ plan: "pro", modules: ["mms", "voice"] });
+    stashPlanIntent({ plan: "pro", modules: ["voice", "extra_storage"] });
     expect(consumePlanIntent("")).toEqual({
       plan: "pro",
-      modules: ["mms", "voice"],
+      modules: ["voice", "extra_storage"],
     });
     expect(consumePlanIntent("")).toBeNull();
   });

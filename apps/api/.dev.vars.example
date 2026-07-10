@@ -33,6 +33,8 @@ STRIPE_PRO_OVERAGE_PRICE_ID=
 STRIPE_US_FEE_PRICE_ID=
 # Module add-on price ids — also printed by `stripe:setup`; schema-optional (the
 # Worker boots without them) but required to sell the add-ons (#12 plan builder).
+# MMS is RETIRED (#103): never provisioned anew. Keep it SET wherever the price
+# was ever created — the daily reconcile uses it to strip stale $5 items.
 STRIPE_MODULE_MMS_PRICE_ID=
 STRIPE_MODULE_VOICE_PRICE_ID=
 STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID=

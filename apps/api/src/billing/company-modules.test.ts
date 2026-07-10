@@ -82,32 +82,33 @@ describe("isModuleEnabled", () => {
 });
 
 describe("enabledModules", () => {
-  it("returns the enabled modules and drops unknown values defensively", async () => {
+  it("returns the enabled modules and drops unknown/retired values defensively", async () => {
     serve(
       modulesStub([
+        // #103: 'mms' is a RETIRED value — a straggler row (the migration
+        // deletes them, but be defensive) must be dropped like any unknown.
         { module: "mms" },
         { module: "voice" },
         { module: "legacy_unknown" },
       ]),
     );
     const mods = await enabledModules(getDb(env), COMPANY);
-    expect(mods).toEqual<PlanModule[]>(["mms", "voice"]);
+    expect(mods).toEqual<PlanModule[]>(["voice"]);
   });
 });
 
 describe("sellable modules (#41)", () => {
-  it("regions_ca and mms are catalog-listed but not sellable", () => {
+  it("regions_ca is catalog-listed but not sellable until multi-region ships", () => {
     expect(SELLABLE_MODULES).toEqual(["voice", "extra_storage"]);
     expect(isSellableModule("regions_ca")).toBe(false);
-    // #97: mms is retired — picture messages are free + fair-use metered, so
-    // the add-on is no longer sold (existing subscribers migrate in phase 2).
-    expect(isSellableModule("mms")).toBe(false);
     expect(isSellableModule("voice")).toBe(true);
+    // #103: mms is not merely unsellable — it left the module set entirely.
+    expect(isPlanModule("mms")).toBe(false);
   });
 });
 
 describe("planModuleReconcile (#17)", () => {
-  const BILLABLE: PlanModule[] = ["mms", "voice", "extra_storage"];
+  const BILLABLE: PlanModule[] = ["voice", "extra_storage"];
   const row = (
     module: string,
     overrides: Partial<CompanyModuleRow> = {},
@@ -121,41 +122,49 @@ describe("planModuleReconcile (#17)", () => {
   it("enables missing, disabled, and still-grandfathered paid modules", () => {
     const plan = planModuleReconcile(
       [
-        row("mms"), // paid + already enabled → untouched
-        row("voice", { disabled_at: "2026-06-01T00:00:00Z" }), // paid, off → on
-        row("extra_storage", { grandfathered: true }), // paid → flag cleared
+        row("voice"), // paid + already enabled → untouched
+        row("extra_storage", { disabled_at: "2026-06-01T00:00:00Z" }), // paid, off → on
+        row("regions_ca", { grandfathered: true }), // paid → flag cleared
       ],
-      ["mms", "voice", "extra_storage"],
-      BILLABLE,
+      ["voice", "extra_storage", "regions_ca"],
+      ["voice", "extra_storage", "regions_ca"],
     );
-    expect(plan.enable.sort()).toEqual(["extra_storage", "voice"]);
+    expect(plan.enable.sort()).toEqual(["extra_storage", "regions_ca"]);
     expect(plan.disable).toEqual([]);
   });
 
   it("disables enabled billable modules with no paid line item (the resubscribe leak)", () => {
     const plan = planModuleReconcile(
-      [row("mms"), row("voice")],
+      [row("voice"), row("extra_storage")],
       [], // base-only resubscribe: no module items on the new subscription
       BILLABLE,
     );
     expect(plan.enable).toEqual([]);
-    expect(plan.disable.sort()).toEqual(["mms", "voice"]);
+    expect(plan.disable.sort()).toEqual(["extra_storage", "voice"]);
   });
 
-  it("never disables grandfathered seeds, unbillable modules, or already-off rows", () => {
+  it("never disables grandfathered seeds, unbillable modules, retired/unknown values, or already-off rows", () => {
     const plan = planModuleReconcile(
       [
-        row("mms", { grandfathered: true }), // pre-#12 seed — protected
-        row("voice", { disabled_at: "2026-06-01T00:00:00Z" }), // already off
+        row("voice", { grandfathered: true }), // pre-#12 seed — protected
         row("extra_storage"), // billable, unpaid → the ONE disable
         row("regions_ca"), // price not configured → paid-ness unknowable
+        row("mms"), // #103: retired — not a module anymore, ignored like any unknown
         row("legacy_unknown"), // defensive: not a module at all
       ],
       [],
-      ["mms", "voice", "extra_storage"], // regions_ca not billable here
+      BILLABLE, // regions_ca not billable here
     );
     expect(plan.enable).toEqual([]);
     expect(plan.disable).toEqual(["extra_storage"]);
+
+    // Already-off rows are never re-disabled.
+    const offOnly = planModuleReconcile(
+      [row("voice", { disabled_at: "2026-06-01T00:00:00Z" })],
+      [],
+      BILLABLE,
+    );
+    expect(offOnly.disable).toEqual([]);
   });
 });
 
@@ -173,7 +182,7 @@ describe("applyModuleReconcile (#17)", () => {
     serve(upserts, disables, companies);
 
     await applyModuleReconcile(getDb(env), COMPANY, {
-      enable: ["mms"],
+      enable: ["regions_ca"],
       disable: ["voice", "extra_storage"],
     });
 
@@ -181,7 +190,7 @@ describe("applyModuleReconcile (#17)", () => {
     expect(upserts.calls[0].body).toEqual([
       {
         company_id: COMPANY,
-        module: "mms",
+        module: "regions_ca",
         enabled_at: expect.any(String),
         disabled_at: null,
         grandfathered: false,

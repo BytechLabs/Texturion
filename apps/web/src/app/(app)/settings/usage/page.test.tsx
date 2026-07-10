@@ -48,7 +48,6 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
       mms_budget_bytes: 1024 ** 3,
     },
     voice: { used_minutes: 0, included_minutes: 0 },
-    mms: { used_messages: 0, included_messages: 0 },
     ...overrides,
   };
 }
