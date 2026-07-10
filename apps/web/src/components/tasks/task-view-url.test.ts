@@ -1,13 +1,39 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceTabForView,
   hasActiveChips,
   parseTaskSearchParams,
   parseView,
   serializeTaskState,
+  tabsForView,
   toTaskFilters,
   type TaskPageState,
 } from "./task-view-url";
+
+describe("tabsForView / coerceTabForView (#113: per-view status tabs)", () => {
+  it("List and Calendar apply all four status tabs", () => {
+    expect(tabsForView("list")).toEqual(["open", "mine", "all", "done"]);
+    expect(tabsForView("calendar")).toEqual(["open", "mine", "all", "done"]);
+  });
+
+  it("Board and Map organize by status themselves — only Mine | All apply", () => {
+    expect(tabsForView("board")).toEqual(["mine", "all"]);
+    expect(tabsForView("map")).toEqual(["mine", "all"]);
+  });
+
+  it("coerces an unsupported tab to Mine when switching into Board/Map", () => {
+    // Open/Done have no meaning on Board/Map → keep 'my tasks' (Mine).
+    expect(coerceTabForView("open", "board")).toBe("mine");
+    expect(coerceTabForView("done", "map")).toBe("mine");
+    // All + Mine survive (the assignee dimension those views DO apply).
+    expect(coerceTabForView("all", "board")).toBe("all");
+    expect(coerceTabForView("mine", "map")).toBe("mine");
+    // Every tab survives into List/Calendar.
+    expect(coerceTabForView("done", "list")).toBe("done");
+    expect(coerceTabForView("open", "calendar")).toBe("open");
+  });
+});
 
 describe("parseView", () => {
   it("defaults unknown / missing to list", () => {

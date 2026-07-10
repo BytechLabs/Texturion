@@ -2,7 +2,6 @@
 
 import { ArrowRight, Check, Search } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { avatarInitials } from "@/components/shell/avatar-color";
@@ -21,6 +20,7 @@ import type {
   ForYouUnread,
   ForYouWaiting,
 } from "@/lib/api/types";
+import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
@@ -138,7 +138,7 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
 // --- My tasks — overdue/soon; inline complete (optimistic + undo). ---
 
 function TaskRow({ task }: { task: ForYouTask }) {
-  const router = useRouter();
+  const { openTask } = useTaskDrawer();
   const complete = useCompleteForYouTask();
   // #11: play the 150ms slide+fade closure BEFORE the optimistic mutation
   // splices the row out, so a completed task leaves calmly instead of blinking
@@ -194,9 +194,12 @@ function TaskRow({ task }: { task: ForYouTask }) {
         aria-label={`Complete task: ${task.title}`}
         className="tap-target grid size-[18px] shrink-0 place-items-center rounded-[6px] border-[1.6px] border-app-muted-2 transition-colors hover:border-app-petrol focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       />
+      {/* #113: the task title opens the TASK itself (the drawer) — this is the
+          task queue, so the task is the point. The arrow is the secondary jump
+          to its conversation. */}
       <button
         type="button"
-        onClick={() => router.push(`/inbox/${task.conversation_id}`)}
+        onClick={() => openTask(task.task_id)}
         className="min-w-0 flex-1 text-left"
       >
         <span className="block truncate text-[13.5px] font-semibold text-app-ink">

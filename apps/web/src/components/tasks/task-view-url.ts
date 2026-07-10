@@ -45,6 +45,29 @@ export const TASK_TABS: readonly { id: TaskTab; label: string }[] = [
 
 const TAB_IDS = new Set<TaskTab>(["open", "mine", "all", "done"]);
 
+/**
+ * #113: which status tabs actually DO something in each view. Board organizes
+ * by status (its own columns) and Map shows every status (status: undefined),
+ * so the Open/Done status dimension is a no-op there — only the assignee
+ * dimension (Mine | All) applies. List and Calendar consume all four. The
+ * filter bar renders exactly this set per view instead of always showing four,
+ * two of which silently did nothing on Board/Map.
+ */
+export function tabsForView(view: TaskView): readonly TaskTab[] {
+  return view === "board" || view === "map"
+    ? (["mine", "all"] as const)
+    : (["open", "mine", "all", "done"] as const);
+}
+
+/**
+ * #113: coerce a tab to one the target view supports. Switching from
+ * List(Open) to Board keeps "my tasks" (open/done → mine) rather than carrying
+ * an Open pill the board ignores.
+ */
+export function coerceTabForView(tab: TaskTab, view: TaskView): TaskTab {
+  return tabsForView(view).includes(tab) ? tab : "mine";
+}
+
 function parseTab(raw: string | null): TaskTab {
   return raw !== null && TAB_IDS.has(raw as TaskTab)
     ? (raw as TaskTab)

@@ -299,7 +299,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           ~1100px to the header toggle so the thread keeps a comfortable measure. */}
       {panelOpen && (
         <aside
-          aria-label={`Contact details for ${contactDisplayName(conversation.contact)}`}
+          aria-label={`Conversation info for ${contactDisplayName(conversation.contact)}`}
           style={{ width: panelWidth }}
           className="relative hidden shrink-0 border-l border-app-line bg-app-white xl:block"
         >
@@ -348,7 +348,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             <SheetTitle>
               {contactDisplayName(conversation.contact)}
             </SheetTitle>
-            <SheetDescription>Contact details</SheetDescription>
+            <SheetDescription>Conversation info</SheetDescription>
           </SheetHeader>
           <ContactPanel
             conversation={conversation}

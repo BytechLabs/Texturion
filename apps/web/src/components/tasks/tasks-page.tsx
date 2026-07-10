@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 import { TaskFilterBar } from "./task-filter-bar";
 import {
+  coerceTabForView,
   parseTaskSearchParams,
   serializeTaskState,
   TASK_VIEWS,
@@ -58,7 +59,15 @@ export function TasksPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
           <ViewSwitcher
             view={state.view}
-            onChange={(view) => setState({ ...state, view })}
+            onChange={(view) =>
+              // #113: keep the tab meaningful for the new view (Board/Map only
+              // support Mine | All, so Open/Done coerce to Mine).
+              setState({
+                ...state,
+                view,
+                tab: coerceTabForView(state.tab, view),
+              })
+            }
           />
         </div>
         <TaskFilterBar state={state} onChange={setState} />

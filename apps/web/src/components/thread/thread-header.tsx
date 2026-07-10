@@ -356,7 +356,9 @@ export function ThreadHeader({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleContactPanel}
-          aria-label={panelOpen ? "Hide contact details" : "Show contact details"}
+          aria-label={
+            panelOpen ? "Hide conversation info" : "Show conversation info"
+          }
           aria-pressed={panelOpen}
           className={cn("hidden md:inline-flex", panelOpen && "bg-secondary")}
         >
@@ -382,7 +384,7 @@ export function ThreadHeader({
                     panel (bottom sheet) lives here at the top of the menu. */}
                 <DropdownMenuItem onSelect={onToggleContactPanel}>
                   <Info className="size-4" strokeWidth={1.75} aria-hidden />
-                  Contact info
+                  Conversation info
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Show</DropdownMenuLabel>

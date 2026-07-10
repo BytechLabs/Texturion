@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import {
   DUE_LABELS,
   TASK_TABS,
+  tabsForView,
   type DueFilter,
   type TaskPageState,
 } from "./task-view-url";
@@ -48,6 +49,9 @@ export function TaskFilterBar({
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
 }) {
+  // #113: only the tabs the active view actually applies (Board/Map organize
+  // by status themselves, so Open/Done are a no-op there — show Mine | All).
+  const visibleTabs = tabsForView(state.view);
   return (
     <div className="space-y-2.5">
       <SearchField state={state} onChange={onChange} />
@@ -56,28 +60,30 @@ export function TaskFilterBar({
         aria-label="Task status"
         className="flex max-w-md rounded-lg bg-app-line-soft p-0.5"
       >
-        {TASK_TABS.map(({ id, label }) => {
-          const selected = state.tab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => onChange({ ...state, tab: id })}
-              className={cn(
-                "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
-                // T6.1: active segment is a QUIET stone pill, never petrol —
-                // petrol is reserved for the page's primary action.
-                selected
-                  ? "bg-app-white text-app-ink"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          );
-        })}
+        {TASK_TABS.filter(({ id }) => visibleTabs.includes(id)).map(
+          ({ id, label }) => {
+            const selected = state.tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => onChange({ ...state, tab: id })}
+                className={cn(
+                  "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
+                  // T6.1: active segment is a QUIET stone pill, never petrol —
+                  // petrol is reserved for the page's primary action.
+                  selected
+                    ? "bg-app-white text-app-ink"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            );
+          },
+        )}
       </div>
       <ChipRow state={state} onChange={onChange} />
     </div>

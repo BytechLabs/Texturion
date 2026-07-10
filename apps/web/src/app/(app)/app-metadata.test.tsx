@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 // assert its static `metadata`, so stub every heavy import; the default
 // component is never rendered here.
 vi.mock("@/components/for-you/landing-gate", () => ({ LandingGate: () => null }));
+vi.mock("@/components/invites/invite-banner", () => ({
+  InviteBanner: () => null,
+}));
 vi.mock("@/components/shell/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => children,
 }));
