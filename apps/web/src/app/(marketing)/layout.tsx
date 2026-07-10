@@ -1,5 +1,6 @@
 import { CountryProvider } from "@/components/marketing/country";
 import { Footer } from "@/components/marketing/footer";
+import { GoogleTagManager } from "@/components/marketing/google-tag-manager";
 import { LedgerStyles } from "@/components/marketing/ledger";
 import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
@@ -49,6 +50,9 @@ export default function MarketingLayout({
       <noscript>
         <style>{`[data-reveal]{opacity:1 !important;transform:none !important;}`}</style>
       </noscript>
+      {/* #124: Google Tag Manager — marketing pages only, gated on
+          NEXT_PUBLIC_GTM_ID (off in dev/CI). Never mounted by the app groups. */}
+      <GoogleTagManager />
       <JsonLd data={organizationJsonLd()} />
       {/* The shared drawn-affordance CSS (.jt-meta, .jt-arrow-link, the
           delivered check): mounted here because ArrowLink and the meta voice

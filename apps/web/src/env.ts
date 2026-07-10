@@ -24,6 +24,14 @@ const publicEnvSchema = z.object({
   // + company UUIDs only, autocapture/recording off (lib/analytics/posthog.ts);
   // unset = analytics silently off.
   NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),
+  // Optional: Google Tag Manager container id (#124), e.g. "GTM-MTL658DD".
+  // When set, the MARKETING layout loads GTM (marketing pages only, never the
+  // app). Unset (dev/CI/previews) = GTM off, so only production feeds the real
+  // container. Format-guarded so a stray value can't silently load a wrong id.
+  NEXT_PUBLIC_GTM_ID: z
+    .string()
+    .regex(/^GTM-[A-Z0-9]+$/)
+    .optional(),
 });
 
 // NEXT_PUBLIC_* variables are inlined at build time, so each one must be
@@ -40,6 +48,7 @@ const parsed = publicEnvSchema.safeParse({
   NEXT_PUBLIC_APP_ORIGIN: process.env.NEXT_PUBLIC_APP_ORIGIN || undefined,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
+  NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID || undefined,
 });
 
 if (!parsed.success) {

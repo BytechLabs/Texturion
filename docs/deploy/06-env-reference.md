@@ -81,7 +81,7 @@ Cloudflare account** — change it if it collides with another Worker's limiter.
 
 ---
 
-## B. Web build-time public vars (`loonext-web`) — 3 required + 2 optional
+## B. Web build-time public vars (`loonext-web`) — 3 required + 3 optional
 
 Inlined at `next build`; the build **fails** if any of the three required ones is
 missing (`apps/web/src/env.ts:3-17,22-38`). They are public (shipped in the
@@ -94,7 +94,16 @@ browser bundle).
 | `NEXT_PUBLIC_API_URL` | no (public) | Operator decision; must equal `API_ORIGIN` | `https://api.loonext.com` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | no (public) | Cloudflare → Turnstile → your widget → **Site key** | `0x4AAAAAAA...` |
 | `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.com` |
+| `NEXT_PUBLIC_GTM_ID` — **OPTIONAL** | no (public) | Google Tag Manager → container → **Container ID** (#124) | `GTM-MTL658DD` |
 
+> `NEXT_PUBLIC_GTM_ID` (`apps/web/src/env.ts`, #124): when set, the MARKETING
+> layout loads Google Tag Manager (marketing pages only — never the app).
+> Unset (dev/CI/previews) = GTM off. COMPLIANCE: an empty GTM container sets no
+> cookies, so /legal/cookies ("no advertising or cross-site tracking cookies,
+> no consent banner") stays accurate at install. The moment a cookie-setting
+> tag (GA4, ads pixels) is added in the GTM UI, update that page and add GTM
+> Consent Mode or a consent banner (GDPR/PIPEDA).
+>
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`apps/web/src/env.ts:10`): when set,
 > signup/login/reset-password render Cloudflare Turnstile and pass the
 > `captchaToken` to Supabase Auth; when unset the pages behave as before. It is
