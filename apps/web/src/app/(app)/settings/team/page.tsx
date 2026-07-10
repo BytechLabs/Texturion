@@ -309,10 +309,12 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
         if (created.email_sent) {
           toast.success(`Invite sent to ${values.email}.`);
         } else {
-          // Existing account → Supabase sent nothing; point the inviter at the
+          // #109: every invite is emailed automatically now (new addresses via
+          // Supabase Auth, existing accounts via a direct email). email_sent is
+          // false only when that send FAILED — point the inviter at the
           // shareable link so the teammate isn't silently stranded.
-          toast.success(
-            `${values.email} already has a Loonext account — use "Copy link" below to send them their invite.`,
+          toast.warning(
+            `The invite is saved, but we couldn't email ${values.email} — use "Copy link" below to send it to them.`,
             { duration: 8000 },
           );
         }

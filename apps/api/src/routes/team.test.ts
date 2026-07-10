@@ -19,6 +19,7 @@ import {
   createTestAuth,
   jwksRoute,
   stubFetch,
+  type FetchRoute,
   type TestAuth,
 } from "../test/support";
 import { teamRoutes } from "./team";
@@ -215,8 +216,27 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(inviteCount.url.searchParams.get("expires_at")).toMatch(/^gt\./);
   });
 
-  it("keeps the invite + reports email_sent:false when the email is already a registered Auth user", async () => {
+  /** Capture route for the direct Resend send (#109 existing-account branch). */
+  function resendCapture(status = 200) {
+    const calls: Record<string, unknown>[] = [];
+    const route: FetchRoute = async (url, request) => {
+      if (url.href !== "https://api.resend.com/emails") return undefined;
+      calls.push((await request.clone().json()) as Record<string, unknown>);
+      return Response.json(
+        status === 200 ? { id: "email_1" } : { message: "smtp down" },
+        { status },
+      );
+    };
+    return { route, calls };
+  }
+
+  it("#109: an already-registered email gets a DIRECT Resend invite (email_sent:true)", async () => {
     const sb = stubWithRole("owner");
+    // The companies responder carries `name` for the email copy; it also serves
+    // the plan read (registered before seatStub's, so it wins).
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "pro", name: "Acme Plumbing" },
+    ]);
     seatStub(sb, "pro", 4, 0);
     sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
     sb.on("POST", "/auth/v1/invite", () =>
@@ -229,7 +249,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
         { status: 422 },
       ),
     );
-    stubFetch(jwksRoute(auth), sb.route);
+    const resend = resendCapture();
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       method: "POST",
@@ -237,9 +258,49 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "admin" },
     });
     expect(res.status).toBe(201);
-    // No email was sent (Supabase 422s an existing account) — the row stands and
-    // the UI prompts the inviter to share the accept link (#99).
+    // GoTrue 422s an existing account and emails NOTHING — the route now sends
+    // the invite itself instead of telling the inviter to hand-deliver a link.
+    expect(await res.json()).toMatchObject({ email_sent: true });
+    expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
+
+    expect(resend.calls).toHaveLength(1);
+    const email = resend.calls[0] as {
+      to: string[];
+      subject: string;
+      text: string;
+      html: string;
+    };
+    expect(email.to).toEqual(["new@crew.example"]);
+    expect(email.subject).toBe(
+      "You've been invited to join Acme Plumbing on Loonext",
+    );
+    // The in-app accept link — the same page the Copy-link button shares.
+    expect(email.text).toContain(`${env.APP_ORIGIN}/invite/${INVITE_ID}`);
+    expect(email.html).toContain(`${env.APP_ORIGIN}/invite/${INVITE_ID}`);
+  });
+
+  it("#109: the direct send failing degrades to email_sent:false — invite kept (Copy link covers it)", async () => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "pro", 4, 0);
+    sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
+    sb.on("POST", "/auth/v1/invite", () =>
+      Response.json(
+        { code: 422, error_code: "email_exists", msg: "already registered" },
+        { status: 422 },
+      ),
+    );
+    const resend = resendCapture(500);
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "new@crew.example", role: "admin" },
+    });
+    expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ email_sent: false });
+    // NO rollback: unlike the new-user failure, the invite stays actionable
+    // via Copy link.
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
   });
 
@@ -290,6 +351,68 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       });
       expect(res.status, JSON.stringify(body)).toBe(422);
     }
+  });
+});
+
+describe("GET /v1/invites/mine (company-exempt, #109)", () => {
+  function mineStub(
+    user: Record<string, unknown>,
+    invites: Record<string, unknown>[],
+  ): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      new RegExp(`^/auth/v1/admin/users/${auth.subject}$`),
+      () => user,
+    );
+    sb.on("GET", "/rest/v1/invites", () => invites);
+    return sb;
+  }
+
+  it("lists the caller's pending invites, matched on the confirmed email, with the company name", async () => {
+    const sb = mineStub(authUser(), [
+      { ...pendingInvite(), companies: { name: "Acme Plumbing" } },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // Company-exempt: no X-Company-Id header.
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites/mine", {
+      companyId: null,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { id: string; company_name: string | null; companies?: unknown }[];
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({
+      id: INVITE_ID,
+      company_id: COMPANY_ID,
+      company_name: "Acme Plumbing",
+    });
+    // The embed is flattened — the raw join artifact never leaks.
+    expect(body.data[0].companies).toBeUndefined();
+
+    // PENDING-only + the caller's email, matched at the DB (citext).
+    const q = sb.find("GET", "/rest/v1/invites")[0].url.searchParams;
+    expect(q.get("email")).toBe("eq.new@crew.example");
+    expect(q.get("accepted_at")).toBe("is.null");
+    expect(q.get("revoked_at")).toBe("is.null");
+    expect(q.get("expires_at")).toMatch(/^gt\./);
+    expect(q.get("select")).toContain("companies(name)");
+  });
+
+  it("an UNCONFIRMED email matches nothing — no invites query at all", async () => {
+    const sb = mineStub(authUser({ email_confirmed_at: null }), [
+      { ...pendingInvite(), companies: { name: "Acme Plumbing" } },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites/mine", {
+      companyId: null,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: [] });
+    expect(sb.find("GET", "/rest/v1/invites")).toHaveLength(0);
   });
 });
 

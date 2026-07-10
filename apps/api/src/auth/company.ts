@@ -21,6 +21,9 @@ const COMPANY_EXEMPT_ROUTES = new Set([
   "GET /v1/me",
   "POST /v1/companies",
   "POST /v1/invites/accept",
+  // #109: the caller's own pending invites, matched on their confirmed email —
+  // by definition they may not be a member of the inviting company yet.
+  "GET /v1/invites/mine",
   // The number picker feed: the US onboarding number step runs before the
   // company row exists, so it can't carry X-Company-Id. Read-only, public
   // Telnyx inventory only (routes/available-numbers.ts).

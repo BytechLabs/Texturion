@@ -9,12 +9,19 @@
  *   GET    /v1/invites         O/A — list.
  *   POST   /v1/invites         O/A — { email, role }; SEAT FORMULA enforced
  *          here AND at acceptance: active members (deactivated_at IS NULL) +
- *          pending unexpired invites ≤ plan seats, else 409; sends the
- *          Supabase Auth admin invite email (Resend SMTP) with the invite id
- *          in the redirect. Returns `email_sent` — false when the address
- *          already has an account (Supabase emails nothing), so the UI can
- *          prompt the inviter to share the accept link instead.
+ *          pending unexpired invites ≤ plan seats, else 409. New addresses get
+ *          the Supabase Auth admin invite email (Resend SMTP) with the invite
+ *          id in the redirect; an address that ALREADY has an account gets a
+ *          direct Resend email carrying the in-app accept link instead (#109 —
+ *          Supabase emails nothing for existing users, and asking the inviter
+ *          to hand-deliver a link was awful). `email_sent` is false only when
+ *          the fallback send itself failed — the UI then offers Copy link.
  *   DELETE /v1/invites/:id     O/A — revoke.
+ *   GET    /v1/invites/mine    any (company-exempt) — the caller's own PENDING
+ *          invites matched on their CONFIRMED email (citext, case-insensitive),
+ *          each carrying the inviting company's name (#109) — powers the
+ *          in-app "you've been invited — Join" banner. An unconfirmed email
+ *          matches nothing (never act on an unverified address).
  *   POST   /v1/invites/accept  any (company-exempt) — { invite_id }; the
  *          JWT's verified email must equal invites.email; seat re-check with
  *          the same formula; creates the membership AND a notification_prefs
@@ -26,7 +33,9 @@ import { z } from "zod";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { emailLayout, escapeHtml } from "../email/html";
+import { sendEmail } from "../email/resend";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { seatLimit } from "./core/plans";
@@ -269,10 +278,6 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
     redirectTo: `${env.APP_ORIGIN}/invites/accept?invite_id=${invite.id as string}`,
   });
   if (error) {
-    // Existing Auth users can't be re-invited via this endpoint — Supabase sends
-    // them NOTHING. The invite row still stands; `email_sent: false` tells the
-    // inviter to share the accept link so the teammate can accept in-app after
-    // logging in (there is no other way for an existing account to discover it).
     const alreadyRegistered =
       error.code === "email_exists" || error.status === 422;
     if (!alreadyRegistered) {
@@ -284,11 +289,70 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
       );
       throw new Error(`invite email failed: ${error.message}`);
     }
-    emailSent = false;
+    // #109: the address already has a Loonext account — GoTrue's
+    // inviteUserByEmail refuses those and emails NOTHING. Send the invite
+    // ourselves over Resend with the in-app accept link (the same /invite/:id
+    // page the Copy-link button shares), so the inviter never has to
+    // hand-deliver it. Only a failure of THIS send degrades to
+    // email_sent:false — the invite row stands either way, so Copy link
+    // always remains the fallback.
+    emailSent = await sendExistingAccountInvite(db, env, {
+      email: body.email,
+      inviteId: invite.id as string,
+      companyId,
+    });
   }
 
   return c.json({ ...invite, email_sent: emailSent }, 201);
 });
+
+/**
+ * #109: the direct invite email for an address that already has a Loonext
+ * account. Plain-language copy + the in-app accept link; returns whether it
+ * landed. A failure is NOT fatal — the invite row stands and the UI offers
+ * the Copy-link fallback, so the seat is never held silently.
+ */
+async function sendExistingAccountInvite(
+  db: Db,
+  env: Env,
+  args: { email: string; inviteId: string; companyId: string },
+): Promise<boolean> {
+  try {
+    const rows = unwrap<{ name: string | null }[]>(
+      await db
+        .from("companies")
+        .select("name")
+        .eq("id", args.companyId)
+        .limit(1),
+      "company name lookup",
+    );
+    const company = rows[0]?.name?.trim() || "a Loonext workspace";
+    const link = `${env.APP_ORIGIN}/invite/${args.inviteId}`;
+    const text =
+      `You've been invited to join ${company} on Loonext.\n\n` +
+      `You already have a Loonext account — log in and accept here:\n` +
+      `${link}\n\n` +
+      `This invite expires in 7 days.\n`;
+    await sendEmail(env, {
+      to: [args.email],
+      subject: `You've been invited to join ${company} on Loonext`,
+      text,
+      html: emailLayout(
+        `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>` +
+          `<p>You already have a Loonext account — log in and accept here:</p>` +
+          `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Accept the invite</a></p>` +
+          `<p style="font-size:14px;color:#7a828c;">This invite expires in 7 days.</p>`,
+      ),
+    });
+    return true;
+  } catch (cause) {
+    // Never-silent (D3), but non-fatal: the invite stands, Copy link covers it.
+    console.error(
+      `existing-account invite email failed (${args.inviteId}): ${String(cause)}`,
+    );
+    return false;
+  }
+}
 
 teamRoutes.delete("/invites/:id", requireRole("admin"), async (c) => {
   const id = pathUuid(c, "id");
@@ -308,6 +372,54 @@ teamRoutes.delete("/invites/:id", requireRole("admin"), async (c) => {
     return errorResponse(c, "not_found", "No pending invite to revoke.");
   }
   return c.body(null, 204);
+});
+
+// Company-exempt (SPEC §7): the invitee may not be a member of any company yet.
+// #109: the caller's own PENDING invites, matched on their CONFIRMED email —
+// the self-serve discovery path for existing accounts (the "you've been
+// invited — Join" banner). Each row carries the inviting company's name so the
+// banner can say who's asking.
+teamRoutes.get("/invites/mine", async (c) => {
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+
+  // The JWT carries only `sub`; the authoritative email + confirmation state
+  // come from the Auth admin API (same rule as the accept route). An
+  // unconfirmed email matches NOTHING — never surface invites for an address
+  // the caller hasn't proven they own.
+  const { data: userData, error: userError } =
+    await db.auth.admin.getUserById(userId);
+  if (userError || !userData?.user) {
+    throw new Error(
+      `auth user lookup failed: ${userError?.message ?? "no user"}`,
+    );
+  }
+  const user = userData.user;
+  if (!user.email || !user.email_confirmed_at) {
+    return c.json({ data: [] });
+  }
+
+  interface MyInviteRow {
+    companies: { name: string | null } | null;
+    [key: string]: unknown;
+  }
+  // invites.email is citext → the eq match is case-insensitive at the DB.
+  const rows = unwrap<MyInviteRow[]>(
+    await db
+      .from("invites")
+      .select(`${INVITE_COLUMNS},companies(name)`)
+      .eq("email", user.email)
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false }),
+    "my invites",
+  );
+  const data = rows.map(({ companies, ...invite }) => ({
+    ...invite,
+    company_name: companies?.name ?? null,
+  }));
+  return c.json({ data });
 });
 
 // Company-exempt (SPEC §7): the caller is not yet a member.

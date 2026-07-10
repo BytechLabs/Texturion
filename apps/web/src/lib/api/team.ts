@@ -13,6 +13,7 @@ import type {
   CreatedInvite,
   Invite,
   Member,
+  MyInvite,
   Page,
 } from "./types";
 
@@ -138,6 +139,20 @@ export function useRevokeInvite() {
 }
 
 /**
+ * GET /v1/invites/mine — company-exempt (#109): the caller's own PENDING
+ * invites across all companies, matched server-side on their confirmed email.
+ * Powers the in-app "you've been invited — Join" banner.
+ */
+export function useMyInvites() {
+  return useQuery({
+    queryKey: keys.myInvites,
+    queryFn: () => apiFetch<{ data: MyInvite[] }>("/v1/invites/mine"),
+    // The banner is ambient — a gentle refetch cadence, no realtime needed.
+    staleTime: 60_000,
+  });
+}
+
+/**
  * POST /v1/invites/accept — company-exempt (the caller is not a member yet).
  * Used by /invite/[token]; the caller refreshes /v1/me and activates the new
  * company on success.
@@ -155,6 +170,8 @@ export function useAcceptInvite() {
     mutationFn: acceptInvite,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: keys.me });
+      // #109: the banner's pending set changed too.
+      queryClient.invalidateQueries({ queryKey: keys.myInvites });
     },
   });
 }

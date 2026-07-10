@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LandingGate } from "@/components/for-you/landing-gate";
+import { InviteBanner } from "@/components/invites/invite-banner";
 import { AppShell } from "@/components/shell/app-shell";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
@@ -50,6 +51,9 @@ export default function AppLayout({
             className={`${golosText.variable} app-scope font-sans h-svh`}
           >
             <AppShell>{children}</AppShell>
+            {/* #109: ambient "you've been invited — Join" card (fixed, no
+                layout shift; renders nothing when there's no pending invite). */}
+            <InviteBanner />
           </div>
         </RealtimeProvider>
       </CompanyProvider>

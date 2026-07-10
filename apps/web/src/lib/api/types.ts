@@ -633,12 +633,23 @@ export interface Invite {
 }
 
 /**
- * POST /v1/invites response — the invite row plus whether Supabase actually
- * emailed it. `email_sent` is false when the address already has an account
- * (no email is sent); the inviter shares the accept link instead.
+ * POST /v1/invites response — the invite row plus whether the invite email
+ * went out. New addresses get the Supabase Auth invite email; an address that
+ * already has an account gets a direct email with the in-app accept link
+ * (#109). `email_sent` is false only when that send failed — the inviter
+ * falls back to Copy link.
  */
 export interface CreatedInvite extends Invite {
   email_sent: boolean;
+}
+
+/**
+ * GET /v1/invites/mine row (#109) — one of the caller's own pending invites
+ * (matched server-side on their confirmed email), carrying the inviting
+ * company's name for the "you've been invited — Join" banner.
+ */
+export interface MyInvite extends Invite {
+  company_name: string | null;
 }
 
 /** POST /v1/invites/accept response (member row + company_id). */
