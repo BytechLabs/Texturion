@@ -96,10 +96,13 @@ describe("enabledModules", () => {
 });
 
 describe("sellable modules (#41)", () => {
-  it("regions_ca is catalog-listed but not sellable until multi-region ships", () => {
-    expect(SELLABLE_MODULES).toEqual(["mms", "voice", "extra_storage"]);
+  it("regions_ca and mms are catalog-listed but not sellable", () => {
+    expect(SELLABLE_MODULES).toEqual(["voice", "extra_storage"]);
     expect(isSellableModule("regions_ca")).toBe(false);
-    expect(isSellableModule("mms")).toBe(true);
+    // #97: mms is retired — picture messages are free + fair-use metered, so
+    // the add-on is no longer sold (existing subscribers migrate in phase 2).
+    expect(isSellableModule("mms")).toBe(false);
+    expect(isSellableModule("voice")).toBe(true);
   });
 });
 

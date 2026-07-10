@@ -8,8 +8,6 @@ import {
   Send as SendIcon,
   X,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -29,7 +27,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
-import { useModules } from "@/lib/api/billing";
 import { useCreateNote } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
@@ -40,15 +37,6 @@ import {
 } from "@/lib/attachments/validate";
 import { cn } from "@/lib/utils";
 
-import {
-  droppedPhotoNotice,
-  MMS_DROP_ACTION_LABEL,
-  MMS_GATE_ACTION_LABEL,
-  MMS_GATE_MESSAGE,
-  MMS_SETTINGS_PATH,
-  mmsAttachGated,
-  photosDropped,
-} from "./mms-gate";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { TemplatePicker } from "./template-picker";
 
@@ -184,52 +172,6 @@ export function useAutoGrow(value: string) {
 }
 
 /**
- * #62 — the Picture-messages add-on gate, shared by BOTH composers (in-thread
- * and /inbox/new) so the attach affordance behaves identically everywhere:
- * module off → the photo button stays visible but explains itself (one toast
- * pointing at Settings › Billing, mirroring the missed-calls page's voice
- * gate) and staging is blocked — no dead-end 409 after the draft is written.
- * While the module list loads, the affordance stays live (the API is the
- * backstop), so companies WITH the add-on never see it flicker.
- */
-export function useMmsGate() {
-  const modules = useModules();
-  const router = useRouter();
-  const gated = mmsAttachGated(modules.data?.modules);
-  const explain = useCallback(() => {
-    toast(MMS_GATE_MESSAGE, {
-      action: {
-        label: MMS_GATE_ACTION_LABEL,
-        onClick: () => router.push(MMS_SETTINGS_PATH),
-      },
-    });
-  }, [router]);
-  return { gated, explain };
-}
-
-/**
- * #23 — honest cap-and-drop feedback, shared by both send paths: the API
- * strips over-cap photos and answers 2xx, so when a send that carried media
- * comes back without attachments, say so out loud with a route to the fix.
- * Long duration: this is the only recovery signal for a quiet data loss.
- */
-export function useDroppedPhotoNotice() {
-  const router = useRouter();
-  return useCallback(
-    (count: number) => {
-      toast.error(droppedPhotoNotice(count), {
-        action: {
-          label: MMS_DROP_ACTION_LABEL,
-          onClick: () => router.push(MMS_SETTINGS_PATH),
-        },
-        duration: 10_000,
-      });
-    },
-    [router],
-  );
-}
-
-/**
  * The APP-LAYOUT-V2 §3 composer: a Google-Messages pill. Left → right, a single
  * fully-rounded pill (1px stone-200): a far-left `+` overflow (attach / template
  * — inline toolbar on desktop, action sheet on mobile), an auto-grow field
@@ -267,11 +209,6 @@ export function Composer({
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const noteStage = useStagedFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const mms = useMmsGate();
-  const notifyDroppedPhotos = useDroppedPhotoNotice();
-  // #23 — photos the LAST send cap-and-dropped (0 = no notice). Feeds the
-  // inline line above the pill; cleared by the next send or its dismiss X.
-  const [droppedCount, setDroppedCount] = useState(0);
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
@@ -365,7 +302,6 @@ export function Composer({
     // Clear immediately (fast by feel, G1); restore on failure.
     setText("");
     setAttachments([]);
-    setDroppedCount(0);
     let media: OutboundMedia[] | undefined;
     try {
       if (draftAttachments.length > 0) {
@@ -385,15 +321,8 @@ export function Composer({
     send.mutate(
       { body: draftText, media },
       {
-        onSuccess: (message) => {
+        onSuccess: () => {
           for (const a of draftAttachments) URL.revokeObjectURL(a.previewUrl);
-          // #23: a 2xx that carried media OUT but none BACK means the API
-          // cap-and-dropped the photos — the text went, the pictures didn't.
-          // Say so (toast + inline line) instead of faking a full success.
-          if (photosDropped(draftAttachments.length, message)) {
-            setDroppedCount(draftAttachments.length);
-            notifyDroppedPhotos(draftAttachments.length);
-          }
           textareaRef.current?.focus();
         },
         onError: (error) => {
@@ -417,7 +346,6 @@ export function Composer({
     createNote,
     noteStage,
     uploadNoteFiles,
-    notifyDroppedPhotos,
   ]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -449,17 +377,11 @@ export function Composer({
   };
 
   // D28 file intake for drops + pastes — validated per the ACTIVE mode's
-  // rules (text: MMS 3×1 MB images; note: D19 10×25 MB allow-list). Text-mode
-  // intake is #62-gated: without the Picture messages add-on nothing stages —
-  // the pointer toast explains instead of a post-send 409 dead end. Notes are
-  // untouched (their files ride storage, not MMS).
+  // rules (text: MMS 3×1 MB images; note: D19 10×25 MB allow-list). Notes stage
+  // their files to storage; text mode stages photos as MMS (#97: ungated).
   const admitIncoming = (files: FileList) => {
     if (isNote) {
       noteStage.admit(files);
-      return;
-    }
-    if (mms.gated) {
-      mms.explain();
       return;
     }
     setAttachments((cur) => admitFiles(cur, files));
@@ -512,33 +434,6 @@ export function Composer({
           ))}
         </div>
       )}
-      {!isNote && droppedCount > 0 && (
-        // #23 inline honest-state line: sits where the sent bubble just
-        // appeared without its thumbnail, and outlives the toast. One amber
-        // sentence + the route to the fix; dismissable, cleared by next send.
-        <div
-          role="status"
-          className="mx-auto mb-2 flex max-w-[42rem] items-start justify-between gap-2 rounded-md border border-app-amber-line bg-app-amber-bg px-3 py-2 text-xs text-app-amber-ink"
-        >
-          <p>
-            {droppedPhotoNotice(droppedCount)}{" "}
-            <Link
-              href={MMS_SETTINGS_PATH}
-              className="font-medium underline underline-offset-2"
-            >
-              Plan add-ons
-            </Link>
-          </p>
-          <button
-            type="button"
-            onClick={() => setDroppedCount(0)}
-            aria-label="Dismiss"
-            className="rounded-full p-0.5 hover:bg-app-amber-line/40"
-          >
-            <X className="size-3.5" strokeWidth={1.75} />
-          </button>
-        </div>
-      )}
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}
@@ -574,18 +469,14 @@ export function Composer({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Attach a photo"
-                    onClick={mms.gated ? mms.explain : openFilePicker}
+                    onClick={openFilePicker}
                     disabled={attachDisabled}
                     className="rounded-full text-muted-foreground"
                   >
                     <ImagePlus className="size-5" strokeWidth={1.75} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {mms.gated
-                    ? "Picture messages is an add-on. Turn it on in Settings › Billing"
-                    : "Attach up to 3 photos"}
-                </TooltipContent>
+                <TooltipContent>Attach up to 3 photos</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -620,7 +511,7 @@ export function Composer({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-44">
                   <DropdownMenuItem
-                    onSelect={mms.gated ? mms.explain : openFilePicker}
+                    onSelect={openFilePicker}
                     disabled={attachDisabled}
                   >
                     <ImagePlus className="size-4" strokeWidth={1.75} aria-hidden />

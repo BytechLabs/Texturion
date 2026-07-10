@@ -27,7 +27,6 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -40,7 +39,6 @@ import {
 } from "../messaging/media";
 import { applySendMergeFields } from "../messaging/merge";
 import {
-  companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
   persistSendInterruption,
@@ -74,9 +72,9 @@ const composeSchema = z
     // the field is accepted for back-compat but no longer gates the send.
     consent_attested: z.literal(true).optional(),
     quiet_hours_confirmed: z.boolean().optional(),
-    // #12 outbound MMS: same shape/limits as POST /v1/messages/send — ≤3
-    // jpeg/png/gif items, ≤1 MB each (decoded + byte-checked server-side). The
-    // send is gated on the opt-in "mms" module below (cost-protection).
+    // #97 outbound MMS: same shape/limits as POST /v1/messages/send — ≤3
+    // jpeg/png/gif items, ≤1 MB each (decoded + byte-checked server-side).
+    // Ungated (fair-use metered as segments, see the send below).
     media: z.array(mediaItemSchema).min(1).max(3).optional(),
   })
   .refine(
@@ -297,7 +295,7 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   const userId = c.get("userId");
   const idempotencyKey = requireIdempotencyKey(c);
   const body = await parseJsonBody(c, composeSchema);
-  let media = body.media ? decodeOutboundMedia(body.media) : [];
+  const media = body.media ? decodeOutboundMedia(body.media) : [];
   const db = getDb(env);
 
   // Idempotent replay (§7): the same key returns the existing conversation
@@ -388,28 +386,11 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   // §7 gate order: subscription → destination → registration.
   await runPreSendGates(env, companyId, destination);
 
-  // #12 plan builder: sending pictures is the opt-in "Picture messages" add-on
-  // (mirrors POST /v1/messages/send). A company that opted out gets a clear
-  // upgrade prompt instead of a silent Telnyx MMS charge — this gate is
-  // MANDATORY (cost-protection) and runs BEFORE any contact/conversation row is
-  // created, so a blocked picture compose leaves nothing behind. Text-only
-  // composes never consult it. (Incoming pictures are always free.)
-  if (media.length > 0 && !(await isModuleEnabled(db, companyId, "mms"))) {
-    throw new ApiError(
-      "conflict",
-      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
-    );
-  }
-
-  // #12 MMS cap-and-drop, pre-checked at the route: over the plan's included
-  // pictures this period the PHOTO is dropped here — before the estimate, the
-  // upload, and the attachment rows — so the send degrades to text-only
-  // everywhere (meter, segments, thread) while the customer's message still
-  // goes out. Cap the cost, never the text. dispatchOutbound keeps a TOCTOU
-  // backstop.
-  if (media.length > 0 && (await companyOverMmsCap(db, companyId))) {
-    media = [];
-  }
+  // #97: picture messages are ungated — every US-texting company can send them.
+  // Each MMS meters as 3 segments (MMS_SEGMENTS, below) through gateOutboundSend,
+  // so it counts against the plan's segment allowance + the #85 fair-use overage
+  // exactly like text. No paid module, no separate MMS cap. (Incoming pictures
+  // are always free.)
 
   // Quiet hours (soft, §5): 8pm–8am destination local time needs an explicit
   // confirmation; unknown local time (non-geographic code) skips the check.

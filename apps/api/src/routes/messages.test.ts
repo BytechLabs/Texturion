@@ -109,17 +109,15 @@ interface SendStubs {
   attachmentInsert: Stub;
   sign: Stub;
   companyPlan: Stub;
-  mmsCount: Stub;
   all: FetchRoute[];
 }
 
 function sendStubs(options: {
   view?: ReturnType<typeof sendView>;
   gate?: (call: { body: unknown }) => unknown;
-  /** #12: whether the Picture messages (mms) module is enabled (default true). */
+  /** #97: the (retired) mms module's enablement. The send no longer reads it;
+   *  tests set false to prove picture sends are ungated regardless. */
   mmsEnabled?: boolean;
-  /** #12: outbound MMS already sent this period (cap pre-check; default 0). */
-  mmsUsed?: number;
 } = {}): SendStubs {
   const view = options.view ?? sendView();
   const conversationView = stubRoute(
@@ -175,25 +173,16 @@ function sendStubs(options: {
   const sign = stubRoute(storageSignMatch(env), (call) => ({
     signedURL: `${call.url.pathname.replace("/storage/v1", "")}?token=test-token`,
   }));
-  // #12 plan builder: the mms-module gate on picture sends. Enabled by default
-  // (grandfathered posture) so text + MMS tests pass; a test opts out to assert
-  // the block.
+  // #97: the mms module list is no longer consulted on the send path; the stub
+  // stays so `mmsEnabled: false` tests exercise a "module off" world and prove
+  // picture sends still go through.
   const modulesLookup = stubRoute(
     restMatch(env, "GET", "company_modules"),
     () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
   );
-  // #12 MMS cap-and-drop reads made by companyOverMmsCap when a send carries
-  // media — at the route pre-check AND again at dispatchOutbound's backstop
-  // (stubs answer every match, so the double read is fine): the company's plan
-  // + period, then the period MMS count. Default count 0 → under cap, so media
-  // is forwarded untouched.
   const companyPlan = stubRoute(restMatch(env, "GET", "companies"), () => [
     { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
   ]);
-  const mmsCount = stubRoute(
-    rpcMatch(env, "api_period_outbound_mms"),
-    () => options.mmsUsed ?? 0,
-  );
 
   return {
     conversationView,
@@ -205,7 +194,6 @@ function sendStubs(options: {
     attachmentInsert,
     sign,
     companyPlan,
-    mmsCount,
     all: [
       jwksRoute(auth),
       companyMembersRoute(env, [
@@ -221,7 +209,6 @@ function sendStubs(options: {
       sign.route,
       modulesLookup.route,
       companyPlan.route,
-      mmsCount.route,
     ],
   };
 }
@@ -708,7 +695,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
     expect(stubs.telnyx.calls).toHaveLength(0);
   });
 
-  it("without the Picture messages add-on, a media send is a 409 (#12)", async () => {
+  it("#97: a media send goes out even with the old add-on off (ungated)", async () => {
     const stubs = sendStubs({ mmsEnabled: false });
     stubFetch(...stubs.all);
 
@@ -717,69 +704,31 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
       body: "photo attached",
       media: [{ content_type: "image/jpeg", base64: PIXEL }],
     });
-    expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
-    // Blocked before any upload or Telnyx send — no cost incurred.
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.telnyx.calls).toHaveLength(0);
-  });
-
-  it("at the MMS cap the photo is dropped and the text still sends (#12)", async () => {
-    const stubs = sendStubs({ mmsUsed: 150 }); // the starter plan's full allowance
-    stubFetch(...stubs.all);
-
-    const response = await postSend({
-      conversation_id: CONVERSATION_ID,
-      body: "photo attached",
-      media: [{ content_type: "image/jpeg", base64: PIXEL }],
-    });
-    // Cap-and-drop the PHOTO, keep the TEXT: the send still succeeds.
+    // Picture messages are ungated — the module state is irrelevant; the photo
+    // uploads and sends, metered as 3 segments like any MMS.
     expect(response.status).toBe(201);
-
-    // Dropped at the route pre-check: text segment estimate, no upload, no
-    // attachment rows — the meter can't over-count a text-only send.
-    expect(stubs.mmsCount.calls.length).toBeGreaterThanOrEqual(1);
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({
-      p_segments_estimate: 1,
-    });
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.attachmentInsert.calls).toHaveLength(0);
-
-    // Telnyx got the text with no media_urls.
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_segments_estimate: 3 });
+    expect(stubs.upload.calls).toHaveLength(1);
     expect(stubs.telnyx.calls).toHaveLength(1);
-    expect(
-      (stubs.telnyx.calls[0].body as { media_urls?: unknown }).media_urls,
-    ).toBeUndefined();
-
-    const body = (await response.json()) as { attachments: unknown[] };
-    expect(body.attachments).toEqual([]);
   });
 
-  it("at the MMS cap a media-only send is a clear 409 with nothing written (#12)", async () => {
-    const stubs = sendStubs({ mmsUsed: 150 }); // the starter plan's full allowance
+  it("#97: a media-only send (no body) goes out ungated", async () => {
+    const stubs = sendStubs();
     stubFetch(...stubs.all);
 
     const response = await postSend({
       conversation_id: CONVERSATION_ID,
       media: [{ content_type: "image/jpeg", base64: PIXEL }],
     });
-    // No text to degrade to — refuse with the cap message, never a generic 422.
-    expect(response.status).toBe(409);
-    const payload = (await response.json()) as {
-      error: { code: string; message: string };
-    };
-    expect(payload.error.code).toBe("conflict");
-    expect(payload.error.message).toContain("billing period");
-
-    // Blocked at the pre-check — no message row, no upload, no attachment
-    // rows, no Telnyx call.
-    expect(stubs.gateRpc.calls).toHaveLength(0);
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.attachmentInsert.calls).toHaveLength(0);
-    expect(stubs.telnyx.calls).toHaveLength(0);
+    // Photo-only is a valid send and no longer capped — it uploads and sends,
+    // metered as 3 segments.
+    expect(response.status).toBe(201);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_segments_estimate: 3 });
+    expect(stubs.upload.calls).toHaveLength(1);
+    expect(stubs.telnyx.calls).toHaveLength(1);
   });
 
-  it("a text-only send never consults the module gate (#12)", async () => {
+  it("a text-only send is unaffected (#97)", async () => {
     const stubs = sendStubs({ mmsEnabled: false });
     stubFetch(...stubs.all);
 
@@ -985,7 +934,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
-  it("a picture retry without the Picture messages add-on is a 409 (#12)", async () => {
+  it("#97: a picture retry goes through even with the old add-on off", async () => {
     const stubs = retryStubs(
       { status: "failed", telnyx_message_id: null, error_detail: "boom" },
       { withAttachment: true, mmsEnabled: false },
@@ -993,10 +942,10 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     stubFetch(...stubs.all);
 
     const response = await postRetry();
-    expect(response.status).toBe(409);
-    // Blocked before the claim + Telnyx — no requeue, no re-send, no MMS charge.
-    expect(stubs.claim.calls).toHaveLength(0);
-    expect(stubs.base.telnyx.calls).toHaveLength(0);
+    // Ungated — the stored photo re-sends: the atomic claim + Telnyx both run.
+    expect(response.status).toBe(200);
+    expect(stubs.claim.calls).toHaveLength(1);
+    expect(stubs.base.telnyx.calls).toHaveLength(1);
   });
 
   it("409s a failed row that already has a carrier id (40300-style)", async () => {

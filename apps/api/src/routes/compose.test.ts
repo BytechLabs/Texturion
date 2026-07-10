@@ -126,7 +126,6 @@ interface ComposeStubs {
   telnyx: Stub;
   persist: Stub;
   modulesLookup: Stub;
-  mmsCount: Stub;
   attachmentsLookup: Stub;
   upload: Stub;
   attachmentInsert: Stub;
@@ -142,10 +141,9 @@ function composeStubs(options: {
   gateError?: string;
   /** #48: the conversation DELETE (reap) answers with this response. */
   deleteResponse?: () => Response | unknown;
-  /** #12: whether the Picture messages (mms) module is enabled (default true). */
+  /** #97: the (retired) mms module's enablement. The compose no longer reads it;
+   *  tests set false to prove picture composes are ungated regardless. */
   mmsEnabled?: boolean;
-  /** #12: outbound MMS already sent this period (cap pre-check; default 0). */
-  mmsUsed?: number;
   /** Rows the message_attachments lookup returns (replay path). */
   attachments?: {
     id: string;
@@ -163,8 +161,7 @@ function composeStubs(options: {
   const numberLookup = stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
     { id: NUMBER_ID, number_e164: "+16135550100", status: "active" },
   ]);
-  // One GET-companies stub serves both readers: the route (id/name for merge
-  // fields) and companyOverMmsCap (plan/current_period_start for the cap).
+  // GET companies — the route reads the company id/name for merge fields.
   const companyLookup = stubRoute(restMatch(env, "GET", "companies"), () => [
     {
       id: COMPANY_ID,
@@ -231,19 +228,12 @@ function composeStubs(options: {
       ...(call.body as Partial<MessageRow>),
     }),
   ]);
-  // #12 plan builder: the mms-module gate on picture composes. Enabled by
-  // default (grandfathered posture) so text + MMS tests pass; a test opts out
-  // to assert the 409 block.
+  // #97: the mms module list is no longer consulted on the compose path; the
+  // stub stays so `mmsEnabled: false` tests exercise a "module off" world and
+  // prove picture composes still go through.
   const modulesLookup = stubRoute(
     restMatch(env, "GET", "company_modules"),
     () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
-  );
-  // #12 cap-and-drop: the period MMS count companyOverMmsCap reads — at the
-  // route pre-check AND again at dispatchOutbound's backstop (stubs answer
-  // every match, so the double read is fine). Default 0 → under cap.
-  const mmsCount = stubRoute(
-    rpcMatch(env, "api_period_outbound_mms"),
-    () => options.mmsUsed ?? 0,
   );
   const attachmentsLookup = stubRoute(
     restMatch(env, "GET", "message_attachments"),
@@ -280,7 +270,6 @@ function composeStubs(options: {
     telnyx,
     persist,
     modulesLookup,
-    mmsCount,
     attachmentsLookup,
     upload,
     attachmentInsert,
@@ -305,7 +294,6 @@ function composeStubs(options: {
       telnyx.route,
       persist.route,
       modulesLookup.route,
-      mmsCount.route,
       attachmentsLookup.route,
       upload.route,
       attachmentInsert.route,
@@ -712,28 +700,10 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
     expect(body.message.attachments).toHaveLength(1);
   });
 
-  it("without the Picture messages add-on, a media compose is a 409 (#12)", async () => {
-    const stubs = composeStubs({ mmsEnabled: false });
-    stubFetch(...stubs.all);
-
-    const response = await postCompose({
-      ...VALID_BODY,
-      body: "photo attached",
-      media: [{ content_type: "image/jpeg", base64: PIXEL }],
-    });
-    expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
-    // Cost-protection: gated before any row, upload, or Telnyx send — nothing
-    // left behind, no MMS charge incurred.
-    expect(stubs.conversationInsert.calls).toHaveLength(0);
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.telnyx.calls).toHaveLength(0);
-  });
-
-  it("at the MMS cap the photo is dropped and the text still sends (#12)", async () => {
+  it("#97: a media compose sends even with the old add-on off (ungated)", async () => {
     const stubs = composeStubs({
       existingContact: contactRow({ consent_source: "attested" }),
-      mmsUsed: 150, // the starter plan's full included allowance
+      mmsEnabled: false,
     });
     stubFetch(...stubs.all);
 
@@ -742,28 +712,18 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
       body: "photo attached",
       media: [{ content_type: "image/jpeg", base64: PIXEL }],
     });
-    // Cap-and-drop the PHOTO, keep the TEXT: the compose still succeeds.
+    // Picture messages are ungated — the module state is irrelevant. The photo
+    // uploads and sends, metered as 3 segments like any MMS.
     expect(response.status).toBe(201);
-
-    // Dropped at the route pre-check: text segment estimate, no upload, no
-    // attachment rows — the meter can't over-count a text-only send.
-    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_segments_estimate: 1 });
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.attachmentInsert.calls).toHaveLength(0);
-
-    // Telnyx got the text with no media_urls.
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_segments_estimate: 3 });
+    expect(stubs.upload.calls).toHaveLength(1);
     expect(stubs.telnyx.calls).toHaveLength(1);
     expect(
-      (stubs.telnyx.calls[0].body as { media_urls?: unknown }).media_urls,
-    ).toBeUndefined();
-
-    const body = (await response.json()) as {
-      message: { attachments: unknown[] };
-    };
-    expect(body.message.attachments).toEqual([]);
+      (stubs.telnyx.calls[0].body as { media_urls?: unknown[] }).media_urls,
+    ).toHaveLength(1);
   });
 
-  it("a text-only compose never consults the module gate (#12)", async () => {
+  it("a text-only compose is unaffected (#97)", async () => {
     const stubs = composeStubs({ mmsEnabled: false });
     stubFetch(...stubs.all);
 

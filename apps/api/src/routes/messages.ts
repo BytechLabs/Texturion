@@ -39,7 +39,6 @@ import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -55,7 +54,6 @@ import {
 import { applySendMergeFields } from "../messaging/merge";
 import {
   claimMessageRetry,
-  companyOverMmsCap,
   dispatchOutbound,
   gateOutboundSend,
   persistSendInterruption,
@@ -233,7 +231,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const idempotencyKey = requireIdempotencyKey(c);
   const body = await parseJsonBody(c, sendSchema);
-  let media = body.media ? decodeOutboundMedia(body.media) : [];
+  const media = body.media ? decodeOutboundMedia(body.media) : [];
 
   const db = getDb(env);
   const view = await loadSendView(db, companyId, body.conversation_id);
@@ -242,36 +240,10 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   // §7 gate order: subscription → destination US/CA → registration.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
 
-  // #12 plan builder: sending pictures is the opt-in "Picture messages" add-on.
-  // Grandfathered companies already have it; one that opted out gets a clear
-  // upgrade prompt instead of a silent Telnyx MMS charge. Text-only sends are
-  // unaffected. (Incoming pictures are always free — this gate is outbound-only.)
-  if (media.length > 0 && !(await isModuleEnabled(db, companyId, "mms"))) {
-    throw new ApiError(
-      "conflict",
-      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
-    );
-  }
-
-  // #12 MMS cap-and-drop, pre-checked at the route: over the plan's included
-  // pictures this period the PHOTO is dropped here — before the estimate, the
-  // upload, and the attachment rows — so the send degrades to text-only
-  // everywhere (meter, segments, thread) while the customer's message still
-  // goes out. Cap the cost, never the text. dispatchOutbound keeps a TOCTOU
-  // backstop.
-  if (media.length > 0 && (await companyOverMmsCap(db, companyId))) {
-    // Media-only send: with the photo dropped there is no text to degrade to,
-    // and the empty body would die downstream as a generic 422. Refuse clearly
-    // instead (409, matching the add-on gate above) — nothing is written
-    // before this point.
-    if (body.body.trim().length === 0) {
-      throw new ApiError(
-        "conflict",
-        "All included picture messages for this billing period have been used — the photo can't be sent until the period resets, or add words to send it as a text.",
-      );
-    }
-    media = [];
-  }
+  // #97: picture messages are ungated — MMS meters as 3 segments (MMS_SEGMENTS,
+  // below) through gateOutboundSend, counting against the plan allowance + the
+  // #85 fair-use overage exactly like text. No paid module, no separate MMS cap.
+  // (Incoming pictures are always free — this path is outbound-only.)
 
   // Step 0a merge-fields: applied server-side at SEND time to the composed body
   // (and to any saved-reply text the composer pasted in), reusing the contact +
@@ -405,8 +377,9 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
     );
   }
 
-  // Stored outbound media, loaded BEFORE the requeue so the #12 mms gate can
-  // block a picture re-send cleanly (never leaving the row half-requeued).
+  // Stored outbound media, loaded up front so its signed URLs can be re-minted
+  // BEFORE the atomic claim (below). #97: a picture re-send is ungated — it
+  // meters as segments like any send, with no module gate.
   const attachmentRows = unwrap<
     (AttachmentSummary & { storage_path: string })[]
   >(
@@ -418,22 +391,6 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
       .order("storage_path", { ascending: true }),
     "attachments lookup",
   );
-
-  // #12 plan builder: re-sending a picture requires the mms module too — same
-  // gate as the send route, so a company that turned the add-on off can't
-  // re-incur the Telnyx MMS charge by retrying an old failed picture send.
-  // No route-level cap pre-check here: the attachment rows already exist from
-  // the original send (nothing to mis-record), so an over-cap retry relies on
-  // dispatchOutbound's strip and simply goes out text-only.
-  if (
-    attachmentRows.length > 0 &&
-    !(await isModuleEnabled(db, companyId, "mms"))
-  ) {
-    throw new ApiError(
-      "conflict",
-      "Sending pictures needs the Picture messages add-on — turn it on in Settings › Billing.",
-    );
-  }
 
   // Re-mint signed URLs for any stored outbound media (24 h TTL, §8) BEFORE
   // the atomic claim — signing has no side effects, so a signing failure

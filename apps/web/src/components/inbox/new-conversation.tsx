@@ -13,11 +13,8 @@ import {
   fileToBase64,
   SegmentMeterLabel,
   useAutoGrow,
-  useDroppedPhotoNotice,
-  useMmsGate,
   type DraftAttachment,
 } from "@/components/thread/composer";
-import { photosDropped } from "@/components/thread/mms-gate";
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,10 +83,6 @@ export function NewConversation() {
   const company = useCompany();
   const usage = useUsage();
   const start = useStartConversation();
-  // #62/#23 — the SAME add-on gate and cap-and-drop notice as the in-thread
-  // composer, so both compose surfaces behave identically.
-  const mms = useMmsGate();
-  const notifyDroppedPhotos = useDroppedPhotoNotice();
 
   // --- Recipient -------------------------------------------------------------
   const [recipient, setRecipient] = useState<Recipient | null>(null);
@@ -157,13 +150,7 @@ export function NewConversation() {
 
   // D28 intake — the attach button, dropped files, and pasted images all funnel
   // through the shared admitFiles (count/type/size validation + G10 copy).
-  // #62: without the Picture messages add-on nothing stages — the pointer
-  // toast explains instead of a post-send 409 dead end.
   const admitIncoming = (files: FileList) => {
-    if (mms.gated) {
-      mms.explain();
-      return;
-    }
     setAttachments((cur) => admitFiles(cur, files));
   };
   const drop = useFileDrop(admitIncoming);
@@ -251,14 +238,7 @@ export function NewConversation() {
       ...(media ? { media } : {}),
     };
     start.mutate(inputBody, {
-      onSuccess: ({ conversation, message }) => {
-        // #23: over the included-MMS cap the API strips the photos and still
-        // answers 2xx — the returned row coming back without attachments is
-        // the only signal. The global toaster keeps the notice alive across
-        // the navigation into the new thread.
-        if (photosDropped(media?.length ?? 0, message)) {
-          notifyDroppedPhotos(media?.length ?? 0);
-        }
+      onSuccess: ({ conversation }) => {
         router.push(`/inbox/${conversation.id}`);
       },
       onError: (error) => {
@@ -531,15 +511,10 @@ export function NewConversation() {
             <Label htmlFor="compose-body">Message</Label>
             <div className="flex items-center gap-1">
               {/* Attach up to 3 photos (§7 outbound MMS) — the shared admitFiles
-                  enforces count/type/size; this is just the entry point. #62:
-                  without the mms add-on the click explains + points at the
-                  add-on instead of opening the picker (same as the thread
-                  composer). */}
+                  enforces count/type/size; this is just the entry point. */}
               <button
                 type="button"
-                onClick={
-                  mms.gated ? mms.explain : () => fileRef.current?.click()
-                }
+                onClick={() => fileRef.current?.click()}
                 disabled={attachments.length >= 3}
                 aria-label="Attach a photo"
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-45"

@@ -383,20 +383,23 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     ]);
     const response = await post(
       "/v1/billing/checkout",
-      // A repeated module must not double-bill.
-      { plan: "starter", modules: ["mms", "voice", "mms"] },
+      // A repeated module must not double-bill. (#97: mms is no longer sellable,
+      // so the sellable voice + extra_storage stand in here.)
+      { plan: "starter", modules: ["voice", "extra_storage", "voice"] },
       harness,
     );
     expect(response.status).toBe(200);
     const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
     // [0] licensed, [1] metered, then one line per unique module.
-    expect(form.get("line_items[2][price]")).toBe(env.STRIPE_MODULE_MMS_PRICE_ID);
-    expect(form.get("line_items[2][quantity]")).toBe("1");
-    expect(form.get("line_items[3][price]")).toBe(
+    expect(form.get("line_items[2][price]")).toBe(
       env.STRIPE_MODULE_VOICE_PRICE_ID,
     );
+    expect(form.get("line_items[2][quantity]")).toBe("1");
+    expect(form.get("line_items[3][price]")).toBe(
+      env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID,
+    );
     expect(form.get("line_items[3][quantity]")).toBe("1");
-    // No fourth module line (the duplicate 'mms' collapsed).
+    // No fourth module line (the duplicate 'voice' collapsed).
     expect(form.has("line_items[4][price]")).toBe(false);
   });
 
@@ -946,7 +949,10 @@ describe("plan-builder modules (#12)", () => {
       modules: { id: string; available: boolean }[];
     };
     expect(body.modules.find((m) => m.id === "regions_ca")?.available).toBe(false);
-    expect(body.modules.find((m) => m.id === "mms")?.available).toBe(true);
+    // A still-sellable module reports available: true.
+    expect(body.modules.find((m) => m.id === "voice")?.available).toBe(true);
+    // #97: mms is retired — reported unavailable like regions_ca.
+    expect(body.modules.find((m) => m.id === "mms")?.available).toBe(false);
   });
 });
 

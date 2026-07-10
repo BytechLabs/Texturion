@@ -1,12 +1,12 @@
 /**
- * dispatchOutbound choke-point suite (SPEC §8, §10 layer 3, §12 step 18; #12
- * mms cap): the per-company rate-limiter gate (binding present → allowed/denied
- * paths; absent → skipped, as in local dev and every other suite), the
- * first_outbound_sent north-star capture (fires only for the company's first
- * Telnyx-accepted outbound, and only when POSTHOG_API_KEY is set), and the #12
- * MMS cap-and-drop (over the plan's included picture messages → the media is
- * stripped and the send goes out text-only). Real product code — supabase-js
- * PostgREST, the Telnyx HTTP call — with only global fetch stubbed.
+ * dispatchOutbound choke-point suite (SPEC §8, §10 layer 3, §12 step 18): the
+ * per-company rate-limiter gate (binding present → allowed/denied paths; absent
+ * → skipped, as in local dev and every other suite), the first_outbound_sent
+ * north-star capture (fires only for the company's first Telnyx-accepted
+ * outbound, and only when POSTHOG_API_KEY is set), and #97 MMS media
+ * pass-through (picture messages are ungated — dispatch forwards them untouched,
+ * no module/cap read). Real product code — supabase-js PostgREST, the Telnyx
+ * HTTP call — with only global fetch stubbed.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -248,20 +248,10 @@ describe("dispatchOutbound — first_outbound_sent (§12 step 18)", () => {
   });
 });
 
-describe("dispatchOutbound — #12 MMS cap-and-drop", () => {
-  const PERIOD_START = "2026-07-01T00:00:00.000Z";
+describe("dispatchOutbound — MMS media pass-through (#97)", () => {
   const MMS_ARGS = { ...SEND_ARGS, mediaUrls: ["https://signed/pic.jpg"] };
 
-  interface MmsStubs {
-    telnyx: Stub;
-    persist: Stub;
-    modules: Stub;
-    company: Stub;
-    mmsCount: Stub;
-  }
-
-  /** Telnyx + the three reads companyOverMmsCap makes (module → company → RPC). */
-  function mmsStubs(options: { moduleOn?: boolean; used?: number } = {}): MmsStubs {
+  it("forwards the media untouched, reading no module or cap state", async () => {
     const env = completeEnv();
     const telnyx = stubRoute(
       (url, request) =>
@@ -276,119 +266,22 @@ describe("dispatchOutbound — #12 MMS cap-and-drop", () => {
         ...(call.body as Record<string, unknown>),
       }),
     ]);
-    const modules = stubRoute(restMatch(env, "GET", "company_modules"), () =>
-      options.moduleOn === false ? [] : [{ module: "mms" }],
-    );
-    const company = stubRoute(restMatch(env, "GET", "companies"), () => [
-      { plan: "starter", current_period_start: PERIOD_START },
-    ]);
-    const mmsCount = stubRoute(
-      rpcMatch(env, "api_period_outbound_mms"),
-      () => options.used ?? 0,
-    );
-    stubFetch(
-      telnyx.route,
-      persist.route,
-      modules.route,
-      company.route,
-      mmsCount.route,
-    );
-    return { telnyx, persist, modules, company, mmsCount };
-  }
-
-  /** The media_urls the Telnyx call actually carried (undefined when stripped). */
-  function sentMediaUrls(stubs: MmsStubs): unknown {
-    return (stubs.telnyx.calls[0].body as { media_urls?: unknown }).media_urls;
-  }
-
-  it("under the cap forwards the media untouched", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ used: 149 }); // 149 of 150 included (starter)
+    // These would only be hit by the removed cap-and-drop — assert they stay 0.
+    const modules = stubRoute(restMatch(env, "GET", "company_modules"), () => []);
+    const company = stubRoute(restMatch(env, "GET", "companies"), () => []);
+    stubFetch(telnyx.route, persist.route, modules.route, company.route);
 
     const row = await dispatchOutbound(env, getDb(env), message(), MMS_ARGS);
 
+    // #97: MMS is ungated and metered as segments upstream (gateOutboundSend),
+    // so dispatch sends the photo through and never reads the module list or the
+    // per-period MMS count.
     expect(row.telnyx_message_id).toBe(TELNYX_ID);
-    expect(sentMediaUrls(stubs)).toEqual(MMS_ARGS.mediaUrls);
-    expect(stubs.mmsCount.calls[0].body).toEqual({
-      p_company_id: COMPANY_ID,
-      p_since: PERIOD_START,
-    });
-  });
-
-  it("at the cap strips the media but still sends the text", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ used: 150 }); // exactly at the 150 allowance
-
-    const row = await dispatchOutbound(env, getDb(env), message(), MMS_ARGS);
-
-    // Cap-and-drop the PHOTO, keep the TEXT: the customer's message still sends.
-    expect(row.telnyx_message_id).toBe(TELNYX_ID);
-    expect(sentMediaUrls(stubs)).toBeUndefined();
-    expect((stubs.telnyx.calls[0].body as { text?: string }).text).toBe(
-      MMS_ARGS.text,
-    );
-  });
-
-  it("well over the cap also strips the media", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ used: 400 });
-
-    await dispatchOutbound(env, getDb(env), message(), MMS_ARGS);
-    expect(sentMediaUrls(stubs)).toBeUndefined();
-  });
-
-  it("without the mms module the media is stripped fail-safe (no plan read)", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ moduleOn: false, used: 999 });
-
-    const row = await dispatchOutbound(env, getDb(env), message(), MMS_ARGS);
-
-    // Module off short-circuits AS over-cap (a future caller can't slip an
-    // uncapped MMS past the routes' 409 gates): media stripped, text still
-    // sends, and neither the company row nor the count RPC is read.
-    expect(row.telnyx_message_id).toBe(TELNYX_ID);
-    expect(sentMediaUrls(stubs)).toBeUndefined();
-    expect((stubs.telnyx.calls[0].body as { text?: string }).text).toBe(
-      MMS_ARGS.text,
-    );
-    expect(stubs.company.calls).toHaveLength(0);
-    expect(stubs.mmsCount.calls).toHaveLength(0);
-  });
-
-  it("a media-only send at the cap fails fast instead of posting empty text", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ used: 150 });
-
-    const thrown = await dispatchOutbound(env, getDb(env), message(), {
-      ...MMS_ARGS,
-      text: "",
-    }).then(
-      () => null,
-      (cause: unknown) => cause,
-    );
-    expect(thrown).toBeInstanceOf(ApiError);
-    expect((thrown as ApiError).code).toBe("conflict");
-
-    // The media-only TOCTOU edge: never an empty-text Telnyx post; the row
-    // carries a §7-retryable failure (status failed + telnyx_message_id NULL).
-    expect(stubs.telnyx.calls).toHaveLength(0);
-    expect(stubs.persist.calls).toHaveLength(1);
-    expect(stubs.persist.calls[0].body).toMatchObject({
-      status: "failed",
-      error_code: "conflict",
-    });
-  });
-
-  it("text-only sends skip the cap lookups entirely", async () => {
-    const env = completeEnv();
-    const stubs = mmsStubs({ used: 999 });
-
-    await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
-
-    // No media → the whole cap check is short-circuited before any read.
-    expect(stubs.modules.calls).toHaveLength(0);
-    expect(stubs.company.calls).toHaveLength(0);
-    expect(stubs.mmsCount.calls).toHaveLength(0);
+    expect(
+      (telnyx.calls[0].body as { media_urls?: unknown }).media_urls,
+    ).toEqual(MMS_ARGS.mediaUrls);
+    expect(modules.calls).toHaveLength(0);
+    expect(company.calls).toHaveLength(0);
   });
 });
 
