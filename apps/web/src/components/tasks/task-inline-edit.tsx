@@ -76,7 +76,15 @@ export function InlineAssignee({ task }: { task: Task }) {
           <SelectValue placeholder="Unassigned" />
         )}
       </SelectTrigger>
-      <SelectContent onClick={(e) => e.stopPropagation()}>
+      {/* #123: popper position (not the default item-aligned) so Radix's
+          collision detection FLIPS the list above the trigger when it sits low
+          in a bottom sheet — item-aligned rendered it off the bottom edge of
+          the phone viewport, which read as "the dropdown won't open". */}
+      <SelectContent
+        position="popper"
+        sideOffset={4}
+        onClick={(e) => e.stopPropagation()}
+      >
         <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
         {memberOptions.map((member) => (
           <SelectItem key={member.id} value={member.user_id}>

@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 
+import { usePointerCoarse } from "@/lib/use-pointer-coarse"
 import { cn } from "@/lib/utils"
 
 function TooltipProvider({
@@ -30,24 +31,11 @@ function TooltipTrigger({
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 }
 
-/** #120: tooltips are a HOVER paradigm. On touch devices they open on
- * tap-focus, sit over the control until something else is tapped, and read as
- * broken chrome. Every tooltip here is auxiliary (triggers keep aria-labels;
- * done-by/when details also live in the timeline), so on coarse pointers the
- * content simply never mounts. SSR renders normally (matchMedia is
- * client-only); tooltips can't open before hydration anyway. */
-function usePointerCoarse(): boolean {
-  const [coarse, setCoarse] = React.useState(false)
-  React.useEffect(() => {
-    const query = window.matchMedia("(pointer: coarse)")
-    setCoarse(query.matches)
-    const onChange = (event: MediaQueryListEvent) => setCoarse(event.matches)
-    query.addEventListener("change", onChange)
-    return () => query.removeEventListener("change", onChange)
-  }, [])
-  return coarse
-}
-
+// #120: tooltips are a HOVER paradigm. On touch devices they open on
+// tap-focus, sit over the control until something else is tapped, and read as
+// broken chrome. Every tooltip here is auxiliary (triggers keep aria-labels;
+// done-by/when details also live in the timeline), so on coarse pointers the
+// content simply never mounts (usePointerCoarse, shared with the composer).
 function TooltipContent({
   className,
   sideOffset = 0,

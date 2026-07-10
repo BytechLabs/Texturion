@@ -130,19 +130,32 @@ function TaskRow({
   };
 
   return (
-    <li className="flex items-start gap-2.5 rounded-md px-2 py-1.5">
-      <Checkbox
-        checked={done}
-        onCheckedChange={(value) => runToggle(value === true)}
-        aria-label={done ? "Mark not done" : "Mark done"}
-        // tap-target: ≥44px mobile hit area (G11 / §7). The Radix Checkbox is a
-        // button and hosts the utility's centered ::after with no layout shift.
-        className="tap-target mt-0.5"
-      />
+    // #123: the WHOLE row opens the task, not just the title. The row is the
+    // click surface (hover feedback + a comfortable tap target); the checkbox
+    // and the inline assignee/due controls stopPropagation so they still act
+    // in place. A keyboard user gets there via the title button below.
+    <li
+      onClick={() => openTask(task.id)}
+      className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-secondary/50"
+    >
+      <span onClick={(e) => e.stopPropagation()} className="contents">
+        <Checkbox
+          checked={done}
+          onCheckedChange={(value) => runToggle(value === true)}
+          aria-label={done ? "Mark not done" : "Mark done"}
+          // tap-target: ≥44px mobile hit area (G11 / §7). The Radix Checkbox is
+          // a button and hosts the utility's centered ::after with no layout
+          // shift.
+          className="tap-target mt-0.5"
+        />
+      </span>
       <div className="min-w-0 flex-1">
         <button
           type="button"
-          onClick={() => openTask(task.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            openTask(task.id);
+          }}
           className={cn(
             // line-clamp-2, not truncate: at the drawer's narrow width a
             // single-line cut turns titles into "Order 50-gal Rheem + expan…".
@@ -158,7 +171,11 @@ function TaskRow({
             union (source-message MMS + note files + legacy rows) — a quiet
             indicator, not an upload door; the task title opens the drawer,
             which lists the files and hosts the discussion composer. */}
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        {/* The inline controls act in place — stop the row's open-task click. */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5"
+        >
           <InlineAssignee task={task} />
           <InlineDue task={task} />
           {task.attachment_count > 0 && (
