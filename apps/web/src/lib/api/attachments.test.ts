@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildAttachmentForm,
@@ -8,6 +8,11 @@ import {
 
 import { uploadFilesSequentially } from "@/lib/attachments/upload-chain";
 
+// The pure invalidation helper lives in its own module (importable WITHOUT
+// attachments.ts's hook/client/env graph), so this is a plain static import —
+// no dynamic import + env-stub dance, which used to blow the 5s timeout when
+// evaluating that heavy graph under parallel load.
+import { invalidateAfterNoteUpload } from "./attachment-invalidation";
 import { createApiClient } from "./core";
 import { keys } from "./keys";
 import type { Attachment } from "./types";
@@ -315,26 +320,7 @@ describe("invalidateAfterNoteUpload — the note-file upload invalidation set", 
   const companyId = "company-1";
   const noteId = "note-9";
 
-  // The helper lives in attachments.ts, whose import chain pulls in ./client →
-  // env.ts (which validates public env at module load). Stub the three keys and
-  // import a fresh copy, the same pattern as the auth-page render tests.
-  async function loadHelper() {
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijkl.supabase.co");
-    vi.stubEnv(
-      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-      "sb_publishable_0123456789abcdef",
-    );
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.loonext.com");
-    const mod = await import("./attachments");
-    return mod.invalidateAfterNoteUpload;
-  }
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("invalidates the note's own attachment list, the tasks root, and the gallery root", async () => {
-    const invalidateAfterNoteUpload = await loadHelper();
+  it("invalidates the note's own attachment list, the tasks root, and the gallery root", () => {
     const qc = new QueryClient();
     // Seed one live query under each root the upload must refresh, plus a
     // second company's gallery that must stay untouched (company-scoped keys).
@@ -369,8 +355,7 @@ describe("invalidateAfterNoteUpload — the note-file upload invalidation set", 
     ).toBe(false);
   });
 
-  it("invalidates the gallery root exactly (no conversation id — every gallery)", async () => {
-    const invalidateAfterNoteUpload = await loadHelper();
+  it("invalidates the gallery root exactly (no conversation id — every gallery)", () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, "invalidateQueries");
 

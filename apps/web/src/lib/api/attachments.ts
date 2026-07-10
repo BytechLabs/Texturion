@@ -14,6 +14,7 @@ import {
   validateAttachment,
 } from "@/lib/attachments/validate";
 
+import { invalidateAfterNoteUpload } from "./attachment-invalidation";
 import { apiFetch } from "./client";
 import { ApiError } from "./error";
 import { keys } from "./keys";
@@ -22,6 +23,11 @@ import type {
   AttachmentOwnerType,
   AttachmentUrl,
 } from "./types";
+
+// Re-exported for backwards compatibility — the pure invalidation helper now
+// lives in ./attachment-invalidation (importable without this module's heavy
+// hook/client/env graph; see that file for why).
+export { invalidateAfterNoteUpload };
 
 /**
  * GET /v1/attachments/:id/url — membership-checked signed Storage URL. Serves
@@ -160,32 +166,6 @@ export function useUploadNoteFiles() {
     onSettled: (_result, _error, { noteId }) => {
       invalidateAfterNoteUpload(queryClient, companyId, noteId);
     },
-  });
-}
-
-/**
- * The read surfaces a new note file touches, invalidated as one set so both
- * upload paths (`useUploadAttachment`, `useUploadNoteFiles`) stay in lockstep:
- *   1. the note's own attachment list (the bubble's Files section);
- *   2. the tasks root — a task-linked note's files feed the D28 derived task
- *      union (drawer list + checklist attachment_count);
- *   3. the conversation attachments gallery root (§5.2) — a note file is one
- *      of its three union arms, so an in-session gallery would otherwise miss
- *      the new row until a delete happened to refresh it. The root
- *      (`[companyId, "conversations", "attachments"]`, no conversation id) is
- *      the prefix `useDeleteAttachment` also invalidates.
- */
-export function invalidateAfterNoteUpload(
-  queryClient: ReturnType<typeof useQueryClient>,
-  companyId: string,
-  noteId: string,
-) {
-  void queryClient.invalidateQueries({
-    queryKey: keys.ownerAttachments(companyId, "note", noteId),
-  });
-  void queryClient.invalidateQueries({ queryKey: [companyId, "tasks"] });
-  void queryClient.invalidateQueries({
-    queryKey: [companyId, "conversations", "attachments"],
   });
 }
 
