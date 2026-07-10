@@ -66,7 +66,7 @@ export function Hero() {
         className="pointer-events-none absolute inset-0 z-0 hidden lg:block"
         style={{
           background:
-            "linear-gradient(to right, var(--fr-ground) 0%, var(--fr-ground) 16%, transparent 48%)",
+            "linear-gradient(to right, var(--fr-ground) 0%, var(--fr-ground) 22%, transparent 56%)",
         }}
       />
 

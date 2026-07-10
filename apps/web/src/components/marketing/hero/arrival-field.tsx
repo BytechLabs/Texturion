@@ -18,8 +18,8 @@
  * No Flare: this piece is about resolution, not the waiting/tension beat.
  *
  * Delta-time integration throughout (framerate-independent), deltaTime clamped
- * to 40ms, offscreen accumulation buffer for the silk trails, visibility +
- * IntersectionObserver pause, full p5.remove() + buffer.remove() teardown.
+ * to 40ms, per-particle sampled comet trails redrawn each frame, visibility +
+ * IntersectionObserver pause, full p5.remove() teardown.
  */
 
 import { useEffect, useRef } from "react";
@@ -44,18 +44,22 @@ const TANGENTIAL = 0.5; // soft rosette settle, not a radial crash
 interface Particle {
   x: number;
   y: number;
-  px: number;
-  py: number;
   /** Depth in [0.35, 1], biased far. Drives weight, alpha, cruise speed. */
   z: number;
   /** Warmth latch in [0, 1]: 0 cobalt open field, 1 resolved green. */
   hue: number;
   /** Age in seconds. */
   life: number;
-  /** Life cap in seconds (7-13s). */
+  /** Life cap in seconds — must exceed the edge-to-dock transit. */
   maxLife: number;
   /** Transient entry-speed multiplier for "just arrived" tributaries. */
   boost: number;
+  /** Sampled trail positions (oldest first), redrawn each frame as a fading
+   * comet tail. Explicit history instead of a p5.Graphics accumulation
+   * buffer: p5 2.x does not persist Graphics content across frames the way
+   * 1.x did, which left the field as sub-perceptual dashes (#84). */
+  tx: number[];
+  ty: number[];
 }
 
 /** A rare earned resolve: a green settle dot + one expanding ring (G2). */
@@ -104,10 +108,11 @@ export default function ArrivalField({
         // The field is now full-bleed across the whole hero (amendment 14), so
         // the desktop count is raised to keep the river dense over the wider
         // canvas. Curl noise is 4 cheap noise() lookups/particle; still 60fps.
-        const COUNT = isMobile ? 44 : 180;
+        const COUNT = isMobile ? 64 : 180;
         const FPS = isMobile ? 30 : 60;
+        /** Trail samples kept per particle (one taken every 4th frame). */
+        const TRAIL_N = isMobile ? 14 : 20;
 
-        let buffer: p5.Graphics;
         let particles: Particle[] = [];
         let settles: Settle[] = [];
         let t = 0; // field time
@@ -122,18 +127,21 @@ export default function ArrivalField({
           const cr = host.getBoundingClientRect();
           if (dockEl && cr.width > 0) {
             const dr = dockEl.getBoundingClientRect();
-            dockX = clamp(dr.left - cr.left + 10, 24, cr.width - 12);
-            dockY = clamp(dr.top - cr.top + dr.height / 2, 24, cr.height - 10);
+            if (isMobile) {
+              // Stacked hero: the inbox card sits at the BOTTOM under other
+              // white surfaces. Dock at the card's top-center so the
+              // confluence gathers in the open band ABOVE it — steering into
+              // the left-middle drains every stream behind the card, hidden.
+              dockX = clamp(dr.left - cr.left + dr.width / 2, 24, cr.width - 12);
+              dockY = clamp(dr.top - cr.top - 12, 24, cr.height - 10);
+            } else {
+              dockX = clamp(dr.left - cr.left + 10, 24, cr.width - 12);
+              dockY = clamp(dr.top - cr.top + dr.height / 2, 24, cr.height - 10);
+            }
           } else {
             dockX = p.width - 24;
             dockY = p.height * 0.5;
           }
-        };
-
-        const rebuildBuffer = () => {
-          buffer?.remove();
-          buffer = p.createGraphics(p.width, p.height);
-          buffer.clear();
         };
 
         /** (Re)seed a particle in place so the count stays constant. */
@@ -142,7 +150,12 @@ export default function ArrivalField({
           const topEdge = Math.random() < 0.28; // 72% left / 28% top
           q.hue = 0;
           q.life = 0;
-          q.maxLife = 7 + Math.random() * 6;
+          // Life must EXCEED the edge-to-dock transit (~16s at cruise across a
+          // 1440px hero), or steady state degenerates: respawned particles die
+          // a third of the way in and the braid thins to left-edge dashes a
+          // few seconds after boot (only the initial mid-field seeds ever
+          // reached the confluence).
+          q.maxLife = 18 + Math.random() * 10;
           q.boost = 1;
 
           if (initial) {
@@ -166,8 +179,8 @@ export default function ArrivalField({
             q.y = p.height * (0.04 + 0.72 * Math.random());
             q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
           }
-          q.px = q.x;
-          q.py = q.y;
+          q.tx.length = 0;
+          q.ty.length = 0;
         };
 
         const buildParticles = () => {
@@ -176,13 +189,13 @@ export default function ArrivalField({
             const q: Particle = {
               x: 0,
               y: 0,
-              px: 0,
-              py: 0,
               z: 0.6,
               hue: 0,
               life: 0,
               maxLife: 10,
               boost: 1,
+              tx: [],
+              ty: [],
             };
             reseed(q, true);
             particles.push(q);
@@ -194,7 +207,6 @@ export default function ArrivalField({
           p.pixelDensity(isMobile ? 1 : Math.min(p.pixelDensity(), 1.5));
           p.frameRate(FPS);
           p.noiseDetail(2, 0.5);
-          rebuildBuffer();
           measureDock();
           buildParticles();
         };
@@ -202,7 +214,6 @@ export default function ArrivalField({
         p.windowResized = () => {
           if (host.clientWidth < 1 || host.clientHeight < 1) return;
           p.resizeCanvas(host.clientWidth, host.clientHeight);
-          rebuildBuffer();
           measureDock();
         };
 
@@ -214,15 +225,6 @@ export default function ArrivalField({
             remeasureAt -= dt;
             if (remeasureAt <= 0) measureDock();
           }
-
-          // Silk: fade the whole buffer toward TRANSPARENT (never white, so
-          // zero haze over Signal White), then lay down this frame's segments.
-          buffer.push();
-          buffer.noStroke();
-          buffer.erase(3.0, 0);
-          buffer.rect(0, 0, buffer.width, buffer.height);
-          buffer.noErase();
-          buffer.pop();
 
           settleCooldown -= dt;
 
@@ -252,33 +254,44 @@ export default function ArrivalField({
             const tx = -ndy * (TANGENTIAL * w);
             const ty = ndx * (TANGENTIAL * w);
 
-            let dirX = hx * (1 - w) + ndx * w + tx;
-            let dirY = hy * (1 - w) + ndy * w + ty;
+            // A gentle omnipresent dockward drift under the noise (18%) keeps
+            // the whole field flowing toward the inbox card, so streams keep
+            // ARRIVING at the confluence at steady state instead of only when
+            // a wander happens to cross the 260px band; full arrive-steer
+            // still takes over inside the band.
+            const pull = Math.max(w, 0.18);
+            let dirX = hx * (1 - pull) + ndx * pull + tx;
+            let dirY = hy * (1 - pull) + ndy * pull + ty;
             const dm = Math.hypot(dirX, dirY) || 1e-6;
             dirX /= dm;
             dirY /= dm;
 
             // Arrive law: cruise in the open field, ease to rest at the dock.
-            const maxSpeed = 40 * (0.6 + 0.4 * q.z);
+            // Cruise must cover the canvas within one lifetime: at the old
+            // 24-40px/s a particle died ~300px in from the edge of a 1440px
+            // field, so the river never formed and nothing ever reached the
+            // confluence. ~75-105px/s crosses it with life to spare and reads
+            // as calm, visible drift (P5-SPEC v1 tuned arrive at 120px/s).
+            const maxSpeed = 105 * (0.7 + 0.3 * q.z);
             let speed = maxSpeed * (0.55 + 0.45 * (1 - w)) * q.boost;
             if (d < R_INNER) speed *= d / R_INNER;
 
-            q.px = q.x;
-            q.py = q.y;
             q.x += dirX * speed * dt;
             q.y += dirY * speed * dt;
 
             // Once warmed near the node it stays warm through the resolve.
             q.hue = Math.max(q.hue, w);
 
-            // --- silk segment: cobalt open field -> green confluence ---
-            const cr = COBALT[0] + (GREEN[0] - COBALT[0]) * q.hue;
-            const cg = COBALT[1] + (GREEN[1] - COBALT[1]) * q.hue;
-            const cb = COBALT[2] + (GREEN[2] - COBALT[2]) * q.hue;
-            const alpha = 16 + 8 * q.z + 30 * q.hue;
-            buffer.stroke(cr, cg, cb, alpha);
-            buffer.strokeWeight((0.6 + 0.9 * q.z) * (1 + 0.4 * q.hue));
-            buffer.line(q.px, q.py, q.x, q.y);
+            // Sample the trail every 4th frame (~15 samples/s → the tail
+            // spans ~1.3s of motion, a 100-140px silk comet at cruise).
+            if (p.frameCount % 4 === 0) {
+              q.tx.push(q.x);
+              q.ty.push(q.y);
+              if (q.tx.length > TRAIL_N) {
+                q.tx.shift();
+                q.ty.shift();
+              }
+            }
 
             // Respawn: docked, aged out, or drifted off-canvas.
             const off =
@@ -297,9 +310,29 @@ export default function ArrivalField({
             }
           }
 
-          // Blit the silk, then the rare resolve events on top.
+          // Redraw every comet tail from its sampled history (deterministic —
+          // no reliance on Graphics persistence), then the rare resolves.
           p.clear();
-          p.image(buffer, 0, 0, p.width, p.height);
+          p.noFill();
+          for (const q of particles) {
+            const n = q.tx.length;
+            if (n === 0) continue;
+            const cr = COBALT[0] + (GREEN[0] - COBALT[0]) * q.hue;
+            const cg = COBALT[1] + (GREEN[1] - COBALT[1]) * q.hue;
+            const cb = COBALT[2] + (GREEN[2] - COBALT[2]) * q.hue;
+            const headAlpha = 64 + 30 * q.z + 60 * q.hue;
+            const headWeight = (1.1 + 1.7 * q.z) * (1 + 0.4 * q.hue);
+            for (let i = 0; i < n; i += 1) {
+              const x2 = i === n - 1 ? q.x : q.tx[i + 1];
+              const y2 = i === n - 1 ? q.y : q.ty[i + 1];
+              // Ease alpha/weight from tail to head so the stream tapers off
+              // instead of cutting.
+              const f = (i + 1) / n;
+              p.stroke(cr, cg, cb, headAlpha * f * f);
+              p.strokeWeight(headWeight * (0.45 + 0.55 * f));
+              p.line(q.tx[i], q.ty[i], x2, y2);
+            }
+          }
 
           if (settles.length > 0) {
             for (const s of settles) s.age += dt;

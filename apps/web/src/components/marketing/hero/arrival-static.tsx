@@ -21,8 +21,11 @@ import { cn } from "@/lib/utils";
  */
 
 /** The dock node: where the live field resolves, at the inbox card's left
- *  edge (~0.71 across a 1200-wide box, vertically centered). */
-const NODE = { x: 852, y: 300 };
+ *  edge. preserveAspectRatio="slice" on a tall hero scales the 1200x600 box
+ *  by height and crops the sides, pushing x right on screen: ~700 here lands
+ *  at the card's left edge on common desktop hero sizes (852 landed BEHIND
+ *  the card, so the still read as spokes vanishing into it). */
+const NODE = { x: 700, y: 300 };
 const VW = 1200;
 const VH = 600;
 
@@ -51,7 +54,7 @@ interface Stream {
  *  paths curving rightward toward the node, the final few warmed to green. */
 function buildStreams(): Stream[] {
   const rnd = mulberry32(0x0b7a5011);
-  const total = 30;
+  const total = 42;
   const streams: Stream[] = [];
   for (let i = 0; i < total; i += 1) {
     const fromTop = rnd() < 0.26;
@@ -67,14 +70,15 @@ function buildStreams(): Stream[] {
 
     // Depth: thin/faint far, crisper near (matches the live z parallax).
     const z = Math.pow(rnd(), 1.5);
-    const weight = 0.6 + 1.0 * z;
+    const weight = 1.0 + 1.6 * z;
 
     // Two control points sweep the curve rightward toward the node with a
-    // gentle vertical wander (the laminar curl look), converging near NODE.y.
+    // pronounced vertical wander (the laminar curl look), converging near
+    // NODE.y. The wander is wide so the still reads as silk, not spokes.
     const c1x = sx + (NODE.x - sx) * (0.32 + 0.1 * rnd());
-    const c1y = sy + (NODE.y - sy) * 0.2 + (rnd() - 0.5) * 220;
+    const c1y = sy + (NODE.y - sy) * 0.2 + (rnd() - 0.5) * 320;
     const c2x = sx + (NODE.x - sx) * (0.74 + 0.1 * rnd());
-    const c2y = NODE.y + (rnd() - 0.5) * 120;
+    const c2y = NODE.y + (rnd() - 0.5) * 170;
 
     // Ends fan slightly around the node (soft rosette); the greens land on it.
     const green = i >= total - 6;
@@ -84,7 +88,10 @@ function buildStreams(): Stream[] {
     streams.push({
       d: `M${sx.toFixed(1)} ${sy.toFixed(1)} C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${ex.toFixed(1)} ${ey.toFixed(1)}`,
       weight: weight.toFixed(2),
-      opacity: (green ? 0.16 + 0.07 * z : 0.05 + 0.05 * z).toFixed(3),
+      // Sized to READ against Signal White without turning into wire: the
+      // original 0.05-0.10 cobalt was invisible at arm's length (#84's "not
+      // just a static hero"); 0.10-0.20 reads as quiet silk.
+      opacity: (green ? 0.22 + 0.12 * z : 0.1 + 0.1 * z).toFixed(3),
       green,
     });
   }
@@ -134,8 +141,8 @@ export function ArrivalStatic({ className }: { className?: string }) {
           r="10"
           fill="none"
           stroke="var(--fr-green)"
-          strokeOpacity="0.28"
-          strokeWidth="1.25"
+          strokeOpacity="0.5"
+          strokeWidth="1.5"
         />
         <circle cx={NODE.x} cy={NODE.y} r="2.6" fill="var(--fr-green)" />
       </g>
