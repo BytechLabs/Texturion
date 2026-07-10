@@ -5,6 +5,15 @@ on:
   push:
     branches: [main]
 
+# #122: cancel superseded runs. Pushing a new commit to a PR (or to main)
+# supersedes the in-flight CI for that ref, so the old run is wasted work and
+# just delays the queue. Scoped per workflow+ref so unrelated branches never
+# cancel each other; main cancels its own older runs so the deploy that
+# workflow_run triggers is always for the newest commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   schema:
     name: SQL tests (Supabase)
@@ -76,7 +85,50 @@ jobs:
         if: always()
         run: supabase stop --no-backup
 
-  ci:
+  # #122: verify (typecheck + lint + test) is split OFF the build job so the two
+  # heavy builds no longer sit behind it — the two jobs run in parallel, so the
+  # critical path is max(verify, build) instead of their sum. Fast red/green on
+  # a type error or failing test lands without waiting for a full build.
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Reuse the TS incremental buildinfo across runs so `tsc --noEmit` only
+      # re-checks what changed (apps/web/tsconfig.json sets incremental: true;
+      # the api package has no incremental build, so only web has a file). A
+      # source change busts the key; restore-keys give partial reuse.
+      - name: Cache TypeScript build info
+        uses: actions/cache@v4
+        with:
+          path: apps/web/tsconfig.tsbuildinfo
+          key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx') }}
+          restore-keys: |
+            tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            tsbuildinfo-${{ runner.os }}-
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Test
+        run: pnpm -r test
+
+  build:
+    name: Build (next + OpenNext + wrangler)
     runs-on: ubuntu-latest
     env:
       # next build inlines these; web/src/env.ts fails the build if they are
@@ -84,9 +136,7 @@ jobs:
       # z.url(), the publishable key is a non-empty string) and the CI build
       # artifact is NEVER deployed — deploy.yml rebuilds with the real secrets —
       # so ALL of these are fixed placeholders that keep this job deterministic
-      # and independent of repo-secret configuration. (Previously the two
-      # SUPABASE vars read from ${{ secrets.* }} that were never set in the repo,
-      # so `next build` failed public-env validation on every commit.)
+      # and independent of repo-secret configuration.
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
       NEXT_PUBLIC_API_URL: https://api.loonext.com
@@ -103,14 +153,18 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm -r typecheck
-
-      - name: Lint
-        run: pnpm -r lint
-
-      - name: Test
-        run: pnpm -r test
+      # #122: Next's own recommended CI cache — .next/cache holds the compiler
+      # + type + image caches, so an incremental `next build` reuses unchanged
+      # work instead of compiling the whole app every run. Keyed on the lockfile
+      # + all source so a real change busts it; restore-keys give partial reuse.
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx', 'apps/web/src/**/*.css') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nextjs-${{ runner.os }}-
 
       - name: Build web (next build)
         run: pnpm --filter @loonext/web build
