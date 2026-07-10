@@ -13,6 +13,7 @@
  *   --full                full-page screenshot instead of the viewport
  *   --click <selector>    after load, click this (repeatable; e.g. to open
  *                         the conversation info panel)
+ *   --el <selector>       capture just this element instead of the page
  *   --wait <ms>           settle delay after load/clicks (default 600)
  *   --out <dir>           output directory (default .dev-shots)
  *   --base <url>          app origin (default http://localhost:3100)
@@ -36,6 +37,7 @@ const paths = [];
 const clicks = [];
 let mobile = false;
 let fullPage = false;
+let element = null;
 let settle = 600;
 let outDir = ".dev-shots";
 let base = "http://localhost:3100";
@@ -47,6 +49,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--full") fullPage = true;
   else if (a === "--fresh") fresh = true;
   else if (a === "--click") clicks.push(args[++i]);
+  else if (a === "--el") element = args[++i];
   else if (a === "--wait") settle = Number(args[++i]);
   else if (a === "--out") outDir = args[++i];
   else if (a === "--base") base = args[++i];
@@ -112,7 +115,11 @@ async function shoot(page, path) {
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
   const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}.png`);
-  await page.screenshot({ path: file, fullPage });
+  if (element) {
+    await page.locator(element).first().screenshot({ path: file });
+  } else {
+    await page.screenshot({ path: file, fullPage });
+  }
   console.log(file);
 }
 

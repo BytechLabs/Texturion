@@ -21,6 +21,7 @@ export function InlineTextField({
   label,
   placeholder,
   className,
+  wrap = false,
 }: {
   contactId: string;
   field: "name" | "address";
@@ -30,6 +31,9 @@ export function InlineTextField({
   /** Extra classes for both the read button and the edit input (e.g. the
    * hero name's larger type). Additive via cn(); color/size overrides win. */
   className?: string;
+  /** Read view wraps to two lines instead of truncating — for values like an
+   * address that lose their meaning when cut at a narrow drawer width. */
+  wrap?: boolean;
 }) {
   const update = useUpdateContact(contactId);
   const [editing, setEditing] = useState(false);
@@ -65,7 +69,8 @@ export function InlineTextField({
         onClick={() => setEditing(true)}
         aria-label={`Edit ${label}`}
         className={cn(
-          "w-full truncate rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+          "w-full rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+          wrap ? "line-clamp-2 break-words" : "truncate",
           value ? "text-foreground" : "text-muted-foreground",
           className,
         )}
@@ -158,7 +163,10 @@ export function AutoSaveNotes({
         rows={3}
         placeholder="Notes about this customer…"
         aria-label="Contact notes"
-        className="w-full resize-none rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        // field-sizing-content (the shared ui/textarea idiom): the box grows
+        // with the note instead of clipping it mid-word at the fixed 3 rows;
+        // max-h keeps a runaway note scrollable, not panel-swallowing.
+        className="field-sizing-content max-h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       />
       <p
         aria-live="polite"

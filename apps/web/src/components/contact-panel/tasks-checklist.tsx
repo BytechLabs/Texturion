@@ -144,7 +144,9 @@ function TaskRow({
           type="button"
           onClick={() => openTask(task.id)}
           className={cn(
-            "block max-w-full truncate text-left text-[13px] font-medium text-foreground transition-[opacity,color] duration-150 ease-out hover:text-primary focus-visible:outline-none focus-visible:underline",
+            // line-clamp-2, not truncate: at the drawer's narrow width a
+            // single-line cut turns titles into "Order 50-gal Rheem + expan…".
+            "block max-w-full text-left text-[13px] font-medium text-foreground transition-[opacity,color] duration-150 ease-out line-clamp-2 break-words hover:text-primary focus-visible:outline-none focus-visible:underline",
             // D14 done treatment: strikethrough + 55% opacity.
             done && "text-muted-foreground line-through opacity-55",
           )}
@@ -156,7 +158,7 @@ function TaskRow({
             union (source-message MMS + note files + legacy rows) — a quiet
             indicator, not an upload door; the task title opens the drawer,
             which lists the files and hosts the discussion composer. */}
-        <div className="mt-0.5 flex flex-wrap items-center gap-1">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <InlineAssignee task={task} />
           <InlineDue task={task} />
           {task.attachment_count > 0 && (

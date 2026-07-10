@@ -193,7 +193,21 @@ export function ContactPanel({
         {/* IDENTITY — the panel's one anchor of personality (#6): a colored
             app-ava avatar + the editable name and number up top, then address
             and notes under a hairline. Who this is, in one card. */}
-        <section className="rounded-app-card border border-app-line bg-app-white p-3.5">
+        <section className="relative rounded-app-card border border-app-line bg-app-white p-3.5">
+          {/* #82: jump from the conversation to the full contact page. Overlaid
+              on the card corner (not a flex cell) so the narrow drawer's text
+              column keeps its width — the number must never wrap mid-digits. */}
+          <Button
+            asChild
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Open full contact page"
+            className="absolute right-2 top-2"
+          >
+            <Link href={`/contacts/${contact.id}`}>
+              <ArrowUpRight strokeWidth={1.75} />
+            </Link>
+          </Button>
           <div className="flex items-start gap-3">
             <span
               aria-hidden
@@ -211,10 +225,10 @@ export function ContactPanel({
                 value={contact.name}
                 label="Contact name"
                 placeholder="Add a name"
-                className="text-[15px] font-semibold"
+                className="pr-7 text-[15px] font-semibold"
               />
               <div className="flex items-center gap-1 px-2">
-                <span className="select-all text-sm tabular-nums text-muted-foreground">
+                <span className="select-all whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                   {phone}
                 </span>
                 <Button
@@ -231,17 +245,6 @@ export function ContactPanel({
                 </Button>
               </div>
             </div>
-            {/* #82: jump from the conversation to the full contact page. */}
-            <Button
-              asChild
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Open full contact page"
-            >
-              <Link href={`/contacts/${contact.id}`}>
-                <ArrowUpRight strokeWidth={1.75} />
-              </Link>
-            </Button>
           </div>
           <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
             <InlineTextField
@@ -250,6 +253,7 @@ export function ContactPanel({
               value={contact.address}
               label="Contact address"
               placeholder="Add an address"
+              wrap
             />
             <div className="px-2">
               <AutoSaveNotes contactId={contact.id} value={contact.notes} />
