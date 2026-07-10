@@ -43,10 +43,18 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
                 </li>
               ))}
             </ul>
-            {/* Pricing sits between Product and Who it's for (deck order). */}
+            {/* Pricing sits between Product and Who it's for (deck order).
+                #117: it carries the full grouped-row anatomy plus a resting
+                Frost wash and a trailing arrow, so the one money page reads
+                as a standout button, never a bare text line (emphasis via
+                wash and radius, Law 10 — no hairlines). */}
             {i === 0 ? (
               <div className="mt-6">
-                <FlatRow item={PRICING_LINK} onNavigate={onNavigate} />
+                <MobileRow
+                  item={PRICING_LINK}
+                  onNavigate={onNavigate}
+                  emphasized
+                />
               </div>
             ) : null}
           </section>
@@ -91,13 +99,17 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-/** A grouped two-line row: ink label + ink-55 plain-English line. */
+/** A grouped two-line row: ink label + ink-55 plain-English line. The
+ * `emphasized` variant (#117: Pricing) rests on the Frost wash with a
+ * trailing arrow, so it reads as a standout button among plain rows. */
 function MobileRow({
   item,
   onNavigate,
+  emphasized = false,
 }: {
   item: NavItem;
   onNavigate: () => void;
+  emphasized?: boolean;
 }) {
   return (
     <SheetClose asChild>
@@ -106,7 +118,9 @@ function MobileRow({
         onClick={onNavigate}
         className={cn(
           "frn-focus flex min-h-11 items-start gap-3 rounded-[10px] p-2.5 transition-colors duration-200 ease-out",
-          "hover:bg-[color:var(--fr-frost)] active:bg-[color:var(--fr-frost)]",
+          emphasized
+            ? "bg-[color:var(--fr-frost)] hover:bg-[color:var(--fr-frost)] active:bg-[color:var(--fr-frost)]"
+            : "hover:bg-[color:var(--fr-frost)] active:bg-[color:var(--fr-frost)]",
         )}
       >
         {item.icon ? <MenuIconChip icon={item.icon} className="mt-0.5" /> : null}
@@ -120,35 +134,13 @@ function MobileRow({
             </span>
           ) : null}
         </span>
-      </Link>
-    </SheetClose>
-  );
-}
-
-/** A single-line flat row (Pricing, Log in) with a trailing arrow. */
-function FlatRow({
-  item,
-  onNavigate,
-}: {
-  item: NavItem;
-  onNavigate: () => void;
-}) {
-  return (
-    <SheetClose asChild>
-      <Link
-        href={item.href}
-        onClick={onNavigate}
-        className={cn(
-          "frn-focus font-body-mkt flex min-h-11 items-center justify-between rounded-[10px] px-2.5 text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out",
-          "hover:bg-[color:var(--fr-frost)] active:bg-[color:var(--fr-frost)]",
-        )}
-      >
-        {item.label}
-        <ArrowRight
-          className="size-4 text-[color:var(--fr-ink-55)]"
-          strokeWidth={1.75}
-          aria-hidden
-        />
+        {emphasized ? (
+          <ArrowRight
+            className="mt-2 size-4 shrink-0 text-[color:var(--fr-ink-55)]"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        ) : null}
       </Link>
     </SheetClose>
   );

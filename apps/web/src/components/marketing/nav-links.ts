@@ -1,4 +1,5 @@
 import {
+  BadgeDollarSign,
   Fan,
   HardHat,
   Hash,
@@ -142,10 +143,15 @@ export const compareMenu: NavMenu = {
 
 export const NAV_MENUS: NavMenu[] = [productMenu, tradesMenu, compareMenu];
 
-/** The flat top-level Pricing link (a real standalone page). */
+/** The flat top-level Pricing link (a real standalone page). The desktop bar
+ * renders only the label; the mobile sheet gives it the full grouped-row
+ * anatomy (icon chip + one factual line) so it reads like a button among the
+ * other rows instead of a bare text line (#117). */
 export const PRICING_LINK: NavItem = {
   label: "Pricing",
   href: LIVE_ROUTES.pricing,
+  description: "One flat $29 a month for the whole crew.",
+  icon: BadgeDollarSign,
 };
 
 export const LOGIN_HREF = APP_LINKS.login;
