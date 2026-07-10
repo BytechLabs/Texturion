@@ -17,7 +17,7 @@ import {
   threadUpsertMessages,
   type ThreadData,
 } from "./cache";
-import { keys } from "./keys";
+import { keys, taskMetadataInvalidationKeys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type { TaskListFilters } from "./task-filters";
 import { taskSearchParams } from "./task-params";
@@ -198,10 +198,12 @@ function invalidateTasks(
   companyId: string,
   conversationId: string,
 ) {
-  void queryClient.invalidateQueries({
-    queryKey: keys.tasks.checklist(companyId, conversationId),
-  });
-  void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
+  for (const queryKey of taskMetadataInvalidationKeys(
+    companyId,
+    conversationId,
+  )) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
 }
 
 export interface CreateTaskInput {

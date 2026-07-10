@@ -318,17 +318,24 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // checklist (the context-panel Tasks list) and the /tasks page lists root
       // (every filter combination — List/Board/Calendar/Map). This is the exact
       // invalidation the acting client's own mutation hooks run (lib/api/tasks.ts
-      // invalidateTasks), now driven cross-client off the broadcast. The
-      // for-you queue + notifications bell ride the resulting tasks-cache change
-      // via useForYouNotificationsRealtime, so they refresh too — no extra work
-      // here. Done toggles are NOT this event (they ride message.status), so the
-      // derived done-state on the checklist already updates via that path.
+      // invalidateTasks), now driven cross-client off the broadcast. Done toggles
+      // are NOT this event (they ride message.status), so the derived done-state
+      // on the checklist already updates via that path.
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.checklist(companyId, event.conversation_id),
         refetchType: "active",
       });
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.lists(companyId),
+        refetchType: "active",
+      });
+      // #89: refresh the /for-you "Your tasks" section DIRECTLY (a teammate
+      // assigning ME a task must move it into my For-you at once). We no longer
+      // lean on useForYouNotificationsRealtime's cache-subscription for this: it
+      // only fires when a tasks query happens to be cached, so a client sitting
+      // on /for-you with the /tasks page never opened would miss the update.
+      void queryClient.invalidateQueries({
+        queryKey: keys.forYou(companyId),
         refetchType: "active",
       });
       // #81: the source message's Task chip (has_task / promoted_task) rides the

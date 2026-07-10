@@ -132,3 +132,27 @@ export const keys = {
     ownerId: string,
   ) => [companyId, "attachments", "owner", ownerType, ownerId] as const,
 } as const;
+
+/**
+ * The query keys a task metadata change (create / assign / due / delete) on one
+ * thread must invalidate: the thread's checklist, the /tasks page lists, AND the
+ * /for-you "Your tasks" section (#89).
+ *
+ * The /for-you queue is a SEPARATE query (`forYou`) — it must be invalidated
+ * DIRECTLY, not left to the cache-subscription in useForYouNotificationsRealtime.
+ * That subscription only fires when a tasks-list/checklist query is currently
+ * cached, so a task created while sitting on /for-you (with the /tasks page never
+ * opened, or its cache GC'd) would not refresh For-you: the new task would only
+ * appear after a manual reload. Kept here (the pure key factory, no client/env
+ * imports) so the invalidation set is unit-testable.
+ */
+export function taskMetadataInvalidationKeys(
+  companyId: string,
+  conversationId: string,
+): readonly (readonly unknown[])[] {
+  return [
+    keys.tasks.checklist(companyId, conversationId),
+    keys.tasks.lists(companyId),
+    keys.forYou(companyId),
+  ];
+}
