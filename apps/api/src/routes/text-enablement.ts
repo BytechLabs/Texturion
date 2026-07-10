@@ -30,13 +30,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import {
-  countNonReleasedNumbers,
-  currentPaidExtras,
-  effectiveNumberAllowance,
-} from "../billing/extra-numbers";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
-import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -134,6 +128,8 @@ interface SlotResult {
     | "number_taken";
   number: Record<string, unknown> | null;
   order: (TextEnablementOrderRow & Record<string, unknown>) | null;
+  /** On plan_limit: the RPC's effective cap (included + paid), for the copy. */
+  max?: number;
 }
 
 /** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
@@ -233,23 +229,12 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
     );
   }
 
-  // #108: text-enable a number INTO capacity the company already pays for —
-  // no new charge. The max is included + the CURRENT paid-extra quantity (a
-  // read-only Stripe check, only when already at the included cap). Buying NEW
+  // #108/#110: text-enable a number INTO capacity the company already pays for
+  // — no new charge. The RPC adds companies.paid_extra_numbers to the included
+  // allowance UNDER its company-row lock, so the admit serializes against the
+  // converge's credit decision (no Stripe read here at all). Buying NEW
   // capacity here stays out of scope (the honest 409 stands once paid is full).
-  // See currentPaidExtras for the known admit-vs-converge race (#110).
   const included = PLAN_LIMITS[company.plan].numbers;
-  let maxNumbers = included;
-  const currentCount = await countNonReleasedNumbers(db, companyId);
-  if (currentCount >= included) {
-    const paidExtras = await currentPaidExtras(
-      env,
-      getStripe(env),
-      company.stripe_subscription_id,
-      company.plan,
-    );
-    maxNumbers = effectiveNumberAllowance(company.plan, paidExtras);
-  }
   const { data: slotData, error: slotError } = await db.rpc(
     "claim_text_enablement_slot",
     {
@@ -257,7 +242,7 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
       p_provisioning_key: parsedKey.data,
       p_phone_e164: body.phone_e164,
       p_country: entry.country,
-      p_max_numbers: maxNumbers,
+      p_included_numbers: included,
     },
   );
   if (slotError) {
@@ -274,6 +259,8 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
       ]),
       number: z.record(z.string(), z.unknown()).nullable(),
       order: z.record(z.string(), z.unknown()).nullable(),
+      // The RPC's effective cap (included + paid) — for the honest 409 copy.
+      max: z.number().optional(),
     }),
     slotData,
   ) as SlotResult;
@@ -288,13 +275,15 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
     );
   }
   if (slot.outcome === "plan_limit") {
+    const max = slot.max ?? included;
     return errorResponse(
       c,
       "conflict",
-      // #108: paid extra capacity is already counted above — hitting this means
-      // every included AND paid slot is full. Buying more capacity here is out
-      // of scope, so the honest remedy is releasing a number or upgrading.
-      `You're using all ${maxNumbers} of your phone number${maxNumbers === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
+      // Paid extra capacity is already counted inside the RPC — hitting this
+      // means every included AND paid slot is full. Buying more capacity here
+      // is out of scope, so the honest remedy is releasing a number or
+      // upgrading.
+      `You're using all ${max} of your phone number${max === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {

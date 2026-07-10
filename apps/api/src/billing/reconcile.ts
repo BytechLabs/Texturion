@@ -215,7 +215,9 @@ async function sweepOrphanSubscriptions(
             companyId: row.id,
             plan: row.plan,
             stripeSubscriptionId: row.stripe_subscription_id,
-            subscription: stored,
+            // #110: converge retrieves the subscription ITSELF, after reading
+            // the raise-fence epoch — a pre-fetched snapshot would predate the
+            // fence and could sync a stale billed value over a claimed credit.
             now,
           });
           if (converged?.kind === "lowered" || converged?.kind === "migrated") {

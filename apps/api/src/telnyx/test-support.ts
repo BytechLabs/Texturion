@@ -129,6 +129,49 @@ export class FakeRest {
     return this;
   }
 
+  /**
+   * #110: faithful doubles of the paid-extra capacity RPCs (SQL covered by
+   * supabase/tests): sync mirrors the billed quantity into the companies row
+   * (raises fenced on the epoch); claim re-counts, shrinks the column to the
+   * formula, and bumps the raise-fence epoch, returning the authoritative
+   * desired quantity + the new epoch.
+   */
+  registerExtraCapacityRpcs(): this {
+    this.rpc("sync_paid_extra_capacity", (args) => {
+      const row = this.rows("companies").find(
+        (r) => r.id === args.p_company_id,
+      );
+      if (!row) throw new Error("sync_paid_extra_capacity: company not found");
+      const current = Number(row.paid_extra_numbers ?? 0);
+      const epoch = Number(row.paid_capacity_epoch ?? 0);
+      const billed = Number(args.p_billed);
+      if (
+        billed > current &&
+        (args.p_expected_epoch == null || Number(args.p_expected_epoch) !== epoch)
+      ) {
+        return { applied: false, capacity: current, epoch };
+      }
+      row.paid_extra_numbers = billed;
+      return { applied: true, capacity: billed, epoch };
+    });
+    this.rpc("claim_extra_lower", (args) => {
+      const row = this.rows("companies").find(
+        (r) => r.id === args.p_company_id,
+      );
+      if (!row) throw new Error("claim_extra_lower: company not found");
+      const count = this.rows("phone_numbers").filter(
+        (n) => n.company_id === args.p_company_id && n.status !== "released",
+      ).length;
+      const desired = Math.max(0, count - Number(args.p_included));
+      const current = Number(row.paid_extra_numbers ?? 0);
+      const epoch = Number(row.paid_capacity_epoch ?? 0) + 1;
+      row.paid_capacity_epoch = epoch;
+      row.paid_extra_numbers = Math.min(current, desired);
+      return { allowed: current > desired, desired, count, epoch };
+    });
+    return this;
+  }
+
   route(): FetchRoute {
     return async (url, request) => {
       if (!url.href.startsWith(this.env.SUPABASE_URL)) return undefined;

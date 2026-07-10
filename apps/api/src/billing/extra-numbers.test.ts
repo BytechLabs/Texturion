@@ -15,7 +15,6 @@ import {
 import { completeEnv, stubFetch } from "../test/support";
 import {
   convergeExtraNumberQuantity,
-  currentPaidExtras,
   desiredExtraQuantity,
   effectiveNumberAllowance,
   EXTRA_NUMBER_MONTHLY_CENTS,
@@ -125,39 +124,6 @@ function subscription(
 }
 
 const PRO_PRICE = env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID as string;
-
-describe("currentPaidExtras (#108: read-only paid capacity)", () => {
-  it("returns 0 without a subscription id — never a Stripe call", async () => {
-    // Any fetch would throw (no stub); the null short-circuit must avoid it.
-    const extras = await currentPaidExtras(env, getStripe(env), null, "pro");
-    expect(extras).toBe(0);
-  });
-
-  it("reads the extra-number item's live quantity from Stripe", async () => {
-    const harness = makeHarness([
-      endpoint("GET", /\/v1\/subscriptions\/sub_1$/, () =>
-        subscription([
-          { id: "si_licensed", price: env.STRIPE_PRO_PRICE_ID },
-          { id: "si_extra", price: PRO_PRICE, quantity: 3 },
-        ]),
-      ),
-    ]);
-    stubFetch(harness.route);
-    const extras = await currentPaidExtras(env, getStripe(env), "sub_1", "pro");
-    expect(extras).toBe(3);
-  });
-
-  it("returns 0 when the subscription carries no extra-number item", async () => {
-    const harness = makeHarness([
-      endpoint("GET", /\/v1\/subscriptions\/sub_1$/, () =>
-        subscription([{ id: "si_licensed", price: env.STRIPE_PRO_PRICE_ID }]),
-      ),
-    ]);
-    stubFetch(harness.route);
-    const extras = await currentPaidExtras(env, getStripe(env), "sub_1", "pro");
-    expect(extras).toBe(0);
-  });
-});
 
 describe("setExtraNumberQuantity", () => {
   it("creates the item when absent (the first paid extra), charging now", async () => {
@@ -271,10 +237,7 @@ describe("setExtraNumberQuantity", () => {
 describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)", () => {
   const STARTER_PRICE = env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID as string;
 
-  function converge(
-    sub: Stripe.Subscription,
-    options: { plan?: "starter" | "pro" } = {},
-  ) {
+  function converge(options: { plan?: "starter" | "pro" } = {}) {
     return convergeExtraNumberQuantity({
       env,
       db: getDb(env),
@@ -282,24 +245,63 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
       companyId: COMPANY_ID,
       plan: options.plan ?? "pro",
       stripeSubscriptionId: "sub_1",
-      subscription: sub,
       now: NOW,
     });
+  }
+
+  const EPOCH = 7;
+
+  /**
+   * The #110 converge world: the raise-fence epoch read (companies select),
+   * the FRESH subscription retrieve (converge no longer accepts a snapshot),
+   * and the capacity RPC doubles — claim_extra_lower returns the given
+   * verdict (its `desired` + `epoch` are authoritative); sync echoes
+   * {applied:true} and records the fenced payload for assertions.
+   */
+  function convergeWorld(
+    sub: Stripe.Subscription,
+    claim?: { allowed: boolean; desired: number; count: number },
+  ) {
+    return [
+      endpoint("GET", /\/rest\/v1\/companies/, () => [
+        { paid_capacity_epoch: EPOCH },
+      ]),
+      endpoint("GET", /\/v1\/subscriptions\/sub_1$/, () => sub),
+      ...(claim
+        ? [
+            endpoint("POST", /\/rest\/v1\/rpc\/claim_extra_lower/, () => ({
+              ...claim,
+              epoch: EPOCH + 1,
+            })),
+          ]
+        : []),
+      endpoint(
+        "POST",
+        /\/rest\/v1\/rpc\/sync_paid_extra_capacity/,
+        (call) => ({
+          applied: true,
+          capacity: (call.json() as { p_billed: number }).p_billed,
+          epoch: (call.json() as { p_expected_epoch: number }).p_expected_epoch,
+        }),
+      ),
+    ];
   }
 
   it("credits a crashed release back down to the formula (item-scoped key)", async () => {
     // Pro, 3 numbers → desired 1 extra, but the item still says 2.
     const harness = makeHarness([
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(3)),
+      ...convergeWorld(
+        subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }]),
+        { allowed: true, desired: 1, count: 3 },
+      ),
       endpoint("POST", /\/v1\/subscription_items\/si_extra/, () => ({
         id: "si_extra",
       })),
     ]);
     stubFetch(harness.route);
 
-    const result = await converge(
-      subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }]),
-    );
+    const result = await converge();
 
     expect(result).toEqual({ kind: "lowered", quantity: 1 });
     const update = harness.callsTo(
@@ -322,18 +324,22 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     // only report.
     const harness = makeHarness([
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(2)),
+      ...convergeWorld(subscription([])),
     ]);
     stubFetch(harness.route);
 
-    const result = await converge(subscription([]), { plan: "starter" });
+    const result = await converge({ plan: "starter" });
     expect(result).toEqual({
       kind: "over_included_unbilled",
       billed: 0,
       desired: 1,
     });
-    // No Stripe write of any kind.
+    // No Stripe WRITE of any kind (the one GET is the fresh retrieve).
     expect(
-      harness.calls.filter((call) => call.url.host === "api.stripe.com"),
+      harness.calls.filter(
+        (call) =>
+          call.url.host === "api.stripe.com" && call.method !== "GET",
+      ),
     ).toHaveLength(0);
   });
 
@@ -342,15 +348,17 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     // (desired 1 on Pro): the item moves to the Pro price at quantity 1.
     const harness = makeHarness([
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(3)),
+      ...convergeWorld(
+        subscription([{ id: "si_stale", price: STARTER_PRICE, quantity: 1 }]),
+        { allowed: true, desired: 1, count: 3 },
+      ),
       endpoint("POST", /\/v1\/subscription_items\/si_stale/, () => ({
         id: "si_stale",
       })),
     ]);
     stubFetch(harness.route);
 
-    const result = await converge(
-      subscription([{ id: "si_stale", price: STARTER_PRICE, quantity: 1 }]),
-    );
+    const result = await converge();
     expect(result).toEqual({ kind: "migrated", quantity: 1 });
     const update = harness.callsTo(
       "POST",
@@ -363,6 +371,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
   it("deletes a wrong-plan item when the formula supports no extras", async () => {
     const harness = makeHarness([
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(2)),
+      ...convergeWorld(
+        subscription([{ id: "si_stale", price: STARTER_PRICE, quantity: 1 }]),
+        { allowed: true, desired: 0, count: 2 },
+      ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_stale/, () => ({
         id: "si_stale",
         deleted: true,
@@ -370,35 +382,113 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     ]);
     stubFetch(harness.route);
 
-    const result = await converge(
-      subscription([{ id: "si_stale", price: STARTER_PRICE, quantity: 1 }]),
-    );
+    const result = await converge();
     expect(result).toEqual({ kind: "migrated", quantity: 0 });
     expect(
       harness.callsTo("DELETE", /\/v1\/subscription_items\/si_stale/),
     ).toHaveLength(1);
   });
 
-  it("already converged → noop without touching Stripe", async () => {
+  it("already converged → noop without touching Stripe; capacity self-heals to billed", async () => {
     const harness = makeHarness([
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(3)),
+      ...convergeWorld(
+        subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 1 }]),
+      ),
     ]);
     stubFetch(harness.route);
 
-    const result = await converge(
-      subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 1 }]),
-    );
+    const result = await converge();
     expect(result).toEqual({ kind: "noop", quantity: 1 });
+    // #110 backfill/self-heal: the capacity column mirrors the billed truth,
+    // and the RAISE is fenced with the epoch read BEFORE the snapshot.
+    const sync = harness.callsTo(
+      "POST",
+      /\/rest\/v1\/rpc\/sync_paid_extra_capacity/,
+    )[0];
+    expect(sync.json()).toMatchObject({ p_billed: 1, p_expected_epoch: EPOCH });
+    // No Stripe WRITE of any kind (the one GET is the fresh retrieve).
+    expect(
+      harness.calls.filter(
+        (call) =>
+          call.url.host === "api.stripe.com" && call.method !== "GET",
+      ),
+    ).toHaveLength(0);
   });
 
-  it("skips schedule-managed subscriptions (settled after rollover)", async () => {
-    stubFetch(makeHarness([]).route);
-    const result = await converge(
-      subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }], {
-        schedule: "sub_sched_1",
-      }),
-    );
+  it("#110: a raced admit consumes the credit — the claim's re-count wins, no Stripe write", async () => {
+    // Our pre-lock count said 3 (desired 1, billed 2 → lower), but a port was
+    // admitted between that count and the claim: the claim re-counts UNDER the
+    // company lock and reports desired 2 == billed → the credit is off.
+    const harness = makeHarness([
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(3)),
+      ...convergeWorld(
+        subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }]),
+        { allowed: false, desired: 2, count: 4 },
+      ),
+    ]);
+    stubFetch(harness.route);
+
+    const result = await converge();
+    expect(result).toEqual({ kind: "noop", quantity: 2 });
+    expect(
+      harness.calls.filter(
+        (call) =>
+          call.url.host === "api.stripe.com" && call.method !== "GET",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("schedule-managed: writes NO quantities but mirrors billed capacity, then skips", async () => {
+    const harness = makeHarness([
+      ...convergeWorld(
+        subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }], {
+          schedule: "sub_sched_1",
+        }),
+      ),
+    ]);
+    stubFetch(harness.route);
+    const result = await converge();
     expect(result).toBeNull();
+    // #18: the schedule owns the items — no Stripe writes…
+    expect(
+      harness.calls.filter(
+        (call) =>
+          call.url.host === "api.stripe.com" && call.method !== "GET",
+      ),
+    ).toHaveLength(0);
+    // …but the capacity column keeps mirroring what is actually billed, so a
+    // pending downgrade can't leave stale-high capacity for a whole period.
+    const sync = harness.callsTo(
+      "POST",
+      /\/rest\/v1\/rpc\/sync_paid_extra_capacity/,
+    )[0];
+    expect(sync.json()).toMatchObject({ p_billed: 2, p_expected_epoch: EPOCH });
+  });
+
+  it("#110: the crashed-run retry (column already lowered, Stripe still high) STILL writes Stripe", async () => {
+    // A prior run claimed (column→desired) then died before the Stripe write.
+    // This run: claim reports allowed:false desired=1 — but billed=2 > 1, so
+    // the credit MUST still land (allowed:false only means no shrink needed).
+    const harness = makeHarness([
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(3)),
+      ...convergeWorld(
+        subscription([{ id: "si_extra", price: PRO_PRICE, quantity: 2 }]),
+        { allowed: false, desired: 1, count: 3 },
+      ),
+      endpoint("POST", /\/v1\/subscription_items\/si_extra/, () => ({
+        id: "si_extra",
+      })),
+    ]);
+    stubFetch(harness.route);
+
+    const result = await converge();
+    expect(result).toEqual({ kind: "lowered", quantity: 1 });
+    const update = harness.callsTo(
+      "POST",
+      /\/v1\/subscription_items\/si_extra/,
+    )[0];
+    expect(update.form().get("quantity")).toBe("1");
   });
 
   it("no-ops when the price was never provisioned (fail closed, no read)", async () => {
@@ -411,7 +501,6 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
       companyId: COMPANY_ID,
       plan: "pro",
       stripeSubscriptionId: "sub_1",
-      subscription: subscription([]),
       now: NOW,
     });
     expect(result).toBeNull();

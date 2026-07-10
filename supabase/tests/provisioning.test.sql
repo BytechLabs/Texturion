@@ -355,4 +355,128 @@ begin
   raise notice 'P13 PASSED: churn cap blocks at limit (no insert), increments on create';
 end $$;
 
+-- ===========================================================================
+-- P14 (#110). Paid-extra CAPACITY: companies.paid_extra_numbers raises the
+--     effective cap inside the slot claim (max = included + paid, read under
+--     the company lock), and the plan_limit outcome reports that max.
+-- ===========================================================================
+do $$
+declare
+  result  jsonb;
+  v_epoch bigint;
+begin
+  -- Starter Co currently holds 1 non-released number (P1). Included=1 → full.
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000001', 'key-p14-a', '212', 'US', 1);
+  if result->>'outcome' <> 'plan_limit' or (result->>'max')::int <> 1 then
+    raise exception 'P14 FAILED: expected plan_limit max 1, got %', result;
+  end if;
+
+  -- Buy capacity: the RAISE carries the epoch read before the conclusion…
+  select paid_capacity_epoch into v_epoch from public.companies
+   where id = 'c0000000-0000-4000-8000-000000000001';
+  result := public.sync_paid_extra_capacity(
+    'c0000000-0000-4000-8000-000000000001', 1, v_epoch);
+  if not (result->>'applied')::boolean then
+    raise exception 'P14 FAILED: fresh-epoch raise was refused: %', result;
+  end if;
+  -- …and the SAME claim now admits (max = 1 included + 1 paid).
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000001', 'key-p14-b', '212', 'US', 1);
+  if result->>'outcome' <> 'created' then
+    raise exception 'P14 FAILED: paid capacity did not admit, got %', result->>'outcome';
+  end if;
+
+  raise notice 'P14 PASSED: paid_extra_numbers raises the slot cap; plan_limit reports max';
+end $$;
+
+-- ===========================================================================
+-- P15 (#110). claim_extra_lower: shrinks capacity ONLY above the formula,
+--     re-counting under the lock — the serialized credit decision. This is
+--     the race replay: once the lower is claimed, an admit sees the shrunk
+--     capacity and 409s instead of slipping into the credited slot.
+-- ===========================================================================
+do $$
+declare
+  result jsonb;
+begin
+  -- State from P14: Starter Co holds 2 non-released numbers, paid capacity 1.
+  -- Formula: desired = max(0, 2 - 1) = 1 = current capacity → nothing to shrink
+  -- (but the epoch still bumps — a credit may follow any claim).
+  result := public.claim_extra_lower('c0000000-0000-4000-8000-000000000001', 1);
+  if (result->>'allowed')::boolean or (result->>'desired')::int <> 1
+     or (result->>'epoch') is null then
+    raise exception 'P15 FAILED: expected allowed=false desired=1 with epoch, got %', result;
+  end if;
+
+  -- Release one number → count 1 → desired 0 → the claim shrinks capacity.
+  update public.phone_numbers set status = 'released'
+   where provisioning_key = 'key-p14-b';
+  result := public.claim_extra_lower('c0000000-0000-4000-8000-000000000001', 1);
+  if not (result->>'allowed')::boolean or (result->>'desired')::int <> 0 then
+    raise exception 'P15 FAILED: expected allowed=true desired=0, got %', result;
+  end if;
+  if (select paid_extra_numbers from public.companies
+      where id = 'c0000000-0000-4000-8000-000000000001') <> 0 then
+    raise exception 'P15 FAILED: capacity column not shrunk';
+  end if;
+
+  -- THE RACE, replayed: with the credit claimed, the admit that would have
+  -- slipped into the paid slot now sees max = 1 + 0 and 409s. Never a free
+  -- number.
+  result := public.provision_number_slot(
+    'c0000000-0000-4000-8000-000000000001', 'key-p15-c', '212', 'US', 1);
+  if result->>'outcome' <> 'plan_limit' or (result->>'max')::int <> 1 then
+    raise exception 'P15 FAILED: post-claim admit not blocked, got %', result;
+  end if;
+
+  raise notice 'P15 PASSED: claim_extra_lower serializes the credit; post-claim admits fail closed';
+end $$;
+
+-- ===========================================================================
+-- P16 (#110). The RAISE FENCE: a capacity raise formed BEFORE a claim (a buy
+--     or reconcile sync holding a stale billed conclusion) is refused — the
+--     epoch the claim bumped no longer matches. Raises need a fresh epoch;
+--     lowers always apply; a raise with NO epoch is never accepted.
+-- ===========================================================================
+do $$
+declare
+  result  jsonb;
+  v_stale bigint;
+begin
+  -- Read the epoch (as a buy would), THEN a claim intervenes (bumps it).
+  select paid_capacity_epoch into v_stale from public.companies
+   where id = 'c0000000-0000-4000-8000-000000000001';
+  perform public.claim_extra_lower('c0000000-0000-4000-8000-000000000001', 1);
+
+  -- The stale raise is refused…
+  result := public.sync_paid_extra_capacity(
+    'c0000000-0000-4000-8000-000000000001', 3, v_stale);
+  if (result->>'applied')::boolean then
+    raise exception 'P16 FAILED: stale-epoch raise was applied: %', result;
+  end if;
+  -- …an epoch-less raise is refused…
+  result := public.sync_paid_extra_capacity(
+    'c0000000-0000-4000-8000-000000000001', 3, null);
+  if (result->>'applied')::boolean then
+    raise exception 'P16 FAILED: epoch-less raise was applied: %', result;
+  end if;
+  -- …a LOWER always applies (down-safe, no epoch needed)…
+  result := public.sync_paid_extra_capacity(
+    'c0000000-0000-4000-8000-000000000001', 0, null);
+  if not (result->>'applied')::boolean then
+    raise exception 'P16 FAILED: lower was refused: %', result;
+  end if;
+  -- …and a raise with the FRESH epoch applies.
+  result := public.sync_paid_extra_capacity(
+    'c0000000-0000-4000-8000-000000000001', 2, (result->>'epoch')::bigint);
+  if not (result->>'applied')::boolean
+     or (select paid_extra_numbers from public.companies
+         where id = 'c0000000-0000-4000-8000-000000000001') <> 2 then
+    raise exception 'P16 FAILED: fresh-epoch raise refused: %', result;
+  end if;
+
+  raise notice 'P16 PASSED: raises are epoch-fenced; lowers always apply';
+end $$;
+
 rollback;

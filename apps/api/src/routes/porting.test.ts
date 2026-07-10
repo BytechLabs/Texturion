@@ -87,8 +87,16 @@ function installPortSlotRpc(rest: FakeRest) {
     if (soleProp && nonReleased.length >= 1) {
       return { outcome: "sole_prop_cap", number: null };
     }
-    if (nonReleased.length >= Number(args.p_max_numbers)) {
-      return { outcome: "plan_limit", number: null };
+    // #110 (mirrors the RPC): effective max = included + the company's
+    // paid_extra_numbers column, read under the same (simulated) row lock.
+    const capacityRow = rest
+      .rows("companies")
+      .find((row) => row.id === args.p_company_id);
+    const effectiveMax =
+      Number(args.p_included_numbers) +
+      Number(capacityRow?.paid_extra_numbers ?? 0);
+    if (nonReleased.length >= effectiveMax) {
+      return { outcome: "plan_limit", number: null, max: effectiveMax };
     }
     const row = rest.insert("phone_numbers", {
       company_id: args.p_company_id,
@@ -108,7 +116,7 @@ function buildHarness(
 ) {
   const env = completeEnv();
   const rest = new FakeRest(env);
-  rest.table("companies");
+  rest.table("companies", { paid_extra_numbers: 0, paid_capacity_epoch: 0 });
   rest.table("phone_numbers", PHONE_DEFAULTS);
   rest.table("port_requests", PORT_DEFAULTS);
   rest.table("company_members");
@@ -534,41 +542,14 @@ describe("POST /v1/port-requests", () => {
     expect(harness.rest.rows("port_requests")).toHaveLength(0);
   });
 
-  // #108: a Starter company that BOUGHT its 1 extra can port into that paid
-  // slot — no new charge. The Stripe subscription carries a Starter extra item.
+  // #108/#110: a Starter company that BOUGHT its 1 extra can port into that
+  // paid slot — no new charge. Capacity lives in companies.paid_extra_numbers
+  // (mirrored from Stripe by the buy/converge/reconcile), which the slot RPC
+  // reads under its row lock — the route makes NO Stripe call.
   it("#108: a paid Starter extra admits a port past the included cap", async () => {
-    const STARTER_EXTRA_PRICE = completeEnv()
-      .STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID as string;
-    const stripeRoute: FetchRoute = (url) => {
-      if (url.host !== "api.stripe.com") return undefined;
-      if (url.pathname === "/v1/subscriptions/sub_1") {
-        return Response.json({
-          id: "sub_1",
-          object: "subscription",
-          status: "active",
-          schedule: null,
-          items: {
-            object: "list",
-            has_more: false,
-            data: [
-              {
-                id: "si_x",
-                object: "subscription_item",
-                price: { id: STARTER_EXTRA_PRICE, object: "price" },
-                quantity: 1,
-              },
-            ],
-          },
-        });
-      }
-      return Response.json({ error: { message: "unhandled" } }, { status: 500 });
-    };
     // Starter: 1 included + 1 PAID extra = allowance 2. Already holding the 1
-    // included number — the old code 409'd; the paid slot now admits the port.
-    const harness = buildHarness(
-      { plan: "starter", stripe_subscription_id: "sub_1" },
-      [stripeRoute],
-    );
+    // included number — the paid slot admits the port.
+    const harness = buildHarness({ plan: "starter", paid_extra_numbers: 1 });
     harness.rest.insert("phone_numbers", {
       company_id: COMPANY_ID,
       status: "active",

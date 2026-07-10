@@ -59,8 +59,16 @@ function installSlotRpc(rest: FakeRest) {
     if (soleProp && nonReleased.length >= 1) {
       return { outcome: "sole_prop_cap", number: null };
     }
-    if (nonReleased.length >= Number(args.p_max_numbers)) {
-      return { outcome: "plan_limit", number: null };
+    // #110 (mirrors the RPC): effective max = included + the company's
+    // paid_extra_numbers column, read under the same (simulated) row lock.
+    const capacityRow = rest
+      .rows("companies")
+      .find((row) => row.id === args.p_company_id);
+    const effectiveMax =
+      Number(args.p_included_numbers) +
+      Number(capacityRow?.paid_extra_numbers ?? 0);
+    if (nonReleased.length >= effectiveMax) {
+      return { outcome: "plan_limit", number: null, max: effectiveMax };
     }
     // #74 churn cap (mirrors the RPC): a lifetime per-company counter, checked
     // under the company row before the insert; incremented on every created.
@@ -101,7 +109,7 @@ function buildHarness(
 ) {
   const env = completeEnv();
   const rest = new FakeRest(env);
-  rest.table("companies");
+  rest.table("companies", { paid_extra_numbers: 0, paid_capacity_epoch: 0 });
   rest.table("phone_numbers", NUMBER_DEFAULTS);
   rest.table("company_members");
   rest.table("number_access");
@@ -124,6 +132,8 @@ function buildHarness(
     deactivated_at: null,
   });
   installSlotRpc(rest);
+  // #110: the paid-buy syncs capacity and the release-converge claims lowers.
+  rest.registerExtraCapacityRpcs();
   // §4.3 double-order fail-safe: remediate + provision routes drive the real
   // saga, which claims a per-row lease + per-order idempotency key via these RPCs.
   registerProvisioningRpcs(rest);
@@ -688,14 +698,19 @@ function stripeStub(
     form: URLSearchParams;
     headers: Headers;
   }[] = [];
+  // STATEFUL (#110): the buy path verifies-after-write with a second retrieve,
+  // so item writes must be visible to later GETs — a static list would make
+  // every successful create look like a ghost replay.
+  const items = (options.items ?? []).map((item) => ({ ...item }));
   const route: FetchRoute = async (url, request) => {
     if (url.host !== "api.stripe.com") return undefined;
+    const form = new URLSearchParams(
+      request.method === "POST" ? await request.clone().text() : "",
+    );
     calls.push({
       method: request.method,
       pathname: url.pathname,
-      form: new URLSearchParams(
-        request.method === "POST" ? await request.clone().text() : "",
-      ),
+      form,
       headers: new Headers(request.headers),
     });
     if (request.method === "GET" && url.pathname === "/v1/subscriptions/sub_1") {
@@ -707,7 +722,7 @@ function stripeStub(
         items: {
           object: "list",
           has_more: false,
-          data: (options.items ?? []).map((item) => ({
+          data: items.map((item) => ({
             id: item.id,
             object: "subscription_item",
             price: { id: item.price, object: "price" },
@@ -718,19 +733,39 @@ function stripeStub(
     }
     if (
       request.method === "POST" &&
-      url.pathname.startsWith("/v1/subscription_items")
+      url.pathname === "/v1/subscription_items"
     ) {
+      items.push({
+        id: "si_extra",
+        price: form.get("price") ?? "",
+        quantity: Number(form.get("quantity") ?? 1),
+      });
       return Response.json({ id: "si_extra", object: "subscription_item" });
     }
+    if (
+      request.method === "POST" &&
+      url.pathname.startsWith("/v1/subscription_items/")
+    ) {
+      const id = url.pathname.split("/").pop();
+      const item = items.find((i) => i.id === id);
+      if (item) {
+        item.quantity = Number(form.get("quantity") ?? item.quantity ?? 1);
+        if (form.get("price")) item.price = form.get("price") as string;
+      }
+      return Response.json({ id, object: "subscription_item" });
+    }
     if (request.method === "DELETE") {
-      return Response.json({ id: "si_extra", deleted: true });
+      const id = url.pathname.split("/").pop();
+      const at = items.findIndex((i) => i.id === id);
+      if (at >= 0) items.splice(at, 1);
+      return Response.json({ id, deleted: true });
     }
     return Response.json(
       { error: { message: `unhandled ${request.method} ${url.pathname}` } },
       { status: 500 },
     );
   };
-  return { route, calls };
+  return { route, calls, items };
 }
 
 describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
@@ -777,6 +812,68 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
     expect(create!.headers.get("Idempotency-Key")).toBe(
       `${COMPANY_ID}:extra_number_buy:${key}`,
     );
+  });
+
+  it("#110: the raise fence refuses a stale buy — 409, no slot claim, no order", async () => {
+    // A converge claimed a credit between this request's epoch read and its
+    // sync (simulated by a sync double that reports the fence refusal). The
+    // buy must fail CLOSED: no capacity resurrection, no number.
+    const stripe = stripeStub();
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+    sagaTelnyx(harness.telnyx);
+    harness.rest.rpc("sync_paid_extra_capacity", () => ({
+      applied: false,
+      capacity: 0,
+      epoch: 99,
+    }));
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("billing update just ran");
+    // Nothing was admitted: still just the seeded first number, no order.
+    expect(harness.rest.rows("phone_numbers")).toHaveLength(1);
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+  });
+
+  it("#110: a ghost Stripe create (cached replay of a deleted item) fails closed", async () => {
+    // The write 'succeeds' but the item never lands (Stripe replayed a cached
+    // create for an item a converge already deleted). The verify-after-write
+    // re-retrieve sees no item → 409, never a free number.
+    const ghostStripe: FetchRoute = async (url, request) => {
+      if (url.host !== "api.stripe.com") return undefined;
+      if (request.method === "GET" && url.pathname === "/v1/subscriptions/sub_1") {
+        return Response.json({
+          id: "sub_1",
+          object: "subscription",
+          status: "active",
+          schedule: null,
+          items: { object: "list", has_more: false, data: [] },
+        });
+      }
+      if (request.method === "POST" && url.pathname === "/v1/subscription_items") {
+        // The cached-replay shape: 200, but no item is ever visible.
+        return Response.json({ id: "si_ghost", object: "subscription_item" });
+      }
+      return Response.json({ error: { message: "unhandled" } }, { status: 500 });
+    };
+    const harness = buildHarness(PAID_COMPANY, [ghostStripe]);
+    firstNumber(harness);
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("didn't complete");
+    expect(harness.rest.rows("phone_numbers")).toHaveLength(1);
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
   });
 
   it("409s Starter's 3rd number (hard cap 2) without touching Stripe", async () => {

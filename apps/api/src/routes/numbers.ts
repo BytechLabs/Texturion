@@ -9,10 +9,11 @@ import {
   convergeExtraNumberQuantity,
   countNonReleasedNumbers,
   desiredExtraQuantity,
-  effectiveNumberAllowance,
   extraNumberPrice,
   extraNumberPurchasable,
+  findExtraNumberItem,
   setExtraNumberQuantity,
+  syncPaidExtraCapacity,
 } from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
 import {
@@ -178,20 +179,23 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
   const { data: companyRows, error: companyError } = await db
     .from("companies")
     .select(
-      "id,country,subscription_status,plan,us_texting_enabled,stripe_subscription_id",
+      "id,country,subscription_status,plan,us_texting_enabled," +
+        "stripe_subscription_id,paid_capacity_epoch",
     )
     .eq("id", companyId)
     .limit(1);
   if (companyError) {
     throw new Error(`companies lookup failed: ${companyError.message}`);
   }
-  const company = (companyRows?.[0] ?? null) as {
+  const company = (companyRows?.[0] ?? null) as unknown as {
     id: string;
     country: "US" | "CA";
     subscription_status: string;
     plan: PlanId | null;
     us_texting_enabled: boolean;
     stripe_subscription_id: string | null;
+    /** #110 raise fence — read BEFORE any billing conclusion below. */
+    paid_capacity_epoch: number;
   } | null;
   if (!company) throw new ApiError("not_found", "Company not found.");
 
@@ -276,7 +280,6 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
   // the included count this path is never consulted (no Stripe read).
   const included = PLAN_LIMITS[company.plan].numbers;
   const currentCount = await countNonReleasedNumbers(db, companyId);
-  let maxNumbers = included;
   if (currentCount >= included) {
     const purchasable = extraNumberPurchasable({
       plan: company.plan,
@@ -376,7 +379,42 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
       }
       throw cause;
     }
-    maxNumbers = effectiveNumberAllowance(company.plan, quantity);
+    // #110 VERIFY-AFTER-WRITE: re-read the live item before trusting our own
+    // intent. Two ways the write above can be a ghost: (a) Stripe replayed a
+    // CACHED create for an item a later converge already deleted (same key
+    // within the 24h idempotency window — no new item, no charge); (b) a
+    // concurrent converge credited the quantity right after our write. Either
+    // way the customer is NOT billed for `quantity` — admitting would mint a
+    // free number, so fail closed and ask for a fresh attempt.
+    const verified = await stripe.subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+    const liveQuantity = findExtraNumberItem(verified, price)?.quantity ?? 0;
+    if (liveQuantity < quantity) {
+      return errorResponse(
+        c,
+        "conflict",
+        "A billing update just ran on this account and the purchase didn't complete. Try again.",
+      );
+    }
+    // Mirror the bought capacity into companies.paid_extra_numbers — the slot
+    // claim below reads it UNDER the company lock. The RAISE is fenced with
+    // the epoch read at the top of this request: if any converge claimed a
+    // credit since, the raise is refused and we fail closed (a stale
+    // conclusion must never resurrect credited capacity).
+    const sync = await syncPaidExtraCapacity(
+      db,
+      companyId,
+      quantity,
+      company.paid_capacity_epoch,
+    );
+    if (!sync.applied) {
+      return errorResponse(
+        c,
+        "conflict",
+        "A billing update just ran on this account. Try again in a moment.",
+      );
+    }
   }
 
   const { data: slotData, error: slotError } = await db.rpc(
@@ -386,7 +424,9 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
       p_provisioning_key: parsedKey.data,
       p_requested_area_code: areaCode,
       p_country: company.country,
-      p_max_numbers: maxNumbers,
+      // #110: the Worker passes the plan-INCLUDED allowance; the RPC adds the
+      // paid capacity from companies.paid_extra_numbers under its row lock.
+      p_included_numbers: included,
       p_chosen_number_e164: chosen,
       p_provision_cap: NUMBER_PROVISION_CHURN_CAP,
     },

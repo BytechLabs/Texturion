@@ -76,36 +76,11 @@ export function effectiveNumberAllowance(
   return PLAN_LIMITS[plan].numbers + paidExtras;
 }
 
-/**
- * The paid-extra quantity a company is CURRENTLY billed for — the live Stripe
- * extra-number item quantity (0 when there's no subscription, no configured
- * price, or no item). #108: the port-in and text-enablement slot claims use
- * this to admit a transfer INTO capacity the company already pays for, without
- * a new charge. Read-only (no Stripe write), unlike the provision route's buy.
- *
- * KNOWN RESIDUAL RACE (#110): this read is not serialized against
- * {@link convergeExtraNumberQuantity}'s down-only credit — both touch the same
- * Stripe quantity but coordinate through no shared lock (the slot RPCs lock the
- * company row; this Stripe read happens in the route, outside it). If a port is
- * admitted into a paid slot in the same sub-second window the daily reconcile
- * (or an inline release-converge) credits that slot away, the company can end
- * up holding one number it isn't billed for. This never auto-charges up; the
- * next reconcile FLAGS it as `over_included_unbilled` (Sentry) for a human —
- * the same "flag, don't charge" posture the system already relies on. Fully
- * closing it means reading paid capacity from DB state under the slot lock
- * (#110), not from this Stripe read.
- */
-export async function currentPaidExtras(
-  env: Env,
-  stripe: Stripe,
-  subscriptionId: string | null,
-  plan: PlanId,
-): Promise<number> {
-  const price = extraNumberPrice(env, plan);
-  if (!price || !subscriptionId) return 0;
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  return findExtraNumberItem(subscription, price)?.quantity ?? 0;
-}
+// #110 note: the #108-era `currentPaidExtras` Stripe read is gone — the port /
+// text-enablement routes no longer read Stripe at all. Paid capacity lives in
+// companies.paid_extra_numbers (mirrored by syncPaidExtraCapacity below and
+// consumed by the slot RPCs under their company-row lock), which closed the
+// admit-vs-converge race that Stripe-read approach carried.
 
 /** May this company buy ONE MORE number beyond `currentCount`? (#80 rules.) */
 export function extraNumberPurchasable(args: {
@@ -259,18 +234,41 @@ export async function convergeExtraNumberQuantity(args: {
   companyId: string;
   plan: PlanId;
   stripeSubscriptionId: string;
-  /** Pass when the caller already fetched it (the reconcile has it). */
-  subscription?: Stripe.Subscription;
   /** Date scoping for the Stripe idempotency key (one attempt per day). */
   now: Date;
 }): Promise<ConvergeOutcome | null> {
   const price = extraNumberPrice(args.env, args.plan);
   if (!price) return null;
 
-  const subscription =
-    args.subscription ??
-    (await args.stripe.subscriptions.retrieve(args.stripeSubscriptionId));
-  if (subscription.schedule) return null;
+  // #110 ORDER MATTERS: read the raise-fence epoch BEFORE the subscription
+  // snapshot. Any claim (an inline release-converge racing this run) that
+  // lands after this read bumps the epoch, so a sync raise formed from the
+  // snapshot below is refused instead of resurrecting credited capacity. The
+  // subscription is therefore always retrieved FRESH here — a caller-provided
+  // snapshot would predate the fence read.
+  const epoch = await readPaidCapacityEpoch(args.db, args.companyId);
+  const subscription = await args.stripe.subscriptions.retrieve(
+    args.stripeSubscriptionId,
+  );
+
+  const included = PLAN_LIMITS[args.plan].numbers;
+
+  if (subscription.schedule) {
+    // #18: the schedule owns the items — never write quantities. But DO keep
+    // the capacity column mirroring what's actually billed right now (a
+    // pending downgrade otherwise leaves it stale for the whole period). A
+    // refused raise is fine — the next run re-mirrors.
+    const scheduleBilled = allExtraNumberPrices(args.env)
+      .map((candidate) => findExtraNumberItem(subscription, candidate))
+      .find((item) => item !== undefined)?.quantity;
+    await syncPaidExtraCapacity(
+      args.db,
+      args.companyId,
+      scheduleBilled ?? 0,
+      epoch,
+    );
+    return null;
+  }
 
   const count = await countNonReleasedNumbers(args.db, args.companyId);
   const desired = desiredExtraQuantity(count, args.plan);
@@ -293,7 +291,10 @@ export async function convergeExtraNumberQuantity(args: {
     .map((candidate) => findExtraNumberItem(subscription, candidate))
     .find((item) => item !== undefined);
   if (stale) {
-    const quantity = Math.min(stale.quantity ?? 0, desired);
+    // #110: the lower DECISION serializes against slot admits under the
+    // company lock — the claim re-counts and its desired is authoritative.
+    const claim = await claimExtraLower(args.db, args.companyId, included);
+    const quantity = Math.min(stale.quantity ?? 0, claim.desired);
     if (quantity === 0) {
       await args.stripe.subscriptionItems.del(
         stale.id,
@@ -307,20 +308,39 @@ export async function convergeExtraNumberQuantity(args: {
         { idempotencyKey: key(stale, quantity) },
       );
     }
+    // Capacity mirrors the FINAL billed quantity. Raise-fenced with the
+    // CLAIM's epoch (the claim bumped it; nothing else may have since).
+    await syncPaidExtraCapacity(args.db, args.companyId, quantity, claim.epoch);
     return { kind: "migrated", quantity };
   }
 
   const item = findExtraNumberItem(subscription, price);
   const billed = item?.quantity ?? 0;
-  if (billed === desired) return { kind: "noop", quantity: desired };
+  if (billed === desired) {
+    // Converged — self-heal the capacity column to the billed truth (this is
+    // also the #110 backfill for companies that predate the column). The raise
+    // is fenced with the pre-snapshot epoch.
+    await syncPaidExtraCapacity(args.db, args.companyId, billed, epoch);
+    return { kind: "noop", quantity: desired };
+  }
 
   if (billed < desired) {
     // More numbers than paid capacity — a human decides (see docblock).
+    // Capacity stays at what's actually billed (fail-closed).
+    await syncPaidExtraCapacity(args.db, args.companyId, billed, epoch);
     return { kind: "over_included_unbilled", billed, desired };
   }
 
   // billed > desired → credit the difference down (item is non-null: billed > 0).
-  if (desired === 0) {
+  // #110: claim the lower under the company lock FIRST — a port/enable admitted
+  // between our count above and this write is seen by the claim's re-count, and
+  // an admit queued behind the lock sees the shrunk capacity. The claim's
+  // desired is authoritative; if it says nothing to credit anymore, noop.
+  const claim = await claimExtraLower(args.db, args.companyId, included);
+  if (claim.desired >= billed) {
+    return { kind: "noop", quantity: billed };
+  }
+  if (claim.desired === 0) {
     await args.stripe.subscriptionItems.del(
       item!.id,
       { proration_behavior: "create_prorations" },
@@ -329,9 +349,99 @@ export async function convergeExtraNumberQuantity(args: {
   } else {
     await args.stripe.subscriptionItems.update(
       item!.id,
-      { quantity: desired, proration_behavior: "create_prorations" },
-      { idempotencyKey: key(item!, desired) },
+      { quantity: claim.desired, proration_behavior: "create_prorations" },
+      { idempotencyKey: key(item!, claim.desired) },
     );
   }
-  return { kind: "lowered", quantity: desired };
+  return { kind: "lowered", quantity: claim.desired };
+}
+
+/**
+ * #110: the raise-fence epoch. Read BEFORE forming any billed conclusion that
+ * could RAISE the capacity column; passed to {@link syncPaidExtraCapacity} so
+ * a claim in between refuses the raise.
+ */
+export async function readPaidCapacityEpoch(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  const { data, error } = await db
+    .from("companies")
+    .select("paid_capacity_epoch")
+    .eq("id", companyId)
+    .limit(1);
+  if (error) {
+    throw new Error(`paid_capacity_epoch read failed: ${error.message}`);
+  }
+  const row = (data ?? [])[0] as { paid_capacity_epoch?: number } | undefined;
+  if (typeof row?.paid_capacity_epoch !== "number") {
+    throw new Error("paid_capacity_epoch read returned no row");
+  }
+  return row.paid_capacity_epoch;
+}
+
+/**
+ * #110: the serialized lower decision — claim_extra_lower locks the company
+ * row, re-counts non-released numbers, shrinks `paid_extra_numbers` to the
+ * formula when it exceeds it, and BUMPS the raise-fence epoch (returned for
+ * follow-up syncs). The claim's desired quantity is authoritative.
+ */
+async function claimExtraLower(
+  db: SupabaseClient,
+  companyId: string,
+  included: number,
+): Promise<{ allowed: boolean; desired: number; count: number; epoch: number }> {
+  const { data, error } = await db.rpc("claim_extra_lower", {
+    p_company_id: companyId,
+    p_included: included,
+  });
+  if (error) throw new Error(`claim_extra_lower failed: ${error.message}`);
+  const row = data as {
+    allowed?: boolean;
+    desired?: number;
+    count?: number;
+    epoch?: number;
+  };
+  if (
+    typeof row?.allowed !== "boolean" ||
+    typeof row?.desired !== "number" ||
+    typeof row?.count !== "number" ||
+    typeof row?.epoch !== "number"
+  ) {
+    throw new Error("claim_extra_lower returned an unexpected shape");
+  }
+  return {
+    allowed: row.allowed,
+    desired: row.desired,
+    count: row.count,
+    epoch: row.epoch,
+  };
+}
+
+/**
+ * #110: mirror the live billed extra quantity into companies.paid_extra_numbers
+ * (under the company lock). LOWERS always apply; a RAISE must carry the epoch
+ * read before the billed conclusion was formed — `applied: false` means a claim
+ * intervened and the caller's conclusion is stale (fail closed; never throw,
+ * the next converge run re-mirrors).
+ */
+export async function syncPaidExtraCapacity(
+  db: SupabaseClient,
+  companyId: string,
+  billed: number,
+  expectedEpoch: number,
+): Promise<{ applied: boolean }> {
+  const { data, error } = await db.rpc("sync_paid_extra_capacity", {
+    p_company_id: companyId,
+    p_billed: billed,
+    p_expected_epoch: expectedEpoch,
+  });
+  if (error) {
+    throw new Error(`sync_paid_extra_capacity failed: ${error.message}`);
+  }
+  const row = data as { applied?: boolean };
+  if (typeof row?.applied !== "boolean") {
+    throw new Error("sync_paid_extra_capacity returned an unexpected shape");
+  }
+  return { applied: row.applied };
 }

@@ -80,8 +80,16 @@ function installSlotRpc(rest: FakeRest) {
     if (soleProp && nonReleased.length >= 1) {
       return { outcome: "sole_prop_cap", number: null, order: null };
     }
-    if (nonReleased.length >= Number(args.p_max_numbers)) {
-      return { outcome: "plan_limit", number: null, order: null };
+    // #110 (mirrors the RPC): effective max = included + the company's
+    // paid_extra_numbers column, read under the same (simulated) row lock.
+    const capacityRow = rest
+      .rows("companies")
+      .find((row) => row.id === args.p_company_id);
+    const effectiveMax =
+      Number(args.p_included_numbers) +
+      Number(capacityRow?.paid_extra_numbers ?? 0);
+    if (nonReleased.length >= effectiveMax) {
+      return { outcome: "plan_limit", number: null, order: null, max: effectiveMax };
     }
     // The phone_numbers unique index is the cross-company arbiter: inserting a
     // number already in service raises unique_violation → 'number_taken'.
@@ -138,7 +146,7 @@ function buildHarness(
 ) {
   const env = completeEnv();
   const rest = new FakeRest(env);
-  rest.table("companies");
+  rest.table("companies", { paid_extra_numbers: 0, paid_capacity_epoch: 0 });
   rest.table("phone_numbers", PHONE_DEFAULTS);
   rest.table("text_enablement_orders", ORDER_DEFAULTS);
   rest.table("company_members");
@@ -377,38 +385,9 @@ describe("POST /v1/text-enablements", () => {
     expect(h.telnyx.calls).toHaveLength(0);
   });
 
-  // #108: text-enablement counts the company's PAID extra-number capacity.
-  const PRO_EXTRA_PRICE = completeEnv()
-    .STRIPE_EXTRA_NUMBER_PRO_PRICE_ID as string;
-
-  /** A Stripe stub for sub_1 carrying the given subscription items. */
-  function stripeSubStub(
-    items: { id: string; price: string; quantity: number }[],
-  ): FetchRoute {
-    return (url) => {
-      if (url.host !== "api.stripe.com") return undefined;
-      if (url.pathname === "/v1/subscriptions/sub_1") {
-        return Response.json({
-          id: "sub_1",
-          object: "subscription",
-          status: "active",
-          schedule: null,
-          items: {
-            object: "list",
-            has_more: false,
-            data: items.map((i) => ({
-              id: i.id,
-              object: "subscription_item",
-              price: { id: i.price, object: "price" },
-              quantity: i.quantity,
-            })),
-          },
-        });
-      }
-      return Response.json({ error: { message: "unhandled" } }, { status: 500 });
-    };
-  }
-
+  // #108/#110: text-enablement counts the company's PAID extra-number capacity
+  // from companies.paid_extra_numbers (the slot RPC reads it under its row
+  // lock) — the route makes NO Stripe call.
   function seedActiveNumber(h: ReturnType<typeof buildHarness>, e164: string) {
     h.rest.insert("phone_numbers", {
       company_id: COMPANY_ID,
@@ -422,9 +401,7 @@ describe("POST /v1/text-enablements", () => {
     // Pro (2 included) with 1 PAID extra → effective allowance 3. Already at the
     // included cap (2 numbers): the old code capped at 2 and 409'd; now the paid
     // slot admits the enable.
-    const h = buildHarness({ stripe_subscription_id: "sub_1", plan: "pro" }, [
-      stripeSubStub([{ id: "si_x", price: PRO_EXTRA_PRICE, quantity: 1 }]),
-    ]);
+    const h = buildHarness({ plan: "pro", paid_extra_numbers: 1 });
     seedActiveNumber(h, "+13035550001");
     seedActiveNumber(h, "+13035550002");
 
@@ -438,9 +415,7 @@ describe("POST /v1/text-enablements", () => {
 
   it("#108: 409s only once every included AND paid slot is full", async () => {
     // Pro (2 included) + 1 paid = allowance 3, and already holding 3 numbers.
-    const h = buildHarness({ stripe_subscription_id: "sub_1", plan: "pro" }, [
-      stripeSubStub([{ id: "si_x", price: PRO_EXTRA_PRICE, quantity: 1 }]),
-    ]);
+    const h = buildHarness({ plan: "pro", paid_extra_numbers: 1 });
     seedActiveNumber(h, "+13035550001");
     seedActiveNumber(h, "+13035550002");
     seedActiveNumber(h, "+13035550003");

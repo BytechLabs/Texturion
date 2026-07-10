@@ -4,13 +4,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import {
-  countNonReleasedNumbers,
-  currentPaidExtras,
-  effectiveNumberAllowance,
-} from "../billing/extra-numbers";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
-import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -525,56 +519,46 @@ portingRoutes.post("/", requireRole("admin"), async (c) => {
   // with an existing active source='provisioned' number can no longer slip a
   // 2nd number in via the port path.
   //
-  // p_max_numbers is the plan allowance (billing/plans.ts owns the SPEC §2
-  // limits — the RPC enforces, never defines). On the onboarding path the plan
-  // is not chosen until checkout, so we pass the minimum allowance (1): a fresh
-  // port-only signup (count 0) passes, but a still-incomplete company cannot
-  // stack a second number before it has paid for a multi-number plan.
+  // p_included_numbers is the plan-INCLUDED allowance (billing/plans.ts owns
+  // the SPEC §2 limits — the RPC enforces, never defines). On the onboarding
+  // path the plan is not chosen until checkout, so we pass the minimum (1): a
+  // fresh port-only signup (count 0) passes, but a still-incomplete company
+  // cannot stack a second number before it has paid for a multi-number plan.
   //
-  // #108: a paid customer can transfer a number INTO capacity they already pay
-  // for — no new charge. So the max is included + the CURRENT paid-extra
-  // quantity (a read-only Stripe check, only when already at the included cap;
-  // within it, the included allowance is enough and no Stripe read happens).
-  // Buying NEW capacity at port time is deliberately out of scope (the honest
-  // "release or upgrade" 409 stands once paid capacity is also full). See
-  // currentPaidExtras for the known admit-vs-converge race (#110, Sentry-caught).
-  let maxNumbers = company.plan !== null ? PLAN_LIMITS[company.plan].numbers : 1;
-  if (company.plan !== null) {
-    const included = PLAN_LIMITS[company.plan].numbers;
-    const currentCount = await countNonReleasedNumbers(db, companyId);
-    if (currentCount >= included) {
-      const paidExtras = await currentPaidExtras(
-        env,
-        getStripe(env),
-        company.stripe_subscription_id,
-        company.plan,
-      );
-      maxNumbers = effectiveNumberAllowance(company.plan, paidExtras);
-    }
-  }
+  // #108/#110: a paid customer can transfer a number INTO capacity they already
+  // pay for — no new charge. The RPC adds companies.paid_extra_numbers to the
+  // included allowance UNDER its company-row lock, so the admit serializes
+  // against the converge's credit decision (no Stripe read here at all). Buying
+  // NEW capacity at port time stays out of scope (the honest "release or
+  // upgrade" 409 stands once paid capacity is also full).
+  const included =
+    company.plan !== null ? PLAN_LIMITS[company.plan].numbers : 1;
   const { data: slotData, error: slotError } = await db.rpc("claim_port_slot", {
     p_company_id: companyId,
     p_provisioning_key: parsedKey.data,
     p_country: local.country,
-    p_max_numbers: maxNumbers,
+    p_included_numbers: included,
   });
   if (slotError) throw new Error(`claim_port_slot failed: ${slotError.message}`);
   const slot = parseWith(
     z.object({
       outcome: z.enum(["created", "exists", "plan_limit", "sole_prop_cap"]),
       number: z.record(z.string(), z.unknown()).nullable(),
+      // The RPC's effective cap (included + paid) — for the honest 409 copy.
+      max: z.number().optional(),
     }),
     slotData,
   );
 
   if (slot.outcome === "plan_limit") {
+    const max = slot.max ?? included;
     return errorResponse(
       c,
       "conflict",
-      // #108: paid extra capacity is already counted above — so hitting this
+      // Paid extra capacity is already counted inside the RPC — hitting this
       // means every included AND paid slot is full. Buying MORE capacity at
       // port time is out of scope, so the honest remedy is release or upgrade.
-      `You're using all ${maxNumbers} of your phone number${maxNumbers === 1 ? "" : "s"}, and transferring one in needs a free slot. Release a number or upgrade first.`,
+      `You're using all ${max} of your phone number${max === 1 ? "" : "s"}, and transferring one in needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {
