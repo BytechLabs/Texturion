@@ -129,7 +129,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month for the whole crew.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and 500 texts a month, enough for a small crew running a couple of jobs, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate lines? Pro is $79 for up to 15 people and 2 numbers.",
+    "Starter covers 3 people, 1 local number, and texting sized for a small crew running a couple of jobs on a fair-use basis, not a hard cap, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate lines? Pro is $79 for up to 15 people and 2 numbers.",
   truthLines: [
     {
       text: (

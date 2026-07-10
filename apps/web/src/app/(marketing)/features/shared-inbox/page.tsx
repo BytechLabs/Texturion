@@ -149,9 +149,10 @@ export default function SharedInboxPage() {
         <p>
           The shared inbox is the whole product, at one flat price for the
           whole crew: $29/mo on Starter for up to 3 people and one local
-          number, $79/mo on Pro for up to 15 people and two numbers. 500
-          outgoing texts a month on Starter, 2,500 on Pro, and receiving texts
-          is always free and unlimited.
+          number, $79/mo on Pro for up to 15 people and two numbers. Texting is
+          included on a fair-use basis rather than a hard cap, sized so almost
+          every crew stays comfortably inside it, and receiving texts is
+          always free and unlimited.
         </p>
         <CountryOnly country="us">
           <p>

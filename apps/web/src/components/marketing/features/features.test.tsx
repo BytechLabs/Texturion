@@ -157,11 +157,13 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     const html = PAGES["shared-inbox"];
     expect(html).toContain("$29");
     expect(html).toContain("$79");
-    expect(html).toContain("2,500");
+    // #96: fair-use posture, never a pinned per-plan message count.
+    expect(html).toContain("fair-use basis");
+    expect(html).not.toContain("2,500");
     expect(html).toMatch(/up to 3 people/);
     expect(html).toMatch(/up to 15 people/);
     expect(html).toMatch(/first month is \$58/);
-    expect(html).toMatch(/Receiving texts is free and unlimited/i);
+    expect(html).toMatch(/receiving texts is\s+always free and unlimited/i);
     expect(html).toMatch(/\$8\/mo/); // the call-forwarding add-on fact
   });
 

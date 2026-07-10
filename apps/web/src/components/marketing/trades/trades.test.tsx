@@ -222,10 +222,12 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     expect(page.html).not.toContain(
       "Text your Canadian customers the same day your number is active.",
     );
-    // The pricing snippet figure and the deck's pricing link line.
+    // The pricing snippet figure and the deck's pricing link line. #96: the
+    // pricing body speaks fair use, never a pinned per-plan message count.
     expect(page.html).toContain("$29");
     expect(page.html).toContain("$79");
-    expect(page.html).toContain("500");
+    expect(page.html).toContain("fair-use basis");
+    expect(page.html).not.toContain("500 texts a month");
     expect(page.html).toContain(
       "See full pricing. Every cost is on that page.",
     );

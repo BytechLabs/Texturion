@@ -124,7 +124,7 @@ const CONTENT: TradeContent = {
 
   pricingH2: "$29 a month. The whole crew.",
   pricingBody:
-    "Starter covers 3 people, 1 local number, and 500 texts a month. That's roughly 20 to 25 plain texts a working day, enough for most 2 or 3 person shops, and the composer shows the count before you send. Bigger crew? Pro runs $79, fits up to 15 people, and adds a second number. Month to month, no contracts.",
+    "Starter covers 3 people, 1 local number, and texting that comfortably covers 20 to 25 plain texts a working day on a fair-use basis, not a hard cap, enough for most 2 or 3 person shops, and the composer shows the count before you send. Bigger crew? Pro runs $79, fits up to 15 people, and adds a second number. Month to month, no contracts.",
 
   faqH2: "Plumber questions, straight answers.",
   faqs: [
