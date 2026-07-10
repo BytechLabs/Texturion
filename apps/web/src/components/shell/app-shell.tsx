@@ -11,7 +11,6 @@ import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
 
 import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
-import { MobileHeader } from "./mobile-header";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
 import { WindowDropGuard } from "./window-drop-guard";
@@ -50,10 +49,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // The inbox is the fixed 3-pane frame (inner panes own the scroll); every
   // other destination is a calm scrolling document.
   const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
-  // A specific conversation (or compose) — `/inbox/<id>`, `/inbox/new` — but not
-  // the bare `/inbox` list. On a phone these are full-screen pushed views with
-  // their own header, so the mobile workspace header is dropped there (#76).
-  const inThread = pathname.startsWith("/inbox/");
 
   // Persisted sidebar collapse. Start expanded on the server + first paint
   // (avoids a hydration mismatch), then adopt the stored choice on mount.
@@ -80,12 +75,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           column (status banner + destination) fills the rest. */}
       <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile-only top header (<1000px): workspace switcher + copyable
-            number(s) + account menu (Sign out) — the sidebar affordances that
-            have no home below lg. Hidden at lg+, where the sidebar owns them,
-            and dropped below md inside a conversation (#76), which is a
-            full-screen view with its own header. */}
-        <MobileHeader inThread={inThread} />
+        {/* #100: no mobile top header — the bottom tab bar's avatar sheet now
+            carries the workspace switcher, the copyable number(s), the
+            notifications feed, theme, Settings, and Sign out. Content starts at
+            the very top on every mobile route. */}
         {/* Ambient workspace status (number provisioning / registration / billing).
             Mounted app-wide so a not-ready workspace is obvious on every page;
             renders null when there's nothing to say. */}

@@ -2,7 +2,6 @@ import {
   Home,
   Inbox,
   ListChecks,
-  MoreHorizontal,
   Settings,
   Users,
   type LucideIcon,
@@ -42,16 +41,18 @@ export const SETTINGS_NAV: NavItem = {
 };
 
 /**
- * Mobile bottom tabs (PORTAL-UX §5): For you · Inbox · Tasks · Contacts · More —
- * five 44px+ LABELED targets that fit a 375px bar (labels stay visible, never
- * bare icons). "More" opens Settings and the account/library sections.
+ * Mobile bottom tabs (PORTAL-UX §5, #100): For you · Inbox · Tasks · Contacts —
+ * four 44px+ LABELED link targets that fit a 375px bar (labels stay visible,
+ * never bare icons). The fifth cell is the ACCOUNT AVATAR (rendered by the tab
+ * bar itself, not a link): it opens the account sheet carrying the workspace
+ * info, number(s), notifications, theme, Settings, and Sign out — the "More"
+ * link is gone (#100).
  */
 export const MOBILE_NAV: NavItem[] = [
   PRIMARY_NAV[0], // For You
   PRIMARY_NAV[1], // Inbox
   PRIMARY_NAV[2], // Tasks
   PRIMARY_NAV[3], // Contacts
-  { label: "More", href: "/settings", icon: MoreHorizontal },
 ];
 
 /** Active when the path is the item or nested under it. */

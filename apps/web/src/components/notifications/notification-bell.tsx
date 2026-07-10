@@ -119,6 +119,106 @@ function NotificationRow({
 }
 
 /**
+ * The notifications feed body (header row + list + pagination), shared by the
+ * bell popover (desktop / page headers) and the mobile account sheet (#100).
+ * Owns its own queries; `active` gates the feed fetch so a collapsed host
+ * never loads pages. Selecting an item marks it (and everything older) read,
+ * deep-links to its thread, and asks the host to dismiss via `onNavigate`.
+ */
+export function NotificationFeed({
+  active,
+  onNavigate,
+}: {
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  const router = useRouter();
+  const unread = useNotificationsUnreadCount();
+  const feed = useNotificationsFeed(active);
+  const markAllRead = useMarkAllNotificationsRead();
+  const markRead = useMarkNotificationRead();
+
+  const count = unread.data?.count ?? 0;
+  const items = useMemo(() => flattenPages(feed.data), [feed.data]);
+
+  const onSelect = (item: NotificationItem) => {
+    // Opening ONE notification marks just it (and everything older) read via the
+    // per-item endpoint — newer notifications stay unread. The host closes (not
+    // through its dismiss path, so this never also trips mark-all-read), then
+    // we deep-link to the thread.
+    if (item.unread) {
+      markRead.mutate(item.created_at);
+    }
+    onNavigate();
+    const href = deepLink(item);
+    if (href) {
+      router.push(href);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <span className="text-sm font-medium text-foreground">
+          Notifications
+        </span>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={count === 0 || markAllRead.isPending}
+          onClick={() => markAllRead.mutate()}
+          className="text-muted-foreground"
+        >
+          <CheckCheck className="size-3" strokeWidth={1.75} aria-hidden />
+          Mark all read
+        </Button>
+      </div>
+
+      {feed.isPending ? (
+        <div className="space-y-1 p-3" aria-hidden>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex items-start gap-3 px-1 py-2">
+              <Skeleton className="mt-0.5 size-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
+        </div>
+      ) : (
+        <ScrollArea className="max-h-[min(24rem,60vh)]">
+          <ul className="divide-y divide-border-subtle">
+            {items.map((item) => (
+              <li key={item.id}>
+                <NotificationRow item={item} onSelect={onSelect} />
+              </li>
+            ))}
+          </ul>
+          {feed.hasNextPage && (
+            <div className="p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                disabled={feed.isFetchingNextPage}
+                onClick={() => feed.fetchNextPage()}
+              >
+                {feed.isFetchingNextPage ? "Loading…" : "Show older"}
+              </Button>
+            </div>
+          )}
+        </ScrollArea>
+      )}
+    </>
+  );
+}
+
+/**
  * D24 notifications bell + popover. A quiet Bell in the page header with an
  * unread dot/count from GET /v1/notifications/unread-count; the popover lists
  * the derived feed (GET /v1/notifications) newest-first with a per-item
@@ -139,18 +239,14 @@ export function NotificationBell({
   appVariant?: boolean;
 } = {}) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
 
   // Keep the badge + feed live off the shared realtime signal (no 2nd channel).
   useForYouNotificationsRealtime();
 
   const unread = useNotificationsUnreadCount();
-  const feed = useNotificationsFeed(open);
   const markAllRead = useMarkAllNotificationsRead();
-  const markRead = useMarkNotificationRead();
 
   const count = unread.data?.count ?? 0;
-  const items = useMemo(() => flattenPages(feed.data), [feed.data]);
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
@@ -160,21 +256,6 @@ export function NotificationBell({
     // it. Guarded so a close with nothing unread never fires a needless write.
     if (!next && count > 0 && !markAllRead.isPending) {
       markAllRead.mutate();
-    }
-  };
-
-  const onSelect = (item: NotificationItem) => {
-    // Opening ONE notification marks just it (and everything older) read via the
-    // per-item endpoint — newer notifications stay unread. Fires only when there
-    // is something to clear. Close directly (not through onOpenChange) so this
-    // does NOT also trip mark-all-read, then deep-link to the thread.
-    if (item.unread) {
-      markRead.mutate(item.created_at);
-    }
-    setOpen(false);
-    const href = deepLink(item);
-    if (href) {
-      router.push(href);
     }
   };
 
@@ -225,62 +306,7 @@ export function NotificationBell({
         sideOffset={8}
         className="w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden p-0"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-          <span className="text-sm font-medium text-foreground">
-            Notifications
-          </span>
-          <Button
-            variant="ghost"
-            size="xs"
-            disabled={count === 0 || markAllRead.isPending}
-            onClick={() => markAllRead.mutate()}
-            className="text-muted-foreground"
-          >
-            <CheckCheck className="size-3" strokeWidth={1.75} aria-hidden />
-            Mark all read
-          </Button>
-        </div>
-
-        {feed.isPending ? (
-          <div className="space-y-1 p-3" aria-hidden>
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="flex items-start gap-3 px-1 py-2">
-                <Skeleton className="mt-0.5 size-8 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-40" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : items.length === 0 ? (
-          <div className="px-6 py-10 text-center">
-            <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
-          </div>
-        ) : (
-          <ScrollArea className="max-h-[min(24rem,60vh)]">
-            <ul className="divide-y divide-border-subtle">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <NotificationRow item={item} onSelect={onSelect} />
-                </li>
-              ))}
-            </ul>
-            {feed.hasNextPage && (
-              <div className="p-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-muted-foreground"
-                  disabled={feed.isFetchingNextPage}
-                  onClick={() => feed.fetchNextPage()}
-                >
-                  {feed.isFetchingNextPage ? "Loading…" : "Show older"}
-                </Button>
-              </div>
-            )}
-          </ScrollArea>
-        )}
+        <NotificationFeed active={open} onNavigate={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   );
