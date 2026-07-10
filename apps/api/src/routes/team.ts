@@ -11,7 +11,9 @@
  *          here AND at acceptance: active members (deactivated_at IS NULL) +
  *          pending unexpired invites ≤ plan seats, else 409; sends the
  *          Supabase Auth admin invite email (Resend SMTP) with the invite id
- *          in the redirect.
+ *          in the redirect. Returns `email_sent` — false when the address
+ *          already has an account (Supabase emails nothing), so the UI can
+ *          prompt the inviter to share the accept link instead.
  *   DELETE /v1/invites/:id     O/A — revoke.
  *   POST   /v1/invites/accept  any (company-exempt) — { invite_id }; the
  *          JWT's verified email must equal invites.email; seat re-check with
@@ -262,12 +264,15 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
 
   // Supabase Auth admin invite (Resend custom SMTP, SPEC §10). The redirect
   // carries the invite id the accept screen posts back.
+  let emailSent = true;
   const { error } = await db.auth.admin.inviteUserByEmail(body.email, {
     redirectTo: `${env.APP_ORIGIN}/invites/accept?invite_id=${invite.id as string}`,
   });
   if (error) {
-    // Existing Auth users can't be re-invited via this endpoint — the invite
-    // row still stands and the user accepts in-app after logging in.
+    // Existing Auth users can't be re-invited via this endpoint — Supabase sends
+    // them NOTHING. The invite row still stands; `email_sent: false` tells the
+    // inviter to share the accept link so the teammate can accept in-app after
+    // logging in (there is no other way for an existing account to discover it).
     const alreadyRegistered =
       error.code === "email_exists" || error.status === 422;
     if (!alreadyRegistered) {
@@ -279,9 +284,10 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
       );
       throw new Error(`invite email failed: ${error.message}`);
     }
+    emailSent = false;
   }
 
-  return c.json(invite, 201);
+  return c.json({ ...invite, email_sent: emailSent }, 201);
 });
 
 teamRoutes.delete("/invites/:id", requireRole("admin"), async (c) => {

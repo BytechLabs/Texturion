@@ -217,6 +217,22 @@ function InviteRow({ invite }: { invite: Invite }) {
             : `Expires ${new Date(invite.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
         </p>
       </div>
+      {/* #99: a shareable accept link — the only way an invitee who already has
+          an account (Supabase emails them nothing) can find their invite. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground"
+        disabled={expired}
+        onClick={() => {
+          void navigator.clipboard
+            .writeText(`${window.location.origin}/invite/${invite.id}`)
+            .then(() => toast.success("Invite link copied."))
+            .catch(() => toast.error("Couldn't copy the link."));
+        }}
+      >
+        Copy link
+      </Button>
       <Button
         variant="ghost"
         size="sm"
@@ -288,9 +304,18 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
 
   function onSubmit(values: InviteValues) {
     createInvite.mutate(values, {
-      onSuccess: () => {
+      onSuccess: (created) => {
         form.reset({ email: "", role: "member" });
-        toast.success(`Invite sent to ${values.email}.`);
+        if (created.email_sent) {
+          toast.success(`Invite sent to ${values.email}.`);
+        } else {
+          // Existing account → Supabase sent nothing; point the inviter at the
+          // shareable link so the teammate isn't silently stranded.
+          toast.success(
+            `${values.email} already has a Loonext account — use "Copy link" below to send them their invite.`,
+            { duration: 8000 },
+          );
+        }
       },
       onError: (cause) =>
         form.setError("root", {
@@ -305,7 +330,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   return (
     <SettingsCard
       title="Invites"
-      description="Teammates get an email link that adds them to this workspace."
+      description="Teammates get an email link that adds them to this workspace. If they already have a Loonext account, share their invite link instead."
       footer={<p className="text-sm text-muted-foreground">{seats.line}</p>}
     >
       <Form {...form}>

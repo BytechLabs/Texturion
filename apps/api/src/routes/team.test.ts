@@ -176,7 +176,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
   });
 
-  it("creates the invite and sends the Supabase admin invite email", async () => {
+  it("creates the invite and sends the Supabase admin invite email (email_sent:true)", async () => {
     const sb = stubWithRole("admin");
     seatStub(sb, "starter", 2, 0);
     sb.on("POST", "/rest/v1/invites", (call) => [
@@ -191,6 +191,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(res.status).toBe(201);
+    // The email went out — the UI shows the plain "Invite sent" confirmation.
+    expect(await res.json()).toMatchObject({ email_sent: true });
 
     const insert = sb.find("POST", "/rest/v1/invites")[0];
     expect(insert.body).toEqual({
@@ -213,7 +215,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(inviteCount.url.searchParams.get("expires_at")).toMatch(/^gt\./);
   });
 
-  it("keeps the invite when the email is already a registered Auth user", async () => {
+  it("keeps the invite + reports email_sent:false when the email is already a registered Auth user", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "pro", 4, 0);
     sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
@@ -235,6 +237,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "admin" },
     });
     expect(res.status).toBe(201);
+    // No email was sent (Supabase 422s an existing account) — the row stands and
+    // the UI prompts the inviter to share the accept link (#99).
+    expect(await res.json()).toMatchObject({ email_sent: false });
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
   });
 

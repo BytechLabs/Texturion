@@ -8,7 +8,13 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { AcceptedInvite, Invite, Member, Page } from "./types";
+import type {
+  AcceptedInvite,
+  CreatedInvite,
+  Invite,
+  Member,
+  Page,
+} from "./types";
 
 /** GET /v1/members — members + roles + profile display names. */
 export function useMembers() {
@@ -81,13 +87,17 @@ export function useInvites() {
   });
 }
 
-/** POST /v1/invites — { email, role }; seat limit enforced server-side (409). */
+/**
+ * POST /v1/invites — { email, role }; seat limit enforced server-side (409).
+ * The response carries `email_sent` (false when the address already has an
+ * account) so the caller can prompt the inviter to share the accept link.
+ */
 export function useCreateInvite() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { email: string; role: "admin" | "member" }) =>
-      apiFetch<Invite>("/v1/invites", {
+      apiFetch<CreatedInvite>("/v1/invites", {
         method: "POST",
         companyId,
         body: input,

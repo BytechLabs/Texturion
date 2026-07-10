@@ -616,6 +616,15 @@ export interface Invite {
   created_at: string;
 }
 
+/**
+ * POST /v1/invites response — the invite row plus whether Supabase actually
+ * emailed it. `email_sent` is false when the address already has an account
+ * (no email is sent); the inviter shares the accept link instead.
+ */
+export interface CreatedInvite extends Invite {
+  email_sent: boolean;
+}
+
 /** POST /v1/invites/accept response (member row + company_id). */
 export interface AcceptedInvite {
   id: string;
