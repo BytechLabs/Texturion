@@ -377,6 +377,14 @@ export function ThreadHeader({
                 typeahead/roving-focus collection. */}
             {isBelowMd && (
               <>
+                {/* #89: the dedicated contact-info button is desktop-only
+                    (`hidden md:inline-flex`), so on a phone opening the contact
+                    panel (bottom sheet) lives here at the top of the menu. */}
+                <DropdownMenuItem onSelect={onToggleContactPanel}>
+                  <Info className="size-4" strokeWidth={1.75} aria-hidden />
+                  Contact info
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel>Show</DropdownMenuLabel>
                 {/* #89: each kind is an independent toggle (mix-and-match), all
                     on by default. `onSelect`-preventDefault keeps the menu open
