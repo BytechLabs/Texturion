@@ -75,6 +75,7 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
+  sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
   sb.on("POST", "/rest/v1/rpc/api_period_outbound_mms", () => MMS_USED);
   // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage off.
   sb.on("GET", "/rest/v1/company_modules", () => []);

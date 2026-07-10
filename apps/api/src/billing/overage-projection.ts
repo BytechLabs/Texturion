@@ -10,9 +10,10 @@
  * write — so it ships with zero behavior change and is exhaustively testable.
  *
  * MODEL (documented decisions):
- * - FLOW usage (outbound/inbound segments, voice, outbound MMS, egress) accrues
- *   over the period, so its volume is extrapolated to month-end by
- *   periodDays/elapsedDays, then priced with UNIT_COST_CENTS (costs.ts).
+ * - FLOW usage (outbound/inbound segments, voice minutes + forwarded-call
+ *   transfers, outbound MMS, egress) accrues over the period, so its volume is
+ *   extrapolated to month-end by periodDays/elapsedDays, then priced with
+ *   UNIT_COST_CENTS (costs.ts).
  * - STORAGE is a STOCK, not a flow (api_storage_usage is a point-in-time total).
  *   Extrapolating it by elapsed days would wildly over-count (5 GB on day 2 ->
  *   x15). We price the CURRENT stock as the month's storage cost, un-extrapolated.
@@ -23,16 +24,18 @@
  *   full cost AND their overage REVENUE (3c/2.5c, a surplus over the 0.85c cost)
  *   is added to revenue. Projected outbound is bounded by the spending-cap
  *   ceiling (included x overage_cap_multiplier, or unbounded when the owner
- *   cleared the cap), because sending pauses there. Voice + MMS are cap-and-drop,
- *   so their projected volume is capped at the plan ceiling. The uncovered,
- *   uncapped driver is INBOUND segments (0.7c each, free to the customer) —
+ *   cleared the cap), because sending pauses there. Voice MINUTES + MMS are
+ *   cap-and-drop, so their projected volume is capped at the plan ceiling — but
+ *   the per-forwarded-call TRANSFER fee is NOT (call count isn't bounded by the
+ *   minute cap), so it is extrapolated uncapped. The uncovered, uncapped drivers
+ *   are INBOUND segments (0.7c each, free to the customer) and those transfers —
  *   priced in full with no offsetting revenue. That is exactly the loss the
  *   dynamic warning exists to catch.
- * - KNOWN GAP: the ~$0.10 per-forwarded-call transfer fee is not yet modeled
- *   (there is no forwarded-call-COUNT metric; only voice seconds are summed), so
- *   a high-frequency short-call pattern can under-count voice cost. Tracked in
- *   #98; the voice cap-and-drop (300 min) + the $8 module price are a partial
- *   backstop until then.
+ * - The ~$0.10 per-forwarded-call transfer fee IS modeled (#98): forwarded-call
+ *   COUNT (api_period_forwarded_calls) is extrapolated and priced at
+ *   UNIT_COST_CENTS.voiceTransfer, UNCAPPED by the minute ceiling — so a
+ *   high-frequency short/unanswered-call flood (near-zero minutes) still shows
+ *   its real per-call cost, the direction the 300-min cap alone can't catch.
  * - Revenue is NET of Stripe's cut (stripeNetCents) — the money we actually keep.
  * - STALE-PERIOD FAIL-SAFE: the multiplier is clamped to >= 1, so an overdue
  *   period (renewal webhook not yet fired, elapsed > periodDays) can never scale
@@ -81,6 +84,9 @@ export interface PeriodUsage {
   inboundSegments: number;
   /** Forwarded voice seconds this period (api_period_voice_seconds). */
   voiceSeconds: number;
+  /** Forwarded-call COUNT this period (api_period_forwarded_calls) — the
+   *  per-transfer fee scales with this, not with seconds. */
+  forwardedCalls: number;
   /** Outbound MMS count this period (api_period_outbound_mms). */
   outboundMms: number;
   /** Signed-URL egress bytes this period (api_period_egress_bytes). */
@@ -177,6 +183,10 @@ export function projectUsage(
     usage.voiceSeconds * multiplier,
     PLAN_VOICE_MINUTES[plan] * 60,
   );
+  // The per-transfer fee is per CALL, so it is extrapolated UNCAPPED — the
+  // 300-min voice ceiling bounds minutes, not call count (#98): a short/
+  // unanswered-call flood accrues ~0 minutes yet a real $0.10 each.
+  const projectedForwardedCalls = usage.forwardedCalls * multiplier;
   const projectedMms = Math.min(
     usage.outboundMms * multiplier,
     PLAN_MMS_INCLUDED[plan],
@@ -187,6 +197,7 @@ export function projectUsage(
     projectedOutbound * UNIT_COST_CENTS.outboundSegment +
     projectedInbound * UNIT_COST_CENTS.inboundSegment +
     (projectedVoiceSeconds / 60) * UNIT_COST_CENTS.voiceMinute +
+    projectedForwardedCalls * UNIT_COST_CENTS.voiceTransfer +
     projectedMms * UNIT_COST_CENTS.outboundMms +
     (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
 
@@ -301,29 +312,38 @@ export async function readPeriodUsage(
     p_company_id: company.id,
     p_since: company.current_period_start,
   };
-  const [outbound, inbound, voiceSeconds, outboundMms, egressBytes, storage] =
-    await Promise.all([
-      rpcNumber(db, "api_period_segments", windowed),
-      rpcNumber(db, "api_period_inbound_segments", windowed),
-      rpcNumber(db, "api_period_voice_seconds", windowed),
-      rpcNumber(db, "api_period_outbound_mms", windowed),
-      rpcNumber(db, "api_period_egress_bytes", windowed),
-      (async () => {
-        const { data, error } = await db.rpc("api_storage_usage", {
-          p_company_id: company.id,
-        });
-        if (error) throw new Error(`api_storage_usage failed: ${error.message}`);
-        const s = data as {
-          attachments_bytes: number | string;
-          mms_bytes: number | string;
-        };
-        return Number(s.attachments_bytes) + Number(s.mms_bytes);
-      })(),
-    ]);
+  const [
+    outbound,
+    inbound,
+    voiceSeconds,
+    forwardedCalls,
+    outboundMms,
+    egressBytes,
+    storage,
+  ] = await Promise.all([
+    rpcNumber(db, "api_period_segments", windowed),
+    rpcNumber(db, "api_period_inbound_segments", windowed),
+    rpcNumber(db, "api_period_voice_seconds", windowed),
+    rpcNumber(db, "api_period_forwarded_calls", windowed),
+    rpcNumber(db, "api_period_outbound_mms", windowed),
+    rpcNumber(db, "api_period_egress_bytes", windowed),
+    (async () => {
+      const { data, error } = await db.rpc("api_storage_usage", {
+        p_company_id: company.id,
+      });
+      if (error) throw new Error(`api_storage_usage failed: ${error.message}`);
+      const s = data as {
+        attachments_bytes: number | string;
+        mms_bytes: number | string;
+      };
+      return Number(s.attachments_bytes) + Number(s.mms_bytes);
+    })(),
+  ]);
   return {
     outboundSegments: outbound,
     inboundSegments: inbound,
     voiceSeconds,
+    forwardedCalls,
     outboundMms,
     egressBytes,
     storageBytes: storage,

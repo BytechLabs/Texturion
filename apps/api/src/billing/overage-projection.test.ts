@@ -31,6 +31,7 @@ function usage(over: Partial<PeriodUsage> = {}): PeriodUsage {
     outboundSegments: 0,
     inboundSegments: 0,
     voiceSeconds: 0,
+    forwardedCalls: 0,
     outboundMms: 0,
     egressBytes: 0,
     storageBytes: 0,
@@ -139,6 +140,21 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     // multiplier 3 -> 36000 s / 300 MMS, capped to 18000 s / 150.
     // 18000/60*1.2 + 150*2.5 = 360 + 375.
     expect(projectUsage(u, "starter", 3, 3).costCents).toBe(735);
+  });
+
+  it("prices the per-forwarded-call transfer fee, extrapolated to month-end (#98)", () => {
+    // 50 short/unanswered forwards this period, zero billable minutes.
+    const u = usage({ forwardedCalls: 50, voiceSeconds: 0 });
+    // multiplier 3 -> 150 forwards * 10c = 1500; no minute cost.
+    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(1500);
+  });
+
+  it("does NOT cap the transfer count at the voice-minute ceiling (#98 — the loss the 300-min cap misses)", () => {
+    // Minutes cap at the 300-min (18000 s) ceiling, but call COUNT does not: a
+    // flood of brief calls keeps accruing $0.10 each past the minute cap.
+    const u = usage({ forwardedCalls: 1000, voiceSeconds: 12000 });
+    // voice: min(12000*3, 18000)/60*1.2 = 360; transfers: 1000*3 * 10c = 30000.
+    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(360 + 30000);
   });
 
   it("prices uncapped inbound in full (the real loss driver, no revenue)", () => {
@@ -303,6 +319,11 @@ describe("decideOverage (DB orchestrator)", () => {
         () => u.inboundSegments,
       ),
       endpoint("POST", /\/rpc\/api_period_voice_seconds/, () => u.voiceSeconds),
+      endpoint(
+        "POST",
+        /\/rpc\/api_period_forwarded_calls/,
+        () => u.forwardedCalls,
+      ),
       endpoint("POST", /\/rpc\/api_period_outbound_mms/, () => u.outboundMms),
       endpoint("POST", /\/rpc\/api_period_egress_bytes/, () => u.egressBytes),
       endpoint("POST", /\/rpc\/api_storage_usage/, () => ({
@@ -316,12 +337,13 @@ describe("decideOverage (DB orchestrator)", () => {
     ];
   }
 
-  it("reads the six RPCs + numbers + revenue and returns the decision", async () => {
+  it("reads the seven RPCs + numbers + revenue and returns the decision", async () => {
     const harness = makeHarness(
       endpoints({
         outboundSegments: 400,
         inboundSegments: 1000,
         voiceSeconds: 600,
+        forwardedCalls: 5,
         outboundMms: 20,
         egressBytes: GB,
         numbers: 1,
@@ -336,12 +358,12 @@ describe("decideOverage (DB orchestrator)", () => {
       new Date("2026-06-16T00:00:00Z"), // 15 days in, multiplier 2
     );
 
-    // flow @ x2: min(800,1500)*0.85 + 2000*0.7 + 20*1.2 + 40*2.5 + 2*9
-    //          = 680 + 1400 + 24 + 100 + 18 = 2222; + fixed (110 + 1000) = 3332.
-    expect(d.extrapolatedCostCents).toBe(3332);
+    // flow @ x2: min(800,1500)*0.85 + 2000*0.7 + 20*1.2 + 10*10 + 40*2.5 + 2*9
+    //          = 680 + 1400 + 24 + 100 + 100 + 18 = 2322; + fixed (110+1000) = 3432.
+    expect(d.extrapolatedCostCents).toBe(3432);
     // revenue: stripeNet(2900 + (800-500)*3 = 900) = stripeNet(3800).
     expect(d.revenueCents).toBeCloseTo(3800 * 0.966 - 30, 3);
-    expect(d.marginCents).toBeCloseTo(3800 * 0.966 - 30 - 3332, 3);
+    expect(d.marginCents).toBeCloseTo(3800 * 0.966 - 30 - 3432, 3);
   });
 
   it("stays quiet for a quiet company", async () => {

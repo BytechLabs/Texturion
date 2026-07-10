@@ -46,6 +46,7 @@ function endpoints(state: State): StubEndpoint[] {
     endpoint("POST", /\/rpc\/api_period_segments/, () => 0),
     endpoint("POST", /\/rpc\/api_period_inbound_segments/, () => state.inbound),
     endpoint("POST", /\/rpc\/api_period_voice_seconds/, () => 0),
+    endpoint("POST", /\/rpc\/api_period_forwarded_calls/, () => 0),
     endpoint("POST", /\/rpc\/api_period_outbound_mms/, () => 0),
     endpoint("POST", /\/rpc\/api_period_egress_bytes/, () => 0),
     endpoint("POST", /\/rpc\/api_storage_usage/, () => ({

@@ -41,9 +41,13 @@ export const UNIT_COST_CENTS = {
    *  draws storage + egress cost, counted via those units. */
   inboundMms: 0.5,
   /** Forwarded voice minute: ~$0.01–0.012 for both legs; high end (plans.ts:67,
-   *  PRICING-AUDIT §4). Per-transfer $0.10 is excluded (per-call, not summed by
-   *  an RPC, and dominated by the minute cost). */
+   *  PRICING-AUDIT §4). */
   voiceMinute: 1.2,
+  /** Per-forwarded-call transfer/dial fee: ~$0.10 on every forwarded call — one
+   *  dial command per call (PRICING-AUDIT §4; voice-webhook.ts). Scales with call
+   *  COUNT, not minutes, so the 300-min voice cap can't bound it — priced from
+   *  api_period_forwarded_calls, not the minute sum (#98). */
+  voiceTransfer: 10,
   /** Stored file/media, per GB per month: Supabase $0.021/GB/mo (PRICING-AUDIT §4). */
   storageGbMonth: 2.1,
   /** Signed-URL egress, per GB: Supabase $0.09/GB (egress.ts:41, PRICING-AUDIT §4). */
