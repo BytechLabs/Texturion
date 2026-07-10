@@ -27,9 +27,11 @@ export function useNumbers() {
 /**
  * GET /v1/available-numbers — the number-picker feed (choose-your-number).
  * Company-EXEMPT (no X-Company-Id): the US onboarding number step runs before
- * the company exists. Only fires once an area code is chosen; `staleTime: 0`
- * and the returned `refetch` back the picker's Refresh button (Telnyx inventory
- * rotates). `bestEffort` is the user's "show nearby numbers" toggle.
+ * the company exists. Fires immediately with a broad country-wide search; an
+ * area code, when set, is just an optional narrowing filter (#86), not a
+ * precondition. `staleTime: 0` and the returned `refetch` back the picker's
+ * Refresh button (Telnyx inventory rotates). `bestEffort` is the user's "show
+ * nearby numbers" toggle.
  */
 export function useAvailableNumbers(params: {
   country: "US" | "CA";
@@ -53,7 +55,6 @@ export function useAvailableNumbers(params: {
           limit: 50,
         },
       }),
-    enabled: Boolean(params.areaCode),
     staleTime: 0,
   });
 }

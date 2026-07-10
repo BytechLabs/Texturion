@@ -44,6 +44,32 @@ describe("searchInventory (number-picker feed)", () => {
     expect(call.query.get("filter[national_destination_code]")).toBe("416");
   });
 
+  it("omits the area-code filter for a broad, country-wide search (#86)", async () => {
+    const env = completeEnv();
+    const telnyx = new TelnyxMock();
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({
+      data: [
+        {
+          phone_number: "+13035550123",
+          region_information: [
+            { region_type: "locality", region_name: "Denver" },
+          ],
+          features: [{ name: "sms" }],
+        },
+      ],
+    }));
+    stubFetch(telnyx.route());
+
+    // No areaCode: the picker browses all numbers in the country.
+    const result = await searchInventory(env, { country: "US" });
+    expect(result.data).toEqual([
+      { phone_number: "+13035550123", region: "Denver", features: ["sms"] },
+    ]);
+    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    expect(call.query.get("filter[country_code]")).toBe("US");
+    expect(call.query.get("filter[national_destination_code]")).toBeNull();
+  });
+
   it("returns an empty list with best_effort_exhausted on a no-inventory 400 (10031)", async () => {
     const env = completeEnv();
     const telnyx = new TelnyxMock();
