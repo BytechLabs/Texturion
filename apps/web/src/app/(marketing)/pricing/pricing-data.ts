@@ -102,6 +102,16 @@ export const PLANS: Plan[] = [
   },
 ];
 
+/**
+ * #85: the plan's allowances are a FAIR-USE line, not a hard wall. This footnote
+ * sits under the plan builder and links to the fair-use policy — the reference
+ * the whole dynamic-limits model leans on (a busy month is fine; we reach out
+ * early rather than surprise anyone). It is the plan-card fair-use plumbing the
+ * later "hide the raw numbers" work points behind. Dash-free (Law 6).
+ */
+export const PLAN_FAIR_USE_NOTE =
+  "The message, picture, forwarding, and storage allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers.";
+
 /* Honesty Ledger (§5.3): every cost, before you pay. Add-on prices and
    quantities mirror apps/api/src/billing/plans.ts + modules.ts (mms $5/150,
    voice $8/300 min, extra_storage $5/10 GB; an outbound MMS meters as a flat

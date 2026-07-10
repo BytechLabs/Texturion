@@ -61,6 +61,7 @@ import {
   FAQS,
   LEDGER,
   LEDGER_CA,
+  PLAN_FAIR_USE_NOTE,
   PLANS,
   PRICING_DATELINE,
   PRICING_DATELINE_CA,
@@ -162,6 +163,18 @@ export default function PricingPage() {
             <div className="mt-8">
               <PlanBuilder plans={PLANS} />
             </div>
+            {/* #85: the plan's allowances are a fair-use line, not a hard wall.
+                This footnote is the plan-card fair-use reference the dynamic
+                limits model leans on. */}
+            <p className="mt-8 max-w-3xl text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
+              {PLAN_FAIR_USE_NOTE}{" "}
+              <Link
+                href={LIVE_ROUTES.fairUse}
+                className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+              >
+                See our fair use policy.
+              </Link>
+            </p>
           </div>
         </FrSection>
 

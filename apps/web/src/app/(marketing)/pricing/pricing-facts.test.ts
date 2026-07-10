@@ -13,6 +13,7 @@ import {
   FAQS,
   LEDGER,
   LEDGER_CA,
+  PLAN_FAIR_USE_NOTE,
   PLANS,
   PRICING_DATELINE,
   PRICING_DATELINE_CA,
@@ -24,6 +25,7 @@ function allStrings(): string[] {
     PRICING_DATELINE,
     PRICING_DATELINE_CA,
     ELSEWHERE_FOOTNOTE,
+    PLAN_FAIR_USE_NOTE,
   ];
   for (const plan of PLANS) {
     out.push(plan.name, plan.price, plan.tagline, plan.cta, ...plan.features);
@@ -61,6 +63,11 @@ describe("/pricing rendered strings (Law 6)", () => {
         /real interface|not a screenshot|stock photo|fake review|built with next|set in /,
       );
     }
+  });
+
+  it("frames the plan allowances as a fair-use line, not a hard wall (#85)", () => {
+    expect(PLAN_FAIR_USE_NOTE.toLowerCase()).toContain("fair use");
+    expect(PLAN_FAIR_USE_NOTE.toLowerCase()).toContain("not a hard wall");
   });
 });
 

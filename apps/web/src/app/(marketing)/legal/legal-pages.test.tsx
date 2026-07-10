@@ -164,4 +164,8 @@ describe("fair-use — the plain limits survive", () => {
     expect(html).toContain("normal, fair, and reasonable");
     expect(html).toContain("application-to-person (A2P)");
   });
+  it("frames the allowances as a fair-use line and states the dynamic watch (#85)", () => {
+    expect(html).toContain("fair-use line");
+    expect(html).toContain("reach out early");
+  });
 });

@@ -67,6 +67,9 @@ export default function FairUsePage() {
           characters each), the same way the carriers count them, so one long
           message can use more than one segment. The current allowances are
           always on the <LegalLink href="/pricing">pricing page</LegalLink>.
+          Think of them as a fair-use line for one business texting its own
+          customers, not a target: almost every crew stays well inside them
+          without thinking about it, and a busy month now and then is fine.
         </p>
       </LegalSectionBlock>
 
@@ -82,6 +85,10 @@ export default function FairUsePage() {
           account owner at 80% and again at 100% of your included texts, so paid
           overage never begins unnoticed, and sending pauses the moment you reach
           your cap. Raise the cap, upgrade, or wait for the next cycle. Your call.
+          Beyond those fixed points, we also watch how your usage is pacing across
+          the whole period and reach out early if you are on track to run past
+          what your plan comfortably covers, so you can adjust before it adds up
+          rather than hear about it after.
         </p>
       </LegalSectionBlock>
 
