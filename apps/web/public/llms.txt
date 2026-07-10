@@ -77,6 +77,7 @@ Website: https://loonext.com
 - [Canada](https://loonext.com/canada): Canadian businesses text Canadian customers the same day they sign up.
 - [For plumbers](https://loonext.com/for/plumbers), [HVAC](https://loonext.com/for/hvac), [landscapers](https://loonext.com/for/landscapers), [cleaners](https://loonext.com/for/cleaners), [salons](https://loonext.com/for/salons), and [contractors](https://loonext.com/for/contractors): the product in each trade's own words.
 - [Loonext vs Heymarket](https://loonext.com/compare/heymarket) and [Loonext vs Quo](https://loonext.com/compare/quo): flat per-company pricing against per-user pricing.
+- [Blog](https://loonext.com/blog): plain-English guides on customer texting for small service crews (getting off the personal cell, business numbers and porting, A2P 10DLC timelines, TCPA/CASL basics, STOP handling, texting quotes, honest cost breakdowns). RSS at https://loonext.com/blog/rss.xml.
 - [Security](https://loonext.com/security): tenant isolation, encryption, and what stays out of logs.
 - [Status](https://loonext.com/status): live service status.
 - [Contact](https://loonext.com/contact): reach support.
