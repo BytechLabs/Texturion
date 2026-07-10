@@ -342,7 +342,9 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[85svh] overflow-y-auto p-0"
+          // #119: the account sheet's anatomy — curved top corners, app card
+          // surface; the contact header inside provides the visible title row.
+          className="max-h-[85svh] overflow-y-auto rounded-t-2xl border-app-line bg-app-white p-0 pb-[env(safe-area-inset-bottom)]"
           // #116: without this, Radix focuses the first tabbable on open — the
           // contact-name inline field — stamping a bright focus ring across
           // the identity card before the user has touched anything.
@@ -363,6 +365,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             contactPending={contact.isPending}
             onOpenGallery={openGallery}
             active={mobilePanelOpen}
+            variant="sheet"
           />
         </SheetContent>
       </Sheet>

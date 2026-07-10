@@ -131,6 +131,7 @@ export function ContactPanel({
   contactPending,
   onOpenGallery,
   active = true,
+  variant = "panel",
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
@@ -139,6 +140,11 @@ export function ContactPanel({
   onOpenGallery: () => void;
   /** The panel is actually visible — gates the lazy attachments preview fetch. */
   active?: boolean;
+  /** #119: "sheet" renders the contact as the SHEET HEADER (the account
+   * sheet's anatomy — header row + border, X clear of everything) instead of
+   * an identity card inside the body; address+notes become their own card.
+   * "panel" keeps the desktop drawer's identity card. */
+  variant?: "panel" | "sheet";
 }) {
   const memberNames = useMemberNames();
   const [copied, setCopied] = useState(false);
@@ -181,85 +187,129 @@ export function ContactPanel({
     }
   };
 
+  const avatarChip = (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-petrol-deep",
+        avatarColorClass(contact.id),
+      )}
+    >
+      {avatarInitials(contactDisplayName(contact))}
+    </span>
+  );
+
+  const nameAndPhone = (
+    <div className="min-w-0 flex-1">
+      <InlineTextField
+        contactId={contact.id}
+        field="name"
+        value={contact.name}
+        label="Contact name"
+        placeholder="Add a name"
+        className="pr-7 text-[15px] font-semibold"
+      />
+      <div className="flex items-center gap-1 px-2">
+        <span className="select-all whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+          {phone}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={copyNumber}
+          aria-label={copied ? "Number copied" : "Copy number"}
+        >
+          {copied ? (
+            <Check className="size-3 text-success" strokeWidth={1.75} />
+          ) : (
+            <Copy className="size-3" strokeWidth={1.75} />
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const addressAndNotes = (
+    <>
+      <InlineTextField
+        contactId={contact.id}
+        field="address"
+        value={contact.address}
+        label="Contact address"
+        placeholder="Add an address"
+        wrap
+      />
+      <div className="px-2">
+        <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+      </div>
+    </>
+  );
+
   return (
     // §1.5 / #6: a CALM, TIERED surface. Weight tracks importance: an identity
-    // card (avatar + name + number + address + notes) and two action cards
+    // block (avatar + name + number + address + notes) and two action cards
     // (Tasks, Attachments) carry card chrome; look-up metadata (Consent, Tags,
     // Conversations) is a quiet uppercase-label group. Two label weights, not
     // six identical cards — the eye lands on who-this-is first. Progressive
     // disclosure: the thread stays the hero; this detail lives in the panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="space-y-5 p-4">
-        {/* IDENTITY — the panel's one anchor of personality (#6): a colored
-            app-ava avatar + the editable name and number up top, then address
-            and notes under a hairline. Who this is, in one card. */}
-        <section className="relative rounded-app-card border border-app-line bg-app-white p-3.5">
-          {/* #82: jump from the conversation to the full contact page. Overlaid
-              on the card corner (not a flex cell) so the narrow drawer's text
-              column keeps its width — the number must never wrap mid-digits. */}
+      {/* #119 (sheet): the CONTACT is the sheet header — the account sheet's
+          anatomy (px-4 py-3 row over a soft hairline). pr-12 keeps the whole
+          row clear of the sheet's own close button at right-4. */}
+      {variant === "sheet" && (
+        <div className="flex items-center gap-3 border-b border-app-line-soft py-3 pl-4 pr-12">
+          {avatarChip}
+          {nameAndPhone}
           <Button
             asChild
             variant="ghost"
             size="icon-xs"
             aria-label="Open full contact page"
-            className="absolute right-2 top-2"
+            className="shrink-0"
           >
             <Link href={`/contacts/${contact.id}`}>
               <ArrowUpRight strokeWidth={1.75} />
             </Link>
           </Button>
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden
-              className={cn(
-                "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-petrol-deep",
-                avatarColorClass(contact.id),
-              )}
+        </div>
+      )}
+      <div className="space-y-5 p-4">
+        {variant === "panel" ? (
+          /* IDENTITY — the panel's one anchor of personality (#6): a colored
+             app-ava avatar + the editable name and number up top, then address
+             and notes under a hairline. Who this is, in one card. */
+          <section className="relative rounded-app-card border border-app-line bg-app-white p-3.5">
+            {/* #82: jump from the conversation to the full contact page.
+                Overlaid on the card corner (not a flex cell) so the narrow
+                drawer's text column keeps its width — the number must never
+                wrap mid-digits. */}
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Open full contact page"
+              className="absolute right-2 top-2"
             >
-              {avatarInitials(contactDisplayName(contact))}
-            </span>
-            <div className="min-w-0 flex-1">
-              <InlineTextField
-                contactId={contact.id}
-                field="name"
-                value={contact.name}
-                label="Contact name"
-                placeholder="Add a name"
-                className="pr-7 text-[15px] font-semibold"
-              />
-              <div className="flex items-center gap-1 px-2">
-                <span className="select-all whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-                  {phone}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={copyNumber}
-                  aria-label={copied ? "Number copied" : "Copy number"}
-                >
-                  {copied ? (
-                    <Check className="size-3 text-success" strokeWidth={1.75} />
-                  ) : (
-                    <Copy className="size-3" strokeWidth={1.75} />
-                  )}
-                </Button>
-              </div>
+              <Link href={`/contacts/${contact.id}`}>
+                <ArrowUpRight strokeWidth={1.75} />
+              </Link>
+            </Button>
+            <div className="flex items-start gap-3">
+              {avatarChip}
+              {nameAndPhone}
             </div>
-          </div>
-          <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
-            <InlineTextField
-              contactId={contact.id}
-              field="address"
-              value={contact.address}
-              label="Contact address"
-              placeholder="Add an address"
-              wrap
-            />
-            <div className="px-2">
-              <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+            <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
+              {addressAndNotes}
             </div>
-          </div>
-        </section>
+          </section>
+        ) : (
+          /* #119 (sheet): identity moved into the header above, so address +
+             notes get their own unlabeled card — mirroring the account
+             sheet's first card. */
+          <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5">
+            {addressAndNotes}
+          </section>
+        )}
 
         {/* Consent history (D3/D4) — quiet metadata about the person, unless
             they're opted out (then it carries the actionable revoke). */}
