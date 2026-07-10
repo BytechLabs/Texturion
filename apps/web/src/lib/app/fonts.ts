@@ -8,10 +8,11 @@ import localFont from "next/font/local";
  * true tabular figures (tnum) for the timestamps, phone numbers, and receipt
  * meta the app aligns in columns.
  *
- * Scoped like the marketing trio (the two-surfaces rule): the (app) layout mounts
- * `.variable` on the app subtree ONLY, exposing --font-golos there. Marketing
- * keeps Basteleur/Hanken/Commit; the app never resolves those, and nothing
- * outside the app subtree resolves --font-golos.
+ * Scoped like the marketing trio (the two-surfaces rule): the (app) layout
+ * mounts `.variable` on the app subtree AND (via PortalScope, #116) on <body>
+ * while an (app) route is mounted, so document.body portals (sheets, dialogs,
+ * menus) resolve Golos too. Marketing keeps Basteleur/Hanken/Commit; its
+ * routes never mount PortalScope, so nothing there resolves --font-golos.
  *
  * The woff2 is the latin subset produced by scripts/subset-app-fonts.mjs (~41
  * KiB, down from the ~180 KiB full source). `unicodeRange` declares that latin

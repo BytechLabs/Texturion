@@ -363,7 +363,10 @@ function ClumpTile({
       {overflowLabel && (
         <span
           aria-hidden
-          className="absolute inset-0 flex items-center justify-center bg-app-ink/55 text-[13px] font-semibold text-white"
+          // black/55, not app-ink/55: this scrim sits over a photo thumbnail
+          // with hardcoded white text, and --app-ink is NEAR-WHITE in dark —
+          // white-on-white. A dark scrim over imagery is correct in both themes.
+          className="absolute inset-0 flex items-center justify-center bg-black/55 text-[13px] font-semibold text-white"
         >
           {overflowLabel}
         </span>

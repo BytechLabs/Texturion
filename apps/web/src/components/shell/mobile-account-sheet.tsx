@@ -91,8 +91,17 @@ export function MobileAccountSheetBody({
     router.push("/login");
   }
 
+  // #116: rows follow the For You card-row recipe exactly (for-you-view.tsx):
+  // 13.5px semibold ink, gap-3, px-4 py-3, hover fill — inside a grouped
+  // hairline card, not floating menu items.
   const rowClass =
-    "flex w-full items-center gap-3 rounded-app-ctrl px-3 py-2.5 text-left text-[14px] font-medium text-app-ink transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "flex w-full items-center gap-3 px-4 py-3 text-left text-[13.5px] font-semibold text-app-ink transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  // The For You section label recipe, verbatim.
+  const labelClass =
+    "flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2";
+  // The grouped elevated card (flat, hairline border) with quiet row dividers.
+  const cardClass =
+    "overflow-hidden rounded-app-card border border-app-line bg-app-white divide-y divide-app-line-soft";
 
   return (
     <>
@@ -115,13 +124,12 @@ export function MobileAccountSheetBody({
         </div>
       </div>
 
-      <div className="space-y-4 px-3 py-3">
-          {/* Workspace switcher — only when the account belongs to several. */}
-          {multi && (
-            <section aria-label="Workspaces" className="space-y-1">
-              <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-                Workspaces
-              </p>
+      <div className="space-y-5 px-4 py-4">
+        {/* Workspace switcher — only when the account belongs to several. */}
+        {multi && (
+          <section aria-label="Workspaces">
+            <h2 className={labelClass}>Workspaces</h2>
+            <div className={cardClass}>
               {memberships.map((m) => (
                 <button
                   key={m.company_id}
@@ -148,16 +156,20 @@ export function MobileAccountSheetBody({
                   )}
                 </button>
               ))}
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
-          {/* The copyable business number(s) — the same honest strip the desktop
-              sidebar shows (multiple numbers, real failed states). */}
-          <section aria-label="Business numbers" className="px-3">
+        {/* One grouped card, exactly like a For You section: the business
+            number(s), the notifications row (+ inline feed), and Settings. */}
+        <div className={cardClass}>
+          <section
+            aria-label="Business numbers"
+            className="px-4 py-3"
+          >
             <WorkspaceNumbers numbers={numbers.data?.data ?? []} />
           </section>
 
-          {/* Notifications — the feed inline, expandable, with the unread count. */}
           <section aria-label="Notifications">
             <button
               type="button"
@@ -165,12 +177,18 @@ export function MobileAccountSheetBody({
               aria-expanded={feedOpen}
               onClick={toggleFeed}
             >
-              <Bell className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+              <Bell
+                className="size-4 shrink-0 text-app-muted-2"
+                strokeWidth={1.75}
+                aria-hidden
+              />
               <span className="min-w-0 flex-1">Notifications</span>
               {count > 0 && (
                 <span
                   aria-label={`${count} unread`}
-                  className="flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-5 text-primary-foreground tabular-nums"
+                  // The quiet STONE count of the tab bar and filter segments —
+                  // the main UI never spends teal on counts (accent budget).
+                  className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
                 >
                   {cap(count)}
                 </span>
@@ -185,63 +203,72 @@ export function MobileAccountSheetBody({
               />
             </button>
             {feedOpen && (
-              <div className="mt-1 overflow-hidden rounded-app-card border border-app-line-soft">
+              <div className="border-t border-app-line-soft">
                 <NotificationFeed active={feedOpen} onNavigate={onClose} />
               </div>
             )}
           </section>
 
-          {/* Settings + theme + sign out. */}
-          <section aria-label="Account" className="space-y-1">
-            <Link href="/settings" className={rowClass} onClick={onClose}>
-              <Settings className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-              Settings
-            </Link>
-
-            <div className="flex items-center gap-3 px-3 py-1.5">
-              <span className="text-[12px] font-medium text-app-muted">
-                Theme
-              </span>
-              <div
-                role="radiogroup"
-                aria-label="Theme"
-                className="flex flex-1 gap-1"
-              >
-                {THEME_OPTIONS.map((option) => {
-                  const Icon = option.icon;
-                  const selected = (theme ?? "system") === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => setTheme(option.value)}
-                      className={cn(
-                        "flex flex-1 items-center justify-center gap-1.5 rounded-app-ctrl border px-2 py-1.5 text-[12px] font-medium transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        selected
-                          ? "border-app-tint-line bg-app-tint text-app-petrol-deep"
-                          : "border-app-line text-app-muted hover:bg-app-line-soft",
-                      )}
-                    >
-                      <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className={rowClass}
-              onClick={() => void signOut()}
-            >
-              <LogOut className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-              Sign out
-            </button>
-          </section>
+          <Link href="/settings" className={rowClass} onClick={onClose}>
+            <Settings
+              className="size-4 shrink-0 text-app-muted-2"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            Settings
+          </Link>
         </div>
+
+        {/* Theme — the inbox filter-bar segmented control, verbatim: a stone
+            track with the lifted white active pill (never bordered boxes). */}
+        <section aria-label="Theme">
+          <h2 className={labelClass}>Theme</h2>
+          <div
+            role="radiogroup"
+            aria-label="Theme"
+            className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
+          >
+            {THEME_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const selected = (theme ?? "system") === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setTheme(option.value)}
+                  className={cn(
+                    "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    selected
+                      ? "bg-app-white font-semibold text-app-ink"
+                      : "font-medium text-app-muted hover:text-app-ink",
+                  )}
+                >
+                  <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Sign out — its own quiet card, separated from the everyday rows. */}
+        <div className={cardClass}>
+          <button
+            type="button"
+            className={rowClass}
+            onClick={() => void signOut()}
+          >
+            <LogOut
+              className="size-4 shrink-0 text-app-muted-2"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            Sign out
+          </button>
+        </div>
+      </div>
     </>
   );
 }

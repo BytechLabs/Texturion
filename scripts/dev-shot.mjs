@@ -10,6 +10,8 @@
  *
  * Options:
  *   --mobile              390x844 viewport (default 1440x900)
+ *   --dark                dark theme (emulates prefers-color-scheme: dark and
+ *                         sets the next-themes localStorage key to "dark")
  *   --full                full-page screenshot instead of the viewport
  *   --click <selector>    after load, click this (repeatable; e.g. to open
  *                         the conversation info panel)
@@ -36,6 +38,7 @@ const args = process.argv.slice(2);
 const paths = [];
 const clicks = [];
 let mobile = false;
+let dark = false;
 let fullPage = false;
 let element = null;
 let settle = 600;
@@ -46,6 +49,7 @@ let fresh = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === "--mobile") mobile = true;
+  else if (a === "--dark") dark = true;
   else if (a === "--full") fullPage = true;
   else if (a === "--fresh") fresh = true;
   else if (a === "--click") clicks.push(args[++i]);
@@ -65,7 +69,18 @@ mkdirSync(outDir, { recursive: true });
 mkdirSync(STATE_DIR, { recursive: true });
 
 const viewport = mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 };
+const colorScheme = dark ? "dark" : "light";
 const browser = await chromium.launch();
+
+async function applyTheme(context) {
+  // Cover both next-themes modes: "system" (matchMedia, via colorScheme
+  // emulation on the context) and an explicit stored choice.
+  await context.addInitScript((theme) => {
+    try {
+      window.localStorage.setItem("theme", theme);
+    } catch {}
+  }, dark ? "dark" : "light");
+}
 
 async function login(context) {
   const page = await context.newPage();
@@ -81,9 +96,11 @@ async function login(context) {
 
 let context;
 if (!fresh && existsSync(STATE_FILE)) {
-  context = await browser.newContext({ viewport, storageState: STATE_FILE });
+  context = await browser.newContext({ viewport, colorScheme, storageState: STATE_FILE });
+  await applyTheme(context);
 } else {
-  context = await browser.newContext({ viewport });
+  context = await browser.newContext({ viewport, colorScheme });
+  await applyTheme(context);
   await login(context);
 }
 
@@ -95,7 +112,8 @@ for (const path of paths) {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     await page.close();
     await context.close();
-    context = await browser.newContext({ viewport });
+    context = await browser.newContext({ viewport, colorScheme });
+    await applyTheme(context);
     await login(context);
     const retry = await context.newPage();
     await retry.goto(`${base}${path}`, { waitUntil: "networkidle" });
@@ -114,7 +132,7 @@ async function shoot(page, path) {
   }
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
-  const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}.png`);
+  const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}${dark ? ".dark" : ""}.png`);
   if (element) {
     await page.locator(element).first().screenshot({ path: file });
   } else {

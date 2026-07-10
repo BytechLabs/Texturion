@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { LandingGate } from "@/components/for-you/landing-gate";
 import { InviteBanner } from "@/components/invites/invite-banner";
 import { AppShell } from "@/components/shell/app-shell";
+import { PortalScope } from "@/components/shell/portal-scope";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
@@ -18,8 +19,10 @@ import { AppProviders } from "../app-providers";
  * Text (golosText.variable → --font-golos) and turns on the calm petrol token
  * layer for the whole (app) subtree — the same subtree-scoping the (marketing)
  * layout uses for its own faces. So the app reads in Golos over the calm palette
- * while marketing (Inter-global + .mkt-scope) is unaffected; nothing outside
- * this subtree resolves --font-golos or the app-scope tokens.
+ * while marketing (Inter-global + .mkt-scope) is unaffected. PortalScope
+ * (#116) extends the same scope to <body> while an (app) route is mounted,
+ * so document.body portals resolve the tokens and Golos too; marketing
+ * routes never mount it.
  *
  * Feature tracks mount their pages inside this group (/inbox, /contacts,
  * /templates, /settings) — no page stubs live here by design.
@@ -45,6 +48,11 @@ export default function AppLayout({
         <RealtimeProvider>
           {/* D23: send members to /for-you on their first app screen. */}
           <LandingGate />
+          {/* #116: portals (sheets, dialogs, menus, the command palette) and
+              the Toaster mount into document.body, outside this div — the
+              scope must ALSO live on <body> or portaled surfaces lose every
+              app token (transparent sheets, white borders in dark, Inter). */}
+          <PortalScope classes={`${golosText.variable} app-scope`} />
           {/* app-scope: calm palette + Golos; font-sans now resolves to Golos
               here. h-svh so the shell owns the viewport. */}
           <div

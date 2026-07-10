@@ -340,7 +340,14 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
 
       {/* Mobile contact sheet (G6). */}
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
-        <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto p-0">
+        <SheetContent
+          side="bottom"
+          className="max-h-[85svh] overflow-y-auto p-0"
+          // #116: without this, Radix focuses the first tabbable on open — the
+          // contact-name inline field — stamping a bright focus ring across
+          // the identity card before the user has touched anything.
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           {/* The panel's own identity hero is the visible header now (#6), so
               the Sheet's title is sr-only — it still names the dialog for AT,
               without repeating the contact name a scroll above itself. */}
