@@ -31,9 +31,9 @@ end $$;
 
 -- ===========================================================================
 -- MOD-2. unknown AND retired modules are rejected by the check constraint.
---        (#97/#103: 'mms' left the module set — the tightened CHECK must
---        refuse it exactly like any unknown value, so the retired module can
---        never be re-seeded.)
+--        (#97/#103: 'mms' and #121: 'extra_storage' left the module set — the
+--        tightened CHECK must refuse them exactly like any unknown value, so a
+--        retired module can never be re-seeded.)
 -- ===========================================================================
 do $$
 begin
@@ -53,6 +53,16 @@ begin
 exception
   when check_violation then
     raise notice 'MOD-2b PASSED: retired mms module rejected by the tightened check (#103)';
+end $$;
+
+do $$
+begin
+  insert into public.company_modules (company_id, module)
+  values ('77777777-7777-4777-8777-777000000000', 'extra_storage');
+  raise exception 'MOD-2c FAILED: retired extra_storage module accepted';
+exception
+  when check_violation then
+    raise notice 'MOD-2c PASSED: retired extra_storage module rejected by the tightened check (#121)';
 end $$;
 
 -- ===========================================================================
@@ -113,10 +123,12 @@ begin
     raise exception 'MOD-5 FAILED: fresh rows must default grandfathered = false';
   end if;
 
-  -- regions_ca plays a protected pre-#12 seed; extra_storage a normal
-  -- (purchased, unpaid) enabled row.
-  insert into public.company_modules (company_id, module)
-  values ('77777777-7777-4777-8777-777000000000', 'extra_storage');
+  -- regions_ca plays a protected pre-#12 seed; voice a normal (purchased,
+  -- unpaid) enabled row. (#121: extra_storage is retired, so voice is now the
+  -- surviving billable module that stands in for the unpaid purchase.) MOD-4
+  -- disabled voice above, so re-enable it here to make it the enabled victim.
+  update public.company_modules set disabled_at = null
+   where company_id = '77777777-7777-4777-8777-777000000000' and module = 'voice';
   update public.company_modules set grandfathered = true
    where company_id = '77777777-7777-4777-8777-777000000000' and module = 'regions_ca';
 
@@ -126,8 +138,8 @@ begin
    where company_id = '77777777-7777-4777-8777-777000000000'
      and disabled_at is null
      and not grandfathered;
-  if victims <> array['extra_storage'] then
-    raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected extra_storage only', victims;
+  if victims <> array['voice'] then
+    raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected voice only', victims;
   end if;
   raise notice 'MOD-5 PASSED: grandfathered rows are exempt from the reconcile disable predicate';
 end $$;
