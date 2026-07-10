@@ -22,7 +22,6 @@
 import { Hono } from "hono";
 
 import { requireRole } from "../auth/company";
-import { effectiveStorageBudgets } from "../billing/company-modules";
 import { decideOverage } from "../billing/overage-projection";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -138,14 +137,6 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     "storage usage",
   );
 
-  // #12: effective budgets (base plan + extra_storage add-on), so the meter
-  // shows the room the company actually has.
-  const storageBudgets = await effectiveStorageBudgets(
-    db,
-    companyId,
-    company.plan,
-  );
-
   // #12: call-forwarding minutes this period, summed over both legs from
   // call_records. Whole minutes for display (the cap works in seconds).
   const voiceSeconds = Number(
@@ -204,8 +195,12 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),
       mms_bytes: Number(storage.mms_bytes),
-      attachment_budget_bytes: storageBudgets.attachmentBytes,
-      mms_budget_bytes: storageBudgets.mmsBytes,
+      // #121 one-release shim: storage is free (no budgets exist). Pre-#121
+      // web bundles still loaded in a tab read the *_budget_bytes fields —
+      // zeros hide their meters (nearLimit(x, 0) is false) without crashing.
+      // Remove once those bundles have aged out.
+      attachment_budget_bytes: 0,
+      mms_budget_bytes: 0,
     },
     voice: {
       used_minutes: Math.floor(voiceSeconds / 60),

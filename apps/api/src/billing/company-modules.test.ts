@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyModuleReconcile,
-  effectiveStorageBudgets,
   enabledModules,
   isModuleEnabled,
   isSellableModule,
@@ -19,6 +18,7 @@ import {
   MODULE_CATALOG,
   modulePrice,
   PLAN_MODULES,
+  retiredModulePrices,
   type PlanModule,
 } from "./modules";
 import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
@@ -62,10 +62,33 @@ describe("module catalog", () => {
     expect(isPlanModule("bogus")).toBe(false);
   });
 
+  it("#103/#121: the catalog is exactly voice + regions_ca — mms and extra_storage are retired", () => {
+    expect(PLAN_MODULES).toEqual(["voice", "regions_ca"]);
+    expect(isPlanModule("mms")).toBe(false);
+    expect(isPlanModule("extra_storage")).toBe(false);
+  });
+
   it("modulePrice resolves the configured id, null when unprovisioned", () => {
     expect(modulePrice(env, "voice")).toBe("price_module_voice_0001");
     const bare = { ...env, STRIPE_MODULE_VOICE_PRICE_ID: undefined };
     expect(modulePrice(bare, "voice")).toBeNull();
+  });
+
+  it("retiredModulePrices sweeps BOTH retired price envs when set (#103 mms, #121 extra_storage)", () => {
+    // The daily reconcile strips stale line items on these prices with a
+    // prorated credit — losing one from this list would silently keep a
+    // subscriber paying for a module that no longer exists.
+    expect(retiredModulePrices(env)).toEqual([
+      "price_module_mms_0001",
+      "price_module_extra_storage_0001",
+    ]);
+    // An unprovisioned env sweeps nothing (and never passes garbage to Stripe).
+    const bare = {
+      ...env,
+      STRIPE_MODULE_MMS_PRICE_ID: undefined,
+      STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: undefined,
+    };
+    expect(retiredModulePrices(bare)).toEqual([]);
   });
 });
 
@@ -85,9 +108,11 @@ describe("enabledModules", () => {
   it("returns the enabled modules and drops unknown/retired values defensively", async () => {
     serve(
       modulesStub([
-        // #103: 'mms' is a RETIRED value — a straggler row (the migration
-        // deletes them, but be defensive) must be dropped like any unknown.
+        // #103 'mms' / #121 'extra_storage' are RETIRED values — straggler
+        // rows (the migrations delete them, but be defensive) must be
+        // dropped like any unknown.
         { module: "mms" },
+        { module: "extra_storage" },
         { module: "voice" },
         { module: "legacy_unknown" },
       ]),
@@ -99,16 +124,21 @@ describe("enabledModules", () => {
 
 describe("sellable modules (#41)", () => {
   it("regions_ca is catalog-listed but not sellable until multi-region ships", () => {
-    expect(SELLABLE_MODULES).toEqual(["voice", "extra_storage"]);
+    // #121: with extra_storage retired, voice is the ONE sellable module.
+    expect(SELLABLE_MODULES).toEqual(["voice"]);
     expect(isSellableModule("regions_ca")).toBe(false);
     expect(isSellableModule("voice")).toBe(true);
-    // #103: mms is not merely unsellable — it left the module set entirely.
+    // #103 mms / #121 extra_storage are not merely unsellable — they left
+    // the module set entirely.
     expect(isPlanModule("mms")).toBe(false);
+    expect(isPlanModule("extra_storage")).toBe(false);
   });
 });
 
 describe("planModuleReconcile (#17)", () => {
-  const BILLABLE: PlanModule[] = ["voice", "extra_storage"];
+  // #121: with extra_storage retired the catalog is voice + regions_ca; both
+  // have configured prices in the test env, so both are billable here.
+  const BILLABLE: PlanModule[] = ["voice", "regions_ca"];
   const row = (
     module: string,
     overrides: Partial<CompanyModuleRow> = {},
@@ -120,43 +150,59 @@ describe("planModuleReconcile (#17)", () => {
   });
 
   it("enables missing, disabled, and still-grandfathered paid modules", () => {
+    // Disabled-row and missing-row re-enables (both paid).
     const plan = planModuleReconcile(
       [
-        row("voice"), // paid + already enabled → untouched
-        row("extra_storage", { disabled_at: "2026-06-01T00:00:00Z" }), // paid, off → on
-        row("regions_ca", { grandfathered: true }), // paid → flag cleared
+        row("voice", { disabled_at: "2026-06-01T00:00:00Z" }), // paid, off → on
+        // regions_ca paid but has NO row at all → on
       ],
-      ["voice", "extra_storage", "regions_ca"],
-      ["voice", "extra_storage", "regions_ca"],
+      ["voice", "regions_ca"],
+      BILLABLE,
     );
-    expect(plan.enable.sort()).toEqual(["extra_storage", "regions_ca"]);
+    expect(plan.enable.sort()).toEqual(["regions_ca", "voice"]);
     expect(plan.disable).toEqual([]);
+
+    // A paid module that is enabled-but-grandfathered gets the flag cleared
+    // (re-upserted); a paid, already-enabled, non-grandfathered row is
+    // untouched.
+    const grandfathered = planModuleReconcile(
+      [row("voice"), row("regions_ca", { grandfathered: true })],
+      ["voice", "regions_ca"],
+      BILLABLE,
+    );
+    expect(grandfathered.enable).toEqual(["regions_ca"]);
+    expect(grandfathered.disable).toEqual([]);
   });
 
   it("disables enabled billable modules with no paid line item (the resubscribe leak)", () => {
     const plan = planModuleReconcile(
-      [row("voice"), row("extra_storage")],
+      [row("voice"), row("regions_ca")],
       [], // base-only resubscribe: no module items on the new subscription
       BILLABLE,
     );
     expect(plan.enable).toEqual([]);
-    expect(plan.disable.sort()).toEqual(["extra_storage", "voice"]);
+    expect(plan.disable.sort()).toEqual(["regions_ca", "voice"]);
   });
 
   it("never disables grandfathered seeds, unbillable modules, retired/unknown values, or already-off rows", () => {
     const plan = planModuleReconcile(
       [
         row("voice", { grandfathered: true }), // pre-#12 seed — protected
-        row("extra_storage"), // billable, unpaid → the ONE disable
-        row("regions_ca"), // price not configured → paid-ness unknowable
+        row("regions_ca"), // billable, unpaid → the ONE disable
         row("mms"), // #103: retired — not a module anymore, ignored like any unknown
+        row("extra_storage"), // #121: retired — same defensive drop
         row("legacy_unknown"), // defensive: not a module at all
       ],
       [],
-      BILLABLE, // regions_ca not billable here
+      BILLABLE,
     );
     expect(plan.enable).toEqual([]);
-    expect(plan.disable).toEqual(["extra_storage"]);
+    expect(plan.disable).toEqual(["regions_ca"]);
+
+    // A module whose price is NOT configured in this environment is never
+    // auto-disabled — its paid-ness is unknowable.
+    const unbillable = planModuleReconcile([row("voice")], [], []);
+    expect(unbillable.disable).toEqual([]);
 
     // Already-off rows are never re-disabled.
     const offOnly = planModuleReconcile(
@@ -183,7 +229,7 @@ describe("applyModuleReconcile (#17)", () => {
 
     await applyModuleReconcile(getDb(env), COMPANY, {
       enable: ["regions_ca"],
-      disable: ["voice", "extra_storage"],
+      disable: ["voice"],
     });
 
     expect(upserts.calls).toHaveLength(1);
@@ -199,7 +245,7 @@ describe("applyModuleReconcile (#17)", () => {
     expect(disables.calls).toHaveLength(1);
     const query = disables.calls[0].url.searchParams;
     expect(query.get("company_id")).toBe(`eq.${COMPANY}`);
-    expect(query.get("module")).toBe("in.(voice,extra_storage)");
+    expect(query.get("module")).toBe("in.(voice)");
     expect(query.get("disabled_at")).toBe("is.null");
     expect(disables.calls[0].body).toEqual({ disabled_at: expect.any(String) });
     // Disabling voice clears the forwarding capability (cost-protection).
@@ -220,27 +266,13 @@ describe("applyModuleReconcile (#17)", () => {
       restMatch(env, "PATCH", "company_modules"),
       () => new Response(null, { status: 204 }),
     );
+    // Only the module PATCH is stubbed — a companies write would fail loudly.
     serve(disables);
     await applyModuleReconcile(getDb(env), COMPANY, {
       enable: [],
-      disable: ["extra_storage"],
+      disable: ["regions_ca"],
     });
     expect(disables.calls).toHaveLength(1);
   });
 });
 
-describe("effectiveStorageBudgets", () => {
-  const GB = 1024 * 1024 * 1024;
-
-  it("returns the base plan pools when extra_storage is off", async () => {
-    serve(modulesStub([]));
-    const budgets = await effectiveStorageBudgets(getDb(env), COMPANY, "starter");
-    expect(budgets).toEqual({ attachmentBytes: 5 * GB, mmsBytes: 5 * GB });
-  });
-
-  it("grows both pools by 10 GB when extra_storage is on (pro)", async () => {
-    serve(modulesStub([{ module: "extra_storage" }]));
-    const budgets = await effectiveStorageBudgets(getDb(env), COMPANY, "pro");
-    expect(budgets).toEqual({ attachmentBytes: 35 * GB, mmsBytes: 35 * GB });
-  });
-});

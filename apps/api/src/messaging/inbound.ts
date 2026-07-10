@@ -15,8 +15,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { effectiveStorageBudgets } from "../billing/company-modules";
-import type { PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -319,43 +317,7 @@ async function handleOptOutKeywords(
  * (10) items are processed per message (D30); the tail is skipped with a
  * warning, the same permanent-condition outcome as an unsupported type.
  */
-/**
- * #12 cap-and-drop: is the company at or over its MMS-media storage budget?
- * Only the `mms-media` bucket counts here (api_storage_usage.mms_bytes) — the
- * attachment bucket has its own separate D30 budget and never shares this
- * pool. Pre-checkout / an unknown plan returns false (no budget yet, and they
- * can't own much). Used to DROP new inbound media instead of growing storage
- * unbounded on our dollar.
- */
-async function companyOverMmsStorageBudget(
-  db: SupabaseClient,
-  companyId: string,
-): Promise<boolean> {
-  const { data: companies, error: companyError } = await db
-    .from("companies")
-    .select("plan")
-    .eq("id", companyId)
-    .limit(1);
-  if (companyError) {
-    // #37 fail closed: an unreadable budget must never read as "under budget"
-    // — throw (matching the usage lookup below) so the webhook ledger keeps
-    // the row unprocessed and the §11 sweeper retries the idempotent
-    // pipeline. Media is only ever fetched once the budget is KNOWN good.
-    throw new Error(`company plan lookup failed: ${companyError.message}`);
-  }
-  const plan = (companies?.[0] as { plan: PlanId | null } | undefined)?.plan;
-  if (!plan) return false;
 
-  const { data: usage, error: usageError } = await db.rpc("api_storage_usage", {
-    p_company_id: companyId,
-  });
-  if (usageError) {
-    throw new Error(`storage usage lookup failed: ${usageError.message}`);
-  }
-  const u = usage as { mms_bytes: number | string };
-  const { mmsBytes } = await effectiveStorageBudgets(db, companyId, plan);
-  return Number(u.mms_bytes) >= mmsBytes;
-}
 
 async function downloadInboundMedia(
   db: SupabaseClient,
@@ -365,17 +327,10 @@ async function downloadInboundMedia(
     media: { url: string; content_type?: string; size?: number }[];
   },
 ): Promise<void> {
-  // #12 cap-and-drop: over the MMS-media storage budget → DROP this message's
-  // media (the text already arrived; we never grow storage unbounded on our
-  // dollar). The owner is warned by the storage arm of the usage-alerts cron.
-  if (await companyOverMmsStorageBudget(db, args.companyId)) {
-    console.warn(
-      `inbound media for message ${args.messageId} DROPPED — company ` +
-        `${args.companyId} is at/over its MMS storage budget (#12 cap-and-drop)`,
-    );
-    return;
-  }
-
+  // #121: storage is free — inbound media is ALWAYS saved (the old #12
+  // cap-and-drop is gone). Cost exposure is handled by the usage-alerts
+  // cron's storage-abuse arm (customer + ops email at absolute tiers), a
+  // human follow-up instead of silently dropping a customer's pictures.
   // D30 per-message item cap: process the first 10, skip the rest. Skipping
   // (not throwing) keeps the ledger row processable — retrying would never
   // change how many items the sender attached.

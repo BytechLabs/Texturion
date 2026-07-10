@@ -383,9 +383,9 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     ]);
     const response = await post(
       "/v1/billing/checkout",
-      // A repeated module must not double-bill. (#97: mms is no longer sellable,
-      // so the sellable voice + extra_storage stand in here.)
-      { plan: "starter", modules: ["voice", "extra_storage", "voice"] },
+      // A repeated module must not double-bill. (#97 retired mms, #121
+      // retired extra_storage — voice is the one sellable module left.)
+      { plan: "starter", modules: ["voice", "voice"] },
       harness,
     );
     expect(response.status).toBe(200);
@@ -395,12 +395,24 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       env.STRIPE_MODULE_VOICE_PRICE_ID,
     );
     expect(form.get("line_items[2][quantity]")).toBe("1");
-    expect(form.get("line_items[3][price]")).toBe(
-      env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID,
+    // No second module line (the duplicate 'voice' collapsed).
+    expect(form.has("line_items[3][price]")).toBe(false);
+  });
+
+  it("a retired module id (extra_storage) is refused at checkout — nothing reaches Stripe (#121)", async () => {
+    // extra_storage left the catalog with #121 (storage is free): the module
+    // enum no longer contains it, so a stale client selecting it is a plain
+    // validation failure, never a Stripe line item.
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+    ]);
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter", modules: ["extra_storage"] },
+      harness,
     );
-    expect(form.get("line_items[3][quantity]")).toBe("1");
-    // No fourth module line (the duplicate 'voice' collapsed).
-    expect(form.has("line_items[4][price]")).toBe(false);
+    expect(response.status).toBe(422);
+    expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
 
   it("regions_ca is not sellable: checkout refuses it server-side (#41)", async () => {
@@ -814,6 +826,9 @@ describe("plan-builder modules (#12)", () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("GET", /\/rest\/v1\/company_modules/, () => [
+        { module: "voice" },
+        // #121: a pre-migration extra_storage straggler row is dropped
+        // defensively, exactly like any unknown value.
         { module: "extra_storage" },
       ]),
     ]);
@@ -822,13 +837,15 @@ describe("plan-builder modules (#12)", () => {
     const body = (await response.json()) as {
       modules: { id: string; enabled: boolean }[];
     };
-    const storage = body.modules.find((m) => m.id === "extra_storage");
     const voice = body.modules.find((m) => m.id === "voice");
-    expect(storage?.enabled).toBe(true);
-    expect(voice?.enabled).toBe(false);
-    expect(body.modules).toHaveLength(3);
-    // #103: the retired mms module is gone from the catalog entirely.
+    const regions = body.modules.find((m) => m.id === "regions_ca");
+    expect(voice?.enabled).toBe(true);
+    expect(regions?.enabled).toBe(false);
+    // #103/#121: the catalog is exactly voice + regions_ca — the retired mms
+    // and extra_storage modules are gone entirely (not even as disabled).
+    expect(body.modules).toHaveLength(2);
     expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
+    expect(body.modules.find((m) => m.id === "extra_storage")).toBeUndefined();
   });
 
   it("POST /modules enable adds the line item + enables the module", async () => {
@@ -958,13 +975,16 @@ describe("plan-builder modules (#12)", () => {
     // #103: mms is retired — not merely unavailable, absent from the catalog.
     expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
 
-    // The retired id is refused outright (422, not a module anymore).
-    const retiredToggle = await post(
-      "/v1/billing/modules",
-      { module: "mms", enabled: true },
-      harness,
-    );
-    expect(retiredToggle.status).toBe(422);
+    // The retired ids are refused outright (422, not modules anymore) —
+    // mms since #103, extra_storage since #121.
+    for (const retired of ["mms", "extra_storage"]) {
+      const retiredToggle = await post(
+        "/v1/billing/modules",
+        { module: retired, enabled: true },
+        harness,
+      );
+      expect(retiredToggle.status, retired).toBe(422);
+    }
   });
 });
 

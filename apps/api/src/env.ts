@@ -49,6 +49,9 @@ const envSchema = z.object({
   SITE_ORIGIN: z.url().optional(),
   /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
+  /** #121: ops recipient for abuse alerts (storage tiers). Optional — unset
+   * falls back to support@loonext.com, which routes to the founder. */
+  OPS_ALERT_EMAIL: z.string().min(3).optional(),
   /**
    * Reply-To stamped on EVERY Resend send (email-hardening: alert copy says
    * "just reply to this email", so replies must land in a monitored inbox
@@ -90,7 +93,9 @@ const envSchema = z.object({
    * module. Keep the env var SET where it was ever provisioned: the daily
    * reconcile uses it (billing/modules.ts retiredModulePrices) to strip stale
    * $5 items off live subscriptions with a prorated credit. Unset = never
-   * provisioned = the sweep is a no-op.
+   * provisioned = the sweep is a no-op. #121: EXTRA_STORAGE is retired the
+   * same way — its env var must STAY SET in production so the sweep can
+   * identify and strip the price from existing subscribers.
    */
   STRIPE_MODULE_MMS_PRICE_ID: z.string().min(1).optional(),
   STRIPE_MODULE_VOICE_PRICE_ID: z.string().min(1).optional(),

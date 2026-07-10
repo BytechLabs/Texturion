@@ -81,44 +81,16 @@ export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
 // usage pipeline, so the segment quota + overage billing bound them like text.
 
 /**
- * D30: per-company budget for the generic `attachments` bucket (note-borne
- * files), enforced at POST /v1/attachments as an atomic company-wide
- * sum(size_bytes) over LIVE rows (claim_attachment_storage). Starter 5 GB,
- * Pro 25 GB. This budget is ATTACHMENTS-ONLY — inbound MMS media lives in its
- * own bucket with its own #12 cost cap (MMS_STORAGE_BUDGET_BYTES); the two
- * never share a pool, so heavy file use never drops a customer's picture and
- * vice-versa.
+ * #121 (supersedes D30's budgets): storage is FREE — no per-plan pools, no
+ * caps, nothing pauses. The only storage backstop left is ALERTING: when a
+ * company's total stored bytes (attachments + MMS media) crosses one of
+ * these absolute tiers, the usage-alerts cron emails the customer AND ops
+ * (OPS_ALERT_EMAIL) once per tier per period, and a human takes it from
+ * there under the fair-use policy. Tiers escalate so a runaway tenant keeps
+ * re-alerting as it doubles.
  */
-export const STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
-  starter: 5 * 1024 * 1024 * 1024,
-  pro: 25 * 1024 * 1024 * 1024,
-};
+export const STORAGE_ABUSE_TIERS_GB = [25, 50, 100, 200, 400] as const;
 
-/**
- * #12 cap-and-drop budget for the `mms-media` bucket (inbound picture-message
- * media, which we download + store on our dollar). Symmetrical with the
- * attachment budget — Starter 5 GB, Pro 25 GB — but a SEPARATE pool: once a
- * company's stored MMS media reaches this, new inbound media is dropped (the
- * text still lands) so an image flood can never grow our storage bill past
- * what the plan pays for. The owner is warned at 80% / 100% by the storage
- * arm of the usage-alerts cron before/when drops begin.
- */
-export const MMS_STORAGE_BUDGET_BYTES: Record<PlanId, number> = {
-  starter: 5 * 1024 * 1024 * 1024,
-  pro: 25 * 1024 * 1024 * 1024,
-};
-
-/**
- * #12 extra_storage module: the additional room the "Extra storage" add-on
- * grants to EACH pool (attachments + MMS media) when enabled. Placeholder,
- * tweakable — kept here as the one source of truth.
- */
-export const EXTRA_STORAGE_BYTES = 10 * 1024 * 1024 * 1024;
-
-/** Human figure for the D30 budget copy ("5 GB", "25 GB"). */
-export function storageBudgetLabel(plan: PlanId): string {
-  return `${STORAGE_BUDGET_BYTES[plan] / (1024 * 1024 * 1024)} GB`;
-}
 
 export interface PlanPrices {
   licensed: string;

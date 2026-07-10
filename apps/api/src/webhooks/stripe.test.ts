@@ -458,9 +458,13 @@ describe("§9 event → state table", () => {
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
+          // #121: the extra_storage price no longer maps to a module — a
+          // stale line item carrying it must enable NOTHING (the daily
+          // reconcile's retired-price sweep strips it separately).
           modulePriceIds: [
             env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!,
             env.STRIPE_MODULE_VOICE_PRICE_ID!,
+            env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!,
           ],
         }),
       ),
@@ -483,14 +487,15 @@ describe("§9 event → state table", () => {
     );
     expect(response.status).toBe(200);
 
-    // One upsert carrying both purchased modules, each enabled (disabled_at null).
+    // One upsert carrying both LIVE purchased modules, each enabled
+    // (disabled_at null) — the retired extra_storage price enabled nothing.
     expect(moduleUpserts).toHaveLength(1);
     const rows = moduleUpserts[0] as {
       company_id: string;
       module: string;
       disabled_at: string | null;
     }[];
-    expect(rows.map((r) => r.module).sort()).toEqual(["extra_storage", "voice"]);
+    expect(rows.map((r) => r.module).sort()).toEqual(["regions_ca", "voice"]);
     expect(rows.every((r) => r.company_id === COMPANY_ID)).toBe(true);
     expect(rows.every((r) => r.disabled_at === null)).toBe(true);
   });
@@ -932,11 +937,19 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
   }
 
   it("checkout on a base-only resubscribe DISABLES stale modules and clears voice settings", async () => {
-    // The #17 leak: enable extra_storage+voice, cancel, resubscribe base-only —
-    // the stale rows used to stay enabled (free capability) forever.
+    // The #17 leak: enable regions_ca+voice, cancel, resubscribe base-only —
+    // the stale rows used to stay enabled (free capability) forever. The
+    // extra_storage row is a #121 pre-migration straggler: no longer a
+    // module, it is ignored (neither disabled nor a crash).
     const harness = makeHarness([
       // The claim returns the stale modules (prepended so it wins the shared default).
-      activationRpc({ modules: [moduleRow("extra_storage"), moduleRow("voice")] }),
+      activationRpc({
+        modules: [
+          moduleRow("extra_storage"),
+          moduleRow("regions_ca"),
+          moduleRow("voice"),
+        ],
+      }),
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture(), // base plan only — no module line items
@@ -956,11 +969,12 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       harness,
     );
 
-    // Both unpaid modules disabled in one guarded update…
+    // Both unpaid LIVE modules disabled in one guarded update — the retired
+    // extra_storage straggler is not in the set (#121).
     const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
     expect(disables).toHaveLength(1);
     expect(disables[0].url.searchParams.get("module")).toBe(
-      "in.(extra_storage,voice)",
+      "in.(regions_ca,voice)",
     );
     expect(disables[0].url.searchParams.get("disabled_at")).toBe("is.null");
     expect(disables[0].json()).toEqual({ disabled_at: expect.any(String) });
@@ -981,7 +995,7 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       // The claim returns the grandfathered rows (prepended to win the default).
       activationRpc({
         modules: [
-          moduleRow("extra_storage", { grandfathered: true }),
+          moduleRow("regions_ca", { grandfathered: true }),
           moduleRow("voice", { grandfathered: true }),
         ],
       }),
@@ -1016,17 +1030,19 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
   });
 
   it("customer.subscription.updated converges enables AND disables onto the paid set", async () => {
-    // Paid: extra_storage (currently disabled row). Unpaid: voice (enabled).
+    // Paid: regions_ca (currently disabled row). Unpaid: voice (enabled).
+    // (#121: extra_storage left the module set — voice/regions_ca carry the
+    // enable-and-disable convergence now.)
     const moduleUpserts: unknown[] = [];
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
-          modulePriceIds: [env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!],
+          modulePriceIds: [env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!],
         }),
       ),
       companiesWithModules([
-        moduleRow("extra_storage", { disabled_at: "2026-06-01T00:00:00.000Z" }),
+        moduleRow("regions_ca", { disabled_at: "2026-06-01T00:00:00.000Z" }),
         moduleRow("voice"),
       ]),
       endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
@@ -1040,12 +1056,12 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       harness,
     );
 
-    // extra_storage re-enabled with the grandfather flag cleared (paid now)…
+    // regions_ca re-enabled with the grandfather flag cleared (paid now)…
     expect(moduleUpserts).toEqual([
       [
         {
           company_id: COMPANY_ID,
-          module: "extra_storage",
+          module: "regions_ca",
           enabled_at: expect.any(String),
           disabled_at: null,
           grandfathered: false,

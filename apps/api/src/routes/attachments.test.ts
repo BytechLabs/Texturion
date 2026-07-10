@@ -4,14 +4,14 @@
  *     legacy task) attachments table AND the MMS message_attachments table
  *     (the MMS path is kept intact), plus membership scoping / 404, plus the
  *     #16 egress claim: every mint atomically claims the object's size_bytes
- *     against the plan-derived monthly allowance BEFORE signing (402
+ *     against the FIXED 200 GB monthly allowance (#121) BEFORE signing (402
  *     usage_cap_reached over the allowance; a claim error mints nothing).
  *   - POST /v1/attachments — NOTES-ONLY upload (D28: owner_type='task' is a
  *     422 — task attachments are a derived read view now): owner-ownership +
  *     company scoping, size/type/byte-sniff gates, per-owner soft cap, the
- *     D30 company-wide storage budget claimed FIRST (#15: 409 over budget
- *     writes nothing anywhere), Storage upload with claim release on failure,
- *     audit event.
+ *     atomic claim RPC called FIRST with an UNBOUNDED budget (#121: storage
+ *     is free — uploads never 409 on storage), Storage upload with claim
+ *     release on failure, audit event.
  *   - GET /v1/attachments — list a single owner's live attachments (note OR
  *     task — legacy task rows keep reading).
  *   - DELETE /v1/attachments/:id — soft-delete, note or legacy task.
@@ -61,9 +61,8 @@ function stubWithRole(role: string | null): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, role),
   );
-  // #12: the storage budget reads company_modules; [] = extra_storage off →
-  // base plan budget, so the D30 boundary assertions are unchanged.
-  sb.on("GET", "/rest/v1/company_modules", () => []);
+  // #121: NO company_modules stub — the storage budgets (and their module
+  // resolution) are retired; a read would fail loudly as unstubbed.
   // #106: the access guards resolve number_access for members; [] = no rules →
   // unrestricted, so the guard short-circuits and these assertions are
   // unchanged. Tests that exercise a hidden number stub this route explicitly.
@@ -97,8 +96,8 @@ function uploadForm(
 describe("GET /v1/attachments/:id/url", () => {
   /** Company billing-period anchor the #16 egress window is keyed on. */
   const PERIOD_START = "2026-07-01T00:00:00+00:00";
-  /** Starter egress allowance: 4 × (5 GB attachments + 5 GB MMS) = 40 GB. */
-  const STARTER_EGRESS_ALLOWANCE = 4 * 10 * 1024 * 1024 * 1024;
+  /** #121: the FIXED 200 GB per-period pool every plan gets. */
+  const EGRESS_ALLOWANCE = 200 * 1024 * 1024 * 1024;
 
   /**
    * The #16 egress-claim stubs every successful mint needs: the company's
@@ -161,15 +160,15 @@ describe("GET /v1/attachments/:id/url", () => {
     // Generic TTL is 300s (D19 §2.5).
     expect(sign.body).toMatchObject({ expiresIn: 300 });
 
-    // #16: the mint claimed the object's bytes against the plan-derived
-    // allowance, keyed on the billing period, BEFORE the sign call.
+    // #16: the mint claimed the object's bytes against the fixed allowance
+    // (#121), keyed on the billing period, BEFORE the sign call.
     const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
     expect(claim.body).toEqual({
       p_company_id: COMPANY_ID,
       p_since: PERIOD_START,
       p_bucket: "attachments",
       p_bytes: 2048,
-      p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+      p_limit_bytes: EGRESS_ALLOWANCE,
     });
     const order = sb.calls.map((call) => call.path);
     expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress")).toBeLessThan(
@@ -226,8 +225,9 @@ describe("GET /v1/attachments/:id/url", () => {
         size_bytes: 25 * 1024 * 1024,
       },
     ]);
-    // Allowance already fully spent → the claim refuses the mint.
-    egressStubs(sb, { usedBytes: STARTER_EGRESS_ALLOWANCE });
+    // Allowance already fully spent (200 GB burnt, #121) → the claim refuses
+    // the mint.
+    egressStubs(sb, { usedBytes: EGRESS_ALLOWANCE });
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -242,7 +242,7 @@ describe("GET /v1/attachments/:id/url", () => {
       error: { code: string; message: string };
     };
     expect(body.error.code).toBe("usage_cap_reached");
-    expect(body.error.message).toContain("40 GB");
+    expect(body.error.message).toContain("200 GB");
     // Cap-and-drop: over the allowance, NOTHING is signed.
     expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
   });
@@ -336,30 +336,25 @@ describe("GET /v1/attachments/:id/url", () => {
   });
 });
 
-describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", () => {
+describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", () => {
   /**
-   * Stubs shared by every upload that gets past validation: the note owner, the
-   * per-owner cap count, and the D30 budget inputs — the company plan lookup
-   * (resolves the budget the Worker passes to the RPC) and the atomic
-   * claim_attachment_storage RPC. The claim is the sole budget authority now
-   * (no api_storage_usage read on the upload path); `storedBytes` models the
-   * live bytes it re-sums so the boundary math is exercised against the plan
-   * budget. `allowed=false` (over budget) writes NO row.
+   * Stubs shared by every upload that gets past validation: the note owner,
+   * the per-owner cap count, and the atomic claim_attachment_storage RPC.
+   * #121: storage is free — the Worker passes an UNBOUNDED budget
+   * (Number.MAX_SAFE_INTEGER) and never reads the company plan on this path
+   * (no companies stub — a read would fail loudly). The RPC stub still
+   * mirrors the SQL's re-sum-vs-budget math (`storedBytes` = the live bytes
+   * it would re-sum) so these tests PROVE the unbounded budget makes a
+   * rejection unreachable, rather than assuming it.
    */
-  const STARTER_BUDGET_BYTES = 5 * 1024 * 1024 * 1024;
-
   function uploadStubs(
     sb: SupabaseStub,
-    options: { plan?: string | null; storedBytes?: number } = {},
+    options: { storedBytes?: number } = {},
   ) {
-    const plan = options.plan === undefined ? "starter" : options.plan;
     sb.on("GET", "/rest/v1/messages", () => [
       { conversation_id: CONV_ID, direction: "note" },
     ]);
     sb.on("GET", "/rest/v1/attachments", () => []);
-    sb.on("GET", "/rest/v1/companies", () => [{ plan }]);
-    // The RPC decides allowed vs over-budget from the (stubbed) live sum + the
-    // incoming size vs the budget — mirroring the SQL claim_attachment_storage.
     sb.on("POST", "/rest/v1/rpc/claim_attachment_storage", (call) => {
       const p = call.body as { p_size_bytes: number; p_budget_bytes: number };
       const used = options.storedBytes ?? 0;
@@ -421,14 +416,17 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(ownerLookup.url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
-    // #15 claim-first ordering: the budget claim precedes the Storage upload,
-    // so a rejected claim can never orphan an object.
+    // #15 claim-first ordering: the accounting claim precedes the Storage
+    // upload, so a failed upload can never orphan an unaccounted object.
     const order = sb.calls.map((call) => call.path);
     expect(order.indexOf("/rest/v1/rpc/claim_attachment_storage")).toBeLessThan(
       order.findIndex((path) =>
         path.startsWith("/storage/v1/object/attachments/"),
       ),
     );
+    // #121: storage is free — the upload path never resolves a plan budget
+    // (no companies read at all on POST).
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
     // Upload keyed {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
     const upload = sb.find("POST", /^\/storage\/v1\/object\/attachments\//)[0];
     expect(upload.path).toMatch(
@@ -436,8 +434,9 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
         `/storage/v1/object/attachments/${COMPANY_ID}/note/${NOTE_ID}/[0-9a-f-]+-photo\\.png$`,
       ),
     );
-    // The atomic claim carried the owner + the storage path + the plan budget;
-    // there is NO separate PostgREST insert (the RPC inserts under the lock).
+    // The atomic claim carried the owner + the storage path + the #121
+    // UNBOUNDED budget (storage never blocks); there is NO separate PostgREST
+    // insert (the RPC inserts under the lock).
     const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
     const p = claim.body as Record<string, unknown>;
     expect(p).toMatchObject({
@@ -447,7 +446,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
       p_conversation_id: CONV_ID,
       p_content_type: "image/png",
       p_uploaded_by: auth.subject,
-      p_budget_bytes: STARTER_BUDGET_BYTES,
+      p_budget_bytes: Number.MAX_SAFE_INTEGER,
     });
     expect(p.p_storage_path).toMatch(
       new RegExp(`^${COMPANY_ID}/note/${NOTE_ID}/[0-9a-f-]+-photo\\.png$`),
@@ -692,13 +691,14 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
   });
 
   // -------------------------------------------------------------------------
-  // D30: the company-wide storage budget (Starter 5 GB / Pro 25 GB over live
-  // generic rows), enforced by the ATOMIC claim_attachment_storage RPC (fixes
-  // the check-then-write TOCTOU). Under and exactly-at fit; one byte over is a
-  // 409 conflict. #15: the Worker claims FIRST, then uploads — a rejected
-  // claim writes NOTHING anywhere (no orphaned object).
+  // #121 (supersedes D30's 5/25 GB budgets): storage is FREE. The atomic
+  // claim_attachment_storage RPC keeps its row-insert + accounting role, but
+  // the Worker passes Number.MAX_SAFE_INTEGER as the budget, so an upload can
+  // NEVER 409 on storage — not at the old boundary, not terabytes past it.
+  // #15's claim-first ordering (and the release on a failed upload) stays.
   // -------------------------------------------------------------------------
-  const STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
+  /** The RETIRED D30 starter figure — kept to prove the old wall is gone. */
+  const OLD_STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
 
   async function uploadPng(sb: SupabaseStub): Promise<Response> {
     stubFetch(jwksRoute(auth), sb.route);
@@ -719,7 +719,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     sb.on("POST", "/rest/v1/conversation_events", () => []);
   }
 
-  it("uploads under the budget (D30)", async () => {
+  it("uploads with existing stored bytes (the accounting claim still runs)", async () => {
     const sb = stubWithRole("member");
     uploadStubs(sb, { storedBytes: 1024 });
     acceptUpload(sb);
@@ -727,35 +727,34 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(res.status).toBe(201);
   });
 
-  it("uploads exactly AT the budget boundary (stored + file = budget, D30)", async () => {
+  it("never 409s on storage: one byte past the OLD 5 GB budget succeeds end-to-end (#121)", async () => {
     const sb = stubWithRole("member");
-    uploadStubs(sb, { storedBytes: STARTER_BUDGET - 64 }); // + 64-byte file = exactly 5 GB
+    // stored = old budget - 63; + the 64-byte file = old budget + 1 — the
+    // exact setup that used to produce the D30 409. With the unbounded
+    // budget the claim allows it and the whole pipeline runs.
+    uploadStubs(sb, { storedBytes: OLD_STARTER_BUDGET - 63 });
     acceptUpload(sb);
     const res = await uploadPng(sb);
     expect(res.status).toBe(201);
-  });
-
-  it("409s one byte over the starter budget with the 5 GB copy (D30)", async () => {
-    const sb = stubWithRole("member");
-    // stored = budget - 63; + the 64-byte file = budget + 1 → the claim rejects.
-    uploadStubs(sb, { storedBytes: STARTER_BUDGET - 63 });
-    acceptUpload(sb);
-    const res = await uploadPng(sb);
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as {
-      error: { code: string; message: string };
-    };
-    expect(body.error.code).toBe("conflict");
-    expect(body.error.message).toBe(
-      "Your 5 GB of file storage is full — delete some files to free space.",
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ id: ATTACHMENT_ID, owner_type: "note" });
+    // Claim → upload → audit event, all landed.
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
+    expect((claim.body as Record<string, unknown>).p_budget_bytes).toBe(
+      Number.MAX_SAFE_INTEGER,
     );
-    // #15 claim-first ordering: the rejected claim wrote NOTHING — no Storage
-    // object (the old orphan hole), no row, no audit event.
     expect(
       sb.find("POST", /^\/storage\/v1\/object\/attachments\//),
-    ).toHaveLength(0);
-    expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+    ).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
+  });
+
+  it("terabytes already stored: still 201 (#121 — abuse is an alert, never a block)", async () => {
+    const sb = stubWithRole("member");
+    uploadStubs(sb, { storedBytes: 10 * 1024 ** 4 }); // 10 TB live
+    acceptUpload(sb);
+    const res = await uploadPng(sb);
+    expect(res.status).toBe(201);
   });
 
   it("releases the claimed row when the Storage upload fails (#15 — no budget held for absent bytes)", async () => {
@@ -782,25 +781,25 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 
-  it("the SECOND claim at the budget boundary is rejected — no overshoot (D30 TOCTOU)", async () => {
-    // Model two concurrent uploads that both passed the (old) pre-insert read.
-    // The atomic claim serializes them: the first sees stored = budget - 64 and
-    // fits exactly; the second re-sums under the lock, now sees budget (the
-    // first's bytes committed), and is rejected. No N×overshoot.
+  it("back-to-back uploads across the old boundary BOTH succeed — the budget wall is gone (#121)", async () => {
+    // The old D30 TOCTOU scenario: two uploads racing the last 64 budget
+    // bytes — the second used to be rejected under the advisory lock. #121:
+    // the RPC still serializes and ACCOUNTS both (liveBytes grows), but with
+    // the unbounded budget neither can be refused.
     const sb = stubWithRole("member");
-    const plan = "starter";
     sb.on("GET", "/rest/v1/messages", () => [
       { conversation_id: CONV_ID, direction: "note" },
     ]);
     sb.on("GET", "/rest/v1/attachments", () => []);
-    sb.on("GET", "/rest/v1/companies", () => [{ plan }]);
     sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({ Key: "x" }));
     sb.on("POST", "/rest/v1/conversation_events", () => []);
-    // The RPC is the serialization point: live bytes start at budget - 64 and
-    // grow by each allowed claim, exactly as the advisory-lock re-sum would.
-    let liveBytes = STARTER_BUDGET - 64;
+    // The RPC stub keeps the SQL's re-sum math so the outcome is derived from
+    // the unbounded budget, not hardcoded.
+    let liveBytes = OLD_STARTER_BUDGET - 64;
+    const budgets: number[] = [];
     sb.on("POST", "/rest/v1/rpc/claim_attachment_storage", (call) => {
       const p = call.body as { p_size_bytes: number; p_budget_bytes: number };
+      budgets.push(p.p_budget_bytes);
       if (liveBytes + p.p_size_bytes > p.p_budget_bytes) return { allowed: false };
       liveBytes += p.p_size_bytes;
       return {
@@ -820,27 +819,14 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/D30)", ()
     });
     stubFetch(jwksRoute(auth), sb.route);
 
-    const first = await uploadPng(sb); // fills the last 64 bytes exactly
+    const first = await uploadPng(sb); // fills the last 64 old-budget bytes
     expect(first.status).toBe(201);
-    const second = await uploadPng(sb); // budget already full → rejected
-    expect(second.status).toBe(409);
-    // Exactly one row was claimed; the boundary held (no overshoot).
-    expect(
-      sb.find("POST", "/rest/v1/rpc/claim_attachment_storage"),
-    ).toHaveLength(2);
-    expect(liveBytes).toBe(STARTER_BUDGET);
-  });
-
-  it("a pro company gets the 25 GB budget and copy (D30)", async () => {
-    const sb = stubWithRole("member");
-    acceptUpload(sb);
-    uploadStubs(sb, { plan: "pro", storedBytes: 25 * 1024 * 1024 * 1024 });
-    const res = await uploadPng(sb);
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
-    expect(body.error.message).toBe(
-      "Your 25 GB of file storage is full — delete some files to free space.",
-    );
+    const second = await uploadPng(sb); // past the old wall — still fine
+    expect(second.status).toBe(201);
+    // Both claims ran (accounting intact), both carried the unbounded budget,
+    // and the live sum kept growing past the old ceiling.
+    expect(budgets).toEqual([Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]);
+    expect(liveBytes).toBe(OLD_STARTER_BUDGET + 64);
   });
 });
 
@@ -1021,7 +1007,6 @@ describe("#106 number access — attachments never leak a hidden number", () => 
       "/rest/v1/company_members",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/company_modules", () => []);
     sb.on("GET", "/rest/v1/number_access", () => [
       {
         phone_number_id: HIDDEN_NUMBER,

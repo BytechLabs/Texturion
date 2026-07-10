@@ -1,9 +1,10 @@
 /**
- * 80%/100% usage-alert job suite (SPEC §2, §9, §11): thresholds computed
- * against the plan's INCLUDED quota from real usage_events sums (the same
- * api_period_segments RPC the usage route uses), one email per
- * (company, period, threshold) via the usage_alerts ledger. Real product code
- * with only global fetch stubbed.
+ * Usage-alert job suite (SPEC §2, §9, §11): the 80/100% percent arms
+ * (segments, voice, egress) computed against real usage sums, plus the #121
+ * storage_abuse arm (absolute GB tiers over TOTAL stored bytes — customer +
+ * ops email, storage never blocks). One email set per
+ * (company, period, metric, threshold) via the usage_alerts ledger. Real
+ * product code with only global fetch stubbed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +27,10 @@ interface UsageState {
   /** Ledger keys already present, `${metric}:${threshold}` (e.g. "segments:80"). */
   ledger: Set<string>;
   plan?: "starter" | "pro";
-  /** api_storage_usage bytes (default 0 → no storage alerts). */
+  /**
+   * api_storage_usage bytes — the #121 storage_abuse arm SUMS both figures
+   * against the absolute tiers (default 0 → no storage alert).
+   */
   mmsBytes?: number;
   attachmentBytes?: number;
   /** api_period_voice_seconds (default 0 → no voice alerts). */
@@ -60,9 +64,9 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       /\/rest\/v1\/rpc\/api_period_egress_bytes/,
       () => state.egressBytes ?? 0,
     ),
-    // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage
-    // off → base budgets, so the storage thresholds are unchanged.
-    endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
+    // #121: NO company_modules endpoint — the per-budget storage arms (and
+    // their extra_storage-aware budget resolution) are gone; a read of
+    // company_modules would fail loudly as unstubbed.
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
       const row = call.json() as { metric: string; threshold: number };
       const key = `${row.metric}:${row.threshold}`;
@@ -81,7 +85,7 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
   ];
 }
 
-/** Starter storage budgets in bytes (mirrors billing/plans.ts). */
+/** Bytes per GB (the #121 abuse tiers and the egress pool are stated in GB). */
 const GB = 1024 * 1024 * 1024;
 
 function run(state: UsageState): { harness: Harness; done: Promise<void> } {
@@ -90,10 +94,12 @@ function run(state: UsageState): { harness: Harness; done: Promise<void> } {
   return { harness, done: runUsageAlertsJob(env) };
 }
 
-function sentEmails(harness: Harness): { subject: string; to: string[] }[] {
+function sentEmails(
+  harness: Harness,
+): { subject: string; to: string[]; text: string }[] {
   return harness
     .callsTo("POST", /api\.resend\.com/)
-    .map((call) => call.json() as { subject: string; to: string[] });
+    .map((call) => call.json() as { subject: string; to: string[]; text: string });
 }
 
 beforeEach(() => {
@@ -151,36 +157,84 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(state.ledger).toEqual(new Set(["segments:80"]));
   });
 
-  it("MMS storage at 100% (starter: 5 GB) sends both picture-storage alerts", async () => {
-    const state: UsageState = { used: 0, ledger: new Set(), mmsBytes: 5 * GB };
+  it("total stored bytes below the 25 GB abuse tier: no alert, and no budget resolution remains (#121)", async () => {
+    // 20 GB attachments + 4 GB MMS = 24 GB total — under the first tier.
+    // (Under the RETIRED per-budget arms this would already have alerted;
+    // #121 replaced them with absolute tiers over the SUM.)
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      attachmentBytes: 20 * GB,
+      mmsBytes: 4 * GB,
+    };
     const { harness, done } = run(state);
     await done;
-    const subjects = sentEmails(harness).map((email) => email.subject);
-    expect(subjects).toHaveLength(2);
-    expect(subjects[0]).toContain("nearing its picture-message storage limit");
-    expect(subjects[1]).toContain("reached its picture-message storage limit");
-    expect(state.ledger).toEqual(
-      new Set(["mms_storage:80", "mms_storage:100"]),
-    );
+    expect(sentEmails(harness)).toHaveLength(0);
+    expect(harness.callsTo("POST", /usage_alerts/)).toHaveLength(0);
+  });
 
-    // Converged: re-running with the ledger populated is a pure no-op.
+  it("crossing 25 GB (summed attachments + MMS) sends the friendly customer note AND the ops copy once (#121)", async () => {
+    // 15 GB files + 10 GB pictures = exactly 25 GB — at the tier counts as
+    // crossed (>=), and it is the SUM that matters, not either pool alone.
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      attachmentBytes: 15 * GB,
+      mmsBytes: 10 * GB,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(2);
+    // Customer copy: friendly and explicitly non-blocking, to owner/admins.
+    expect(emails[0].subject).toBe("A note about Acme Plumbing's storage");
+    expect(emails[0].to).toEqual(["owner@example.com"]);
+    expect(emails[0].text).toContain("free and nothing is paused");
+    // Ops copy rides the SAME ledger claim, to OPS_ALERT_EMAIL (unset in the
+    // test env → the support@loonext.com default).
+    expect(emails[1].subject).toBe(
+      "[ops] storage abuse tier 25 GB: Acme Plumbing",
+    );
+    expect(emails[1].to).toEqual(["support@loonext.com"]);
+    // ONE ledger row: metric storage_abuse, threshold = the GB tier.
+    expect(state.ledger).toEqual(new Set(["storage_abuse:25"]));
+
+    // Second run in the same period: the ledger row suppresses BOTH emails.
     const again = run(state);
     await again.done;
     expect(sentEmails(again.harness)).toHaveLength(0);
   });
 
-  it("attachment storage at exactly 80% (starter: 4 of 5 GB) sends only the 80% file alert", async () => {
+  it("a runaway tenant crossing multiple tiers in one run records one row per tier (#121)", async () => {
+    // 70 + 50 = 120 GB total: crosses 25, 50, and 100 — not 200/400.
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      attachmentBytes: 4 * GB,
+      attachmentBytes: 70 * GB,
+      mmsBytes: 50 * GB,
     };
     const { harness, done } = run(state);
     await done;
     const emails = sentEmails(harness);
-    expect(emails).toHaveLength(1);
-    expect(emails[0].subject).toContain("nearing its file storage limit");
-    expect(state.ledger).toEqual(new Set(["attachment_storage:80"]));
+    // Three crossings × (customer + ops), escalating tiers in order.
+    expect(emails).toHaveLength(6);
+    expect(
+      emails
+        .map((email) => email.subject)
+        .filter((subject) => subject.startsWith("[ops] storage abuse tier")),
+    ).toEqual([
+      "[ops] storage abuse tier 25 GB: Acme Plumbing",
+      "[ops] storage abuse tier 50 GB: Acme Plumbing",
+      "[ops] storage abuse tier 100 GB: Acme Plumbing",
+    ]);
+    expect(state.ledger).toEqual(
+      new Set(["storage_abuse:25", "storage_abuse:50", "storage_abuse:100"]),
+    );
+
+    // Converged: the next run in the same period is a pure no-op.
+    const again = run(state);
+    await again.done;
+    expect(sentEmails(again.harness)).toHaveLength(0);
   });
 
   it("voice minutes at 100% (300 min = 18000 s) sends both call-forwarding alerts", async () => {
@@ -225,12 +279,13 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     ).toHaveLength(0);
   });
 
-  it("egress at 100% (starter: 40 GB allowance) sends both download alerts (#16)", async () => {
-    // Starter allowance = 4 × (5 GB attachments + 5 GB MMS) = 40 GB.
+  it("egress at 100% (the fixed 200 GB pool) sends both download alerts (#16/#121)", async () => {
+    // #121: the allowance is a FIXED 200 GB per period for every plan — no
+    // longer 4× the (retired) storage budgets.
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      egressBytes: 40 * GB,
+      egressBytes: 200 * GB,
     };
     const { harness, done } = run(state);
     await done;
@@ -246,11 +301,11 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(again.harness)).toHaveLength(0);
   });
 
-  it("egress at exactly 80% (starter: 32 of 40 GB) sends only the 80% download alert", async () => {
+  it("egress at exactly 80% (160 of 200 GB) sends only the 80% download alert", async () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      egressBytes: 32 * GB,
+      egressBytes: 160 * GB,
     };
     const { harness, done } = run(state);
     await done;
@@ -264,7 +319,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      egressBytes: 31 * GB,
+      egressBytes: 159 * GB, // just under 80% of the fixed 200 GB pool
     };
     const { harness, done } = run(state);
     await done;
@@ -272,19 +327,26 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
   });
 
   it("segment and storage metrics never collide at the same threshold", async () => {
-    // Over on segments (100%) AND over on MMS storage (100%): four distinct
-    // alerts, one per (metric, threshold) — the metric axis keeps the two 80s
-    // and two 100s apart in the ledger.
-    const state: UsageState = { used: 500, ledger: new Set(), mmsBytes: 5 * GB };
+    // Over on segments (100%) AND stored past the 100 GB tier: the ledger
+    // carries BOTH a segments:100 and a storage_abuse:100 row — the metric
+    // axis keeps the identical threshold number 100 apart (#121: the abuse
+    // tier is a GB figure, but it shares the same threshold column).
+    const state: UsageState = {
+      used: 500,
+      ledger: new Set(),
+      attachmentBytes: 100 * GB,
+    };
     const { harness, done } = run(state);
     await done;
-    expect(sentEmails(harness)).toHaveLength(4);
+    // 2 segment alerts + 3 crossed tiers × (customer + ops) = 8.
+    expect(sentEmails(harness)).toHaveLength(8);
     expect(state.ledger).toEqual(
       new Set([
         "segments:80",
         "segments:100",
-        "mms_storage:80",
-        "mms_storage:100",
+        "storage_abuse:25",
+        "storage_abuse:50",
+        "storage_abuse:100",
       ]),
     );
   });
@@ -322,7 +384,6 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
-      endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);

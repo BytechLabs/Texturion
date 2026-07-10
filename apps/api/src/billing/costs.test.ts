@@ -73,13 +73,11 @@ describe("companyRevenueCents", () => {
 
   it("adds each enabled module's catalog price", () => {
     const voice = MODULE_CATALOG.voice.monthlyCents; // 800
-    const storage = MODULE_CATALOG.extra_storage.monthlyCents; // 500
-    expect(companyRevenueCents("pro", ["voice", "extra_storage"])).toBe(
-      7900 + voice + storage,
+    const ca = MODULE_CATALOG.regions_ca.monthlyCents; // 500
+    expect(companyRevenueCents("pro", ["voice", "regions_ca"])).toBe(
+      7900 + voice + ca,
     );
-    expect(companyRevenueCents("starter", ["extra_storage"])).toBe(
-      2900 + storage,
-    );
+    expect(companyRevenueCents("starter", ["voice"])).toBe(2900 + voice);
   });
 });
 

@@ -74,16 +74,14 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
   sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
-  // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage off.
+  // #85/#93: decideOverage's revenue read still consults company_modules
+  // (the #121 storage retirement removed the BUDGET read, not this one).
   sb.on("GET", "/rest/v1/company_modules", () => []);
   // #85/#93: decideOverage also reads egress + the non-released number count.
   sb.on("POST", "/rest/v1/rpc/api_period_egress_bytes", () => 0);
   sb.on("HEAD", "/rest/v1/phone_numbers", () => countResponse(1));
   return sb;
 }
-
-/** Starter storage budget in bytes (base plan, no extra_storage). */
-const STARTER_BUDGET = 5 * 1024 * 1024 * 1024;
 
 const starterCompany = {
   plan: "starter",
@@ -122,8 +120,11 @@ describe("GET /v1/usage", () => {
       storage: {
         attachments_bytes: 123_456,
         mms_bytes: 78_900,
-        attachment_budget_bytes: STARTER_BUDGET,
-        mms_budget_bytes: STARTER_BUDGET,
+        // #121 one-release shim: storage is free — the budgets no longer
+        // exist, and the fields are pinned to 0 so pre-#121 web bundles hide
+        // their meters (nearLimit(x, 0) is false) instead of crashing.
+        attachment_budget_bytes: 0,
+        mms_budget_bytes: 0,
       },
       voice: { used_minutes: 61, included_minutes: 300 },
       // #103 one-release shim for pre-#103 bundles (zeros — no meter, no crash).

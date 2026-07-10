@@ -13,7 +13,7 @@
  *
  * The allowance is derived, not configured: EGRESS_ALLOWANCE_MULTIPLIER × the
  * company's combined EFFECTIVE storage budgets (attachments + MMS pools, each
- * already grown by the extra_storage add-on via effectiveStorageBudgets) — so
+ * a fixed per-period pool, EGRESS_ALLOWANCE_BYTES) — so
  * it scales with the plan and with #12 modules automatically, no new env.
  * Base figures: Starter 4×(5+5) = 40 GB/period, Pro 4×(25+25) = 200 GB/period —
  * generous for honest use (re-downloading the entire stored pool four times
@@ -30,31 +30,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import { effectiveStorageBudgets } from "../billing/company-modules";
 import { type PlanId } from "../billing/plans";
 import { ApiError } from "../http/errors";
 import { unwrap } from "../routes/core/http";
 
 /**
- * Monthly egress allowance as a multiple of the combined storage budgets — the
- * PRICING-AUDIT's own "egress ≈ 4x storage" sizing. Worst case per maxed Pro
- * tenant: 200 GB × $0.09/GB ≈ $18/mo of egress against $79 of revenue, still
- * inside margin — vs the unbounded ~$250+/mo the unmetered route allowed.
+ * #121: the download allowance is a FIXED per-period pool now that the
+ * storage budgets it used to derive from (4x their sum) are gone. 200 GB/mo
+ * matches the old maxed-Pro ceiling, so no legitimate tenant is newly
+ * blocked, while a hotlink/scrape abuser still hits a wall: worst case
+ * 200 GB x ~$0.09/GB = ~$18/mo of egress, inside margin. This is an
+ * anti-abuse cost backstop (never marketed as a plan limit); the fair-use
+ * policy's reasonable-use line covers the human follow-up.
  */
-export const EGRESS_ALLOWANCE_MULTIPLIER = 4;
-
-/**
- * The company's per-period signed-URL egress allowance in bytes. One pool for
- * both buckets (attachments + MMS media) — a download is a download; the split
- * pools matter for STORED bytes (D30) where the cap behaviours differ, not for
- * the read side.
- */
-export function egressAllowanceBytes(budgets: {
-  attachmentBytes: number;
-  mmsBytes: number;
-}): number {
-  return EGRESS_ALLOWANCE_MULTIPLIER * (budgets.attachmentBytes + budgets.mmsBytes);
-}
+export const EGRESS_ALLOWANCE_BYTES = 200 * 1024 * 1024 * 1024;
 
 /**
  * The period window egress is summed over: the company's live billing period
@@ -175,9 +164,8 @@ export async function assertEgressWithinAllowance(
 ): Promise<void> {
   if (objects.length === 0) return;
 
-  const { plan, currentPeriodStart } = await companyPlanRow(db, companyId);
-  const budgets = await effectiveStorageBudgets(db, companyId, plan);
-  const limitBytes = egressAllowanceBytes(budgets);
+  const { currentPeriodStart } = await companyPlanRow(db, companyId);
+  const limitBytes = EGRESS_ALLOWANCE_BYTES;
   const since = egressPeriodStart(currentPeriodStart);
 
   const bytesByBucket = new Map<string, number>();

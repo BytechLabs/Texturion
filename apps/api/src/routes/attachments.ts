@@ -43,15 +43,12 @@ import { z } from "zod";
 
 import {
   assertEgressWithinAllowance,
-  companyPlanRow,
 } from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import {
   requireConversationAccess,
   resolveNumberAccess,
 } from "../auth/number-access";
-import { effectiveStorageBudgets } from "../billing/company-modules";
-import { type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -120,23 +117,7 @@ async function resolveNoteOwner(
   return { conversationId: note.conversation_id };
 }
 
-/**
- * The company's D30 storage budget in bytes (Starter 5 GB, Pro 25 GB). A
- * plan-null (pre-checkout) company cannot reach the budget gate in practice —
- * it has no numbers, so no conversations, no notes, and the owner lookup
- * already 404'd — but if it ever does, it gets the Starter allowance (the same
- * posture as seatLimit in core/plans.ts). The plain-language 409 copy needs the
- * plan too, so this returns both.
- */
-async function companyStorageBudget(
-  db: Db,
-  companyId: string,
-): Promise<{ plan: PlanId; budgetBytes: number }> {
-  const { plan } = await companyPlanRow(db, companyId);
-  // #12: the effective budget includes the extra_storage add-on when enabled.
-  const { attachmentBytes } = await effectiveStorageBudgets(db, companyId, plan);
-  return { plan, budgetBytes: attachmentBytes };
-}
+
 
 /**
  * Shape of the claim_attachment_storage RPC result (the D30 atomic budget
@@ -264,10 +245,6 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     );
   }
 
-  // D30 budget is resolved from the plan (+ any extra_storage add-on); the
-  // atomic CLAIM below is the authority (TOCTOU race — see the RPC).
-  const { budgetBytes } = await companyStorageBudget(db, companyId);
-
   const objectPath = attachmentStoragePath({
     companyId,
     ownerType,
@@ -276,14 +253,12 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
     fileName,
   });
 
-  // Claim the budget FIRST, then upload (#15 — the reverse ordering was a cost
-  // hole: a rejected claim left the just-uploaded object orphaned forever, and
-  // a member at budget could loop 25 MB uploads into unaccounted provider
-  // spend). claim_attachment_storage re-sums AND inserts under a per-company
-  // advisory xact lock, so it stays the sole budget authority (no
-  // check-then-write TOCTOU, no N×25 MB overshoot) — and a rejection now
-  // writes NOTHING anywhere. Only an allowed claim touches Storage; an upload
-  // failure releases the claimed row below, and the #15 sweep passes
+  // Claim (account) the row FIRST, then upload (#15 — the reverse ordering
+  // left crash-window orphans). #121: storage is FREE, so the claim carries
+  // an unbounded budget and can never reject — the RPC is kept for its atomic
+  // row-insert + accounting (the abuse-alert cron reads the same sums), and a
+  // later cleanup migration may drop its gate entirely. An upload failure
+  // still releases the claimed row below, and the #15 sweep passes
   // (sweepDeletedAttachments) garbage-collect any crash window in between.
   const { data: claimData, error: claimError } = await db.rpc(
     "claim_attachment_storage",
@@ -297,7 +272,9 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
       p_content_type: declaredType,
       p_size_bytes: bytes.byteLength,
       p_uploaded_by: userId,
-      p_budget_bytes: budgetBytes,
+      // #121: unbounded — storage never blocks. Number.MAX_SAFE_INTEGER
+      // comfortably exceeds any real sum(size_bytes).
+      p_budget_bytes: Number.MAX_SAFE_INTEGER,
     },
   );
   if (claimError) {
@@ -305,12 +282,8 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   }
   const claim = parseStorageClaim(claimData);
   if (!claim.allowed) {
-    // Over budget — nothing was written (no row, no object).
-    const budgetGb = Math.round(budgetBytes / (1024 * 1024 * 1024));
-    throw new ApiError(
-      "conflict",
-      `Your ${budgetGb} GB of file storage is full — delete some files to free space.`,
-    );
+    // #121: impossible with the unbounded budget above — treat as internal.
+    throw new Error("claim_attachment_storage rejected an unbounded budget");
   }
   if (!claim.attachment) throw new Error("claim_attachment_storage returned no row");
 

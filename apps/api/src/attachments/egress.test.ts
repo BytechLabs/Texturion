@@ -1,10 +1,11 @@
 /**
- * #16 signed-URL egress metering helpers: the plan-derived allowance, the
- * period window, the fail-closed atomic claim wrapper, and the one gate every
- * mint path (the /url route AND the conversation gallery) calls before
- * signing (assertEgressWithinAllowance — page-level, per-bucket claims). The
- * /url route wiring is exercised end-to-end in routes/attachments.test.ts;
- * here the contract of each piece is pinned. Only global fetch (PostgREST) is
+ * #16/#121 signed-URL egress metering helpers: the FIXED per-period allowance
+ * (#121 — no longer derived from the retired storage budgets), the period
+ * window, the fail-closed atomic claim wrapper, and the one gate every mint
+ * path (the /url route AND the conversation gallery) calls before signing
+ * (assertEgressWithinAllowance — page-level, per-bucket claims). The /url
+ * route wiring is exercised end-to-end in routes/attachments.test.ts; here
+ * the contract of each piece is pinned. Only global fetch (PostgREST) is
  * stubbed.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -17,8 +18,7 @@ import {
   assertEgressWithinAllowance,
   claimSignedUrlEgress,
   companyPlanRow,
-  EGRESS_ALLOWANCE_MULTIPLIER,
-  egressAllowanceBytes,
+  EGRESS_ALLOWANCE_BYTES,
   egressPeriodStart,
 } from "./egress";
 
@@ -28,21 +28,13 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("egressAllowanceBytes (#16)", () => {
-  it("is the multiplier times the COMBINED effective storage budgets", async () => {
-    // Starter base: 4 × (5 + 5) GB = 40 GB.
-    expect(
-      egressAllowanceBytes({ attachmentBytes: 5 * GB, mmsBytes: 5 * GB }),
-    ).toBe(40 * GB);
-    // Pro base: 4 × (25 + 25) GB = 200 GB.
-    expect(
-      egressAllowanceBytes({ attachmentBytes: 25 * GB, mmsBytes: 25 * GB }),
-    ).toBe(200 * GB);
-    // extra_storage grows each pool by 10 GB → the allowance grows 4×20 GB.
-    expect(
-      egressAllowanceBytes({ attachmentBytes: 15 * GB, mmsBytes: 15 * GB }),
-    ).toBe((40 + 80) * GB);
-    expect(EGRESS_ALLOWANCE_MULTIPLIER).toBe(4);
+describe("EGRESS_ALLOWANCE_BYTES (#16/#121)", () => {
+  const GB = 1024 * 1024 * 1024;
+  it("is the fixed 200 GB per-period anti-abuse pool", () => {
+    // #121: no longer derived from storage budgets (which are gone) — a flat
+    // pool matching the old maxed-Pro ceiling so nobody legitimate is newly
+    // blocked.
+    expect(EGRESS_ALLOWANCE_BYTES).toBe(200 * GB);
   });
 });
 
@@ -91,7 +83,7 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
     since: "2026-07-01T00:00:00.000Z",
     bucket: "attachments",
     bytes: 2048,
-    limitBytes: 40 * GB,
+    limitBytes: 200 * GB, // #121: the fixed pool every caller passes now
   };
 
   it("passes the claim through and returns the RPC verdict", async () => {
@@ -108,7 +100,7 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
       p_since: "2026-07-01T00:00:00.000Z",
       p_bucket: "attachments",
       p_bytes: 2048,
-      p_limit_bytes: 40 * GB,
+      p_limit_bytes: 200 * GB,
     });
   });
 
@@ -166,20 +158,18 @@ describe("companyPlanRow (#16 / D30 anchor)", () => {
 
 describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)", () => {
   const PERIOD_START = "2026-07-01T00:00:00+00:00";
-  /** Starter allowance: 4 × (5 GB attachments + 5 GB MMS) = 40 GB. */
-  const STARTER_ALLOWANCE = 40 * GB;
+  /** #121: the fixed 200 GB per-period pool — the same for every plan. */
+  const ALLOWANCE = 200 * GB;
 
   /**
-   * The full resolution chain (company plan → company_modules → claim RPC),
-   * with the RPC mimicking the SQL: usedBytes + p_bytes vs p_limit_bytes.
+   * The full resolution chain (company period anchor → claim RPC), with the
+   * RPC mimicking the SQL: usedBytes + p_bytes vs p_limit_bytes.
    */
   function poolStub(options: { usedBytes?: number } = {}): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    // extra_storage off → base plan budgets.
-    sb.on("GET", "/rest/v1/company_modules", () => []);
     sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
       const p = call.body as { p_bytes: number; p_limit_bytes: number };
       const used = options.usedBytes ?? 0;
@@ -211,20 +201,22 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
         p_since: PERIOD_START,
         p_bucket: "attachments",
         p_bytes: 3072,
-        p_limit_bytes: STARTER_ALLOWANCE,
+        p_limit_bytes: ALLOWANCE,
       },
       {
         p_company_id: COMPANY_ID,
         p_since: PERIOD_START,
         p_bucket: "mms-media",
         p_bytes: 4096,
-        p_limit_bytes: STARTER_ALLOWANCE,
+        p_limit_bytes: ALLOWANCE,
       },
     ]);
-    // The plan + module resolution ran ONCE for the whole page — a gallery
-    // page costs the same round trips as a single /url mint.
+    // The period-anchor resolution ran ONCE for the whole page — a gallery
+    // page costs the same round trips as a single /url mint. #121: the
+    // allowance is fixed, so the retired storage-budget resolution
+    // (company_modules) is never read at all.
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
-    expect(sb.find("GET", "/rest/v1/company_modules")).toHaveLength(1);
+    expect(sb.find("GET", "/rest/v1/company_modules")).toHaveLength(0);
   });
 
   it("does nothing at all for an empty page (no reads, no claims)", async () => {
@@ -236,8 +228,9 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
   });
 
   it("throws usage_cap_reached over the allowance and stops claiming (cap-and-drop)", async () => {
-    // Pool already fully spent → the FIRST bucket's claim is refused.
-    const sb = poolStub({ usedBytes: STARTER_ALLOWANCE });
+    // Pool already fully spent (#121: that now means 200 GB burnt) → the
+    // FIRST bucket's claim is refused.
+    const sb = poolStub({ usedBytes: ALLOWANCE });
     stubFetch(sb.route);
 
     let error: unknown;
@@ -251,7 +244,7 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     }
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe("usage_cap_reached");
-    expect((error as ApiError).message).toContain("40 GB");
+    expect((error as ApiError).message).toContain("200 GB");
     // The refusal short-circuits: the second bucket is never claimed.
     expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(1);
   });
@@ -262,7 +255,6 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", () => []);
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress",

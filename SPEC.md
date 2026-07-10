@@ -49,7 +49,7 @@ Loonext is a shared SMS inbox for small service businesses. A company buys a sub
 - **Overage cap:** default **3× the included quota** (Starter: 1,500 total outbound segments/period; Pro: 7,500). Stored as `companies.overage_cap_multiplier` (default `3.00`; `NULL` = no cap). At the cap, `POST /v1/messages/send` returns `usage_cap_reached` and the owner gets a one-click raise in the usage screen. **Owner-only** setting (raise or remove). Email alerts fire at **80% and 100% of the included quota** (not of the cap).
 - **Currency: USD only at launch.** CAD display prices via Stripe `currency_options` is a named fast-follow (§13).
 - **Tax:** Stripe Tax enabled from day one — `automatic_tax` on Checkout and the subscription, SaaS product tax code set on both Stripe Products, prices tax-exclusive. Stripe Tax pay-as-you-go costs 0.5% per transaction. GST/HST registration is an operational runbook item (register at/before CAD $30,000 rolling-12-month revenue; Stripe Tax threshold monitoring watches US state nexus and Canadian thresholds).
-- **UI copy rule:** usage displays say "messages" with the segment count beside it and a plain-English tooltip ("Long texts and emoji use more than one segment — 160 characters per segment for plain text, 70 with emoji"). Billing is always in segments; the pricing page states "outbound segments" explicitly.
+- **UI copy rule (amended by D34/#121):** usage displays say "messages" with the segment count beside it and a plain-English explainer ("Long texts and emoji use more than one segment — 160 characters per segment for plain text, 70 with emoji"). Billing is always in segments internally. PUBLICATION of the concrete figures (included segments, overage rates, the MMS=3 rule, voice minutes) happens in exactly ONE public place: /legal/fair-use. Marketing and plan-picker surfaces carry the fair-use + spending-cap story with a link there and NO hard-limit numbers; the plan table above stays the internal billing spec.
 
 ### Unit-economics inputs (verified, used in §14)
 
@@ -1158,12 +1158,12 @@ Plus Stripe percentages on revenue (below) and per-tenant Telnyx COGS.
 
 MMS shifts the mix ($0.015/part out + $0.005–0.01 carrier; $0.005/part in) — outbound MMS metering at 3 segments preserves margin. Canadian tenants: no campaign fee unless US texting enabled; CA carrier passthrough ~CAD $0.006–0.011/msg.
 
-**Storage (D30):** attachment storage is a budgeted allowance, not a meter — Starter 5 GB / Pro
-25 GB of note-borne attachments per company, enforced at upload (409 when full). Marginal cost on
-Supabase Pro beyond the included 100 GB is ~$0.021/GB-month, so a maxed tenant costs ~$0.11
-(Starter) / ~$0.53 (Pro) per month — inside plan margin. MMS media is bounded by metering (outbound,
-3 segments) and per-message item caps (inbound, ≤10 items × ≤5 MB); it is never budget-blocked
-(customer content). Per-company stored bytes for both arms surface on the usage page.
+**Storage (D34, supersedes D30's enforcement):** storage is FREE — unmetered and unenforced.
+Uploads never 409 and inbound MMS media is never dropped for space. Cost exposure (~$0.021/GB-month
+marginal on Supabase Pro) is managed by the usage-alerts cron's `storage_abuse` arm: absolute tiers
+(25/50/100/200/400 GB total stored) email the customer and ops (`OPS_ALERT_EMAIL`) once per tier per
+period, and a human follows up under the fair-use policy. Per-message inbound item caps (≤10 items ×
+≤5 MB) remain as ingestion sanity, and the signed-URL egress backstop is a fixed 200 GB/period.
 
 ### Per-tenant COGS — Pro, heavy month (2,500 outbound + 3,000 inbound)
 

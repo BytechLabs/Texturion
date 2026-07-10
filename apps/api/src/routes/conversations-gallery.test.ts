@@ -31,8 +31,8 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONV_ID = "aaaaaaaa-1111-4222-8333-444444444444";
 const PERIOD_START = "2026-07-01T00:00:00+00:00";
-// Starter: 4 × (5 GB attachments + 5 GB MMS) — see egressAllowanceBytes (#16).
-const STARTER_EGRESS_ALLOWANCE = 4 * 10 * 1024 * 1024 * 1024;
+// #121: the FIXED 200 GB per-period pool — see EGRESS_ALLOWANCE_BYTES (#16).
+const EGRESS_ALLOWANCE = 200 * 1024 * 1024 * 1024;
 
 let auth: TestAuth;
 const app = buildTestApp(conversationsRoutes);
@@ -61,7 +61,8 @@ function memberStub(): SupabaseStub {
   sb.on("GET", "/rest/v1/companies", () => [
     { plan: "starter", current_period_start: PERIOD_START },
   ]);
-  sb.on("GET", "/rest/v1/company_modules", () => []);
+  // #121: no company_modules stub — the allowance is fixed, so the retired
+  // storage-budget resolution is never read (it would fail loudly).
   sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
     const p = call.body as { p_bytes: number };
     return { allowed: true, used_bytes: p.p_bytes };
@@ -186,14 +187,14 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
           p_since: PERIOD_START,
           p_bucket: "mms-media",
           p_bytes: 4096,
-          p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+          p_limit_bytes: EGRESS_ALLOWANCE,
         },
         {
           p_company_id: COMPANY_ID,
           p_since: PERIOD_START,
           p_bucket: "attachments",
           p_bytes: 10240, // 8192 + 2048 — the generic arm's summed page bytes
-          p_limit_bytes: STARTER_EGRESS_ALLOWANCE,
+          p_limit_bytes: EGRESS_ALLOWANCE,
         },
       ]),
     );
@@ -226,10 +227,9 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", () => []);
     sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
       allowed: false,
-      used_bytes: STARTER_EGRESS_ALLOWANCE,
+      used_bytes: EGRESS_ALLOWANCE,
     }));
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -268,7 +268,6 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", () => []);
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress",

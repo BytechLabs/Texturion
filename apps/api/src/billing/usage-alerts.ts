@@ -12,12 +12,12 @@
  * so re-runs and overlaps can never double-send.
  */
 import { billingRecipients } from "./recipients";
-import { effectiveStorageBudgets } from "./company-modules";
-import { egressAllowanceBytes } from "../attachments/egress";
+import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_VOICE_MINUTES,
   type PlanId,
+  STORAGE_ABUSE_TIERS_GB,
 } from "./plans";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -36,8 +36,11 @@ export const USAGE_ALERT_THRESHOLDS: readonly UsageAlertThreshold[] = [80, 100];
  */
 export type UsageAlertMetric =
   | "segments"
-  | "mms_storage"
-  | "attachment_storage"
+  // "mms_storage" / "attachment_storage" retired with the storage budgets
+  // (#121) — historic ledger rows keep those values (the DB CHECK still
+  // allows them), we just never write them again. The one storage arm left
+  // is the absolute-tier abuse alert below.
+  | "storage_abuse"
   | "voice_minutes"
   // "mms_messages" retired with the Picture-messages module (#103) — historic
   // ledger rows keep the value (the DB CHECK still allows it), we just never
@@ -90,62 +93,52 @@ function segmentAlertCopy(
 }
 
 /**
- * #12 storage-budget alert copy. MMS media is HELD when full (customer text
- * still lands — cap-and-drop only sheds the picture); attachment uploads are
- * PAUSED when full (the owner deletes files to free space). The copy states
- * exactly which happens so nobody is surprised by a dropped picture.
+ * #121 storage-abuse copy (replaces the retired budget alerts): storage is
+ * free and NOTHING blocks — this is a friendly heads-up to the customer that
+ * their stored bytes crossed an unusual absolute tier, and a parallel ops
+ * note so a human can look. Tone matters: the customer email must never read
+ * as a warning shot; it is "all good, here's what we noticed, reply if this
+ * is just how you work."
  */
-function storageAlertCopy(
+function storageAbuseCopy(
   company: ActiveCompanyRow,
-  metric: "mms_storage" | "attachment_storage",
-  threshold: UsageAlertThreshold,
-  budgetBytes: number,
+  tierGb: number,
   usedBytes: number,
   env: Env,
-): { subject: string; text: string } {
-  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
-  const budget = formatGb(budgetBytes);
+): { customer: { subject: string; text: string }; ops: { subject: string; text: string } } {
   const used = formatGb(usedBytes);
-  if (metric === "mms_storage") {
-    if (threshold === 100) {
-      return {
-        subject: `${company.name} has reached its picture-message storage limit`,
-        text:
-          `Hi,\n\n${company.name}'s saved picture messages have reached ${budget}, ` +
-          `the picture-message storage included in your plan. New incoming ` +
-          `pictures are now held so the bill can't grow past your plan. The ` +
-          `text of every message still comes through untouched. Free up space ` +
-          `or move to a larger plan to start saving pictures again.\n\n` +
-          `See usage: ${usageUrl}\n\nLoonext`,
-      };
-    }
-    return {
-      subject: `${company.name} is nearing its picture-message storage limit`,
-      text:
-        `Hi,\n\n${company.name} has used ${used} of the ${budget} of ` +
-        `picture-message storage included in your plan. When it's full, new ` +
-        `incoming pictures are held (the message text still comes through). ` +
-        `Free up space or move to a larger plan to avoid that.\n\n` +
-        `See usage: ${usageUrl}\n\nLoonext`,
-    };
-  }
-  if (threshold === 100) {
-    return {
-      subject: `${company.name} has reached its file storage limit`,
-      text:
-        `Hi,\n\n${company.name}'s files attached to notes have reached ${budget}, ` +
-        `the file storage included in your plan. New uploads are paused until ` +
-        `you delete files you no longer need, or move to a larger plan.\n\n` +
-        `See usage: ${usageUrl}\n\nLoonext`,
-    };
-  }
+  const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
   return {
-    subject: `${company.name} is nearing its file storage limit`,
-    text:
-      `Hi,\n\n${company.name} has used ${used} of the ${budget} of file ` +
-      `storage included in your plan. When it's full, new uploads are paused ` +
-      `until you delete files you no longer need.\n\n` +
-      `See usage: ${usageUrl}\n\nLoonext`,
+    customer: {
+      subject: `A note about ${company.name}'s storage`,
+      text:
+        `Hi,
+
+Storage on Loonext is free and nothing is paused, so this is ` +
+        `just a heads-up: ${company.name} is now storing about ${used} of ` +
+        `files and pictures, which is a lot more than a typical crew. If ` +
+        `that's simply how you work, great — carry on and ignore this. If it ` +
+        `looks surprising, your files are listed under each conversation and ` +
+        `you can tidy up any time.
+
+Our fair use policy asks only that ` +
+        `storage stays about one business keeping its own customer ` +
+        `conversations. If we ever need anything from you, a human will ` +
+        `email you personally — nothing automatic will ever block or delete ` +
+        `your files.
+
+See usage: ${usageUrl}
+
+Loonext`,
+    },
+    ops: {
+      subject: `[ops] storage abuse tier ${tierGb} GB: ${company.name}`,
+      text:
+        `Company ${company.name} (${company.id}) crossed the ${tierGb} GB ` +
+        `storage tier: ${used} stored (attachments + MMS). Plan: ` +
+        `${company.plan}. The customer received the friendly heads-up. ` +
+        `Review under the fair-use policy if this keeps escalating.`,
+    },
   };
 }
 
@@ -218,7 +211,7 @@ function egressAlertCopy(
     subject: `${company.name} is nearing its file-download limit for this period`,
     text:
       `Hi,\n\n${company.name} has downloaded ${used} of the ${allowance} of ` +
-      `files and pictures included with your plan's storage this billing ` +
+      `files and pictures in your plan's download allowance this billing ` +
       `period. When it's used up, new downloads pause until the next period ` +
       `starts (everything stays safely stored). If you're hitting this in ` +
       `normal use, just reply to this email.\n\n` +
@@ -235,8 +228,13 @@ export async function recordAndSendAlert(
   env: Env,
   company: ActiveCompanyRow,
   metric: UsageAlertMetric,
-  threshold: UsageAlertThreshold,
+  // 80|100 for the classic percent arms; an absolute GB tier for
+  // storage_abuse (#121) — the ledger PK treats it purely as a dedupe key.
+  threshold: number,
   copy: { subject: string; text: string },
+  /** #121: when set, a second email rides the SAME ledger dedupe to ops
+   * (OPS_ALERT_EMAIL, default support@loonext.com — routes to the founder). */
+  ops?: { subject: string; text: string },
 ): Promise<boolean> {
   const db = getDb(env);
   const { data, error } = await db
@@ -268,6 +266,14 @@ export async function recordAndSendAlert(
     text: copy.text,
     html: renderEmailHtml(copy.text),
   });
+  if (ops) {
+    await sendEmail(env, {
+      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+      subject: ops.subject,
+      text: ops.text,
+      html: renderEmailHtml(ops.text),
+    });
+  }
   return true;
 }
 
@@ -319,10 +325,11 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         }
       }
 
-      // #12 storage arms: MMS media + attachment files each have their own
-      // budget (separate pools) and their own cap behaviour. Storage is a
-      // point-in-time total, so keying by current_period_start re-warns the
-      // owner at most once per period while still over — a gentle monthly nudge.
+      // #121 storage-abuse arm (replaces the retired budget arms): storage
+      // is free — nothing blocks — but total stored bytes crossing an
+      // absolute tier emails the customer (friendly) and ops (factual), once
+      // per tier per period via the same ledger dedupe. Escalating tiers keep
+      // a runaway tenant re-alerting as it doubles.
       const { data: storage, error: storageError } = await db.rpc(
         "api_storage_usage",
         { p_company_id: company.id },
@@ -334,46 +341,18 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         attachments_bytes: number | string;
         mms_bytes: number | string;
       };
-      // Effective budgets include the extra_storage add-on when enabled.
-      const { attachmentBytes, mmsBytes } = await effectiveStorageBudgets(
-        db,
-        company.id,
-        company.plan,
-      );
-      const storageArms: {
-        metric: "mms_storage" | "attachment_storage";
-        used: number;
-        budget: number;
-      }[] = [
-        {
-          metric: "mms_storage",
-          used: Number(s.mms_bytes),
-          budget: mmsBytes,
-        },
-        {
-          metric: "attachment_storage",
-          used: Number(s.attachments_bytes),
-          budget: attachmentBytes,
-        },
-      ];
-      for (const arm of storageArms) {
-        for (const threshold of USAGE_ALERT_THRESHOLDS) {
-          if (arm.used * 100 >= arm.budget * threshold) {
-            await recordAndSendAlert(
-              env,
-              company,
-              arm.metric,
-              threshold,
-              storageAlertCopy(
-                company,
-                arm.metric,
-                threshold,
-                arm.budget,
-                arm.used,
-                env,
-              ),
-            );
-          }
+      const totalStoredBytes = Number(s.attachments_bytes) + Number(s.mms_bytes);
+      for (const tierGb of STORAGE_ABUSE_TIERS_GB) {
+        if (totalStoredBytes >= tierGb * 1024 ** 3) {
+          const abuse = storageAbuseCopy(company, tierGb, totalStoredBytes, env);
+          await recordAndSendAlert(
+            env,
+            company,
+            "storage_abuse",
+            tierGb,
+            abuse.customer,
+            abuse.ops,
+          );
         }
       }
 
@@ -410,11 +389,10 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
       // #97/#103: no mms arm — picture messages have no separate cap anymore
       // (each MMS meters as 3 segments, so the `segments` arm above covers it).
 
-      // #16 egress arm: warn before the hard cap (routes/attachments.ts) starts
-      // refusing signed download URLs. The allowance is derived from the SAME
-      // effective storage budgets read above (4× their combined size — one
-      // source of truth in attachments/egress.ts, shared with the mint route),
-      // and the sum is the same RPC window the atomic claim enforces.
+      // #16 egress arm: warn before the hard cap (routes/attachments.ts)
+      // starts refusing signed download URLs. #121: the allowance is the
+      // FIXED per-period pool (attachments/egress.ts EGRESS_ALLOWANCE_BYTES),
+      // an anti-abuse cost backstop, no longer derived from storage budgets.
       const { data: egressBytes, error: egressError } = await db.rpc(
         "api_period_egress_bytes",
         { p_company_id: company.id, p_since: company.current_period_start },
@@ -423,7 +401,7 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         throw new Error(`egress usage failed: ${egressError.message}`);
       }
       const usedEgress = Number(egressBytes);
-      const egressAllowance = egressAllowanceBytes({ attachmentBytes, mmsBytes });
+      const egressAllowance = EGRESS_ALLOWANCE_BYTES;
       for (const threshold of USAGE_ALERT_THRESHOLDS) {
         if (usedEgress * 100 >= egressAllowance * threshold) {
           await recordAndSendAlert(

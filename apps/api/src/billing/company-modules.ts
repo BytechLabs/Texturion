@@ -8,10 +8,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
-  EXTRA_STORAGE_BYTES,
-  MMS_STORAGE_BUDGET_BYTES,
-  STORAGE_BUDGET_BYTES,
-  type PlanId,
 } from "./plans";
 import { isPlanModule, PLAN_MODULES, type PlanModule } from "./modules";
 
@@ -180,22 +176,4 @@ export async function applyModuleReconcile(
   }
 }
 
-/**
- * #12: the company's EFFECTIVE storage budgets — the plan's base attachment +
- * MMS pools, each grown by EXTRA_STORAGE_BYTES when the extra_storage module is
- * on. The single source of truth for every storage gate/alert/meter so they
- * never disagree about how much room a company actually has.
- */
-export async function effectiveStorageBudgets(
-  db: SupabaseClient,
-  companyId: string,
-  plan: PlanId,
-): Promise<{ attachmentBytes: number; mmsBytes: number }> {
-  const extra = (await isModuleEnabled(db, companyId, "extra_storage"))
-    ? EXTRA_STORAGE_BYTES
-    : 0;
-  return {
-    attachmentBytes: STORAGE_BUDGET_BYTES[plan] + extra,
-    mmsBytes: MMS_STORAGE_BUDGET_BYTES[plan] + extra,
-  };
-}
+

@@ -1024,3 +1024,31 @@ cost-protection mandate (cap-and-drop, alert BEFORE the cap, fail closed) govern
   forwarding; MMS budget-lookup errors skip media (never download unaccounted bytes); inbound
   notification emails have a per-company daily ceiling with a one-time owner alert; outbound MMS
   media is byte-sniffed against its declared type.
+
+## D34. Storage is free; hard-limit numbers live only in the fair-use policy (#121, 2026-07-10)
+
+Founder ruling (supersedes D30's enforcement posture and the #12 extra_storage module):
+
+- **Storage is free.** No storage caps, no storage meter, no extra-storage add-on. Uploads never
+  409, inbound MMS media is never dropped for space, and the usage page has no storage card. The
+  `claim_attachment_storage` RPC keeps its atomic row-insert/accounting role (the Worker passes an
+  unbounded budget); a later migration may drop its gate parameter.
+- **The backstop is alerting, not blocking.** The hourly usage-alerts cron's `storage_abuse` arm
+  emails the customer (friendly, explicitly non-blocking copy) and ops (`OPS_ALERT_EMAIL`, default
+  support@loonext.com) when a company's total stored bytes crosses absolute tiers
+  (25/50/100/200/400 GB), once per tier per period via the existing ledger. Human follow-up under
+  the fair-use policy replaces the old 409/cap-and-drop.
+- **`extra_storage` retired exactly like `mms` (D-#103 recipe):** removed from the catalog and
+  every sales surface; its Stripe price joins `retiredModulePrices()` so the daily reconcile strips
+  live line items with a prorated credit (KEEP `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` set in prod);
+  migration `20260710120000` deletes its `company_modules` rows and tightens the CHECK to
+  `('voice','regions_ca')`. Deploy Worker BEFORE migration.
+- **Egress backstop re-based:** the signed-URL download allowance is a fixed 200 GB/period
+  (`EGRESS_ALLOWANCE_BYTES`) for every plan — an anti-abuse cost cap equal to the old maxed-Pro
+  ceiling, never a marketed limit.
+- **Marketing/app carry no hard-limit numbers.** Allowance figures, per-text overage rates, the
+  picture-counts-as-three rule, and voice minutes live in exactly one public place:
+  `/legal/fair-use` (canonical as of this decision). Marketing and plan surfaces tell the
+  fair-use + spending-cap story and link there. The composer's "Sent in N parts" hint and the
+  billing spending-cap control (with its concrete usage figures) stay — they are honesty and
+  remediation surfaces, not marketing. Binding copy decks carry dated #121 amendments.

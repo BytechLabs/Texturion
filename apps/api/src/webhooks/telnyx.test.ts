@@ -538,26 +538,9 @@ describe("inbound pipeline — MMS media (§7)", () => {
       restMatch(env, "POST", "message_attachments"),
       () => Response.json([], { status: 201 }),
     );
-    // #12 cap-and-drop reads the plan + storage usage before storing; stub both
-    // as "well under budget" so the download proceeds as these tests expect.
-    const companyPlan = stubRoute(
-      restMatch(
-        env,
-        "GET",
-        "companies",
-        (url) => url.searchParams.get("select") === "plan",
-      ),
-      () => [{ plan: "starter" }],
-    );
-    const storageUsage = stubRoute(rpcMatch(env, "api_storage_usage"), () => ({
-      attachments_bytes: 0,
-      mms_bytes: 0,
-    }));
-    // #12: the budget reads company_modules; [] = extra_storage off → base pool.
-    const companyModules = stubRoute(
-      restMatch(env, "GET", "company_modules"),
-      () => [],
-    );
+    // #121: NO plan / storage-usage / company_modules stubs — storage is free
+    // and the media path consults no budget input anymore (the old #12
+    // cap-and-drop is gone). Any such read would fail loudly as unstubbed.
     return {
       ledger,
       numberLookup,
@@ -567,9 +550,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       mediaDownload,
       upload,
       attachmentInsert,
-      companyPlan,
-      storageUsage,
-      companyModules,
     };
   }
 
@@ -582,9 +562,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
       stubs.attachmentInsert,
@@ -624,9 +601,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
       stubs.attachmentInsert,
@@ -661,9 +635,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      stubs.storageUsage,
       videoDownload,
       stubs.upload,
       stubs.attachmentInsert,
@@ -699,9 +670,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      stubs.storageUsage,
       manyDownloads,
       stubs.upload,
       stubs.attachmentInsert,
@@ -745,9 +713,6 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      stubs.storageUsage,
       stubs.mediaDownload,
       stubs.upload,
       conflictInsert,
@@ -762,14 +727,16 @@ describe("inbound pipeline — MMS media (§7)", () => {
     expect(stubs.ledger.stamp.calls).toHaveLength(1); // processed, not failed
   });
 
-  it("drops inbound media when the company is at/over its MMS storage budget (#12 cap-and-drop)", async () => {
+  it("stores inbound media even with huge existing storage — the #12 cap-and-drop is gone (#121)", async () => {
     const stubs = mediaStubs();
-    // Starter MMS budget is 5 GB — report the mms-media bucket sitting exactly
-    // at the ceiling so companyOverMmsStorageBudget returns true and the media
-    // is dropped. Attachment bytes are a separate pool and irrelevant here.
-    const overBudget = stubRoute(rpcMatch(env, "api_storage_usage"), () => ({
+    // #121: storage is free. A company already reporting terabytes stored
+    // would have tripped the old at/over-budget drop; the canary below serves
+    // that figure but the media path must never even ask for it — the picture
+    // is fetched and stored unconditionally (abuse is the usage-alerts
+    // storage_abuse arm's job, never a silent drop of a customer's photo).
+    const hugeUsage = stubRoute(rpcMatch(env, "api_storage_usage"), () => ({
       attachments_bytes: 0,
-      mms_bytes: 5 * 1024 ** 3,
+      mms_bytes: 5 * 1024 ** 4, // 5 TB
     }));
     serve(
       stubs.ledger.insert,
@@ -778,9 +745,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      stubs.companyPlan,
-      stubs.companyModules,
-      overBudget,
+      hugeUsage,
       stubs.mediaDownload,
       stubs.upload,
       stubs.attachmentInsert,
@@ -794,12 +759,12 @@ describe("inbound pipeline — MMS media (§7)", () => {
     expect(response.status).toBe(200);
     await flush();
 
-    // The customer's picture is dropped — never fetched, never stored — so we
-    // don't grow storage on our dollar past the plan budget. The message row
-    // itself is still processed (its text arrived; the ledger row is stamped).
-    expect(stubs.mediaDownload.calls).toHaveLength(0);
-    expect(stubs.upload.calls).toHaveLength(0);
-    expect(stubs.attachmentInsert.calls).toHaveLength(0);
+    // Fetched, stored, recorded — and the ledger row processed.
+    expect(stubs.mediaDownload.calls).toHaveLength(1);
+    expect(stubs.upload.calls).toHaveLength(1);
+    expect(stubs.attachmentInsert.calls).toHaveLength(1);
     expect(stubs.ledger.stamp.calls).toHaveLength(1);
+    // No budget lookup happened at all — the canary was never consulted.
+    expect(hugeUsage.calls).toHaveLength(0);
   });
 });

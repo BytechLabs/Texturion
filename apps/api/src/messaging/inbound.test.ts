@@ -1,10 +1,12 @@
 /**
- * Inbound-pipeline hardening suite (ingest hardening: #37, #39). The full §7
- * webhook flow lives in webhooks/telnyx.test.ts; these tests drive
- * handleInboundMessage directly for the two cost-safety behaviors:
- *   - #37 the MMS storage-budget lookup FAILS CLOSED: an unreadable plan row
- *     throws (ledger row stays unprocessed, sweeper retries) instead of
- *     defaulting to "under budget" and downloading media;
+ * Inbound-pipeline hardening suite (#39, #121). The full §7 webhook flow
+ * lives in webhooks/telnyx.test.ts; these tests drive handleInboundMessage
+ * directly for two cost-posture behaviors:
+ *   - #121 media storage is budget-free: inbound media is ALWAYS downloaded
+ *     and stored — the old #12/#37 plan/storage-budget gate is deleted, so
+ *     no plan or api_storage_usage read may happen on the media path (abuse
+ *     is handled by the usage-alerts storage_abuse arm, never by dropping a
+ *     customer's pictures);
  *   - #39 the daily inbound-notification budget: the threading RPC's
  *     exactly-once notification_alert (80/100) drives the owner alert email,
  *     and a capped claim (notify=false) sends no member fan-out.
@@ -17,6 +19,7 @@ import {
   messageReceivedEvent,
   restMatch,
   rpcMatch,
+  storageUploadMatch,
   stubRoute,
   type Stub,
 } from "../test/messaging-support";
@@ -122,42 +125,71 @@ function inboundEvent(
   return messageReceivedEvent(overrides) as unknown as TelnyxEvent;
 }
 
-describe("handleInboundMessage — #37 storage-budget fail-closed", () => {
-  it("throws (never downloads) when the plan lookup errors", async () => {
+describe("handleInboundMessage — #121 storage is free (media never budget-gated)", () => {
+  it("downloads and stores media without ever consulting a plan or storage budget", async () => {
     const mediaDownload = stubRoute(
       (url, request) =>
         request.method === "GET" && url.href.startsWith(MEDIA_URL),
-      () => new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])),
+      () =>
+        new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+          headers: { "content-type": "image/jpeg" },
+        }),
     );
-    const brokenPlan = stubRoute(
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({
+      Key: "mms-media/x",
+    }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    // Canaries for the RETIRED budget gate (#12/#37 cap-and-drop, deleted by
+    // #121): a plan read, or an api_storage_usage sum that reports usage far
+    // "over" any budget that ever existed, would have dropped this media
+    // under the old gate. Neither may be consulted at all now.
+    const planCanary = stubRoute(
       restMatch(
         env,
         "GET",
         "companies",
         (url) => url.searchParams.get("select") === "plan",
       ),
-      () => Response.json({ message: "read replica down" }, { status: 500 }),
+      () => [{ plan: "starter" }],
     );
+    const usageCanary = stubRoute(rpcMatch(env, "api_storage_usage"), () => ({
+      attachments_bytes: 0,
+      mms_bytes: 5 * 1024 ** 4, // 5 TB stored — irrelevant to the media path
+    }));
     serve(
       numberStub(),
       threadStub({}),
       awayDisabledStub(),
-      brokenPlan,
+      attachmentLookup,
       mediaDownload,
+      upload,
+      attachmentInsert,
+      planCanary,
+      usageCanary,
     );
 
-    await expect(
-      handleInboundMessage(
-        env,
-        inboundEvent({
-          media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 4 }],
-        }),
-      ),
-    ).rejects.toThrow(/company plan lookup failed/);
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 4 }],
+      }),
+    );
 
-    // FAIL CLOSED: with the budget unknown, no media byte is ever fetched —
-    // the ledger row stays unprocessed and the §11 sweeper retries.
-    expect(mediaDownload.calls).toHaveLength(0);
+    // The customer's picture IS saved, end to end…
+    expect(mediaDownload.calls).toHaveLength(1);
+    expect(upload.calls).toHaveLength(1);
+    expect(attachmentInsert.calls).toHaveLength(1);
+    // …and no budget input was read on the way (storage cost is the
+    // usage-alerts cron's storage_abuse arm now, never an ingest gate).
+    expect(planCanary.calls).toHaveLength(0);
+    expect(usageCanary.calls).toHaveLength(0);
   });
 });
 

@@ -13,16 +13,19 @@
  * `company-modules.ts` reads it, checkout writes it.
  */
 import type { Env } from "../env";
-import { EXTRA_STORAGE_BYTES, PLAN_VOICE_MINUTES } from "./plans";
+import { PLAN_VOICE_MINUTES } from "./plans";
 
 /**
  * The toggleable modules (mirrors the company_modules.module CHECK).
  * #97/#103: `mms` is RETIRED — picture messages are free and meter as segments
  * (3 per MMS through the normal usage pipeline), so the paid add-on is gone
- * from the catalog. Stale Stripe line items are stripped by the daily
- * reconcile's retired-price sweep (billing/reconcile.ts).
+ * from the catalog. #121: `extra_storage` is RETIRED — storage is free with
+ * no caps, so there is nothing to sell; abusive storage use triggers a human
+ * conversation (usage-alerts abuse arm), never a block. Stale Stripe line
+ * items for either are stripped by the daily reconcile's retired-price sweep
+ * (billing/reconcile.ts) with a prorated credit.
  */
-export const PLAN_MODULES = ["voice", "extra_storage", "regions_ca"] as const;
+export const PLAN_MODULES = ["voice", "regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
 
 export interface ModuleSpec {
@@ -56,16 +59,6 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     gates: "forwarding incoming calls",
     priceEnvKey: "STRIPE_MODULE_VOICE_PRICE_ID",
   },
-  extra_storage: {
-    id: "extra_storage",
-    label: "Extra storage",
-    blurb:
-      "More room for files on notes and saved picture messages, on top of your plan's included storage.",
-    detail: `Adds ${EXTRA_STORAGE_BYTES / 1024 ** 3} GB to each storage pool (files and pictures).`,
-    monthlyCents: 500,
-    gates: "extra file + picture storage",
-    priceEnvKey: "STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID",
-  },
   regions_ca: {
     id: "regions_ca",
     label: "Canada numbers",
@@ -91,8 +84,6 @@ export function modulePrice(env: Env, module: PlanModule): string | null {
   switch (module) {
     case "voice":
       return env.STRIPE_MODULE_VOICE_PRICE_ID ?? null;
-    case "extra_storage":
-      return env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID ?? null;
     case "regions_ca":
       return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
   }
@@ -107,15 +98,20 @@ export function moduleForPrice(env: Env, priceId: string): PlanModule | null {
 }
 
 /**
- * #103: Stripe prices of RETIRED modules. These no longer sell or map to a
- * catalog module, but an existing subscription may still carry a line item on
- * one — the daily reconcile (billing/reconcile.ts) strips such items with a
- * prorated credit so the customer stops being billed for a module that no
- * longer exists. Empty when the price was never provisioned in this
- * environment (then the sweep is a no-op).
+ * #103/#121: Stripe prices of RETIRED modules (mms, extra_storage). These no
+ * longer sell or map to a catalog module, but an existing subscription may
+ * still carry a line item on one — the daily reconcile (billing/reconcile.ts)
+ * strips such items with a prorated credit so the customer stops being billed
+ * for a module that no longer exists. The env vars must STAY SET in
+ * production or the sweep cannot identify the price (an unset id is skipped
+ * and that subscriber keeps paying). Empty when a price was never provisioned
+ * in this environment (then the sweep is a no-op).
  */
 export function retiredModulePrices(env: Env): string[] {
-  return [env.STRIPE_MODULE_MMS_PRICE_ID].filter(
+  return [
+    env.STRIPE_MODULE_MMS_PRICE_ID,
+    env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID,
+  ].filter(
     (price): price is string => typeof price === "string" && price.length > 0,
   );
 }
