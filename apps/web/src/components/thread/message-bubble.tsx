@@ -223,11 +223,16 @@ export function MessageBubble({
   isLastOfCluster,
   conversationId,
   contactName,
+  senderName = null,
 }: {
   message: Message;
   isLastOfCluster: boolean;
   conversationId: string;
   contactName: string;
+  /** #101 shared-inbox attribution: the teammate who sent/wrote this cluster.
+   * Null for inbound (the contact) and for system sends (auto-replies — the
+   * timeline's event lines already narrate those). */
+  senderName?: string | null;
 }) {
   const outbound = message.direction === "outbound";
   const note = message.direction === "note";
@@ -289,11 +294,14 @@ export function MessageBubble({
                   : "border border-app-line bg-app-white text-app-ink [border-top-left-radius:5px]",
             )}
           >
-            {/* Amber internal-note label on the amber-tint card. */}
+            {/* Amber internal-note label on the amber-tint card — with the
+                author, so a shared inbox knows whose note this is. */}
             {note && (
               <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
-                <Lock className="size-3" strokeWidth={1.75} aria-hidden />
-                Internal note
+                <Lock className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+                <span className="truncate">
+                  Internal note{senderName ? ` · ${senderName}` : ""}
+                </span>
               </span>
             )}
             {/* D-D: a task-linked note shows its task chip. */}
@@ -328,6 +336,15 @@ export function MessageBubble({
               <TaskIndicator task={message.promoted_task} />
             )}
             {done && <DoneBadge message={message} />}
+            {/* #101 shared-inbox attribution: outbound meta leads with the
+                teammate who sent it ("Dana · 7:18 AM · Delivered"). Notes carry
+                their author in the card label instead. */}
+            {outbound && senderName && (isLastOfCluster || failed) && (
+              <span className="text-[12px] text-muted-foreground">
+                {senderName}
+                <span aria-hidden> ·</span>
+              </span>
+            )}
             {(isLastOfCluster || failed) &&
               (note || !outbound ? (
                 <span

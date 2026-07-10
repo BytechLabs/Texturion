@@ -124,6 +124,18 @@ values
    '+14155550100', 'dev-tpn-1', 'provisioned')
 on conflict (id) do nothing;
 
+-- Approved 10DLC brand + campaign so the composer renders real send mode
+-- (usSendApproved: campaign approved + not deactivated; see
+-- apps/web/src/components/thread/composer-banner.ts).
+insert into public.messaging_registrations
+  (id, company_id, kind, status, telnyx_id, submitted_at, approved_at)
+values
+  ('33333333-3333-4333-8333-333333333333', '${COMPANY}', 'brand', 'approved',
+   'dev-brand-1', now() - interval '20 days', now() - interval '18 days'),
+  ('44444444-4444-4444-8444-444444444444', '${COMPANY}', 'campaign', 'approved',
+   'dev-campaign-1', now() - interval '18 days', now() - interval '14 days')
+on conflict (id) do nothing;
+
 -- SPEC §6 starter tags (the API seeds these at company creation; the company
 -- here is inserted directly, so the seed mirrors that).
 insert into public.tags (id, company_id, name, color) values

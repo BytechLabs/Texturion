@@ -257,6 +257,24 @@ export function MessageList({
     });
   }, [items.length, scrollToBottom]);
 
+  // Stay pinned through layout growth (#101): the initial scroll lands on
+  // ESTIMATED row heights; as the virtualizer measures real bubbles (and
+  // images load) the total grows and the viewport would drift mid-thread,
+  // opening the conversation somewhere before its newest message. While the
+  // reader is at the bottom, growth re-pins; an in-flight anchored prepend
+  // owns the position instead.
+  const totalSize = virtualizer.getTotalSize();
+  const prevTotalSize = useRef(totalSize);
+  useLayoutEffect(() => {
+    if (totalSize === prevTotalSize.current) return;
+    prevTotalSize.current = totalSize;
+    if (!didInitialScroll.current) return;
+    if (prependAnchor.current) return;
+    if (!atBottomRef.current) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [totalSize]);
+
   // New tail message: stick when at bottom; pill when scrolled up (G5).
   const lastMessage: Message | undefined = messages[messages.length - 1];
   const lastMessageId = lastMessage?.id;
@@ -421,6 +439,14 @@ export function MessageList({
                             isLastOfCluster={index === item.messages.length - 1}
                             conversationId={conversationId}
                             contactName={contactName}
+                            // #101: clusters split per author (clusters.ts), so
+                            // one name is honest for the whole run. Null for
+                            // inbound and for system sends.
+                            senderName={
+                              item.direction === "inbound"
+                                ? null
+                                : memberName(item.senderUserId)
+                            }
                           />
                         </div>
                       ))}

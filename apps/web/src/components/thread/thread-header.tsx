@@ -247,11 +247,24 @@ export function ThreadHeader({
         </button>
         {/* #76: on a phone the number+copy is a duplicate second header line
             (the contact panel — one tap on the name — shows both). Hidden below
-            md; the number is folded into the name button's aria-label. */}
+            md; the number is folded into the name button's aria-label.
+            #101: an UNNAMED contact's title already IS the number, so repeating
+            it here read as a glitch — the line becomes the "Add a name" door
+            (the panel it opens holds the name field). */}
         <div className="hidden items-center gap-1 px-1 md:flex">
-          <span className="truncate text-[12.5px] tabular-nums text-app-muted">
-            {formatPhone(phone)}
-          </span>
+          {conversation.contact.name === null ? (
+            <button
+              type="button"
+              onClick={onToggleContactPanel}
+              className="truncate text-[12.5px] text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Add a name
+            </button>
+          ) : (
+            <span className="truncate text-[12.5px] tabular-nums text-app-muted">
+              {formatPhone(phone)}
+            </span>
+          )}
           <button
             type="button"
             onClick={copyPhone}

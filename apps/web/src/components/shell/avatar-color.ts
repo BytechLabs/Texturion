@@ -22,10 +22,23 @@ export function avatarColorClass(key: string): AvatarColorClass {
   return AVATAR_CLASSES[Math.abs(hash) % AVATAR_CLASSES.length];
 }
 
-/** Up-to-two-letter initials from a display name (mockup avatar text). */
+/** Up-to-two-letter initials from a display name (mockup avatar text).
+ * A display name with no letters at all is a bare phone number (unnamed
+ * contact) — those wear a neutral "#" instead of digit/punctuation shrapnel
+ * like "(5" from "(415) 555-0133". */
 export function avatarInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (name.trim() === "") return "?";
+  if (!/\p{L}/u.test(name)) return "#";
+  const isGlyph = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((word) => [...word].some(isGlyph));
   if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
+  if (words.length === 1) {
+    const chars = [...words[0]].filter(isGlyph);
+    return chars.slice(0, 2).join("").toUpperCase();
+  }
+  const first = (word: string) => [...word].find(isGlyph) ?? "";
+  return (first(words[0]) + first(words[1])).toUpperCase();
 }
