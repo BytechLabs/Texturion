@@ -2,12 +2,12 @@
 
 import { format } from "date-fns";
 import {
-  Archive,
   ArrowUpRight,
   Check,
   Loader2,
   MoreHorizontal,
   Paperclip,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +22,14 @@ import {
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +68,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { TaskDoneCheckbox } from "./task-atoms";
+import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import { useTaskDone } from "./use-task-mutations";
 import { taskEventSentence } from "./task-activity";
 
@@ -185,14 +194,28 @@ function TaskDetailLoaded({
     role === "admin" ||
     me.data?.user_id === task.created_by_user_id;
 
-  const runArchive = () => {
+  // #89: deleting is destructive and has no restore UI, so a task carrying a
+  // discussion (notes) or files confirms first; a plain task (only the auto
+  // task_created event) deletes without friction.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteContent = taskDeleteContent(task);
+
+  const runDelete = () => {
     del.mutate(task.id, {
       onSuccess: () => {
-        toast.success("Task archived.");
+        toast.success("Task deleted.");
         onClose?.();
       },
-      onError: () => toast.error("Couldn't archive this task."),
+      onError: () => {
+        setConfirmDelete(false);
+        toast.error("Couldn't delete this task.");
+      },
     });
+  };
+
+  const requestDelete = () => {
+    if (deleteContent.hasContent) setConfirmDelete(true);
+    else runDelete();
   };
 
   // Same derived-done write as the check-circle (PATCH the source message).
@@ -212,7 +235,7 @@ function TaskDetailLoaded({
     <div className="flex h-full min-h-0 flex-col">
       {/* Header: done state + title + actions menu. pr-12 reserves the drawer's
           own close (X, top-right) so the actions menu no longer sits under it
-          (#81 — an accidental archive when reaching for close). */}
+          (#81 — an accidental delete when reaching for close). */}
       <div className="flex items-start gap-3 border-b border-app-line pb-4 pl-5 pr-12 pt-5">
         <TaskDoneCheckbox task={task} className="mt-1" />
         <div className="min-w-0 flex-1">
@@ -251,14 +274,18 @@ function TaskDetailLoaded({
               <Check className="size-4" strokeWidth={1.75} aria-hidden />
               {task.done ? "Mark not done" : "Mark done"}
             </DropdownMenuItem>
-            {/* Archive is the existing soft-delete (recoverable), just named
-                honestly (#81) — creator or owner/admin only. */}
+            {/* #89: a real, destructive Delete (creator or owner/admin only).
+                Confirms first when the task carries notes or files. */}
             {canDelete && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={runArchive} disabled={del.isPending}>
-                  <Archive className="size-4" strokeWidth={1.75} aria-hidden />
-                  Archive task
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={requestDelete}
+                  disabled={del.isPending}
+                >
+                  <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                  Delete task
                 </DropdownMenuItem>
               </>
             )}
@@ -357,6 +384,42 @@ function TaskDetailLoaded({
 
       {/* Note composer — posts a note linked to conversation + task (D-D). */}
       <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
+
+      {/* #89: destructive-delete confirm — opened only for a task that carries
+          notes or files (an empty task deletes straight from the menu). */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this task?</DialogTitle>
+            <DialogDescription>
+              This task has{" "}
+              {taskDeleteSummary(deleteContent.notes, deleteContent.attachments)}
+              . Deleting it removes the task and its activity for everyone. This
+              can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDelete(false)}
+              disabled={del.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={runDelete}
+              disabled={del.isPending}
+            >
+              {del.isPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                "Delete task"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
