@@ -5,11 +5,11 @@
  *
  * Iteration 3 SEO content: the feature pages (shared-inbox, business-number,
  * compliance, templates-and-tags), /canada, the six trade pages, and the two
- * comparison pages are now REAL routes. Every link in the nav and footer resolves
- * to a shipped page. The only entries that still point at a home-page anchor are
- * the two menu *triggers* ("Product ▾" / "Who it's for ▾"), clicking the trigger
- * word itself scrolls to the relevant home overview; its dropdown items go to the
- * real standalone pages. There are ZERO dead links.
+ * comparison pages are REAL routes. Every link in the nav and footer resolves
+ * to a shipped page. The menu triggers ("Product ▾", "Who it's for ▾",
+ * "Compare ▾") are dropdown openers (Radix NavigationMenu.Trigger) — they open
+ * the panel rather than navigate; every dropdown item and every footer link
+ * goes to a real standalone page. There are ZERO dead links.
  */
 
 export const SITE_URL = "https://loonext.com";

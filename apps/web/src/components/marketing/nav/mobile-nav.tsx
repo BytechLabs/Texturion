@@ -8,6 +8,7 @@ import { SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 import {
+  CONTACT_LINK,
   LOGIN_HREF,
   NAV_MENUS,
   PRICING_LINK,
@@ -59,6 +60,14 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
             ) : null}
           </section>
         ))}
+
+        {/* #126: Contact reachable from the sheet, not just the footer far
+            below — a phone visitor with a pre-signup question shouldn't have to
+            scroll the whole page. Desktop keeps its lean bar (Contact stays in
+            the footer there). */}
+        <div className="mt-6">
+          <MobileRow item={CONTACT_LINK} onNavigate={onNavigate} />
+        </div>
 
         {/* The country selector: sets the single site-wide country from the
             sheet, so a mobile visitor gets the same control as the desktop bar. */}

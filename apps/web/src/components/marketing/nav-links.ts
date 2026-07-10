@@ -6,6 +6,7 @@ import {
   Inbox,
   Leaf,
   type LucideIcon,
+  Mail,
   Scale,
   Scissors,
   ShieldCheck,
@@ -152,6 +153,17 @@ export const PRICING_LINK: NavItem = {
   href: LIVE_ROUTES.pricing,
   description: "One flat $29 a month for the whole crew.",
   icon: BadgeDollarSign,
+};
+
+/** #126: Contact reachable from the mobile nav sheet, not footer-only. The
+ * desktop bar stays deliberately lean (Contact lives in the footer + in-body
+ * "Talk to us" CTAs there); on a phone, footer-only meant scrolling the whole
+ * page, so the sheet carries it as a grouped row. */
+export const CONTACT_LINK: NavItem = {
+  label: "Contact",
+  href: LIVE_ROUTES.contact,
+  description: "Questions before you start? Email us, no sales team.",
+  icon: Mail,
 };
 
 export const LOGIN_HREF = APP_LINKS.login;
