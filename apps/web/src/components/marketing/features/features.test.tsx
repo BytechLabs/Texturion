@@ -388,16 +388,18 @@ describe("the FEATURE-template blocks", () => {
 });
 
 describe("v4 frame chrome", () => {
-  it("BrowserFrame: white card, Frost dots, mono URL chip, no hairline borders (Law 10)", () => {
+  it("BrowserFrame: clean white card, NO faux-browser chrome or URL (#84), no hairline borders (Law 10)", () => {
     const html = renderToStaticMarkup(
-      <BrowserFrame url="loonext.com/settings">
+      <BrowserFrame>
         <div>content</div>
       </BrowserFrame>,
     );
-    expect(html).toContain("loonext.com/settings");
+    expect(html).toContain("content");
     expect(html).toContain("--fr-card");
-    expect(html).toContain("--fr-frost");
-    expect(html).toContain("fr-mono-data");
+    // #84: the three-dot "Mac shell" + mono URL chip are gone.
+    expect(html).not.toContain("loonext.com");
+    expect(html).not.toContain("fr-mono-data");
+    expect(html).not.toContain("--fr-frost");
     expect(html).not.toMatch(/border-b|border-\[color:var\(--hairline\)\]/);
   });
 

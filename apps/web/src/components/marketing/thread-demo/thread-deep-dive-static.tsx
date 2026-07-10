@@ -126,7 +126,6 @@ export function ThreadDeepDiveStatic({ script }: { script: ThreadScript }) {
           (owner amendment 2026-07-08). */}
       <div>
         <PanelFrame
-          chromeUrl="loonext.com/inbox"
           ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
         >
           <StaticThread

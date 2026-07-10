@@ -56,7 +56,6 @@ export default function SharedInboxPage() {
         sub="A customer texts your business number and the conversation shows up on every phone on the team. Whoever is free picks it up, it gets exactly one owner, and nobody has to ask around about who answered the Hendersons. The number, the history, and the customers stay with the business."
         panel={
           <PanelFrame
-            chromeUrl="loonext.com/inbox"
             caption="The Reyes Plumbing inbox, mid-morning: Priya assigns the new drain call to Dale."
             ariaLabel="The Reyes Plumbing inbox in Loonext, with the assign menu open on a new conversation"
           >

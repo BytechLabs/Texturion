@@ -7,7 +7,7 @@
  * its children in `.app-scope` so everything in here resolves the app's
  * petrol system (Law 2).
  *
- *   <PanelFrame chromeUrl="loonext.com/inbox">
+ *   <PanelFrame>
  *     <ThreadFrame framing="desktop" …>…beats…</ThreadFrame>
  *   </PanelFrame>
  *

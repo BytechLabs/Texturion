@@ -237,7 +237,6 @@ export function TradePage({ content }: { content: TradeContent }) {
           </p>
         </div>
         <PanelFrame
-          chromeUrl="loonext.com/inbox"
           caption={THREAD_CAPTION}
           ariaLabel={content.threadAriaLabel}
           className="mx-auto mt-12 w-full max-w-[36rem]"

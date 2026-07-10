@@ -77,7 +77,6 @@ export default function BusinessNumberPage() {
         sub="Pick a local number in the area code you choose, usually live in a minute or two, and give your customers one place to text. Your personal cell goes back to being personal, and the number, the contacts, and every conversation stay with the company when a tech moves on."
         panel={
           <PanelFrame
-            chromeUrl="loonext.com/settings"
             caption="Two numbers on Pro: an office line and a field line, each with its own inbox."
             ariaLabel="The Loonext numbers settings showing two active business numbers with their unread counts"
           >

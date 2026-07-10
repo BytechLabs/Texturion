@@ -57,7 +57,6 @@ export default function TemplatesAndTagsPage() {
         sub="The texts a crew sends all day, on my way, here's your quote, you're booked, get written once and sent in two taps. Then tag conversations the way you actually sell, mark the little things done right in the thread, and find any old message in seconds."
         panel={
           <PanelFrame
-            chromeUrl="loonext.com/inbox"
             caption="Type / in the composer and the saved replies open, with the preview showing what actually ships."
             ariaLabel="The Loonext saved-replies picker open over the composer, with a template preview"
           >

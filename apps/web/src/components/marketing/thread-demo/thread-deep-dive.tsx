@@ -117,7 +117,6 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
       {/* Right: the annotated, steppable thread inside the product frame. */}
       <div>
         <PanelFrame
-          chromeUrl="loonext.com/inbox"
           ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
         >
           <ThreadFrame

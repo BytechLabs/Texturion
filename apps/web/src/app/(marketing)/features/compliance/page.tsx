@@ -74,7 +74,6 @@ export default function CompliancePage() {
           <>
             <CountryOnly country="us">
               <PanelFrame
-                chromeUrl="loonext.com/settings"
                 caption="The registration tracker, three days in: filed, in review, nothing for you to do."
                 ariaLabel="The Loonext registration tracker showing a filing in carrier review"
               >
@@ -83,7 +82,6 @@ export default function CompliancePage() {
             </CountryOnly>
             <CountryOnly country="ca">
               <PanelFrame
-                chromeUrl="loonext.com/settings"
                 caption="Consent on the record: a name and a date on every contact, nothing to register or wait on."
                 ariaLabel="Two Loonext contacts showing their recorded consent"
               >

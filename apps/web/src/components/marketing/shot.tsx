@@ -67,8 +67,6 @@ export interface FramedShotProps {
   id: string;
   /** Override the device frame; defaults to the frame the manifest declares. */
   frame?: "browser" | "phone";
-  /** URL slot for the browser chrome (defaults to the "it's just the web" hint). */
-  url?: string;
   /** Drop the ambient shadow for a flat, calm inline shot. */
   flat?: boolean;
   /** Above-the-fold? Eager-load instead of lazy (rare, most shots are below). */
@@ -84,7 +82,6 @@ export interface FramedShotProps {
 export function FramedShot({
   id,
   frame,
-  url,
   flat,
   priority = false,
   pushBanner,
@@ -143,7 +140,6 @@ export function FramedShot({
 
   return (
     <BrowserFrame
-      url={url}
       flat={flat}
       className={className}
       contentClassName={contentClassName}

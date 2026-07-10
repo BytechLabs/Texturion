@@ -12,12 +12,13 @@ import { cn } from "@/lib/utils";
  * Ever.
  *
  * No demo-labeling chip is ever attached (owner amendment 2026-07-08); the
- * frame keeps its chrome plus an optional caption that describes the CONTENT,
- * never the artifact (no "real interface", no "not a screenshot").
+ * frame is a clean card plus an optional caption that describes the CONTENT,
+ * never the artifact (no "real interface", no "not a screenshot"). #84: the
+ * faux-browser chrome (three-dot "Mac shell" + URL chip) was removed — it read
+ * as an AI-generated screenshot mock, not a first-party product surface.
  *
  * Usage:
- *   <PanelFrame chromeUrl="loonext.com/inbox"
- *               caption="A Reyes Plumbing conversation.">
+ *   <PanelFrame caption="A Reyes Plumbing conversation.">
  *     <InboxEmbed />
  *   </PanelFrame>
  *
@@ -27,7 +28,6 @@ import { cn } from "@/lib/utils";
  */
 export function PanelFrame({
   children,
-  chromeUrl,
   phone = false,
   phoneDark = false,
   caption,
@@ -37,8 +37,6 @@ export function PanelFrame({
 }: {
   /** The REAL product component(s); rendered inside `.app-scope`. */
   children: React.ReactNode;
-  /** Optional browser-chrome hint, e.g. "loonext.com/inbox". */
-  chromeUrl?: string;
   /** Phone bezel instead of the flat card (for mobile/dark-mode staging). */
   phone?: boolean;
   /** With `phone`: flips the embed to the app's own dark mode (a local
@@ -57,7 +55,7 @@ export function PanelFrame({
     <div
       className={cn(
         "app-scope overflow-hidden",
-        phone ? "rounded-[1.75rem]" : chromeUrl ? "rounded-b-2xl" : "rounded-2xl",
+        phone ? "rounded-[1.75rem]" : "rounded-2xl",
         embedClassName,
       )}
     >
@@ -74,23 +72,7 @@ export function PanelFrame({
           {phoneDark ? <div className="dark rounded-[1.75rem]">{embed}</div> : embed}
         </div>
       ) : (
-        <div className="fr-card overflow-hidden rounded-2xl">
-          {chromeUrl ? (
-            <div className="flex items-center gap-2 px-4 py-2.5">
-              <span className="flex gap-1.5" aria-hidden>
-                <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-                <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-                <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-              </span>
-              <span className="fr-mono-data mx-auto rounded-[6px] bg-[color:var(--fr-frost)] px-3 py-1 text-xs text-[color:var(--fr-ink-55)]">
-                {chromeUrl}
-              </span>
-              {/* Balance spacer so the URL centers against the dots. */}
-              <span className="w-9" aria-hidden />
-            </div>
-          ) : null}
-          {embed}
-        </div>
+        <div className="fr-card overflow-hidden rounded-2xl">{embed}</div>
       )}
 
       {caption ? (

@@ -101,7 +101,6 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
   it("PanelFrame wraps the product embed in .app-scope so it keeps APP tokens (Law 2)", () => {
     const html = renderToStaticMarkup(
       <PanelFrame
-        chromeUrl="loonext.com/inbox"
         caption="A Reyes Plumbing conversation."
         ariaLabel="A Reyes Plumbing conversation in the Loonext inbox"
       >
@@ -109,7 +108,9 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
       </PanelFrame>,
     );
     expect(html).toContain("app-scope");
-    expect(html).toContain("loonext.com/inbox");
+    // #84: no faux-browser chrome — no three-dot "Mac shell", no URL chip.
+    expect(html).not.toContain("loonext.com/inbox");
+    expect(html).not.toContain("fr-mono-data");
     // No demo-labeling chip is ever attached (owner amendment 2026-07-08).
     expect(html).not.toContain("SCRIPTED DEMO");
     expect(html).not.toContain("EXAMPLE CONVERSATION");

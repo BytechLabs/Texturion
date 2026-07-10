@@ -135,7 +135,6 @@ export function Hero() {
               className="mx-auto w-full max-w-[22.5rem] lg:ml-auto lg:mr-0"
             >
               <PanelFrame
-                chromeUrl="loonext.com/inbox"
                 ariaLabel="Customer conversations waiting in the Loonext inbox"
               >
                 <AppSurface>

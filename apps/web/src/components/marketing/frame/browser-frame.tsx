@@ -1,18 +1,18 @@
 /**
- * <BrowserFrame>, the v4 browser-chrome hint around arbitrary children
+ * <BrowserFrame>, the clean desktop card around arbitrary children
  * (DESIGN-DIRECTION v4 §5.2 PANEL FRAME grammar, Law 10).
  *
  * The reusable desktop framing in the FIRST RESPONSE voice: a white card with
- * the one card shadow, 16px product-panel radius, a three-dot cluster in the
- * Frost wash, and a mono URL chip reading `loonext.com/inbox` ("it's just the
- * web, no download"). No hairline rules anywhere (Law 10): the chrome bar is
- * separated by space, not a border.
+ * the one card shadow and the 16px product-panel radius — nothing else. #84:
+ * the faux-browser chrome (three-dot "Mac shell" cluster + mono URL chip) was
+ * removed; it read as an AI-generated screenshot mock rather than the calm,
+ * first-party product surface the site is going for. No hairline rules
+ * anywhere (Law 10).
  *
- * This is CHROME ONLY. It does not scope its children: real product embeds
- * belong in <PanelFrame> from `@/components/marketing/fr`, which wraps
- * children in `.app-scope` so the product keeps its own petrol tokens
- * (Law 2). BrowserFrame remains for framing non-product content that wants
- * the browser hint.
+ * This does not scope its children: real product embeds belong in <PanelFrame>
+ * from `@/components/marketing/fr`, which wraps children in `.app-scope` so the
+ * product keeps its own petrol tokens (Law 2). BrowserFrame remains for framing
+ * non-product content on the calm card surface.
  *
  * Server component, light-only, reduced-motion safe (no motion), zero-CLS
  * (children own their box).
@@ -22,8 +22,6 @@ import { cn } from "@/lib/utils";
 
 export interface BrowserFrameProps {
   children: React.ReactNode;
-  /** URL shown in the chrome slot. Defaults to the "it's just the web" hint. */
-  url?: string;
   /** Drop the card shadow for a flat, calm inline shot. */
   flat?: boolean;
   /** Class on the outer frame (sizing/max-width live here). */
@@ -34,7 +32,6 @@ export interface BrowserFrameProps {
 
 export function BrowserFrame({
   children,
-  url = "loonext.com/inbox",
   flat = false,
   className,
   contentClassName,
@@ -47,19 +44,6 @@ export function BrowserFrame({
         className,
       )}
     >
-      {/* Chrome bar: three Frost dots + the mono URL chip (no border, Law 10). */}
-      <div className="flex items-center gap-2 px-4 py-2.5">
-        <span className="flex gap-1.5" aria-hidden>
-          <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-          <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-          <span className="size-2 rounded-full bg-[color:var(--fr-frost)]" />
-        </span>
-        <span className="fr-mono-data mx-auto rounded-[6px] bg-[color:var(--fr-frost)] px-3 py-1 text-xs text-[color:var(--fr-ink-55)]">
-          {url}
-        </span>
-        {/* Balance spacer so the URL centers against the dots. */}
-        <span className="w-9" aria-hidden />
-      </div>
       <div className={contentClassName}>{children}</div>
     </div>
   );

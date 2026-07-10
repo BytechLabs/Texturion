@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * product embed reads in the product's real face, not the marketing trio.
  *
  * Use it as the direct child of a PanelFrame / any `.app-scope` region:
- *   <PanelFrame chromeUrl="loonext.com/inbox">
+ *   <PanelFrame>
  *     <AppSurface>…real product patterns…</AppSurface>
  *   </PanelFrame>
  */
