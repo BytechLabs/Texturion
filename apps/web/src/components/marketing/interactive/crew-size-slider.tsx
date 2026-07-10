@@ -22,7 +22,7 @@
 
 import { useId, useState } from "react";
 
-import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
@@ -150,7 +150,7 @@ export function CrewSizeSlider() {
       )}
 
       <a
-        href="/signup"
+        href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
       >
         Start for {usd(loonext.price)} flat →

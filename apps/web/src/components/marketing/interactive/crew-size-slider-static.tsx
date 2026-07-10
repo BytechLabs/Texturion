@@ -13,7 +13,7 @@
  * so the island swap is seamless.
  */
 
-import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 
 const PER_USER_MONTHLY = 19;
@@ -109,7 +109,7 @@ export function CrewSizeSliderStatic() {
       </p>
 
       <a
-        href="/signup"
+        href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
       >
         Start for {usd(LOONEXT_PRICE)} flat →

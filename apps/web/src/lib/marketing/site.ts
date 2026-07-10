@@ -63,8 +63,29 @@ export const LIVE_ROUTES = {
   compareQuo: "/compare/quo",
 } as const;
 
+/**
+ * Base for links into the app surface. When NEXT_PUBLIC_APP_ORIGIN is set
+ * (production's marketing/app host split), app links must be ABSOLUTE:
+ * a relative /signup on loonext.com 30x-redirects to app.loonext.com, and
+ * the Next router's RSC prefetch (?_rsc=) follows that redirect cross-origin
+ * and dies on CORS — a failed fetch on every marketing page before the CTA
+ * click even lands (#115). An absolute href is never treated as an app route,
+ * so it is never prefetched and navigates in one hop. Unset (dev/CI/previews)
+ * the links stay relative and same-origin. Exported for tests.
+ */
+export function appLinkBase(origin: string | undefined): string {
+  if (!origin) return "";
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return ""; // misconfigured origin → relative links, never a broken nav
+  }
+}
+
+const APP_BASE = appLinkBase(process.env.NEXT_PUBLIC_APP_ORIGIN);
+
 /** The app (separate Worker origin in production; same-origin route locally). */
 export const APP_LINKS = {
-  login: "/login",
-  signup: "/signup",
+  login: `${APP_BASE}/login`,
+  signup: `${APP_BASE}/signup`,
 } as const;

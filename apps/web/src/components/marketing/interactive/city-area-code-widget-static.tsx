@@ -15,6 +15,8 @@
  * it pre-hydration.
  */
 
+import { APP_LINKS } from "@/lib/marketing/site";
+
 export function CityAreaCodeWidgetStatic() {
   return (
     <div className="fr-card p-5">
@@ -44,7 +46,7 @@ export function CityAreaCodeWidgetStatic() {
       </div>
 
       <a
-        href="/signup"
+        href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
       >
         Get your (512) number →

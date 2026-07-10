@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { useCountry } from "@/components/marketing/country";
+import { APP_LINKS } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
 import { resolveQuery, type AreaCodeResult } from "./city-lookup";
@@ -275,7 +276,7 @@ export function CityAreaCodeWidget() {
 
       {selected && (
         <a
-          href="/signup"
+          href={APP_LINKS.signup}
           className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
         >
           Get your ({selected.areaCode}) number →

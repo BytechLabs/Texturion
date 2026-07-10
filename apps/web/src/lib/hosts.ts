@@ -11,10 +11,12 @@
  * and this module returns null for everything. Requests from a host matching
  * NEITHER origin (workers.dev previews, custom setups) also pass through.
  *
- * Marketing pages keep linking to the app with relative paths (/login,
- * /signup — see APP_LINKS): on the marketing host the middleware hops them to
- * the app origin, so no component knows about hostnames. www canonicalizes to
- * the apex for free.
+ * Marketing components link to the app via APP_LINKS (site.ts), which bakes
+ * NEXT_PUBLIC_APP_ORIGIN in as an absolute base when set — the Next router
+ * must never RSC-prefetch an app path on the marketing host, because the
+ * cross-host 30x here is invisible to a CORS preflight (#115). This redirect
+ * remains the safety net for typed/bookmarked URLs. www canonicalizes to the
+ * apex for free.
  */
 import { SITE_URL } from "@/lib/marketing/site";
 import { isAuthPage, isProtectedPath } from "@/lib/auth/redirects";
