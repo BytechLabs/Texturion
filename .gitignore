@@ -34,6 +34,9 @@ supabase/.temp/
 # Monorepo task cache
 .turbo/
 
+# Authenticated dev screenshots (scripts/dev-shot.mjs)
+.dev-shots/
+
 # Logs & debug output
 *.log
 npm-debug.log*
