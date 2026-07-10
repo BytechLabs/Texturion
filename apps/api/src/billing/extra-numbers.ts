@@ -76,6 +76,37 @@ export function effectiveNumberAllowance(
   return PLAN_LIMITS[plan].numbers + paidExtras;
 }
 
+/**
+ * The paid-extra quantity a company is CURRENTLY billed for — the live Stripe
+ * extra-number item quantity (0 when there's no subscription, no configured
+ * price, or no item). #108: the port-in and text-enablement slot claims use
+ * this to admit a transfer INTO capacity the company already pays for, without
+ * a new charge. Read-only (no Stripe write), unlike the provision route's buy.
+ *
+ * KNOWN RESIDUAL RACE (#110): this read is not serialized against
+ * {@link convergeExtraNumberQuantity}'s down-only credit — both touch the same
+ * Stripe quantity but coordinate through no shared lock (the slot RPCs lock the
+ * company row; this Stripe read happens in the route, outside it). If a port is
+ * admitted into a paid slot in the same sub-second window the daily reconcile
+ * (or an inline release-converge) credits that slot away, the company can end
+ * up holding one number it isn't billed for. This never auto-charges up; the
+ * next reconcile FLAGS it as `over_included_unbilled` (Sentry) for a human —
+ * the same "flag, don't charge" posture the system already relies on. Fully
+ * closing it means reading paid capacity from DB state under the slot lock
+ * (#110), not from this Stripe read.
+ */
+export async function currentPaidExtras(
+  env: Env,
+  stripe: Stripe,
+  subscriptionId: string | null,
+  plan: PlanId,
+): Promise<number> {
+  const price = extraNumberPrice(env, plan);
+  if (!price || !subscriptionId) return 0;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  return findExtraNumberItem(subscription, price)?.quantity ?? 0;
+}
+
 /** May this company buy ONE MORE number beyond `currentCount`? (#80 rules.) */
 export function extraNumberPurchasable(args: {
   plan: PlanId;

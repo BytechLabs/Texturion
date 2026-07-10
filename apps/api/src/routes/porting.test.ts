@@ -11,7 +11,7 @@ import {
   TelnyxMock,
   type SentEmailCapture,
 } from "../telnyx/test-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -102,7 +102,10 @@ function installPortSlotRpc(rest: FakeRest) {
   });
 }
 
-function buildHarness(companyOverrides: Record<string, unknown> = {}) {
+function buildHarness(
+  companyOverrides: Record<string, unknown> = {},
+  extraRoutes: FetchRoute[] = [],
+) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
@@ -161,7 +164,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     return c.json({ error: { code: "internal_error", message: String(error) } }, 500);
   });
 
-  stubFetch(rest.route(), telnyx.route(), resendRoute(emails));
+  stubFetch(...extraRoutes, rest.route(), telnyx.route(), resendRoute(emails));
 
   return {
     env,
@@ -529,6 +532,64 @@ describe("POST /v1/port-requests", () => {
     expect(res.status).toBe(409);
     expect(harness.rest.rows("phone_numbers")).toHaveLength(1);
     expect(harness.rest.rows("port_requests")).toHaveLength(0);
+  });
+
+  // #108: a Starter company that BOUGHT its 1 extra can port into that paid
+  // slot — no new charge. The Stripe subscription carries a Starter extra item.
+  it("#108: a paid Starter extra admits a port past the included cap", async () => {
+    const STARTER_EXTRA_PRICE = completeEnv()
+      .STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID as string;
+    const stripeRoute: FetchRoute = (url) => {
+      if (url.host !== "api.stripe.com") return undefined;
+      if (url.pathname === "/v1/subscriptions/sub_1") {
+        return Response.json({
+          id: "sub_1",
+          object: "subscription",
+          status: "active",
+          schedule: null,
+          items: {
+            object: "list",
+            has_more: false,
+            data: [
+              {
+                id: "si_x",
+                object: "subscription_item",
+                price: { id: STARTER_EXTRA_PRICE, object: "price" },
+                quantity: 1,
+              },
+            ],
+          },
+        });
+      }
+      return Response.json({ error: { message: "unhandled" } }, { status: 500 });
+    };
+    // Starter: 1 included + 1 PAID extra = allowance 2. Already holding the 1
+    // included number — the old code 409'd; the paid slot now admits the port.
+    const harness = buildHarness(
+      { plan: "starter", stripe_subscription_id: "sub_1" },
+      [stripeRoute],
+    );
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      source: "provisioned",
+      number_e164: "+13035550100",
+      provisioning_key: "prov-key-1",
+      country: "US",
+    });
+    harness.telnyx.on("POST", /^\/v2\/porting_orders$/, () => ({
+      data: { id: "po-3", status: { value: "draft" } },
+    }));
+    harness.telnyx.on("PATCH", /^\/v2\/porting_orders\/po-3$/, () => ({
+      data: { id: "po-3" },
+    }));
+
+    const res = await harness.request(
+      "/v1/port-requests",
+      jsonInit("POST", CREATE_BODY, KEY),
+    );
+    expect(res.status).toBe(201);
+    expect(harness.rest.rows("port_requests")).toHaveLength(1);
   });
 
   it("allows a Pro company's 2nd number to be a port (under the plan cap)", async () => {

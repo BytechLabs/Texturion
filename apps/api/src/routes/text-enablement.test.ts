@@ -22,7 +22,7 @@ import {
   resendRoute,
   TelnyxMock,
 } from "../telnyx/test-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -132,7 +132,10 @@ function installBumpRpc(rest: FakeRest) {
   });
 }
 
-function buildHarness(companyOverrides: Record<string, unknown> = {}) {
+function buildHarness(
+  companyOverrides: Record<string, unknown> = {},
+  extraRoutes: FetchRoute[] = [],
+) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
@@ -212,7 +215,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     return c.json({ error: { code: "internal_error", message: String(error) } }, 500);
   });
 
-  stubFetch(rest.route(), telnyx.route(), resendRoute([]));
+  stubFetch(...extraRoutes, rest.route(), telnyx.route(), resendRoute([]));
 
   return {
     env,
@@ -372,6 +375,84 @@ describe("POST /v1/text-enablements", () => {
     // No slot was claimed and no Telnyx order created.
     expect(h.rest.rows("text_enablement_orders")).toHaveLength(0);
     expect(h.telnyx.calls).toHaveLength(0);
+  });
+
+  // #108: text-enablement counts the company's PAID extra-number capacity.
+  const PRO_EXTRA_PRICE = completeEnv()
+    .STRIPE_EXTRA_NUMBER_PRO_PRICE_ID as string;
+
+  /** A Stripe stub for sub_1 carrying the given subscription items. */
+  function stripeSubStub(
+    items: { id: string; price: string; quantity: number }[],
+  ): FetchRoute {
+    return (url) => {
+      if (url.host !== "api.stripe.com") return undefined;
+      if (url.pathname === "/v1/subscriptions/sub_1") {
+        return Response.json({
+          id: "sub_1",
+          object: "subscription",
+          status: "active",
+          schedule: null,
+          items: {
+            object: "list",
+            has_more: false,
+            data: items.map((i) => ({
+              id: i.id,
+              object: "subscription_item",
+              price: { id: i.price, object: "price" },
+              quantity: i.quantity,
+            })),
+          },
+        });
+      }
+      return Response.json({ error: { message: "unhandled" } }, { status: 500 });
+    };
+  }
+
+  function seedActiveNumber(h: ReturnType<typeof buildHarness>, e164: string) {
+    h.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      source: "provisioned",
+      number_e164: e164,
+    });
+  }
+
+  it("#108: text-enables INTO paid extra capacity — no plan_limit at the included cap", async () => {
+    // Pro (2 included) with 1 PAID extra → effective allowance 3. Already at the
+    // included cap (2 numbers): the old code capped at 2 and 409'd; now the paid
+    // slot admits the enable.
+    const h = buildHarness({ stripe_subscription_id: "sub_1", plan: "pro" }, [
+      stripeSubStub([{ id: "si_x", price: PRO_EXTRA_PRICE, quantity: 1 }]),
+    ]);
+    seedActiveNumber(h, "+13035550001");
+    seedActiveNumber(h, "+13035550002");
+
+    const res = await h.request(
+      "/v1/text-enablements",
+      jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
+    );
+    expect(res.status).toBe(201);
+    expect(h.rest.rows("text_enablement_orders")).toHaveLength(1);
+  });
+
+  it("#108: 409s only once every included AND paid slot is full", async () => {
+    // Pro (2 included) + 1 paid = allowance 3, and already holding 3 numbers.
+    const h = buildHarness({ stripe_subscription_id: "sub_1", plan: "pro" }, [
+      stripeSubStub([{ id: "si_x", price: PRO_EXTRA_PRICE, quantity: 1 }]),
+    ]);
+    seedActiveNumber(h, "+13035550001");
+    seedActiveNumber(h, "+13035550002");
+    seedActiveNumber(h, "+13035550003");
+
+    const res = await h.request(
+      "/v1/text-enablements",
+      jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("using all 3");
+    expect(h.rest.rows("text_enablement_orders")).toHaveLength(0);
   });
 });
 

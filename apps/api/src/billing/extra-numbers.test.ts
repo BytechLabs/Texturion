@@ -15,6 +15,7 @@ import {
 import { completeEnv, stubFetch } from "../test/support";
 import {
   convergeExtraNumberQuantity,
+  currentPaidExtras,
   desiredExtraQuantity,
   effectiveNumberAllowance,
   EXTRA_NUMBER_MONTHLY_CENTS,
@@ -124,6 +125,39 @@ function subscription(
 }
 
 const PRO_PRICE = env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID as string;
+
+describe("currentPaidExtras (#108: read-only paid capacity)", () => {
+  it("returns 0 without a subscription id — never a Stripe call", async () => {
+    // Any fetch would throw (no stub); the null short-circuit must avoid it.
+    const extras = await currentPaidExtras(env, getStripe(env), null, "pro");
+    expect(extras).toBe(0);
+  });
+
+  it("reads the extra-number item's live quantity from Stripe", async () => {
+    const harness = makeHarness([
+      endpoint("GET", /\/v1\/subscriptions\/sub_1$/, () =>
+        subscription([
+          { id: "si_licensed", price: env.STRIPE_PRO_PRICE_ID },
+          { id: "si_extra", price: PRO_PRICE, quantity: 3 },
+        ]),
+      ),
+    ]);
+    stubFetch(harness.route);
+    const extras = await currentPaidExtras(env, getStripe(env), "sub_1", "pro");
+    expect(extras).toBe(3);
+  });
+
+  it("returns 0 when the subscription carries no extra-number item", async () => {
+    const harness = makeHarness([
+      endpoint("GET", /\/v1\/subscriptions\/sub_1$/, () =>
+        subscription([{ id: "si_licensed", price: env.STRIPE_PRO_PRICE_ID }]),
+      ),
+    ]);
+    stubFetch(harness.route);
+    const extras = await currentPaidExtras(env, getStripe(env), "sub_1", "pro");
+    expect(extras).toBe(0);
+  });
+});
 
 describe("setExtraNumberQuantity", () => {
   it("creates the item when absent (the first paid extra), charging now", async () => {

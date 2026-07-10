@@ -4,7 +4,13 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import {
+  countNonReleasedNumbers,
+  currentPaidExtras,
+  effectiveNumberAllowance,
+} from "../billing/extra-numbers";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -46,6 +52,7 @@ interface PortCompanyRow {
   country: "US" | "CA";
   subscription_status: string;
   plan: PlanId | null;
+  stripe_subscription_id: string | null;
 }
 
 async function fetchCompany(
@@ -54,7 +61,7 @@ async function fetchCompany(
 ): Promise<PortCompanyRow> {
   const { data, error } = await db
     .from("companies")
-    .select("id,country,subscription_status,plan")
+    .select("id,country,subscription_status,plan,stripe_subscription_id")
     .eq("id", companyId)
     .limit(1);
   if (error) throw new Error(`companies lookup failed: ${error.message}`);
@@ -523,8 +530,28 @@ portingRoutes.post("/", requireRole("admin"), async (c) => {
   // is not chosen until checkout, so we pass the minimum allowance (1): a fresh
   // port-only signup (count 0) passes, but a still-incomplete company cannot
   // stack a second number before it has paid for a multi-number plan.
-  const maxNumbers =
-    company.plan !== null ? PLAN_LIMITS[company.plan].numbers : 1;
+  //
+  // #108: a paid customer can transfer a number INTO capacity they already pay
+  // for — no new charge. So the max is included + the CURRENT paid-extra
+  // quantity (a read-only Stripe check, only when already at the included cap;
+  // within it, the included allowance is enough and no Stripe read happens).
+  // Buying NEW capacity at port time is deliberately out of scope (the honest
+  // "release or upgrade" 409 stands once paid capacity is also full). See
+  // currentPaidExtras for the known admit-vs-converge race (#110, Sentry-caught).
+  let maxNumbers = company.plan !== null ? PLAN_LIMITS[company.plan].numbers : 1;
+  if (company.plan !== null) {
+    const included = PLAN_LIMITS[company.plan].numbers;
+    const currentCount = await countNonReleasedNumbers(db, companyId);
+    if (currentCount >= included) {
+      const paidExtras = await currentPaidExtras(
+        env,
+        getStripe(env),
+        company.stripe_subscription_id,
+        company.plan,
+      );
+      maxNumbers = effectiveNumberAllowance(company.plan, paidExtras);
+    }
+  }
   const { data: slotData, error: slotError } = await db.rpc("claim_port_slot", {
     p_company_id: companyId,
     p_provisioning_key: parsedKey.data,
@@ -544,9 +571,10 @@ portingRoutes.post("/", requireRole("admin"), async (c) => {
     return errorResponse(
       c,
       "conflict",
-      // #105: ports don't buy paid-extra capacity yet (tracked on #80) — the
-      // honest remedy today is releasing a number or upgrading.
-      `Your plan includes ${maxNumbers} phone number${maxNumbers === 1 ? "" : "s"}, and transferring in needs a free slot. Release a number or upgrade first.`,
+      // #108: paid extra capacity is already counted above — so hitting this
+      // means every included AND paid slot is full. Buying MORE capacity at
+      // port time is out of scope, so the honest remedy is release or upgrade.
+      `You're using all ${maxNumbers} of your phone number${maxNumbers === 1 ? "" : "s"}, and transferring one in needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {

@@ -30,7 +30,13 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
+import {
+  countNonReleasedNumbers,
+  currentPaidExtras,
+  effectiveNumberAllowance,
+} from "../billing/extra-numbers";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -60,6 +66,7 @@ interface CompanyRow {
   country: "US" | "CA";
   subscription_status: string;
   plan: PlanId | null;
+  stripe_subscription_id: string | null;
 }
 
 async function fetchCompany(
@@ -68,7 +75,7 @@ async function fetchCompany(
 ): Promise<CompanyRow> {
   const { data, error } = await db
     .from("companies")
-    .select("id,country,subscription_status,plan")
+    .select("id,country,subscription_status,plan,stripe_subscription_id")
     .eq("id", companyId)
     .limit(1);
   if (error) throw new Error(`companies lookup failed: ${error.message}`);
@@ -226,6 +233,23 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
     );
   }
 
+  // #108: text-enable a number INTO capacity the company already pays for —
+  // no new charge. The max is included + the CURRENT paid-extra quantity (a
+  // read-only Stripe check, only when already at the included cap). Buying NEW
+  // capacity here stays out of scope (the honest 409 stands once paid is full).
+  // See currentPaidExtras for the known admit-vs-converge race (#110).
+  const included = PLAN_LIMITS[company.plan].numbers;
+  let maxNumbers = included;
+  const currentCount = await countNonReleasedNumbers(db, companyId);
+  if (currentCount >= included) {
+    const paidExtras = await currentPaidExtras(
+      env,
+      getStripe(env),
+      company.stripe_subscription_id,
+      company.plan,
+    );
+    maxNumbers = effectiveNumberAllowance(company.plan, paidExtras);
+  }
   const { data: slotData, error: slotError } = await db.rpc(
     "claim_text_enablement_slot",
     {
@@ -233,7 +257,7 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
       p_provisioning_key: parsedKey.data,
       p_phone_e164: body.phone_e164,
       p_country: entry.country,
-      p_max_numbers: PLAN_LIMITS[company.plan].numbers,
+      p_max_numbers: maxNumbers,
     },
   );
   if (slotError) {
@@ -267,9 +291,10 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
     return errorResponse(
       c,
       "conflict",
-      // #105: text-enablement doesn't buy paid-extra capacity yet (tracked on
-      // #80) — the honest remedy today is releasing a number or upgrading.
-      `Your plan includes ${PLAN_LIMITS[company.plan].numbers} phone number${PLAN_LIMITS[company.plan].numbers === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
+      // #108: paid extra capacity is already counted above — hitting this means
+      // every included AND paid slot is full. Buying more capacity here is out
+      // of scope, so the honest remedy is releasing a number or upgrading.
+      `You're using all ${maxNumbers} of your phone number${maxNumbers === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {
