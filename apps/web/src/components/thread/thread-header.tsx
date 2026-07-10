@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   Ban,
-  Check,
   ChevronDown,
   Copy,
   Images,
@@ -35,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -56,8 +56,9 @@ import { useIsBelowMd } from "@/lib/use-is-below-md";
 import { cn } from "@/lib/utils";
 
 import {
-  THREAD_FILTERS,
-  THREAD_FILTER_LABELS,
+  THREAD_CATEGORIES,
+  THREAD_CATEGORY_LABELS,
+  toggleThreadCategory,
   type ThreadFilter,
 } from "./thread-filter";
 
@@ -377,18 +378,20 @@ export function ThreadHeader({
             {isBelowMd && (
               <>
                 <DropdownMenuLabel>Show</DropdownMenuLabel>
-                {THREAD_FILTERS.map((f) => (
-                  <DropdownMenuItem key={f} onSelect={() => onFilterChange(f)}>
-                    <Check
-                      className={cn(
-                        "size-4",
-                        filter === f ? "opacity-100" : "opacity-0",
-                      )}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    {THREAD_FILTER_LABELS[f]}
-                  </DropdownMenuItem>
+                {/* #89: each kind is an independent toggle (mix-and-match), all
+                    on by default. `onSelect`-preventDefault keeps the menu open
+                    so several can be flipped in one pass. */}
+                {THREAD_CATEGORIES.map((category) => (
+                  <DropdownMenuCheckboxItem
+                    key={category}
+                    checked={filter[category]}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={() =>
+                      onFilterChange(toggleThreadCategory(filter, category))
+                    }
+                  >
+                    {THREAD_CATEGORY_LABELS[category]}
+                  </DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
               </>

@@ -33,8 +33,11 @@ import {
 import { DayDivider, SystemLine } from "./system-line";
 import { ThreadFilterBar } from "./thread-filter-bar";
 import {
+  ALL_CATEGORIES_ON,
+  enabledCategories,
   filterThreadItems,
-  THREAD_FILTER_LABELS,
+  isAllOn,
+  THREAD_CATEGORY_LABELS,
   threadFilterEmptyCopy,
   type ThreadFilter,
 } from "./thread-filter";
@@ -133,11 +136,15 @@ export function MessageList({
     [messages, visibleEvents],
   );
   // §5.1: the filter is a cheap client-side view over already-built items —
-  // no refetch. All is the full stream; the others narrow it.
+  // no refetch. All-on is the full stream; toggling a kind off narrows it.
   const items: ThreadItem[] = useMemo(
     () => filterThreadItems(allItems, filter),
     [allItems, filter],
   );
+  // #89: mobile chip label — the enabled kinds when a subset is shown.
+  const shownCategoriesLabel = enabledCategories(filter)
+    .map((category) => THREAD_CATEGORY_LABELS[category])
+    .join(", ");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -314,19 +321,19 @@ export function MessageList({
           <ThreadFilterBar value={filter} onChange={onFilterChange} />
         </div>
       </div>
-      {/* #76: on a phone, a non-default filter shows only as a slim removable
+      {/* #76: on a phone, a narrowed filter shows only as a slim removable
           chip — so a filtered view is never a silent one (messages never look
-          deleted) — while the default "All" view shows no filter chrome at all. */}
-      {filter !== "all" && (
+          deleted) — while the default all-on view shows no filter chrome at all. */}
+      {!isAllOn(filter) && (
         <div className="shrink-0 px-4 pb-1 pt-2 md:hidden">
           <div className="mx-auto flex max-w-[42rem] justify-center">
             <button
               type="button"
-              onClick={() => onFilterChange("all")}
-              aria-label={`Showing ${THREAD_FILTER_LABELS[filter]} only. Clear filter.`}
+              onClick={() => onFilterChange(ALL_CATEGORIES_ON)}
+              aria-label={`Showing ${shownCategoriesLabel} only. Show everything.`}
               className="tap-target inline-flex items-center gap-1 rounded-full bg-app-tint px-3 py-1 text-[13px] font-medium text-app-petrol-deep"
             >
-              Showing {THREAD_FILTER_LABELS[filter]}
+              Showing {shownCategoriesLabel}
               <X className="size-3.5" strokeWidth={1.75} aria-hidden />
             </button>
           </div>

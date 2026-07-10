@@ -3,9 +3,15 @@ import { describe, expect, it } from "vitest";
 import type { ClusterItem, DividerItem, EventItem, ThreadItem } from "./clusters";
 import type { ConversationEvent, Message } from "@/lib/api/types";
 import {
+  ALL_CATEGORIES_ON,
+  enabledCategories,
   filterThreadItems,
+  isAllOn,
   parseThreadFilter,
+  serializeThreadFilter,
   threadFilterEmptyCopy,
+  toggleThreadCategory,
+  type ThreadFilter,
 } from "./thread-filter";
 
 function message(id: string, direction: Message["direction"]): Message {
@@ -66,45 +72,141 @@ const event: EventItem = {
 
 const items: ThreadItem[] = [divider, inbound, outbound, note, event];
 
+/** A filter with only the named kinds on. */
+function only(...on: Array<keyof ThreadFilter>): ThreadFilter {
+  return {
+    messages: on.includes("messages"),
+    notes: on.includes("notes"),
+    events: on.includes("events"),
+  };
+}
+
 describe("parseThreadFilter (§5.1)", () => {
-  it("defaults to all for absent/unknown values", () => {
-    expect(parseThreadFilter(null)).toBe("all");
-    expect(parseThreadFilter(undefined)).toBe("all");
-    expect(parseThreadFilter("bogus")).toBe("all");
+  it("defaults to all-on for absent/empty/all-unknown values", () => {
+    expect(parseThreadFilter(null)).toEqual(ALL_CATEGORIES_ON);
+    expect(parseThreadFilter(undefined)).toEqual(ALL_CATEGORIES_ON);
+    expect(parseThreadFilter("")).toEqual(ALL_CATEGORIES_ON);
+    expect(parseThreadFilter("bogus")).toEqual(ALL_CATEGORIES_ON);
   });
 
-  it("round-trips the four known values", () => {
-    expect(parseThreadFilter("all")).toBe("all");
-    expect(parseThreadFilter("messages")).toBe("messages");
-    expect(parseThreadFilter("notes")).toBe("notes");
-    expect(parseThreadFilter("events")).toBe("events");
+  it("reads a comma list of enabled kinds", () => {
+    expect(parseThreadFilter("messages")).toEqual(only("messages"));
+    expect(parseThreadFilter("notes,events")).toEqual(only("notes", "events"));
+    expect(parseThreadFilter("messages,notes,events")).toEqual(
+      ALL_CATEGORIES_ON,
+    );
+  });
+
+  it("trims whitespace and drops unknown tokens", () => {
+    expect(parseThreadFilter(" messages , bogus , events ")).toEqual(
+      only("messages", "events"),
+    );
+  });
+});
+
+describe("serializeThreadFilter (§5.1)", () => {
+  it("drops the param when all kinds are on (the default)", () => {
+    expect(serializeThreadFilter(ALL_CATEGORIES_ON)).toBeNull();
+  });
+
+  it("emits the enabled kinds in canonical order", () => {
+    expect(serializeThreadFilter(only("events", "messages"))).toBe(
+      "messages,events",
+    );
+    expect(serializeThreadFilter(only("notes"))).toBe("notes");
+  });
+
+  it("round-trips any subset through parse", () => {
+    for (const subset of [
+      only("messages"),
+      only("notes"),
+      only("events"),
+      only("messages", "notes"),
+      only("messages", "events"),
+      only("notes", "events"),
+    ]) {
+      const serialized = serializeThreadFilter(subset);
+      expect(serialized).not.toBeNull();
+      expect(parseThreadFilter(serialized)).toEqual(subset);
+    }
+  });
+});
+
+describe("toggleThreadCategory (§5.1)", () => {
+  it("flips one kind and leaves the others untouched", () => {
+    expect(toggleThreadCategory(ALL_CATEGORIES_ON, "notes")).toEqual(
+      only("messages", "events"),
+    );
+    expect(toggleThreadCategory(only("messages"), "events")).toEqual(
+      only("messages", "events"),
+    );
+  });
+
+  it("refuses to turn off the last enabled kind (never a blank timeline)", () => {
+    const last = only("messages");
+    expect(toggleThreadCategory(last, "messages")).toBe(last);
+  });
+});
+
+describe("isAllOn / enabledCategories", () => {
+  it("isAllOn is true only when every kind is on", () => {
+    expect(isAllOn(ALL_CATEGORIES_ON)).toBe(true);
+    expect(isAllOn(only("messages", "notes"))).toBe(false);
+  });
+
+  it("enabledCategories lists the on kinds in canonical order", () => {
+    expect(enabledCategories(ALL_CATEGORIES_ON)).toEqual([
+      "messages",
+      "notes",
+      "events",
+    ]);
+    expect(enabledCategories(only("events", "messages"))).toEqual([
+      "messages",
+      "events",
+    ]);
   });
 });
 
 describe("filterThreadItems (§5.1)", () => {
-  it("all keeps the full interleaved stream (dividers included)", () => {
-    expect(filterThreadItems(items, "all")).toEqual(items);
+  it("all-on keeps the full interleaved stream (dividers included)", () => {
+    expect(filterThreadItems(items, ALL_CATEGORIES_ON)).toEqual(items);
   });
 
-  it("messages keeps inbound+outbound clusters only", () => {
-    const out = filterThreadItems(items, "messages");
-    expect(out).toEqual([inbound, outbound]);
+  it("messages-only keeps inbound+outbound clusters (dividers dropped)", () => {
+    expect(filterThreadItems(items, only("messages"))).toEqual([
+      inbound,
+      outbound,
+    ]);
   });
 
-  it("notes keeps note clusters only", () => {
-    expect(filterThreadItems(items, "notes")).toEqual([note]);
+  it("notes-only keeps note clusters", () => {
+    expect(filterThreadItems(items, only("notes"))).toEqual([note]);
   });
 
-  it("events keeps timeline event lines only", () => {
-    expect(filterThreadItems(items, "events")).toEqual([event]);
+  it("events-only keeps timeline event lines", () => {
+    expect(filterThreadItems(items, only("events"))).toEqual([event]);
+  });
+
+  it("mixes kinds — messages+events keeps both, drops notes and dividers", () => {
+    expect(filterThreadItems(items, only("messages", "events"))).toEqual([
+      inbound,
+      outbound,
+      event,
+    ]);
   });
 });
 
 describe("threadFilterEmptyCopy", () => {
-  it("gives a distinct empty line per view", () => {
-    expect(threadFilterEmptyCopy("messages")).toMatch(/messages/i);
-    expect(threadFilterEmptyCopy("notes")).toMatch(/notes/i);
-    expect(threadFilterEmptyCopy("events")).toMatch(/happened/i);
-    expect(threadFilterEmptyCopy("all")).toMatch(/say hello/i);
+  it("gives a distinct empty line for each single kind and for all-on", () => {
+    expect(threadFilterEmptyCopy(only("messages"))).toMatch(/messages/i);
+    expect(threadFilterEmptyCopy(only("notes"))).toMatch(/notes/i);
+    expect(threadFilterEmptyCopy(only("events"))).toMatch(/happened/i);
+    expect(threadFilterEmptyCopy(ALL_CATEGORIES_ON)).toMatch(/say hello/i);
+  });
+
+  it("uses a generic line when several kinds are on but empty", () => {
+    expect(threadFilterEmptyCopy(only("messages", "events"))).toMatch(
+      /current filters/i,
+    );
   });
 });

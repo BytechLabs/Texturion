@@ -35,7 +35,11 @@ import {
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
 import { MessageList } from "./message-list";
-import { parseThreadFilter, type ThreadFilter } from "./thread-filter";
+import {
+  parseThreadFilter,
+  serializeThreadFilter,
+  type ThreadFilter,
+} from "./thread-filter";
 import { ThreadHeader } from "./thread-header";
 
 const PANEL_PREF_KEY = "loonext:contact-panel-open";
@@ -147,8 +151,9 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const messages = useMessages(conversationId);
   const markRead = useMarkConversationRead();
 
-  // §5.1 in-thread filter — All | Messages | Notes | Events. URL is the state
-  // (`?thread=`) for shareability; it defaults to All and does not persist.
+  // §5.1 in-thread filter — independent Messages · Notes · Events toggles (#89).
+  // URL is the state (`?thread=` — a comma list of the enabled kinds) for
+  // shareability; it defaults to all-on and does not persist.
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -156,8 +161,9 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const setThreadFilter = useCallback(
     (next: ThreadFilter) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next === "all") params.delete("thread");
-      else params.set("thread", next);
+      const serialized = serializeThreadFilter(next);
+      if (serialized === null) params.delete("thread");
+      else params.set("thread", serialized);
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, {
         scroll: false,
