@@ -12,19 +12,14 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
     expect(PLAN_FACTS.pro.price).toBe(`$${PLAN_PRICING.pro.monthlyDollars}/mo`);
   });
 
-  it("derives the included texts, with the thousands separator", () => {
-    expect(PLAN_FACTS.starter.included).toBe(
-      "500 outgoing texts included each month",
-    );
-    expect(PLAN_FACTS.pro.included).toBe(
-      "2,500 outgoing texts included each month",
-    );
-    expect(PLAN_FACTS.starter.included).toContain(
-      PLAN_PRICING.starter.includedTexts.toLocaleString("en-US"),
-    );
-    expect(PLAN_FACTS.pro.included).toContain(
-      PLAN_PRICING.pro.includedTexts.toLocaleString("en-US"),
-    );
+  it("frames texting as fair use, not a hard message count (#85)", () => {
+    // The plan card no longer quotes 500/2,500 — the exact figure lives in the
+    // fair-use policy the billing page links to, and the usage screen shows
+    // real usage. The included line carries no hard count.
+    for (const plan of ["starter", "pro"] as const) {
+      expect(PLAN_FACTS[plan].included.toLowerCase()).toContain("fair use");
+      expect(PLAN_FACTS[plan].included).not.toMatch(/\d/);
+    }
   });
 
   it("derives seats, numbers (pluralized), and overage from the constant", () => {
@@ -42,10 +37,10 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
     );
 
     expect(PLAN_FACTS.starter.overage).toBe(
-      `${PLAN_PRICING.starter.overageCentsPerText}¢ per extra text after that`,
+      `${PLAN_PRICING.starter.overageCentsPerText}¢ per extra outgoing text`,
     );
     expect(PLAN_FACTS.pro.overage).toBe(
-      `${PLAN_PRICING.pro.overageCentsPerText}¢ per extra text after that`,
+      `${PLAN_PRICING.pro.overageCentsPerText}¢ per extra outgoing text`,
     );
   });
 });

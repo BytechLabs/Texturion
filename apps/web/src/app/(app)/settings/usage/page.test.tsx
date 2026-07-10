@@ -58,6 +58,12 @@ function render(usage: Usage): string {
   return renderToStaticMarkup(<UsageSettingsPage />);
 }
 
+/** #85/#95: the "of N" meter only renders when trending over; these tests that
+ *  exercise the PeriodMeter's pause-point copy render in that state. */
+const TRENDING = {
+  overage_projection: { trending_over: true, projected_overage_cents: 0 },
+} as const;
+
 /**
  * Finding 8: the usage page no longer renders the abolished "No cap / sending
  * never pauses" state. A 10× hard ceiling ALWAYS applies (#42), so the
@@ -68,15 +74,15 @@ describe("/settings/usage cap status", () => {
     state.usage = null as unknown as Usage;
   });
 
-  it("shows the concrete pause point when a cap multiplier is set", () => {
-    const html = render(baseUsage({ cap_segments: 1500 }));
+  it("shows the concrete pause point in the meter when trending over", () => {
+    const html = render(baseUsage({ cap_segments: 1500, ...TRENDING }));
     expect(html).toContain("Sending pauses at");
     expect(html).toContain("1,500");
   });
 
   it("names the 10× maximum, never 'sending never pauses', when cap_segments is null", () => {
     const html = render(
-      baseUsage({ cap_segments: null, included_segments: 500 }),
+      baseUsage({ cap_segments: null, included_segments: 500, ...TRENDING }),
     );
     expect(html).toContain("Sending pauses at");
     // 10× the 500 included = 5,000, the hard ceiling.
@@ -86,11 +92,69 @@ describe("/settings/usage cap status", () => {
 
   it("carries no abolished uncapped copy in either cap state", () => {
     for (const capped of [1500, null]) {
-      const html = render(baseUsage({ cap_segments: capped }));
+      const html = render(baseUsage({ cap_segments: capped, ...TRENDING }));
       expect(html).not.toContain("never pauses");
       expect(html).not.toContain("No cap");
       expect(html).not.toContain("billed as you go");
     }
+  });
+
+  it("keeps the spending cap reachable even when usage is quiet (#95)", () => {
+    // The meters hide when within plan, but the cap control + its current-cap
+    // line must always stay reachable — never leave a customer unable to cap.
+    const html = render(baseUsage()); // quiet
+    expect(html).toContain("Overage cap");
+    expect(html).toContain("messages per period");
+  });
+});
+
+/**
+ * #85/#95: the detailed "of N" limit meters are hidden while usage is
+ * comfortably within plan (the fair-use posture) and surface only when the
+ * dynamic projection is trending over.
+ */
+describe("/settings/usage limit-meter gating (#95)", () => {
+  beforeEach(() => {
+    state.usage = null as unknown as Usage;
+  });
+
+  it("stays calm within plan: plain counts, no of-N meter or storage bars", () => {
+    const html = render(baseUsage({ used_segments: 120 })); // quiet
+    expect(html).toContain("messages sent this period");
+    expect(html).toContain("comfortably within your plan");
+    expect(html).not.toContain("included messages used"); // PeriodMeter of-N
+    expect(html).not.toContain("Files on notes"); // StorageMeter
+  });
+
+  it("surfaces the of-N meter and storage when trending over", () => {
+    const html = render(baseUsage({ used_segments: 480, ...TRENDING }));
+    expect(html).toContain("included messages used");
+    expect(html).toContain("Files on notes");
+    expect(html).not.toContain("comfortably within your plan");
+  });
+
+  it("surfaces a resource meter when NEAR its own limit, even if calm on cost", () => {
+    // 450 of 500 = 90%, past the 80% static-alert threshold, so the message
+    // meter shows even though the tenant is not trending over on cost — the
+    // warning email never points at a hidden meter.
+    const html = render(baseUsage({ used_segments: 450 })); // trending false
+    expect(html).toContain("included messages used");
+    expect(html).not.toContain("comfortably within your plan");
+  });
+
+  it("surfaces the storage meter when storage is near its budget", () => {
+    const budget = 1024 ** 3;
+    const html = render(
+      baseUsage({
+        storage: {
+          attachments_bytes: Math.round(budget * 0.9),
+          mms_bytes: 0,
+          attachment_budget_bytes: budget,
+          mms_budget_bytes: budget,
+        },
+      }),
+    ); // trending false, but storage 90% of budget
+    expect(html).toContain("Files on notes");
   });
 });
 

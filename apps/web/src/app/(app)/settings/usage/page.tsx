@@ -47,6 +47,14 @@ function periodRange(usage: Usage): string | null {
   return `${start} to ${end}`;
 }
 
+/** #85/#95: a resource's meter surfaces at or above this share of its limit —
+ *  the SAME 80% the static usage-alert emails fire at, so a customer who gets
+ *  that email always finds the matching meter here (never a dead-end). */
+const METER_WARN_RATIO = 0.8;
+function nearLimit(used: number, limit: number): boolean {
+  return limit > 0 && used / limit >= METER_WARN_RATIO;
+}
+
 function PeriodMeter({ usage }: { usage: Usage }) {
   const ratio =
     usage.included_segments > 0
@@ -397,12 +405,78 @@ function OverageProjectionNotice({ usage }: { usage: Usage }) {
   );
 }
 
+/**
+ * #85/#95: the CALM current-period view, shown when usage is comfortably within
+ * plan (not trending over). Usage is stated as plain counts — no "of N" ceiling,
+ * no progress bar — the fair-use posture: we stay quiet and email you if that
+ * ever changes, so you can just text. The detailed limit meters appear only when
+ * the dynamic projection says you're trending over.
+ */
+function CalmPeriodSummary({ usage }: { usage: Usage }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+        <span className="app-emotional-number app-motion-message-in text-foreground">
+          {usage.used_segments.toLocaleString()}
+        </span>
+        <p className="pb-0.5 text-sm text-muted-foreground">
+          messages sent this period
+        </p>
+        {periodRange(usage) && (
+          <Tertiary as="p" className="ml-auto pb-0.5 text-sm tabular-nums">
+            {periodRange(usage)}
+          </Tertiary>
+        )}
+      </div>
+      {usage.inbound_segments > 0 && (
+        <p className="text-sm text-muted-foreground">
+          <span className="tabular-nums">
+            {usage.inbound_segments.toLocaleString()}
+          </span>{" "}
+          received this period, always free.
+        </p>
+      )}
+      <p className="text-sm text-muted-foreground">
+        You&apos;re comfortably within your plan this period. We&apos;ll email
+        you if that ever changes, so you can just text.
+      </p>
+    </div>
+  );
+}
+
 export default function UsageSettingsPage() {
   const usage = useUsage();
   const company = useCompany();
 
   const pending = usage.isPending || company.isPending;
   const error = usage.isError || company.isError;
+  // #85/#95: the detailed limit meters surface only when they matter — either
+  // the tenant is trending over what they pay (the dynamic projection), or a
+  // specific resource is near its own limit (the same 80% the static alerts
+  // email at, so a warning email never points at a hidden meter). Otherwise the
+  // screen stays calm: plain counts + the always-reachable cap control.
+  const data = usage.data;
+  const trending = data?.overage_projection.trending_over ?? false;
+  const showMessages =
+    trending ||
+    (!!data && nearLimit(data.used_segments, data.included_segments));
+  const showStorage =
+    trending ||
+    (!!data &&
+      (nearLimit(
+        data.storage.attachments_bytes,
+        data.storage.attachment_budget_bytes,
+      ) ||
+        nearLimit(data.storage.mms_bytes, data.storage.mms_budget_bytes)));
+  const showVoice =
+    !!data &&
+    data.voice.included_minutes > 0 &&
+    (trending ||
+      nearLimit(data.voice.used_minutes, data.voice.included_minutes));
+  const showMms =
+    !!data &&
+    data.mms.included_messages > 0 &&
+    (trending || nearLimit(data.mms.used_messages, data.mms.included_messages));
 
   return (
     <SettingsPage
@@ -436,13 +510,37 @@ export default function UsageSettingsPage() {
         </SettingsCard>
       ) : (
         <div className="space-y-8">
-          {usage.data.overage_projection.trending_over && (
-            <OverageProjectionNotice usage={usage.data} />
-          )}
+          {trending && <OverageProjectionNotice usage={usage.data} />}
 
           <SettingsCard title="This period">
-            <PeriodMeter usage={usage.data} />
+            {showMessages ? (
+              <PeriodMeter usage={usage.data} />
+            ) : (
+              <CalmPeriodSummary usage={usage.data} />
+            )}
           </SettingsCard>
+
+          {/* #85/#95: each per-limit meter surfaces only when that resource is
+              near its own limit, or the tenant is trending over. The matching
+              static alert emails at the same threshold, so nothing goes
+              unwatched — the meter just stays calm until it matters. */}
+          {showStorage && (
+            <SettingsCard title="Storage">
+              <StorageMeter storage={usage.data.storage} />
+            </SettingsCard>
+          )}
+
+          {showVoice && (
+            <SettingsCard title="Call forwarding">
+              <VoiceMeter voice={usage.data.voice} />
+            </SettingsCard>
+          )}
+
+          {showMms && (
+            <SettingsCard title="Picture messages">
+              <MmsMeter mms={usage.data.mms} />
+            </SettingsCard>
+          )}
 
           {usage.data.history.length > 0 && (
             <SettingsCard
@@ -450,22 +548,6 @@ export default function UsageSettingsPage() {
               description="Outgoing messages by calendar month."
             >
               <HistoryBars history={usage.data.history} />
-            </SettingsCard>
-          )}
-
-          <SettingsCard title="Storage">
-            <StorageMeter storage={usage.data.storage} />
-          </SettingsCard>
-
-          {usage.data.voice.included_minutes > 0 && (
-            <SettingsCard title="Call forwarding">
-              <VoiceMeter voice={usage.data.voice} />
-            </SettingsCard>
-          )}
-
-          {usage.data.mms.included_messages > 0 && (
-            <SettingsCard title="Picture messages">
-              <MmsMeter mms={usage.data.mms} />
             </SettingsCard>
           )}
 

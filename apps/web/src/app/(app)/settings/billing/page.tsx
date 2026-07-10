@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
@@ -213,6 +214,18 @@ export default function BillingSettingsPage() {
                   <li>{PLAN_FACTS[company.data.plan].seats}</li>
                   <li>{PLAN_FACTS[company.data.plan].numbers}</li>
                 </ul>
+                {/* #85: the exact allowances live in the fair-use policy, not on
+                    the plan card. */}
+                <p className="text-xs text-muted-foreground">
+                  Allowances reflect fair use.{" "}
+                  <Link
+                    href="/legal/fair-use"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    See the policy
+                  </Link>
+                  .
+                </p>
                 {company.data.current_period_end && (
                   <p className="text-xs text-muted-foreground">
                     Current period ends{" "}
