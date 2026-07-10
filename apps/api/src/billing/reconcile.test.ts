@@ -94,6 +94,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       orphanSubscriptionsCancelled: 0,
       orphanSubscriptionsFlagged: 0,
       retiredModuleItemsRemoved: 0,
+      extraNumberQuantitiesConverged: 0,
     });
     // The mirror wrote Stripe's CURRENT truth (missed-webhook backstop).
     expect(patches).toEqual([
@@ -123,6 +124,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       orphanSubscriptionsCancelled: 0,
       orphanSubscriptionsFlagged: 0,
       retiredModuleItemsRemoved: 0,
+      extraNumberQuantitiesConverged: 0,
     });
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
     // Report only — no invite row was mutated (§11: acceptance already checks).

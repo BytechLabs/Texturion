@@ -39,6 +39,8 @@ export function completeEnv(): Env {
     STRIPE_MODULE_VOICE_PRICE_ID: "price_module_voice_0001",
     STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: "price_module_extra_storage_0001",
     STRIPE_MODULE_REGIONS_CA_PRICE_ID: "price_module_regions_ca_0001",
+    STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID: "price_extra_number_starter_0001",
+    STRIPE_EXTRA_NUMBER_PRO_PRICE_ID: "price_extra_number_pro_0001",
     STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
   };
 }

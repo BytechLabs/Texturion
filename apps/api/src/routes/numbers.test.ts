@@ -13,7 +13,7 @@ import {
   telnyxError,
   type SentEmailCapture,
 } from "../telnyx/test-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -95,7 +95,10 @@ function installSlotRpc(rest: FakeRest) {
   });
 }
 
-function buildHarness(companyOverrides: Record<string, unknown> = {}) {
+function buildHarness(
+  companyOverrides: Record<string, unknown> = {},
+  extraRoutes: FetchRoute[] = [],
+) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
@@ -147,7 +150,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
     );
   });
 
-  stubFetch(rest.route(), telnyx.route(), resendRoute(emails));
+  stubFetch(...extraRoutes, rest.route(), telnyx.route(), resendRoute(emails));
   return {
     env,
     rest,
@@ -424,8 +427,10 @@ describe("POST /v1/numbers/provision", () => {
     expect(res.status).toBe(422);
   });
 
-  it("409s at the plan allowance (atomic count-vs-plan)", async () => {
-    const harness = buildHarness({ plan: "starter" });
+  it("409s at the included count when the company can't buy extras (no US texting)", async () => {
+    // #105: past the included count the buy is a PAID extra — a company
+    // without US texting can't buy one, and no Stripe call is ever made.
+    const harness = buildHarness({ plan: "starter", us_texting_enabled: false });
     harness.rest.insert("phone_numbers", {
       company_id: COMPANY_ID,
       status: "active",
@@ -439,7 +444,7 @@ describe("POST /v1/numbers/provision", () => {
     );
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { message: string } };
-    expect(body.error.message).toContain("plan includes 1");
+    expect(body.error.message).toContain("US texting");
   });
 
   it("409s once the lifetime provision (churn) cap is reached (#74)", async () => {
@@ -496,6 +501,278 @@ describe("POST /v1/numbers/provision", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: { message: string } };
     expect(body.error.message).toContain("Sole Proprietor");
+  });
+});
+
+/** A Stripe API stub for the #105 paid-extra paths (subscription + items). */
+function stripeStub(
+  options: {
+    schedule?: string | null;
+    items?: { id: string; price: string; quantity?: number }[];
+  } = {},
+) {
+  const calls: {
+    method: string;
+    pathname: string;
+    form: URLSearchParams;
+    headers: Headers;
+  }[] = [];
+  const route: FetchRoute = async (url, request) => {
+    if (url.host !== "api.stripe.com") return undefined;
+    calls.push({
+      method: request.method,
+      pathname: url.pathname,
+      form: new URLSearchParams(
+        request.method === "POST" ? await request.clone().text() : "",
+      ),
+      headers: new Headers(request.headers),
+    });
+    if (request.method === "GET" && url.pathname === "/v1/subscriptions/sub_1") {
+      return Response.json({
+        id: "sub_1",
+        object: "subscription",
+        status: "active",
+        schedule: options.schedule ?? null,
+        items: {
+          object: "list",
+          has_more: false,
+          data: (options.items ?? []).map((item) => ({
+            id: item.id,
+            object: "subscription_item",
+            price: { id: item.price, object: "price" },
+            ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
+          })),
+        },
+      });
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname.startsWith("/v1/subscription_items")
+    ) {
+      return Response.json({ id: "si_extra", object: "subscription_item" });
+    }
+    if (request.method === "DELETE") {
+      return Response.json({ id: "si_extra", deleted: true });
+    }
+    return Response.json(
+      { error: { message: `unhandled ${request.method} ${url.pathname}` } },
+      { status: 500 },
+    );
+  };
+  return { route, calls };
+}
+
+describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
+  const PAID_COMPANY = {
+    plan: "starter",
+    us_texting_enabled: true,
+    stripe_subscription_id: "sub_1",
+  };
+  function firstNumber(harness: ReturnType<typeof buildHarness>) {
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_first",
+      country: "US",
+      number_e164: "+12125550001",
+    });
+  }
+
+  it("sells Starter's 2nd number as a $5 extra: charge now, then provision (201)", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+    sagaTelnyx(harness.telnyx);
+
+    const key = crypto.randomUUID();
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(key),
+    );
+    expect(res.status).toBe(201);
+
+    // The quantity bump happened BEFORE the claim, priced on the plan's extra
+    // price, charged immediately, keyed off the request's Idempotency-Key.
+    const create = stripe.calls.find(
+      (call) =>
+        call.method === "POST" && call.pathname === "/v1/subscription_items",
+    );
+    expect(create).toBeDefined();
+    expect(create!.form.get("price")).toBe(
+      harness.env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID,
+    );
+    expect(create!.form.get("quantity")).toBe("1");
+    expect(create!.form.get("proration_behavior")).toBe("always_invoice");
+    expect(create!.headers.get("Idempotency-Key")).toBe(
+      `${COMPANY_ID}:extra_number_buy:${key}`,
+    );
+  });
+
+  it("409s Starter's 3rd number (hard cap 2) without touching Stripe", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_second",
+      country: "US",
+      number_e164: "+12125550002",
+    });
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Pro");
+    expect(stripe.calls).toHaveLength(0);
+  });
+
+  it("Pro extras are unbounded: the 3rd number bumps quantity to 1 at $4", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(
+      { ...PAID_COMPANY, plan: "pro" },
+      [stripe.route],
+    );
+    firstNumber(harness);
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_second",
+      country: "US",
+      number_e164: "+12125550002",
+    });
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(201);
+    const create = stripe.calls.find(
+      (call) =>
+        call.method === "POST" && call.pathname === "/v1/subscription_items",
+    );
+    expect(create!.form.get("price")).toBe(
+      harness.env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID,
+    );
+    expect(create!.form.get("quantity")).toBe("1");
+  });
+
+  it("fails CLOSED when the company has no subscription id to bill", async () => {
+    // The fixture default has no stripe_subscription_id.
+    const harness = buildHarness({ plan: "starter", us_texting_enabled: true });
+    firstNumber(harness);
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("aren't available yet");
+  });
+
+  it("409s a schedule-managed subscription (#18: pending plan change owns items)", async () => {
+    const stripe = stripeStub({ schedule: "sub_sched_1" });
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("plan change is scheduled");
+    // Retrieved the subscription, but never wrote to it.
+    expect(
+      stripe.calls.filter((call) => call.method === "POST"),
+    ).toHaveLength(0);
+  });
+
+  it("replays a SUCCESSFUL paid buy on the same Idempotency-Key without re-charging", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+    sagaTelnyx(harness.telnyx);
+
+    const key = crypto.randomUUID();
+    const first = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(key),
+    );
+    expect(first.status).toBe(201);
+    const bought = (await first.json()) as { id: string };
+    const stripeWrites = stripe.calls.filter((c) => c.method === "POST").length;
+
+    // The retry must return the SAME row (200) and never touch Stripe again —
+    // not 409 at the Starter hard max, not a replayed Stripe key with new params.
+    const retry = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(key),
+    );
+    expect(retry.status).toBe(200);
+    expect(((await retry.json()) as { id: string }).id).toBe(bought.id);
+    expect(
+      stripe.calls.filter((c) => c.method === "POST").length,
+    ).toBe(stripeWrites);
+  });
+
+  it("refuses a sole-prop paid extra BEFORE any Stripe write (never charge-then-409)", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(PAID_COMPANY, [stripe.route]);
+    firstNumber(harness);
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "brand",
+      sole_proprietor: true,
+    });
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Sole Proprietor");
+    expect(stripe.calls).toHaveLength(0);
+  });
+
+  it("refuses a churn-capped paid extra BEFORE any Stripe write (#74)", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(
+      { ...PAID_COMPANY, number_provision_count: 20 },
+      [stripe.route],
+    );
+    firstNumber(harness);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Contact support");
+    expect(stripe.calls).toHaveLength(0);
+  });
+
+  it("never consults Stripe inside the included count (the free path)", async () => {
+    const stripe = stripeStub();
+    const harness = buildHarness(
+      { ...PAID_COMPANY, plan: "pro" },
+      [stripe.route],
+    );
+    firstNumber(harness); // 1 of Pro's 2 included
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(201);
+    expect(stripe.calls).toHaveLength(0);
   });
 });
 
@@ -556,6 +833,53 @@ describe("DELETE /v1/numbers/:id", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(409);
+  });
+
+  it("releasing a paid extra converges the Stripe quantity down (#105)", async () => {
+    // Pro with 3 numbers (2 included + 1 paid, item quantity 1). Releasing one
+    // brings the count to 2 → desired quantity 0 → the item is deleted with a
+    // prorated credit.
+    const stripe = stripeStub({
+      items: [
+        { id: "si_extra", price: "price_extra_number_pro_0001", quantity: 1 },
+      ],
+    });
+    const harness = buildHarness(
+      { plan: "pro", us_texting_enabled: true, stripe_subscription_id: "sub_1" },
+      [stripe.route],
+    );
+    harness.state.role = "owner";
+    for (const [i, e164] of ["+12125550001", "+12125550002"].entries()) {
+      harness.rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "active",
+        provisioning_key: `cs_keep_${i}`,
+        country: "US",
+        number_e164: e164,
+      });
+    }
+    const row = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_extra",
+      country: "US",
+      number_e164: "+12125550003",
+      telnyx_phone_number_id: "pn-extra",
+    });
+    harness.telnyx.on(
+      "DELETE",
+      /^\/v2\/phone_numbers\/pn-extra$/,
+      () => new Response(null, { status: 204 }),
+    );
+
+    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(200);
+
+    const del = stripe.calls.find((call) => call.method === "DELETE");
+    expect(del).toBeDefined();
+    expect(del!.pathname).toBe("/v1/subscription_items/si_extra");
   });
 
   it("releases via Telnyx and marks the row released (§12 step 18)", async () => {

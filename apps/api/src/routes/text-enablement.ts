@@ -267,7 +267,9 @@ textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
     return errorResponse(
       c,
       "conflict",
-      `Your plan includes ${PLAN_LIMITS[company.plan].numbers} phone number${PLAN_LIMITS[company.plan].numbers === 1 ? "" : "s"}. Upgrade or release a number first.`,
+      // #105: text-enablement doesn't buy paid-extra capacity yet (tracked on
+      // #80) — the honest remedy today is releasing a number or upgrading.
+      `Your plan includes ${PLAN_LIMITS[company.plan].numbers} phone number${PLAN_LIMITS[company.plan].numbers === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {

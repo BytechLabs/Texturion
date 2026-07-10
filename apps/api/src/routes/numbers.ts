@@ -5,10 +5,21 @@ import { z } from "zod";
 
 import { requireRole } from "../auth/company";
 import {
+  convergeExtraNumberQuantity,
+  countNonReleasedNumbers,
+  desiredExtraQuantity,
+  effectiveNumberAllowance,
+  extraNumberPrice,
+  extraNumberPurchasable,
+  setExtraNumberQuantity,
+} from "../billing/extra-numbers";
+import { idempotencyKey } from "../billing/idempotency";
+import {
   NUMBER_PROVISION_CHURN_CAP,
   PLAN_LIMITS,
   type PlanId,
 } from "../billing/plans";
+import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -151,7 +162,9 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
 
   const { data: companyRows, error: companyError } = await db
     .from("companies")
-    .select("id,country,subscription_status,plan")
+    .select(
+      "id,country,subscription_status,plan,us_texting_enabled,stripe_subscription_id",
+    )
     .eq("id", companyId)
     .limit(1);
   if (companyError) {
@@ -162,6 +175,8 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
     country: "US" | "CA";
     subscription_status: string;
     plan: PlanId | null;
+    us_texting_enabled: boolean;
+    stripe_subscription_id: string | null;
   } | null;
   if (!company) throw new ApiError("not_found", "Company not found.");
 
@@ -214,6 +229,141 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
     );
   }
 
+  // Idempotent replay FIRST (§7): a retried Idempotency-Key whose original
+  // request already created the row must return it — BEFORE the paid-extra
+  // branch below, which would otherwise re-derive the world from the NEW count
+  // (409ing a Starter retry at the hard max, or replaying the Stripe key with
+  // different params). The slot RPC has the same replay check, but the paid
+  // branch runs before the RPC, so the route needs its own.
+  {
+    const { data: replayRows, error: replayError } = await db
+      .from("phone_numbers")
+      .select(NUMBER_COLUMNS)
+      .eq("company_id", companyId)
+      .eq("provisioning_key", parsedKey.data)
+      .limit(1);
+    if (replayError) {
+      throw new Error(`replay lookup failed: ${replayError.message}`);
+    }
+    const replay = (replayRows?.[0] ?? null) as unknown as NumberRowFull | null;
+    if (replay) return c.json(sanitizeNumber(replay), 200);
+  }
+
+  // #105 (#80): numbers beyond the plan's included count are PAID extras
+  // ($5/mo Starter, $4/mo Pro; Starter hard-capped at 2 total; US-enabled
+  // companies only). EVERY gate that could refuse the number runs BEFORE the
+  // Stripe charge (never charge-then-409): purchasability, the §4.2 sole-prop
+  // cap, and the #74 churn cap are all pre-checked here; the RPC re-checks
+  // them atomically. The quantity is bumped BEFORE the slot claim with an
+  // Idempotency-Key-derived Stripe key, so a retried request never
+  // double-charges — and a later order failure never loses the paid capacity
+  // (the slot stays open; remediation fills it without a new charge). Within
+  // the included count this path is never consulted (no Stripe read).
+  const included = PLAN_LIMITS[company.plan].numbers;
+  const currentCount = await countNonReleasedNumbers(db, companyId);
+  let maxNumbers = included;
+  if (currentCount >= included) {
+    const purchasable = extraNumberPurchasable({
+      plan: company.plan,
+      currentCount,
+      country: company.country,
+      usTextingEnabled: company.us_texting_enabled,
+    });
+    if (!purchasable.ok) {
+      return errorResponse(c, "conflict", purchasable.reason);
+    }
+    // §4.2 sole-prop cap — mirror the RPC's predicate so the refusal lands
+    // before any money moves.
+    const { data: soleRows, error: soleError } = await db
+      .from("messaging_registrations")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("kind", "brand")
+      .eq("sole_proprietor", true)
+      .limit(1);
+    if (soleError) {
+      throw new Error(`sole-prop lookup failed: ${soleError.message}`);
+    }
+    if ((soleRows ?? []).length > 0 && currentCount >= 1) {
+      return errorResponse(
+        c,
+        "conflict",
+        "Sole Proprietor registration allows 1 phone number.",
+      );
+    }
+    // #74 churn cap — same pre-check, same copy as the RPC outcome.
+    const { data: churnRows, error: churnError } = await db
+      .from("companies")
+      .select("number_provision_count")
+      .eq("id", companyId)
+      .limit(1);
+    if (churnError) {
+      throw new Error(`churn count lookup failed: ${churnError.message}`);
+    }
+    const provisioned = Number(churnRows?.[0]?.number_provision_count ?? 0);
+    if (provisioned >= NUMBER_PROVISION_CHURN_CAP) {
+      return errorResponse(
+        c,
+        "conflict",
+        "You've set up new numbers many times on this account. Contact support to add another.",
+      );
+    }
+    const price = extraNumberPrice(env, company.plan);
+    if (!price || !company.stripe_subscription_id) {
+      // Fail CLOSED: no provisioned price (or no subscription id to bill) →
+      // extras are not sellable here — never a free extra number.
+      return errorResponse(
+        c,
+        "conflict",
+        "Extra numbers aren't available yet. Contact support.",
+      );
+    }
+    const stripe = getStripe(env);
+    const subscription = await stripe.subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+    if (subscription.schedule) {
+      // #18: a pending plan change owns the subscription's items — a quantity
+      // bump would be rejected or undone at rollover. Rare; say so plainly.
+      return errorResponse(
+        c,
+        "conflict",
+        "A plan change is scheduled on your account. Add the number after it completes at the period end.",
+      );
+    }
+    const quantity = desiredExtraQuantity(currentCount + 1, company.plan);
+    try {
+      await setExtraNumberQuantity({
+        stripe,
+        subscription,
+        price,
+        quantity,
+        // The charge lands NOW — the customer pays for the extra as they add
+        // it, never a surprise at the next invoice.
+        proration: "always_invoice",
+        idempotencyKey: idempotencyKey(
+          companyId,
+          "extra_number_buy",
+          parsedKey.data,
+        ),
+      });
+    } catch (cause) {
+      // A raced concurrent first-extra buy: the loser's item CREATE hits
+      // Stripe's one-item-per-price rule. Clean conflict, not a 500 — the
+      // winner's quantity is live, so a retry sees it and updates instead.
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (/same price|duplicate/i.test(message)) {
+        return errorResponse(
+          c,
+          "conflict",
+          "Another number purchase just went through on this account. Try again in a moment.",
+        );
+      }
+      throw cause;
+    }
+    maxNumbers = effectiveNumberAllowance(company.plan, quantity);
+  }
+
   const { data: slotData, error: slotError } = await db.rpc(
     "provision_number_slot",
     {
@@ -221,7 +371,7 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
       p_provisioning_key: parsedKey.data,
       p_requested_area_code: areaCode,
       p_country: company.country,
-      p_max_numbers: PLAN_LIMITS[company.plan].numbers,
+      p_max_numbers: maxNumbers,
       p_chosen_number_e164: chosen,
       p_provision_cap: NUMBER_PROVISION_CHURN_CAP,
     },
@@ -244,10 +394,13 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
   ) as SlotResult;
 
   if (slot.outcome === "plan_limit") {
+    // Reachable only via a raced concurrent provision (the paid path already
+    // raised the allowance). A bumped-but-unused quantity is credited back by
+    // the daily reconcile's convergence, or consumed by the racer's number.
     return errorResponse(
       c,
       "conflict",
-      `Your plan includes ${PLAN_LIMITS[company.plan].numbers} phone number${PLAN_LIMITS[company.plan].numbers === 1 ? "" : "s"}. Upgrade or release a number first.`,
+      "Another number was just added on this account. Check Settings › Numbers, then try again if you still need one more.",
     );
   }
   if (slot.outcome === "sole_prop_cap") {
@@ -290,12 +443,13 @@ numbersRoutes.delete("/:id", requireRole("owner"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
 
   const { data, error } = await db
     .from("phone_numbers")
     .select(NUMBER_COLUMNS)
     .eq("id", id)
-    .eq("company_id", c.get("companyId"))
+    .eq("company_id", companyId)
     .limit(1);
   if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
   const row = (data?.[0] ?? null) as unknown as NumberRowFull | null;
@@ -305,6 +459,39 @@ numbersRoutes.delete("/:id", requireRole("owner"), async (c) => {
   }
 
   const released = await releaseNumberRow(env, row);
+
+  // #105: releasing a PAID extra stops its billing right away — converge the
+  // Stripe quantity down to the formula (credit rides the next invoice).
+  // Best-effort: a failure here never blocks the release (the number is gone
+  // either way) — the daily reconcile converges as the backstop.
+  try {
+    const { data: companyRows } = await db
+      .from("companies")
+      .select("plan,stripe_subscription_id")
+      .eq("id", companyId)
+      .limit(1);
+    const company = (companyRows?.[0] ?? null) as {
+      plan: PlanId | null;
+      stripe_subscription_id: string | null;
+    } | null;
+    if (company?.plan && company.stripe_subscription_id) {
+      await convergeExtraNumberQuantity({
+        env,
+        db,
+        stripe: getStripe(env),
+        companyId,
+        plan: company.plan,
+        stripeSubscriptionId: company.stripe_subscription_id,
+        now: new Date(),
+      });
+    }
+  } catch (cause) {
+    console.error(
+      `extra-number convergence after release failed for ${companyId} (daily reconcile will settle it):`,
+      cause instanceof Error ? cause.message : cause,
+    );
+  }
+
   return c.json(sanitizeNumber(released as NumberRowFull));
 });
 

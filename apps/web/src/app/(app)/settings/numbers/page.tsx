@@ -77,6 +77,16 @@ export default function NumbersSettingsPage() {
           const limit = company.data.plan
             ? PLAN_NUMBER_LIMIT[company.data.plan]
             : 0;
+          // #105 (#80): past the included count, the next number is a PAID
+          // extra — $5/mo on Starter (hard max 2 total), $4/mo on Pro
+          // (unlimited). US numbers only, and only once US texting is enabled.
+          // The message allowance stays shared across all numbers.
+          const paidExtra = usedSlots >= limit && limit > 0;
+          const canBuyExtra =
+            paidExtra &&
+            company.data.country === "US" &&
+            company.data.us_texting_enabled &&
+            !(company.data.plan === "starter" && usedSlots >= 2);
           // #74: a plan-included number can be (re)provisioned in-app whenever a
           // slot is open — NOT just Pro's second number. This is what lets a
           // Starter who released their only number get a replacement (their plan
@@ -85,7 +95,7 @@ export default function NumbersSettingsPage() {
           const canProvision =
             (role === "owner" || role === "admin") &&
             company.data.subscription_status === "active" &&
-            usedSlots < limit;
+            (usedSlots < limit || canBuyExtra);
 
           return (
             <div className="space-y-6">
@@ -105,11 +115,15 @@ export default function NumbersSettingsPage() {
               {canProvision && (
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    {usedSlots === 0
-                      ? // A released/first included number: getting one back is
-                        // part of the plan they already pay for.
-                        "Choose the number your customers will text — it's included in your plan, at no extra cost."
-                      : "Pro includes a second number, handy for a second crew or service area."}
+                    {paidExtra
+                      ? // #105: an honest price BEFORE the picker opens, plus
+                        // the shared-quota truth (an extra never adds messages).
+                        `An extra number is ${company.data.plan === "starter" ? "$5" : "$4"}/mo, billed to your subscription today. Your monthly message allowance is shared across all your numbers — an extra number doesn't add messages.`
+                      : usedSlots === 0
+                        ? // A released/first included number: getting one back is
+                          // part of the plan they already pay for.
+                          "Choose the number your customers will text — it's included in your plan, at no extra cost."
+                        : "Pro includes a second number, handy for a second crew or service area."}
                   </p>
                   <ProvisionNumberDialog country={company.data.country} />
                 </div>

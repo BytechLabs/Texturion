@@ -544,7 +544,9 @@ portingRoutes.post("/", requireRole("admin"), async (c) => {
     return errorResponse(
       c,
       "conflict",
-      `Your plan includes ${maxNumbers} phone number${maxNumbers === 1 ? "" : "s"}. Upgrade or release a number first.`,
+      // #105: ports don't buy paid-extra capacity yet (tracked on #80) — the
+      // honest remedy today is releasing a number or upgrading.
+      `Your plan includes ${maxNumbers} phone number${maxNumbers === 1 ? "" : "s"}, and transferring in needs a free slot. Release a number or upgrade first.`,
     );
   }
   if (slot.outcome === "sole_prop_cap") {

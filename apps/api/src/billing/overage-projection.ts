@@ -58,6 +58,10 @@ import {
 } from "./costs";
 import { enabledModules } from "./company-modules";
 import {
+  desiredExtraQuantity,
+  EXTRA_NUMBER_MONTHLY_CENTS,
+} from "./extra-numbers";
+import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
@@ -370,11 +374,19 @@ export async function decideOverage(
   company: OverageCompany,
   now: Date = new Date(),
 ): Promise<OverageDecision> {
-  const [usage, numbers, baseRevenueGrossCents] = await Promise.all([
+  const [usage, numbers, modules] = await Promise.all([
     readPeriodUsage(db, company),
     countActiveNumbers(db, company.id),
-    companyMonthlyRevenueGrossCents(db, company),
+    enabledModules(db, company.id),
   ]);
+  // Gross monthly revenue: plan + enabled modules + #105 paid extra numbers
+  // (each extra beyond the included count bills its per-plan price, so its
+  // rent in fixedMonthlyCostCents is offset by real revenue, not flagged as
+  // a loss).
+  const baseRevenueGrossCents =
+    companyRevenueCents(company.plan, modules) +
+    desiredExtraQuantity(numbers, company.plan) *
+      EXTRA_NUMBER_MONTHLY_CENTS[company.plan];
   return overageDecision(
     {
       usage,
@@ -388,13 +400,4 @@ export async function decideOverage(
     },
     now,
   );
-}
-
-/** Gross monthly revenue (plan + enabled modules) for a company. */
-async function companyMonthlyRevenueGrossCents(
-  db: SupabaseClient,
-  company: OverageCompany,
-): Promise<number> {
-  const modules = await enabledModules(db, company.id);
-  return companyRevenueCents(company.plan, modules);
 }

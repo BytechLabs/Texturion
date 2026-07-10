@@ -98,11 +98,59 @@ describe("/settings/numbers provisioning affordance (#74)", () => {
     expect(html).not.toContain("created automatically");
   });
 
-  it("hides the affordance for a Starter already at its 1-number limit", () => {
-    state.company = company({ plan: "starter", subscription_status: "active" });
+  it("offers a US-enabled Starter its 2nd number as a $5 paid extra (#105)", () => {
+    state.company = company({
+      plan: "starter",
+      subscription_status: "active",
+      us_texting_enabled: true,
+    });
+    state.numbers = [activeNumber()];
+    const html = render();
+    expect(html).toContain("Add a number");
+    expect(html).toContain("$5");
+    // The shared-quota truth is stated BEFORE the buy (#80).
+    expect(html).toContain("shared across all your numbers");
+  });
+
+  it("hides the paid-extra affordance without US texting enabled (#105)", () => {
+    state.company = company({
+      plan: "starter",
+      subscription_status: "active",
+      us_texting_enabled: false,
+    });
     state.numbers = [activeNumber()];
     const html = render();
     expect(html).not.toContain("Add a number");
+  });
+
+  it("hides the affordance at Starter's hard 2-number max (#105)", () => {
+    state.company = company({
+      plan: "starter",
+      subscription_status: "active",
+      us_texting_enabled: true,
+    });
+    state.numbers = [
+      activeNumber(),
+      { ...activeNumber(), id: "00000000-0000-4000-8000-000000000002" },
+    ];
+    const html = render();
+    expect(html).not.toContain("Add a number");
+  });
+
+  it("offers a US-enabled Pro a 3rd number as a $4 paid extra (#105)", () => {
+    state.company = company({
+      plan: "pro",
+      subscription_status: "active",
+      us_texting_enabled: true,
+    });
+    state.numbers = [
+      activeNumber(),
+      { ...activeNumber(), id: "00000000-0000-4000-8000-000000000002" },
+    ];
+    const html = render();
+    expect(html).toContain("Add a number");
+    expect(html).toContain("$4");
+    expect(html).toContain("shared across all your numbers");
   });
 
   it("shows the 'created automatically' note before the subscription is active", () => {

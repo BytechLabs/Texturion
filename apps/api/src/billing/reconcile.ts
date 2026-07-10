@@ -14,7 +14,9 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { syncSubscription } from "../webhooks/stripe";
 import { idempotencyKey } from "./idempotency";
+import { convergeExtraNumberQuantity } from "./extra-numbers";
 import { retiredModulePrices } from "./modules";
+import type { PlanId } from "./plans";
 import { applyPriceToSchedulePhases } from "./schedule-phases";
 import { getStripe, type Stripe } from "./stripe";
 
@@ -48,6 +50,8 @@ export interface SubscriptionReconcileSummary {
   orphanSubscriptionsFlagged: number;
   /** #103: retired-module line items stripped (with prorated credit). */
   retiredModuleItemsRemoved: number;
+  /** #105: extra-number quantities converged onto the count formula. */
+  extraNumberQuantitiesConverged: number;
 }
 
 export async function runSubscriptionReconcileJob(
@@ -61,6 +65,7 @@ export async function runSubscriptionReconcileJob(
     orphanSubscriptionsCancelled: 0,
     orphanSubscriptionsFlagged: 0,
     retiredModuleItemsRemoved: 0,
+    extraNumberQuantitiesConverged: 0,
   };
 
   const { data, error } = await db
@@ -146,7 +151,7 @@ async function sweepOrphanSubscriptions(
 ): Promise<void> {
   const { data, error } = await db
     .from("companies")
-    .select("id,stripe_customer_id,stripe_subscription_id")
+    .select("id,plan,stripe_customer_id,stripe_subscription_id")
     .not("stripe_customer_id", "is", null)
     .not("stripe_subscription_id", "is", null)
     .is("deleted_at", null);
@@ -159,6 +164,7 @@ async function sweepOrphanSubscriptions(
 
   for (const row of (data ?? []) as {
     id: string;
+    plan: PlanId | null;
     stripe_customer_id: string;
     stripe_subscription_id: string;
   }[]) {
@@ -190,6 +196,47 @@ async function sweepOrphanSubscriptions(
       // done. Never touches non-retired prices, never runs on a non-stored sub.
       if (stored) {
         await stripRetiredModuleItems(env, stripe, row.id, stored, summary, now);
+      }
+
+      // #105 backstop: converge the extra-number billing DOWN onto the formula
+      // (max(0, numbers − included)) — credits a crashed buy/release half and
+      // migrates a wrong-plan item stranded by an upgrade. NEVER charges
+      // upward: a count above what's billed (D16 port bridges, mid-port rows,
+      // pending-downgrade adds, data anomalies) is FLAGGED for a human — an
+      // automated "correction" there would be an unconsented charge. Live
+      // stored subs only; schedule-managed ones settle after their rollover.
+      // A failure is flagged + retried tomorrow, never reddening the run.
+      if (stored && row.plan && SETTLED_STATUSES.has(stored.status)) {
+        try {
+          const converged = await convergeExtraNumberQuantity({
+            env,
+            db,
+            stripe,
+            companyId: row.id,
+            plan: row.plan,
+            stripeSubscriptionId: row.stripe_subscription_id,
+            subscription: stored,
+            now,
+          });
+          if (converged?.kind === "lowered" || converged?.kind === "migrated") {
+            summary.extraNumberQuantitiesConverged += 1;
+            Sentry.captureMessage(
+              `subscription reconcile: ${converged.kind === "migrated" ? "migrated a wrong-plan extra-number item" : "lowered the extra-number quantity"} to ${converged.quantity} for company ${row.id} (#105 down-only convergence).`,
+              "warning",
+            );
+          } else if (converged?.kind === "over_included_unbilled") {
+            Sentry.captureMessage(
+              `subscription reconcile: company ${row.id} holds ${converged.desired - converged.billed} more number(s) than its billed extras (billed ${converged.billed}, formula ${converged.desired}) — NOT auto-charging (#105 down-only rule; likely a D16 port bridge or mid-port row). Review manually if it persists past the port window.`,
+              "warning",
+            );
+          }
+        } catch (cause) {
+          Sentry.captureException(cause);
+          Sentry.captureMessage(
+            `subscription reconcile: extra-number convergence failed for company ${row.id} — will retry next sweep.`,
+            "error",
+          );
+        }
       }
 
       for (const s of subs.data) {

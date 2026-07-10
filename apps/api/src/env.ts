@@ -96,6 +96,14 @@ const envSchema = z.object({
   STRIPE_MODULE_VOICE_PRICE_ID: z.string().min(1).optional(),
   STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: z.string().min(1).optional(),
   STRIPE_MODULE_REGIONS_CA_PRICE_ID: z.string().min(1).optional(),
+  /**
+   * #105 (#80) extra-number prices: one licensed price per plan ($5 Starter /
+   * $4 Pro), quantity = paid extras beyond the plan's included numbers.
+   * OPTIONAL: unset means extras are not purchasable in this environment
+   * (billing/extra-numbers.ts fails CLOSED — never a free extra number).
+   */
+  STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_EXTRA_NUMBER_PRO_PRICE_ID: z.string().min(1).optional(),
   /** Billing Meter `event_name` (SPEC §9: 'sms_segments'). */
   STRIPE_SMS_METER_EVENT_NAME: z.string().min(1),
   /**

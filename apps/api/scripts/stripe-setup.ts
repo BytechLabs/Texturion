@@ -43,6 +43,10 @@ const MODULE_PRICES: {
   { id: "voice", label: "Call forwarding", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
   { id: "extra_storage", label: "Extra storage", monthlyCents: 500, envKey: "STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID" },
   { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },
+  // #105 (#80): per-plan extra-number prices — quantity on the subscription =
+  // paid extras beyond the plan's included numbers (billing/extra-numbers.ts).
+  { id: "extra_number_starter", label: "Extra number (Starter)", monthlyCents: 500, envKey: "STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID" },
+  { id: "extra_number_pro", label: "Extra number (Pro)", monthlyCents: 400, envKey: "STRIPE_EXTRA_NUMBER_PRO_PRICE_ID" },
 ];
 
 const secretKey = process.env.STRIPE_SECRET_KEY;

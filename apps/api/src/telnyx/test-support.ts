@@ -175,6 +175,18 @@ export class FakeRest {
         return Response.json(structuredClone(matched));
       }
 
+      // supabase-js `count: "exact", head: true` → a HEAD request whose count
+      // rides the PostgREST content-range header (no body).
+      if (request.method === "HEAD") {
+        const matched = spec.rows.filter((row) => rowMatches(row, url));
+        return new Response(null, {
+          status: 200,
+          headers: {
+            "content-range": `0-${Math.max(0, matched.length - 1)}/${matched.length}`,
+          },
+        });
+      }
+
       if (request.method === "POST") {
         const body = (await request.clone().json()) as Row | Row[];
         const incoming = Array.isArray(body) ? body : [body];

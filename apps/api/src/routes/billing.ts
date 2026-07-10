@@ -12,6 +12,11 @@ import {
   type PlanId,
 } from "../billing/plans";
 import { enabledModules, isSellableModule } from "../billing/company-modules";
+import {
+  allExtraNumberPrices,
+  extraNumberPrice,
+  findExtraNumberItem,
+} from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
 import {
   MODULE_CATALOG,
@@ -367,10 +372,27 @@ billingRoutes.post("/change-plan", async (c) => {
   if (target === "pro") {
     // UPGRADE: immediate, prorated onto an invoice issued now (SPEC §9).
     const prices = planPrices(env, "pro");
+    // #105: a paid Starter extra-number item must move to the Pro price ($4)
+    // WITH the upgrade — left behind it would bill the Starter price forever,
+    // invisible to the (per-plan-price) convergence formula.
+    const starterExtraPrice = extraNumberPrice(env, "starter");
+    const proExtraPrice = extraNumberPrice(env, "pro");
+    const extraItem = starterExtraPrice
+      ? findExtraNumberItem(subscription, starterExtraPrice)
+      : undefined;
     await stripe.subscriptions.update(subscription.id, {
       items: [
         { id: licensedItem.id, price: prices.licensed },
         { id: meteredItem.id, price: prices.metered },
+        ...(extraItem && proExtraPrice
+          ? [
+              {
+                id: extraItem.id,
+                price: proExtraPrice,
+                quantity: extraItem.quantity ?? 1,
+              },
+            ]
+          : []),
       ],
       proration_behavior: "always_invoice",
     });
@@ -419,16 +441,23 @@ billingRoutes.post("/change-plan", async (c) => {
   const phaseStart =
     schedule.current_phase?.start_date ?? schedule.phases[0].start_date;
   const starterPrices = planPrices(env, "starter");
+  // #105: the downgrade requires count ≤ 1, so ANY surviving extra-number item
+  // is stale (a crashed release-convergence). Pin it into NEITHER phase — the
+  // current-phase drop credits it now instead of freezing the charge into the
+  // schedule for up to a month.
+  const staleExtraPrices = new Set(allExtraNumberPrices(env));
   await stripe.subscriptionSchedules.update(schedule.id, {
     end_behavior: "release",
     phases: [
       {
         // Current phase: today's items, unchanged, through the period end.
-        items: subscription.items.data.map((item) =>
-          isMeteredItem(item)
-            ? { price: item.price.id }
-            : { price: item.price.id, quantity: item.quantity ?? 1 },
-        ),
+        items: subscription.items.data
+          .filter((item) => !staleExtraPrices.has(item.price.id))
+          .map((item) =>
+            isMeteredItem(item)
+              ? { price: item.price.id }
+              : { price: item.price.id, quantity: item.quantity ?? 1 },
+          ),
         start_date: phaseStart,
         end_date: currentPeriodEnd,
       },
