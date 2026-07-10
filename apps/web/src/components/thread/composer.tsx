@@ -509,7 +509,18 @@ export function Composer({
                     <Plus className="size-5" strokeWidth={1.75} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" side="top" className="w-44">
+                <DropdownMenuContent
+                  align="start"
+                  side="top"
+                  className="w-44"
+                  // #120: both items open ANOTHER surface (the file dialog /
+                  // the saved-replies popover). Radix's default close behavior
+                  // returns focus to the + trigger, which on mobile yanked
+                  // focus out of the just-opened picker: the keyboard flashed
+                  // up, focus snapped back, and the popover dismissed itself
+                  // as "focus outside" — "nothing happens".
+                  onCloseAutoFocus={(event) => event.preventDefault()}
+                >
                   <DropdownMenuItem
                     onSelect={openFilePicker}
                     disabled={attachDisabled}

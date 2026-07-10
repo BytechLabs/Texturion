@@ -295,6 +295,16 @@ values
 on conflict (id) do nothing;
 
 -- Dana has read the older threads; V1's newest message and V4 stay unread.
+-- Saved replies so the composer's template picker has real rows (#120).
+insert into public.templates (id, company_id, name, body, created_by) values
+  ('99999999-0000-4000-8000-000000000001', '${COMPANY}', 'On my way',
+   'On my way now, should be there in about 20 minutes.', '${dana}'),
+  ('99999999-0000-4000-8000-000000000002', '${COMPANY}', 'Running late',
+   'Running about 30 minutes behind today, sorry. Still want me to come by?', '${dana}'),
+  ('99999999-0000-4000-8000-000000000003', '${COMPANY}', 'Quote follow-up',
+   'Just checking in on the quote we sent over. Any questions I can answer?', '${sam}')
+on conflict (id) do nothing;
+
 insert into public.conversation_reads (conversation_id, user_id, last_read_at) values
   ('${V(1)}', '${dana}', now() - interval '12 hours'),
   ('${V(2)}', '${dana}', now() - interval '3 months'),
