@@ -22,6 +22,7 @@ import { Hono } from "hono";
 
 import { requireRole } from "../auth/company";
 import { effectiveStorageBudgets } from "../billing/company-modules";
+import { decideOverage } from "../billing/overage-projection";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -40,6 +41,7 @@ interface CompanyUsageRow {
   current_period_start: string | null;
   current_period_end: string | null;
   overage_cap_multiplier: number | string | null;
+  us_texting_enabled: boolean;
 }
 
 /** DESIGN G8: the usage screen renders a 6-month history. */
@@ -55,7 +57,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     await db
       .from("companies")
       .select(
-        "plan,current_period_start,current_period_end,overage_cap_multiplier",
+        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled",
       )
       .eq("id", companyId)
       .is("deleted_at", null)
@@ -80,6 +82,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
+      overage_projection: { trending_over: false, projected_overage_cents: 0 },
       history: [],
       storage: {
         attachments_bytes: 0,
@@ -171,6 +174,24 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       ? null
       : Number(company.overage_cap_multiplier);
 
+  // #85/#93: the dynamic END-OF-PERIOD projection (extrapolated), distinct from
+  // the overage-SO-FAR figure below. Exposes only the customer-facing bits —
+  // whether they're trending over what they pay + their projected extra
+  // charges — never our internal cost/margin. Gates the conditional overage
+  // surface in settings (and the warning email from #92 links here).
+  const projection = await decideOverage(
+    db,
+    {
+      id: companyId,
+      plan: company.plan,
+      current_period_start: company.current_period_start,
+      current_period_end: company.current_period_end,
+      us_texting_enabled: company.us_texting_enabled,
+      overage_cap_multiplier: multiplier,
+    },
+    new Date(),
+  );
+
   return c.json({
     period_start: company.current_period_start,
     period_end: company.current_period_end,
@@ -182,6 +203,12 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     projected_overage_cents: Math.round(
       overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan],
     ),
+    overage_projection: {
+      trending_over: projection.trendingOver,
+      projected_overage_cents: Math.round(
+        projection.projectedOverageChargesCents,
+      ),
+    },
     history,
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),

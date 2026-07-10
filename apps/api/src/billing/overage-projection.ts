@@ -99,6 +99,11 @@ export interface OverageDecision {
   revenueCents: number;
   /** revenueCents - extrapolatedCostCents (negative = projected loss). */
   marginCents: number;
+  /** Projected month-end OUTBOUND overage the CUSTOMER will be billed, in cents
+   *  (gross, before Stripe). Customer-facing — the "$X extra this period" figure
+   *  a settings/usage surface can show. Distinct from the internal cost/margin
+   *  above, which are ours and must not be exposed to the customer. */
+  projectedOverageChargesCents: number;
   /** Days elapsed in the current period at `now`. */
   elapsedDays: number;
   /** Nominal length of the current period in days. */
@@ -260,6 +265,7 @@ export function overageDecision(
     extrapolatedCostCents,
     revenueCents,
     marginCents,
+    projectedOverageChargesCents: projected.overageRevenueGrossCents,
     elapsedDays,
     periodDays,
   };

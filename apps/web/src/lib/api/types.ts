@@ -660,6 +660,15 @@ export interface UsageMms {
   included_messages: number;
 }
 
+/** #85 dynamic overage projection embedded in GET /v1/usage. */
+export interface UsageOverageProjection {
+  /** True when the tenant is projected to run past what their plan covers — the
+   *  only time the app surfaces the overage notice + controls. */
+  trending_over: boolean;
+  /** Extrapolated end-of-period overage the customer would be billed, in cents. */
+  projected_overage_cents: number;
+}
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 export interface Usage {
   period_start: string | null;
@@ -671,6 +680,10 @@ export interface Usage {
   overage_segments: number;
   cap_segments: number | null; // null = no cap
   projected_overage_cents: number;
+  /** #85: the dynamic END-OF-PERIOD projection. `trending_over` gates the
+   *  conditional overage surface (shown only when the tenant is pacing past what
+   *  they pay); `projected_overage_cents` is the extrapolated extra charge. */
+  overage_projection: UsageOverageProjection;
   /** Last 6 calendar months, oldest first (empty pre-subscription). */
   history: UsageMonth[];
   /** D30: the company's stored bytes, both arms. */

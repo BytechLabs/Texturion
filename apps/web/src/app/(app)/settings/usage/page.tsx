@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge } from "lucide-react";
+import { Gauge, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 import { CapControl } from "@/components/settings/cap-control";
@@ -354,6 +354,49 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
   );
 }
 
+/**
+ * #85/#93: the conditional overage heads-up. Shown ONLY when the dynamic
+ * end-of-period projection says the tenant is pacing past what their plan
+ * covers — otherwise the usage screen stays quiet (the fair-use posture). It
+ * surfaces the projected extra charge and points at the spending cap below,
+ * which is the control the customer can actually turn. This is the surface the
+ * #92 warning email links to.
+ */
+function OverageProjectionNotice({ usage }: { usage: Usage }) {
+  const projected = usage.overage_projection.projected_overage_cents;
+  return (
+    <SettingsCard>
+      <div className="flex items-start gap-3">
+        <TrendingUp
+          className="mt-0.5 size-5 shrink-0 text-warning"
+          strokeWidth={2}
+          aria-hidden
+        />
+        <div className="space-y-1 text-sm">
+          <p className="font-medium text-foreground">
+            You&apos;re on track to go past what your plan covers this period.
+          </p>
+          <p className="text-muted-foreground">
+            {projected > 0 ? (
+              <>
+                At your current pace, that&apos;s about{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {dollars(projected)}
+                </span>{" "}
+                in extra charges by the end of the period.{" "}
+              </>
+            ) : (
+              <>Your usage is running higher than usual this period. </>
+            )}
+            You control the spending cap below, so charges never grow past a
+            limit you set.
+          </p>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function UsageSettingsPage() {
   const usage = useUsage();
   const company = useCompany();
@@ -393,6 +436,10 @@ export default function UsageSettingsPage() {
         </SettingsCard>
       ) : (
         <div className="space-y-8">
+          {usage.data.overage_projection.trending_over && (
+            <OverageProjectionNotice usage={usage.data} />
+          )}
+
           <SettingsCard title="This period">
             <PeriodMeter usage={usage.data} />
           </SettingsCard>

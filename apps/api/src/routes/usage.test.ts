@@ -8,6 +8,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   apiRequest,
   buildTestApp,
+  countResponse,
   membershipResponder,
   supabaseStub,
   type SupabaseStub,
@@ -77,6 +78,9 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_period_outbound_mms", () => MMS_USED);
   // #12: effectiveStorageBudgets reads company_modules; [] = extra_storage off.
   sb.on("GET", "/rest/v1/company_modules", () => []);
+  // #85/#93: decideOverage also reads egress + the non-released number count.
+  sb.on("POST", "/rest/v1/rpc/api_period_egress_bytes", () => 0);
+  sb.on("HEAD", "/rest/v1/phone_numbers", () => countResponse(1));
   return sb;
 }
 
@@ -88,6 +92,7 @@ const starterCompany = {
   current_period_start: "2026-06-15T00:00:00+00:00",
   current_period_end: "2026-07-15T00:00:00+00:00",
   overage_cap_multiplier: 3,
+  us_texting_enabled: true,
 };
 
 describe("GET /v1/usage", () => {
@@ -108,6 +113,13 @@ describe("GET /v1/usage", () => {
       overage_segments: 120,
       cap_segments: 1500,
       projected_overage_cents: 360,
+      // Extrapolated end-of-period projection (exact value depends on the
+      // wall-clock position in the period; the math is pinned in
+      // overage-projection.test.ts, so here we assert only the shape).
+      overage_projection: {
+        trending_over: expect.any(Boolean),
+        projected_overage_cents: expect.any(Number),
+      },
       history: HISTORY,
       storage: {
         attachments_bytes: 123_456,
@@ -181,6 +193,29 @@ describe("GET /v1/usage", () => {
     });
   });
 
+  it("exposes the extrapolated overage projection (=so-far once the period is complete)", async () => {
+    // A period entirely in the past: elapsed >> length, so the extrapolation
+    // multiplier clamps to 1 (the stale-period fail-safe) and the projected
+    // end-of-period overage equals the overage so far — deterministic without
+    // faking the clock. 620 used - 500 included = 120 over * 3c = 360c.
+    const sb = usageStub(
+      {
+        ...starterCompany,
+        current_period_start: "2020-06-15T00:00:00+00:00",
+        current_period_end: "2020-07-15T00:00:00+00:00",
+      },
+      620,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    expect(await res.json()).toMatchObject({
+      projected_overage_cents: 360,
+      overage_projection: { trending_over: false, projected_overage_cents: 360 },
+    });
+  });
+
   it("never-subscribed company (plan null) reads as zeros without querying usage", async () => {
     const sb = usageStub(
       {
@@ -205,6 +240,7 @@ describe("GET /v1/usage", () => {
       overage_segments: 0,
       cap_segments: null,
       projected_overage_cents: 0,
+      overage_projection: { trending_over: false, projected_overage_cents: 0 },
       history: [],
       storage: {
         attachments_bytes: 0,

@@ -39,6 +39,7 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
     overage_segments: 0,
     cap_segments: 1500,
     projected_overage_cents: 0,
+    overage_projection: { trending_over: false, projected_overage_cents: 0 },
     history: [],
     storage: {
       attachments_bytes: 0,
@@ -90,5 +91,47 @@ describe("/settings/usage cap status", () => {
       expect(html).not.toContain("No cap");
       expect(html).not.toContain("billed as you go");
     }
+  });
+});
+
+/**
+ * #85/#93: the overage heads-up is shown ONLY when the dynamic projection says
+ * the tenant is trending over what they pay — the fair-use "quiet unless it
+ * matters" posture. When it shows, it names the projected extra charge and
+ * points at the spending cap.
+ */
+describe("/settings/usage overage projection notice", () => {
+  beforeEach(() => {
+    state.usage = null as unknown as Usage;
+  });
+
+  it("stays hidden when the tenant is not trending over", () => {
+    const html = render(
+      baseUsage({
+        overage_projection: { trending_over: false, projected_overage_cents: 4200 },
+      }),
+    );
+    expect(html).not.toContain("on track to go past what your plan covers");
+  });
+
+  it("surfaces the projected extra charge and the cap when trending over", () => {
+    const html = render(
+      baseUsage({
+        overage_projection: { trending_over: true, projected_overage_cents: 4200 },
+      }),
+    );
+    expect(html).toContain("on track to go past what your plan covers");
+    expect(html).toContain("$42.00");
+    expect(html).toContain("spending cap");
+  });
+
+  it("omits the dollar figure when there is no projected overage charge", () => {
+    const html = render(
+      baseUsage({
+        overage_projection: { trending_over: true, projected_overage_cents: 0 },
+      }),
+    );
+    expect(html).toContain("on track to go past what your plan covers");
+    expect(html).toContain("running higher than usual");
   });
 });
