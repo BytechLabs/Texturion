@@ -4,6 +4,16 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // #118: wrangler's bundler defaults keep_names to true, making esbuild
+  // inject __name(...) helper calls into every function — INCLUDING functions
+  // whose source gets serialized into inline <script> strings at runtime
+  // (next-themes' anti-FOUC theme script reads its own Function.toString()).
+  // The helper only exists in the worker module scope, so every page threw
+  // "ReferenceError: __name is not defined" in the browser and the
+  // pre-hydration theme class was never set (light flash for dark users).
+  // Sourcemaps keep worker stack traces readable instead.
+  "keep_names": false,
+  "upload_source_maps": true,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

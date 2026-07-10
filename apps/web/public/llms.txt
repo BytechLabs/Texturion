@@ -67,4 +67,18 @@ Website: https://loonext.com
 - Data is processed in the United States (Supabase on AWS us-east-1).
 
 ## Contact
-- Support is by email only, usually within one business day.
+- Support is by email only ([support@loonext.com](mailto:support@loonext.com)), usually within one business day.
+
+## Pages
+- [Pricing](https://loonext.com/pricing): the interactive plan builder with the live total, both plans, and every add-on module.
+- [Shared inbox](https://loonext.com/features/shared-inbox): every customer text in one inbox the whole crew can see.
+- [Your business number](https://loonext.com/features/business-number): a local number that belongs to the business, new or ported in free.
+- [Compliance built in](https://loonext.com/features/compliance): registration, opt-outs, and consent, handled by the product.
+- [Templates and tags](https://loonext.com/features/templates-and-tags): saved replies and tags that match how you sell.
+- [Canada](https://loonext.com/canada): Canadian businesses text Canadian customers the same day they sign up.
+- [For plumbers](https://loonext.com/for/plumbers), [HVAC](https://loonext.com/for/hvac), [landscapers](https://loonext.com/for/landscapers), [cleaners](https://loonext.com/for/cleaners), [salons](https://loonext.com/for/salons), and [contractors](https://loonext.com/for/contractors): the product in each trade's own words.
+- [Loonext vs Heymarket](https://loonext.com/compare/heymarket) and [Loonext vs Quo](https://loonext.com/compare/quo): flat per-company pricing against per-user pricing.
+- [Security](https://loonext.com/security): tenant isolation, encryption, and what stays out of logs.
+- [Status](https://loonext.com/status): live service status.
+- [Contact](https://loonext.com/contact): reach support.
+- [Terms](https://loonext.com/legal/terms), [Privacy](https://loonext.com/legal/privacy), [Messaging policy](https://loonext.com/legal/messaging), and [Refunds](https://loonext.com/legal/refunds): the legal pages in plain language.

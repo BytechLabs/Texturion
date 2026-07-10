@@ -18,10 +18,14 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
     expect(byKey.get("X-Content-Type-Options")).toBe("nosniff");
   });
 
-  it("pins HTTPS for a year including subdomains", () => {
+  it("pins HTTPS for a year including subdomains, preload-eligible (#118)", () => {
     expect(byKey.get("Strict-Transport-Security")).toBe(
-      "max-age=31536000; includeSubDomains",
+      "max-age=31536000; includeSubDomains; preload",
     );
+  });
+
+  it("isolates the browsing context group (#118, no scripted popups exist)", () => {
+    expect(byKey.get("Cross-Origin-Opener-Policy")).toBe("same-origin");
   });
 
   it("keeps full referrers same-origin only", () => {
@@ -39,6 +43,7 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
     expect([...byKey.keys()].sort()).toEqual(
       [
         "Content-Security-Policy",
+        "Cross-Origin-Opener-Policy",
         "Permissions-Policy",
         "Referrer-Policy",
         "Strict-Transport-Security",

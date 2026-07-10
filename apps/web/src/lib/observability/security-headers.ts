@@ -26,12 +26,18 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
   // Never MIME-sniff a response into an executable type.
   { key: "X-Content-Type-Options", value: "nosniff" },
   // HTTPS only, one year, subdomains included (loonext.com and the
-  // app/api hosts all terminate TLS at Cloudflare). Browsers ignore HSTS on
-  // plain-HTTP responses, so local `next dev` is unaffected.
+  // app/api hosts all terminate TLS at Cloudflare), preload-eligible (#118 —
+  // the "strong HSTS" bar: max-age >= 1y + includeSubDomains + preload).
+  // Browsers ignore HSTS on plain-HTTP responses, so local `next dev` is
+  // unaffected.
   {
     key: "Strict-Transport-Security",
-    value: "max-age=31536000; includeSubDomains",
+    value: "max-age=31536000; includeSubDomains; preload",
   },
+  // Origin isolation (#118): no page here opens popups it needs to script
+  // (OAuth, Stripe Checkout, and the billing portal are all redirect flows;
+  // repo-wide grep finds zero window.open), so the strictest value is free.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   // Full URL only to same-origin destinations; origin only cross-origin —
   // conversation/contact UUIDs in paths never leak to third parties.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
