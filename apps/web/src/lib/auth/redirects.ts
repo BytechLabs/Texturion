@@ -10,10 +10,18 @@
  *   the middleware must not bounce them.
  */
 
-/** URL prefixes of the (app) route group + onboarding (route groups don't appear in URLs). */
+/** URL prefixes of the (app) route group + onboarding (route groups don't
+ *  appear in URLs). EVERY (app) page directory must be listed: an omission
+ *  double-fails — signed-out visitors aren't bounced to /login, AND the D27
+ *  host split classifies the path as marketing, 308ing app.loonext.com to
+ *  the apex where the shell can never authenticate (#133: /calls shipped in
+ *  D37 without this registration and was unreachable in production).
+ *  app-routes-registered.test.ts derives the list from the filesystem so the
+ *  next new route cannot repeat this. */
 const PROTECTED_PREFIXES = [
   "/for-you",
   "/inbox",
+  "/calls",
   "/tasks",
   "/contacts",
   "/templates",

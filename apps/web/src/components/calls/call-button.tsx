@@ -8,10 +8,10 @@
  * member's cell in a small dialog and — D40 (#133) — VERIFIES it with a
  * texted code before anything can dial it (possession, not just syntax:
  * a typo would ring a stranger with the business number). With the module
- * off, the button degrades to the original `tel:` link — never a dead
- * control; while the module state is still LOADING it renders disabled
- * instead (#133 — the tel: fallback here leaked personal cells during the
- * load window).
+ * off, the button opens an honest explain-and-upsell dialog with an
+ * explicit tel: escape hatch (#133 — the old silent tel: fallback read as
+ * broken and quietly dialed from the personal cell); while the module state
+ * is still LOADING or errored it renders disabled.
  *
  * After a dial is accepted the button holds a "calling" state for the agent
  * ring window instead of instantly re-arming — the server refuses a second
@@ -19,6 +19,7 @@
  * honest about it.
  */
 import { Phone, PhoneOutgoing } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -94,21 +95,14 @@ export function CallButton({
     );
   }
 
-  // Module off → the original tel: link, unchanged.
+  // Module off → an HONEST affordance (#133 follow-up): the old silent tel:
+  // fallback read as broken ("why is the call button just a tel: link?") and
+  // quietly dialed from the member's personal cell. Clicking now explains
+  // that Calling is off, points at Settings › Billing, and keeps the tel:
+  // escape hatch as an explicit, labeled choice — never a dead control,
+  // never a surprise personal-cell dial.
   if (!voiceOn) {
-    return (
-      <Button
-        asChild
-        variant="ghost"
-        size="icon-sm"
-        className={className}
-        aria-label={`Call ${contactName}`}
-      >
-        <a href={`tel:${phone}`}>
-          <Phone className="size-4" strokeWidth={1.75} />
-        </a>
-      </Button>
-    );
+    return <ModuleOffCallButton contactName={contactName} phone={phone} className={className} />;
   }
 
   function dial() {
@@ -325,6 +319,56 @@ export function CallButton({
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Module-off state: explain, upsell, and keep an explicit tel: escape hatch. */
+function ModuleOffCallButton({
+  contactName,
+  phone,
+  className,
+}: {
+  contactName: string;
+  phone: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={className}
+        aria-label={`Call ${contactName}`}
+        onClick={() => setOpen(true)}
+      >
+        <Phone className="size-4" strokeWidth={1.75} />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Calling is off for this workspace</DialogTitle>
+            <DialogDescription>
+              With the Calling add-on, this button rings your cell first and
+              connects you to {contactName} from your business number — they
+              never see your personal cell. Right now the add-on is off.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button asChild variant="outline">
+              <a href={`tel:${phone}`} onClick={() => setOpen(false)}>
+                Call from this phone instead
+              </a>
+            </Button>
+            <Button asChild>
+              <Link href="/settings/billing" onClick={() => setOpen(false)}>
+                Turn on Calling
+              </Link>
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
