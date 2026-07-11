@@ -313,6 +313,47 @@ insert into public.conversation_reads (conversation_id, user_id, last_read_at) v
   ('${V(6)}', '${dana}', now() - interval '5 days')
 on conflict do nothing;
 
+-- #129 Calls: a realistic call log — a fresh miss (threaded, with its
+-- text-back lines), an answered call with talk time, a voicemail, and an
+-- anonymous unthreaded ring.
+insert into public.calls
+  (id, company_id, phone_number_id, call_session_id, caller_e164, contact_id,
+   conversation_id, outcome, forward_seconds, started_at, ended_at)
+values
+  ('88888888-0000-4000-8000-000000000001', '${COMPANY}', '${NUMBER}',
+   'seed-call-1', '+14155550133', '${C(3)}', '${V(4)}', 'missed', 0,
+   now() - interval '25 minutes', now() - interval '24 minutes'),
+  ('88888888-0000-4000-8000-000000000002', '${COMPANY}', '${NUMBER}',
+   'seed-call-2', '+14155550111', '${C(1)}', '${V(1)}', 'answered', 272,
+   now() - interval '3 hours', now() - interval '3 hours' + interval '272 seconds'),
+  ('88888888-0000-4000-8000-000000000003', '${COMPANY}', '${NUMBER}',
+   'seed-call-3', '+14155550144', '${C(4)}', '${V(5)}', 'voicemail', 31,
+   now() - interval '1 day', now() - interval '1 day' + interval '31 seconds'),
+  ('88888888-0000-4000-8000-000000000004', '${COMPANY}', '${NUMBER}',
+   'seed-call-4', null, null, null, 'answered', 58,
+   now() - interval '2 days', now() - interval '2 days' + interval '58 seconds')
+on conflict (id) do nothing;
+
+insert into public.conversation_events
+  (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
+values
+  ('f0000000-0000-4000-8000-000000000091', '${COMPANY}', '${V(4)}', null,
+   'call_completed',
+   jsonb_build_object('call_session_id', 'seed-call-1', 'outcome', 'missed',
+                      'forward_seconds', 0, 'caller', '+14155550133'),
+   now() - interval '24 minutes'),
+  ('f0000000-0000-4000-8000-000000000092', '${COMPANY}', '${V(1)}', null,
+   'call_completed',
+   jsonb_build_object('call_session_id', 'seed-call-2', 'outcome', 'answered',
+                      'forward_seconds', 272, 'caller', '+14155550111'),
+   now() - interval '3 hours'),
+  ('f0000000-0000-4000-8000-000000000093', '${COMPANY}', '${V(5)}', null,
+   'call_completed',
+   jsonb_build_object('call_session_id', 'seed-call-3', 'outcome', 'voicemail',
+                      'forward_seconds', 31, 'caller', '+14155550144'),
+   now() - interval '1 day')
+on conflict (id) do nothing;
+
 commit;
 `);
 

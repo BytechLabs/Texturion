@@ -8,6 +8,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  PhoneIncoming,
   Settings,
   Sun,
 } from "lucide-react";
@@ -208,6 +209,17 @@ export function MobileAccountSheetBody({
               </div>
             )}
           </section>
+
+          {/* #129: the mobile home of the call log — the tab bar stays four
+              links + avatar (#100), so Calls rides the account sheet. */}
+          <Link href="/calls" className={rowClass} onClick={onClose}>
+            <PhoneIncoming
+              className="size-4 shrink-0 text-app-muted-2"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            Calls
+          </Link>
 
           <Link href="/settings" className={rowClass} onClick={onClose}>
             <Settings

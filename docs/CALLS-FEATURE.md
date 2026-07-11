@@ -68,3 +68,17 @@ feel like a feature, not a fee.
    opens the right conversation.
 5. All suites green (api, web, SQL); no new cost center unbounded; no
    marketing surface gains a number.
+
+## Status (D37, 2026-07-10)
+
+Shipped: P1 (calls read model + outcomes), P2 (call_completed timeline lines),
+P3 (/calls desktop + mobile + account-sheet entry, #106-filtered), P5 (settings
+home unchanged, fine print honest per D36), P6 (D36 billing, #128), P7
+(security review inline; RPC grants pinned in calls_feature.test.sql).
+
+Deferred (next wave, in priority order):
+1. P4 remainder — a `missed_call`/`call_completed` arm on the D24
+   `api_notifications` twins so misses reach the in-app bell, and decoupling
+   `notifyMissedCall` from the MCTB claim so the crew alert fires even with
+   text-back off (deep link /inbox/{id} when threaded, else /calls).
+2. A For You "Recent calls" section as the second mobile entry point.

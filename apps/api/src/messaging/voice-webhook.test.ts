@@ -231,6 +231,52 @@ function stampStub(): Stub {
   );
 }
 
+/** #129: api_upsert_call RPC — echoes the merged session row. The default
+ *  derives outcome/seconds from the request so threading sees what the SQL
+ *  merge would return for a single-event call. */
+function upsertCallStub(merged: Record<string, unknown> = {}): Stub {
+  return stubRoute(rpcMatch(env, "api_upsert_call"), (call) => {
+    const body = call.body as {
+      p_call_session_id: string;
+      p_caller_e164: string | null;
+      p_outcome: string | null;
+      p_forward_seconds: number;
+    };
+    return {
+      id: "call-row-1",
+      call_session_id: body.p_call_session_id,
+      caller_e164: body.p_caller_e164,
+      outcome: body.p_outcome,
+      forward_seconds: body.p_forward_seconds,
+      conversation_id: null,
+      ...merged,
+    };
+  });
+}
+
+/** #129: api_thread_call RPC — default threads into a conversation. */
+function threadCallStub(
+  result: Record<string, unknown> = {
+    contact_id: "ct-1",
+    conversation_id: "bbbbbbbb-0000-4000-8000-00000000000b",
+  },
+): Stub {
+  return stubRoute(rpcMatch(env, "api_thread_call"), () => result);
+}
+
+/** #129: the calls-row contact/conversation link PATCH. */
+function callsLinkStub(): Stub {
+  return stubRoute(
+    restMatch(env, "PATCH", "calls"),
+    () => new Response(null, { status: 204 }),
+  );
+}
+
+/** Every #129 calls read-model stub a terminal-event test needs. */
+function callsModelStubs(): Stub[] {
+  return [upsertCallStub(), threadCallStub(), callsLinkStub()];
+}
+
 function telnyxSms(): Stub {
   return stubRoute(
     (url, request) =>
@@ -279,8 +325,16 @@ function persistStub(): Stub {
   );
 }
 
+/**
+ * Every terminal event now feeds the #129 calls read model, so its three
+ * stubs are served by DEFAULT (appended last — a test's own upsert/thread/
+ * link stub, passed explicitly, wins by order). Everything else still fails
+ * loudly when unstubbed.
+ */
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(
+    ...([...stubs, ...callsModelStubs()].map((s) => s.route) as FetchRoute[]),
+  );
 }
 
 function event(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
@@ -709,6 +763,170 @@ describe("handleCallEvent — terminal → text-back", () => {
       stripe_reported_at: expect.any(String),
     });
     expect(meter.calls).toHaveLength(0);
+  });
+
+  it("#129: an answered forward-leg hangup merges the session, threads it (join-only), and links the row", async () => {
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    const link = callsLinkStub();
+    serve(
+      numberStub(),
+      callRecordsInsertStub(),
+      customerStub(),
+      meterStub(),
+      stampStub(),
+      upsert,
+      thread,
+      link,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-ans",
+        from: OUR_NUMBER,
+        to: CELL,
+        hangup_cause: "normal_clearing",
+        client_state: forwardState(CALLER),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:04:32.000Z", // 272 s of talk
+      }),
+    );
+
+    expect(upsert.calls).toHaveLength(1);
+    expect(upsert.calls[0].body).toMatchObject({
+      p_call_session_id: SESSION,
+      p_caller_e164: CALLER,
+      p_outcome: "answered",
+      p_forward_seconds: 272,
+    });
+    // Answered calls JOIN an open conversation, never create one.
+    expect(thread.calls).toHaveLength(1);
+    expect(thread.calls[0].body).toMatchObject({
+      p_outcome: "answered",
+      p_forward_seconds: 272,
+      p_create_if_missing: false,
+    });
+    // The returned ids are linked onto the calls row (guarded on null).
+    expect(link.calls).toHaveLength(1);
+    expect(link.calls[0].url.searchParams.get("call_session_id")).toBe(
+      `eq.${SESSION}`,
+    );
+    expect(link.calls[0].url.searchParams.get("conversation_id")).toBe(
+      "is.null",
+    );
+  });
+
+  it("#129: a no-forward miss threads with CREATE (a miss must reach the inbox even with text-back off)", async () => {
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    serve(
+      numberStub(),
+      callRecordsStub(),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claimStub(),
+      telnyxSms(),
+      persistStub(),
+      ...alertStubs(),
+      upsert,
+      thread,
+      callsLinkStub(),
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-inb-miss",
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:12.000Z",
+      }),
+    );
+
+    expect(upsert.calls[0].body).toMatchObject({
+      p_outcome: "missed",
+      p_forward_seconds: 0,
+    });
+    expect(thread.calls).toHaveLength(1);
+    expect(thread.calls[0].body).toMatchObject({
+      p_outcome: "missed",
+      p_create_if_missing: true,
+    });
+  });
+
+  it("#129: an AMD machine verdict merges 'voicemail' but never threads (the hangup decides)", async () => {
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    // AMD machine also computes MISSED → the text-back chain fires (existing
+    // behavior, unchanged) — stub it like the rings-out test.
+    serve(
+      numberStub(),
+      ...companyStubs(CELL),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claimStub(),
+      telnyxSms(),
+      persistStub(),
+      ...alertStubs(),
+      upsert,
+      thread,
+      callsLinkStub(),
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.machine.detection.ended", {
+        call_session_id: SESSION,
+        from: OUR_NUMBER,
+        to: CELL,
+        result: "machine",
+        client_state: forwardState(CALLER),
+      }),
+    );
+
+    expect(upsert.calls).toHaveLength(1);
+    expect(upsert.calls[0].body).toMatchObject({ p_outcome: "voicemail" });
+    expect(thread.calls).toHaveLength(0);
+  });
+
+  it("#129: an anonymous caller's call is recorded but never threaded", async () => {
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    serve(
+      numberStub(),
+      callRecordsInsertStub(),
+      customerStub(),
+      meterStub(),
+      stampStub(),
+      upsert,
+      thread,
+      callsLinkStub(),
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-anon",
+        from: OUR_NUMBER,
+        to: CELL,
+        hangup_cause: "normal_clearing",
+        // Caller-less forward tag: the inbound caller was anonymous/CLIR.
+        client_state: btoa(FORWARD_LEG_STATE),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:01:00.000Z",
+      }),
+    );
+
+    expect(upsert.calls).toHaveLength(1);
+    expect(upsert.calls[0].body).toMatchObject({ p_caller_e164: null });
+    expect(thread.calls).toHaveLength(0);
   });
 
   it("a replayed forward-leg hangup (insert conflict) never re-reports (D36)", async () => {

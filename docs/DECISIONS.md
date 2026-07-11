@@ -1156,3 +1156,52 @@ alongside metered voice overage."
   missed-call computation untouched; its metering scope line is superseded), D33/#17 (reconcile
   ignores the metered price for module ENABLEMENT by design, while converging its presence),
   D34 (fair-use page stays the only public home of the numbers), SPEC §2/§9 amended.
+
+## D37. Calls ships end to end: every inbound call is a visible, actionable item (#129, 2026-07-10)
+
+Founder directive ("not just metering but the full feature, end to end — designers, developers,
+security, desktop, mobile, PWA"). Product spec: docs/CALLS-FEATURE.md. Ships on the D36 billing
+pillar (#128).
+
+- **Session-grain `calls` read model** (migration `20260710160100`), merged across webhook
+  events by the convergent `api_upsert_call` RPC — one row per `call_session_id`, outcome
+  `answered | voicemail | missed` ('voicemail', an AMD verdict, always beats the hangup-cause
+  'answered' fallback; first verdict otherwise — webhooks arrive out of order),
+  `forward_seconds` = talk time only (a rang-out leg contributes zero — never ring time).
+  `call_records` stays untouched as the D36 per-leg billing substrate; its ignoreDuplicates
+  upsert can never host merge semantics.
+- **Threading rule:** a MISSED call finds-or-creates the caller's conversation
+  (`api_thread_call`, the claim RPC's D7 recipe verbatim — a miss is actionable and must reach
+  the inbox even with text-back off); answered/voicemail calls only JOIN an open conversation
+  (never reopen or create — an answered call is not a work item). Anonymous callers stay
+  list-only. One idempotent `call_completed` conversation event per session (new enum value,
+  standalone migration `20260710160000`; the existing `missed_call` event is untouched — it is
+  the text-back's idempotency key, so a missed-with-text-back thread shows two honest lines).
+- **Timeline:** `call_completed` renders as a quiet SystemLine — "Call answered · 4m 32s" /
+  "Call went to voicemail" / "Missed call" — so a thread reads as the full history, texts AND
+  calls. Unknown event types still render nothing (forward compatibility).
+- **`GET /v1/calls` + /calls surface:** the `api_list_calls` RPC applies the #106 deny list
+  INSIDE the SQL before the keyset window (NULL `phone_number_id` rows stay visible — released
+  numbers, matching conversations semantics); the route clones the conversations list
+  (member role, `resolveNumberAccess`, cursor envelope, `?outcome=` filter). The page is a calm
+  scrolling document in the shipped vocabulary: for-you Section card, inbox row anatomy,
+  missed = the row's ONE warning-tint pill (accent budget #64), All/Missed segment control,
+  CalmEmptyState pointing at /settings/missed-calls, threaded rows link to /inbox/{id} and
+  unthreaded rows never dead-link.
+- **Navigation:** Calls joins the desktop sidebar (PhoneIncoming, quiet row, NO count pill) and
+  the ⌘K palette. The mobile tab bar stays four links + avatar (#100 — pinned by a new nav
+  test); on mobile Calls lives in the account sheet, and every call reaches the inbox timeline
+  regardless. PWA: /calls deep links pass through sw.js unchanged (same-origin passthrough).
+- **Security review (inline, all gates):** RPCs are SECURITY DEFINER + `search_path=''` +
+  service-role-only (pinned in calls_feature.test.sql C-5); hidden numbers are absent, never
+  403 (no enumeration); threading is reachable only through the signature-verified Telnyx
+  webhook and is idempotent per session; no new unbounded cost center (call volume is bounded
+  by the D36 voice gate).
+- **Verified end to end:** api 1,357 + web 1,228 vitest green; SQL suites C-1..C-5 green;
+  dev-seed call fixtures + dev-shot screenshots on desktop light/dark, mobile, the thread call
+  line, and the account sheet.
+- **Non-goals (binding, from the spec):** no outbound calling from the app, no call
+  recording/voicemail transcription, no IVR/PBX, no concrete numbers on marketing surfaces
+  (D34/D36). Deferred, tracked in docs/CALLS-FEATURE.md: the D24 bell arm for missed calls +
+  decoupling the crew alert from MCTB (the in-app feed still only learns of misses via the
+  text-back path), and a For You "Recent calls" section.

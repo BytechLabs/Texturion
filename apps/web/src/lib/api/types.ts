@@ -86,7 +86,12 @@ export type ConversationEventType =
   // FEATURE-GAPS voice wave — logged on the caller's conversation when a call
   // is COMPUTED missed and the text-back fired. Actor is NULL (system);
   // payload: { call_id, message_id, caller }.
-  | "missed_call";
+  | "missed_call"
+  // #129 Calls feature — one line per finished call threaded into this
+  // conversation (api_thread_call; actor NULL). payload:
+  // { call_session_id, outcome: 'answered'|'voicemail'|'missed',
+  //   forward_seconds, caller }.
+  | "call_completed";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {
@@ -729,6 +734,25 @@ export interface Usage {
   voice: UsageVoice;
   // #97/#103: no `mms` meter — pictures count 3 segments each in the message
   // meter, with no separate cap.
+}
+
+/**
+ * #129 GET /v1/calls row — one finished (or in-flight) call session.
+ * `outcome` null = a legacy/in-flight row the UI shows without a verdict;
+ * `forward_seconds` is TALK time (0 for misses — never ring time);
+ * `conversation_id` null = unthreaded (anonymous caller, or an answered call
+ * from a number with no open conversation).
+ */
+export interface Call {
+  id: string;
+  caller_e164: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  phone_number_id: string | null;
+  conversation_id: string | null;
+  outcome: "answered" | "voicemail" | "missed" | null;
+  forward_seconds: number;
+  started_at: string;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */

@@ -6,6 +6,7 @@ import {
   ChevronsUpDown,
   Inbox as InboxIcon,
   PanelLeft,
+  PhoneIncoming,
   Search,
   Users,
   Zap,
@@ -56,10 +57,13 @@ interface NavRow {
 
 // The sidebar is the SOLE primary nav (issue #8). Templates and Numbers live in
 // Settings only; compose is the app-wide FAB; search + notifications + account
-// live in the footer user-bar. So the nav list is just the four focus surfaces.
+// live in the footer user-bar. So the nav list is just the focus surfaces
+// (+ the #129 call log — quiet row, no count: the accent budget stays on
+// compose and the unread numeral).
 const FOCUS: NavRow[] = [
   { label: "For you", href: "/for-you", icon: Zap },
   { label: "Inbox", href: "/inbox", icon: InboxIcon },
+  { label: "Calls", href: "/calls", icon: PhoneIncoming },
   { label: "Tasks", href: "/tasks", icon: CheckSquare },
   { label: "Contacts", href: "/contacts", icon: Users },
 ];

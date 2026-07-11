@@ -368,11 +368,16 @@ async function handleInboundInitiated(
 }
 
 /**
- * On a terminal call event (hangup or AMD verdict): compute missed and, when
- * missed, fire the text-back + crew alert. The leg is classified purely from
- * the echoed client_state tag (the routing decision captured at call time —
- * see the module header), so no companies read happens here and a mid-call
- * forward_to_cell settings change cannot flip an in-flight call's computation.
+ * On a terminal call event (hangup or AMD verdict): merge the #129 session-
+ * grain `calls` read model, compute missed, thread the call into its
+ * conversation, and — when missed — fire the text-back + crew alert. The leg
+ * is classified purely from the echoed client_state tag (the routing
+ * decision captured at call time — see the module header), so no companies
+ * read happens here and a mid-call forward_to_cell settings change cannot
+ * flip an in-flight call's computation. Every write below is idempotent
+ * (ignoreDuplicates leg rows, convergent session merge, payload-keyed event
+ * dedupe, per-call claim), so a thrown error safely replays the whole
+ * handler through the webhook sweeper.
  */
 async function handleTerminalCallEvent(
   env: Env,
@@ -394,7 +399,7 @@ async function handleTerminalCallEvent(
   // #12/D36 voice metering: record this leg's billable duration on every
   // hangup — BEFORE the missed-vs-answered branch, because an answered call
   // costs minutes too. AMD events carry no duration window, so only
-  // call.hangup records. Forward legs also report their billable minutes to
+  // call.hangup records. Forward legs also report their billable seconds to
   // the Stripe voice meter (D36 fair-use overage).
   if (eventType === "call.hangup" && ourNumberE164) {
     await recordCallDuration(env, db, payload, leg, ourNumberE164);
@@ -406,17 +411,50 @@ async function handleTerminalCallEvent(
     amdResult: payload.result ?? null,
     leg,
   });
-  if (!outcome.missed) return;
 
   // The original caller, per leg: the inbound leg carries it as `from`; the
   // forward leg does not, so it rides the client_state we stamped when dialing.
   const finalCaller = forwardLeg
     ? decodeForwardCaller(payload.client_state ?? null)
-    : payload.from;
-  if (!ourNumberE164 || !finalCaller) return;
+    : (payload.from ?? null);
 
+  if (!ourNumberE164) return;
   const resolved = await resolveNumber(db, ourNumberE164);
   if (!resolved) return;
+
+  // #129: merge this event into the session-grain calls row (AMD verdicts,
+  // per-leg hangups — convergent whatever order Telnyx delivers them in).
+  const call = await upsertCallSession(db, {
+    eventType,
+    payload,
+    leg,
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: callId,
+    caller: finalCaller,
+    missed: outcome.missed,
+  });
+
+  // #129: thread the call on its DECIDING hangup — the forward leg for a
+  // forwarded call, the untagged inbound leg for a no-forward/rejected call
+  // (the inbound_forwarded leg never decides). Threading precedes the
+  // text-back so the timeline reads call-then-text in insertion order.
+  if (
+    eventType === "call.hangup" &&
+    leg !== "inbound_forwarded" &&
+    call?.outcome
+  ) {
+    await threadCallSession(db, {
+      companyId: resolved.companyId,
+      phoneNumberId: resolved.phoneNumberId,
+      callSessionId: callId,
+      caller: call.caller_e164 ?? finalCaller,
+      outcome: call.outcome,
+      forwardSeconds: call.forward_seconds ?? 0,
+    });
+  }
+
+  if (!outcome.missed || !finalCaller) return;
 
   await sendMissedCallText(env, db, {
     companyId: resolved.companyId,
@@ -425,6 +463,136 @@ async function handleTerminalCallEvent(
     callerE164: finalCaller,
     callId,
   });
+}
+
+interface CallSessionRow {
+  id: string;
+  caller_e164: string | null;
+  outcome: "answered" | "voicemail" | "missed" | null;
+  forward_seconds: number | null;
+  conversation_id: string | null;
+}
+
+/**
+ * #129: merge one webhook event into the session-grain `calls` row via the
+ * convergent api_upsert_call RPC. Outcome candidates per event:
+ *   - AMD verdict (forward leg): machine/not_human/fax → 'voicemail',
+ *     human → 'answered' (the SQL merge lets 'voicemail' beat a hangup's
+ *     'answered' fallback, whatever order the webhooks land).
+ *   - forward-leg hangup: rang out → 'missed', else 'answered'; carries the
+ *     talk-time seconds (ring time is zero, same rule as billing).
+ *   - untagged inbound hangup (no-forward / over-cap reject): 'missed'.
+ *   - inbound_forwarded hangup: no verdict — contributes the time window only.
+ */
+async function upsertCallSession(
+  db: SupabaseClient,
+  input: {
+    eventType: string;
+    payload: CallPayload;
+    leg: CallLeg;
+    companyId: string;
+    phoneNumberId: string;
+    callSessionId: string;
+    caller: string | null;
+    missed: boolean;
+  },
+): Promise<CallSessionRow | null> {
+  const { eventType, payload, leg } = input;
+
+  let outcome: string | null = null;
+  let forwardSeconds = 0;
+  if (eventType === "call.machine.detection.ended" && leg === "forward") {
+    const amd = payload.result ?? "";
+    if (["machine", "not_human", "fax", "fax_detected"].includes(amd)) {
+      outcome = "voicemail";
+    } else if (amd === "human") {
+      outcome = "answered";
+    }
+  } else if (eventType === "call.hangup") {
+    if (leg === "forward") {
+      outcome = input.missed ? "missed" : "answered";
+      if (!input.missed) {
+        const startMs = Date.parse(payload.start_time ?? "");
+        const endMs = Date.parse(payload.end_time ?? "");
+        if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
+          forwardSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
+        }
+      }
+    } else if (leg === "inbound_untagged") {
+      outcome = "missed";
+    }
+  }
+
+  const startMs = Date.parse(payload.start_time ?? "");
+  const endMs = Date.parse(payload.end_time ?? "");
+  const { data, error } = await db.rpc("api_upsert_call", {
+    p_company_id: input.companyId,
+    p_phone_number_id: input.phoneNumberId,
+    p_call_session_id: input.callSessionId,
+    p_caller_e164: input.caller,
+    p_outcome: outcome,
+    p_forward_seconds: forwardSeconds,
+    p_started_at: Number.isFinite(startMs)
+      ? new Date(startMs).toISOString()
+      : null,
+    p_ended_at:
+      eventType === "call.hangup" && Number.isFinite(endMs)
+        ? new Date(endMs).toISOString()
+        : null,
+  });
+  if (error) {
+    throw new Error(`api_upsert_call failed: ${error.message}`);
+  }
+  return (data as CallSessionRow | null) ?? null;
+}
+
+/**
+ * #129: thread the finished call into the caller's conversation (missed
+ * calls find-or-CREATE — a miss must reach the inbox even with text-back
+ * off; answered/voicemail only JOIN an open conversation) and link the ids
+ * back onto the calls row. Idempotent end to end.
+ */
+async function threadCallSession(
+  db: SupabaseClient,
+  input: {
+    companyId: string;
+    phoneNumberId: string;
+    callSessionId: string;
+    caller: string | null;
+    outcome: string;
+    forwardSeconds: number;
+  },
+): Promise<void> {
+  if (!input.caller) return; // anonymous caller — list-only, never threaded
+
+  const { data, error } = await db.rpc("api_thread_call", {
+    p_company_id: input.companyId,
+    p_phone_number_id: input.phoneNumberId,
+    p_caller_e164: input.caller,
+    p_call_session_id: input.callSessionId,
+    p_outcome: input.outcome,
+    p_forward_seconds: input.forwardSeconds,
+    p_create_if_missing: input.outcome === "missed",
+  });
+  if (error) {
+    throw new Error(`api_thread_call failed: ${error.message}`);
+  }
+  const thread = data as
+    | { contact_id?: string; conversation_id?: string }
+    | null;
+  if (!thread?.conversation_id) return;
+
+  const { error: linkError } = await db
+    .from("calls")
+    .update({
+      contact_id: thread.contact_id ?? null,
+      conversation_id: thread.conversation_id,
+    })
+    .eq("call_session_id", input.callSessionId)
+    .is("conversation_id", null);
+  if (linkError) {
+    throw new Error(`calls link failed: ${linkError.message}`);
+  }
 }
 
 /**

@@ -112,6 +112,13 @@ export const keys = {
   forYou: (companyId: string) => [companyId, "for-you"] as const,
 
   /**
+   * #129 /calls — the call log, one cursor list per outcome filter
+   * ("all" | "missed" | "answered" | "voicemail").
+   */
+  calls: (companyId: string, outcome: string) =>
+    [companyId, "calls", outcome] as const,
+
+  /**
    * Notifications read-model (D24). `feed` is the popover's cursor list;
    * `unreadCount` is the bell badge. Both derive from the same union server-side
    * and are invalidated together whenever the watermark moves or realtime fires.

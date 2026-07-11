@@ -10,6 +10,7 @@ import {
   ListChecks,
   MessageSquareText,
   PenSquare,
+  PhoneIncoming,
   Settings,
   UserRoundPlus,
   Users,
@@ -56,6 +57,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 const NAV_ACTIONS = [
   { label: "For you", href: "/for-you", icon: Home },
   { label: "Inbox", href: "/inbox", icon: Inbox },
+  { label: "Calls", href: "/calls", icon: PhoneIncoming },
   { label: "Tasks", href: "/tasks", icon: ListChecks },
   { label: "Contacts", href: "/contacts", icon: Users },
   { label: "Settings", href: "/settings", icon: Settings },

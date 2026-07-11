@@ -5,6 +5,7 @@ import type { ConversationEvent } from "@/lib/api/types";
 import { statusLabel } from "@/components/inbox/status-pill";
 import { isTaskEventType, taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
+import { formatCallDuration } from "@/lib/format/call";
 import type { ConversationStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +118,18 @@ export function eventSentence(
     // in the crew's plain language (the message itself renders just below).
     case "missed_call":
       return "This customer called and no one picked up, so we texted them back";
+    // #129 Calls feature: every threaded call leaves one honest line — the
+    // thread reads as the full history, texts AND calls. A missed call with
+    // text-back shows this line plus the missed_call line above.
+    case "call_completed": {
+      const outcome = event.payload.outcome as string | undefined;
+      if (outcome === "voicemail") return "Call went to voicemail";
+      if (outcome === "missed") return "Missed call";
+      const seconds = Number(event.payload.forward_seconds ?? 0);
+      return seconds > 0
+        ? `Call answered · ${formatCallDuration(seconds)}`
+        : "Call answered";
+    }
   }
 }
 
