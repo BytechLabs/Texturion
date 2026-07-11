@@ -38,6 +38,7 @@ import {
   suspendCompanyNumbers,
 } from "../telnyx/provisioning";
 import { submitRegistration } from "../telnyx/registration";
+import { enableVoiceForCompany } from "../telnyx/voice";
 
 /**
  * Stripe webhook endpoint (SPEC §7 webhook pattern, §9 event table):
@@ -221,6 +222,24 @@ async function reconcileModulesFromSubscription(
     planModuleReconcile(rows, paid, billable),
   );
   await ensureVoiceMeteredItem(env, companyId, subscription);
+
+  // #133: buying the Calling module must make the numbers CALLABLE — bind
+  // voice on every active number the moment the module row lands, not only
+  // when MCTB/forwarding is later configured (the founder bought the module,
+  // called their number, and the carrier said "unavailable": the number was
+  // never bound to the voice connection). Best-effort — the 15-min
+  // reconcileVoiceEnablement cron (whose gate now includes the module) is
+  // the durable retry.
+  if (paid.includes("voice")) {
+    try {
+      await enableVoiceForCompany(env, db, companyId);
+    } catch (cause) {
+      console.error(
+        `voice enablement after module purchase failed for ${companyId}:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
 }
 
 /**

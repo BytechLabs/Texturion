@@ -475,6 +475,9 @@ describe("§9 event → state table", () => {
       ),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+      // #133: a paid voice item triggers enableVoiceForCompany — no active
+      // numbers in this fixture, so the enable is a quiet no-op.
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
       endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
         moduleUpserts.push(call.json());
         return [];
@@ -1016,6 +1019,9 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         },
       ]),
       endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
+      // #133: the paid voice item triggers enableVoiceForCompany — no active
+      // numbers in this fixture, so the enable is a quiet no-op.
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
     ]);
     await deliver(
       eventOf("customer.subscription.updated", subscriptionFixture()),
@@ -1026,6 +1032,13 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     expect(creates).toHaveLength(1);
     const form = creates[0].form();
     expect(form.get("subscription")).toBe("sub_1");
+
+    // #133: a paid voice module also triggers the voice-binding pass, so a
+    // fresh purchase makes the numbers CALLABLE without waiting for MCTB or
+    // forwarding to be configured.
+    expect(
+      harness.callsTo("GET", /\/rest\/v1\/phone_numbers/).length,
+    ).toBeGreaterThan(0);
     // Starter subscription → the Starter voice tiering; metered = no quantity.
     expect(form.get("price")).toBe(env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID);
     expect(form.has("quantity")).toBe(false);

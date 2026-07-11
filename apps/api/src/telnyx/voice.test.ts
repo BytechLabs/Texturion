@@ -154,12 +154,19 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
       rows.map((row) => baseRow(row)),
     );
   }
+  /** #133: the gate also reads company_modules (the Calling module). */
+  function modulesStub(companyIds: string[] = []): Stub {
+    return stubRoute(restMatch(env, "GET", "company_modules"), () =>
+      companyIds.map((company_id) => ({ company_id })),
+    );
+  }
 
   it("binds voice on an active un-bound number of an MCTB-on company", async () => {
     const patch = voicePatch();
     const update = numberUpdate();
     serve(
       companiesStub([COMPANY_ID]),
+      modulesStub(),
       numbersStub([{}]),
       voiceGet(null),
       patch,
@@ -172,10 +179,28 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     expect(update.calls).toHaveLength(1);
   });
 
+  it("#133: binds voice for a company whose ONLY signal is the Calling module", async () => {
+    const patch = voicePatch();
+    const update = numberUpdate();
+    serve(
+      companiesStub([]), // MCTB off, no forward — the module alone gates
+      modulesStub([COMPANY_ID]),
+      numbersStub([{}]),
+      voiceGet(null),
+      patch,
+      update,
+    );
+
+    const summary = await reconcileVoiceEnablement(env);
+    expect(summary).toEqual({ checked: 1, enabled: 1 });
+    expect(patch.calls).toHaveLength(1);
+  });
+
   it("skips hosted rows (no telnyx id — voice stays on the owner's carrier)", async () => {
     const patch = voicePatch();
     serve(
       companiesStub([COMPANY_ID]),
+      modulesStub(),
       numbersStub([{ telnyx_phone_number_id: null }]),
       voiceGet(null),
       patch,
@@ -189,7 +214,7 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
 
   it("does nothing when no company has the feature on", async () => {
     const numbers = numbersStub([{}]);
-    serve(companiesStub([]), numbers);
+    serve(companiesStub([]), modulesStub(), numbers);
 
     const summary = await reconcileVoiceEnablement(env);
     expect(summary).toEqual({ checked: 0, enabled: 0 });

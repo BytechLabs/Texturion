@@ -166,13 +166,17 @@ export async function enableVoiceForCompany(
 
 /**
  * §11 reconcile pass (15-minute cron): bind voice on any ACTIVE, un-bound
- * number whose company has the missed-call feature on (mctb_enabled or a
- * forward_to_cell). This closes the two gaps the settings-PATCH trigger cannot
- * cover: (a) the owner enabled MCTB while the number was still provisioning
- * (the normal onboarding order — the number activates later), and (b) a number
- * added/ported later to a company that already had the feature on. Also the
- * retry path for a settings-time enable that failed transiently (that enable
- * is fire-and-forget). Idempotent per number via enableVoiceOnNumber's guards.
+ * number whose company has the voice feature on — the Calling MODULE
+ * (#133: buying it must make the numbers callable; the founder bought it,
+ * called their number, and the carrier said "unavailable" because nothing
+ * ever bound the voice connection), or MCTB/forward_to_cell for legacy
+ * (grandfathered) configurations that predate module rows. This closes the
+ * gaps the trigger paths cannot cover: (a) the module/feature was enabled
+ * while the number was still provisioning (the normal onboarding order —
+ * the number activates later), (b) a number added/ported later to a company
+ * that already had it on, and (c) the retry path for a trigger-time enable
+ * that failed transiently (those enables are fire-and-forget). Idempotent
+ * per number via enableVoiceOnNumber's guards.
  */
 export async function reconcileVoiceEnablement(
   env: Env,
@@ -180,15 +184,34 @@ export async function reconcileVoiceEnablement(
   const db = getDb(env);
   const summary = { checked: 0, enabled: 0 };
 
-  // Companies with the voice feature on. Small set; ids only.
-  const { data: companies, error: companiesError } = await db
-    .from("companies")
-    .select("id")
-    .or("mctb_enabled.eq.true,forward_to_cell.not.is.null");
-  if (companiesError) {
-    throw new Error(`companies lookup failed: ${companiesError.message}`);
+  // Companies with the voice feature on. Small sets; ids only.
+  const [companiesResult, modulesResult] = await Promise.all([
+    db
+      .from("companies")
+      .select("id")
+      .or("mctb_enabled.eq.true,forward_to_cell.not.is.null"),
+    db
+      .from("company_modules")
+      .select("company_id")
+      .eq("module", "voice")
+      .is("disabled_at", null),
+  ]);
+  if (companiesResult.error) {
+    throw new Error(`companies lookup failed: ${companiesResult.error.message}`);
   }
-  const companyIds = (companies ?? []).map((row) => (row as { id: string }).id);
+  if (modulesResult.error) {
+    throw new Error(
+      `company_modules lookup failed: ${modulesResult.error.message}`,
+    );
+  }
+  const companyIds = [
+    ...new Set([
+      ...(companiesResult.data ?? []).map((row) => (row as { id: string }).id),
+      ...(modulesResult.data ?? []).map(
+        (row) => (row as { company_id: string }).company_id,
+      ),
+    ]),
+  ];
   if (companyIds.length === 0) return summary;
 
   const { data, error } = await db
