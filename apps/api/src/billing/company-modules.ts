@@ -185,17 +185,9 @@ export async function applyModuleReconcile(
     if (error) {
       throw new Error(`module reconcile disable failed: ${error.message}`);
     }
-    if (plan.disable.includes("voice")) {
-      // A no-longer-paid voice module must stop forwarding calls — clear the
-      // settings the voice webhook reads so no further call is ever forwarded.
-      const { error: voiceError } = await db
-        .from("companies")
-        .update({ forward_to_cell: null, mctb_enabled: false })
-        .eq("id", companyId);
-      if (voiceError) {
-        throw new Error(`voice settings clear failed: ${voiceError.message}`);
-      }
-    }
+    // #134/D42: voice retired — calling is included on every plan, so a
+    // module disable never clears forwarding/MCTB settings anymore (the old
+    // clear-on-voice-disable branch died with the module).
   }
 }
 

@@ -16,6 +16,7 @@ import { syncSubscription } from "../webhooks/stripe";
 import { idempotencyKey } from "./idempotency";
 import { convergeExtraNumberQuantity } from "./extra-numbers";
 import { retiredModulePrices } from "./modules";
+import { ensureVoiceMeteredItem } from "../webhooks/stripe";
 import type { PlanId } from "./plans";
 import { applyPriceToSchedulePhases } from "./schedule-phases";
 import { getStripe, type Stripe } from "./stripe";
@@ -196,6 +197,15 @@ async function sweepOrphanSubscriptions(
       // done. Never touches non-retired prices, never runs on a non-stored sub.
       if (stored) {
         await stripRetiredModuleItems(env, stripe, row.id, stored, summary, now);
+        // #134/D42 review fix: the voice metered item must reach QUIET active
+        // subscriptions too — webhook mirror passes only fire on Stripe
+        // events, so without this daily converge a pre-D42 subscriber's
+        // overage would go unbilled until their next natural webhook (up to
+        // a full cycle). Fails toward unbilled, logged inside. (Known
+        // bounded gap: a pre-D42 PENDING-DOWNGRADE schedule owns its items
+        // and is skipped — it self-heals when the schedule releases at
+        // period end; fails toward unbilled, customer-favorable.)
+        await ensureVoiceMeteredItem(env, row.id, stored);
       }
 
       // #105 backstop: converge the extra-number billing DOWN onto the formula

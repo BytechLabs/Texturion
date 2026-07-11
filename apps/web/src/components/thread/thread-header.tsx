@@ -278,17 +278,14 @@ export function ThreadHeader({
 
       <div className="flex shrink-0 items-center gap-1.5">
         {/* Call — D38: the outbound bridge (business number presented; your
-            cell rings first). Degrades to the old tel: link without the
-            voice module. Visible at EVERY width (#133 — a trades owner lives
-            on their phone; hiding this below sm left mobile with no way to
-            place a call). #106: calling is outreach like texting, so
-            note-level viewers get no dead control (the API would 403). */}
+            cell rings first). #134/D42: calling is included on every plan,
+            so there is no module gate. Visible at EVERY width (#133 — a
+            trades owner lives on their phone; hiding this below sm left
+            mobile with no way to place a call). #106: calling is outreach
+            like texting, so note-level viewers get no dead control (the API
+            would 403). */}
         {conversation.viewer_level === "text" && (
-          <CallButton
-            conversationId={conversation.id}
-            contactName={name}
-            phone={phone}
-          />
+          <CallButton conversationId={conversation.id} contactName={name} />
         )}
 
         {/* Status: inline pill dropdown — the one status control (the redundant

@@ -48,6 +48,12 @@ import { WorkspaceSummary } from "./workspace-summary";
  * here via /dashboard?checkout=canceled with a calm note.
  */
 
+/** The add-on cards this step may offer: the catalog minus regions_ca, which
+ *  is inert in the single-region model and refused by the checkout API. */
+const offerableModuleCards = PLAN_MODULE_CARDS.filter(
+  (mod) => mod.id !== "regions_ca",
+);
+
 function PlanStep() {
   const { state, ready } = useWizardStepGuard("plan");
   const searchParams = useSearchParams();
@@ -245,17 +251,20 @@ function PlanStep() {
 
         {/* #12 plan builder: opt-in add-ons. Toggle before choosing a plan;
             the selection rides into checkout. Calm selectable rows — hairline
-            border, a petrol check when on, price on the right. */}
-        <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-[15px] font-medium">Add-ons</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            Optional. Turn on only what you need. Add or remove them any time.
-          </p>
-          <div className="mt-4 space-y-2">
-            {/* regions_ca is inert in the single-region model (numbers are
-                fixed to the company's country), so it isn't offered yet. */}
-            {PLAN_MODULE_CARDS.filter((mod) => mod.id !== "regions_ca").map(
-              (mod) => (
+            border, a petrol check when on, price on the right. #134/D42:
+            calling retired into every plan, and regions_ca stays inert in the
+            single-region model (numbers are fixed to the company's country),
+            so nothing is offerable today — the whole box hides rather than
+            render a heading over an empty list. */}
+        {offerableModuleCards.length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h2 className="text-[15px] font-medium">Add-ons</h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Optional. Turn on only what you need. Add or remove them any
+              time.
+            </p>
+            <div className="mt-4 space-y-2">
+              {offerableModuleCards.map((mod) => (
                 <ModuleCard
                   key={mod.id}
                   label={mod.label}
@@ -265,10 +274,10 @@ function PlanStep() {
                   on={modules.includes(mod.id)}
                   onToggle={() => toggleModule(mod.id)}
                 />
-              ),
-            )}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {owesFee ? (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">

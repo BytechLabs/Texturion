@@ -29,15 +29,17 @@ import type {
 const S = PLAN_PRICING.starter;
 const P = PLAN_PRICING.pro;
 
-function moduleCard(id: "voice") {
+function moduleCard(id: "regions_ca") {
   const card = PLAN_MODULE_CARDS.find((c) => c.id === id);
   if (!card) throw new Error(`Missing module card: ${id}`);
   return card;
 }
 
 // #97/#103: no MMS card — pictures are included on every plan. #121: no
-// extra-storage card — storage is free, there is nothing to sell.
-const VOICE = moduleCard("voice");
+// extra-storage card — storage is free, there is nothing to sell. #134/D42:
+// no Calling card — calling is included on every plan, so the one add-on
+// left in the catalog is Canada numbers.
+const CANADA_NUMBERS = moduleCard("regions_ca");
 
 /** "$29" etc., always derived. */
 const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
@@ -113,10 +115,12 @@ export const PLAN_FAIR_USE_NOTE =
   "The message, picture, and calling allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Storage is free on every plan, with no caps.";
 
 /* Honesty Ledger (§5.3): every cost, before you pay. Add-on price mirrors
-   apps/api/src/billing/plans.ts + modules.ts (voice $8). #97/#103: pictures
-   are included on every plan, so they appear under "Extra texts", not as an
-   add-on. #121: no per-text rates, allowance figures, or minute figures here;
-   the concrete mechanics live only on /legal/fair-use. Storage is free. */
+   apps/api/src/billing/modules.ts (regions_ca $5). #97/#103: pictures are
+   included on every plan, so they appear under "Extra texts", not as an
+   add-on. #134/D42: calling is included on every plan too, so the add-on row
+   states that and names the one add-on left, Canada numbers. #121: no
+   per-text rates, allowance figures, or minute figures here; the concrete
+   mechanics live only on /legal/fair-use. Storage is free. */
 export const LEDGER: LedgerEntry[] = [
   {
     term: "Your plan",
@@ -143,9 +147,9 @@ export const LEDGER: LedgerEntry[] = [
   },
   {
     term: "Optional add-ons, if you turn them on",
-    figure: `${VOICE.price}/mo`,
+    figure: `${CANADA_NUMBERS.price}/mo`,
     detail:
-      `One add-on exists: Calling, ${VOICE.price}/mo. Calls to your number forward to your cell, you can call customers back from the app on your business number, and callers you miss get an automatic text back, with generous calling minutes under fair use. It's off by default, you switch it on at signup or later in settings, and you can switch it off the same way. Nothing here is required to text.`,
+      `Calling is included in every plan, not an add-on: calls to your number forward to your cell, you can call customers back from the app on your business number, and callers you miss get an automatic text back, with generous calling minutes under fair use (the mechanics live in our fair use policy). One add-on exists: Canada numbers, ${CANADA_NUMBERS.price}/mo, which adds Canadian numbers you can get and text alongside your US number. It isn't switchable on quite yet; we'll sell it when it works, at this price, and nothing here is required to text.`,
   },
   {
     term: "Tax",
@@ -234,9 +238,10 @@ export const ELSEWHERE_FOOTNOTE =
 /* Pricing FAQ (9). COPY-DECK v2 + #121 amendment: all nine kept, dash-free.
    The photo answer states the included-pictures and free-storage truth
    (#97/#103/#121: no add-on, no caps; counting mechanics live on
-   /legal/fair-use), the "not getting" answer carries the $8 Calling module
-   facts (#133/D38: both directions), and the keep-my-number answer mirrors
-   the verified porting story. NO FAQPage JSON-LD. */
+   /legal/fair-use), the "not getting" answer carries the included-calling
+   facts (#134/D42: the $8 module retired — calling ships on every plan,
+   both directions), and the keep-my-number answer mirrors the verified
+   porting story. NO FAQPage JSON-LD. */
 export const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
@@ -272,6 +277,6 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What am I not getting at these prices?",
-    a: "Loonext is a shared texting inbox first, not a full phone system: no mass text blasts, no review management, and calling is an optional add-on rather than the core. The Calling add-on ($8/mo) rings your cell when customers call your business number, lets you call them back from the app on that same number, and texts back the ones you miss, so the lead still lands in your inbox. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "Loonext is a shared texting inbox first, not a full phone system: no mass text blasts, no review management, no softphone. Calling is included on every plan, though: calls to your business number forward to your cell, you can call customers back from the app on that same number, and missed callers get an automatic text back, so the lead still lands in your inbox. The minutes are generous under fair use, with the exact mechanics in our fair use policy. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];

@@ -22,7 +22,10 @@
  * (sessionStorage is attacker-adjacent: any same-origin script could write
  * it): `plan` must be a known PlanId, `modules` keeps only the SELLABLE
  * add-ons — `regions_ca` is inert in the single-region model and is never
- * accepted, exactly like the checkout API's gate.
+ * accepted, exactly like the checkout API's gate. Retired ids (mms #103,
+ * extra_storage #121, voice #134 — calling is included on every plan now)
+ * ride the same whitelist: an old ad or bookmark carrying them still checks
+ * out cleanly, with the stale module silently dropped.
  */
 
 import { PLAN_MODULE_IDS, type PlanId, type PlanModule } from "@/lib/api/types";
@@ -42,7 +45,9 @@ const PLAN_IDS: readonly PlanId[] = ["starter", "pro"];
 /**
  * The add-ons a signup may carry into checkout: the sellable set. regions_ca
  * is excluded on purpose (inert single-region module — the onboarding builder
- * and the checkout API both refuse it).
+ * and the checkout API both refuse it). #134/D42: with voice retired into
+ * every plan, this set is empty today — every carried module is dropped until
+ * something becomes sellable again.
  */
 const SELLABLE_MODULES: readonly PlanModule[] = PLAN_MODULE_IDS.filter(
   (id) => id !== "regions_ca",

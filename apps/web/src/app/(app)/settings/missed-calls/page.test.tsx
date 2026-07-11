@@ -6,19 +6,17 @@ import type { CompanyView, Usage } from "@/lib/api/types";
 // Hoisted mock state the hooks read; tests seed it before rendering.
 const state: {
   includedMinutes: number;
-  voiceEnabled: boolean;
-} = { includedMinutes: 2500, voiceEnabled: true };
+} = { includedMinutes: 2500 };
 
+// #134/D42: calling is included on every plan — enabled_modules carries no
+// 'voice' anymore, and the page must render its cards regardless.
 const company = {
   name: "Ace Plumbing",
   mctb_enabled: false,
   mctb_message: null,
   forward_to_cell: null,
   numbers: [],
-  // #133: the member-visible module state lives on the company view.
-  get enabled_modules() {
-    return state.voiceEnabled ? ["voice"] : [];
-  },
+  enabled_modules: [],
 } as unknown as CompanyView;
 
 vi.mock("@/lib/api/companies", () => ({
@@ -29,13 +27,6 @@ vi.mock("@/lib/api/companies", () => ({
     refetch: vi.fn(),
   }),
   useUpdateCompany: () => ({ isPending: false, mutate: vi.fn() }),
-}));
-vi.mock("@/lib/api/billing", () => ({
-  useModules: () => ({
-    isPending: false,
-    isError: false,
-    data: { modules: [{ id: "voice", enabled: state.voiceEnabled }] },
-  }),
 }));
 vi.mock("@/lib/api/usage", () => ({
   useUsage: () => ({
@@ -80,7 +71,6 @@ function render(): string {
  */
 describe("/settings/missed-calls forwarding fair-use honesty", () => {
   it("states the allowance, the 1¢/min overage, and the pause-at-cap behaviour", () => {
-    state.voiceEnabled = true;
     state.includedMinutes = 2500;
     const html = render();
     expect(html).toContain("2,500");
@@ -94,7 +84,6 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
   });
 
   it("does not promise unlimited/uncapped forwarding", () => {
-    state.voiceEnabled = true;
     state.includedMinutes = 2500;
     const html = render();
     expect(html).not.toContain("don't cost extra");
@@ -102,7 +91,6 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
   });
 
   it("derives the figure from the plan allowance, not a hardcoded count", () => {
-    state.voiceEnabled = true;
     state.includedMinutes = 555; // off-value proves the surface reads the prop
     const html = render();
     expect(html).toContain("555");
@@ -117,17 +105,27 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
  */
 describe("/settings/missed-calls — your cell for outbound calls", () => {
   it("renders the per-member cell card with the privacy promise", () => {
-    state.voiceEnabled = true;
     const html = render();
     expect(html).toContain("Your cell for outbound calls");
     expect(html).toContain("never your cell");
     expect(html).toContain("every person on the crew sets their own");
   });
+});
 
-  it("stays behind the voice add-on gate like the rest of the page", () => {
-    state.voiceEnabled = false;
+/**
+ * #134/D42: calling is included on every plan — the old "needs the Calling
+ * add-on" gate retired. The page renders all three cards for an active
+ * workspace even though enabled_modules carries no 'voice' (the mock above
+ * is deliberately module-free).
+ */
+describe("/settings/missed-calls without the voice module (#134/D42)", () => {
+  it("renders all three cards with no module gate and no billing pointer", () => {
     const html = render();
-    expect(html).not.toContain("Your cell for outbound calls");
-    state.voiceEnabled = true;
+    expect(html).toContain("Text back a missed call");
+    expect(html).toContain("Ring your cell first (optional)");
+    expect(html).toContain("Your cell for outbound calls");
+    expect(html).not.toContain("Calling");
+    expect(html).not.toContain("add-on");
+    expect(html).not.toContain('href="/settings/billing"');
   });
 });

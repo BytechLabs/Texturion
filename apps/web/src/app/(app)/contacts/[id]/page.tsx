@@ -186,7 +186,6 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           <CallButton
             conversationId={existingConversation.id}
             contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
-            phone={contact.phone_e164}
             className="ml-auto"
           />
         )}

@@ -89,14 +89,8 @@ export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
  */
 export const VOICE_OVERAGE_CENTS_PER_MINUTE = 1;
 
-/**
- * D36 review fix: a GRANDFATHERED voice module (seeded free at #12, no Stripe
- * items) has no overage billing to absorb usage past its allowance, so it
- * keeps the pre-D36 deal exactly — forwarding pauses at the legacy 300
- * minutes, the boundary its economics were priced at. Paid voice modules
- * pause at PLAN_VOICE_MINUTES × overage_cap_multiplier instead.
- */
-export const GRANDFATHERED_VOICE_MINUTES = 300;
+// #134/D42: GRANDFATHERED_VOICE_MINUTES retired — calling is included on
+// every plan and every workspace gets the plan allowance.
 
 // #97/#103: PLAN_MMS_INCLUDED (the $5 Picture-messages module's cap) is gone —
 // picture messages are free and meter as 3 segments each through the normal

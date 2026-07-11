@@ -140,7 +140,7 @@ export default function SharedInboxPage() {
             text: "Starter seats 3 people, Pro seats 15. Real limits, never per-seat billing.",
           },
           {
-            text: "Loonext is a texting inbox first; calling is an add-on. The optional Calling add-on ($8/mo) rings your cell, lets you call customers back from the app on your business number, and texts back missed calls.",
+            text: "Loonext is a texting inbox first, not a full phone system. Calling is included on every plan: calls to your number forward to your cell, you can call customers back from the app on your business number, and missed calls get a text back.",
           },
         ]}
       />

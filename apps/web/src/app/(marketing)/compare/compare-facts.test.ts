@@ -123,11 +123,17 @@ describe("quo ledger facts (their published prices, July 2026)", () => {
     expect(flat).toContain("$1.50 to $3/mo");
   });
 
-  it("concedes Quo's included calling outright and states our $8/mo Calling add-on", () => {
+  it("concedes Quo's full-phone-system calling and states our included calling honestly (#134/D42)", () => {
     expect(flat).toContain("Included, US and Canada");
-    expect(flat).toContain("Add-on: Calling, $8/mo");
-    // #133/D38: the add-on covers both directions, not forwarding alone.
+    // #134/D42: the $8 Calling add-on retired — calling is included on every
+    // plan, and the cell must never sell it as an add-on again.
+    expect(flat).toContain("Included on every plan");
+    expect(flat).not.toContain("Add-on: Calling");
+    expect(flat).not.toContain("$8");
+    // #133/D38: calling covers both directions, not forwarding alone.
     expect(flat).toContain("call customers back from the business number");
+    // Still honest about what it isn't.
+    expect(flat).toContain("not a full phone system");
   });
 
   it("credits their $19.50 registration disclosure in the footnote (deck order)", () => {

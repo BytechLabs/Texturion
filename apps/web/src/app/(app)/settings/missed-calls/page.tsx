@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -186,13 +185,15 @@ function ForwardCard({
   canEdit: boolean;
   /**
    * The plan's monthly calling-minute allowance (voice.included_minutes
-   * from GET /v1/usage; the legacy 300 for a grandfathered module, #133).
-   * D36/D38: one pool, both directions — past it, extra minutes bill at 1¢
-   * each up to the spending cap, where calling pauses; the copy states both
-   * so nobody is surprised by a billed minute or a paused feature.
+   * from GET /v1/usage). D36/D38: one pool, both directions — past it, extra
+   * minutes bill at 1¢ each up to the spending cap, where calling pauses;
+   * the copy states both so nobody is surprised by a billed minute or a
+   * paused feature.
    */
   includedMinutes: number;
-  /** #133: false = grandfathered — nothing bills, the copy promises a pause. */
+  /** #134/D42: grandfathering retired with the module — the live API always
+   *  sends true; the false branch survives only for cached pre-D42 payloads
+   *  (never promise a 1¢ bill to someone whose snapshot says nothing bills). */
   overageBilled: boolean;
 }) {
   const update = useUpdateCompany();
@@ -451,11 +452,8 @@ export default function MissedCallsSettingsPage() {
   const usage = useUsage();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
-  // Missed-call text-back and forward-to-cell are both call features, gated by
-  // the "Calling" (voice) add-on — disabling it clears both settings
-  // server-side. Reflect that gate here with a link straight to the add-on.
-  const voiceEnabled =
-    company.data?.enabled_modules.includes("voice") ?? false;
+  // #134/D42: calling is included on every plan — the old "needs the Calling
+  // add-on" gate is gone, so an active workspace always gets its three cards.
 
   return (
     <SettingsPage
@@ -471,20 +469,6 @@ export default function MissedCallsSettingsPage() {
             void usage.refetch();
           }}
         />
-      ) : !voiceEnabled ? (
-        <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
-          Ringing your cell, calling customers from the app, and texting back
-          missed calls need the{" "}
-          <span className="font-medium text-foreground">Calling</span>{" "}
-          add-on:{" "}
-          <Link
-            href="/settings/billing"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            turn it on in Settings › Billing
-          </Link>
-          .
-        </div>
       ) : (
         <div className="space-y-6">
           {/* A text-enabled landline's calls ring the owner's existing

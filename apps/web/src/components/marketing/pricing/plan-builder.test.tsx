@@ -23,24 +23,26 @@ import {
 } from "./plan-math";
 
 describe("plan-math (owner ruling 13: totals from shared constants, zero retyped numbers)", () => {
-  it("sells exactly the API's sellable modules; regions_ca and the retired extra_storage are never offered", () => {
+  it("sells exactly the API's sellable modules — nothing today (#134/D42)", () => {
     // #97/#103: no "mms" card — pictures are included, not an add-on.
     // #121: no "extra_storage" card — storage is free.
-    expect(SELLABLE_ADDON_CARDS.map((card) => card.id)).toEqual(["voice"]);
+    // #134/D42: no "voice" card — calling is included on every plan, and
+    // regions_ca stays unsellable until multi-region provisioning ships,
+    // so the sellable set is empty.
+    expect(SELLABLE_ADDON_CARDS).toEqual([]);
   });
 
-  it("parses every sellable price out of the catalog mirror itself", () => {
-    // The catalog says $8 (as of 2026-07-10); the parser must read those
-    // strings, not carry its own copy.
-    for (const card of SELLABLE_ADDON_CARDS) {
-      expect(`$${addonMonthlyDollars(card)}`).toBe(card.price);
-    }
+  it("parses a catalog price out of the mirror's own string", () => {
+    // Canada numbers says $5; the parser must read that string, not carry
+    // its own copy.
+    const canada = PLAN_MODULE_CARDS.find((c) => c.id === "regions_ca")!;
+    expect(`$${addonMonthlyDollars(canada)}`).toBe(canada.price);
   });
 
   it("throws on an unparseable catalog price instead of rendering a wrong total", () => {
     expect(() =>
       addonMonthlyDollars({
-        id: "voice",
+        id: "regions_ca",
         label: "Broken",
         blurb: "",
         price: "call us",
@@ -55,20 +57,12 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
     );
   });
 
-  it("totals plan + enabled add-ons, and first month adds the one-time fee exactly once", () => {
-    const everything = {
-      plan: "pro",
-      addons: ["voice"],
-    } as const;
-    const expected =
-      PLAN_PRICING.pro.monthlyDollars +
-      SELLABLE_ADDON_CARDS.reduce(
-        (sum, card) => sum + addonMonthlyDollars(card),
-        0,
-      );
-    expect(monthlyTotalDollars(everything)).toBe(expected);
-    expect(firstMonthTotalDollars(everything)).toBe(
-      expected + US_REGISTRATION_FEE_DOLLARS,
+  it("totals the plan alone, and first month adds the one-time fee exactly once", () => {
+    expect(monthlyTotalDollars({ plan: "pro", addons: [] })).toBe(
+      PLAN_PRICING.pro.monthlyDollars,
+    );
+    expect(firstMonthTotalDollars({ plan: "pro", addons: [] })).toBe(
+      PLAN_PRICING.pro.monthlyDollars + US_REGISTRATION_FEE_DOLLARS,
     );
     // And the ruling's own arithmetic: Starter first month is $58.
     expect(firstMonthTotalDollars(DEFAULT_SELECTION)).toBe(58);
@@ -78,28 +72,34 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
     expect(
       monthlyTotalDollars({ plan: "starter", addons: ["regions_ca"] }),
     ).toBe(PLAN_PRICING.starter.monthlyDollars);
-    // #121: a stale extra_storage intent (old ad, old bookmark) prices as $0.
-    // (Double cast: the id is leaving the PlanModule union with the retirement.)
+    // #121/#134: a stale retired intent (old ad, old bookmark) prices as $0.
+    // (Double cast: the ids left the PlanModule union with the retirements.)
     expect(
       monthlyTotalDollars({
         plan: "starter",
-        addons: ["extra_storage" as unknown as PlanModule],
+        addons: [
+          "extra_storage" as unknown as PlanModule,
+          "voice" as unknown as PlanModule,
+        ],
       }),
     ).toBe(PLAN_PRICING.starter.monthlyDollars);
   });
 
-  it("carries the chosen configuration into signup, and never carries a retired module", () => {
+  it("carries the chosen configuration into signup, and never carries an unsellable or retired module", () => {
     expect(signupHref(DEFAULT_SELECTION)).toBe("/signup?plan=starter");
-    expect(signupHref({ plan: "pro", addons: ["voice"] })).toBe(
-      "/signup?plan=pro&modules=voice",
+    expect(signupHref({ plan: "pro", addons: ["regions_ca"] })).toBe(
+      "/signup?plan=pro",
     );
-    // #121: extra_storage never rides into signup, even from stale state.
+    // #121/#134: retired ids never ride into signup, even from stale state.
     expect(
       signupHref({
         plan: "pro",
-        addons: ["extra_storage" as unknown as PlanModule, "voice"],
+        addons: [
+          "extra_storage" as unknown as PlanModule,
+          "voice" as unknown as PlanModule,
+        ],
       }),
-    ).toBe("/signup?plan=pro&modules=voice");
+    ).toBe("/signup?plan=pro");
   });
 });
 
@@ -115,14 +115,10 @@ describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake stat
     expect(html).not.toContain("$58/mo");
   });
 
-  it("renders both plans and every sellable add-on with its catalog price", () => {
+  it("renders both plans with their catalog prices", () => {
     for (const plan of PLANS) {
       expect(html).toContain(plan.name);
       expect(html).toContain(plan.price);
-    }
-    for (const card of SELLABLE_ADDON_CARDS) {
-      expect(html).toContain(card.label);
-      expect(html).toContain(card.price);
     }
   });
 
@@ -132,16 +128,23 @@ describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake stat
     expect(html).not.toContain(canadaCard!.label);
   });
 
-  it("starts with Starter selected and every add-on off (real control state)", () => {
+  it("#134/D42: hides the whole add-on step while nothing is sellable", () => {
+    // Calling retired into every plan; regions_ca can't be bought yet. No
+    // heading over an empty list, and no toggle for anything.
+    expect(html).not.toContain("Add only what you need");
+    expect(html).not.toContain('role="switch"');
+  });
+
+  it("starts with Starter selected (real control state)", () => {
     expect(html).toContain('aria-checked="true"');
-    // #103/#121: one sellable add-on (voice) — mms and extra_storage retired.
-    expect(html.match(/role="switch" aria-checked="false"/g)).toHaveLength(1);
     expect(html).not.toContain('role="switch" aria-checked="true"');
   });
 
-  it("#121: never offers the retired Extra-storage add-on or a storage figure", () => {
+  it("#121/#134: never offers the retired add-ons or their figures", () => {
     expect(html).not.toContain("Extra storage");
     expect(html).not.toMatch(/\bGB\b/);
+    expect(html).not.toContain("Calling");
+    expect(html).not.toContain("$8");
   });
 
   it("the default CTA already carries the default configuration", () => {

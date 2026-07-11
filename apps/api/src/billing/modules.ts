@@ -21,11 +21,16 @@ import type { PlanId } from "./plans";
  * (3 per MMS through the normal usage pipeline), so the paid add-on is gone
  * from the catalog. #121: `extra_storage` is RETIRED — storage is free with
  * no caps, so there is nothing to sell; abusive storage use triggers a human
- * conversation (usage-alerts abuse arm), never a block. Stale Stripe line
- * items for either are stripped by the daily reconcile's retired-price sweep
- * (billing/reconcile.ts) with a prorated credit.
+ * conversation (usage-alerts abuse arm), never a block. #134/D42: `voice` is
+ * RETIRED — calling is INCLUDED on every plan (the fair-use minutes + 1¢/min
+ * overage mechanics are usage, not packaging, and stay exactly as D36/D38
+ * shipped them); the voice METERED item now attaches to every live
+ * subscription, and voice binds on every active workspace's numbers. Stale
+ * Stripe line items for any retired module are stripped by the daily
+ * reconcile's retired-price sweep (billing/reconcile.ts) with a prorated
+ * credit.
  */
-export const PLAN_MODULES = ["voice", "regions_ca"] as const;
+export const PLAN_MODULES = ["regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
 
 export interface ModuleSpec {
@@ -51,16 +56,6 @@ export interface ModuleSpec {
 }
 
 export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
-  voice: {
-    id: "voice",
-    label: "Calling",
-    blurb:
-      "Call customers and forward calls from your business number, and text back the ones you miss.",
-    detail: "Generous calling minutes under fair use.",
-    monthlyCents: 800,
-    gates: "calling with your business number",
-    priceEnvKey: "STRIPE_MODULE_VOICE_PRICE_ID",
-  },
   regions_ca: {
     id: "regions_ca",
     label: "Canada numbers",
@@ -84,8 +79,6 @@ export function isPlanModule(value: string): value is PlanModule {
  */
 export function modulePrice(env: Env, module: PlanModule): string | null {
   switch (module) {
-    case "voice":
-      return env.STRIPE_MODULE_VOICE_PRICE_ID ?? null;
     case "regions_ca":
       return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
   }
@@ -127,7 +120,8 @@ export function allVoiceOveragePrices(env: Env): string[] {
 }
 
 /**
- * #103/#121: Stripe prices of RETIRED modules (mms, extra_storage). These no
+ * #103/#121/#134: Stripe prices of RETIRED modules (mms, extra_storage,
+ * voice). These no
  * longer sell or map to a catalog module, but an existing subscription may
  * still carry a line item on one — the daily reconcile (billing/reconcile.ts)
  * strips such items with a prorated credit so the customer stops being billed
@@ -140,6 +134,8 @@ export function retiredModulePrices(env: Env): string[] {
   return [
     env.STRIPE_MODULE_MMS_PRICE_ID,
     env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID,
+    // #134/D42: calling included — the $8 licensed item strips with credit.
+    env.STRIPE_MODULE_VOICE_PRICE_ID,
   ].filter(
     (price): price is string => typeof price === "string" && price.length > 0,
   );

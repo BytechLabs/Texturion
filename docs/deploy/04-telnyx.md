@@ -43,6 +43,14 @@ the portal (`apps/api/src/telnyx/voice.ts:1-22,68-118`):
 - **Webhook failover URL** = the same URL.
 - Copy the application's **id** → the `TELNYX_VOICE_CONNECTION_ID` Worker secret
   (`apps/api/src/env.ts:28-34`).
+- **Assign an Outbound Voice Profile** (D38/#133 — without one, EVERY outbound
+  dial 403s with "Connection has no Outbound Profile assigned"): create one
+  (`POST /v2/outbound_voice_profiles` — traffic_type `conversational`,
+  service_plan `global`, usage_payment_method `rate-deck`,
+  `whitelisted_destinations: ["US","CA"]` to mirror the messaging posture),
+  then `PATCH /v2/call_control_applications/{id}` with
+  `outbound.outbound_voice_profile_id`. Done for prod on 2026-07-11
+  (profile `3001971696790931111`, "loonext-conversational").
 
 The Worker does the rest at runtime: when a company enables missed-call text-back
 or sets a forward-to-cell, it PATCHes each active number's voice settings to

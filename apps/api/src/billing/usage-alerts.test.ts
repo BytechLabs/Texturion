@@ -35,8 +35,6 @@ interface UsageState {
   attachmentBytes?: number;
   /** api_period_forward_seconds (D36 — default 0 → no voice alerts). */
   voiceSeconds?: number;
-  /** company_modules voice row (#133 — default not grandfathered). */
-  voiceGrandfathered?: boolean;
   /** api_period_egress_bytes (default 0 → no egress alerts). */
   egressBytes?: number;
 }
@@ -66,11 +64,8 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       /\/rest\/v1\/rpc\/api_period_egress_bytes/,
       () => state.egressBytes ?? 0,
     ),
-    // #133: the voice arm reads the module's grandfathered flag to pick the
-    // right allowance (legacy pause line vs plan minutes).
-    endpoint("GET", /\/rest\/v1\/company_modules/, () => [
-      { grandfathered: state.voiceGrandfathered ?? false },
-    ]),
+    // #134/D42: NO company_modules stub — the voice arm reads plan allowances
+    // for everyone now (a module read would fail loudly as unstubbed).
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
       const row = call.json() as { metric: string; threshold: number };
       const key = `${row.metric}:${row.threshold}`;
@@ -278,26 +273,6 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(state.ledger).toEqual(new Set(["voice_minutes:80"]));
   });
 
-  it("#133 grandfathered voice: thresholds follow the 300-min pause line and the copy promises a pause, never 1¢", async () => {
-    const state: UsageState = {
-      used: 0,
-      ledger: new Set(),
-      voiceSeconds: 250 * 60, // 250 of the legacy 300 min = 83% — would be 10% of the plan allowance
-      voiceGrandfathered: true,
-    };
-    const { harness, done } = run(state);
-    await done;
-    const emails = sentEmails(harness);
-    expect(emails).toHaveLength(1);
-    expect(emails[0].subject).toContain("80% of its included calling minutes");
-    expect(emails[0].text).toContain("250 of the 300 calling minutes");
-    expect(emails[0].text).toContain("calling pauses until your next period");
-    expect(emails[0].text).not.toContain("1¢");
-    expect(state.ledger).toEqual(
-      new Set(["voice_minutes_grandfathered:80"]),
-    );
-  });
-
   it("voice minutes below 80% sends nothing", async () => {
     const state: UsageState = {
       used: 0,
@@ -427,7 +402,6 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         mms_bytes: 0,
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_forward_seconds/, () => 0),
-      endpoint("GET", /\/rest\/v1\/company_modules/, () => []),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };

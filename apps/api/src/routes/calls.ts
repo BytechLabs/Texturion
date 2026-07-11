@@ -18,7 +18,6 @@ import { z } from "zod";
 
 import { requireRole } from "../auth/company";
 import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
-import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -580,13 +579,8 @@ callsRoutes.post("/calls", requireRole("member"), async (c) => {
       "Your subscription isn't active.",
     );
   }
-  if (!(await isModuleEnabled(db, companyId, "voice"))) {
-    return errorResponse(
-      c,
-      "conflict",
-      "Calling customers needs the Calling add-on — turn it on in Settings › Billing.",
-    );
-  }
+  // #134/D42: calling is included on every plan — no module gate. The live
+  // subscription check above is the only packaging gate.
   if (await companyOverVoiceCap(db, companyId, company)) {
     return errorResponse(
       c,

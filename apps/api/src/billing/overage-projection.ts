@@ -64,7 +64,6 @@ import {
   EXTRA_NUMBER_MONTHLY_CENTS,
 } from "./extra-numbers";
 import {
-  GRANDFATHERED_VOICE_MINUTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
@@ -168,15 +167,12 @@ export function outboundCeiling(
 
 /** D36: the month-end calling-seconds ceiling — calling pauses at the
  *  SAME spending cap as texts (allowance × multiplier), no longer at the
- *  allowance itself. #133: a grandfathered module pauses at the legacy
- *  allowance and bills nothing — its ceiling IS that line, whatever the
- *  multiplier. */
+ *  allowance itself. (#134/D42: the grandfathered legacy ceiling retired
+ *  with the module.) */
 export function voiceCeilingSeconds(
   plan: PlanId,
   overageCapMultiplier: number | null,
-  voiceGrandfathered = false,
 ): number {
-  if (voiceGrandfathered) return GRANDFATHERED_VOICE_MINUTES * 60;
   return overageCapMultiplier === null
     ? Infinity
     : PLAN_VOICE_MINUTES[plan] * 60 * overageCapMultiplier;
@@ -205,7 +201,6 @@ export function projectUsage(
   plan: PlanId,
   overageCapMultiplier: number | null,
   multiplier: number,
-  voiceGrandfathered = false,
 ): ProjectedUsage {
   const includedSegments = PLAN_INCLUDED_SEGMENTS[plan];
   const ceiling = outboundCeiling(plan, overageCapMultiplier);
@@ -216,7 +211,7 @@ export function projectUsage(
   // between the two BILL at 1¢/min (counted into overage revenue below).
   const projectedVoiceSeconds = Math.min(
     usage.voiceSeconds * multiplier,
-    voiceCeilingSeconds(plan, overageCapMultiplier, voiceGrandfathered),
+    voiceCeilingSeconds(plan, overageCapMultiplier),
   );
   // The per-transfer fee is per CALL, so it is extrapolated UNCAPPED — the
   // voice spending cap bounds minutes, not call count (#98): a short/
@@ -232,11 +227,10 @@ export function projectUsage(
     projectedForwardedCalls * UNIT_COST_CENTS.voiceTransfer +
     (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
 
-  // #133: a grandfathered module never bills overage — projecting phantom
-  // 1¢/min revenue would understate the warning's loss math.
-  const projectedVoiceOverageMinutes = voiceGrandfathered
-    ? 0
-    : Math.max(0, projectedVoiceSeconds / 60 - PLAN_VOICE_MINUTES[plan]);
+  const projectedVoiceOverageMinutes = Math.max(
+    0,
+    projectedVoiceSeconds / 60 - PLAN_VOICE_MINUTES[plan],
+  );
   const overageRevenueGrossCents =
     Math.max(0, projectedOutbound - includedSegments) *
       PLAN_OVERAGE_CENTS_PER_SEGMENT[plan] +
@@ -274,9 +268,6 @@ export function overageDecision(
     overageCapMultiplier: number | null;
     numbers: number;
     usTextingEnabled: boolean;
-    /** #133: the voice module is grandfathered — no billed overage, legacy
-     *  pause line, and no module revenue. */
-    voiceGrandfathered?: boolean;
     /** GROSS monthly plan + module revenue, before overage and Stripe fees. */
     baseRevenueGrossCents: number;
     periodStart: string | Date;
@@ -295,7 +286,6 @@ export function overageDecision(
     inputs.plan,
     inputs.overageCapMultiplier,
     multiplier,
-    inputs.voiceGrandfathered ?? false,
   );
   const extrapolatedCostCents =
     projected.costCents +
@@ -422,10 +412,9 @@ export async function decideOverage(
   // (each extra beyond the included count bills its per-plan price, so its
   // rent in fixedMonthlyCostCents is offset by real revenue, not flagged as
   // a loss). #133: a grandfathered module bills nothing — counting its price
-  // as revenue would inflate the margin and mute the warning.
-  const voiceGrandfathered = moduleFlags.some(
-    (m) => m.module === "voice" && m.grandfathered,
-  );
+  // as revenue would inflate the margin and mute the warning. #134/D42:
+  // voice retired (calling included) — no voice module revenue exists and
+  // every tenant projects against the plan allowance.
   const paidModules = moduleFlags
     .filter((m) => !m.grandfathered)
     .map((m) => m.module);
@@ -440,7 +429,6 @@ export async function decideOverage(
       overageCapMultiplier: company.overage_cap_multiplier,
       numbers,
       usTextingEnabled: company.us_texting_enabled,
-      voiceGrandfathered,
       baseRevenueGrossCents,
       periodStart: company.current_period_start,
       periodEnd: company.current_period_end,

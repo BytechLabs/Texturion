@@ -1351,3 +1351,66 @@ member-visible `enabled_modules` and every gate reads it (errored/loading state
 renders a disabled button, never tel:). Verify dialog opens on the code step for
 a saved-unverified cell with an explicit Resend. #106 alert tests use schema-real
 fixtures and pin the notes-only case.
+
+## D42. Calling is included on every plan — the $8 module retires (#134, 2026-07-11)
+
+Founder: "why are we charging for voice? shouldn't it just be included and available
+for everyone?" Yes — and the honest economics say the $8 never carried the risk anyway:
+
+- **The exposure was never the module fee.** A heavy caller's cost lives in the
+  INCLUDED minutes (2,500 × ~1.2¢ combined-leg ≈ $30 against a $29 Starter) and that
+  existed with the module too. What bounds it: almost no crew approaches the allowance
+  (fair-use posture), the #85 pacing warning flags a tenant trending to cost more than
+  they pay mid-period, overage past the allowance BILLS at 1¢/min to the cap then
+  pauses (D36 mechanics unchanged), and reasonable-use enforcement covers abuse.
+- **The gate was hurting the product.** Missed-call text-back is the hook, and it sat
+  behind a toggle; three of the #133 production bugs were module-gate states
+  (module-off tel:, admin-only module reads, unbound numbers). Retiring the module
+  deletes the whole class: no module-off UI, no upsell dialogs, no grandfathered
+  variants, no voice-binding gates.
+- **Mechanics:** the #103/#121 retirement playbook. PLAN_MODULES drops 'voice';
+  the daily reconcile's retired-price sweep strips live $8 items WITH prorated
+  credit; the voice METERED item now attaches to EVERY live subscription (overage
+  still bills — that part is usage, not packaging); voice binds on every active
+  number of every active workspace; GRANDFATHERED_VOICE_MINUTES and every
+  grandfathered read/copy/metric retire (plan allowances for all); MCTB/forwarding
+  settings gates drop. Legal/fair-use reframes from "the optional calling add-on"
+  to calling-included; marketing drops every "$8/mo" calling claim (the one
+  remaining add-on is Canada numbers).
+
+## D43. Calls v2 — the browser is the phone (#135, 2026-07-11)
+
+Founder directives, four in one wave: voicemail; Telnyx inbound screening
+(per-workspace toggle, scam labels in UI); NO cell forwarding whatsoever
+(forward_to_cell, the D38 bridge, and the D40 cell verification all DELETE —
+the browser replaces the cell as the endpoint, so the machinery that existed
+to reach a cell dies with it); caller ID both directions with a
+workspace-chosen outbound CNAM; and full live-call handling (in-call notes on
+the thread, server-side hold, blind + announce member transfer with
+auto-recovery, call waiting). Full design with verified Telnyx mechanics:
+docs/CALLS-V2.md. Key research facts that shaped it: Telnyx inbound
+screening is FREE and native (flag_calls verdicts on call.initiated);
+outbound CNAM is per-number and free (≤15 chars, 12–72h propagation);
+inbound CNAM is a $0.40/number/month flat dip; browser ringing keeps the
+number on OUR Call Control app (one Dial per online member's credential,
+first answer wins) so the server never loses webhook control; Telnyx custom
+recording storage doesn't support R2 → fetch-and-copy within the 10-minute
+presigned window, then delete their copy. Honest tradeoff accepted by the
+founder: a closed browser cannot ring — push + voicemail + text-back are the
+nets. Ships in three phases after D42.
+
+**D42 addendum — money-path adversarial review, 6 confirmed findings, all fixed
+pre-ship:** the voice metered item now ALSO converges from the daily reconcile
+sweep (webhook-only attach left every quiet pre-D42 subscription unbilled for up
+to a cycle — the majority case, since healthy subs emit no events); its
+idempotency key is day+price-scoped (a cached Stripe failure or a plan change
+can no longer stall the attach for 24h); enableVoiceForCompany isolates
+per-number failures (one un-bindable number no longer aborts the batch);
+ENABLING MCTB/forwarding requires a live subscription again (honest 402 — the
+voice webhook would silently never fire for a canceled workspace); deploy skew
+is handled server-side (a stale pre-D42 bundle sending modules:["voice"] checks
+out cleanly WITHOUT the retired item instead of dead-ending 422, and a stale
+settings toggle gets the honest "calling is included now" 409). Known bounded
+gap accepted: a pre-D42 PENDING-DOWNGRADE schedule owns its items and carries
+no voice price until it releases at period end — fails toward unbilled,
+customer-favorable, prod population zero.

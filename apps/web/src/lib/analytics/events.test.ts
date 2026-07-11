@@ -62,12 +62,12 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
   it("signup_started fires bare, and with plan/module enums when intent exists", async () => {
     const { trackSignupStarted } = await importEvents();
     trackSignupStarted();
-    trackSignupStarted({ plan: "pro", modules: ["voice", "regions_ca"] });
+    trackSignupStarted({ plan: "pro", modules: ["regions_ca"] });
     await flush();
     expect(captureSpy).toHaveBeenNthCalledWith(1, "signup_started", undefined);
     expect(captureSpy).toHaveBeenNthCalledWith(2, "signup_started", {
       plan: "pro",
-      modules: ["voice", "regions_ca"],
+      modules: ["regions_ca"],
     });
   });
 
@@ -92,16 +92,16 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
 
   it("plan_selected and checkout_started carry plan + modules", async () => {
     const { trackCheckoutStarted, trackPlanSelected } = await importEvents();
-    trackPlanSelected("starter", ["voice"]);
-    trackCheckoutStarted("starter", ["voice"]);
+    trackPlanSelected("starter", ["regions_ca"]);
+    trackCheckoutStarted("starter", ["regions_ca"]);
     await flush();
     expect(captureSpy).toHaveBeenNthCalledWith(1, "plan_selected", {
       plan: "starter",
-      modules: ["voice"],
+      modules: ["regions_ca"],
     });
     expect(captureSpy).toHaveBeenNthCalledWith(2, "checkout_started", {
       plan: "starter",
-      modules: ["voice"],
+      modules: ["regions_ca"],
     });
   });
 
@@ -120,8 +120,8 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
       events.trackSignupStarted({ plan: "pro", modules: [] });
       events.trackSignupCompleted();
       events.trackOnboardingStepCompleted("plan");
-      events.trackPlanSelected("pro", ["voice"]);
-      events.trackCheckoutStarted("pro", ["voice"]);
+      events.trackPlanSelected("pro", ["regions_ca"]);
+      events.trackCheckoutStarted("pro", ["regions_ca"]);
       events.trackCheckoutCompleted();
     }).not.toThrow();
     await flush();

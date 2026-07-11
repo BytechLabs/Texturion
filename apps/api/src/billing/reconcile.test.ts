@@ -84,6 +84,15 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
         patches.push(call.json());
         return [{ id: COMPANY_ID, name: "Acme Plumbing" }];
       }),
+      // #134: the mirror attaches the missing per-plan voice metered item to
+      // every live subscription (calling is included on every plan).
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+        id: "si_voice_metered",
+        object: "subscription_item",
+      })),
+      // #134: the mirror also voice-binds the live workspace's numbers — no
+      // numbers here, quiet no-op.
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
     ]);
     stubFetch(harness.route);
 
@@ -111,6 +120,14 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
     expect(patch.url.searchParams.get("stripe_subscription_id")).toBe(
       "eq.sub_1",
     );
+    // #134/D42: the missing voice metered item converged onto the plan's price.
+    const attach = harness.callsTo("POST", /subscription_items$/);
+    expect(attach).toHaveLength(1);
+    expect(attach[0].form().get("subscription")).toBe("sub_1");
+    expect(attach[0].form().get("price")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(attach[0].form().has("quantity")).toBe(false);
   });
 
   it("no non-active companies: never calls Stripe, still reports stale invites", async () => {
@@ -157,6 +174,13 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       endpoint("PATCH", /\/rest\/v1\/companies/, () => [
         { id: OTHER_ID, name: "Fine Co" },
       ]),
+      // #134: past_due is live — the mirror attaches the voice metered item
+      // and voice-binds the numbers on the healthy tenant too.
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+        id: "si_voice_metered",
+        object: "subscription_item",
+      })),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
     ]);
     stubFetch(harness.route);
 
@@ -373,18 +397,21 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       data: [body],
     }));
 
-  it("deletes the mms item with a prorated credit and a derived idempotency key", async () => {
+  it("deletes the mms AND voice items with a prorated credit and derived idempotency keys (#134: voice is retired too)", async () => {
     const harness = makeHarness([
       ...baseEndpoints([], 0, [sweepCompany]),
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
           env.STRIPE_MODULE_MMS_PRICE_ID as string,
-          env.STRIPE_MODULE_VOICE_PRICE_ID as string, // live module — untouched
+          // #134/D42: the $8 licensed voice item is retired — swept with
+          // credit exactly like mms/extra_storage.
+          env.STRIPE_MODULE_VOICE_PRICE_ID as string,
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string, // live module — untouched
         ),
       ),
-      endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () => ({
-        id: "si_1",
+      endpoint("DELETE", /\/v1\/subscription_items\/si_[12]/, (call) => ({
+        id: call.url.pathname.split("/").pop(),
         object: "subscription_item",
         deleted: true,
       })),
@@ -393,16 +420,21 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
 
     const summary = await runSubscriptionReconcileJob(env, NOW);
 
-    expect(summary.retiredModuleItemsRemoved).toBe(1);
+    expect(summary.retiredModuleItemsRemoved).toBe(2);
     const dels = harness.callsTo("DELETE", /\/v1\/subscription_items/);
-    expect(dels).toHaveLength(1);
-    expect(dels[0].url.pathname).toBe("/v1/subscription_items/si_1");
+    expect(dels).toHaveLength(2);
+    expect(dels.map((d) => d.url.pathname).sort()).toEqual([
+      "/v1/subscription_items/si_1",
+      "/v1/subscription_items/si_2",
+    ]);
     // The unused remainder is credited back — never keep the customer's money
     // for a module that no longer exists. (stripe-node encodes DELETE params
     // into the query string.)
-    expect(dels[0].url.searchParams.get("proration_behavior")).toBe(
-      "create_prorations",
-    );
+    for (const del of dels) {
+      expect(del.url.searchParams.get("proration_behavior")).toBe(
+        "create_prorations",
+      );
+    }
     // Date-scoped: yesterday's cached Stripe FAILURE can never replay as
     // today's result — each daily sweep is a fresh attempt.
     expect(dels[0].headers.get("Idempotency-Key")).toBe(
@@ -483,7 +515,8 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_VOICE_PRICE_ID as string,
+          // #134: regions_ca is the one live module left in the catalog.
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string,
         ),
       ),
     ]);

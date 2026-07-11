@@ -197,20 +197,29 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(storage?.detail).not.toMatch(/\bGB\b/);
 
     // The add-ons figure and prose agree with the module catalog mirror.
-    // #97/#103: no Picture-messages card. #121: no Extra-storage card;
-    // Calling is the only add-on.
+    // #97/#103: no Picture-messages card. #121: no Extra-storage card.
+    // #134/D42: no Calling card — calling is included on every plan, and the
+    // one add-on left is Canada numbers.
     const addons = LEDGER.find(
       (e) => e.term === "Optional add-ons, if you turn them on",
     );
     const byId = (id: string) =>
       PLAN_MODULE_CARDS.find((c) => c.id === id)!;
-    expect(addons?.figure).toBe(`${byId("voice").price}/mo`);
+    expect(addons?.figure).toBe(`${byId("regions_ca").price}/mo`);
     expect(addons?.detail).not.toContain("Picture messages");
     expect(addons?.detail).not.toContain("extra storage");
-    expect(addons?.detail).toContain(`${byId("voice").price}/mo`);
-    // #121: the voice minute figure lives on /legal/fair-use, not sales copy.
-    expect(addons?.detail).not.toContain("300 minutes");
+    expect(addons?.detail).toContain(`${byId("regions_ca").price}/mo`);
     expect(addons?.detail).toContain("One add-on exists");
+    expect(addons?.detail).toContain("Canada numbers");
+    // #134: the row leads with the included-calling truth and never sells
+    // Calling as an add-on again.
+    expect(addons?.detail).toContain("Calling is included in every plan");
+    expect(addons?.detail).not.toContain("Calling,");
+    // The minute figures live on /legal/fair-use, not sales copy (#121/D36).
+    expect(addons?.detail).not.toContain("300 minutes");
+    expect(addons?.detail).toContain("fair use policy");
+    // Honest availability: Canada numbers can't be switched on yet.
+    expect(addons?.detail).toContain("isn't switchable on quite yet");
 
     // The whole-list row counts one add-on and no storage fees.
     const whole = LEDGER.find((e) => e.term === "That's the whole list.");
@@ -339,16 +348,29 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     expect(over?.a).not.toContain("3×");
   });
 
-  it("keeps the Calling add-on facts in the what-am-I-not-getting answer", () => {
+  it("carries the included-calling facts in the what-am-I-not-getting answer (#134/D42)", () => {
     const not = FAQS.find(
       (f) => f.q === "What am I not getting at these prices?",
     );
-    // #133/D38: the add-on is named Calling and covers both directions —
-    // the old "no calling inside the app" claim is false now.
-    expect(not?.a).toContain("Calling add-on ($8/mo)");
-    expect(not?.a).toContain("call them back from the app");
-    expect(not?.a).toContain("texts back the ones you miss");
+    // #134/D42: the $8 Calling module retired — calling is included on every
+    // plan, both directions, and the answer must say so instead of selling
+    // an add-on that no longer exists.
+    expect(not?.a).toContain("Calling is included on every plan");
+    expect(not?.a).toContain("forward to your cell");
+    expect(not?.a).toContain("call customers back from the app");
+    expect(not?.a).toContain("text back");
+    expect(not?.a).toContain("fair use");
+    expect(not?.a).not.toContain("add-on");
+    expect(not?.a).not.toContain("$8");
     expect(not?.a).not.toContain("no calling inside the app");
+  });
+
+  it("#134/D42: no string anywhere on /pricing sells calling for $8 or as an add-on", () => {
+    for (const s of allStrings()) {
+      expect(s, s).not.toMatch(/\$8\b/);
+      expect(s.toLowerCase(), s).not.toContain("calling add-on");
+      expect(s.toLowerCase(), s).not.toContain("calling module");
+    }
   });
 
   it("keeps the once-ever registration-fee promise", () => {

@@ -8,8 +8,9 @@
  * (missed = warning tint — the row's ONE tinted element; answered/voicemail
  * stay quiet), and CalmEmptyState. Missed is the only filter: the weekly
  * question is "who called and do I need to act?". #133 polish: a muted
- * direction glyph per row, a quiet explainer on unthreaded rows, and a slim
- * module-off banner above the list (history keeps working; calling doesn't).
+ * direction glyph per row and a quiet explainer on unthreaded rows.
+ * #134/D42: calling is included on every plan, so the old module-off banner
+ * is gone — there is no module state to warn about.
  */
 import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +20,6 @@ import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCompany } from "@/lib/api/companies";
 import { useCalls, type CallOutcomeFilter } from "@/lib/api/calls";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
@@ -136,15 +136,6 @@ export function CallsView() {
   );
   const calls = useCalls(outcome);
   const rows = calls.data?.pages.flatMap((page) => page.data) ?? [];
-  // #133: the log keeps working with the voice module off (history is
-  // history), but forwarding + outbound calling don't — say so above the
-  // list, once the module state has actually loaded (no flash while pending).
-  // Member-visible module state (#133 review: GET /v1/billing/modules is
-  // admin-only — members reading it 403'd and every member saw "module off").
-  const company = useCompany();
-  const voiceOff =
-    company.data !== undefined &&
-    !company.data.enabled_modules.includes("voice");
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
@@ -179,19 +170,6 @@ export function CallsView() {
           })}
         </div>
       </div>
-
-      {voiceOff && rows.length > 0 && (
-        <div className="rounded-app-card border border-app-line bg-app-white px-4 py-3 text-[12.5px] leading-relaxed text-app-muted">
-          Calls land here, but calling is off — turn on the{" "}
-          <Link
-            href="/settings/billing"
-            className="font-medium text-app-petrol-deep underline underline-offset-4 hover:no-underline"
-          >
-            Calling add-on
-          </Link>{" "}
-          to ring your cell and call customers back.
-        </div>
-      )}
 
       <section>
         <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
@@ -235,7 +213,10 @@ export function CallsView() {
               description={
                 outcome === "missed"
                   ? undefined
-                  : "Turn on the Calling add-on or missed-call text-back and every call lands in this log and its conversation."
+                  : // #134/D42: calling is included on every plan — the empty
+                    // state just says where calls land and where the setup
+                    // (forwarding + text-back) lives.
+                    "Once calls start coming in, each one lands in this log and its conversation. Forwarding to your cell and the missed-call text-back live in Settings › Missed calls."
               }
               action={
                 outcome === "missed" ? undefined : (

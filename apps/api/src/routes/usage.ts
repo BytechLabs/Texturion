@@ -30,7 +30,6 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { unwrap } from "./core/http";
 import {
-  GRANDFATHERED_VOICE_MINUTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
@@ -170,33 +169,14 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
   // overage-so-far at 1¢/min rated to the second (the meter bills the same
   // raw seconds this RPC sums, so these figures can never diverge from the
   // invoice), and a cap where calling pauses.
-  //
-  // #133 grandfathered honesty: a grandfathered voice module bills NO
-  // overage and pauses at the legacy 300-minute line — the exact read
-  // companyOverVoiceCap gates on. This surface (and the alerts and every
-  // page fed by it) must show THAT reality, not the paid-module one: before
-  // this fix a grandfathered tenant saw "2,500 included, extra at 1¢" while
-  // calls silently stopped at 300 with zero warning.
-  const { data: voiceModuleRows, error: voiceModuleError } = await db
-    .from("company_modules")
-    .select("grandfathered")
-    .eq("company_id", companyId)
-    .eq("module", "voice")
-    .is("disabled_at", null)
-    .limit(1);
-  if (voiceModuleError) {
-    throw new Error(`voice module lookup failed: ${voiceModuleError.message}`);
-  }
-  const voiceGrandfathered =
-    (voiceModuleRows as { grandfathered: boolean }[] | null)?.[0]
-      ?.grandfathered === true;
+  // #134/D42: calling is included on every plan (the grandfathered legacy
+  // line retired with the module) — plan allowances for everyone.
   const voiceUsedMinutes = Math.floor(voiceSeconds / 60);
-  const includedVoiceMinutes = voiceGrandfathered
-    ? GRANDFATHERED_VOICE_MINUTES
-    : PLAN_VOICE_MINUTES[company.plan];
-  const voiceOverageSeconds = voiceGrandfathered
-    ? 0
-    : Math.max(0, voiceSeconds - includedVoiceMinutes * 60);
+  const includedVoiceMinutes = PLAN_VOICE_MINUTES[company.plan];
+  const voiceOverageSeconds = Math.max(
+    0,
+    voiceSeconds - includedVoiceMinutes * 60,
+  );
   const voiceOverageMinutes = Math.floor(voiceOverageSeconds / 60);
 
   // #85/#93: the dynamic END-OF-PERIOD projection (extrapolated), distinct from
@@ -248,20 +228,18 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     voice: {
       used_minutes: voiceUsedMinutes,
       included_minutes: includedVoiceMinutes,
-      // D36: calling pauses at the SAME spending cap as texts. Grandfathered
-      // (#133): nothing bills, so the pause line IS the allowance.
-      cap_minutes: voiceGrandfathered
-        ? includedVoiceMinutes
-        : multiplier === null
+      // D36: calling pauses at the SAME spending cap as texts.
+      cap_minutes:
+        multiplier === null
           ? null
           : Math.round(includedVoiceMinutes * multiplier),
       overage_minutes: voiceOverageMinutes,
       projected_overage_cents: Math.round(
         (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_PER_MINUTE,
       ),
-      // #133: false = extra minutes never bill; the web hides 1¢ copy and
-      // says "calling pauses at your included minutes" instead.
-      overage_billed: !voiceGrandfathered,
+      // #134: always true since D42 (grandfathered retired with the module);
+      // kept for API-shape stability with deployed web bundles.
+      overage_billed: true,
     },
     // #97/#103: no `mms` meter — picture messages have no separate cap; each
     // MMS counts 3 segments inside the message meter above. The zeros below

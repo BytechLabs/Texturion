@@ -240,51 +240,61 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
           downgrades at the end of your billing period.
         </p>
 
-        <p className="fr-eyebrow mt-10 text-[color:var(--fr-ink-55)]">
-          Step 2 · Add only what you need
-        </p>
-        <div className="mt-4 space-y-3">
-          {SELLABLE_ADDON_CARDS.map((card) => {
-            const on = addons.includes(card.id);
-            return (
-              <button
-                key={card.id}
-                type="button"
-                role="switch"
-                aria-checked={on}
-                onClick={() => toggleAddon(card.id)}
-                className={cn(
-                  "fr-card flex w-full items-start gap-4 p-5 text-left transition-shadow duration-200 ease-out",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]",
-                  on
-                    ? "shadow-[inset_0_0_0_2px_var(--fr-cobalt),var(--fr-shadow-card)]"
-                    : "hover:shadow-[inset_0_0_0_2px_var(--fr-frost),var(--fr-shadow-card)]",
-                )}
-              >
-                <Switch on={on} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <span className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-ink)]">
-                      {card.label}
+        {/* #134/D42: the add-on step renders only while something is actually
+            sellable. Calling retired into every plan and Canada numbers isn't
+            purchasable yet, so today this whole step is hidden — never a
+            heading over an empty list. */}
+        {SELLABLE_ADDON_CARDS.length > 0 && (
+          <>
+            <p className="fr-eyebrow mt-10 text-[color:var(--fr-ink-55)]">
+              Step 2 · Add only what you need
+            </p>
+            <div className="mt-4 space-y-3">
+              {SELLABLE_ADDON_CARDS.map((card) => {
+                const on = addons.includes(card.id);
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    onClick={() => toggleAddon(card.id)}
+                    className={cn(
+                      "fr-card flex w-full items-start gap-4 p-5 text-left transition-shadow duration-200 ease-out",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]",
+                      on
+                        ? "shadow-[inset_0_0_0_2px_var(--fr-cobalt),var(--fr-shadow-card)]"
+                        : "hover:shadow-[inset_0_0_0_2px_var(--fr-frost),var(--fr-shadow-card)]",
+                    )}
+                  >
+                    <Switch on={on} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-ink)]">
+                          {card.label}
+                        </span>
+                        <span className="fr-mono-data shrink-0 text-[color:var(--fr-ink)]">
+                          {card.price}
+                          <span className="text-[color:var(--fr-ink-55)]">
+                            /mo
+                          </span>
+                        </span>
+                      </span>
+                      <span className="mt-1 block text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
+                        {card.blurb}
+                        {card.detail ? ` ${card.detail}` : ""}
+                      </span>
                     </span>
-                    <span className="fr-mono-data shrink-0 text-[color:var(--fr-ink)]">
-                      {card.price}
-                      <span className="text-[color:var(--fr-ink-55)]">/mo</span>
-                    </span>
-                  </span>
-                  <span className="mt-1 block text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-70)]">
-                    {card.blurb}
-                    {card.detail ? ` ${card.detail}` : ""}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          Every add-on is off by default and none is required to text. Turn
-          them on here or later in settings, and off the same way.
-        </p>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
+              Every add-on is off by default and none is required to text.
+              Turn them on here or later in settings, and off the same way.
+            </p>
+          </>
+        )}
       </div>
 
       {/* ------------------------------------------------------------------ */}

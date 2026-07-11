@@ -62,7 +62,9 @@ const MODULE_PRICES: {
   monthlyCents: number;
   envKey: string;
 }[] = [
-  { id: "voice", label: "Calling", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
+  // #134/D42: `voice` RETIRED — calling is included on every plan. The env
+  // var STAYS SET in prod (the retired-price sweep identifies the $8 items
+  // by it); the product/price are simply no longer created or sold.
   { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },
   // #105 (#80): per-plan extra-number prices — quantity on the subscription =
   // paid extras beyond the plan's included numbers (billing/extra-numbers.ts).

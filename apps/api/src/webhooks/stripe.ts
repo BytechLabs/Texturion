@@ -223,19 +223,16 @@ async function reconcileModulesFromSubscription(
   );
   await ensureVoiceMeteredItem(env, companyId, subscription);
 
-  // #133: buying the Calling module must make the numbers CALLABLE — bind
-  // voice on every active number the moment the module row lands, not only
-  // when MCTB/forwarding is later configured (the founder bought the module,
-  // called their number, and the carrier said "unavailable": the number was
-  // never bound to the voice connection). Best-effort — the 15-min
-  // reconcileVoiceEnablement cron (whose gate now includes the module) is
-  // the durable retry.
-  if (paid.includes("voice")) {
+  // #133/#134: every live workspace's numbers must be CALLABLE — calling is
+  // included on every plan (D42), so voice binds on every mirror pass of a
+  // live subscription, not on any module state. Best-effort — the 15-min
+  // reconcileVoiceEnablement cron is the durable retry.
+  if (["active", "past_due", "trialing"].includes(subscription.status)) {
     try {
       await enableVoiceForCompany(env, db, companyId);
     } catch (cause) {
       console.error(
-        `voice enablement after module purchase failed for ${companyId}:`,
+        `voice enablement on subscription mirror failed for ${companyId}:`,
         cause instanceof Error ? cause.message : String(cause),
       );
     }
@@ -243,31 +240,24 @@ async function reconcileModulesFromSubscription(
 }
 
 /**
- * D36 review fix: converge the voice METERED overage item onto the paid
- * voice module. A subscription that carries the $8 voice licensed item must
- * also carry the CURRENT plan's voice overage price — pre-D36 module buyers
- * have none (their forwarded minutes would meter but never bill), and a
- * missed change-plan swap leaves the wrong plan's tiering. Runs on every
- * mirror pass (checkout, subscription webhooks, daily reconcile), so drift
- * heals within a day. Skips: no paid licensed voice item (grandfathered
- * modules stay free by design), non-live subscriptions (Stripe rejects item
- * writes), schedule-managed subscriptions (the schedule owns the items; the
- * module toggle and change-plan write phases explicitly), unprovisioned
- * price env. Failures are logged, never thrown — a convergence miss retries
- * on the next mirror pass and must not fail the webhook.
+ * D36 review fix, widened by D42 (#134): converge the voice METERED overage
+ * item onto EVERY live subscription — calling is included on every plan, so
+ * every subscription must carry the CURRENT plan's voice overage price
+ * (tier 1 at $0 up to the allowance, then 1¢/min), or minutes would meter
+ * but never bill. Runs on every mirror pass (checkout, subscription
+ * webhooks, daily reconcile), so drift heals within a day. Skips: non-live
+ * subscriptions (Stripe rejects item writes), schedule-managed
+ * subscriptions (the schedule owns the items; change-plan writes phases
+ * explicitly), unprovisioned price env. Failures are logged, never thrown —
+ * a convergence miss retries on the next mirror pass and must not fail the
+ * webhook.
  */
-async function ensureVoiceMeteredItem(
+export async function ensureVoiceMeteredItem(
   env: Env,
   companyId: string,
   subscription: Stripe.Subscription,
 ): Promise<void> {
   try {
-    const voiceLicensed = modulePrice(env, "voice");
-    if (!voiceLicensed) return;
-    const hasVoiceModule = subscription.items.data.some(
-      (item) => item.price?.id === voiceLicensed,
-    );
-    if (!hasVoiceModule) return;
     if (!["active", "past_due", "unpaid", "trialing"].includes(subscription.status)) {
       return;
     }
@@ -289,7 +279,13 @@ async function ensureVoiceMeteredItem(
         {
           // Sub-scoped key: concurrent mirror passes (webhook + confirm race)
           // collapse to one item instead of two prices on one meter.
-          idempotencyKey: idempotencyKey(companyId, "voice_metered_attach", subscription.id),
+          idempotencyKey: // #134 review: day+price-scoped so a cached Stripe failure or a
+            // plan change never replays a stale result for ~24h.
+            idempotencyKey(
+              companyId,
+              "voice_metered_attach",
+              `${subscription.id}:${wanted}:${new Date().toISOString().slice(0, 10)}`,
+            ),
         },
       );
       Sentry.captureMessage(

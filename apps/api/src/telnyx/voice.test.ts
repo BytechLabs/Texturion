@@ -154,53 +154,30 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
       rows.map((row) => baseRow(row)),
     );
   }
-  /** #133: the gate also reads company_modules (the Calling module). */
-  function modulesStub(companyIds: string[] = []): Stub {
-    return stubRoute(restMatch(env, "GET", "company_modules"), () =>
-      companyIds.map((company_id) => ({ company_id })),
-    );
-  }
 
-  it("binds voice on an active un-bound number of an MCTB-on company", async () => {
+  it("#134: binds voice on an active un-bound number of a LIVE-subscription company", async () => {
     const patch = voicePatch();
     const update = numberUpdate();
-    serve(
-      companiesStub([COMPANY_ID]),
-      modulesStub(),
-      numbersStub([{}]),
-      voiceGet(null),
-      patch,
-      update,
-    );
+    const companies = companiesStub([COMPANY_ID]);
+    serve(companies, numbersStub([{}]), voiceGet(null), patch, update);
 
     const summary = await reconcileVoiceEnablement(env);
     expect(summary).toEqual({ checked: 1, enabled: 1 });
     expect(patch.calls).toHaveLength(1);
     expect(update.calls).toHaveLength(1);
-  });
-
-  it("#133: binds voice for a company whose ONLY signal is the Calling module", async () => {
-    const patch = voicePatch();
-    const update = numberUpdate();
-    serve(
-      companiesStub([]), // MCTB off, no forward — the module alone gates
-      modulesStub([COMPANY_ID]),
-      numbersStub([{}]),
-      voiceGet(null),
-      patch,
-      update,
+    // #134/D42: the gate is the subscription, nothing else — calling is
+    // included on every plan, so every live, non-deleted workspace binds.
+    const query = companies.calls[0].url.searchParams;
+    expect(query.get("subscription_status")).toBe(
+      "in.(active,past_due,trialing)",
     );
-
-    const summary = await reconcileVoiceEnablement(env);
-    expect(summary).toEqual({ checked: 1, enabled: 1 });
-    expect(patch.calls).toHaveLength(1);
+    expect(query.get("deleted_at")).toBe("is.null");
   });
 
   it("skips hosted rows (no telnyx id — voice stays on the owner's carrier)", async () => {
     const patch = voicePatch();
     serve(
       companiesStub([COMPANY_ID]),
-      modulesStub(),
       numbersStub([{ telnyx_phone_number_id: null }]),
       voiceGet(null),
       patch,
@@ -212,9 +189,9 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     expect(patch.calls).toHaveLength(0);
   });
 
-  it("does nothing when no company has the feature on", async () => {
+  it("does nothing when no company has a live subscription", async () => {
     const numbers = numbersStub([{}]);
-    serve(companiesStub([]), modulesStub(), numbers);
+    serve(companiesStub([]), numbers);
 
     const summary = await reconcileVoiceEnablement(env);
     expect(summary).toEqual({ checked: 0, enabled: 0 });

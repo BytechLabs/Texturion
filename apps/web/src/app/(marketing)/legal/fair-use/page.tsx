@@ -9,12 +9,12 @@ import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/fair-use";
-const LAST_UPDATED = "July 10, 2026";
+const LAST_UPDATED = "July 11, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Fair use policy",
   description:
-    "Loonext is flat-rate texting for a real crew under an automated fair-use policy. This page is the one place the concrete numbers live: Starter includes 500 texts a month, Pro 2,500, extra texts are 3¢ (Starter) or 2.5¢ (Pro) each up to a spending cap you control, a sent photo counts as three texts, the calling add-on includes 2,500 (Starter) or 6,000 (Pro) calling minutes across forwarding and outbound calls with extra minutes at 1¢ each under the same cap, and storage is free with no caps.",
+    "Loonext is flat-rate texting for a real crew under an automated fair-use policy. This page is the one place the concrete numbers live: Starter includes 500 texts a month, Pro 2,500, extra texts are 3¢ (Starter) or 2.5¢ (Pro) each up to a spending cap you control, a sent photo counts as three texts, calling is included on every plan with 2,500 (Starter) or 6,000 (Pro) calling minutes across forwarding and outbound calls and extra minutes at 1¢ each under the same cap, and storage is free with no caps.",
   path: PATH,
 });
 
@@ -35,9 +35,9 @@ export default function FairUsePage() {
   return (
     <LegalPage
       title="Fair use policy"
-      summary="Loonext is a flat monthly price with texting included under an automated fair-use policy, and this page is the one place the concrete mechanics live. Starter includes 500 texts a month and Pro includes 2,500; extra texts are billed at 3¢ (Starter) or 2.5¢ (Pro) each up to a monthly spending cap you control, which pauses sending before a bill can surprise you. The calling add-on works the same way: 2,500 calling minutes included on Starter and 6,000 on Pro, both directions, extra minutes at 1¢ each under the same cap. Storage is free, with no caps. We reserve a narrow right to step in only when usage stops looking like one business texting its own customers."
+      summary="Loonext is a flat monthly price with texting included under an automated fair-use policy, and this page is the one place the concrete mechanics live. Starter includes 500 texts a month and Pro includes 2,500; extra texts are billed at 3¢ (Starter) or 2.5¢ (Pro) each up to a monthly spending cap you control, which pauses sending before a bill can surprise you. Calling is included on every plan and works the same way: 2,500 calling minutes on Starter and 6,000 on Pro, both directions, extra minutes at 1¢ each under the same cap. Storage is free, with no caps. We reserve a narrow right to step in only when usage stops looking like one business texting its own customers."
       lastUpdated={LAST_UPDATED}
-      lastUpdatedIso="2026-07-10"
+      lastUpdatedIso="2026-07-11"
       breadcrumbLabel="Fair use"
       path={PATH}
       sections={sections}
@@ -147,8 +147,8 @@ export default function FairUsePage() {
           Picture messages are included on every plan, both directions.
           Receiving photos is free; each photo you send counts as three texts
           from your monthly allowance and follows the same overage rules as any
-          other text you send. The optional calling add-on is a flat monthly
-          price and follows the same fair-use mechanics as texting: Starter
+          other text you send. Calling is included on every plan and follows
+          the same fair-use mechanics as texting: Starter
           includes 2,500 calling minutes a month and Pro includes 6,000,
           shared by both directions. A minute is a minute you actually
           talked, whether a customer&apos;s call was forwarded to your cell or you

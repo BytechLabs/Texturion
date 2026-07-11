@@ -159,18 +159,26 @@ export async function enableVoiceForCompany(
     // (A hosted keep-your-number row has none — its voice stays on the owner's
     // carrier by design, so it is never voice-bound.)
     if (!row.telnyx_phone_number_id) continue;
-    results.push(await enableVoiceOnNumber(env, db, row));
+    try {
+      results.push(await enableVoiceOnNumber(env, db, row));
+    } catch (cause) {
+      // #134 review: one un-bindable number must never abort the company's
+      // remaining numbers on this pass — the 15-min reconcile is the durable
+      // per-number retry.
+      console.error(
+        `voice bind failed for number ${row.id}:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
   }
   return results;
 }
 
 /**
  * §11 reconcile pass (15-minute cron): bind voice on any ACTIVE, un-bound
- * number whose company has the voice feature on — the Calling MODULE
- * (#133: buying it must make the numbers callable; the founder bought it,
- * called their number, and the carrier said "unavailable" because nothing
- * ever bound the voice connection), or MCTB/forward_to_cell for legacy
- * (grandfathered) configurations that predate module rows. This closes the
+ * number of any LIVE-subscription workspace — calling is included on every
+ * plan (#134/D42), so every paying workspace's numbers must be able to
+ * receive calls. This closes the
  * gaps the trigger paths cannot cover: (a) the module/feature was enabled
  * while the number was still provisioning (the normal onboarding order —
  * the number activates later), (b) a number added/ported later to a company
@@ -184,34 +192,17 @@ export async function reconcileVoiceEnablement(
   const db = getDb(env);
   const summary = { checked: 0, enabled: 0 };
 
-  // Companies with the voice feature on. Small sets; ids only.
-  const [companiesResult, modulesResult] = await Promise.all([
-    db
-      .from("companies")
-      .select("id")
-      .or("mctb_enabled.eq.true,forward_to_cell.not.is.null"),
-    db
-      .from("company_modules")
-      .select("company_id")
-      .eq("module", "voice")
-      .is("disabled_at", null),
-  ]);
-  if (companiesResult.error) {
-    throw new Error(`companies lookup failed: ${companiesResult.error.message}`);
+  // #134/D42: calling is included on every plan — every workspace with a
+  // LIVE subscription gets its numbers voice-bound. Ids only; small set.
+  const { data: companies, error: companiesError } = await db
+    .from("companies")
+    .select("id")
+    .in("subscription_status", ["active", "past_due", "trialing"])
+    .is("deleted_at", null);
+  if (companiesError) {
+    throw new Error(`companies lookup failed: ${companiesError.message}`);
   }
-  if (modulesResult.error) {
-    throw new Error(
-      `company_modules lookup failed: ${modulesResult.error.message}`,
-    );
-  }
-  const companyIds = [
-    ...new Set([
-      ...(companiesResult.data ?? []).map((row) => (row as { id: string }).id),
-      ...(modulesResult.data ?? []).map(
-        (row) => (row as { company_id: string }).company_id,
-      ),
-    ]),
-  ];
+  const companyIds = (companies ?? []).map((row) => (row as { id: string }).id);
   if (companyIds.length === 0) return summary;
 
   const { data, error } = await db

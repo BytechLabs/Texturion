@@ -169,19 +169,6 @@ function voiceSecondsStub(seconds: number): Stub {
   return stubRoute(rpcMatch(env, "api_period_forward_seconds"), () => seconds);
 }
 
-/** company_modules voice row (D36 grandfathered gate). Default: paid module. */
-function voiceModuleStub(grandfathered = false): Stub {
-  return stubRoute(
-    restMatch(
-      env,
-      "GET",
-      "company_modules",
-      (url) => (url.searchParams.get("select") ?? "").includes("grandfathered"),
-    ),
-    () => [{ grandfathered }],
-  );
-}
-
 /** call_records insert sink (#12 voice metering). Returns [] — the shape of
  *  an ignoreDuplicates conflict — so D36 meter reporting stays quiet unless a
  *  test opts in via {@link callRecordsInsertStub}. */
@@ -430,9 +417,9 @@ describe("handleCallEvent — inbound call.initiated", () => {
       }),
       // D36: PAST the 2,500-min allowance but under the 3× spending cap
       // (7,500 min) — the call still forwards; the extra minutes bill at
-      // 1¢/min instead of being dropped.
+      // 1¢/min instead of being dropped. (#134: no company_modules read —
+      // every plan gets the plan allowance × cap multiplier.)
       voiceSecondsStub(3000 * 60),
-      voiceModuleStub(),
       action,
     );
 
@@ -466,7 +453,6 @@ describe("handleCallEvent — inbound call.initiated", () => {
       }),
       // Exactly at allowance × multiplier: 2,500 min × 3.00 = 7,500 min.
       voiceSecondsStub(7500 * 60),
-      voiceModuleStub(),
       action,
       reject,
     );
@@ -486,39 +472,6 @@ describe("handleCallEvent — inbound call.initiated", () => {
     // Its untagged hangup will flow through the normal missed path (text-back).
     expect(reject.calls).toHaveLength(1);
     expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
-    expect(action.calls).toHaveLength(0);
-  });
-
-  it("a GRANDFATHERED voice module pauses at the legacy 300 minutes (D36 review fix)", async () => {
-    const action = telnyxCallAction();
-    const reject = telnyxReject();
-    serve(
-      numberStub(),
-      ...companyStubs(CELL, {
-        plan: "starter",
-        currentPeriodStart: "2026-07-01T00:00:00Z",
-      }),
-      // Way under the paid 7,500-min cap, but at the grandfathered 300-min
-      // boundary — nothing can bill a grandfathered module's overage, so it
-      // keeps the pre-D36 deal exactly.
-      voiceSecondsStub(300 * 60),
-      voiceModuleStub(true),
-      action,
-      reject,
-    );
-
-    await handleCallEvent(
-      env,
-      event("call.initiated", {
-        call_control_id: CC_ID,
-        call_session_id: SESSION,
-        direction: "incoming",
-        from: CALLER,
-        to: OUR_NUMBER,
-      }),
-    );
-
-    expect(reject.calls).toHaveLength(1);
     expect(action.calls).toHaveLength(0);
   });
 

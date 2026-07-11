@@ -75,7 +75,7 @@ export default function Page() {
 
         <ArticleSection id="faq" heading="FAQ.">
           <p>Why not just use WhatsApp or iMessage? Because you don&apos;t get to pick your customers&apos; phones. SMS reaches virtually every phone in the US and Canada with nothing to install. iMessage only works Apple to Apple, and WhatsApp adoption in North America is patchy. A plain local number is the one channel every customer already has.</p>
-          <p>Can customers call the number? It&apos;s a real phone number, so yes, people will dial it, and platforms handle those calls very differently, so ask before you sign up. On Loonext, an optional $8 a month Calling module sends calls to any phone you choose, and missed callers automatically get a text back in your own words.</p>
+          <p>Can customers call the number? It&apos;s a real phone number, so yes, people will dial it, and platforms handle those calls very differently, so ask before you sign up. On Loonext, calling is included on every plan: calls to your number ring any phone you choose, and missed callers automatically get a text back in your own words.</p>
           <p>What if I cancel? Ask any provider two questions before you start: can I take my number with me, and what does the refund look like. A business number you can&apos;t take with you was never really yours. Loonext is month to month with a 30-day money-back guarantee that refunds the full first invoice, registration fee included.</p>
         </ArticleSection>
     </ArticlePage>

@@ -27,7 +27,6 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
-import { isModuleEnabled } from "../billing/company-modules";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -300,20 +299,31 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
 
-  // #12 plan builder: call forwarding + missed-call text-back are the opt-in
-  // "Calling" add-on. Block a settings change that TURNS them on when
-  // the module is off — a clear upsell before any voice cost is possible.
-  // Grandfathered companies (a forward number or MCTB already on) have the
-  // module, so this never bites an existing voice user.
+  // #134/D42: calling is included on every plan — no module gate. But
+  // ENABLING call features still needs a live subscription (review fix): a
+  // canceled/pre-checkout workspace saving a forward cell or turning on the
+  // text-back would get a success toast for a feature that can never fire
+  // (the voice webhook refuses non-active subscriptions) — an honest 402
+  // beats a silently dead setting.
   const enablingVoice =
     body.mctb_enabled === true ||
     (typeof patch.forward_to_cell === "string" &&
       patch.forward_to_cell.length > 0);
-  if (enablingVoice && !(await isModuleEnabled(db, c.get("companyId"), "voice"))) {
-    throw new ApiError(
-      "conflict",
-      "Forwarding calls and texting back missed calls need the Calling add-on — turn it on in Settings › Billing.",
+  if (enablingVoice) {
+    const rows = unwrap<{ subscription_status: string }[]>(
+      await db
+        .from("companies")
+        .select("subscription_status")
+        .eq("id", c.get("companyId"))
+        .limit(1),
+      "company lookup",
     );
+    if (rows[0]?.subscription_status !== "active") {
+      throw new ApiError(
+        "subscription_inactive",
+        "Calling features need an active subscription.",
+      );
+    }
   }
 
   // Onboarding "edit until checkout": country, US-texting, and the requested

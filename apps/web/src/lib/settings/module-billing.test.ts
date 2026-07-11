@@ -9,7 +9,7 @@ import {
 describe("formatMonthlyCents", () => {
   it("drops cents on whole dollars and keeps them otherwise", () => {
     expect(formatMonthlyCents(500)).toBe("$5");
-    expect(formatMonthlyCents(800)).toBe("$8");
+    expect(formatMonthlyCents(600)).toBe("$6");
     expect(formatMonthlyCents(750)).toBe("$7.50");
     expect(formatMonthlyCents(1)).toBe("$0.01");
   });
@@ -30,16 +30,18 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
   });
 
   it("disabling states the immediate turn-off and a CONDITIONAL prorated credit", () => {
+    // #134/D42: the fixture is the one real module left, Canada numbers
+    // (Calling retired — included on every plan, nothing to toggle).
     const change = describeModuleToggle({
-      label: "Calling",
-      monthlyCents: 800,
+      label: "Canada numbers",
+      monthlyCents: 500,
       enable: false,
     });
-    expect(change.title).toBe("Turn off Calling?");
+    expect(change.title).toBe("Turn off Canada numbers?");
     expect(change.summary).toContain("right away");
     expect(change.summary).toContain("not at the end of the period");
     expect(change.summary).toContain("prorated credit");
-    expect(change.summary).toContain("$8");
+    expect(change.summary).toContain("$5");
     expect(change.confirmLabel).toBe("Turn off");
   });
 
@@ -73,22 +75,23 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
 
 describe("planModuleCardFromApi (#59 single-sourcing)", () => {
   it("projects an API catalog row into the display-card shape", () => {
-    // D36: the catalog detail is number-free — concrete minute figures live
-    // only at /legal/fair-use (D34), and the allowance now differs per plan.
+    // #134/D42: the fixture is the remaining real module, Canada numbers.
+    // The catalog detail stays number-free — concrete figures live only at
+    // /legal/fair-use (D34).
     expect(
       planModuleCardFromApi({
-        id: "voice",
-        label: "Calling",
-        blurb: "Forward calls to your cell.",
-        detail: "Generous forwarded minutes under fair use.",
-        monthly_cents: 800,
+        id: "regions_ca",
+        label: "Canada numbers",
+        blurb: "Get and text Canadian numbers alongside your US number.",
+        detail: "Canadian local numbers, your area code.",
+        monthly_cents: 500,
       }),
     ).toEqual({
-      id: "voice",
-      label: "Calling",
-      blurb: "Forward calls to your cell.",
-      price: "$8",
-      detail: "Generous forwarded minutes under fair use.",
+      id: "regions_ca",
+      label: "Canada numbers",
+      blurb: "Get and text Canadian numbers alongside your US number.",
+      price: "$5",
+      detail: "Canadian local numbers, your area code.",
     });
   });
 

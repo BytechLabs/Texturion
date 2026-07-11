@@ -79,6 +79,10 @@ function subscriptionFixture(
     cancelAtPeriodEnd?: boolean;
     modulePriceIds?: string[];
     canceledAt?: number | null;
+    /** #134/D42: every subscription carries the per-plan voice METERED item
+     *  (the default, matched to `licensed`); `null` models pre-D42 drift for
+     *  the convergence test. */
+    voiceMetered?: { id: string; priceId: string } | null;
   } = {},
 ) {
   const {
@@ -90,6 +94,16 @@ function subscriptionFixture(
     modulePriceIds = [],
     canceledAt = null,
   } = overrides;
+  const voiceMetered =
+    overrides.voiceMetered !== undefined
+      ? overrides.voiceMetered
+      : {
+          id: "si_voice_metered",
+          priceId:
+            licensed === env.STRIPE_PRO_PRICE_ID
+              ? env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID!
+              : env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
+        };
   return {
     id,
     object: "subscription",
@@ -127,6 +141,21 @@ function subscriptionFixture(
           current_period_end: PERIOD_END,
           price: { id: priceId, object: "price", recurring: { interval: "month" } },
         })),
+        ...(voiceMetered
+          ? [
+              {
+                id: voiceMetered.id,
+                object: "subscription_item",
+                current_period_start: PERIOD_START,
+                current_period_end: PERIOD_END,
+                price: {
+                  id: voiceMetered.priceId,
+                  object: "price",
+                  recurring: { interval: "month", meter: "mtr_voice_1" },
+                },
+              },
+            ]
+          : []),
       ],
     },
   };
@@ -199,6 +228,10 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
     // #52 default: one-shot email claims succeed (fresh ledger). Tests that
     // need a conflict register their own endpoint BEFORE this one.
     endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
+    // #134/D42: every LIVE-subscription mirror pass voice-binds the
+    // workspace's numbers (enableVoiceForCompany). No active numbers in the
+    // billing suites — a quiet no-op.
+    endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
   ];
 }
 
@@ -458,9 +491,10 @@ describe("§9 event → state table", () => {
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
-          // #121: the extra_storage price no longer maps to a module — a
-          // stale line item carrying it must enable NOTHING (the daily
-          // reconcile's retired-price sweep strips it separately).
+          // #121/#134: the extra_storage AND voice prices no longer map to a
+          // module — a stale line item carrying either must enable NOTHING
+          // (the daily reconcile's retired-price sweep strips them
+          // separately, with credit).
           modulePriceIds: [
             env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!,
             env.STRIPE_MODULE_VOICE_PRICE_ID!,
@@ -475,9 +509,6 @@ describe("§9 event → state table", () => {
       ),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
-      // #133: a paid voice item triggers enableVoiceForCompany — no active
-      // numbers in this fixture, so the enable is a quiet no-op.
-      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
       endpoint("POST", /\/rest\/v1\/company_modules/, (call) => {
         moduleUpserts.push(call.json());
         return [];
@@ -490,15 +521,16 @@ describe("§9 event → state table", () => {
     );
     expect(response.status).toBe(200);
 
-    // One upsert carrying both LIVE purchased modules, each enabled
-    // (disabled_at null) — the retired extra_storage price enabled nothing.
+    // One upsert carrying the ONE live purchased module, enabled
+    // (disabled_at null) — the retired extra_storage/voice prices enabled
+    // nothing (#134: calling is included, not a module).
     expect(moduleUpserts).toHaveLength(1);
     const rows = moduleUpserts[0] as {
       company_id: string;
       module: string;
       disabled_at: string | null;
     }[];
-    expect(rows.map((r) => r.module).sort()).toEqual(["regions_ca", "voice"]);
+    expect(rows.map((r) => r.module)).toEqual(["regions_ca"]);
     expect(rows.every((r) => r.company_id === COMPANY_ID)).toBe(true);
     expect(rows.every((r) => r.disabled_at === null)).toBe(true);
   });
@@ -939,11 +971,12 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     ]);
   }
 
-  it("checkout on a base-only resubscribe DISABLES stale modules and clears voice settings", async () => {
-    // The #17 leak: enable regions_ca+voice, cancel, resubscribe base-only —
-    // the stale rows used to stay enabled (free capability) forever. The
-    // extra_storage row is a #121 pre-migration straggler: no longer a
-    // module, it is ignored (neither disabled nor a crash).
+  it("checkout on a base-only resubscribe DISABLES stale modules — voice settings are never touched (#134)", async () => {
+    // The #17 leak: enable regions_ca, cancel, resubscribe base-only — the
+    // stale row used to stay enabled (free capability) forever. The
+    // extra_storage (#121) and voice (#134) rows are pre-migration
+    // stragglers: no longer modules, they are ignored (neither disabled nor
+    // a crash), and NO forwarding/MCTB clear happens anymore.
     const harness = makeHarness([
       // The claim returns the stale modules (prepended so it wins the shared default).
       activationRpc({
@@ -962,8 +995,6 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
         () => ({ object: "list", data: [] }),
       ),
-      // The voice-disable's forwarding clear is the only remaining companies PATCH.
-      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
     ]);
@@ -972,31 +1003,27 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
       harness,
     );
 
-    // Both unpaid LIVE modules disabled in one guarded update — the retired
-    // extra_storage straggler is not in the set (#121).
+    // The unpaid LIVE module disabled in one guarded update — the retired
+    // extra_storage/voice stragglers are not in the set (#121/#134).
     const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
     expect(disables).toHaveLength(1);
-    expect(disables[0].url.searchParams.get("module")).toBe(
-      "in.(regions_ca,voice)",
-    );
+    expect(disables[0].url.searchParams.get("module")).toBe("in.(regions_ca)");
     expect(disables[0].url.searchParams.get("disabled_at")).toBe("is.null");
     expect(disables[0].json()).toEqual({ disabled_at: expect.any(String) });
     // …nothing re-enabled…
     expect(harness.callsTo("POST", /\/rest\/v1\/company_modules/)).toHaveLength(0);
-    // …and the voice disable cleared forwarding exactly like the manual path
-    // (the ONLY companies PATCH now the activation claim owns the write).
-    const companyPatches = harness.callsTo("PATCH", /companies/);
-    expect(companyPatches).toHaveLength(1);
-    expect(companyPatches[0].json()).toEqual({
-      forward_to_cell: null,
-      mctb_enabled: false,
-    });
+    // …and NO companies PATCH at all: the activation claim owns the write and
+    // the old voice-disable forwarding clear died with the module (#134) —
+    // an attempted clear would fail loudly as unstubbed.
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
   });
 
-  it("attaches the missing voice metered item when the module is PAID (D36 convergence)", async () => {
-    // A pre-D36 voice purchase (or a partially-failed toggle) carries the $8
-    // licensed item but no metered overage item — its forwarded seconds
-    // would meter but never bill. Every mirror pass converges it.
+  it("attaches the missing voice metered item to EVERY live subscription (#134 convergence)", async () => {
+    // Pre-D42 drift (or a partially-failed checkout) leaves a live
+    // subscription without the metered overage item — its calling seconds
+    // would meter but never bill. Calling is included on every plan now, so
+    // every mirror pass converges EVERY live subscription, no licensed voice
+    // item required.
     const itemCreate = endpoint(
       "POST",
       /api\.stripe\.com\/v1\/subscription_items$/,
@@ -1005,9 +1032,7 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture({
-          modulePriceIds: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
-        }),
+        subscriptionFixture({ voiceMetered: null }), // base plan, no metered item
       ),
       itemCreate,
       endpoint("PATCH", /\/rest\/v1\/companies/, () => [
@@ -1015,13 +1040,9 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
           id: COMPANY_ID,
           name: "Acme Plumbing",
           canceled_at: null,
-          company_modules: [moduleRow("voice")],
+          company_modules: [],
         },
       ]),
-      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
-      // #133: the paid voice item triggers enableVoiceForCompany — no active
-      // numbers in this fixture, so the enable is a quiet no-op.
-      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
     ]);
     await deliver(
       eventOf("customer.subscription.updated", subscriptionFixture()),
@@ -1033,8 +1054,8 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     const form = creates[0].form();
     expect(form.get("subscription")).toBe("sub_1");
 
-    // #133: a paid voice module also triggers the voice-binding pass, so a
-    // fresh purchase makes the numbers CALLABLE without waiting for MCTB or
+    // #133/#134: every live mirror pass also voice-binds the numbers, so a
+    // paying workspace's numbers are CALLABLE without waiting for MCTB or
     // forwarding to be configured.
     expect(
       harness.callsTo("GET", /\/rest\/v1\/phone_numbers/).length,
@@ -1044,31 +1065,10 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     expect(form.has("quantity")).toBe(false);
   });
 
-  it("never attaches a voice metered item without a paid licensed voice item (grandfathered stays free)", async () => {
-    const harness = makeHarness([
-      ...ledgerEndpoints(),
-      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture(), // base plan only
-      ),
-      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
-        {
-          id: COMPANY_ID,
-          name: "Acme Plumbing",
-          canceled_at: null,
-          company_modules: [moduleRow("voice", { grandfathered: true })],
-        },
-      ]),
-    ]);
-    await deliver(
-      eventOf("customer.subscription.updated", subscriptionFixture()),
-      harness,
-    );
-    expect(harness.callsTo("POST", /subscription_items$/)).toHaveLength(0);
-  });
-
   it("grandfathered seed modules survive a base-only checkout untouched", async () => {
     const harness = makeHarness([
       // The claim returns the grandfathered rows (prepended to win the default).
+      // The voice row is a pre-#134 straggler — ignored, never disabled.
       activationRpc({
         modules: [
           moduleRow("regions_ca", { grandfathered: true }),
@@ -1105,10 +1105,9 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     });
   });
 
-  it("customer.subscription.updated converges enables AND disables onto the paid set", async () => {
-    // Paid: regions_ca (currently disabled row). Unpaid: voice (enabled).
-    // (#121: extra_storage left the module set — voice/regions_ca carry the
-    // enable-and-disable convergence now.)
+  it("customer.subscription.updated converges the DB onto the paid set (re-enable, grandfather cleared)", async () => {
+    // Paid: regions_ca (currently disabled row). The voice row is a pre-#134
+    // straggler — not a module anymore, ignored by the reconcile.
     const moduleUpserts: unknown[] = [];
     const harness = makeHarness([
       ...ledgerEndpoints(),
@@ -1125,7 +1124,6 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         moduleUpserts.push(call.json());
         return [];
       }),
-      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
     ]);
     await deliver(
       eventOf("customer.subscription.updated", subscriptionFixture()),
@@ -1144,15 +1142,10 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
         },
       ],
     ]);
-    // …voice disabled (no paid item), forwarding cleared.
-    const disables = harness.callsTo("PATCH", /\/rest\/v1\/company_modules/);
-    expect(disables).toHaveLength(1);
-    expect(disables[0].url.searchParams.get("module")).toBe("in.(voice)");
-    const companyPatches = harness.callsTo("PATCH", /companies/);
-    expect(companyPatches[1].json()).toEqual({
-      forward_to_cell: null,
-      mctb_enabled: false,
-    });
+    // …the voice straggler triggers NOTHING: no disable (it is not a module),
+    // no forwarding clear (#134) — either write would fail loudly as
+    // unstubbed.
+    expect(harness.callsTo("PATCH", /\/rest\/v1\/company_modules/)).toHaveLength(0);
   });
 });
 

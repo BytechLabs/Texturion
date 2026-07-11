@@ -1,17 +1,18 @@
 "use client";
 
 /**
- * D38 click-to-call. With the voice module on, the thread's Call button
- * dials the MEMBER'S cell from the business number, then bridges to the
- * customer — the customer sees the business number and personal cells stay
- * private (the old bare `tel:` link leaked them). First use collects the
- * member's cell in a small dialog and — D40 (#133) — VERIFIES it with a
- * texted code before anything can dial it (possession, not just syntax:
- * a typo would ring a stranger with the business number). With the module
- * off, the button opens an honest explain-and-upsell dialog with an
- * explicit tel: escape hatch (#133 — the old silent tel: fallback read as
- * broken and quietly dialed from the personal cell); while the module state
- * is still LOADING or errored it renders disabled.
+ * D38 click-to-call. The thread's Call button dials the MEMBER'S cell from
+ * the business number, then bridges to the customer — the customer sees the
+ * business number and personal cells stay private (the old bare `tel:` link
+ * leaked them). First use collects the member's cell in a small dialog and —
+ * D40 (#133) — VERIFIES it with a texted code before anything can dial it
+ * (possession, not just syntax: a typo would ring a stranger with the
+ * business number).
+ *
+ * #134/D42: calling is included on every plan, so the module gate (and its
+ * module-off explain-and-upsell dialog) is gone — the button always runs the
+ * bridge flow, and the server enforces subscription state (its error message
+ * surfaces in the existing toast).
  *
  * After a dial is accepted the button holds a "calling" state for the agent
  * ring window instead of instantly re-arming — the server refuses a second
@@ -19,7 +20,6 @@
  * honest about it.
  */
 import { Phone, PhoneOutgoing } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -40,7 +40,6 @@ import {
   useStartCall,
   useVerifyCallCell,
 } from "@/lib/api/calls";
-import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 
 const CELL_HINT = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
@@ -51,18 +50,12 @@ const DIALING_HOLD_MS = 30_000;
 export function CallButton({
   conversationId,
   contactName,
-  phone,
   className,
 }: {
   conversationId: string;
   contactName: string;
-  phone: string;
   className?: string;
 }) {
-  // #133: module state comes from the MEMBER-visible company view —
-  // GET /v1/billing/modules is admin-only, so gating on it made every
-  // member read as module-off (the tel: personal-cell leak).
-  const company = useCompany();
   const cell = useCallCell();
   const setCell = useSetCallCell();
   const verifyCell = useVerifyCallCell();
@@ -73,37 +66,6 @@ export function CallButton({
   const [draftCode, setDraftCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [dialing, setDialing] = useState(false);
-
-  const voiceOn =
-    company.data?.enabled_modules.includes("voice") ?? false;
-
-  // Module state still loading OR unknown (a transient error) → a disabled
-  // button, never the tel: fallback (a voice-subscribed member clicking in
-  // that window would dial from their personal cell — the exact leak D38
-  // closed; #133 review: an errored query re-opened it too).
-  if (company.isPending || company.isError) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className={className}
-        aria-label={`Call ${contactName}`}
-        disabled
-      >
-        <Phone className="size-4" strokeWidth={1.75} />
-      </Button>
-    );
-  }
-
-  // Module off → an HONEST affordance (#133 follow-up): the old silent tel:
-  // fallback read as broken ("why is the call button just a tel: link?") and
-  // quietly dialed from the member's personal cell. Clicking now explains
-  // that Calling is off, points at Settings › Billing, and keeps the tel:
-  // escape hatch as an explicit, labeled choice — never a dead control,
-  // never a surprise personal-cell dial.
-  if (!voiceOn) {
-    return <ModuleOffCallButton contactName={contactName} phone={phone} className={className} />;
-  }
 
   function dial() {
     startCall.mutate(conversationId, {
@@ -319,56 +281,6 @@ export function CallButton({
               </DialogFooter>
             </>
           )}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-/** Module-off state: explain, upsell, and keep an explicit tel: escape hatch. */
-function ModuleOffCallButton({
-  contactName,
-  phone,
-  className,
-}: {
-  contactName: string;
-  phone: string;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className={className}
-        aria-label={`Call ${contactName}`}
-        onClick={() => setOpen(true)}
-      >
-        <Phone className="size-4" strokeWidth={1.75} />
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Calling is off for this workspace</DialogTitle>
-            <DialogDescription>
-              With the Calling add-on, this button rings your cell first and
-              connects you to {contactName} from your business number — they
-              never see your personal cell. Right now the add-on is off.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button asChild variant="outline">
-              <a href={`tel:${phone}`} onClick={() => setOpen(false)}>
-                Call from this phone instead
-              </a>
-            </Button>
-            <Button asChild>
-              <Link href="/settings/billing" onClick={() => setOpen(false)}>
-                Turn on Calling
-              </Link>
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

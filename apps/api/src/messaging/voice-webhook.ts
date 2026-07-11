@@ -45,7 +45,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { reportVoiceSeconds } from "../billing/meter";
 import {
-  GRANDFATHERED_VOICE_MINUTES,
   PLAN_VOICE_MINUTES,
   type PlanId,
 } from "../billing/plans";
@@ -144,20 +143,9 @@ export async function companyOverVoiceCap(
     throw new Error(`voice usage lookup failed: ${error.message}`);
   }
   const usedSeconds = Number(data);
-
-  const { data: moduleRows, error: moduleError } = await db
-    .from("company_modules")
-    .select("grandfathered")
-    .eq("company_id", companyId)
-    .eq("module", "voice")
-    .is("disabled_at", null)
-    .limit(1);
-  if (moduleError) {
-    throw new Error(`voice module lookup failed: ${moduleError.message}`);
-  }
-  if (moduleRows?.[0]?.grandfathered === true) {
-    return usedSeconds >= GRANDFATHERED_VOICE_MINUTES * 60;
-  }
+  // #134/D42: calling is included on every plan — the grandfathered legacy
+  // pause line retired with the module; every workspace gets the plan
+  // allowance × cap multiplier.
 
   // Postgres numeric arrives as a string; the column is NOT NULL with CHECK
   // (0,10] since 20260704110000, but fail toward the hard 10× ceiling anyway.

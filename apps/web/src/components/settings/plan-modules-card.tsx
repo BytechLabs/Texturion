@@ -47,6 +47,16 @@ export function PlanModulesCard() {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // regions_ca is inert in today's single-region model (a company's numbers
+  // are fixed to its own country), so it isn't offered yet. #134/D42: with
+  // voice retired into every plan, this can leave NOTHING to toggle — then
+  // the whole card hides (loading/error states still render: an owner mid-
+  // fetch must not watch a card blink away).
+  const visibleModules = (modules.data?.modules ?? []).filter(
+    (mod) => mod.available && mod.id !== "regions_ca",
+  );
+  if (modules.isSuccess && visibleModules.length === 0) return null;
+
   // Derived from `pending` so the dialog copy stays put during the close
   // animation instead of flashing empty.
   const change = pending
@@ -116,25 +126,21 @@ export function PlanModulesCard() {
         </p>
       ) : (
         <div className="space-y-2">
-          {modules.data.modules
-            // regions_ca is inert in today's single-region model (a company's
-            // numbers are fixed to its own country), so it isn't offered yet.
-            .filter((mod) => mod.available && mod.id !== "regions_ca")
-            .map((mod) => (
-              // #45: no instant billing from a single tap — the card proposes;
-              // the dialog below states the prorated charge or credit and the
-              // owner confirms.
-              <ModuleCard
-                key={mod.id}
-                label={mod.label}
-                price={formatMonthlyCents(mod.monthly_cents)}
-                blurb={mod.blurb}
-                detail={mod.detail}
-                on={mod.enabled}
-                disabled={setModule.isPending}
-                onToggle={() => request(mod, !mod.enabled)}
-              />
-            ))}
+          {visibleModules.map((mod) => (
+            // #45: no instant billing from a single tap — the card proposes;
+            // the dialog below states the prorated charge or credit and the
+            // owner confirms.
+            <ModuleCard
+              key={mod.id}
+              label={mod.label}
+              price={formatMonthlyCents(mod.monthly_cents)}
+              blurb={mod.blurb}
+              detail={mod.detail}
+              on={mod.enabled}
+              disabled={setModule.isPending}
+              onToggle={() => request(mod, !mod.enabled)}
+            />
+          ))}
         </div>
       )}
 

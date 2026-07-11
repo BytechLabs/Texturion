@@ -73,7 +73,7 @@ const PATH = LIVE_ROUTES.pricing;
 export const metadata: Metadata = buildMetadata({
   title: "Pricing, $29/mo flat for the whole crew",
   description:
-    "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting and pictures included under automated fair use, storage free. Optional calling add-on $8/mo. One-time $29 US registration fee. No per-user fees, no quote calls.",
+    "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time $29 US registration fee. No per-user fees, no quote calls.",
   path: PATH,
 });
 

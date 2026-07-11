@@ -607,9 +607,14 @@ describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2
 describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)", () => {
   it("admin saves mctb_enabled + mctb_message + forward_to_cell and enables voice", async () => {
     const sb = stubWithRole("admin");
+    // #134 review: ENABLING call features reads the subscription status (an
+    // honest 402 for canceled/pre-checkout beats a silently dead setting).
+    sb.on("GET", "/rest/v1/companies", () => [
+      { subscription_status: "active" },
+    ]);
     sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
-    // #12: the voice add-on is enabled, so the settings gate lets it through.
-    sb.on("GET", "/rest/v1/company_modules", () => [{ module: "voice" }]);
+    // #134/D42: NO company_modules stub — the settings path never reads
+    // module state anymore (a read would fail the test loudly).
     // enableVoiceForCompany lists active numbers; none active → no voice calls,
     // but the settings write still succeeds.
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
@@ -634,10 +639,18 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     });
   });
 
-  it("without the Call forwarding add-on, turning on voice is a 409 (#12)", async () => {
+  it("turning on voice settings needs NO add-on (#134/D42 — calling is included on every plan)", async () => {
+    // Pre-#134 this exact request 409'd ("needs the Calling add-on") when the
+    // company had no voice module row. The module is retired: the PATCH
+    // succeeds with no module read at all, and voice-binds the numbers. The
+    // one remaining gate is a LIVE SUBSCRIPTION (#134 review — honest 402
+    // instead of a silently dead setting).
     const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { subscription_status: "active" },
+    ]);
     sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
-    sb.on("GET", "/rest/v1/company_modules", () => []); // voice module off
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -645,10 +658,16 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
       companyId: COMPANY_ID,
       body: { mctb_enabled: true, forward_to_cell: "+16135559999" },
     });
-    expect(res.status).toBe(409);
-    expect(await errorCodeOf(res)).toBe("conflict");
-    // Blocked before the write — settings untouched.
-    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+    expect(res.status).toBe(200);
+    // The settings write landed…
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      mctb_enabled: true,
+      forward_to_cell: "+16135559999",
+    });
+    // …no module gate consulted…
+    expect(sb.find("GET", "/rest/v1/company_modules")).toHaveLength(0);
+    // …and the voice-bind pass ran (idempotent no-op with no active numbers).
+    expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(1);
   });
 
   it("422s an invalid forward_to_cell (not a US/CA number)", async () => {
@@ -704,5 +723,41 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
       body: { mctb_enabled: true },
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("PATCH /v1/company — call-feature honesty gate (#134 review)", () => {
+  it("enabling MCTB/forwarding on a canceled workspace is an honest 402", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { subscription_status: "canceled" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { mctb_enabled: true },
+    });
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "subscription_inactive" },
+    });
+    // The settings write never happened.
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("DISABLING call features never needs a subscription (cleanup is free)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { mctb_enabled: false, forward_to_cell: null },
+    });
+    expect(res.status).toBe(200);
   });
 });

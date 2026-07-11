@@ -79,12 +79,12 @@ export const QUO_ROWS: LedgerTableRow[] = [
     label: "Phone calls",
     cells: [
       {
-        value: "Add-on: Calling, $8/mo",
-        note: "Calls to your number forward to your cell, missed ones get a text-back, and you can call customers back from the business number.",
+        value: "Included on every plan",
+        note: "Calls to your number forward to your cell, missed ones get a text-back, and you can call customers back from the business number. Generous minutes under fair use; still not a full phone system.",
       },
       {
         value: "Included, US and Canada",
-        note: "Quo is a full phone system; unlimited US/Canada calling ships on every tier. A real advantage.",
+        note: "Quo is a full phone system; unlimited US/Canada calling ships on every tier. A real advantage if voice is your front door.",
       },
     ],
   },

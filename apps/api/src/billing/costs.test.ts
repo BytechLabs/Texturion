@@ -76,12 +76,10 @@ describe("companyRevenueCents", () => {
   });
 
   it("adds each enabled module's catalog price", () => {
-    const voice = MODULE_CATALOG.voice.monthlyCents; // 800
+    // #134: voice retired (calling included) — regions_ca is the whole catalog.
     const ca = MODULE_CATALOG.regions_ca.monthlyCents; // 500
-    expect(companyRevenueCents("pro", ["voice", "regions_ca"])).toBe(
-      7900 + voice + ca,
-    );
-    expect(companyRevenueCents("starter", ["voice"])).toBe(2900 + voice);
+    expect(companyRevenueCents("pro", ["regions_ca"])).toBe(7900 + ca);
+    expect(companyRevenueCents("starter", ["regions_ca"])).toBe(2900 + ca);
   });
 });
 
@@ -89,12 +87,12 @@ describe("companyMonthlyRevenueCents (DB helper)", () => {
   it("reads enabled modules and sums them onto the plan price", async () => {
     vi.resetModules();
     vi.doMock("./company-modules", () => ({
-      enabledModules: vi.fn().mockResolvedValue(["voice"]),
+      enabledModules: vi.fn().mockResolvedValue(["regions_ca"]),
     }));
     const { companyMonthlyRevenueCents } = await import("./costs");
     const db = {} as never;
     await expect(companyMonthlyRevenueCents(db, "company-1", "pro")).resolves.toBe(
-      7900 + MODULE_CATALOG.voice.monthlyCents,
+      7900 + MODULE_CATALOG.regions_ca.monthlyCents,
     );
     vi.doUnmock("./company-modules");
     vi.resetModules();

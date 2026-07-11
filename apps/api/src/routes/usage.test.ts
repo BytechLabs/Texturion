@@ -60,7 +60,6 @@ function usageStub(
   company: Record<string, unknown>,
   used: number,
   storage: Record<string, unknown> = STORAGE,
-  options: { voiceGrandfathered?: boolean } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -76,11 +75,9 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => VOICE_SECONDS);
   sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
   // #85/#93: decideOverage's revenue read still consults company_modules
-  // (the #121 storage retirement removed the BUDGET read, not this one);
-  // #133: the voice-allowance read shares the endpoint.
-  sb.on("GET", "/rest/v1/company_modules", () =>
-    options.voiceGrandfathered ? [{ grandfathered: true }] : [],
-  );
+  // (the #121 storage retirement removed the BUDGET read, not this one).
+  // #134/D42: the route itself reads NO voice module state anymore.
+  sb.on("GET", "/rest/v1/company_modules", () => []);
   // #85/#93: decideOverage also reads egress + the non-released number count.
   sb.on("POST", "/rest/v1/rpc/api_period_egress_bytes", () => 0);
   sb.on("HEAD", "/rest/v1/phone_numbers", () => countResponse(1));
@@ -226,30 +223,6 @@ describe("GET /v1/usage", () => {
     expect(await res.json()).toMatchObject({
       projected_overage_cents: 360,
       overage_projection: { trending_over: false, projected_overage_cents: 360 },
-    });
-  });
-
-  it("#133 grandfathered voice: 300-min allowance, cap = allowance, no billed overage", async () => {
-    const sb = usageStub(starterCompany, 100, STORAGE, {
-      voiceGrandfathered: true,
-    });
-    stubFetch(jwksRoute(auth), sb.route);
-
-    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
-      companyId: COMPANY_ID,
-    });
-    const data = (await res.json()) as {
-      voice: Record<string, unknown>;
-    };
-    // 3660 s = 61 min used of the LEGACY 300 (never the plan's 2,500); the
-    // pause line IS the cap; nothing bills.
-    expect(data.voice).toEqual({
-      used_minutes: 61,
-      included_minutes: 300,
-      cap_minutes: 300,
-      overage_minutes: 0,
-      projected_overage_cents: 0,
-      overage_billed: false,
     });
   });
 

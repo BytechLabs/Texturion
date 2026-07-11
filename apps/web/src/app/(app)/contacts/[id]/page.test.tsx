@@ -49,13 +49,15 @@ vi.mock("@/lib/api/team", () => ({
 vi.mock("@/lib/api/conversations", () => ({
   useConversations: () => ({ data: state.conversations }),
 }));
-// #133: the page now mounts CallButton — stub its hook chain so the module
-// graph never reaches src/env.ts (which throws without NEXT_PUBLIC_* vars).
+// #133: the page mounts CallButton — stub the hook chain so the module graph
+// never reaches src/env.ts (which throws without NEXT_PUBLIC_* vars).
+// #134/D42: no 'voice' in enabled_modules — calling is included on every
+// plan and the button no longer reads module state at all.
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({
     isPending: false,
     isError: false,
-    data: { enabled_modules: ["voice"] },
+    data: { enabled_modules: [] },
   }),
 }));
 vi.mock("@/lib/api/calls", () => ({

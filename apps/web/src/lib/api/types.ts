@@ -216,10 +216,12 @@ export interface CompanyView {
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];
-  /** #133: live module ids ('voice', 'regions_ca') — the MEMBER-visible
-   *  on/off state. Calling surfaces gate on this, never on the admin-only
-   *  GET /v1/billing/modules (a member reading that gets 403, which made
-   *  every member render as module-off — the tel: personal-cell leak). */
+  /** #133: live module ids — the MEMBER-visible on/off state (read this,
+   *  never the admin-only GET /v1/billing/modules: a member reading that got
+   *  403, which made every member render as module-off — the tel:
+   *  personal-cell leak). #134/D42: 'voice' no longer appears here — calling
+   *  is included on every plan, so no surface gates on it anymore. The field
+   *  remains for 'regions_ca' and whatever modules come later. */
   enabled_modules: string[];
   registration: {
     brand: RegistrationSummary | null;
@@ -696,20 +698,22 @@ export interface UsageVoice {
    *  the fair-use measure the allowance, the overage meter, and the cap
    *  share (D36/D38). */
   used_minutes: number;
-  /** Included calling minutes (0 pre-checkout; the legacy 300 when the
-   *  module is grandfathered, #133). */
+  /** Included calling minutes: the plan allowance (0 pre-checkout).
+   *  #134/D42: same for every workspace — the grandfathered-module variant
+   *  retired with the module. */
   included_minutes: number;
   /** D36: minutes where calling pauses — included × the same spending-cap
-   *  multiplier as texts. Null pre-checkout. Grandfathered (#133): equals
-   *  included_minutes (nothing bills; the allowance IS the pause line). */
+   *  multiplier as texts. Null pre-checkout. */
   cap_minutes: number | null;
   /** D36: whole minutes past the allowance so far (billed at 1¢ each,
-   *  rated to the second; always 0 when overage_billed is false). */
+   *  rated to the second). */
   overage_minutes: number;
   /** D36: overage-so-far in cents (exact overage seconds ÷ 60 × 1¢). */
   projected_overage_cents: number;
-  /** #133: false = a grandfathered module — extra minutes never bill and
-   *  calling pauses at included_minutes; every 1¢ promise must hide. */
+  /** #133 introduced this for the grandfathered $8-module cohort (false =
+   *  extra minutes never bill). #134/D42 retired grandfathering along with
+   *  the module itself, so the API now always sends true; the field stays
+   *  so cached pre-D42 payloads keep type-checking and rendering honestly. */
   overage_billed: boolean;
 }
 
@@ -859,10 +863,14 @@ export type ChangePlanResult =
  * counts 3 texts from the allowance), so there is no Picture-messages add-on.
  * #121: `extra_storage` is RETIRED — storage is free with no caps or meter;
  * abusive storage use triggers a human conversation, never a block.
+ * #134/D42: `voice` is RETIRED — calling is included on every plan; the
+ * fair-use minutes and 1¢/min overage stay exactly as D36/D38 shipped them
+ * (that's usage, not packaging), with the figures living only in the
+ * fair-use policy.
  * Old stashed/URL plan intents carrying retired ids are dropped by the
  * plan-intent whitelist exactly like any unknown value.
  */
-export const PLAN_MODULE_IDS = ["voice", "regions_ca"] as const;
+export const PLAN_MODULE_IDS = ["regions_ca"] as const;
 export type PlanModule = (typeof PLAN_MODULE_IDS)[number];
 
 /**
@@ -897,22 +905,18 @@ export interface PlanModuleCard {
  * WHEN RETUNING A PRICE OR QUANTITY you must edit modules.ts/plans.ts AND
  * this list — there is no runtime link. The real fix (#59's recommendation)
  * is moving the catalog to packages/shared and importing it from both apps;
- * until that lands, do NOT delete this constant. Values as of 2026-07-10:
- * voice $8, regions_ca $5. (#103: mms retired — pictures included. #121:
- * extra_storage retired — storage is free, no caps; concrete figures live
- * only in the fair-use policy.)
+ * until that lands, do NOT delete this constant. Values as of 2026-07-11:
+ * regions_ca $5. (#103: mms retired — pictures included. #121: extra_storage
+ * retired — storage is free, no caps. #134: voice retired — calling is
+ * included on every plan; concrete allowance figures live only in the
+ * fair-use policy.)
  */
 export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   // #97/#103: no "Picture messages" card — MMS is included on every plan
   // (each picture counts as three texts from the monthly allowance).
-  {
-    id: "voice",
-    label: "Calling",
-    blurb: "Call customers and forward calls from your business number.",
-    price: "$8",
-    // #121: the minute figure lives in the fair-use policy, not sales copy.
-    detail: "Generous calling minutes under fair use.",
-  },
+  // #134/D42: no "Calling" card — calling is included on every plan
+  // (fair-use minutes both directions; the figures live in the fair-use
+  // policy, never sales copy).
   {
     id: "regions_ca",
     label: "Canada numbers",

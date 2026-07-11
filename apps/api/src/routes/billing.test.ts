@@ -337,6 +337,13 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.has("line_items[1][quantity]")).toBe(false);
     expect(form.get("line_items[2][price]")).toBe(env.STRIPE_US_FEE_PRICE_ID);
     expect(form.get("line_items[2][quantity]")).toBe("1");
+    // #134/D42: calling is included on every plan — EVERY checkout carries the
+    // per-plan voice metered overage price (no quantity — metered).
+    expect(form.get("line_items[3][price]")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("line_items[3][quantity]")).toBe(false);
+    expect(form.has("line_items[4][price]")).toBe(false);
     expect(form.get("success_url")).toBe(
       `${env.APP_ORIGIN}/onboarding/setting-up?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     );
@@ -372,7 +379,11 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.get("line_items[1][price]")).toBe(
       env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     );
-    expect(form.has("line_items[2][price]")).toBe(false);
+    // No fee line — [2] is the always-present voice metered price (#134).
+    expect(form.get("line_items[2][price]")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("line_items[3][price]")).toBe(false);
   });
 
   it("CA company with US texting off: pro price pair, no fee, wizard skipped", async () => {
@@ -391,48 +402,49 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
     expect(form.get("line_items[0][price]")).toBe(env.STRIPE_PRO_PRICE_ID);
     expect(form.get("line_items[1][price]")).toBe(env.STRIPE_PRO_OVERAGE_PRICE_ID);
-    expect(form.has("line_items[2][price]")).toBe(false);
+    // #134/D42: the voice metered price rides every cart on the PLAN's
+    // tiering — Pro cart, Pro tiering (allowance 6,000, then 1¢/min).
+    expect(form.get("line_items[2][price]")).toBe(
+      env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("line_items[2][quantity]")).toBe(false);
+    expect(form.has("line_items[3][price]")).toBe(false);
   });
 
-  it("plan-builder modules add one flat licensed line each, de-duped (#12)", async () => {
+  it("retired module ids (voice, extra_storage) are silently DROPPED at checkout — deploy-skew tolerance (#134 review)", async () => {
+    // A stale pre-D42 bundle still selling the $8 Calling add-on must not
+    // dead-end at the pay button: retired ids are stripped and checkout
+    // proceeds WITHOUT them (voice's capability is included/free now).
+    const session = endpoint(
+      "POST",
+      /api\.stripe\.com\/v1\/checkout\/sessions/,
+      () => ({ id: "cs_1", url: "https://checkout.stripe.com/cs_1" }),
+    );
     const harness = makeHarness([
       companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
-      checkoutSessionEndpoint(),
+      session,
     ]);
     const response = await post(
       "/v1/billing/checkout",
-      // A repeated module must not double-bill. (#97 retired mms, #121
-      // retired extra_storage — voice is the one sellable module left.)
-      { plan: "starter", modules: ["voice", "voice"] },
+      { plan: "starter", modules: ["voice", "extra_storage"] },
       harness,
     );
     expect(response.status).toBe(200);
-    const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
-    // [0] licensed, [1] metered, then one line per unique module.
-    expect(form.get("line_items[2][price]")).toBe(
-      env.STRIPE_MODULE_VOICE_PRICE_ID,
-    );
-    expect(form.get("line_items[2][quantity]")).toBe("1");
-    // D36: voice rides with its per-plan metered overage price — no quantity
-    // (metered), Starter tiering for a Starter cart.
-    expect(form.get("line_items[3][price]")).toBe(
-      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
-    );
-    expect(form.has("line_items[3][quantity]")).toBe(false);
-    // No second module line (the duplicate 'voice' collapsed).
-    expect(form.has("line_items[4][price]")).toBe(false);
+    const creates = harness.callsTo("POST", /checkout\/sessions/);
+    expect(creates).toHaveLength(1);
+    const form = String(creates[0].body);
+    // No retired module price ever reaches Stripe.
+    expect(form).not.toContain(env.STRIPE_MODULE_VOICE_PRICE_ID!);
+    expect(form).not.toContain(env.STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID!);
   });
 
-  it("a retired module id (extra_storage) is refused at checkout — nothing reaches Stripe (#121)", async () => {
-    // extra_storage left the catalog with #121 (storage is free): the module
-    // enum no longer contains it, so a stale client selecting it is a plain
-    // validation failure, never a Stripe line item.
+  it("an id that was NEVER a module is still a 422 at checkout", async () => {
     const harness = makeHarness([
       companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
     ]);
     const response = await post(
       "/v1/billing/checkout",
-      { plan: "starter", modules: ["extra_storage"] },
+      { plan: "starter", modules: ["premium_unicorns"] },
       harness,
     );
     expect(response.status).toBe(422);
@@ -488,7 +500,11 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(response.status).toBe(200);
     const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
     expect(form.get("customer")).toBe("cus_1");
-    expect(form.has("line_items[2][price]")).toBe(false);
+    // No second fee — [2] is the always-present voice metered price (#134).
+    expect(form.get("line_items[2][price]")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("line_items[3][price]")).toBe(false);
   });
 });
 
@@ -651,10 +667,8 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        // #134: every subscription carries the voice metered item now.
         subscriptionFixture({
-          moduleItems: [
-            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
-          ],
           voiceMetered: {
             id: "si_voice_metered",
             priceId: env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
@@ -785,7 +799,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
   });
 
-  it("downgrade preserves purchased add-on modules in the period-end phase (#12)", async () => {
+  it("downgrade preserves purchased add-on modules in the period-end phase (#12), dropping retired ones (#134)", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
@@ -793,6 +807,10 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
           licensed: env.STRIPE_PRO_PRICE_ID,
           metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
           moduleItems: [
+            // A live catalog module rolls over…
+            { id: "si_ca", priceId: env.STRIPE_MODULE_REGIONS_CA_PRICE_ID! },
+            // …a RETIRED voice licensed item (pre-#134 subscriber the daily
+            // sweep hasn't reached yet) must NOT be pinned into phase 2.
             { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
           ],
           voiceMetered: {
@@ -826,8 +844,9 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       "POST",
       /subscription_schedules\/sub_sched_1/,
     )[0].form();
-    // Phase 2 = base Starter pair + the preserved voice module, so the add-on
-    // keeps being billed instead of being silently dropped at period end.
+    // Phase 2 = base Starter pair + the preserved catalog module, so the
+    // add-on keeps being billed instead of being silently dropped at period
+    // end. The retired voice licensed item is NOT carried (#134).
     expect(update.get("phases[1][items][0][price]")).toBe(
       env.STRIPE_STARTER_PRICE_ID,
     );
@@ -835,7 +854,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     );
     expect(update.get("phases[1][items][2][price]")).toBe(
-      env.STRIPE_MODULE_VOICE_PRICE_ID,
+      env.STRIPE_MODULE_REGIONS_CA_PRICE_ID,
     );
     expect(update.get("phases[1][items][2][quantity]")).toBe("1");
     // D36: the voice metered item rolls over on the STARTER tiering — the Pro
@@ -845,6 +864,12 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
     );
     expect(update.has("phases[1][items][3][quantity]")).toBe(false);
+    // #134: the retired $8 voice item never rolls into the next phase.
+    expect(update.has("phases[1][items][4][price]")).toBe(false);
+    const phase2Prices = [...update.entries()]
+      .filter(([key]) => key.startsWith("phases[1][items]"))
+      .map(([, value]) => value);
+    expect(phase2Prices).not.toContain(env.STRIPE_MODULE_VOICE_PRICE_ID);
   });
 
   it("downgrade reuses an existing schedule instead of creating one", async () => {
@@ -897,10 +922,11 @@ describe("plan-builder modules (#12)", () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("GET", /\/rest\/v1\/company_modules/, () => [
-        { module: "voice" },
-        // #121: a pre-migration extra_storage straggler row is dropped
-        // defensively, exactly like any unknown value.
+        { module: "regions_ca" },
+        // #121/#134: pre-migration straggler rows on retired modules are
+        // dropped defensively, exactly like any unknown value.
         { module: "extra_storage" },
+        { module: "voice" },
       ]),
     ]);
     const response = await get("/v1/billing/modules", harness);
@@ -908,105 +934,22 @@ describe("plan-builder modules (#12)", () => {
     const body = (await response.json()) as {
       modules: { id: string; enabled: boolean }[];
     };
-    const voice = body.modules.find((m) => m.id === "voice");
     const regions = body.modules.find((m) => m.id === "regions_ca");
-    expect(voice?.enabled).toBe(true);
-    expect(regions?.enabled).toBe(false);
-    // #103/#121: the catalog is exactly voice + regions_ca — the retired mms
-    // and extra_storage modules are gone entirely (not even as disabled).
-    expect(body.modules).toHaveLength(2);
+    expect(regions?.enabled).toBe(true);
+    // #103/#121/#134: the catalog is exactly regions_ca — the retired mms,
+    // extra_storage, and voice modules are gone entirely (not even as
+    // disabled): calling is included on every plan now.
+    expect(body.modules).toHaveLength(1);
     expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
     expect(body.modules.find((m) => m.id === "extra_storage")).toBeUndefined();
-  });
-
-  it("POST /modules enable adds the licensed + voice metered items and enables the module", async () => {
-    const harness = makeHarness([
-      companyEndpoint(activeStarter()),
-      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture(),
-      ),
-      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
-        id: "si_module_voice",
-        object: "subscription_item",
-      })),
-      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
-    ]);
-    const response = await post(
-      "/v1/billing/modules",
-      { module: "voice", enabled: true },
-      harness,
-    );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ module: "voice", enabled: true });
-
-    // D36: two items — the flat $8 licensed price (prorated now) and the
-    // metered overage price (no quantity, no proration — $0 until minutes bill).
-    const create = harness.callsTo("POST", /subscription_items$/);
-    expect(create).toHaveLength(2);
-    const licensed = create[0].form();
-    expect(licensed.get("subscription")).toBe("sub_1");
-    expect(licensed.get("price")).toBe(env.STRIPE_MODULE_VOICE_PRICE_ID);
-    expect(licensed.get("proration_behavior")).toBe("always_invoice");
-    const metered = create[1].form();
-    expect(metered.get("subscription")).toBe("sub_1");
-    expect(metered.get("price")).toBe(
-      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
-    );
-    expect(metered.has("quantity")).toBe(false);
-  });
-
-  it("POST /modules disable drops the licensed + metered items, disables, and clears voice settings", async () => {
-    const harness = makeHarness([
-      companyEndpoint(activeStarter()),
-      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture({
-          moduleItems: [
-            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
-          ],
-          voiceMetered: {
-            id: "si_voice_metered",
-            priceId: env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
-          },
-        }),
-      ),
-      endpoint(
-        "DELETE",
-        /api\.stripe\.com\/v1\/subscription_items\/si_voice/,
-        () => ({ deleted: true }),
-      ),
-      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
-      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
-    ]);
-    const response = await post(
-      "/v1/billing/modules",
-      { module: "voice", enabled: false },
-      harness,
-    );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ module: "voice", enabled: false });
-
-    expect(
-      harness.callsTo("DELETE", /subscription_items\/si_voice(?!_metered)/),
-    ).toHaveLength(1);
-    // D36: the metered overage item goes with it — a switched-off module must
-    // leave no billing surface behind.
-    expect(
-      harness.callsTo("DELETE", /subscription_items\/si_voice_metered/),
-    ).toHaveLength(1);
-    // Voice capability cleared so no further call is forwarded.
-    const companyPatch = harness.callsTo("PATCH", /companies/);
-    expect(companyPatch).toHaveLength(1);
-    expect(companyPatch[0].json()).toEqual({
-      forward_to_cell: null,
-      mctb_enabled: false,
-    });
+    expect(body.modules.find((m) => m.id === "voice")).toBeUndefined();
   });
 
   it("POST /modules 409 without a subscription", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);
     const response = await post(
       "/v1/billing/modules",
-      { module: "voice", enabled: true },
+      { module: "regions_ca", enabled: true },
       harness,
     );
     expect(response.status).toBe(409);
@@ -1027,7 +970,7 @@ describe("plan-builder modules (#12)", () => {
     ]);
     const response = await post(
       "/v1/billing/modules",
-      { module: "voice", enabled: true },
+      { module: "regions_ca", enabled: true },
       harness,
     );
     expect(response.status).toBe(409);
@@ -1058,13 +1001,12 @@ describe("plan-builder modules (#12)", () => {
       modules: { id: string; available: boolean }[];
     };
     expect(body.modules.find((m) => m.id === "regions_ca")?.available).toBe(false);
-    // A still-sellable module reports available: true.
-    expect(body.modules.find((m) => m.id === "voice")?.available).toBe(true);
     // #103: mms is retired — not merely unavailable, absent from the catalog.
     expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
 
-    // The retired ids are refused outright (422, not modules anymore) —
-    // mms since #103, extra_storage since #121.
+    // Retired ids at the toggle: mms/extra_storage are plain 422s (gone from
+    // the enum); voice gets the HONEST 409 (#134 deploy skew — a stale
+    // settings bundle learns calling is included, never a generic error).
     for (const retired of ["mms", "extra_storage"]) {
       const retiredToggle = await post(
         "/v1/billing/modules",
@@ -1073,184 +1015,15 @@ describe("plan-builder modules (#12)", () => {
       );
       expect(retiredToggle.status, retired).toBe(422);
     }
-  });
-});
-
-describe("plan-builder modules with a pending downgrade schedule (#18)", () => {
-  const activePro = () =>
-    companyRow({
-      plan: "pro",
-      subscription_status: "active",
-      stripe_customer_id: "cus_1",
-      stripe_subscription_id: "sub_1",
-    });
-
-  // Real-clock phase boundaries: the rebuild drops COMPLETED phases (Stripe
-  // refuses re-supplied past phases), so the fixture must straddle "now".
-  const NOW_SEC = Math.floor(Date.now() / 1000);
-  const PHASE1_START = NOW_SEC - 10_000;
-  const PHASE1_END = NOW_SEC + 100_000;
-  const PHASE2_END = NOW_SEC + 200_000;
-
-  /** A change-plan downgrade schedule: Pro now, Starter at period end. */
-  function scheduleFixture(
-    moduleprices: { phase1?: string[]; phase2?: string[] } = {},
-  ) {
-    return {
-      id: "sub_sched_1",
-      object: "subscription_schedule",
-      status: "active",
-      current_phase: { start_date: PHASE1_START, end_date: PHASE1_END },
-      phases: [
-        {
-          start_date: PHASE1_START,
-          end_date: PHASE1_END,
-          items: [
-            { price: env.STRIPE_PRO_PRICE_ID, quantity: 1 },
-            { price: env.STRIPE_PRO_OVERAGE_PRICE_ID },
-            ...(moduleprices.phase1 ?? []).map((price) => ({ price, quantity: 1 })),
-          ],
-        },
-        {
-          start_date: PHASE1_END,
-          end_date: PHASE2_END,
-          items: [
-            { price: env.STRIPE_STARTER_PRICE_ID, quantity: 1 },
-            { price: env.STRIPE_STARTER_OVERAGE_PRICE_ID },
-            ...(moduleprices.phase2 ?? []).map((price) => ({ price, quantity: 1 })),
-          ],
-        },
-      ],
-    };
-  }
-
-  it("enable rebuilds EVERY phase with the module price — never a direct item write", async () => {
-    const harness = makeHarness([
-      companyEndpoint(activePro()),
-      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture({
-          licensed: env.STRIPE_PRO_PRICE_ID,
-          metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
-          schedule: "sub_sched_1",
-        }),
-      ),
-      endpoint(
-        "GET",
-        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
-        () => scheduleFixture(),
-      ),
-      endpoint(
-        "POST",
-        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
-        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
-      ),
-      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
-    ]);
-    const response = await post(
+    const voiceToggle = await post(
       "/v1/billing/modules",
       { module: "voice", enabled: true },
       harness,
     );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ module: "voice", enabled: true });
-
-    // Stripe rejects direct item mutations on a schedule-managed subscription.
-    expect(harness.callsTo("POST", /subscription_items$/)).toHaveLength(0);
-
-    const update = harness
-      .callsTo("POST", /subscription_schedules\/sub_sched_1/)[0]
-      .form();
-    expect(update.get("proration_behavior")).toBe("always_invoice");
-    // Phase 1 (current): the Pro items pass through, voice added NOW.
-    expect(update.get("phases[0][start_date]")).toBe(String(PHASE1_START));
-    expect(update.get("phases[0][end_date]")).toBe(String(PHASE1_END));
-    expect(update.get("phases[0][items][0][price]")).toBe(env.STRIPE_PRO_PRICE_ID);
-    expect(update.get("phases[0][items][0][quantity]")).toBe("1");
-    expect(update.get("phases[0][items][1][price]")).toBe(
-      env.STRIPE_PRO_OVERAGE_PRICE_ID,
-    );
-    // Metered price still carries no quantity through the rebuild (SPEC §9).
-    expect(update.has("phases[0][items][1][quantity]")).toBe(false);
-    expect(update.get("phases[0][items][2][price]")).toBe(
-      env.STRIPE_MODULE_VOICE_PRICE_ID,
-    );
-    expect(update.get("phases[0][items][2][quantity]")).toBe("1");
-    // Phase 2 (the scheduled Starter downgrade): voice survives the rollover.
-    expect(update.get("phases[1][items][0][price]")).toBe(
-      env.STRIPE_STARTER_PRICE_ID,
-    );
-    expect(update.get("phases[1][items][2][price]")).toBe(
-      env.STRIPE_MODULE_VOICE_PRICE_ID,
-    );
-    // The DB mirror is unchanged: enabled, grandfather cleared.
-    const upserts = harness.callsTo("POST", /\/rest\/v1\/company_modules/);
-    expect(upserts).toHaveLength(1);
-    expect(upserts[0].json()).toEqual({
-      company_id: COMPANY_ID,
-      module: "voice",
-      enabled_at: expect.any(String),
-      disabled_at: null,
-      grandfathered: false,
-    });
-  });
-
-  it("disable strips the module price from EVERY phase and clears voice settings", async () => {
-    const harness = makeHarness([
-      companyEndpoint(activePro()),
-      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
-        subscriptionFixture({
-          licensed: env.STRIPE_PRO_PRICE_ID,
-          metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
-          schedule: "sub_sched_1",
-          moduleItems: [
-            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
-          ],
-        }),
-      ),
-      endpoint(
-        "GET",
-        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
-        () =>
-          scheduleFixture({
-            phase1: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
-            phase2: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
-          }),
-      ),
-      endpoint(
-        "POST",
-        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
-        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
-      ),
-      endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
-      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
-    ]);
-    const response = await post(
-      "/v1/billing/modules",
-      { module: "voice", enabled: false },
-      harness,
-    );
-    expect(response.status).toBe(200);
-
-    // No direct item delete — the phase rebuild removes the price everywhere,
-    // so the stale phase-2 items can never re-bill the module at rollover.
+    expect(voiceToggle.status).toBe(409);
     expect(
-      harness.calls.filter((call) => call.method === "DELETE"),
-    ).toHaveLength(0);
-    const update = harness
-      .callsTo("POST", /subscription_schedules\/sub_sched_1/)[0]
-      .form();
-    const phasePrices = [...update.entries()]
-      .filter(([key]) => /\[items\]\[\d+\]\[price\]$/.test(key))
-      .map(([, value]) => value);
-    expect(phasePrices).not.toContain(env.STRIPE_MODULE_VOICE_PRICE_ID);
-    expect(phasePrices).toContain(env.STRIPE_PRO_PRICE_ID);
-    expect(phasePrices).toContain(env.STRIPE_STARTER_PRICE_ID);
-    // Voice capability cleared exactly like the schedule-less disable.
-    const companyPatch = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
-    expect(companyPatch).toHaveLength(1);
-    expect(companyPatch[0].json()).toEqual({
-      forward_to_cell: null,
-      mctb_enabled: false,
-    });
+      ((await voiceToggle.json()) as { error: { message: string } }).error
+        .message,
+    ).toContain("included on every plan");
   });
 });

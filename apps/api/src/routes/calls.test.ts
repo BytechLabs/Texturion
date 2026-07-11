@@ -186,12 +186,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
     sb.on("GET", "/rest/v1/calls", () => []); // #133: no in-flight session
     sb.on("POST", "/rest/v1/rpc/api_claim_outbound_dial", () => true);
@@ -267,12 +263,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -312,12 +304,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     // Exactly at 2,500 × 3 = 7,500 minutes.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 7500 * 60);
     const dial: Stub = stubRoute(
@@ -386,12 +374,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
     const dial: Stub = stubRoute(
       (url, request) =>
@@ -445,12 +429,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
     sb.on("GET", "/rest/v1/calls", () => [{ id: "call-live-1" }]); // in flight
     const dial: Stub = stubRoute(
@@ -505,12 +485,8 @@ describe("GET /v1/calls", () => {
         subscription_status: "active",
       },
     ]);
-    sb.on("GET", "/rest/v1/company_modules", (call) => {
-      const select = call.url.searchParams.get("select") ?? "";
-      return select.includes("grandfathered")
-        ? [{ grandfathered: false }]
-        : [{ module: "voice", disabled_at: null }];
-    });
+    // #134/D42: NO company_modules stub — neither the (retired) module gate
+    // nor companyOverVoiceCap reads it anymore; a read would fail loudly.
     sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
     sb.on("GET", "/rest/v1/calls", () => []);
     sb.on("POST", "/rest/v1/rpc/api_claim_outbound_dial", () => false);

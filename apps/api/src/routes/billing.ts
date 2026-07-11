@@ -26,6 +26,7 @@ import {
   modulePrice,
   PLAN_MODULES,
   voiceOveragePrice,
+  isPlanModule,
 } from "../billing/modules";
 import {
   owesUsRegistration,
@@ -34,7 +35,6 @@ import {
 } from "../billing/registration-draft";
 import {
   applyPriceToSchedulePhases,
-  applyVoiceOverageToSchedulePhases,
 } from "../billing/schedule-phases";
 import { getStripe, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
@@ -46,11 +46,18 @@ import { handleCheckoutCompleted, isProvisionableCheckout } from "../webhooks/st
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
   // #12 plan builder: opt-in module add-ons selected at checkout.
-  modules: z.array(z.enum(PLAN_MODULES)).optional(),
+  // #134 review (deploy skew): accept ANY string ids and silently DROP
+  // retired ones below — a pre-D42 bundle still selling the $8 Calling
+  // add-on must not dead-end at the pay button with a 422. Unknown ids that
+  // were never modules still 422 (typo protection).
+  modules: z.array(z.string()).optional(),
 });
 
 const moduleBodySchema = z.object({
-  module: z.enum(PLAN_MODULES),
+  // #134 deploy skew: 'voice' is accepted at the SCHEMA so a stale pre-D42
+  // settings bundle toggling the retired Calling add-on gets an HONEST 409
+  // ("calling is included now") from the handler instead of a generic 422.
+  module: z.enum([...PLAN_MODULES, "voice"] as const),
   enabled: z.boolean(),
 });
 
@@ -148,8 +155,24 @@ billingRoutes.post("/checkout", async (c) => {
     );
   }
   const { plan } = parsed.data;
-  // De-dupe the selected modules (order-independent; a repeat is not an error).
-  const selectedModules = [...new Set(parsed.data.modules ?? [])];
+  // De-dupe the selected modules (order-independent; a repeat is not an
+  // error). #134 deploy skew: RETIRED ids (voice, mms, extra_storage) are
+  // silently dropped — the capability is included/free now, so honoring the
+  // stale bundle's intent means "check out without it". Ids that were NEVER
+  // modules are a 422 (typo/abuse protection).
+  const RETIRED_MODULE_IDS = new Set(["voice", "mms", "extra_storage"]);
+  const requestedModules = [...new Set(parsed.data.modules ?? [])];
+  const unknownModules = requestedModules.filter(
+    (id) => !isPlanModule(id) && !RETIRED_MODULE_IDS.has(id),
+  );
+  if (unknownModules.length > 0) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      `Unknown module: ${unknownModules[0]}.`,
+    );
+  }
+  const selectedModules = requestedModules.filter(isPlanModule);
 
   const company = await fetchCompany(db, c.get("companyId"));
 
@@ -210,13 +233,14 @@ billingRoutes.post("/checkout", async (c) => {
       );
     }
     lineItems.push({ price, quantity: 1 });
-    // D36: voice rides with its per-plan metered overage price (tier 1 at $0
-    // up to the fair-use allowance, then 1¢/min). NO quantity — metered.
-    // Unprovisioned → the module still sells; minutes just go unbilled.
-    if (module === "voice") {
-      const voiceMetered = voiceOveragePrice(env, plan);
-      if (voiceMetered) lineItems.push({ price: voiceMetered });
-    }
+  }
+  // D36/#134: calling is INCLUDED on every plan, so EVERY checkout carries
+  // the per-plan voice metered overage price (tier 1 at $0 up to the
+  // fair-use allowance, then 1¢/min). NO quantity — metered. Unprovisioned →
+  // minutes go unbilled, never over-billed.
+  {
+    const voiceMetered = voiceOveragePrice(env, plan);
+    if (voiceMetered) lineItems.push({ price: voiceMetered });
   }
 
   const session = await getStripe(env).checkout.sessions.create(
@@ -575,7 +599,16 @@ billingRoutes.post("/modules", async (c) => {
       "Body must be { module, enabled }.",
     );
   }
-  const { module, enabled } = parsed.data;
+  const { module: requestedModule, enabled } = parsed.data;
+  // #134 deploy skew: the retired Calling add-on — honest answer, no charge.
+  if (requestedModule === "voice") {
+    return errorResponse(
+      c,
+      "conflict",
+      "Calling is included on every plan now — there's nothing to turn on or pay for. Reload the app to see the current plan.",
+    );
+  }
+  const module = requestedModule;
 
   const company = await fetchCompany(db, companyId);
   if (!company.stripe_subscription_id || company.plan === null) {
@@ -629,25 +662,9 @@ billingRoutes.post("/modules", async (c) => {
       ? subscription.schedule
       : subscription.schedule?.id;
 
-  // D36: the voice module rides with its per-plan metered overage price. The
-  // subscription may carry EITHER plan's voice price (a schedule rollover can
-  // lag the mirror), so presence is checked against the full set.
-  const voiceMetered =
-    module === "voice" ? voiceOveragePrice(env, company.plan) : null;
-  const voicePriceSet = new Set(allVoiceOveragePrices(env));
-  const existingVoiceMeteredItems = subscription.items.data.filter((item) =>
-    voicePriceSet.has(item.price?.id ?? ""),
-  );
-
   if (enabled) {
     if (scheduleId) {
       await applyPriceToSchedulePhases(stripe, scheduleId, price, true);
-      if (module === "voice") {
-        // Review fix: the voice metered price is plan-specific, so it is
-        // resolved PER PHASE (a pending downgrade's phase 2 gets the Starter
-        // tiering, not the current plan's) — never pinned as one price.
-        await applyVoiceOverageToSchedulePhases(stripe, env, scheduleId, true);
-      }
     } else {
       if (!existingItem) {
         await stripe.subscriptionItems.create({
@@ -655,27 +672,6 @@ billingRoutes.post("/modules", async (c) => {
           price,
           proration_behavior: "always_invoice",
         });
-      }
-      if (voiceMetered) {
-        const [current, ...extras] = existingVoiceMeteredItems;
-        if (!current) {
-          // Metered item: no quantity, nothing to prorate ($0 until it bills).
-          await stripe.subscriptionItems.create({
-            subscription: subscription.id,
-            price: voiceMetered,
-          });
-        } else if (current.price.id !== voiceMetered) {
-          // Wrong plan's tiering (stale rollover state) — converge, and never
-          // leave two graduated prices rating the same meter.
-          await stripe.subscriptionItems.update(current.id, {
-            price: voiceMetered,
-          });
-        }
-        for (const extra of extras) {
-          await stripe.subscriptionItems.del(extra.id, {
-            proration_behavior: "always_invoice",
-          });
-        }
       }
     }
     const { error } = await db.from("company_modules").upsert(
@@ -694,25 +690,14 @@ billingRoutes.post("/modules", async (c) => {
     return c.json({ module, enabled: true });
   }
 
-  // Disable: drop the line item(s), mark disabled, and clear the gated
-  // capability. Voice also drops its metered overage item(s) (D36) — EVERY
-  // voice price, from every phase when schedule-managed (review fix: a
-  // price pinned in a downgrade's phase 2 must not survive the disable, or a
-  // re-enable stacks both plans' prices on one meter). Accrued seconds were
-  // already reported to the meter and bill on the final rating.
+  // Disable: drop the line item, mark disabled, and clear the gated
+  // capability. (#134: the voice metered item is plan furniture now — it
+  // never rides a module toggle.)
   if (scheduleId) {
     await applyPriceToSchedulePhases(stripe, scheduleId, price, false);
-    if (module === "voice") {
-      await applyVoiceOverageToSchedulePhases(stripe, env, scheduleId, false);
-    }
   } else {
     if (existingItem) {
       await stripe.subscriptionItems.del(existingItem.id, {
-        proration_behavior: "always_invoice",
-      });
-    }
-    for (const item of module === "voice" ? existingVoiceMeteredItems : []) {
-      await stripe.subscriptionItems.del(item.id, {
         proration_behavior: "always_invoice",
       });
     }
@@ -724,16 +709,7 @@ billingRoutes.post("/modules", async (c) => {
     .eq("module", module)
     .is("disabled_at", null);
   if (error) throw new Error(`module disable failed: ${error.message}`);
-  if (module === "voice") {
-    // A switched-off voice module must stop forwarding calls — clear the
-    // settings the webhook reads so no further call is ever forwarded.
-    const { error: voiceError } = await db
-      .from("companies")
-      .update({ forward_to_cell: null, mctb_enabled: false })
-      .eq("id", companyId);
-    if (voiceError) {
-      throw new Error(`voice settings clear failed: ${voiceError.message}`);
-    }
-  }
+  // #134: no voice arm — forwarding/MCTB are plan features now, never
+  // cleared by a module toggle.
   return c.json({ module, enabled: false });
 });

@@ -14,13 +14,11 @@ const state: {
   isPending: boolean;
   isError: boolean;
   hasNextPage: boolean;
-  voiceEnabled: boolean;
 } = {
   rows: [],
   isPending: false,
   isError: false,
   hasNextPage: false,
-  voiceEnabled: true,
 };
 
 vi.mock("@/lib/api/calls", () => ({
@@ -32,13 +30,6 @@ vi.mock("@/lib/api/calls", () => ({
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
     refetch: vi.fn(),
-  }),
-}));
-vi.mock("@/lib/api/companies", () => ({
-  useCompany: () => ({
-    isPending: false,
-    isError: false,
-    data: { enabled_modules: state.voiceEnabled ? ["voice"] : [] },
   }),
 }));
 
@@ -130,14 +121,17 @@ describe("CallsView (#129)", () => {
     expect(html).not.toContain("bg-warning/10");
   });
 
-  it("empty state points at the calls settings and names the Calling add-on", () => {
+  it("D42: empty state says calls will land here and points at the missed-calls settings, never billing", () => {
     state.rows = [];
     const html = render();
     expect(html).toContain("Calls to your business number will show up here.");
+    // Calling is included on every plan — no add-on to turn on.
     expect(html).toContain(
-      "Turn on the Calling add-on or missed-call text-back",
+      "Forwarding to your cell and the missed-call text-back live in Settings",
     );
+    expect(html).not.toContain("Calling add-on");
     expect(html).toContain('href="/settings/missed-calls"');
+    expect(html).not.toContain('href="/settings/billing"');
   });
 
   it("#133: each row carries a muted direction glyph next to the outcome", () => {
@@ -179,35 +173,15 @@ describe("CallsView (#129)", () => {
 });
 
 /**
- * #133: the log keeps working with the voice module off (history is history),
- * but a slim banner above the list says calling itself is off and points at
- * the Calling add-on. Never shown while the module is on, and never doubled
- * onto the empty state (which already carries the setup pointer).
+ * #134/D42: calling is included on every plan — the #133 module-off banner
+ * retired with the module. The log renders no module state at all.
  */
-describe("CallsView module-off banner (#133)", () => {
-  it("shows the banner above rows when the voice module is off", () => {
-    state.voiceEnabled = false;
-    state.rows = [call()];
-    const html = render();
-    expect(html).toContain("Calls land here, but calling is off");
-    expect(html).toContain("Calling add-on");
-    expect(html).toContain("to ring your cell and call customers back");
-    expect(html).toContain('href="/settings/billing"');
-  });
-
-  it("hides the banner when there are no rows (the empty state speaks instead)", () => {
-    state.voiceEnabled = false;
-    state.rows = [];
-    const html = render();
-    expect(html).not.toContain("Calls land here, but calling is off");
-    expect(html).toContain("Calls to your business number will show up here.");
-  });
-
-  it("hides the banner when the module is on", () => {
-    state.voiceEnabled = true;
+describe("CallsView after the voice-module retirement (#134/D42)", () => {
+  it("never renders the old module-off banner or a billing pointer", () => {
     state.rows = [call()];
     const html = render();
     expect(html).not.toContain("Calls land here, but calling is off");
+    expect(html).not.toContain("Calling add-on");
     expect(html).not.toContain('href="/settings/billing"');
   });
 });
