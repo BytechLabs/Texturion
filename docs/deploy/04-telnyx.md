@@ -52,6 +52,18 @@ the portal (`apps/api/src/telnyx/voice.ts:1-22,68-118`):
   `outbound.outbound_voice_profile_id`. Done for prod on 2026-07-11
   (profile `3001971696790931111`, "loonext-conversational").
 
+### `TELNYX_WEBRTC_CONNECTION_ID` — the shared WebRTC credential connection (once, D43)
+
+Browser calling (docs/CALLS-V2.md) mints one **telephony credential per
+member** on a single shared **credential connection**:
+`POST /v2/credential_connections` with `connection_name`, a random
+`user_name`/`password` (never used by clients — members get their own
+credentials), `webhook_event_url` = the SAME `/webhooks/telnyx` endpoint,
+`webhook_api_version: "2"`, `outbound.outbound_voice_profile_id` = the §1
+profile, `inbound.codecs: ["OPUS","G722","G711U"]`. Copy the id → the
+`TELNYX_WEBRTC_CONNECTION_ID` Worker secret. Done for prod on 2026-07-11
+(connection `3002012715179836808`, "loonext-webrtc").
+
 The Worker does the rest at runtime: when a company enables missed-call text-back
 or sets a forward-to-cell, it PATCHes each active number's voice settings to
 `connection_id = TELNYX_VOICE_CONNECTION_ID`
