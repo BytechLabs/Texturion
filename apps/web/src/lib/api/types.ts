@@ -680,12 +680,21 @@ export interface UsageStorage {
   mms_budget_bytes: number;
 }
 
-/** #12 call-forwarding minutes embedded in GET /v1/usage. */
+/** #12/D36 call-forwarding minutes embedded in GET /v1/usage. */
 export interface UsageVoice {
-  /** Whole minutes forwarded this period (summed over both legs). */
+  /** Whole forwarded (dialed-leg) minutes this period — the fair-use measure
+   *  the allowance, the 1¢/min overage meter, and the cap share (D36). */
   used_minutes: number;
-  /** Included call-forwarding minutes for the plan (0 pre-checkout). */
+  /** Included forwarded minutes for the plan (0 pre-checkout). */
   included_minutes: number;
+  /** D36: minutes where forwarding pauses — included × the same spending-cap
+   *  multiplier as texts. Null pre-checkout. */
+  cap_minutes: number | null;
+  /** D36: whole minutes past the allowance so far (billed at 1¢ each,
+   *  rated to the second). */
+  overage_minutes: number;
+  /** D36: overage-so-far in cents (exact overage seconds ÷ 60 × 1¢). */
+  projected_overage_cents: number;
 }
 
 /** #85 dynamic overage projection embedded in GET /v1/usage. */

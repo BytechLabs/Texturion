@@ -42,6 +42,11 @@ export function completeEnv(): Env {
     STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID: "price_extra_number_starter_0001",
     STRIPE_EXTRA_NUMBER_PRO_PRICE_ID: "price_extra_number_pro_0001",
     STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
+    // D36 voice fair-use overage: configured in tests exactly like production
+    // (the vars are env-optional, but prod always carries them).
+    STRIPE_VOICE_METER_EVENT_NAME: "voice_seconds",
+    STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID: "price_starter_voice_overage_0001",
+    STRIPE_PRO_VOICE_OVERAGE_PRICE_ID: "price_pro_voice_overage_0001",
   };
 }
 

@@ -47,7 +47,13 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
       attachment_budget_bytes: 1024 ** 3,
       mms_budget_bytes: 1024 ** 3,
     },
-    voice: { used_minutes: 0, included_minutes: 0 },
+    voice: {
+      used_minutes: 0,
+      included_minutes: 0,
+      cap_minutes: null,
+      overage_minutes: 0,
+      projected_overage_cents: 0,
+    },
     ...overrides,
   };
 }
@@ -104,6 +110,58 @@ describe("/settings/usage cap status", () => {
     const html = render(baseUsage()); // quiet
     expect(html).toContain("Overage cap");
     expect(html).toContain("messages per period");
+  });
+});
+
+/**
+ * D36: the voice meter speaks the fair-use billing story — extra minutes bill
+ * at 1¢ each up to the spending cap, where forwarding pauses. The old
+ * pause-at-allowance promise ("new calls aren't forwarded" the moment the
+ * included minutes run out) must be gone.
+ */
+describe("/settings/usage voice meter (D36)", () => {
+  beforeEach(() => {
+    state.usage = null as unknown as Usage;
+  });
+
+  const heavyVoice = {
+    used_minutes: 2600,
+    included_minutes: 2500,
+    cap_minutes: 7500,
+    overage_minutes: 100,
+    projected_overage_cents: 100,
+  };
+
+  it("states the 1¢/min overage, the cap pause point, and the overage so far", () => {
+    const html = render(baseUsage({ voice: heavyVoice, ...TRENDING }));
+    expect(html).toContain("2,600");
+    expect(html).toContain("2,500");
+    expect(html).toContain("100 extra at 1¢ each");
+    expect(html).toContain("bill at 1¢ each");
+    expect(html).toContain("spending cap (7,500 min)");
+    expect(html).toContain("stop forwarding");
+    expect(html).toContain("missed-call text");
+  });
+
+  it("never claims calls stop forwarding at the allowance", () => {
+    const html = render(baseUsage({ voice: heavyVoice, ...TRENDING }));
+    expect(html).not.toContain("aren't forwarded");
+    expect(html).not.toContain("phone bill can't run past your plan");
+  });
+
+  it("stays hidden while voice usage is comfortably within plan", () => {
+    const html = render(
+      baseUsage({
+        voice: {
+          used_minutes: 10,
+          included_minutes: 2500,
+          cap_minutes: 7500,
+          overage_minutes: 0,
+          projected_overage_cents: 0,
+        },
+      }),
+    );
+    expect(html).not.toContain("Call forwarding");
   });
 });
 

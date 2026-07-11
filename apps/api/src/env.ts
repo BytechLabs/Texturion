@@ -112,6 +112,22 @@ const envSchema = z.object({
   /** Billing Meter `event_name` (SPEC §9: 'sms_segments'). */
   STRIPE_SMS_METER_EVENT_NAME: z.string().min(1),
   /**
+   * D36 (#128) voice fair-use overage: the voice Billing Meter's `event_name`
+   * ('voice_seconds') plus the per-plan graduated metered prices bound to it
+   * (tier 1 at $0 up to the plan's included minutes, then 1¢/min), all printed
+   * by `pnpm stripe:setup`. OPTIONAL so the Worker boots before the catalog is
+   * provisioned: with the event name unset, forward legs are stamped
+   * non-reportable at insert (no retroactive backlog can ever build up and
+   * dump old minutes into a later invoice); with a price unset, checkout and
+   * the module toggle simply don't attach the metered item (minutes go
+   * unbilled, never over-billed). The fair-use gate in voice-webhook.ts caps
+   * forwarding at the spending cap regardless, so cost stays bounded either
+   * way.
+   */
+  STRIPE_VOICE_METER_EVENT_NAME: z.string().min(1).optional(),
+  STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_PRO_VOICE_OVERAGE_PRICE_ID: z.string().min(1).optional(),
+  /**
    * PostHog Cloud project API key (SPEC §12 step 18 product analytics).
    * OPTIONAL: when unset (local dev, tests) every analytics capture is a
    * silent no-op — see src/analytics/posthog.ts.

@@ -15,6 +15,7 @@ import {
   failStuckOutboundSends,
   isDuplicateMeterIdentifierError,
   reportUnreportedUsage,
+  reportUnreportedVoiceUsage,
   sweepWebhookEvents,
 } from "./crons";
 import { STUCK_SEND_SECONDS } from "./send";
@@ -365,6 +366,151 @@ describe("reportUnreportedUsage", () => {
     // Stamped — the row leaves the hourly re-report set for good.
     expect(stamp.calls).toHaveLength(1);
     expect(stamp.calls[0].url.searchParams.get("id")).toBe("eq.u-4");
+  });
+});
+
+describe("reportUnreportedVoiceUsage (D36)", () => {
+  it("re-reports unstamped forward legs as RAW SECONDS and stamps them", async () => {
+    const voiceQuery = stubRoute(
+      restMatch(env, "GET", "call_records"),
+      () => [
+        {
+          id: "cr-1",
+          billable_seconds: 61, // reported verbatim — the gate's own measure
+          call_leg_id: "leg-1",
+          companies: { stripe_customer_id: "cus_123" },
+        },
+        {
+          id: "cr-2",
+          billable_seconds: 30,
+          call_leg_id: "leg-2",
+          companies: { stripe_customer_id: null }, // no customer yet — skipped
+        },
+      ],
+    );
+    const meter = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () => ({ object: "billing.meter_event" }),
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "call_records"), () =>
+      new Response(null, { status: 204 }),
+    );
+    stubFetch(voiceQuery.route, meter.route, stamp.route);
+
+    await reportUnreportedVoiceUsage(env);
+
+    // The hygiene sweep stamps non-billable rows first (no id filter, an OR
+    // on leg/seconds), then the queue read, then the per-row guarded stamp.
+    const sweep = stamp.calls.filter(
+      (call) => call.url.searchParams.get("id") === null,
+    );
+    expect(sweep).toHaveLength(1);
+    expect(sweep[0].url.searchParams.get("or")).toContain("leg.neq.forward");
+
+    // The queue is the local stamp gate, forward legs with billable time only.
+    const query = voiceQuery.calls[0].url.searchParams;
+    expect(query.get("stripe_reported_at")).toBe("is.null");
+    expect(query.get("leg")).toBe("eq.forward");
+    expect(query.get("billable_seconds")).toBe("gt.0");
+
+    expect(meter.calls).toHaveLength(1);
+    const form = new URLSearchParams(String(meter.calls[0].body));
+    expect(form.get("event_name")).toBe("voice_seconds");
+    expect(form.get("identifier")).toBe("leg-1");
+    expect(form.get("payload[value]")).toBe("61");
+
+    const rowStamps = stamp.calls.filter(
+      (call) => call.url.searchParams.get("id") !== null,
+    );
+    expect(rowStamps).toHaveLength(1);
+    expect(rowStamps[0].url.searchParams.get("id")).toBe("eq.cr-1");
+    expect(rowStamps[0].url.searchParams.get("stripe_reported_at")).toBe(
+      "is.null",
+    );
+  });
+
+  it("is a no-op when the voice meter is not configured", async () => {
+    const voiceQuery = stubRoute(restMatch(env, "GET", "call_records"));
+    stubFetch(voiceQuery.route);
+    await reportUnreportedVoiceUsage({
+      ...env,
+      STRIPE_VOICE_METER_EVENT_NAME: undefined,
+    });
+    expect(voiceQuery.calls).toHaveLength(0);
+  });
+
+  it("treats Stripe's duplicate-identifier rejection as success and stamps (#53)", async () => {
+    const voiceQuery = stubRoute(
+      restMatch(env, "GET", "call_records"),
+      () => [
+        {
+          id: "cr-3",
+          billable_seconds: 120,
+          call_leg_id: "leg-3",
+          companies: { stripe_customer_id: "cus_123" },
+        },
+      ],
+    );
+    const meter = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () =>
+        Response.json(
+          {
+            error: {
+              type: "invalid_request_error",
+              message: "An event already exists with identifier leg-3.",
+            },
+          },
+          { status: 400 },
+        ),
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "call_records"), () =>
+      new Response(null, { status: 204 }),
+    );
+    stubFetch(voiceQuery.route, meter.route, stamp.route);
+
+    await reportUnreportedVoiceUsage(env);
+
+    const rowStamps = stamp.calls.filter(
+      (call) => call.url.searchParams.get("id") !== null,
+    );
+    expect(rowStamps).toHaveLength(1);
+    expect(rowStamps[0].url.searchParams.get("id")).toBe("eq.cr-3");
+  });
+
+  it("leaves rows unstamped when the meter call fails", async () => {
+    const voiceQuery = stubRoute(
+      restMatch(env, "GET", "call_records"),
+      () => [
+        {
+          id: "cr-4",
+          billable_seconds: 90,
+          call_leg_id: "leg-4",
+          companies: { stripe_customer_id: "cus_123" },
+        },
+      ],
+    );
+    const meter = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () => Response.json({ error: { message: "nope" } }, { status: 500 }),
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "call_records"), () =>
+      new Response(null, { status: 204 }),
+    );
+    stubFetch(voiceQuery.route, meter.route, stamp.route);
+
+    await reportUnreportedVoiceUsage(env);
+    // Only the hygiene sweep (no id filter) ran — the failed row keeps its
+    // NULL stamp for the next hourly retry.
+    expect(
+      stamp.calls.filter((call) => call.url.searchParams.get("id") !== null),
+    ).toHaveLength(0);
   });
 });
 

@@ -33,7 +33,7 @@ interface UsageState {
    */
   mmsBytes?: number;
   attachmentBytes?: number;
-  /** api_period_voice_seconds (default 0 → no voice alerts). */
+  /** api_period_forward_seconds (D36 — default 0 → no voice alerts). */
   voiceSeconds?: number;
   /** api_period_egress_bytes (default 0 → no egress alerts). */
   egressBytes?: number;
@@ -56,7 +56,7 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
     })),
     endpoint(
       "POST",
-      /\/rest\/v1\/rpc\/api_period_voice_seconds/,
+      /\/rest\/v1\/rpc\/api_period_forward_seconds/,
       () => state.voiceSeconds ?? 0,
     ),
     endpoint(
@@ -237,28 +237,48 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(again.harness)).toHaveLength(0);
   });
 
-  it("voice minutes at 100% (300 min = 18000 s) sends both call-forwarding alerts", async () => {
+  it("voice minutes at 100% (starter: 2,500 min) sends both forwarded-minute alerts (D36)", async () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      voiceSeconds: 300 * 60,
+      voiceSeconds: 2500 * 60,
     };
     const { harness, done } = run(state);
     await done;
-    const subjects = sentEmails(harness).map((email) => email.subject);
+    const emails = sentEmails(harness);
+    const subjects = emails.map((email) => email.subject);
     expect(subjects).toHaveLength(2);
-    expect(subjects[0]).toContain("nearing its call-forwarding minutes");
-    expect(subjects[1]).toContain("used all its included call-forwarding");
+    expect(subjects[0]).toContain("80% of its included forwarded minutes");
+    expect(subjects[1]).toContain("all 2500 included forwarded minutes");
+    // D36: the copy promises billed overage up to the cap — never a silent
+    // pause at the allowance, and never a surprise bill.
+    expect(emails[1].text).toContain("billed at 1¢ each");
+    expect(emails[1].text).toContain("up to your spending cap");
     expect(state.ledger).toEqual(
       new Set(["voice_minutes:80", "voice_minutes:100"]),
     );
+  });
+
+  it("voice thresholds follow the plan allowance (pro: 4,800 of 6,000 = 80%)", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      plan: "pro",
+      voiceSeconds: 4800 * 60,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const emails = sentEmails(harness);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toContain("80% of its included forwarded minutes");
+    expect(state.ledger).toEqual(new Set(["voice_minutes:80"]));
   });
 
   it("voice minutes below 80% sends nothing", async () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      voiceSeconds: 100 * 60, // 100 of 300 min
+      voiceSeconds: 1000 * 60, // 1,000 of 2,500 min (starter allowance)
     };
     const { harness, done } = run(state);
     await done;
@@ -382,7 +402,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
         attachments_bytes: 0,
         mms_bytes: 0,
       })),
-      endpoint("POST", /\/rest\/v1\/rpc\/api_period_voice_seconds/, () => 0),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_forward_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };

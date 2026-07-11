@@ -7,6 +7,7 @@ import {
   hasLiveSubscription,
   PLAN_IDS,
   PLAN_LIMITS,
+  planForLicensedPrice,
   planPrices,
   type LocalSubscriptionStatus,
   type PlanId,
@@ -19,17 +20,22 @@ import {
 } from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
 import {
+  allVoiceOveragePrices,
   MODULE_CATALOG,
   moduleForPrice,
   modulePrice,
   PLAN_MODULES,
+  voiceOveragePrice,
 } from "../billing/modules";
 import {
   owesUsRegistration,
   registrationDraftComplete,
   type RegistrationRow,
 } from "../billing/registration-draft";
-import { applyPriceToSchedulePhases } from "../billing/schedule-phases";
+import {
+  applyPriceToSchedulePhases,
+  applyVoiceOverageToSchedulePhases,
+} from "../billing/schedule-phases";
 import { getStripe, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -204,6 +210,13 @@ billingRoutes.post("/checkout", async (c) => {
       );
     }
     lineItems.push({ price, quantity: 1 });
+    // D36: voice rides with its per-plan metered overage price (tier 1 at $0
+    // up to the fair-use allowance, then 1¢/min). NO quantity — metered.
+    // Unprovisioned → the module still sells; minutes just go unbilled.
+    if (module === "voice") {
+      const voiceMetered = voiceOveragePrice(env, plan);
+      if (voiceMetered) lineItems.push({ price: voiceMetered });
+    }
   }
 
   const session = await getStripe(env).checkout.sessions.create(
@@ -359,15 +372,27 @@ billingRoutes.post("/change-plan", async (c) => {
   const subscription = await stripe.subscriptions.retrieve(
     company.stripe_subscription_id,
   );
+  // D36: a voice-module subscription carries TWO metered items (SMS + voice),
+  // so "the metered item" must be identified by price, not by find-first.
   const licensedItem = subscription.items.data.find(
-    (item) => !isMeteredItem(item),
+    (item) => planForLicensedPrice(env, item.price.id) !== null,
   );
-  const meteredItem = subscription.items.data.find(isMeteredItem);
+  const smsOveragePrices = new Set([
+    env.STRIPE_STARTER_OVERAGE_PRICE_ID,
+    env.STRIPE_PRO_OVERAGE_PRICE_ID,
+  ]);
+  const meteredItem = subscription.items.data.find((item) =>
+    smsOveragePrices.has(item.price.id),
+  );
   if (!licensedItem || !meteredItem) {
     throw new Error(
       `Subscription ${subscription.id} does not carry the licensed+metered item pair.`,
     );
   }
+  const voiceOveragePriceSet = new Set(allVoiceOveragePrices(env));
+  const voiceMeteredItem = subscription.items.data.find((item) =>
+    voiceOveragePriceSet.has(item.price.id),
+  );
 
   if (target === "pro") {
     // UPGRADE: immediate, prorated onto an invoice issued now (SPEC §9).
@@ -380,6 +405,12 @@ billingRoutes.post("/change-plan", async (c) => {
     const extraItem = starterExtraPrice
       ? findExtraNumberItem(subscription, starterExtraPrice)
       : undefined;
+    // D36: the voice metered item must move to the Pro tiering (allowance
+    // 6,000, not 2,500) WITH the upgrade — left on the Starter price it would
+    // over-bill minutes 2,500–6,000 that the Pro allowance includes. If the
+    // Pro voice price isn't provisioned, DROP the item (unbilled beats
+    // over-billed; the toggle re-attaches once provisioned).
+    const proVoicePrice = voiceOveragePrice(env, "pro");
     await stripe.subscriptions.update(subscription.id, {
       items: [
         { id: licensedItem.id, price: prices.licensed },
@@ -391,6 +422,13 @@ billingRoutes.post("/change-plan", async (c) => {
                 price: proExtraPrice,
                 quantity: extraItem.quantity ?? 1,
               },
+            ]
+          : []),
+        ...(voiceMeteredItem
+          ? [
+              proVoicePrice
+                ? { id: voiceMeteredItem.id, price: proVoicePrice }
+                : { id: voiceMeteredItem.id, deleted: true as const },
             ]
           : []),
       ],
@@ -472,6 +510,13 @@ billingRoutes.post("/change-plan", async (c) => {
           ...subscription.items.data
             .filter((item) => moduleForPrice(env, item.price.id) !== null)
             .map((item) => ({ price: item.price.id, quantity: 1 })),
+          // D36: the voice metered item rolls over on the STARTER tiering
+          // (allowance 2,500) — the Pro price left in place would under-bill
+          // by treating minutes up to 6,000 as included. Unprovisioned →
+          // dropped at rollover (unbilled, never mis-billed).
+          ...(voiceMeteredItem && voiceOveragePrice(env, "starter")
+            ? [{ price: voiceOveragePrice(env, "starter") as string }]
+            : []),
         ],
       },
     ],
@@ -584,15 +629,54 @@ billingRoutes.post("/modules", async (c) => {
       ? subscription.schedule
       : subscription.schedule?.id;
 
+  // D36: the voice module rides with its per-plan metered overage price. The
+  // subscription may carry EITHER plan's voice price (a schedule rollover can
+  // lag the mirror), so presence is checked against the full set.
+  const voiceMetered =
+    module === "voice" ? voiceOveragePrice(env, company.plan) : null;
+  const voicePriceSet = new Set(allVoiceOveragePrices(env));
+  const existingVoiceMeteredItems = subscription.items.data.filter((item) =>
+    voicePriceSet.has(item.price?.id ?? ""),
+  );
+
   if (enabled) {
     if (scheduleId) {
       await applyPriceToSchedulePhases(stripe, scheduleId, price, true);
-    } else if (!existingItem) {
-      await stripe.subscriptionItems.create({
-        subscription: subscription.id,
-        price,
-        proration_behavior: "always_invoice",
-      });
+      if (module === "voice") {
+        // Review fix: the voice metered price is plan-specific, so it is
+        // resolved PER PHASE (a pending downgrade's phase 2 gets the Starter
+        // tiering, not the current plan's) — never pinned as one price.
+        await applyVoiceOverageToSchedulePhases(stripe, env, scheduleId, true);
+      }
+    } else {
+      if (!existingItem) {
+        await stripe.subscriptionItems.create({
+          subscription: subscription.id,
+          price,
+          proration_behavior: "always_invoice",
+        });
+      }
+      if (voiceMetered) {
+        const [current, ...extras] = existingVoiceMeteredItems;
+        if (!current) {
+          // Metered item: no quantity, nothing to prorate ($0 until it bills).
+          await stripe.subscriptionItems.create({
+            subscription: subscription.id,
+            price: voiceMetered,
+          });
+        } else if (current.price.id !== voiceMetered) {
+          // Wrong plan's tiering (stale rollover state) — converge, and never
+          // leave two graduated prices rating the same meter.
+          await stripe.subscriptionItems.update(current.id, {
+            price: voiceMetered,
+          });
+        }
+        for (const extra of extras) {
+          await stripe.subscriptionItems.del(extra.id, {
+            proration_behavior: "always_invoice",
+          });
+        }
+      }
     }
     const { error } = await db.from("company_modules").upsert(
       {
@@ -610,13 +694,28 @@ billingRoutes.post("/modules", async (c) => {
     return c.json({ module, enabled: true });
   }
 
-  // Disable: drop the line item, mark disabled, and clear the gated capability.
+  // Disable: drop the line item(s), mark disabled, and clear the gated
+  // capability. Voice also drops its metered overage item(s) (D36) — EVERY
+  // voice price, from every phase when schedule-managed (review fix: a
+  // price pinned in a downgrade's phase 2 must not survive the disable, or a
+  // re-enable stacks both plans' prices on one meter). Accrued seconds were
+  // already reported to the meter and bill on the final rating.
   if (scheduleId) {
     await applyPriceToSchedulePhases(stripe, scheduleId, price, false);
-  } else if (existingItem) {
-    await stripe.subscriptionItems.del(existingItem.id, {
-      proration_behavior: "always_invoice",
-    });
+    if (module === "voice") {
+      await applyVoiceOverageToSchedulePhases(stripe, env, scheduleId, false);
+    }
+  } else {
+    if (existingItem) {
+      await stripe.subscriptionItems.del(existingItem.id, {
+        proration_behavior: "always_invoice",
+      });
+    }
+    for (const item of module === "voice" ? existingVoiceMeteredItems : []) {
+      await stripe.subscriptionItems.del(item.id, {
+        proration_behavior: "always_invoice",
+      });
+    }
   }
   const { error } = await db
     .from("company_modules")

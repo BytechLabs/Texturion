@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { reportSegmentUsage } from "./meter";
+import { reportSegmentUsage, reportVoiceSeconds } from "./meter";
 import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
 
@@ -76,5 +76,56 @@ describe("reportSegmentUsage", () => {
         identifier: "telnyx_msg_2",
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("reportVoiceSeconds (D36)", () => {
+  it("posts to the VOICE meter with the leg id as identifier", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /api\.stripe\.com\/v1\/billing\/meter_events/, () => ({
+        object: "billing.meter_event",
+        event_name: env.STRIPE_VOICE_METER_EVENT_NAME,
+      })),
+    ]);
+    stubFetch(harness.route);
+
+    await reportVoiceSeconds(env, {
+      stripeCustomerId: "cus_1",
+      value: 7,
+      identifier: "leg-abc-1",
+    });
+
+    const calls = harness.callsTo("POST", /meter_events/);
+    expect(calls).toHaveLength(1);
+    const form = calls[0].form();
+    expect(form.get("event_name")).toBe("voice_seconds");
+    expect(form.get("identifier")).toBe("leg-abc-1");
+    expect(form.get("payload[stripe_customer_id]")).toBe("cus_1");
+    expect(form.get("payload[value]")).toBe("7");
+  });
+
+  it("throws without touching the network when the voice meter is not configured", async () => {
+    const harness = makeHarness([]);
+    stubFetch(harness.route);
+    await expect(
+      reportVoiceSeconds(
+        { ...env, STRIPE_VOICE_METER_EVENT_NAME: undefined },
+        { stripeCustomerId: "cus_1", value: 1, identifier: "leg-1" },
+      ),
+    ).rejects.toThrow(/STRIPE_VOICE_METER_EVENT_NAME/);
+    expect(harness.calls).toHaveLength(0);
+  });
+
+  it("rejects non-positive seconds without touching the network", async () => {
+    const harness = makeHarness([]);
+    stubFetch(harness.route);
+    await expect(
+      reportVoiceSeconds(env, {
+        stripeCustomerId: "cus_1",
+        value: 0,
+        identifier: "leg-1",
+      }),
+    ).rejects.toThrow(/positive integer/);
+    expect(harness.calls).toHaveLength(0);
   });
 });

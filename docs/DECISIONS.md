@@ -805,6 +805,7 @@ after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1
 - **Costs stated, not hidden:** forwarding bills two legs (inbound + outbound-to-cell), bounded by the
   20s ring cap; voice-capable DIDs carry the per-number voice charge. No IVR/PBX — explicit FEATURE-GAPS
   non-goal. Voice-minute metering is out of scope (SPEC §9 metering is SMS-only).
+  *(Superseded by D36, 2026-07-10: forwarded minutes are metered and bill 1¢/min past the fair-use allowance.)*
 - **Consistency:** D2 (per-company messaging profiles untouched), D3 (opt-out mirror honored by the RPC),
   D4 (reply-exempt basis), D7 (threading rules reused verbatim; append-only events), D8 (Worker-side
   authorization; RPCs service-role-only), D9 (the queued message flows the normal broadcast paths), D16
@@ -922,7 +923,7 @@ accounting:
   account exists and through grace/release ("sign back in and it's there") — that promise is now a
   priced line item, not an accident. The generic-bucket sweep (soft-delete → 15-min hard-delete
   cron) is the only reclamation path, unchanged.
-- **Consistency:** SPEC §2/§9 (metering stays SMS-segments-only; storage is a budgeted allowance,
+- **Consistency:** SPEC §2/§9 (metering stays SMS-segments-only — *amended by D36: voice minutes meter too*; storage is a budgeted allowance,
   not a meter), D19 (machinery unchanged), §7 (stable `conflict` code for the budget gate).
 
 ## D31. Launch pass (SPEC §12 step 19) — a hermetic golden-path E2E, faked vendors, in CI
@@ -1077,3 +1078,81 @@ cookie-policy update so tags added in the GTM UI are lawful (GDPR/PIPEDA/Quebec 
   banner, no preferences control; there is nothing to consent to. deploy.yml carries the var as
   a repo secret (set 2026-07-10) so production builds with it.
 - **PostHog unchanged:** cookieless, memory-persistence, consent-free by design (D8/D12).
+
+## D36. Voice joins the fair-use meter: 2,500/6,000 included forwarded minutes, 1¢/min overage (#128, 2026-07-10)
+
+Founder directive ("use the same fair use mechanism, don't show numbers in plans; 2,500 minutes
+Starter / 6,000 Pro for projection; past that, bill 1¢ per minute"). Supersedes the #12
+cap-and-drop posture (`PLAN_VOICE_MINUTES` 300/300 as a hard ceiling) and D26's "voice-minute
+metering is out of scope" scope line — plans.ts pre-authorized exactly this: "retune upward only
+alongside metered voice overage."
+
+- **The billed measure is the forwarded (dialed) leg.** A customer's "minute" is a minute their
+  call was actually forwarded to their cell — the phone-bill meaning — via the new
+  `api_period_forward_seconds` RPC (`leg='forward'` only). The both-legs sum
+  (`api_period_voice_seconds`) stays for cost analysis; the allowance no longer silently
+  double-counts (under the old measure, 300 "included minutes" were ~150 talk minutes).
+- **Allowances are fair-use lines, not walls:** `PLAN_VOICE_MINUTES` = 2,500 (Starter) / 6,000
+  (Pro). The 80%/100% usage alerts and the #85 projection run against them; the alert copy now
+  promises billed overage, never a silent pause.
+- **Overage bills like segments:** a second Stripe Billing Meter (`voice_seconds`,
+  `STRIPE_VOICE_METER_EVENT_NAME`) with per-plan graduated metered prices
+  (`loonext_{starter,pro}_voice_overage`: tier 1 at $0 up to the allowance × 60 seconds,
+  then 1¢/60 per second — "1¢ a minute, rated to the second"; app-side constant
+  `VOICE_OVERAGE_CENTS_PER_MINUTE` = 1). The meter is fed the SAME raw seconds the
+  gate/alerts/usage sum (adversarial-review fix: a per-leg ceil-to-minutes report
+  let short calls bill unboundedly past every displayed figure and past the cap). The voice metered item rides wherever the $8
+  voice module is on the subscription: checkout attaches it, the module toggle adds/removes it
+  (schedule-aware), plan changes swap it to the target plan's tiering (upgrade drops it rather
+  than over-bill if the target price is unprovisioned; downgrade rolls it to the Starter price).
+  `moduleForPrice` deliberately maps it to null — module enablement stays decided by the
+  licensed item alone (#17).
+- **Reporting is the segments recipe verbatim:** per forward-leg RAW SECONDS reported on
+  `call.hangup` with `call_leg_id` as the identifier (a rang-out forward leg records ZERO
+  billable seconds — ring time is never a forwarded minute, per the same missed-cause
+  classifier the text-back uses), `call_records.stripe_reported_at` as the
+  local exactly-once stamp, and an hourly `reportUnreportedVoiceUsage` re-reporter with the #53
+  duplicate-identifier stamp-through. Non-billable rows (inbound legs, zero-minute legs, meter
+  unconfigured) are stamped at insert; the migration backfills every pre-D36 row as reported so
+  history can NEVER retroactively bill.
+- **Forwarding pauses only at the spending cap** — allowance × `overage_cap_multiplier`, the same
+  owner control that pauses texts (default 3×, hard max 10×). At the cap the inbound call is
+  rejected (USER_BUSY) and the caller still gets the missed-call text-back, unchanged. Worst-case
+  exposure is bounded there; the #85 projection (voice ceiling now allowance × multiplier, voice
+  overage revenue counted at 1¢/min) warns before any tenant trends underwater.
+- **Economics, stated plainly (founder call):** both legs cost ~1.2¢ per forwarded minute against
+  the 1¢ overage price, so the marginal overage minute runs ~0.2¢ under cost and the included
+  allowance is subsidized by the flat $8 module. Bounded by the cap, watched by the projection,
+  accepted for simplicity of the "1¢ a minute" story. The ~10¢/forwarded-call transfer fee stays
+  uncapped-by-minutes and projection-watched (#98); the pre-answer cap-check concurrency race is
+  a bounded overshoot past the cap (up to 60 min per concurrent in-flight call), not a
+  cost leak (PRICING-AUDIT residual).
+- **No numbers in plans (D34 pattern):** the API module-catalog detail is number-free ("Generous
+  forwarded minutes under fair use."), matching the web mirror; the concrete figures (2,500 /
+  6,000 / 1¢) live in exactly one public place, `/legal/fair-use` §7, positively pinned by
+  legal-pages tests. The pricing sweep bans `6,000` and "minutes a month" alongside the existing
+  figure bans. In-app honesty surfaces (usage meter, missed-calls fine print) state the concrete
+  figures per D34.
+- **Deploy order + operator steps:** migration `20260710150000` BEFORE the Worker (the Worker
+  reads the new RPC/column). Then `pnpm stripe:setup` (idempotent; creates the voice meter + two
+  prices) and set `STRIPE_VOICE_METER_EVENT_NAME` + `STRIPE_{STARTER,PRO}_VOICE_OVERAGE_PRICE_ID`
+  on the API Worker. All three are env-optional fail-safes: unconfigured, minutes go unbilled
+  (never over-billed), nothing queues retroactively, and the cap still bounds cost.
+- **Review hardening (same day, 5-lens adversarial review):** (a) the voice metered price is
+  PLAN-SPECIFIC, so on a pending-downgrade schedule it is resolved PER PHASE from each phase's
+  licensed price (`applyVoiceOverageToSchedulePhases`) — never pinned as one price; disable
+  strips EVERY voice price from every phase so a re-enable can never stack both plans' prices
+  on one meter (double-billing). (b) Every subscription mirror pass converges the metered item
+  onto the paid voice module (`ensureVoiceMeteredItem`): pre-D36 module buyers get it attached,
+  a wrong-plan tiering is swapped, duplicates are removed; grandfathered modules (no licensed
+  item) are never attached. (c) A GRANDFATHERED voice module keeps the pre-D36 deal exactly —
+  forwarding pauses at the legacy 300 minutes (`GRANDFATHERED_VOICE_MINUTES`), because nothing
+  can bill its overage and the new cap would otherwise be a 25×+ unbilled cost ceiling. (d) The
+  hourly voice re-reporter sweep-stamps non-billable rows left unstamped by the deploy window
+  (old Worker + new schema), so the queue index never accumulates dead entries; billable legs
+  recorded in that window bill honestly under the already-published policy (bounded to minutes
+  of deploy lag).
+- **Consistency:** D5 (spending-cap semantics extended, not changed), D26 (call flow, tagging,
+  missed-call computation untouched; its metering scope line is superseded), D33/#17 (reconcile
+  ignores the metered price for module ENABLEMENT by design, while converging its presence),
+  D34 (fair-use page stays the only public home of the numbers), SPEC §2/§9 amended.

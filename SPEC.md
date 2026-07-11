@@ -43,7 +43,7 @@ Loonext is a shared SMS inbox for small service businesses. A company buys a sub
 > self-serve billable plan (`plan_id` stays `starter`/`pro`) — no Stripe price, no DB enum
 > change; a "talk to us" tier that keeps the flat, no-per-user model at custom scale.
 
-- **Metered:** outbound SMS segments only. Outbound **MMS meters as 3 segments**. Notes are free. Inbound SMS and MMS are free and unmetered (market table-stakes; COGS ~0.7¢/segment absorbed).
+- **Metered:** outbound SMS segments, and — with the voice add-on — forwarded voice minutes (D36: dialed-leg minutes; 2,500 included on Starter / 6,000 on Pro, then 1¢/min under the same overage cap). Outbound **MMS meters as 3 segments**. Notes are free. Inbound SMS and MMS are free and unmetered (market table-stakes; COGS ~0.7¢/segment absorbed).
 - **No per-seat add-ons in MVP.** The upgrade path is Starter → Pro. Seat and number limits are enforced server-side (§7, §10).
 - **US registration fee: $29 one-time**, charged as a one-time line item on the first invoice (covers Telnyx's $4.50 brand fee + $15 campaign vetting + resubmission risk). It applies to every US company, and to Canadian companies that enable US texting (see §4.2). It is charged **at most once per company**: the line item is included only while `companies.registration_fee_paid_at IS NULL` — a company that cancels and resubscribes is never charged the fee again. Recurring 10DLC campaign fees ($1.50/mo Low Volume Mixed, $2/mo Sole Proprietor) are **absorbed into plan pricing** — there is never a visible monthly compliance line item.
 - **Overage cap:** default **3× the included quota** (Starter: 1,500 total outbound segments/period; Pro: 7,500). Stored as `companies.overage_cap_multiplier` (default `3.00`; `NULL` = no cap). At the cap, `POST /v1/messages/send` returns `usage_cap_reached` and the owner gets a one-click raise in the usage screen. **Owner-only** setting (raise or remove). Email alerts fire at **80% and 100% of the included quota** (not of the cap).
@@ -987,13 +987,14 @@ POST /v1/messages/send
 ### Stripe catalog (created by a checked-in setup script, ids stored as env config)
 
 - **Products:** `Loonext Starter`, `Loonext Pro` (SaaS product tax code on both), `US texting registration`.
-- **Meter:** one Billing Meter, `event_name = 'sms_segments'`, aggregation `sum`, `customer_mapping` by `stripe_customer_id`.
+- **Meters:** two Billing Meters — `event_name = 'sms_segments'` and (D36) `event_name = 'voice_seconds'` — both aggregation `sum`, `customer_mapping` by `stripe_customer_id`.
 - **Prices:**
   - Starter licensed: $29/mo flat.
   - Starter metered: `recurring[usage_type]=metered`, `recurring[meter]=<METER_ID>`, `billing_scheme=tiered`, `tiers_mode=graduated`: tier 1 `up_to=500, unit_amount=0`; tier 2 `up_to=inf, unit_amount=3` ($0.03).
   - Pro licensed: $79/mo flat.
   - Pro metered: graduated: tier 1 `up_to=2500, unit_amount=0`; tier 2 `up_to=inf, unit_amount_decimal=2.5` ($0.025 — fractional cents require `unit_amount_decimal`).
   - Registration: $29 one-time price.
+  - Voice overage (D36, on the `voice_seconds` meter, hung off the Call forwarding module product): `loonext_starter_voice_overage` graduated tier 1 `up_to=150000` (2,500 min × 60) at $0, tier 2 `up_to=inf, unit_amount_decimal='0.016666666667'` (1¢/60 per second); `loonext_pro_voice_overage` tier 1 `up_to=360000` then the same per-second rate. Attached alongside the $8 voice licensed item wherever the module is on the subscription (checkout, module toggle, plan-change swap, mirror-pass convergence).
 - Metered usage bills **in arrears** on the monthly invoice; Stripe enforces the included quota via tier 1 at $0. (Meter events process asynchronously — the in-app usage screen reads `usage_events`, never Stripe.)
 
 ### Checkout composition (D6)
@@ -1037,10 +1038,11 @@ Telnyx message.finalized (outbound; authoritative `parts` + `encoding`)
 - `usage_events` (with `stripe_reported_at`) is the **app-side source of truth** for the usage dashboard and cap checks; the hourly cron re-reports rows where `stripe_reported_at IS NULL` (gate on the local stamp — Stripe's identifier dedupe is a safeguard, not idempotency).
 - Sent-but-undelivered parts are still metered (Telnyx charges for them); `failed`-before-send (Telnyx API error) rows produce no usage event.
 - Cap check at send time: `sum(usage_events.quantity)` for the current period + a GSM-7/UCS-2 estimate (160/153, 70/67 chars) of queued-but-unfinalized messages; the 250-segments/hour rate limit bounds any race at the margin.
+- **Voice pipeline (D36) mirrors the above:** on every forward-leg `call.hangup`, `call_records` records the leg (unique `call_leg_id`; a rang-out leg records ZERO billable seconds) and its RAW `billable_seconds` are reported to the `voice_seconds` meter (identifier = `call_leg_id`; the metered price rates 1¢ per 60 s), with `call_records.stripe_reported_at` as the local exactly-once stamp (hourly `reportUnreportedVoiceUsage` re-reports NULL rows and sweep-stamps non-billable strays; non-billable rows are stamped at insert). Allowance/alerts/cap read the SAME `api_period_forward_seconds` sum, so the bill can never diverge from the displayed figures; forwarding pauses (USER_BUSY reject → missed-call text) at allowance × `overage_cap_multiplier` — or at the legacy 300 minutes for a GRANDFATHERED (free) voice module, which has no overage billing. Every subscription mirror pass converges the voice metered item onto the paid module (attach/swap/dedupe).
 
 ### Plan changes (D6)
 
-In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** switch plans on multi-item usage-based subscriptions. **Upgrades:** swap both subscription items to the Pro prices with `proration_behavior='always_invoice'` (immediate). **Downgrades:** applied at period end via a subscription schedule, and **blocked** (409) until extra numbers are released (owner-initiated `DELETE /v1/numbers/:id` — never automatic) and active members ≤ 3. Portal scope: payment methods, invoices, cancellation only.
+In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** switch plans on multi-item usage-based subscriptions. **Upgrades:** swap both subscription items to the Pro prices with `proration_behavior='always_invoice'` (immediate); a voice metered item swaps to the Pro voice overage price in the same update (D36 — left behind it would over-bill minutes the Pro allowance includes). **Downgrades:** applied at period end via a subscription schedule, and **blocked** (409) until extra numbers are released (owner-initiated `DELETE /v1/numbers/:id` — never automatic) and active members ≤ 3. Portal scope: payment methods, invoices, cancellation only.
 
 ---
 

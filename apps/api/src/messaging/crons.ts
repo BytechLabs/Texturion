@@ -28,7 +28,7 @@
  */
 import * as Sentry from "@sentry/cloudflare";
 
-import { reportSegmentUsage } from "../billing/meter";
+import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { processStripeEvent } from "../webhooks/stripe";
@@ -243,6 +243,84 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
       .is("stripe_reported_at", null);
     if (stampError) {
       throw new Error(`stripe_reported_at stamp failed: ${stampError.message}`);
+    }
+  }
+}
+
+interface UnreportedVoiceRow {
+  id: string;
+  billable_seconds: number;
+  call_leg_id: string | null;
+  companies: { stripe_customer_id: string | null } | null;
+}
+
+/**
+ * D36 (#128) voice twin of {@link reportUnreportedUsage}: meter events for
+ * forward legs whose Stripe report never landed (recordCallDuration leaves
+ * such rows unstamped). Reports the row's RAW billable_seconds — the same
+ * measure the gate/alerts/usage sum, rated 1¢ per 60 s by the metered
+ * price — with the leg id as the identifier and the #53
+ * duplicate-identifier stamp-through. Also sweep-stamps any NON-billable
+ * rows left unstamped (inbound legs / zero-second legs written by a Worker
+ * predating the stamp column during the deploy window) so the partial index
+ * never accumulates dead queue entries. A no-op until the voice meter is
+ * configured — nothing billable can have queued before that, because an
+ * unconfigured environment stamps every row at insert.
+ */
+export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
+  if (!env.STRIPE_VOICE_METER_EVENT_NAME) return;
+  const db = getDb(env);
+
+  // Hygiene sweep: rows that can never bill leave the queue immediately.
+  const { error: sweepError } = await db
+    .from("call_records")
+    .update({ stripe_reported_at: new Date().toISOString() })
+    .is("stripe_reported_at", null)
+    .or("leg.neq.forward,billable_seconds.eq.0");
+  if (sweepError) {
+    throw new Error(`voice non-billable sweep failed: ${sweepError.message}`);
+  }
+
+  const { data, error } = await db
+    .from("call_records")
+    .select("id,billable_seconds,call_leg_id,companies(stripe_customer_id)")
+    .is("stripe_reported_at", null)
+    .eq("leg", "forward")
+    .gt("billable_seconds", 0)
+    .order("created_at", { ascending: true })
+    .limit(REPORT_BATCH);
+  if (error) {
+    throw new Error(`voice re-report query failed: ${error.message}`);
+  }
+
+  for (const row of (data ?? []) as unknown as UnreportedVoiceRow[]) {
+    const stripeCustomerId = row.companies?.stripe_customer_id;
+    if (!stripeCustomerId) continue; // company not billed yet — try next hour
+    try {
+      await reportVoiceSeconds(env, {
+        stripeCustomerId,
+        value: row.billable_seconds,
+        identifier: row.call_leg_id ?? row.id,
+      });
+    } catch (cause) {
+      if (!isDuplicateMeterIdentifierError(cause)) {
+        console.error(
+          `voice re-report failed for ${row.id}:`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+        continue; // stays unstamped; next hourly run retries
+      }
+      // #53: identifier already accepted by Stripe — stamp through.
+    }
+    const { error: stampError } = await db
+      .from("call_records")
+      .update({ stripe_reported_at: new Date().toISOString() })
+      .eq("id", row.id)
+      .is("stripe_reported_at", null);
+    if (stampError) {
+      throw new Error(
+        `call_records stamp failed: ${stampError.message}`,
+      );
     }
   }
 }

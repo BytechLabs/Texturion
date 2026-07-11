@@ -184,10 +184,11 @@ function ForwardCard({
   company: CompanyView;
   canEdit: boolean;
   /**
-   * The plan's monthly call-forwarding allowance (voice.included_minutes from
-   * GET /v1/usage, i.e. PLAN_VOICE_MINUTES). Forwarding is cap-and-drop, not
-   * uncapped: past this the voice webhook stops forwarding, so the copy must
-   * state the ceiling rather than promise unlimited "included" minutes.
+   * The plan's monthly forwarded-minute allowance (voice.included_minutes
+   * from GET /v1/usage, i.e. PLAN_VOICE_MINUTES). D36: past the allowance,
+   * extra minutes bill at 1¢ each up to the spending cap, where forwarding
+   * pauses — the copy states both so nobody is surprised by a billed minute
+   * or a paused feature.
    */
   includedMinutes: number;
 }) {
@@ -252,14 +253,14 @@ function ForwardCard({
         <p className="text-xs text-muted-foreground">
           Leave blank to skip forwarding. A call no one picks up rings out and
           counts as missed. If your voicemail answers instead of you, the call
-          still counts as missed. Forwarded calls are included in your plan up
-          to{" "}
+          still counts as missed. Your plan includes{" "}
           <span className="tabular-nums">
             {includedMinutes.toLocaleString()}
           </span>{" "}
-          minutes a month. After that, new calls stop forwarding and the caller
-          gets your missed-call text instead, so your phone bill can&apos;t run
-          past your plan.
+          forwarded minutes a month. After that, extra minutes bill at 1¢ each
+          up to your spending cap; at the cap, new calls stop forwarding and
+          the caller gets your missed-call text instead, so the bill can never
+          run past what you allowed.
         </p>
         {error && (
           <p role="alert" className="text-sm text-destructive">

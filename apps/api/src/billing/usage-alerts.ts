@@ -143,9 +143,11 @@ Loonext`,
 }
 
 /**
- * #12 voice-minutes alert copy. Over the allowance, new inbound calls are NOT
- * forwarded (the caller gets the text-back instead) — the copy says so plainly
- * so a busy owner upgrades before their customers stop getting through.
+ * D36 (#128) voice-minutes alert copy. The allowance is a fair-use line, not
+ * a wall: past 100%, extra forwarded minutes bill at 1¢ each up to the
+ * owner's spending cap (the same cap that bounds text overage), and only AT
+ * the cap does forwarding pause (callers get the text-back instead). The
+ * copy mirrors the segments emails so paid overage never begins unnoticed.
  */
 function voiceAlertCopy(
   company: ActiveCompanyRow,
@@ -157,23 +159,24 @@ function voiceAlertCopy(
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
   if (threshold === 100) {
     return {
-      subject: `${company.name} has used all its included call-forwarding minutes`,
+      subject: `${company.name} has used all ${includedMinutes} included forwarded minutes this period`,
       text:
-        `Hi,\n\n${company.name} has used all ${includedMinutes} call-forwarding ` +
-        `minutes included in your plan this billing period. New incoming calls ` +
-        `are no longer forwarded to your cell (callers get your missed-call ` +
-        `text instead), so your phone bill can't run past your plan. Move to a ` +
-        `larger plan to keep forwarding calls.\n\n` +
-        `See usage: ${usageUrl}\n\nLoonext`,
+        `Hi,\n\n${company.name} has used all ${includedMinutes} forwarded-call ` +
+        `minutes included in your plan this billing period. Calls keep ` +
+        `forwarding normally; extra minutes are now billed at 1¢ each on ` +
+        `your next invoice, up to your spending cap. At the cap, forwarding ` +
+        `pauses for the rest of the period and callers get your missed-call ` +
+        `text instead.\n\n` +
+        `See usage and manage your cap: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
-    subject: `${company.name} is nearing its call-forwarding minutes limit`,
+    subject: `${company.name} has used 80% of its included forwarded minutes`,
     text:
       `Hi,\n\n${company.name} has used ${usedMinutes} of the ${includedMinutes} ` +
-      `call-forwarding minutes included in your plan this billing period. Once ` +
-      `they're used up, new incoming calls stop forwarding to your cell (callers ` +
-      `get your missed-call text instead). Move to a larger plan to avoid that.\n\n` +
+      `forwarded-call minutes included in your plan this billing period. Once ` +
+      `the included minutes are used up, extra minutes are billed at 1¢ ` +
+      `each on your next invoice, up to your spending cap.\n\n` +
       `See usage: ${usageUrl}\n\nLoonext`,
   };
 }
@@ -356,11 +359,13 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
         }
       }
 
-      // #12 voice arm: warn before the hard cap (voice-webhook.ts) starts
-      // rejecting calls. Threshold math is on SECONDS to avoid a rounding edge;
-      // the copy shows whole minutes.
+      // #12/D36 voice arm: measured against the fair-use ALLOWANCE (like the
+      // segments arm), in forwarded (dialed-leg) seconds — the same measure
+      // the Stripe meter bills and the spending-cap gate reads. Threshold
+      // math is on SECONDS to avoid a rounding edge; the copy shows whole
+      // minutes.
       const { data: voiceSeconds, error: voiceError } = await db.rpc(
-        "api_period_voice_seconds",
+        "api_period_forward_seconds",
         { p_company_id: company.id, p_since: company.current_period_start },
       );
       if (voiceError) {

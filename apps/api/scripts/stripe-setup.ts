@@ -22,6 +22,27 @@ import Stripe from "stripe";
 
 const METER_EVENT_NAME = "sms_segments";
 
+/**
+ * D36 (#128): the voice fair-use meter — answered forwarded-leg SECONDS,
+ * summed. Seconds (not per-call minute ceilings) so the billed measure is
+ * IDENTICAL to the raw-seconds sum the allowance gate, alerts, and usage
+ * screen read (review fix: per-leg ceil inflated short calls unboundedly vs
+ * every displayed figure).
+ */
+const VOICE_METER_EVENT_NAME = "voice_seconds";
+
+/**
+ * D36 (#128) voice fair-use figures — MUST stay in sync with
+ * PLAN_VOICE_MINUTES / VOICE_OVERAGE_CENTS_PER_MINUTE in
+ * src/billing/plans.ts (this operator script is standalone so they are
+ * inlined). Tier 1 at $0 IS the included allowance, exactly like segments;
+ * boundaries are in SECONDS (allowance × 60) and the overage unit price is
+ * 1¢/60 per second — "1¢ a minute, rated to the second".
+ */
+const VOICE_INCLUDED_MINUTES = { starter: 2500, pro: 6000 } as const;
+/** 1¢ per minute ÷ 60 — 12 decimal places, Stripe's maximum precision. */
+const VOICE_OVERAGE_CENTS_PER_SECOND = "0.016666666667";
+
 /** Stripe Tax: "Software as a service (SaaS) - business use" (SPEC §2). */
 const SAAS_TAX_CODE = "txcd_10103000";
 
@@ -60,19 +81,22 @@ if (!secretKey) {
 
 const stripe = new Stripe(secretKey);
 
-async function ensureMeter(): Promise<Stripe.Billing.Meter> {
+async function ensureMeter(
+  eventName: string,
+  displayName: string,
+): Promise<Stripe.Billing.Meter> {
   for await (const meter of stripe.billing.meters.list({
     status: "active",
     limit: 100,
   })) {
-    if (meter.event_name === METER_EVENT_NAME) {
+    if (meter.event_name === eventName) {
       console.error(`meter: reusing ${meter.id} (${meter.event_name})`);
       return meter;
     }
   }
   const meter = await stripe.billing.meters.create({
-    display_name: "SMS segments",
-    event_name: METER_EVENT_NAME,
+    display_name: displayName,
+    event_name: eventName,
     default_aggregation: { formula: "sum" },
     customer_mapping: { type: "by_id", event_payload_key: "stripe_customer_id" },
     value_settings: { event_payload_key: "value" },
@@ -122,7 +146,11 @@ async function ensurePrice(
 }
 
 try {
-  const meter = await ensureMeter();
+  const meter = await ensureMeter(METER_EVENT_NAME, "SMS segments");
+  const voiceMeter = await ensureMeter(
+    VOICE_METER_EVENT_NAME,
+    "Forwarded call seconds",
+  );
   const starterProduct = await ensureProduct("starter", "Loonext Starter");
   const proProduct = await ensureProduct("pro", "Loonext Pro");
   const registrationProduct = await ensureProduct(
@@ -189,11 +217,13 @@ try {
   // #12 plan-builder module add-ons: a product + flat monthly licensed price
   // per module, idempotent by the same lookup_key/catalog-metadata scheme.
   const modulePriceIds: { envKey: string; id: string }[] = [];
+  let voiceProductId: string | null = null;
   for (const mod of MODULE_PRICES) {
     const product = await ensureProduct(
       `module_${mod.id}`,
       `Loonext — ${mod.label}`,
     );
+    if (mod.id === "voice") voiceProductId = product.id;
     const price = await ensurePrice(`loonext_module_${mod.id}_licensed`, {
       product: product.id,
       currency: "usd",
@@ -204,12 +234,57 @@ try {
     modulePriceIds.push({ envKey: mod.envKey, id: price.id });
   }
 
+  // D36 (#128) voice fair-use overage: per-plan graduated metered prices on
+  // the voice SECONDS meter, hung off the Call forwarding product — tier 1
+  // at $0 up to the plan's included allowance (in seconds), then 1¢/60 per
+  // second, mirroring the SMS overage shape. Attached alongside the $8
+  // licensed item wherever the voice module is on the subscription.
+  if (!voiceProductId) {
+    throw new Error("voice module product missing — cannot create voice overage prices");
+  }
+  const starterVoiceOverage = await ensurePrice(
+    "loonext_starter_voice_overage",
+    {
+      product: voiceProductId,
+      currency: "usd",
+      recurring: { interval: "month", usage_type: "metered", meter: voiceMeter.id },
+      billing_scheme: "tiered",
+      tiers_mode: "graduated",
+      tiers: [
+        { up_to: VOICE_INCLUDED_MINUTES.starter * 60, unit_amount: 0 },
+        {
+          up_to: "inf",
+          unit_amount_decimal: Stripe.Decimal.from(VOICE_OVERAGE_CENTS_PER_SECOND),
+        },
+      ],
+      tax_behavior: "exclusive",
+    },
+  );
+  const proVoiceOverage = await ensurePrice("loonext_pro_voice_overage", {
+    product: voiceProductId,
+    currency: "usd",
+    recurring: { interval: "month", usage_type: "metered", meter: voiceMeter.id },
+    billing_scheme: "tiered",
+    tiers_mode: "graduated",
+    tiers: [
+      { up_to: VOICE_INCLUDED_MINUTES.pro * 60, unit_amount: 0 },
+      {
+        up_to: "inf",
+        unit_amount_decimal: Stripe.Decimal.from(VOICE_OVERAGE_CENTS_PER_SECOND),
+      },
+    ],
+    tax_behavior: "exclusive",
+  });
+
   console.error("\nCatalog ready. Worker env bindings:\n");
   console.log(`STRIPE_SMS_METER_EVENT_NAME=${METER_EVENT_NAME}`);
+  console.log(`STRIPE_VOICE_METER_EVENT_NAME=${VOICE_METER_EVENT_NAME}`);
   console.log(`STRIPE_STARTER_PRICE_ID=${starterLicensed.id}`);
   console.log(`STRIPE_PRO_PRICE_ID=${proLicensed.id}`);
   console.log(`STRIPE_STARTER_OVERAGE_PRICE_ID=${starterOverage.id}`);
   console.log(`STRIPE_PRO_OVERAGE_PRICE_ID=${proOverage.id}`);
+  console.log(`STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID=${starterVoiceOverage.id}`);
+  console.log(`STRIPE_PRO_VOICE_OVERAGE_PRICE_ID=${proVoiceOverage.id}`);
   console.log(`STRIPE_US_FEE_PRICE_ID=${usFee.id}`);
   for (const { envKey, id } of modulePriceIds) {
     console.log(`${envKey}=${id}`);

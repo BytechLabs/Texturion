@@ -55,26 +55,48 @@ export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
 };
 
 /**
- * #12 call-forwarding minutes included per period, before the hard cap. A
- * forwarded call runs two billable Telnyx legs (~$0.012/min combined), and
- * there is no voice-overage billing yet, so every included minute is a cost we
- * eat — this allowance is therefore ALSO our max per-company voice exposure per
- * period (allowance × cost), enforced by the cap-and-drop in voice-webhook.ts
- * with an 80% owner alert before it.
+ * D36 (#128): call-forwarding minutes INCLUDED per period — a fair-use
+ * allowance, no longer the hard ceiling. A "minute" is a minute of the
+ * forwarded (dialed) leg — the phone-bill meaning — summed by
+ * api_period_forward_seconds; the both-legs internal sum
+ * (api_period_voice_seconds) is cost analysis only. Past the allowance,
+ * extra minutes bill at {@link VOICE_OVERAGE_CENTS_PER_MINUTE} through the
+ * voice Billing Meter (tier 1 of the metered price at $0 IS this allowance,
+ * exactly like segments). Forwarding pauses (USER_BUSY + missed-call text)
+ * only at allowance × companies.overage_cap_multiplier — the same
+ * owner-controlled spending cap that bounds text overage — enforced in
+ * voice-webhook.ts, with 80%/100% owner alerts against the allowance.
  *
- * COST FLOOR (cost-protection mandate): the voice module is a FLAT $8/mo
- * regardless of plan, so the cap must match what $8 covers — NOT the text
- * segment quota. Mirroring the quota (2500 on Pro) meant 2500 × $0.012 = $30 of
- * voice cost against $8 of revenue: a structural −$22/mo loss on every heavy
- * Pro user. Capping BOTH plans at 300 min bounds the cost at 300 × $0.012 =
- * $3.60, leaving the $8 module ~$4.40 (≈55%) gross before Stripe fees, so it
- * can never sell below cost. Retune upward only alongside metered voice
- * overage (then this becomes the included allowance, not the hard ceiling).
+ * ECONOMICS (founder call, D36): both legs of a forwarded call cost
+ * ~1.2¢ per forwarded minute (costs.ts) while overage sells at 1¢, so the
+ * marginal overage minute runs ~0.2¢ under cost and the allowance itself is
+ * subsidized by the flat $8 module — bounded by the spending cap (default 3×,
+ * hard max 10×) and watched by the #85 cost-vs-revenue projection, which
+ * warns before any tenant trends underwater. These are the fair-use figures
+ * published at /legal/fair-use (the ONLY public home per D34).
  */
 export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
-  starter: 300,
-  pro: 300,
+  starter: 2500,
+  pro: 6000,
 };
+
+/**
+ * D36 (#128): overage price per extra forwarded minute, in cents — flat
+ * across plans, rated to the second by the Stripe metered price (1¢ per 60
+ * reported seconds). Mirrored by the graduated tiers in
+ * scripts/stripe-setup.ts; used app-side only for display/projection, never
+ * for invoicing (Stripe rates the meter).
+ */
+export const VOICE_OVERAGE_CENTS_PER_MINUTE = 1;
+
+/**
+ * D36 review fix: a GRANDFATHERED voice module (seeded free at #12, no Stripe
+ * items) has no overage billing to absorb usage past its allowance, so it
+ * keeps the pre-D36 deal exactly — forwarding pauses at the legacy 300
+ * minutes, the boundary its economics were priced at. Paid voice modules
+ * pause at PLAN_VOICE_MINUTES × overage_cap_multiplier instead.
+ */
+export const GRANDFATHERED_VOICE_MINUTES = 300;
 
 // #97/#103: PLAN_MMS_INCLUDED (the $5 Picture-messages module's cap) is gone —
 // picture messages are free and meter as 3 segments each through the normal

@@ -52,7 +52,7 @@ const STORAGE = { attachments_bytes: 123_456, mms_bytes: 78_900 };
 /** #12: inbound-volume the api_period_inbound_segments RPC stub reports. */
 const INBOUND_USED = 200;
 
-/** #12: voice seconds the api_period_voice_seconds RPC stub reports (3660 = 61 min). */
+/** #12/D36: forwarded seconds the api_period_forward_seconds RPC stub reports (3660 = 61 min). */
 const VOICE_SECONDS = 3660;
 
 
@@ -72,7 +72,7 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => INBOUND_USED);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
-  sb.on("POST", "/rest/v1/rpc/api_period_voice_seconds", () => VOICE_SECONDS);
+  sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => VOICE_SECONDS);
   sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
   // #85/#93: decideOverage's revenue read still consults company_modules
   // (the #121 storage retirement removed the BUDGET read, not this one).
@@ -126,7 +126,15 @@ describe("GET /v1/usage", () => {
         attachment_budget_bytes: 0,
         mms_budget_bytes: 0,
       },
-      voice: { used_minutes: 61, included_minutes: 300 },
+      // D36: voice mirrors the segment shape — allowance, spending cap
+      // (2,500 × 3.00 = 7,500 min), and overage-so-far at 1¢/min.
+      voice: {
+        used_minutes: 61,
+        included_minutes: 2500,
+        cap_minutes: 7500,
+        overage_minutes: 0,
+        projected_overage_cents: 0,
+      },
       // #103 one-release shim for pre-#103 bundles (zeros — no meter, no crash).
       mms: { used_messages: 0, included_messages: 0 },
     });
@@ -248,7 +256,13 @@ describe("GET /v1/usage", () => {
         attachment_budget_bytes: 0,
         mms_budget_bytes: 0,
       },
-      voice: { used_minutes: 0, included_minutes: 0 },
+      voice: {
+        used_minutes: 0,
+        included_minutes: 0,
+        cap_minutes: null,
+        overage_minutes: 0,
+        projected_overage_cents: 0,
+      },
       mms: { used_messages: 0, included_messages: 0 },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_period_segments")).toHaveLength(0);
@@ -259,7 +273,7 @@ describe("GET /v1/usage", () => {
     // Pre-checkout companies can't own files/media — zeros without querying.
     expect(sb.find("POST", "/rest/v1/rpc/api_storage_usage")).toHaveLength(0);
     expect(
-      sb.find("POST", "/rest/v1/rpc/api_period_voice_seconds"),
+      sb.find("POST", "/rest/v1/rpc/api_period_forward_seconds"),
     ).toHaveLength(0);
   });
 });

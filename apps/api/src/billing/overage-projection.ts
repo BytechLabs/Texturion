@@ -29,9 +29,11 @@
  *   full cost AND their overage REVENUE (3c/2.5c, a surplus over the 0.85c cost)
  *   is added to revenue. Projected outbound is bounded by the spending-cap
  *   ceiling (included x overage_cap_multiplier, or unbounded when the owner
- *   cleared the cap), because sending pauses there. Voice MINUTES are
- *   cap-and-drop, so their projected volume is capped at the plan ceiling — but
- *   the per-forwarded-call TRANSFER fee is NOT (call count isn't bounded by the
+ *   cleared the cap), because sending pauses there. Voice MINUTES (D36) pause
+ *   at the SAME spending cap, so their projected volume is bounded by
+ *   allowance × multiplier and the minutes beyond the allowance earn 1¢/min
+ *   overage revenue — but the per-forwarded-call TRANSFER fee is NOT bounded
+ *   (call count isn't bounded by the
  *   minute cap), so it is extrapolated uncapped. The uncovered, uncapped drivers
  *   are INBOUND segments (0.7c each, free to the customer) and those transfers —
  *   priced in full with no offsetting revenue. That is exactly the loss the
@@ -65,6 +67,7 @@ import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
+  VOICE_OVERAGE_CENTS_PER_MINUTE,
   type PlanId,
 } from "./plans";
 
@@ -90,7 +93,9 @@ export interface PeriodUsage {
   outboundSegments: number;
   /** Inbound SMS segments this period (api_period_inbound_segments). */
   inboundSegments: number;
-  /** Forwarded voice seconds this period (api_period_voice_seconds). */
+  /** Forwarded (dialed-leg) voice seconds this period
+   *  (api_period_forward_seconds) — D36: the billed customer-facing measure;
+   *  UNIT_COST_CENTS.voiceMinute prices BOTH legs' cost per forwarded minute. */
   voiceSeconds: number;
   /** Forwarded-call COUNT this period (api_period_forwarded_calls) — the
    *  per-transfer fee scales with this, not with seconds. */
@@ -160,11 +165,27 @@ export function outboundCeiling(
     : PLAN_INCLUDED_SEGMENTS[plan] * overageCapMultiplier;
 }
 
+/** D36: the month-end forwarded-seconds ceiling — forwarding pauses at the
+ *  SAME spending cap as texts (allowance × multiplier), no longer at the
+ *  allowance itself. */
+export function voiceCeilingSeconds(
+  plan: PlanId,
+  overageCapMultiplier: number | null,
+): number {
+  return overageCapMultiplier === null
+    ? Infinity
+    : PLAN_VOICE_MINUTES[plan] * 60 * overageCapMultiplier;
+}
+
 export interface ProjectedUsage {
   /** Provider cost of all extrapolated flow usage, in cents (full outbound). */
   costCents: number;
-  /** Billable outbound overage revenue (GROSS), in cents — offsets its own cost
-   *  and then some, so a paying-heavy tenant is not flagged. */
+  /** Billable overage revenue (GROSS), in cents — outbound segments beyond the
+   *  quota at 3¢/2.5¢ PLUS forwarded minutes beyond the voice allowance at
+   *  1¢/min (D36) — offsets its own cost so a paying-heavy tenant is not
+   *  flagged. NB: voice overage sells ~0.2¢/min UNDER its 1.2¢ combined-leg
+   *  cost (founder call, D36) — counting the revenue keeps the warning honest
+   *  without hiding that structural sliver, which stays inside costCents. */
   overageRevenueGrossCents: number;
 }
 
@@ -185,12 +206,14 @@ export function projectUsage(
 
   const projectedOutbound = Math.min(usage.outboundSegments * multiplier, ceiling);
   const projectedInbound = usage.inboundSegments * multiplier;
+  // D36: voice pauses at the spending cap, not the allowance — minutes
+  // between the two BILL at 1¢/min (counted into overage revenue below).
   const projectedVoiceSeconds = Math.min(
     usage.voiceSeconds * multiplier,
-    PLAN_VOICE_MINUTES[plan] * 60,
+    voiceCeilingSeconds(plan, overageCapMultiplier),
   );
   // The per-transfer fee is per CALL, so it is extrapolated UNCAPPED — the
-  // 300-min voice ceiling bounds minutes, not call count (#98): a short/
+  // voice spending cap bounds minutes, not call count (#98): a short/
   // unanswered-call flood accrues ~0 minutes yet a real $0.10 each.
   const projectedForwardedCalls = usage.forwardedCalls * multiplier;
   const projectedEgressBytes = usage.egressBytes * multiplier;
@@ -205,7 +228,9 @@ export function projectUsage(
 
   const overageRevenueGrossCents =
     Math.max(0, projectedOutbound - includedSegments) *
-    PLAN_OVERAGE_CENTS_PER_SEGMENT[plan];
+      PLAN_OVERAGE_CENTS_PER_SEGMENT[plan] +
+    Math.max(0, projectedVoiceSeconds / 60 - PLAN_VOICE_MINUTES[plan]) *
+      VOICE_OVERAGE_CENTS_PER_MINUTE;
 
   return { costCents, overageRevenueGrossCents };
 }
@@ -324,7 +349,7 @@ export async function readPeriodUsage(
   ] = await Promise.all([
     rpcNumber(db, "api_period_segments", windowed),
     rpcNumber(db, "api_period_inbound_segments", windowed),
-    rpcNumber(db, "api_period_voice_seconds", windowed),
+    rpcNumber(db, "api_period_forward_seconds", windowed),
     rpcNumber(db, "api_period_forwarded_calls", windowed),
     rpcNumber(db, "api_period_egress_bytes", windowed),
     (async () => {

@@ -210,4 +210,56 @@ begin
   raise notice 'M-9 PASSED: api_period_outbound_mms is dropped (#103 — MMS meters as segments)';
 end $$;
 
+-- ===========================================================================
+-- M-10. D36 (#128): api_period_forward_seconds sums the FORWARD leg only —
+--       the customer-facing "forwarded minutes" measure the allowance, the
+--       1¢/min Stripe meter, and the spending-cap gate share. Inbound legs
+--       and pre-period rows are excluded (fixtures from M-6: inbound 30 s +
+--       forward 25 s in-period, inbound 999 s pre-period).
+-- ===========================================================================
+do $$
+declare v bigint;
+begin
+  v := public.api_period_forward_seconds(
+    '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
+  if v <> 25 then
+    raise exception 'M-10 FAILED: expected 25 in-period forward seconds, got %', v;
+  end if;
+  raise notice 'M-10 PASSED: api_period_forward_seconds sums the forward leg only, in-period';
+end $$;
+
+-- ===========================================================================
+-- M-11. D36: api_period_forward_seconds is service-role only (like M-8).
+-- ===========================================================================
+do $$
+declare acl boolean;
+begin
+  select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'api_period_forward_seconds' limit 1;
+  if acl then raise exception 'M-11 FAILED: api_period_forward_seconds executable by authenticated'; end if;
+  raise notice 'M-11 PASSED: api_period_forward_seconds is service-role only';
+end $$;
+
+-- ===========================================================================
+-- M-12. D36: call_records carries the stripe_reported_at reporting stamp
+--       (the voice twin of usage_events.stripe_reported_at — NULL means
+--       "billable minutes not yet reported", the re-reporter's work queue).
+--       The guarded stamp the webhook/cron writes must land exactly once.
+-- ===========================================================================
+do $$
+declare stamped int;
+begin
+  update public.call_records
+     set stripe_reported_at = now()
+   where call_leg_id = 'leg-fwd-1' and stripe_reported_at is null;
+  select count(*) into stamped
+    from public.call_records
+   where call_leg_id = 'leg-fwd-1' and stripe_reported_at is not null;
+  if stamped <> 1 then
+    raise exception 'M-12 FAILED: stripe_reported_at stamp did not land';
+  end if;
+  raise notice 'M-12 PASSED: call_records.stripe_reported_at exists and stamps';
+end $$;
+
 rollback;

@@ -13,7 +13,7 @@
  * `company-modules.ts` reads it, checkout writes it.
  */
 import type { Env } from "../env";
-import { PLAN_VOICE_MINUTES } from "./plans";
+import type { PlanId } from "./plans";
 
 /**
  * The toggleable modules (mirrors the company_modules.module CHECK).
@@ -35,9 +35,11 @@ export interface ModuleSpec {
   /** One-line plain-language description for the plan-builder card. */
   blurb: string;
   /**
-   * A concrete, quantifiable line ("300 forwarded minutes a month") sourced
-   * from the plan constants, so the add-on cards say what you actually get.
-   * Omitted where there is no honest number to state yet.
+   * A plain-language qualifier line for the add-on card. D36 (#128): NEVER a
+   * concrete allowance figure — plan/module surfaces speak fair use and the
+   * numbers live in exactly one public place, /legal/fair-use (D34). The
+   * allowance also differs per plan now, so a single catalog string couldn't
+   * be honest anyway.
    */
   detail?: string;
   /** Monthly add-on price in cents (the licensed Stripe price). */
@@ -54,7 +56,7 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     label: "Call forwarding",
     blurb:
       "Forward calls from your business number to your cell, and text back the ones you miss.",
-    detail: `${PLAN_VOICE_MINUTES.starter} forwarded minutes a month included.`,
+    detail: "Generous forwarded minutes under fair use.",
     monthlyCents: 800,
     gates: "forwarding incoming calls",
     priceEnvKey: "STRIPE_MODULE_VOICE_PRICE_ID",
@@ -89,12 +91,39 @@ export function modulePrice(env: Env, module: PlanModule): string | null {
   }
 }
 
-/** Which module a Stripe price id belongs to; null for a non-module price. */
+/** Which module a Stripe price id belongs to; null for a non-module price.
+ *  D36: the voice METERED (overage) price deliberately maps to null — module
+ *  enablement is decided by the licensed item alone (#17 reconcile), and the
+ *  metered item just rides along with it. */
 export function moduleForPrice(env: Env, priceId: string): PlanModule | null {
   for (const module of PLAN_MODULES) {
     if (modulePrice(env, module) === priceId) return module;
   }
   return null;
+}
+
+/**
+ * D36 (#128): the voice module's per-plan METERED overage price (tier 1 at $0
+ * up to the plan's included minutes, then 1¢/min — scripts/stripe-setup.ts).
+ * Null when not provisioned in this environment: the module still sells and
+ * the fair-use gate still pauses at the spending cap; overage minutes simply
+ * go unbilled until the catalog is provisioned (never over-billed).
+ */
+export function voiceOveragePrice(env: Env, plan: PlanId): string | null {
+  return plan === "starter"
+    ? (env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID ?? null)
+    : (env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID ?? null);
+}
+
+/** Every provisioned voice overage price id — for finding the subscription's
+ *  voice metered item regardless of which plan attached it. */
+export function allVoiceOveragePrices(env: Env): string[] {
+  return [
+    env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID,
+  ].filter(
+    (price): price is string => typeof price === "string" && price.length > 0,
+  );
 }
 
 /**

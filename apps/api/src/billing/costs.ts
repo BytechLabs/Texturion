@@ -41,12 +41,15 @@ export const UNIT_COST_CENTS = {
    *  Inbound MMS receive ($0.005) rides within this conservatism; its stored
    *  media draws storage + egress cost, counted via those units. */
   inboundSegment: 0.7,
-  /** Forwarded voice minute: ~$0.01–0.012 for both legs; high end (plans.ts:67,
-   *  PRICING-AUDIT §4). */
+  /** Forwarded voice minute: ~$0.01–0.012 for BOTH legs of one forwarded
+   *  minute; high end (PRICING-AUDIT §4). D36: multiplied against the
+   *  forward-leg (dialed) minute sum — the same measure the 1¢/min overage
+   *  bills, which therefore sells ~0.2¢/min under this cost (founder call;
+   *  bounded by the spending cap, watched by the #85 projection). */
   voiceMinute: 1.2,
   /** Per-forwarded-call transfer/dial fee: ~$0.10 on every forwarded call — one
    *  dial command per call (PRICING-AUDIT §4; voice-webhook.ts). Scales with call
-   *  COUNT, not minutes, so the 300-min voice cap can't bound it — priced from
+   *  COUNT, not minutes, so the voice spending cap can't bound it — priced from
    *  api_period_forwarded_calls, not the minute sum (#98). */
   voiceTransfer: 10,
   /** Stored file/media, per GB per month: Supabase $0.021/GB/mo (PRICING-AUDIT §4). */

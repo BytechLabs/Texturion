@@ -990,6 +990,69 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     });
   });
 
+  it("attaches the missing voice metered item when the module is PAID (D36 convergence)", async () => {
+    // A pre-D36 voice purchase (or a partially-failed toggle) carries the $8
+    // licensed item but no metered overage item — its forwarded seconds
+    // would meter but never bill. Every mirror pass converges it.
+    const itemCreate = endpoint(
+      "POST",
+      /api\.stripe\.com\/v1\/subscription_items$/,
+      () => ({ id: "si_voice_metered", object: "subscription_item" }),
+    );
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          modulePriceIds: [env.STRIPE_MODULE_VOICE_PRICE_ID!],
+        }),
+      ),
+      itemCreate,
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Acme Plumbing",
+          canceled_at: null,
+          company_modules: [moduleRow("voice")],
+        },
+      ]),
+      endpoint("POST", /\/rest\/v1\/company_modules/, () => []),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    const creates = harness.callsTo("POST", /subscription_items$/);
+    expect(creates).toHaveLength(1);
+    const form = creates[0].form();
+    expect(form.get("subscription")).toBe("sub_1");
+    // Starter subscription → the Starter voice tiering; metered = no quantity.
+    expect(form.get("price")).toBe(env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID);
+    expect(form.has("quantity")).toBe(false);
+  });
+
+  it("never attaches a voice metered item without a paid licensed voice item (grandfathered stays free)", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(), // base plan only
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Acme Plumbing",
+          canceled_at: null,
+          company_modules: [moduleRow("voice", { grandfathered: true })],
+        },
+      ]),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+    expect(harness.callsTo("POST", /subscription_items$/)).toHaveLength(0);
+  });
+
   it("grandfathered seed modules survive a base-only checkout untouched", async () => {
     const harness = makeHarness([
       // The claim returns the grandfathered rows (prepended to win the default).

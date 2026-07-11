@@ -20,6 +20,7 @@ import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
   reportUnreportedUsage,
+  reportUnreportedVoiceUsage,
   sweepWebhookEvents,
 } from "./messaging/crons";
 import { composeRoutes } from "./routes/compose";
@@ -432,6 +433,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     ]);
     expect(CRON_JOBS["0 * * * *"]).toEqual([
       reportUnreportedUsage,
+      reportUnreportedVoiceUsage,
       runUsageAlertsJob,
       runOverageWarningJob,
     ]);

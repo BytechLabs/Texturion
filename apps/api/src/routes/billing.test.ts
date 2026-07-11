@@ -130,6 +130,8 @@ function subscriptionFixture(
     metered?: string;
     schedule?: string | null;
     moduleItems?: { id: string; priceId: string }[];
+    /** D36: the voice metered overage item (no quantity, meter-bound). */
+    voiceMetered?: { id: string; priceId: string };
   } = {},
 ) {
   const {
@@ -137,6 +139,7 @@ function subscriptionFixture(
     metered = env.STRIPE_STARTER_OVERAGE_PRICE_ID,
     schedule = null,
     moduleItems = [],
+    voiceMetered,
   } = overrides;
   return {
     id: "sub_1",
@@ -173,6 +176,21 @@ function subscriptionFixture(
           current_period_end: PERIOD_END,
           price: { id: m.priceId, object: "price", recurring: { interval: "month" } },
         })),
+        ...(voiceMetered
+          ? [
+              {
+                id: voiceMetered.id,
+                object: "subscription_item",
+                current_period_start: PERIOD_START,
+                current_period_end: PERIOD_END,
+                price: {
+                  id: voiceMetered.priceId,
+                  object: "price",
+                  recurring: { interval: "month", meter: "mtr_voice_1" },
+                },
+              },
+            ]
+          : []),
       ],
     },
   };
@@ -395,8 +413,14 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       env.STRIPE_MODULE_VOICE_PRICE_ID,
     );
     expect(form.get("line_items[2][quantity]")).toBe("1");
+    // D36: voice rides with its per-plan metered overage price — no quantity
+    // (metered), Starter tiering for a Starter cart.
+    expect(form.get("line_items[3][price]")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("line_items[3][quantity]")).toBe(false);
     // No second module line (the duplicate 'voice' collapsed).
-    expect(form.has("line_items[3][price]")).toBe(false);
+    expect(form.has("line_items[4][price]")).toBe(false);
   });
 
   it("a retired module id (extra_storage) is refused at checkout — nothing reaches Stripe (#121)", async () => {
@@ -623,6 +647,42 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(patches[0].json()).toEqual({ plan: "pro" });
   });
 
+  it("upgrade swaps the voice metered item to the Pro tiering too (D36)", async () => {
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          moduleItems: [
+            { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
+          ],
+          voiceMetered: {
+            id: "si_voice_metered",
+            priceId: env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
+          },
+        }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "pro" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    const form = harness.callsTo("POST", /subscriptions\/sub_1/)[0].form();
+    // Left on the Starter voice price, minutes 2,500–6,000 (included on Pro)
+    // would wrongly bill 1¢ each — the item must move with the plan.
+    expect(form.get("items[2][id]")).toBe("si_voice_metered");
+    expect(form.get("items[2][price]")).toBe(
+      env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(form.has("items[2][quantity]")).toBe(false);
+  });
+
   it("downgrade is blocked (409) while an extra number is held", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
@@ -735,6 +795,10 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
           moduleItems: [
             { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
           ],
+          voiceMetered: {
+            id: "si_voice_metered",
+            priceId: env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID!,
+          },
         }),
       ),
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
@@ -774,6 +838,13 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       env.STRIPE_MODULE_VOICE_PRICE_ID,
     );
     expect(update.get("phases[1][items][2][quantity]")).toBe("1");
+    // D36: the voice metered item rolls over on the STARTER tiering — the Pro
+    // price left in place would under-bill (treats up to 6,000 min as
+    // included). Metered: no quantity.
+    expect(update.get("phases[1][items][3][price]")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(update.has("phases[1][items][3][quantity]")).toBe(false);
   });
 
   it("downgrade reuses an existing schedule instead of creating one", async () => {
@@ -848,7 +919,7 @@ describe("plan-builder modules (#12)", () => {
     expect(body.modules.find((m) => m.id === "extra_storage")).toBeUndefined();
   });
 
-  it("POST /modules enable adds the line item + enables the module", async () => {
+  it("POST /modules enable adds the licensed + voice metered items and enables the module", async () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
@@ -868,15 +939,23 @@ describe("plan-builder modules (#12)", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ module: "voice", enabled: true });
 
+    // D36: two items — the flat $8 licensed price (prorated now) and the
+    // metered overage price (no quantity, no proration — $0 until minutes bill).
     const create = harness.callsTo("POST", /subscription_items$/);
-    expect(create).toHaveLength(1);
-    const form = create[0].form();
-    expect(form.get("subscription")).toBe("sub_1");
-    expect(form.get("price")).toBe(env.STRIPE_MODULE_VOICE_PRICE_ID);
-    expect(form.get("proration_behavior")).toBe("always_invoice");
+    expect(create).toHaveLength(2);
+    const licensed = create[0].form();
+    expect(licensed.get("subscription")).toBe("sub_1");
+    expect(licensed.get("price")).toBe(env.STRIPE_MODULE_VOICE_PRICE_ID);
+    expect(licensed.get("proration_behavior")).toBe("always_invoice");
+    const metered = create[1].form();
+    expect(metered.get("subscription")).toBe("sub_1");
+    expect(metered.get("price")).toBe(
+      env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
+    );
+    expect(metered.has("quantity")).toBe(false);
   });
 
-  it("POST /modules disable drops the item, disables, and clears voice settings", async () => {
+  it("POST /modules disable drops the licensed + metered items, disables, and clears voice settings", async () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
@@ -884,12 +963,16 @@ describe("plan-builder modules (#12)", () => {
           moduleItems: [
             { id: "si_voice", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
           ],
+          voiceMetered: {
+            id: "si_voice_metered",
+            priceId: env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
+          },
         }),
       ),
       endpoint(
         "DELETE",
         /api\.stripe\.com\/v1\/subscription_items\/si_voice/,
-        () => ({ id: "si_voice", deleted: true }),
+        () => ({ deleted: true }),
       ),
       endpoint("PATCH", /\/rest\/v1\/company_modules/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
@@ -903,7 +986,12 @@ describe("plan-builder modules (#12)", () => {
     expect(await response.json()).toEqual({ module: "voice", enabled: false });
 
     expect(
-      harness.callsTo("DELETE", /subscription_items\/si_voice/),
+      harness.callsTo("DELETE", /subscription_items\/si_voice(?!_metered)/),
+    ).toHaveLength(1);
+    // D36: the metered overage item goes with it — a switched-off module must
+    // leave no billing surface behind.
+    expect(
+      harness.callsTo("DELETE", /subscription_items\/si_voice_metered/),
     ).toHaveLength(1);
     // Voice capability cleared so no further call is forwarded.
     const companyPatch = harness.callsTo("PATCH", /companies/);

@@ -6,7 +6,8 @@
  *     overage_segments, cap_segments, projected_overage_cents,
  *     history: [{ month: 'YYYY-MM', segments }],
  *     storage: { attachments_bytes, mms_bytes },
- *     voice: { used_minutes, included_minutes } }
+ *     voice: { used_minutes, included_minutes, cap_minutes, overage_minutes,
+ *              projected_overage_cents } }
  * (#97/#103: no `mms` meter — pictures count 3 segments each in the message
  * meter, with no separate cap.)
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
@@ -32,6 +33,7 @@ import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
+  VOICE_OVERAGE_CENTS_PER_MINUTE,
   type PlanId,
 } from "./core/plans";
 
@@ -89,7 +91,13 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
         attachment_budget_bytes: 0,
         mms_budget_bytes: 0,
       },
-      voice: { used_minutes: 0, included_minutes: 0 },
+      voice: {
+        used_minutes: 0,
+        included_minutes: 0,
+        cap_minutes: null,
+        overage_minutes: 0,
+        projected_overage_cents: 0,
+      },
       // #103 one-release shim: pre-#103 web bundles still loaded in a browser
       // tab read data.mms.* — zeros keep them from crashing (included 0 hides
       // their meter). Remove once those bundles have aged out.
@@ -137,11 +145,12 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     "storage usage",
   );
 
-  // #12: call-forwarding minutes this period, summed over both legs from
-  // call_records. Whole minutes for display (the cap works in seconds).
+  // #12/D36: forwarded (dialed-leg) minutes this period — the fair-use
+  // measure the allowance, the 1¢/min meter, and the spending-cap gate share.
+  // Whole minutes for display (the gate works in seconds).
   const voiceSeconds = Number(
     unwrap<number | string>(
-      await db.rpc("api_period_voice_seconds", {
+      await db.rpc("api_period_forward_seconds", {
         p_company_id: companyId,
         p_since: company.current_period_start,
       }),
@@ -155,6 +164,17 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     company.overage_cap_multiplier === null
       ? null
       : Number(company.overage_cap_multiplier);
+  // D36: voice mirrors the segment shape — used vs the fair-use allowance,
+  // overage-so-far at 1¢/min rated to the second (the meter bills the same
+  // raw seconds this RPC sums, so these figures can never diverge from the
+  // invoice), and a cap where forwarding pauses.
+  const voiceUsedMinutes = Math.floor(voiceSeconds / 60);
+  const includedVoiceMinutes = PLAN_VOICE_MINUTES[company.plan];
+  const voiceOverageSeconds = Math.max(
+    0,
+    voiceSeconds - includedVoiceMinutes * 60,
+  );
+  const voiceOverageMinutes = Math.floor(voiceOverageSeconds / 60);
 
   // #85/#93: the dynamic END-OF-PERIOD projection (extrapolated), distinct from
   // the overage-SO-FAR figure below. Exposes only the customer-facing bits —
@@ -203,8 +223,17 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       mms_budget_bytes: 0,
     },
     voice: {
-      used_minutes: Math.floor(voiceSeconds / 60),
-      included_minutes: PLAN_VOICE_MINUTES[company.plan],
+      used_minutes: voiceUsedMinutes,
+      included_minutes: includedVoiceMinutes,
+      // D36: forwarding pauses at the SAME spending cap as texts.
+      cap_minutes:
+        multiplier === null
+          ? null
+          : Math.round(includedVoiceMinutes * multiplier),
+      overage_minutes: voiceOverageMinutes,
+      projected_overage_cents: Math.round(
+        (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_PER_MINUTE,
+      ),
     },
     // #97/#103: no `mms` meter — picture messages have no separate cap; each
     // MMS counts 3 segments inside the message meter above. The zeros below

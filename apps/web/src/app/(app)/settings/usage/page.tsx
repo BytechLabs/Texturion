@@ -144,7 +144,10 @@ function PeriodMeter({ usage }: { usage: Usage }) {
   );
 }
 
-/** #12: call-forwarding minutes used vs the plan allowance. */
+/** #12/D36: forwarded minutes vs the fair-use allowance. Past the allowance,
+ *  extra minutes bill at 1¢ each (mirroring the texts meter); forwarding only
+ *  pauses at the spending cap. This is an in-app honesty surface, so concrete
+ *  figures are allowed here (D34). */
 function VoiceMeter({ voice }: { voice: UsageVoice }) {
   const ratio =
     voice.included_minutes > 0
@@ -152,6 +155,7 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
       : 0;
   const percent = Math.min(100, Math.round(ratio * 100));
   const warning = ratio >= 0.8;
+  const overMinutes = voice.overage_minutes;
 
   return (
     <div className="space-y-3">
@@ -162,13 +166,18 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
         <span className="text-muted-foreground">
           of {voice.included_minutes.toLocaleString()} included
         </span>
+        {overMinutes > 0 && (
+          <span className="text-warning">
+            {overMinutes.toLocaleString()} extra at 1¢ each
+          </span>
+        )}
       </div>
       <div
         role="meter"
         aria-valuemin={0}
         aria-valuemax={voice.included_minutes}
         aria-valuenow={Math.min(voice.used_minutes, voice.included_minutes)}
-        aria-label={`${voice.used_minutes} of ${voice.included_minutes} included call-forwarding minutes used`}
+        aria-label={`${voice.used_minutes} of ${voice.included_minutes} included forwarded minutes used`}
         className="h-2 w-full overflow-hidden rounded-full bg-secondary"
       >
         <div
@@ -180,9 +189,17 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
         />
       </div>
       <p className="text-sm text-muted-foreground">
-        Calls forwarded to your cell use these minutes. When they&apos;re used
-        up, new calls aren&apos;t forwarded. Callers get your missed-call text
-        instead, so your phone bill can&apos;t run past your plan.
+        Calls forwarded to your cell use these minutes. Past the included
+        minutes, extra minutes bill at 1¢ each on your next invoice
+        {voice.cap_minutes !== null && (
+          <>
+            , up to your spending cap ({voice.cap_minutes.toLocaleString()}{" "}
+            min)
+          </>
+        )}
+        . At the cap, new calls stop forwarding and callers get your
+        missed-call text instead, so the bill can never run past what you
+        allowed.
       </p>
     </div>
   );

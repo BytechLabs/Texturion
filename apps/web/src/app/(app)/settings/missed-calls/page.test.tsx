@@ -7,7 +7,7 @@ import type { CompanyView, Usage } from "@/lib/api/types";
 const state: {
   includedMinutes: number;
   voiceEnabled: boolean;
-} = { includedMinutes: 300, voiceEnabled: true };
+} = { includedMinutes: 2500, voiceEnabled: true };
 
 const company: CompanyView = {
   name: "Ace Plumbing",
@@ -54,36 +54,39 @@ function render(): string {
 }
 
 /**
- * Finding 4: the forward-to-cell copy claimed forwarded calls are simply
- * "included in your plan" and omitted the 300-minute cap-and-drop. It must now
- * state the honest monthly ceiling, and the figure must derive from the plan's
- * allowance (voice.included_minutes = PLAN_VOICE_MINUTES) rather than being a
- * retyped literal.
+ * Finding 4 + D36: the forward-to-cell copy must state the honest allowance
+ * AND what happens past it — extra minutes bill at 1¢ each up to the spending
+ * cap, where forwarding pauses (no silent drop at the allowance, no surprise
+ * bill past the cap). The figure must derive from the plan's allowance
+ * (voice.included_minutes = PLAN_VOICE_MINUTES) rather than being a retyped
+ * literal.
  */
-describe("/settings/missed-calls forwarding cap honesty", () => {
-  it("states the monthly forwarding cap and the cap-and-drop behaviour", () => {
+describe("/settings/missed-calls forwarding fair-use honesty", () => {
+  it("states the allowance, the 1¢/min overage, and the pause-at-cap behaviour", () => {
     state.voiceEnabled = true;
-    state.includedMinutes = 300;
+    state.includedMinutes = 2500;
     const html = render();
-    expect(html).toContain("300");
-    expect(html).toContain("minutes a month");
+    expect(html).toContain("2,500");
+    expect(html).toContain("forwarded minutes a month");
+    expect(html).toContain("1¢ each");
+    expect(html).toContain("spending cap");
     expect(html).toContain("stop forwarding");
     expect(html).toContain("missed-call text");
   });
 
   it("does not promise unlimited/uncapped forwarding", () => {
     state.voiceEnabled = true;
-    state.includedMinutes = 300;
+    state.includedMinutes = 2500;
     const html = render();
     expect(html).not.toContain("don't cost extra");
     expect(html).not.toContain("unlimited");
   });
 
-  it("derives the figure from the plan allowance, not a hardcoded 300", () => {
+  it("derives the figure from the plan allowance, not a hardcoded count", () => {
     state.voiceEnabled = true;
     state.includedMinutes = 555; // off-value proves the surface reads the prop
     const html = render();
     expect(html).toContain("555");
-    expect(html).not.toContain("300 minutes");
+    expect(html).not.toContain("2,500 minutes");
   });
 });

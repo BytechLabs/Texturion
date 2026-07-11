@@ -73,12 +73,14 @@ describe("describeModuleToggle (#45 confirmation flow)", () => {
 
 describe("planModuleCardFromApi (#59 single-sourcing)", () => {
   it("projects an API catalog row into the display-card shape", () => {
+    // D36: the catalog detail is number-free — concrete minute figures live
+    // only at /legal/fair-use (D34), and the allowance now differs per plan.
     expect(
       planModuleCardFromApi({
         id: "voice",
         label: "Call forwarding",
         blurb: "Forward calls to your cell.",
-        detail: "300 forwarded minutes a month included.",
+        detail: "Generous forwarded minutes under fair use.",
         monthly_cents: 800,
       }),
     ).toEqual({
@@ -86,7 +88,7 @@ describe("planModuleCardFromApi (#59 single-sourcing)", () => {
       label: "Call forwarding",
       blurb: "Forward calls to your cell.",
       price: "$8",
-      detail: "300 forwarded minutes a month included.",
+      detail: "Generous forwarded minutes under fair use.",
     });
   });
 

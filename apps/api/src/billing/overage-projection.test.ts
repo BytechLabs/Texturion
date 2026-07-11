@@ -135,11 +135,25 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     });
   });
 
-  it("caps voice minutes at the cap-and-drop ceiling", () => {
-    const u = usage({ voiceSeconds: 12000 });
-    // multiplier 3 -> 36000 s, capped to the 300-min (18000 s) ceiling:
-    // 18000/60*1.2 = 360.
-    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(360);
+  it("bills forwarded minutes past the allowance as overage revenue (D36)", () => {
+    const u = usage({ voiceSeconds: 60_000 }); // 1,000 forwarded minutes
+    // multiplier 3 -> 3,000 min (< the 7,500-min spending cap): cost
+    // 3000*1.2 = 3600; overage (3000 - 2500) * 1c = 500 revenue.
+    expect(projectUsage(u, "starter", 3, 3)).toEqual({
+      costCents: 3600,
+      overageRevenueGrossCents: 500,
+    });
+  });
+
+  it("bounds voice minutes at the spending-cap ceiling (forwarding pauses there, D36)", () => {
+    const u = usage({ voiceSeconds: 200_000 });
+    // multiplier 3 -> 600,000 s, capped to allowance × cap = 2,500 min × 3
+    // (450,000 s = 7,500 min): cost 7500*1.2 = 9000; overage
+    // (7500 - 2500) * 1c = 5000 revenue.
+    expect(projectUsage(u, "starter", 3, 3)).toEqual({
+      costCents: 9000,
+      overageRevenueGrossCents: 5000,
+    });
   });
 
   it("prices the per-forwarded-call transfer fee, extrapolated to month-end (#98)", () => {
@@ -149,12 +163,13 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", 3, 3).costCents).toBe(1500);
   });
 
-  it("does NOT cap the transfer count at the voice-minute ceiling (#98 — the loss the 300-min cap misses)", () => {
-    // Minutes cap at the 300-min (18000 s) ceiling, but call COUNT does not: a
-    // flood of brief calls keeps accruing $0.10 each past the minute cap.
+  it("does NOT cap the transfer count at the voice-minute ceiling (#98 — the loss the minute cap misses)", () => {
+    // Minutes bound at the spending cap, but call COUNT does not: a flood of
+    // brief calls keeps accruing $0.10 each past the minute cap.
     const u = usage({ forwardedCalls: 1000, voiceSeconds: 12000 });
-    // voice: min(12000*3, 18000)/60*1.2 = 360; transfers: 1000*3 * 10c = 30000.
-    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(360 + 30000);
+    // voice: 12000*3 s = 600 min (< allowance, no cap hit) * 1.2 = 720;
+    // transfers: 1000*3 * 10c = 30000.
+    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(720 + 30000);
   });
 
   it("prices uncapped inbound in full (the real loss driver, no revenue)", () => {
@@ -318,7 +333,7 @@ describe("decideOverage (DB orchestrator)", () => {
         /\/rpc\/api_period_inbound_segments/,
         () => u.inboundSegments,
       ),
-      endpoint("POST", /\/rpc\/api_period_voice_seconds/, () => u.voiceSeconds),
+      endpoint("POST", /\/rpc\/api_period_forward_seconds/, () => u.voiceSeconds),
       endpoint(
         "POST",
         /\/rpc\/api_period_forwarded_calls/,

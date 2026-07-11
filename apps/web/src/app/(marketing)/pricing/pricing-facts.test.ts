@@ -102,12 +102,15 @@ describe("/pricing rendered strings (Law 6)", () => {
     }
     for (const s of allStrings()) {
       if (elsewhere.has(s)) continue;
-      expect(s, s).not.toMatch(/\b500\b|\b2,500\b/);
+      // D36: 6,000 (the Pro voice allowance) joins the banned figures — every
+      // concrete allowance lives only on /legal/fair-use.
+      expect(s, s).not.toMatch(/\b500\b|\b2,500\b|\b6,000\b/);
       expect(s, s).not.toMatch(/\d(\.\d+)?¢/);
       expect(s, s).not.toMatch(/\bGB\b/);
       expect(s.toLowerCase(), s).not.toContain("three texts");
       expect(s.toLowerCase(), s).not.toContain("extra storage");
       expect(s.toLowerCase(), s).not.toContain("included storage");
+      expect(s.toLowerCase(), s).not.toMatch(/\bminutes a month\b/);
     }
     // And the workload table frames its 500 as a scenario, not an allowance.
     const workload = ELSEWHERE_ROWS.find((r) => r.label.includes("500"));

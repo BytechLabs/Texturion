@@ -172,6 +172,8 @@ scattered).
 - **MMS module (opt-in):** 5¢ per part overage (cost ~$0.015+carrier out / $0.005 in).
 - **Voice / forwarding module (opt-in):** included minutes + **5¢/min** overage
   (cost ~$0.012/min both legs), or hard-cap if the module is off.
+  *(Superseded by D36, 2026-07-10: shipped as 2,500/6,000 included forwarded-leg
+  minutes + 1¢/min metered overage, pause at the spending cap — founder call.)*
 - **Storage:** included 5 GB / 25 GB (unchanged) + **15¢/GB** overage covering both
   storage ($0.021) and egress ($0.09) headroom.
 - **Regions:** US (10DLC required) and/or Canada as toggles; each carries its own
@@ -211,6 +213,9 @@ Shipped (main):
   forwarded (the reject's hangup still fires the missed-call text). 80/100%
   `voice_minutes` owner alerts + a usage-page meter. (`09a19cd`, `012d35e`,
   `6f82019`)
+  *(Amended by D36, 2026-07-10: the reject boundary moved from the allowance to
+  allowance × overage_cap_multiplier; minutes between the two bill 1¢/min via
+  the `voice_seconds` Stripe meter over `api_period_forward_seconds`.)*
 
 ### Protection layer: COMPLETE for every cost center we amplify
 

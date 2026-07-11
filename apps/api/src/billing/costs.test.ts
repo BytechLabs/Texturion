@@ -30,8 +30,12 @@ describe("UNIT_COST_CENTS matches the audited provider basis (PRICING-AUDIT §4)
   // The cost table must agree with the margin math already written beside the
   // module caps — if a cost is retuned here without updating those, this breaks.
   it("reproduces the documented voice/egress margin arithmetic", () => {
-    // plans.ts:69 — "300 × $0.012 = $3.60" is the max voice cost per period.
-    expect(PLAN_VOICE_MINUTES.starter * UNIT_COST_CENTS.voiceMinute).toBe(360);
+    // D36: the allowance itself is no longer the exposure ceiling — the
+    // spending cap is. At the default 3× cap a Starter's worst-case voice
+    // cost is 2,500 × 3 × 1.2¢ = $90, of which minutes past the allowance
+    // (5,000) earn 1¢ each ($50) — the projection warning exists for the gap.
+    expect(PLAN_VOICE_MINUTES.starter * UNIT_COST_CENTS.voiceMinute).toBe(3000);
+    expect(PLAN_VOICE_MINUTES.pro * UNIT_COST_CENTS.voiceMinute).toBe(7200);
     // egress.ts:41 — "200 GB × $0.09/GB ≈ $18" is the worst-case Pro egress.
     expect(200 * UNIT_COST_CENTS.egressGb).toBe(1800);
   });

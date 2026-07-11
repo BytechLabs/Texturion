@@ -66,7 +66,13 @@ function numberStub(status = "active"): Stub {
  */
 function companyStubs(
   forward: string | null,
-  voice?: { plan: "starter" | "pro"; currentPeriodStart: string },
+  voice?: {
+    plan: "starter" | "pro";
+    currentPeriodStart: string;
+    /** companies.overage_cap_multiplier as PostgREST serves it (numeric →
+     *  string). Defaults to the DB default, "3.00". */
+    capMultiplier?: string;
+  },
   subscriptionStatus = "active",
 ): Stub[] {
   return [
@@ -86,6 +92,7 @@ function companyStubs(
           forward_to_cell: forward,
           plan: voice?.plan ?? null,
           current_period_start: voice?.currentPeriodStart ?? null,
+          overage_cap_multiplier: voice?.capMultiplier ?? "3.00",
           subscription_status: subscriptionStatus,
         },
       ],
@@ -157,15 +164,70 @@ function telnyxReject(): Stub {
   );
 }
 
-/** api_period_voice_seconds RPC → the company's used voice seconds this period. */
+/** api_period_forward_seconds RPC → forwarded (dialed-leg) seconds this period (D36). */
 function voiceSecondsStub(seconds: number): Stub {
-  return stubRoute(rpcMatch(env, "api_period_voice_seconds"), () => seconds);
+  return stubRoute(rpcMatch(env, "api_period_forward_seconds"), () => seconds);
 }
 
-/** call_records insert sink (#12 voice metering). */
+/** company_modules voice row (D36 grandfathered gate). Default: paid module. */
+function voiceModuleStub(grandfathered = false): Stub {
+  return stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "company_modules",
+      (url) => (url.searchParams.get("select") ?? "").includes("grandfathered"),
+    ),
+    () => [{ grandfathered }],
+  );
+}
+
+/** call_records insert sink (#12 voice metering). Returns [] — the shape of
+ *  an ignoreDuplicates conflict — so D36 meter reporting stays quiet unless a
+ *  test opts in via {@link callRecordsInsertStub}. */
 function callRecordsStub(): Stub {
   return stubRoute(restMatch(env, "POST", "call_records"), () =>
     Response.json([], { status: 201 }),
+  );
+}
+
+/** call_records insert that LANDS (returns the new row id) — D36 reporting. */
+function callRecordsInsertStub(rowId = "cr-1"): Stub {
+  return stubRoute(restMatch(env, "POST", "call_records"), () =>
+    Response.json([{ id: rowId }], { status: 201 }),
+  );
+}
+
+/** companies → stripe_customer_id lookup (D36 meter reporting). */
+function customerStub(): Stub {
+  return stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "companies",
+      (url) => (url.searchParams.get("select") ?? "") === "stripe_customer_id",
+    ),
+    () => [{ stripe_customer_id: "cus_voice_1" }],
+  );
+}
+
+/** Stripe meter_events endpoint (D36). */
+function meterStub(
+  respond: () => unknown = () => ({ object: "billing.meter_event" }),
+): Stub {
+  return stubRoute(
+    (url, request) =>
+      request.method === "POST" &&
+      url.href === "https://api.stripe.com/v1/billing/meter_events",
+    respond,
+  );
+}
+
+/** call_records stripe_reported_at stamp (D36). */
+function stampStub(): Stub {
+  return stubRoute(
+    restMatch(env, "PATCH", "call_records"),
+    () => new Response(null, { status: 204 }),
   );
 }
 
@@ -304,7 +366,7 @@ describe("handleCallEvent — inbound call.initiated", () => {
     expect(action.calls).toHaveLength(0);
   });
 
-  it("forwards normally when under the voice-minute cap (#12)", async () => {
+  it("forwards normally when under the voice spending cap (#12/D36)", async () => {
     const action = telnyxCallAction();
     serve(
       numberStub(),
@@ -312,7 +374,11 @@ describe("handleCallEvent — inbound call.initiated", () => {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
-      voiceSecondsStub(100 * 60), // 100 of the 300 included minutes
+      // D36: PAST the 2,500-min allowance but under the 3× spending cap
+      // (7,500 min) — the call still forwards; the extra minutes bill at
+      // 1¢/min instead of being dropped.
+      voiceSecondsStub(3000 * 60),
+      voiceModuleStub(),
       action,
     );
 
@@ -335,7 +401,7 @@ describe("handleCallEvent — inbound call.initiated", () => {
     ).toBe(true);
   });
 
-  it("rejects the call and never forwards when over the voice-minute cap (#12 cap-and-drop)", async () => {
+  it("rejects the call and never forwards at the voice spending cap (D36 pause boundary)", async () => {
     const action = telnyxCallAction();
     const reject = telnyxReject();
     serve(
@@ -344,7 +410,9 @@ describe("handleCallEvent — inbound call.initiated", () => {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
-      voiceSecondsStub(300 * 60), // exactly at the 300-minute allowance
+      // Exactly at allowance × multiplier: 2,500 min × 3.00 = 7,500 min.
+      voiceSecondsStub(7500 * 60),
+      voiceModuleStub(),
       action,
       reject,
     );
@@ -364,6 +432,39 @@ describe("handleCallEvent — inbound call.initiated", () => {
     // Its untagged hangup will flow through the normal missed path (text-back).
     expect(reject.calls).toHaveLength(1);
     expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("a GRANDFATHERED voice module pauses at the legacy 300 minutes (D36 review fix)", async () => {
+    const action = telnyxCallAction();
+    const reject = telnyxReject();
+    serve(
+      numberStub(),
+      ...companyStubs(CELL, {
+        plan: "starter",
+        currentPeriodStart: "2026-07-01T00:00:00Z",
+      }),
+      // Way under the paid 7,500-min cap, but at the grandfathered 300-min
+      // boundary — nothing can bill a grandfathered module's overage, so it
+      // keeps the pre-D36 deal exactly.
+      voiceSecondsStub(300 * 60),
+      voiceModuleStub(true),
+      action,
+      reject,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+      }),
+    );
+
+    expect(reject.calls).toHaveLength(1);
     expect(action.calls).toHaveLength(0);
   });
 
@@ -518,7 +619,147 @@ describe("handleCallEvent — terminal → text-back", () => {
       call_leg_id: "leg-inb-1",
       leg: "inbound",
       billable_seconds: 45,
+      // D36: inbound legs never bill — stamped non-reportable at INSERT so
+      // the hourly re-reporter's queue only ever holds forward legs.
+      stripe_reported_at: expect.any(String),
     });
+  });
+
+  it("forward leg hangup reports its RAW SECONDS to the voice meter and stamps the row (D36)", async () => {
+    const callRecords = callRecordsInsertStub("cr-fwd-1");
+    const customer = customerStub();
+    const meter = meterStub();
+    const stamp = stampStub();
+    serve(numberStub(), callRecords, customer, meter, stamp);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-1",
+        from: OUR_NUMBER, // forward leg presents our number
+        to: CELL,
+        hangup_cause: "normal_clearing", // answered — seconds bill
+        client_state: forwardState(CALLER),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:01:15.000Z", // 75 s, billed as 75 s
+      }),
+    );
+
+    // The row enters the queue unstamped (reportable)…
+    expect(callRecords.calls[0].body).toMatchObject({
+      call_leg_id: "leg-fwd-1",
+      leg: "forward",
+      billable_seconds: 75,
+      stripe_reported_at: null,
+    });
+    // …the meter event fires with the leg id as Stripe's dedupe identifier
+    // and the SAME raw seconds the gate sums (1¢ per 60 s at rating time)…
+    expect(meter.calls).toHaveLength(1);
+    const form = new URLSearchParams(String(meter.calls[0].body));
+    expect(form.get("event_name")).toBe("voice_seconds");
+    expect(form.get("identifier")).toBe("leg-fwd-1");
+    expect(form.get("payload[stripe_customer_id]")).toBe("cus_voice_1");
+    expect(form.get("payload[value]")).toBe("75");
+    // …and the row is stamped (guarded, never overwriting a concurrent stamp).
+    expect(stamp.calls).toHaveLength(1);
+    expect(stamp.calls[0].url.searchParams.get("stripe_reported_at")).toBe(
+      "is.null",
+    );
+  });
+
+  it("a rang-out forward leg records ZERO billable seconds and never bills (D36 review fix)", async () => {
+    const callRecords = callRecordsInsertStub("cr-fwd-ring");
+    const meter = meterStub();
+    const stamp = stampStub();
+    serve(
+      numberStub(),
+      ...companyStubs(CELL),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claimStub(),
+      telnyxSms(),
+      persistStub(),
+      ...alertStubs(),
+      callRecords,
+      meter,
+      stamp,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-ring",
+        from: OUR_NUMBER,
+        to: CELL,
+        hangup_cause: "timeout", // rang out — a MISS, whatever window Telnyx stamps
+        client_state: forwardState(CALLER),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:19.000Z", // 19 s of RING time
+      }),
+    );
+
+    // Ring time is not a forwarded minute: zero seconds, stamped at insert,
+    // no meter event — and the missed text-back still fires downstream.
+    expect(callRecords.calls[0].body).toMatchObject({
+      call_leg_id: "leg-fwd-ring",
+      leg: "forward",
+      billable_seconds: 0,
+      stripe_reported_at: expect.any(String),
+    });
+    expect(meter.calls).toHaveLength(0);
+  });
+
+  it("a replayed forward-leg hangup (insert conflict) never re-reports (D36)", async () => {
+    const callRecords = callRecordsStub(); // [] = conflict, already recorded
+    const meter = meterStub();
+    const stamp = stampStub();
+    serve(numberStub(), callRecords, meter, stamp);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-1",
+        from: OUR_NUMBER,
+        to: CELL,
+        hangup_cause: "normal_clearing",
+        client_state: forwardState(CALLER),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:01:15.000Z",
+      }),
+    );
+
+    expect(meter.calls).toHaveLength(0);
+    expect(stamp.calls).toHaveLength(0);
+  });
+
+  it("a failed meter report leaves the row unstamped for the hourly re-reporter (D36)", async () => {
+    const callRecords = callRecordsInsertStub("cr-fwd-2");
+    const customer = customerStub();
+    const meter = meterStub(
+      () => Response.json({ error: { message: "down" } }, { status: 500 }),
+    );
+    const stamp = stampStub();
+    serve(numberStub(), callRecords, customer, meter, stamp);
+
+    // Must not throw — the webhook still acks; the cron picks the row up.
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-fwd-2",
+        from: OUR_NUMBER,
+        to: CELL,
+        hangup_cause: "normal_clearing",
+        client_state: forwardState(CALLER),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:30.000Z",
+      }),
+    );
+
+    expect(stamp.calls).toHaveLength(0);
   });
 
   it("does not meter a hangup with no duration window", async () => {
