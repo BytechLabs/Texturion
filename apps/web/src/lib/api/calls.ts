@@ -4,7 +4,12 @@
  * number-access deny list, so this hook never filters client-side. Pure
  * display helpers live in lib/format/call.ts (no client import chain).
  */
-import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -26,5 +31,49 @@ export function useCalls(outcome?: CallOutcomeFilter) {
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+  });
+}
+
+/** D38: the member's OWN cell the outbound bridge rings first. */
+export function useCallCell() {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "calls", "cell"] as const,
+    queryFn: () =>
+      apiFetch<{ call_cell_e164: string | null }>("/v1/calls/cell", {
+        companyId,
+      }),
+  });
+}
+
+export function useSetCallCell() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (call_cell_e164: string | null) =>
+      apiFetch<{ call_cell_e164: string | null }>("/v1/calls/cell", {
+        companyId,
+        method: "PUT",
+        body: { call_cell_e164 },
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData([companyId, "calls", "cell"], data);
+    },
+  });
+}
+
+/** D38 click-to-call: dial ME first, then bridge to the customer. */
+export function useStartCall() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiFetch<{ status: string; call_session_id: string | null }>(
+        "/v1/calls",
+        {
+          companyId,
+          method: "POST",
+          body: { conversation_id: conversationId },
+        },
+      ),
   });
 }

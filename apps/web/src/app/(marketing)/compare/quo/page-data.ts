@@ -80,7 +80,7 @@ export const QUO_ROWS: LedgerTableRow[] = [
     cells: [
       {
         value: "Add-on: forwarding, $8/mo",
-        note: "Calls to your number forward to your cell, and missed ones get a text-back. Loonext doesn't place calls.",
+        note: "Calls to your number forward to your cell, missed ones get a text-back, and you can call customers back from the business number.",
       },
       {
         value: "Included, US and Canada",

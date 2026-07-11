@@ -159,24 +159,25 @@ function voiceAlertCopy(
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
   if (threshold === 100) {
     return {
-      subject: `${company.name} has used all ${includedMinutes} included forwarded minutes this period`,
+      subject: `${company.name} has used all ${includedMinutes} included calling minutes this period`,
       text:
-        `Hi,\n\n${company.name} has used all ${includedMinutes} forwarded-call ` +
-        `minutes included in your plan this billing period. Calls keep ` +
-        `forwarding normally; extra minutes are now billed at 1¢ each on ` +
-        `your next invoice, up to your spending cap. At the cap, forwarding ` +
-        `pauses for the rest of the period and callers get your missed-call ` +
-        `text instead.\n\n` +
+        `Hi,\n\n${company.name} has used all ${includedMinutes} calling ` +
+        `minutes included in your plan this billing period (forwarded calls ` +
+        `and calls you place, together). Calls keep working normally; extra ` +
+        `minutes are now billed at 1¢ each on your next invoice, up to your ` +
+        `spending cap. At the cap, calling pauses for the rest of the period ` +
+        `and missed callers still get your missed-call text.\n\n` +
         `See usage and manage your cap: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
-    subject: `${company.name} has used 80% of its included forwarded minutes`,
+    subject: `${company.name} has used 80% of its included calling minutes`,
     text:
       `Hi,\n\n${company.name} has used ${usedMinutes} of the ${includedMinutes} ` +
-      `forwarded-call minutes included in your plan this billing period. Once ` +
-      `the included minutes are used up, extra minutes are billed at 1¢ ` +
-      `each on your next invoice, up to your spending cap.\n\n` +
+      `calling minutes included in your plan this billing period (forwarded ` +
+      `calls and calls you place, together). Once the included minutes are ` +
+      `used up, extra minutes are billed at 1¢ each on your next invoice, ` +
+      `up to your spending cap.\n\n` +
       `See usage: ${usageUrl}\n\nLoonext`,
   };
 }

@@ -12,21 +12,30 @@ export function formatCallDuration(seconds: number): string {
   return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
 }
 
-/** The row's plain-language outcome line. */
+/** The row's plain-language outcome line. D38: outbound calls speak from
+ *  the crew's side ("You called…"; a customer no-answer is "No answer",
+ *  never "Missed" — nothing was missed by the crew). */
 export function callOutcomeLabel(call: {
   outcome: "answered" | "voicemail" | "missed" | null;
+  direction?: "inbound" | "outbound";
   forward_seconds: number;
 }): string {
+  const outbound = call.direction === "outbound";
   switch (call.outcome) {
     case "missed":
-      return "Missed";
+      return outbound ? "No answer" : "Missed";
     case "voicemail":
       return "Voicemail";
     case "answered":
+      if (outbound) {
+        return call.forward_seconds > 0
+          ? `You called · ${formatCallDuration(call.forward_seconds)}`
+          : "You called";
+      }
       return call.forward_seconds > 0
         ? `Answered · ${formatCallDuration(call.forward_seconds)}`
         : "Answered";
     default:
-      return "Call";
+      return outbound ? "Calling…" : "Call";
   }
 }

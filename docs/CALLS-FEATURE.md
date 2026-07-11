@@ -46,8 +46,10 @@ feel like a feature, not a fee.
 
 ## Non-goals (binding)
 
-- **No outbound calling from the app** — marketing pins "Loonext itself
-  doesn't place calls"; the pinned tests keep us honest.
+- ~~**No outbound calling from the app**~~ **REVERSED by D38 (#131,
+  founder direction):** outbound click-to-call bridging shipped — the app
+  rings the member's cell from the business number, then connects them to
+  the customer. In-browser WebRTC audio remains a possible later wave.
 - **No call recording, no voicemail transcription** — two-party-consent risk;
   revisit only as its own decision.
 - **No IVR/PBX** — FEATURE-GAPS non-goal, unchanged.
@@ -76,9 +78,16 @@ P3 (/calls desktop + mobile + account-sheet entry, #106-filtered), P5 (settings
 home unchanged, fine print honest per D36), P6 (D36 billing, #128), P7
 (security review inline; RPC grants pinned in calls_feature.test.sql).
 
+D38 addendum (2026-07-10, #131): outbound click-to-call bridging shipped —
+POST /v1/calls + /calls/cell, oc_agent/oc_customer webhook legs, one
+calling-minutes pool both directions, the thread Call button, two-direction
+call log, marketing claims reversed.
+
 Deferred (next wave, in priority order):
 1. P4 remainder — a `missed_call`/`call_completed` arm on the D24
    `api_notifications` twins so misses reach the in-app bell, and decoupling
    `notifyMissedCall` from the MCTB claim so the crew alert fires even with
    text-back off (deep link /inbox/{id} when threaded, else /calls).
 2. A For You "Recent calls" section as the second mobile entry point.
+3. Per-member cell verification; a visible cell field on Calls settings;
+   the module label rename ("Call forwarding" → "Calling").

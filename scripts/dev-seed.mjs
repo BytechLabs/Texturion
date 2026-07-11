@@ -334,6 +334,19 @@ values
    now() - interval '2 days', now() - interval '2 days' + interval '58 seconds')
 on conflict (id) do nothing;
 
+-- D38: outbound bridge calls (crew-placed, business number presented).
+insert into public.calls
+  (id, company_id, phone_number_id, call_session_id, caller_e164, contact_id,
+   conversation_id, outcome, direction, forward_seconds, started_at, ended_at)
+values
+  ('88888888-0000-4000-8000-000000000005', '${COMPANY}', '${NUMBER}',
+   'seed-call-5', '+14155550111', '${C(1)}', '${V(1)}', 'answered', 'outbound', 192,
+   now() - interval '50 minutes', now() - interval '50 minutes' + interval '192 seconds'),
+  ('88888888-0000-4000-8000-000000000006', '${COMPANY}', '${NUMBER}',
+   'seed-call-6', '+14155550122', '${C(2)}', '${V(3)}', 'missed', 'outbound', 0,
+   now() - interval '5 hours', now() - interval '5 hours' + interval '20 seconds')
+on conflict (id) do nothing;
+
 insert into public.conversation_events
   (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
 values
@@ -351,7 +364,19 @@ values
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-3', 'outcome', 'voicemail',
                       'forward_seconds', 31, 'caller', '+14155550144'),
-   now() - interval '1 day')
+   now() - interval '1 day'),
+  ('f0000000-0000-4000-8000-000000000094', '${COMPANY}', '${V(1)}', null,
+   'call_completed',
+   jsonb_build_object('call_session_id', 'seed-call-5', 'outcome', 'answered',
+                      'forward_seconds', 192, 'caller', '+14155550111',
+                      'direction', 'outbound'),
+   now() - interval '50 minutes'),
+  ('f0000000-0000-4000-8000-000000000095', '${COMPANY}', '${V(3)}', null,
+   'call_completed',
+   jsonb_build_object('call_session_id', 'seed-call-6', 'outcome', 'missed',
+                      'forward_seconds', 0, 'caller', '+14155550122',
+                      'direction', 'outbound'),
+   now() - interval '5 hours')
 on conflict (id) do nothing;
 
 commit;

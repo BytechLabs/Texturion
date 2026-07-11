@@ -248,8 +248,8 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     const emails = sentEmails(harness);
     const subjects = emails.map((email) => email.subject);
     expect(subjects).toHaveLength(2);
-    expect(subjects[0]).toContain("80% of its included forwarded minutes");
-    expect(subjects[1]).toContain("all 2500 included forwarded minutes");
+    expect(subjects[0]).toContain("80% of its included calling minutes");
+    expect(subjects[1]).toContain("all 2500 included calling minutes");
     // D36: the copy promises billed overage up to the cap — never a silent
     // pause at the allowance, and never a surprise bill.
     expect(emails[1].text).toContain("billed at 1¢ each");
@@ -270,7 +270,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     await done;
     const emails = sentEmails(harness);
     expect(emails).toHaveLength(1);
-    expect(emails[0].subject).toContain("80% of its included forwarded minutes");
+    expect(emails[0].subject).toContain("80% of its included calling minutes");
     expect(state.ledger).toEqual(new Set(["voice_minutes:80"]));
   });
 

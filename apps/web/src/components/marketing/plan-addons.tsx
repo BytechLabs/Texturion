@@ -34,7 +34,7 @@ export { SELLABLE_ADDON_CARDS };
  */
 export const ADDON_FINE_PRINT: Partial<Record<PlanModule, string>> = {
   voice:
-    "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Loonext itself doesn't place calls.",
+    "Calls to your business number ring your cell, and missed ones get an automatic text-back so the lead still lands in your inbox. Call customers back right from a conversation, from your business number.",
 };
 
 function AddonCard({ card }: { card: PlanModuleCard }) {

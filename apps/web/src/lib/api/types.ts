@@ -87,10 +87,10 @@ export type ConversationEventType =
   // is COMPUTED missed and the text-back fired. Actor is NULL (system);
   // payload: { call_id, message_id, caller }.
   | "missed_call"
-  // #129 Calls feature — one line per finished call threaded into this
+  // #129/D38 Calls feature — one line per finished call threaded into this
   // conversation (api_thread_call; actor NULL). payload:
   // { call_session_id, outcome: 'answered'|'voicemail'|'missed',
-  //   forward_seconds, caller }.
+  //   forward_seconds, caller, direction: 'inbound'|'outbound' }.
   | "call_completed";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
@@ -751,6 +751,8 @@ export interface Call {
   phone_number_id: string | null;
   conversation_id: string | null;
   outcome: "answered" | "voicemail" | "missed" | null;
+  /** D38: 'outbound' = a bridge call the crew placed from the app. */
+  direction: "inbound" | "outbound";
   forward_seconds: number;
   started_at: string;
 }
@@ -884,7 +886,7 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   {
     id: "voice",
     label: "Call forwarding",
-    blurb: "Forward calls to your cell and text back the ones you miss.",
+    blurb: "Call customers and forward calls from your business number.",
     price: "$8",
     // #121: the minute figure lives in the fair-use policy, not sales copy.
     detail: "Generous forwarded minutes under fair use.",

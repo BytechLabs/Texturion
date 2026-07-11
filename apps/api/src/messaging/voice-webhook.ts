@@ -62,6 +62,17 @@ export const FORWARD_LEG_STATE = "mctb_forward";
 /** The client_state tag we stamp on the INBOUND leg when we forward it. */
 export const INBOUND_FORWARDED_STATE = "mctb_inbound_fwd";
 
+/** D38 outbound bridge: the AGENT leg (the member's cell we ring first).
+ *  client_state = `oc_agent|<customer_e164>` — the customer rides along so
+ *  no DB read is needed at verdict/terminal time. */
+export const OUTBOUND_AGENT_STATE = "oc_agent";
+
+/** D38 outbound bridge: the CUSTOMER leg (the transfer target). */
+export const OUTBOUND_CUSTOMER_STATE = "oc_customer";
+
+/** Ring window for the outbound agent leg (the member expects the call). */
+export const OUTBOUND_AGENT_TIMEOUT_SECS = 25;
+
 /** Telnyx dial ring window before we declare the forward unanswered. */
 export const FORWARD_TIMEOUT_SECS = 20;
 
@@ -100,7 +111,7 @@ interface CallPayload {
 /** Cause we reject an over-spending-cap inbound call with (D36 cap). */
 const OVER_BUDGET_REJECT_CAUSE = "USER_BUSY";
 
-interface CompanyVoiceState {
+export interface CompanyVoiceState {
   plan: PlanId | null;
   current_period_start: string | null;
   overage_cap_multiplier: number | string | null;
@@ -118,7 +129,7 @@ interface CompanyVoiceState {
  * live period → not over (no allowance to exceed, and no numbers to receive
  * calls anyway).
  */
-async function companyOverVoiceCap(
+export async function companyOverVoiceCap(
   db: SupabaseClient,
   companyId: string,
   company: CompanyVoiceState,
@@ -182,14 +193,41 @@ function buildForwardState(callerE164: string): string {
 }
 
 /** Which leg an event belongs to, from its echoed client_state tag alone. */
-export type CallLeg = "forward" | "inbound_forwarded" | "inbound_untagged";
+export type CallLeg =
+  | "forward"
+  | "inbound_forwarded"
+  | "inbound_untagged"
+  // D38 outbound bridge legs:
+  | "out_agent"
+  | "out_customer";
 
 function classifyLeg(payload: CallPayload): CallLeg {
   const decoded = decodeClientState(payload.client_state);
   const tag = decoded?.split("|")[0];
   if (tag === FORWARD_LEG_STATE) return "forward";
   if (tag === INBOUND_FORWARDED_STATE) return "inbound_forwarded";
+  if (tag === OUTBOUND_AGENT_STATE) return "out_agent";
+  if (tag === OUTBOUND_CUSTOMER_STATE) return "out_customer";
   return "inbound_untagged";
+}
+
+/** D38: the customer number both outbound tags carry (`tag|<customer>`). */
+function decodeOutboundCustomer(raw: string | null | undefined): string | null {
+  const decoded = decodeClientState(raw ?? null);
+  if (!decoded) return null;
+  const [tag, customer] = decoded.split("|");
+  return (tag === OUTBOUND_AGENT_STATE || tag === OUTBOUND_CUSTOMER_STATE) &&
+    customer
+    ? customer
+    : null;
+}
+
+/** D38: build the tagged client_state for an outbound leg. */
+export function buildOutboundState(
+  tag: typeof OUTBOUND_AGENT_STATE | typeof OUTBOUND_CUSTOMER_STATE,
+  customerE164: string,
+): string {
+  return btoa(`${tag}|${customerE164}`);
 }
 
 /** True when this event belongs to the forward (dial) leg we placed. */
@@ -220,6 +258,16 @@ export async function handleCallEvent(
 
   if (eventType === "call.initiated") {
     return handleInboundInitiated(env, db, payload);
+  }
+  // D38: the outbound AGENT leg's AMD verdict is a ROUTING decision, not a
+  // terminal one — human/undetermined bridges to the customer, a machine
+  // (the member's own voicemail) hangs up so voicemail can never be
+  // connected to a customer.
+  if (
+    eventType === "call.machine.detection.ended" &&
+    classifyLeg(payload) === "out_agent"
+  ) {
+    return handleOutboundAgentVerdict(env, db, payload);
   }
   if (
     eventType === "call.hangup" ||
@@ -368,6 +416,72 @@ async function handleInboundInitiated(
 }
 
 /**
+ * D38: the outbound agent leg answered and AMD spoke. Human (or undetermined
+ * — never strand a member who answered) → transfer to the customer,
+ * presenting the business number, with the customer tag on the new leg.
+ * Machine → the member's own voicemail picked up: hang up. The hangup that
+ * follows flows through the terminal handler and marks the session 'missed'
+ * (never connected).
+ */
+async function handleOutboundAgentVerdict(
+  env: Env,
+  db: SupabaseClient,
+  payload: CallPayload,
+): Promise<void> {
+  const callControlId = payload.call_control_id;
+  const customer = decodeOutboundCustomer(payload.client_state);
+  const businessNumber = payload.from;
+  if (!callControlId || !customer || !businessNumber) return;
+
+  const machine = ["machine", "not_human", "fax", "fax_detected"].includes(
+    payload.result ?? "",
+  );
+  if (machine) {
+    // Mark the session never-connected BEFORE hanging up (the hangup that
+    // follows carries normal_clearing, which must not read as 'answered').
+    if (payload.call_session_id) {
+      const resolved = payload.from
+        ? await resolveNumber(db, payload.from)
+        : null;
+      if (resolved) {
+        await upsertCallSession(db, {
+          eventType: "call.machine.detection.ended",
+          payload,
+          leg: "out_agent",
+          companyId: resolved.companyId,
+          phoneNumberId: resolved.phoneNumberId,
+          callSessionId: payload.call_session_id,
+          caller: customer,
+          missed: true,
+        });
+      }
+    }
+    await telnyxRequest(env, {
+      method: "POST",
+      path: `/v2/calls/${callControlId}/actions/hangup`,
+      body: {},
+    });
+    return;
+  }
+
+  await telnyxRequest(env, {
+    method: "POST",
+    path: `/v2/calls/${callControlId}/actions/transfer`,
+    body: {
+      to: customer,
+      from: businessNumber, // the customer sees the business number
+      timeout_secs: OUTBOUND_AGENT_TIMEOUT_SECS,
+      time_limit_secs: MAX_FORWARDED_CALL_SECS,
+      client_state: buildOutboundState(OUTBOUND_AGENT_STATE, customer),
+      target_leg_client_state: buildOutboundState(
+        OUTBOUND_CUSTOMER_STATE,
+        customer,
+      ),
+    },
+  });
+}
+
+/**
  * On a terminal call event (hangup or AMD verdict): merge the #129 session-
  * grain `calls` read model, compute missed, thread the call into its
  * conversation, and — when missed — fire the text-back + crew alert. The leg
@@ -389,34 +503,44 @@ async function handleTerminalCallEvent(
   if (!callId) return;
 
   const leg = classifyLeg(payload);
+  const outboundLeg = leg === "out_agent" || leg === "out_customer";
 
   // Our number, per leg:
   //   - inbound (untagged/forwarded) leg: to = our number, from = the caller.
-  //   - forward leg: from = our number (we presented it), to = the owner's cell.
+  //   - forward leg + BOTH outbound legs: from = our number (we present it),
+  //     to = the cell (forward/out_agent) or the customer (out_customer).
   const forwardLeg = leg === "forward";
-  const ourNumberE164 = forwardLeg ? payload.from : payload.to;
+  const ourNumberE164 =
+    forwardLeg || outboundLeg ? payload.from : payload.to;
 
   // #12/D36 voice metering: record this leg's billable duration on every
   // hangup — BEFORE the missed-vs-answered branch, because an answered call
   // costs minutes too. AMD events carry no duration window, so only
-  // call.hangup records. Forward legs also report their billable seconds to
-  // the Stripe voice meter (D36 fair-use overage).
+  // call.hangup records. The far-party legs (forward, out_customer) also
+  // report their billable seconds to the Stripe voice meter (D36/D38: one
+  // calling-minutes pool, both directions).
   if (eventType === "call.hangup" && ourNumberE164) {
     await recordCallDuration(env, db, payload, leg, ourNumberE164);
   }
 
+  // The missed-cause classification. The pure classifier's leg semantics are
+  // the INBOUND wave's; outbound legs borrow the 'forward' cause table
+  // (timeout/busy/declined = not connected) while keeping their real leg for
+  // all routing below.
   const outcome = computeMissedFromEvent({
     eventType,
     hangupCause: payload.hangup_cause ?? null,
     amdResult: payload.result ?? null,
-    leg,
+    leg: outboundLeg ? "forward" : leg,
   });
 
-  // The original caller, per leg: the inbound leg carries it as `from`; the
-  // forward leg does not, so it rides the client_state we stamped when dialing.
+  // The far party, per leg: inbound legs carry the caller as `from`; the
+  // forward leg and both outbound legs carry it in their client_state tag.
   const finalCaller = forwardLeg
     ? decodeForwardCaller(payload.client_state ?? null)
-    : (payload.from ?? null);
+    : outboundLeg
+      ? decodeOutboundCustomer(payload.client_state)
+      : (payload.from ?? null);
 
   if (!ourNumberE164) return;
   const resolved = await resolveNumber(db, ourNumberE164);
@@ -435,15 +559,16 @@ async function handleTerminalCallEvent(
     missed: outcome.missed,
   });
 
-  // #129: thread the call on its DECIDING hangup — the forward leg for a
-  // forwarded call, the untagged inbound leg for a no-forward/rejected call
-  // (the inbound_forwarded leg never decides). Threading precedes the
-  // text-back so the timeline reads call-then-text in insertion order.
-  if (
+  // #129/D38: thread the call on its DECIDING hangup — the forward leg for a
+  // forwarded call, the untagged inbound leg for a no-forward/rejected call,
+  // the CUSTOMER leg for an outbound call (an agent-only failure — the
+  // member didn't pick up their own phone — stays list-only; the customer
+  // was never contacted). Threading precedes the text-back so the timeline
+  // reads call-then-text in insertion order.
+  const decidingHangup =
     eventType === "call.hangup" &&
-    leg !== "inbound_forwarded" &&
-    call?.outcome
-  ) {
+    (leg === "forward" || leg === "inbound_untagged" || leg === "out_customer");
+  if (decidingHangup && call?.outcome) {
     await threadCallSession(db, {
       companyId: resolved.companyId,
       phoneNumberId: resolved.phoneNumberId,
@@ -451,10 +576,13 @@ async function handleTerminalCallEvent(
       caller: call.caller_e164 ?? finalCaller,
       outcome: call.outcome,
       forwardSeconds: call.forward_seconds ?? 0,
+      direction: outboundLeg ? "outbound" : "inbound",
     });
   }
 
-  if (!outcome.missed || !finalCaller) return;
+  // The missed-call text-back is an INBOUND behavior only — an outbound
+  // no-answer must never text the customer "sorry we missed you".
+  if (outboundLeg || !outcome.missed || !finalCaller) return;
 
   await sendMissedCallText(env, db, {
     companyId: resolved.companyId,
@@ -498,18 +626,25 @@ async function upsertCallSession(
   },
 ): Promise<CallSessionRow | null> {
   const { eventType, payload, leg } = input;
+  const outbound = leg === "out_agent" || leg === "out_customer";
 
   let outcome: string | null = null;
   let forwardSeconds = 0;
-  if (eventType === "call.machine.detection.ended" && leg === "forward") {
+  if (eventType === "call.machine.detection.ended") {
     const amd = payload.result ?? "";
-    if (["machine", "not_human", "fax", "fax_detected"].includes(amd)) {
-      outcome = "voicemail";
-    } else if (amd === "human") {
-      outcome = "answered";
+    const machine = ["machine", "not_human", "fax", "fax_detected"].includes(amd);
+    if (leg === "forward") {
+      if (machine) outcome = "voicemail";
+      else if (amd === "human") outcome = "answered";
+    } else if (leg === "out_agent" && machine) {
+      // D38: the member's own voicemail answered the agent leg — the bridge
+      // is aborted (handleOutboundAgentVerdict hangs up) and the customer
+      // was never dialed.
+      outcome = "missed";
     }
   } else if (eventType === "call.hangup") {
-    if (leg === "forward") {
+    if (leg === "forward" || leg === "out_customer") {
+      // The far-party leg decides: connected (with talk time) or not.
       outcome = input.missed ? "missed" : "answered";
       if (!input.missed) {
         const startMs = Date.parse(payload.start_time ?? "");
@@ -519,6 +654,12 @@ async function upsertCallSession(
         }
       }
     } else if (leg === "inbound_untagged") {
+      outcome = "missed";
+    } else if (leg === "out_agent" && input.missed) {
+      // D38: the member never picked up their own cell (timeout/decline) —
+      // the customer was never dialed. 'missed' = never connected; a
+      // normal_clearing agent hangup at the END of a bridged call carries no
+      // verdict (the customer leg already decided).
       outcome = "missed";
     }
   }
@@ -539,6 +680,7 @@ async function upsertCallSession(
       eventType === "call.hangup" && Number.isFinite(endMs)
         ? new Date(endMs).toISOString()
         : null,
+    p_direction: outbound ? "outbound" : "inbound",
   });
   if (error) {
     throw new Error(`api_upsert_call failed: ${error.message}`);
@@ -561,6 +703,7 @@ async function threadCallSession(
     caller: string | null;
     outcome: string;
     forwardSeconds: number;
+    direction: "inbound" | "outbound";
   },
 ): Promise<void> {
   if (!input.caller) return; // anonymous caller — list-only, never threaded
@@ -572,7 +715,11 @@ async function threadCallSession(
     p_call_session_id: input.callSessionId,
     p_outcome: input.outcome,
     p_forward_seconds: input.forwardSeconds,
-    p_create_if_missing: input.outcome === "missed",
+    // An inbound MISS must reach the inbox even with text-back off; an
+    // outbound call started FROM a conversation, so join-only always finds it.
+    p_create_if_missing:
+      input.direction === "inbound" && input.outcome === "missed",
+    p_direction: input.direction,
   });
   if (error) {
     throw new Error(`api_thread_call failed: ${error.message}`);
@@ -634,24 +781,29 @@ async function recordCallDuration(
   if (!resolved) return;
 
   const windowSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
-  // D36: a rang-out forward leg is a MISS (same pure classifier the text-back
-  // path uses) — it must never consume allowance or bill.
+  // D36/D38: the BILLED legs are the far-party legs — 'forward' (inbound
+  // calls) and 'out_customer' (outbound calls). A rang-out far-party leg is
+  // a MISS (same pure cause table the text-back path uses) — it must never
+  // consume allowance or bill.
+  const billedLeg = leg === "forward" || leg === "out_customer";
   const rangOut =
-    leg === "forward" &&
+    billedLeg &&
     computeMissedFromEvent({
       eventType: "call.hangup",
       hangupCause: payload.hangup_cause ?? null,
       amdResult: null,
-      leg,
+      leg: "forward",
     }).missed;
   const seconds = rangOut ? 0 : windowSeconds;
   const caller =
     leg === "forward"
       ? decodeForwardCaller(payload.client_state ?? null)
-      : (payload.from ?? null);
+      : leg === "out_agent" || leg === "out_customer"
+        ? decodeOutboundCustomer(payload.client_state)
+        : (payload.from ?? null);
 
   const reportable =
-    leg === "forward" && seconds > 0 && Boolean(env.STRIPE_VOICE_METER_EVENT_NAME);
+    billedLeg && seconds > 0 && Boolean(env.STRIPE_VOICE_METER_EVENT_NAME);
 
   const { data: inserted, error } = await db
     .from("call_records")
@@ -661,7 +813,10 @@ async function recordCallDuration(
         phone_number_id: resolved.phoneNumberId,
         call_session_id: payload.call_session_id ?? null,
         call_leg_id: legId,
-        leg: leg === "forward" ? "forward" : "inbound",
+        leg:
+          leg === "forward" || leg === "out_agent" || leg === "out_customer"
+            ? leg
+            : "inbound",
         caller_e164: caller,
         billable_seconds: seconds,
         hangup_cause: payload.hangup_cause ?? null,

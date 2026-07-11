@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
@@ -277,18 +278,15 @@ export function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        {/* Call — a tel: link to the contact's number. */}
-        <Button
-          asChild
-          variant="ghost"
-          size="icon-sm"
+        {/* Call — D38: the outbound bridge (business number presented; your
+            cell rings first). Degrades to the old tel: link without the
+            voice module. */}
+        <CallButton
+          conversationId={conversation.id}
+          contactName={name}
+          phone={phone}
           className="hidden sm:inline-flex"
-          aria-label={`Call ${name}`}
-        >
-          <a href={`tel:${phone}`}>
-            <Phone className="size-4" strokeWidth={1.75} />
-          </a>
-        </Button>
+        />
 
         {/* Status: inline pill dropdown — the one status control (the redundant
             Done/Reopen bar button was removed; "Closed" lives in this menu). */}

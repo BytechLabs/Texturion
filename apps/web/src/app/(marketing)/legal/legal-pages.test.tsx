@@ -168,14 +168,15 @@ describe("fair-use — the plain limits survive", () => {
     expect(html).toContain("spending cap");
     expect(html).toContain("80% and again at 100%");
   });
-  it("states the voice fair-use figures — the ONLY public home of the minutes (D36)", () => {
-    expect(html).toContain("2,500 forwarded minutes");
+  it("states the voice fair-use figures — the ONLY public home of the minutes (D36/D38)", () => {
+    expect(html).toContain("2,500 calling minutes");
     expect(html).toContain("6,000");
+    expect(html).toContain("shared by both");
     expect(html).toContain("billed at 1¢ each");
-    // The old pause-at-allowance promise is gone: forwarding pauses only at
-    // the cap, and overage bills — never silently, never past the cap.
+    // Ring time never bills, and the pause lives at the cap, not the allowance.
+    expect(html).toContain("ringing that goes unanswered never counts");
     expect(html).not.toContain("300 forwarded minutes");
-    expect(html).toContain("Only at your cap does call forwarding pause");
+    expect(html).toContain("Only at your cap does calling pause");
   });
   it("keeps the reasonable-use reservation and the not-a-blaster scope", () => {
     expect(html).toContain("normal, fair, and reasonable");

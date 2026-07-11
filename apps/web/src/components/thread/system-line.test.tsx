@@ -65,6 +65,29 @@ describe("eventSentence — #129 call lines", () => {
     );
   });
 
+  it("narrates outbound bridge calls from the crew's side (D38)", () => {
+    expect(
+      eventSentence(
+        event("call_completed", {
+          outcome: "answered",
+          forward_seconds: 192,
+          direction: "outbound",
+        }),
+        noMember,
+      ),
+    ).toBe("You called · 3m 12s");
+    expect(
+      eventSentence(
+        event("call_completed", {
+          outcome: "missed",
+          forward_seconds: 0,
+          direction: "outbound",
+        }),
+        noMember,
+      ),
+    ).toBe("Called, no answer");
+  });
+
   it("renders nothing for unknown event types (forward compatibility)", () => {
     expect(
       eventSentence(event("some_future_event_type"), noMember),

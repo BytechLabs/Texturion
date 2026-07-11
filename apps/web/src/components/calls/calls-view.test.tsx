@@ -33,6 +33,7 @@ import { CallsView } from "./calls-view";
 function call(overrides: Partial<Call> = {}): Call {
   return {
     id: "call-1",
+    direction: "inbound",
     caller_e164: "+16135551000",
     contact_id: "ct-1",
     contact_name: "Dana Roofer",
@@ -90,6 +91,29 @@ describe("CallsView (#129)", () => {
     const html = render();
     expect(html).toContain("Unknown caller");
     expect(html).not.toContain('href="/inbox/');
+  });
+
+  it("D38: outbound rows speak from the crew's side and a no-answer is never a warning pill", () => {
+    state.rows = [
+      call({
+        id: "call-out-1",
+        direction: "outbound",
+        outcome: "answered",
+        forward_seconds: 192,
+      }),
+      call({
+        id: "call-out-2",
+        direction: "outbound",
+        outcome: "missed",
+        forward_seconds: 0,
+      }),
+    ];
+    const html = render();
+    expect(html).toContain("You called · 3m 12s");
+    expect(html).toContain("No answer");
+    expect(html).not.toContain("Missed</span>");
+    // The warning tint is reserved for inbound misses (accent budget).
+    expect(html).not.toContain("bg-warning/10");
   });
 
   it("empty state points at the calls settings", () => {

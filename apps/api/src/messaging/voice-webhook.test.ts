@@ -929,6 +929,180 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(thread.calls).toHaveLength(0);
   });
 
+  it("D38: agent-leg AMD 'human' bridges to the customer from the business number", async () => {
+    const action = telnyxCallAction();
+    const upsert = upsertCallStub();
+    serve(numberStub(), action, upsert);
+
+    await handleCallEvent(
+      env,
+      event("call.machine.detection.ended", {
+        call_control_id: "cc-out-1",
+        call_session_id: SESSION,
+        from: OUR_NUMBER, // agent leg presents the business number
+        to: "+16135557777", // the member's cell
+        result: "human",
+        client_state: btoa(`oc_agent|${CALLER}`),
+      }),
+    );
+
+    const transfer = action.calls.find((c) =>
+      c.url.pathname.endsWith("/transfer"),
+    );
+    expect(transfer).toBeDefined();
+    expect(transfer!.body).toMatchObject({
+      to: CALLER, // the customer
+      from: OUR_NUMBER, // the customer sees the business number
+      target_leg_client_state: btoa(`oc_customer|${CALLER}`),
+    });
+  });
+
+  it("D38: agent-leg AMD 'machine' hangs up and marks the session missed — voicemail never bridges", async () => {
+    const upsert = upsertCallStub();
+    const hangup = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/hangup$/.test(url.pathname),
+      () => ({ data: { result: "ok" } }),
+    );
+    serve(numberStub(), upsert, hangup);
+
+    await handleCallEvent(
+      env,
+      event("call.machine.detection.ended", {
+        call_control_id: "cc-out-2",
+        call_session_id: SESSION,
+        from: OUR_NUMBER,
+        to: "+16135557777",
+        result: "machine",
+        client_state: btoa(`oc_agent|${CALLER}`),
+      }),
+    );
+
+    expect(hangup.calls).toHaveLength(1);
+    expect(upsert.calls).toHaveLength(1);
+    expect(upsert.calls[0].body).toMatchObject({
+      p_outcome: "missed",
+      p_direction: "outbound",
+    });
+  });
+
+  it("D38: a connected customer leg bills its seconds, threads join-only, and never texts back", async () => {
+    const callRecords = callRecordsInsertStub("cr-out-1");
+    const customerLookup = customerStub();
+    const meter = meterStub();
+    const stamp = stampStub();
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    const sms = telnyxSms();
+    serve(
+      numberStub(),
+      callRecords,
+      customerLookup,
+      meter,
+      stamp,
+      upsert,
+      thread,
+      callsLinkStub(),
+      sms,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-out-cust-1",
+        from: OUR_NUMBER, // we present the business number
+        to: CALLER, // the customer
+        hangup_cause: "normal_clearing",
+        client_state: btoa(`oc_customer|${CALLER}`),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:03:12.000Z", // 192 s of talk
+      }),
+    );
+
+    expect(callRecords.calls[0].body).toMatchObject({
+      leg: "out_customer",
+      billable_seconds: 192,
+      stripe_reported_at: null,
+    });
+    const form = new URLSearchParams(String(meter.calls[0].body));
+    expect(form.get("payload[value]")).toBe("192");
+    expect(upsert.calls[0].body).toMatchObject({
+      p_outcome: "answered",
+      p_direction: "outbound",
+      p_caller_e164: CALLER,
+    });
+    expect(thread.calls[0].body).toMatchObject({
+      p_create_if_missing: false,
+      p_direction: "outbound",
+    });
+    // An outbound call must NEVER fire the missed-call text-back.
+    expect(sms.calls).toHaveLength(0);
+  });
+
+  it("D38: a customer who doesn't pick up = missed, zero billed seconds, threaded, no text-back", async () => {
+    const callRecords = callRecordsInsertStub("cr-out-2");
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    const sms = telnyxSms();
+    serve(numberStub(), callRecords, upsert, thread, callsLinkStub(), sms);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-out-cust-2",
+        from: OUR_NUMBER,
+        to: CALLER,
+        hangup_cause: "timeout",
+        client_state: btoa(`oc_customer|${CALLER}`),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:25.000Z", // ring time only
+      }),
+    );
+
+    expect(callRecords.calls[0].body).toMatchObject({
+      leg: "out_customer",
+      billable_seconds: 0,
+      stripe_reported_at: expect.any(String),
+    });
+    expect(upsert.calls[0].body).toMatchObject({ p_outcome: "missed" });
+    expect(thread.calls).toHaveLength(1); // "Called, no answer" is history
+    expect(sms.calls).toHaveLength(0);
+  });
+
+  it("D38: an agent leg the member never answered stays list-only (no thread line)", async () => {
+    const callRecords = callRecordsInsertStub("cr-out-3");
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    serve(numberStub(), callRecords, upsert, thread, callsLinkStub());
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_session_id: SESSION,
+        call_leg_id: "leg-out-agent-1",
+        from: OUR_NUMBER,
+        to: "+16135557777",
+        hangup_cause: "timeout",
+        client_state: btoa(`oc_agent|${CALLER}`),
+        start_time: "2026-07-04T10:00:00.000Z",
+        end_time: "2026-07-04T10:00:25.000Z",
+      }),
+    );
+
+    expect(callRecords.calls[0].body).toMatchObject({
+      leg: "out_agent",
+      stripe_reported_at: expect.any(String), // agent legs never bill
+    });
+    expect(upsert.calls[0].body).toMatchObject({
+      p_outcome: "missed",
+      p_direction: "outbound",
+    });
+    expect(thread.calls).toHaveLength(0); // the customer was never contacted
+  });
+
   it("a replayed forward-leg hangup (insert conflict) never re-reports (D36)", async () => {
     const callRecords = callRecordsStub(); // [] = conflict, already recorded
     const meter = meterStub();

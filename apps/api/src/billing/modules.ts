@@ -55,10 +55,10 @@ export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
     id: "voice",
     label: "Call forwarding",
     blurb:
-      "Forward calls from your business number to your cell, and text back the ones you miss.",
+      "Call customers and forward calls from your business number, and text back the ones you miss.",
     detail: "Generous forwarded minutes under fair use.",
     monthlyCents: 800,
-    gates: "forwarding incoming calls",
+    gates: "calling with your business number",
     priceEnvKey: "STRIPE_MODULE_VOICE_PRICE_ID",
   },
   regions_ca: {

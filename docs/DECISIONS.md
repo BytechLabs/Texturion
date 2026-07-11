@@ -1205,3 +1205,52 @@ pillar (#128).
   (D34/D36). Deferred, tracked in docs/CALLS-FEATURE.md: the D24 bell arm for missed calls +
   decoupling the crew alert from MCTB (the in-app feed still only learns of misses via the
   text-back path), and a For You "Recent calls" section.
+
+## D38. Outbound calling ships: click-to-call bridging from the business number (#131, 2026-07-10)
+
+Founder directive ("full calling feature end to end" — outbound too). REVERSES the D37
+"no outbound calling" non-goal and the marketing claim "Loonext itself doesn't place calls"
+(plan-addons fine print + compare pages updated; the module blurb now says "Call customers
+and forward calls from your business number").
+
+- **The mechanism is a two-leg bridge, not WebRTC:** POST /v1/calls dials the MEMBER'S cell
+  from the business number (agent leg, `oc_agent|<customer>` tag, AMD `detect`), and on a
+  human/undetermined verdict the webhook transfers to the customer (`oc_customer` tag,
+  business number presented). A machine verdict hangs up — the member's own voicemail can
+  never be bridged to a customer — and marks the session 'missed'. Works on every phone and
+  the PWA with zero WebRTC risk; in-browser audio remains a possible later wave.
+- **Gates, in order:** member role; #106 `text` level on the conversation's number (calling
+  is outreach); live subscription; the voice module; the member's cell configured
+  (`company_members.call_cell_e164`, NANP CHECK, self-service via GET/PUT /v1/calls/cell —
+  collected inline in the app's first-call dialog); and the D36 voice spending cap
+  (`usage_cap_reached` 402, checked before any Telnyx dial). Calls to texting-opted-out
+  contacts are ALLOWED — STOP is SMS consent, and a requested callback may be the only
+  channel; noted deliberately.
+- **One calling-minutes pool, both directions (D36 amended):** the billed measure is the
+  far-party leg — `forward` (inbound) and `out_customer` (outbound) — summed by the
+  re-created `api_period_forward_seconds` and reported to the same `voice_seconds` meter;
+  ring time never bills (a no-answer customer leg records zero). Agent legs record for cost
+  analysis only; the per-dial fee counter now counts both outbound legs (outbound runs two
+  dial commands — over-counting cost is the safe direction). The fair-use page, alert
+  emails, and usage surfaces now say "calling minutes"; migration `20260710170000` (calls
+  .direction, leg CHECK widening, RPC re-creations with dropped-first old signatures,
+  call_cell column).
+- **Session semantics:** `calls.direction` ('outbound' never flips on merge); outcome
+  'answered' = customer connected, 'missed' = never connected (customer no-answer OR the
+  member not picking up their own leg). Outbound calls thread JOIN-ONLY (they start from a
+  conversation; an agent-only failure stays list-only — the customer was never contacted);
+  the `call_completed` event carries `direction` and renders "You called · 3m 12s" /
+  "Called, no answer". The missed-call text-back NEVER fires for outbound legs.
+- **UI:** the thread header's Call control is now the bridge (the old bare `tel:` link
+  leaked personal cells and bypassed the business number; it remains only as the
+  no-module fallback). /calls rows read from the crew's side; an outbound no-answer is
+  quiet text, never the warning pill (the tint stays reserved for inbound misses, #64).
+- **Verified end to end:** api 1,366 + web 1,232 vitest green; SQL C-1..C-7 green
+  (direction merge, billed pool, dial counter, cell CHECK, event direction); dev-shot
+  pixels for the two-direction call log and the thread timeline with the Call button.
+- **Deferred (unchanged from D37 + new):** the D24 bell arm + MCTB-decoupled crew alert; a
+  For You "Recent calls" section; per-member cell VERIFICATION (today the agent leg simply
+  rings whatever the member entered — self-harm-bounded since it dials before any bridge);
+  a visible per-member cell field on the Calls settings page (the first-call dialog is the
+  collection point this wave); the "Call forwarding" module label rename to "Calling"
+  (cosmetic, many pinned marketing strings).

@@ -11,6 +11,7 @@ import {
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
+import { stubRoute, type Stub } from "../test/messaging-support";
 import {
   completeEnv,
   createTestAuth,
@@ -148,6 +149,213 @@ describe("GET /v1/calls", () => {
       "/v1/calls?outcome=ring",
       { companyId: COMPANY_ID },
     );
+    expect(bad.status).toBe(422);
+  });
+
+  it("D38 POST /calls: dials the member's cell from the business number and pre-creates the session", async () => {
+    const CONVERSATION = "cccccccc-0000-4000-8000-000000000003";
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/company_members", (call) => {
+      // The company-context membership read AND the call-cell read share the
+      // table; answer both shapes.
+      const select = call.url.searchParams.get("select") ?? "";
+      if (select.includes("call_cell_e164")) {
+        return [{ call_cell_e164: "+16135557777" }];
+      }
+      return membershipResponder(MEMBER_ID, "owner")(call);
+    });
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        id: CONVERSATION,
+        contact_id: "aaaaaaaa-0000-4000-8000-000000000009",
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        contacts: { phone_e164: "+16135551000" },
+        phone_numbers: { number_e164: "+16135550100", status: "active" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        plan: "starter",
+        current_period_start: "2026-07-01T00:00:00Z",
+        overage_cap_multiplier: "3.00",
+        subscription_status: "active",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", (call) => {
+      const select = call.url.searchParams.get("select") ?? "";
+      return select.includes("grandfathered")
+        ? [{ grandfathered: false }]
+        : [{ module: "voice", disabled_at: null }];
+    });
+    sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
+    sb.on("POST", "/rest/v1/rpc/api_upsert_call", () => ({
+      id: "call-row-1",
+      outcome: null,
+    }));
+    sb.on("PATCH", "/rest/v1/calls", () => [{ id: "call-row-1" }]);
+    const dial: Stub = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.telnyx.com/v2/calls",
+      () => ({ data: { call_session_id: "sess-out-1", call_control_id: "cc-1" } }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({
+      status: "dialing",
+      call_session_id: "sess-out-1",
+    });
+
+    // The agent leg: business number → the member's cell, AMD on, tagged.
+    expect(dial.calls).toHaveLength(1);
+    expect(dial.calls[0].body).toMatchObject({
+      to: "+16135557777",
+      from: "+16135550100",
+      answering_machine_detection: "detect",
+      client_state: btoa("oc_agent|+16135551000"),
+    });
+    // The session pre-creates as outbound and links the conversation.
+    const upsert = sb.find("POST", "/rest/v1/rpc/api_upsert_call")[0];
+    expect(upsert.body).toMatchObject({
+      p_call_session_id: "sess-out-1",
+      p_caller_e164: "+16135551000",
+      p_direction: "outbound",
+    });
+    expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(1);
+  });
+
+  it("D38 POST /calls: 409 until the member sets their cell", async () => {
+    const CONVERSATION = "cccccccc-0000-4000-8000-000000000003";
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/company_members", (call) => {
+      const select = call.url.searchParams.get("select") ?? "";
+      if (select.includes("call_cell_e164")) return [{ call_cell_e164: null }];
+      return membershipResponder(MEMBER_ID, "owner")(call);
+    });
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        id: CONVERSATION,
+        contact_id: "aaaaaaaa-0000-4000-8000-000000000009",
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        contacts: { phone_e164: "+16135551000" },
+        phone_numbers: { number_e164: "+16135550100", status: "active" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        plan: "starter",
+        current_period_start: "2026-07-01T00:00:00Z",
+        overage_cap_multiplier: "3.00",
+        subscription_status: "active",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", (call) => {
+      const select = call.url.searchParams.get("select") ?? "";
+      return select.includes("grandfathered")
+        ? [{ grandfathered: false }]
+        : [{ module: "voice", disabled_at: null }];
+    });
+    sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 0);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      error: { message: expect.stringContaining("cell number") },
+    });
+  });
+
+  it("D38 POST /calls: 402 usage_cap_reached at the voice spending cap — never dials", async () => {
+    const CONVERSATION = "cccccccc-0000-4000-8000-000000000003";
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "owner"),
+    );
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        id: CONVERSATION,
+        contact_id: "aaaaaaaa-0000-4000-8000-000000000009",
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        contacts: { phone_e164: "+16135551000" },
+        phone_numbers: { number_e164: "+16135550100", status: "active" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        plan: "starter",
+        current_period_start: "2026-07-01T00:00:00Z",
+        overage_cap_multiplier: "3.00",
+        subscription_status: "active",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", (call) => {
+      const select = call.url.searchParams.get("select") ?? "";
+      return select.includes("grandfathered")
+        ? [{ grandfathered: false }]
+        : [{ module: "voice", disabled_at: null }];
+    });
+    // Exactly at 2,500 × 3 = 7,500 minutes.
+    sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => 7500 * 60);
+    const dial: Stub = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.telnyx.com/v2/calls",
+      () => ({ data: {} }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "usage_cap_reached" },
+    });
+    expect(dial.calls).toHaveLength(0);
+  });
+
+  it("D38 PUT /calls/cell: saves a NANP cell for SELF and rejects garbage", async () => {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("PATCH", "/rest/v1/company_members", () => [
+      { call_cell_e164: "+16135557777" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const ok = await apiRequest(app, env, await auth.token(), "/v1/calls/cell", {
+      companyId: COMPANY_ID,
+      method: "PUT",
+      body: { call_cell_e164: "+16135557777" },
+    });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ call_cell_e164: "+16135557777" });
+    // Scoped to the caller's own membership row.
+    const patch = sb.find("PATCH", "/rest/v1/company_members")[0];
+    expect(patch.url.searchParams.get("user_id")).toContain(auth.subject);
+
+    const bad = await apiRequest(app, env, await auth.token(), "/v1/calls/cell", {
+      companyId: COMPANY_ID,
+      method: "PUT",
+      body: { call_cell_e164: "5551234" },
+    });
     expect(bad.status).toBe(422);
   });
 

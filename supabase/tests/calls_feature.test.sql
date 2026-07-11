@@ -152,6 +152,93 @@ begin
 end $$;
 
 -- ===========================================================================
+-- C-6. D38 outbound: direction persists (and never flips on merge); the
+--      billed measure counts out_customer legs into the same D36 pool; the
+--      per-dial counter counts both outbound legs.
+-- ===========================================================================
+do $$
+declare v jsonb; secs bigint; dials bigint;
+begin
+  v := public.api_upsert_call(
+    '77777777-7777-4777-8777-777000000000',
+    '77777777-7777-4777-8777-777000000001',
+    'sess-c6-out', '+14165550444', null, 0, now(), null, 'outbound');
+  if v->>'direction' <> 'outbound' then
+    raise exception 'C-6 FAILED: direction not persisted: %', v->>'direction';
+  end if;
+  -- Customer-leg hangup merges outcome/seconds; direction stays outbound.
+  v := public.api_upsert_call(
+    '77777777-7777-4777-8777-777000000000',
+    '77777777-7777-4777-8777-777000000001',
+    'sess-c6-out', '+14165550444', 'answered', 192, now(), now(), 'inbound');
+  if v->>'direction' <> 'outbound' or v->>'outcome' <> 'answered' then
+    raise exception 'C-6 FAILED: merge broke direction/outcome: % %',
+      v->>'direction', v->>'outcome';
+  end if;
+
+  insert into public.call_records
+    (company_id, phone_number_id, call_session_id, call_leg_id, leg, billable_seconds, stripe_reported_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c6-out', 'leg-c6-agent', 'out_agent', 200, now()),
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c6-out', 'leg-c6-cust', 'out_customer', 192, now());
+
+  -- The pool: M-6-style fixtures contributed forward 25s; out_customer adds
+  -- 192; out_agent adds NOTHING (cost analysis only).
+  secs := public.api_period_forward_seconds(
+    '77777777-7777-4777-8777-777000000000', now() - interval '1 hour');
+  if secs <> 192 then
+    raise exception 'C-6 FAILED: billed pool expected 192 seconds, got %', secs;
+  end if;
+
+  dials := public.api_period_forwarded_calls(
+    '77777777-7777-4777-8777-777000000000', now() - interval '1 hour');
+  if dials <> 2 then
+    raise exception 'C-6 FAILED: per-dial counter expected 2, got %', dials;
+  end if;
+  raise notice 'C-6 PASSED: outbound direction + billed pool + dial counter';
+end $$;
+
+-- ===========================================================================
+-- C-7. D38: company_members.call_cell_e164 accepts NANP cells and rejects
+--      garbage; the call_completed event payload carries direction.
+-- ===========================================================================
+do $$
+declare v jsonb; d text;
+begin
+  update public.company_members
+     set call_cell_e164 = '+14165559999'
+   where company_id = '77777777-7777-4777-8777-777000000000';
+  begin
+    update public.company_members
+       set call_cell_e164 = 'not-a-number'
+     where company_id = '77777777-7777-4777-8777-777000000000';
+    raise exception 'C-7 FAILED: garbage cell accepted';
+  exception
+    when check_violation then null; -- expected
+  end;
+
+  -- Outbound threading writes direction into the event payload. The C-2
+  -- fixture conversation is open for this contact+number, so join-only finds it.
+  v := public.api_thread_call(
+    '77777777-7777-4777-8777-777000000000',
+    '77777777-7777-4777-8777-777000000001',
+    '+14165550111', 'sess-c7-out', 'answered', 88, false, 'outbound');
+  if v->>'conversation_id' is null then
+    raise exception 'C-7 FAILED: outbound join-only did not thread';
+  end if;
+  select e.payload->>'direction' into d
+    from public.conversation_events e
+   where e.type = 'call_completed'
+     and e.payload->>'call_session_id' = 'sess-c7-out';
+  if d <> 'outbound' then
+    raise exception 'C-7 FAILED: event direction %', d;
+  end if;
+  raise notice 'C-7 PASSED: call_cell CHECK + outbound event direction';
+end $$;
+
+-- ===========================================================================
 -- C-5. All three RPCs are service-role only.
 -- ===========================================================================
 do $$

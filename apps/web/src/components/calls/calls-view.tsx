@@ -30,10 +30,11 @@ function callerName(call: Call): string {
   return "Unknown caller";
 }
 
-/** The one tinted element per row (accent budget): missed calls only. */
+/** The one tinted element per row (accent budget): INBOUND misses only —
+ *  an outbound no-answer is not crew-actionable urgency. */
 function OutcomePill({ call }: { call: Call }) {
   const label = callOutcomeLabel(call);
-  if (call.outcome === "missed") {
+  if (call.outcome === "missed" && call.direction !== "outbound") {
     return (
       <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
         {label}

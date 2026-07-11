@@ -123,9 +123,16 @@ export function eventSentence(
     // text-back shows this line plus the missed_call line above.
     case "call_completed": {
       const outcome = event.payload.outcome as string | undefined;
+      const seconds = Number(event.payload.forward_seconds ?? 0);
+      // D38: outbound bridge calls speak from the crew's side.
+      if (event.payload.direction === "outbound") {
+        if (outcome === "missed") return "Called, no answer";
+        return seconds > 0
+          ? `You called · ${formatCallDuration(seconds)}`
+          : "You called";
+      }
       if (outcome === "voicemail") return "Call went to voicemail";
       if (outcome === "missed") return "Missed call";
-      const seconds = Number(event.payload.forward_seconds ?? 0);
       return seconds > 0
         ? `Call answered · ${formatCallDuration(seconds)}`
         : "Call answered";
