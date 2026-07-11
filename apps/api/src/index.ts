@@ -26,6 +26,7 @@ import { attachmentsRoutes } from "./routes/attachments";
 import { availableNumbersRoutes } from "./routes/available-numbers";
 import { billingRoutes } from "./routes/billing";
 import { callsRoutes } from "./routes/calls";
+import { webrtcRoutes } from "./routes/webrtc";
 import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
 import { contactRoutes } from "./routes/contact";
@@ -126,6 +127,7 @@ app.route("/v1", teamRoutes);
 app.route("/v1", notificationsRoutes);
 app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model
 app.route("/v1", callsRoutes); // #129 GET /v1/calls — the call log
+app.route("/v1", webrtcRoutes); // #135 D43 — browser softphone tokens
 
 /**
  * Webhooks (SPEC §7): unversioned, outside the JWT/CORS chain — the provider

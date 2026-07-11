@@ -669,10 +669,12 @@ describe("DELETE /v1/members/:id (deactivate, not delete)", () => {
     const sb = stubWithRole("owner");
     sb.on("GET", "/rest/v1/company_members", (call) =>
       call.url.searchParams.get("id") === `eq.${TARGET_MEMBER_ID}`
-        ? [{ id: TARGET_MEMBER_ID, role: "member", deactivated_at: null }]
+        ? [{ id: TARGET_MEMBER_ID, user_id: "u-target", role: "member", deactivated_at: null }]
         : undefined,
     );
     sb.on("PATCH", "/rest/v1/company_members", () => new Response(null, { status: 204 }));
+    // D43 (#135): deactivation revokes the softphone — no credential row here.
+    sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(

@@ -32,6 +32,12 @@ const envSchema = z.object({
    * Enabling voice on an SMS-only number points its voice settings at this app.
    */
   TELNYX_VOICE_CONNECTION_ID: z.string().min(1),
+  /**
+   * D43 (#135): the shared WebRTC CREDENTIAL connection per-member telephony
+   * credentials are minted on (browser softphone identities). Optional so
+   * dev/test boot without it — the token endpoint 503s honestly when unset.
+   */
+  TELNYX_WEBRTC_CONNECTION_ID: z.string().min(1).optional(),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),

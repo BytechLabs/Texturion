@@ -36,6 +36,7 @@ import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { getEnv, type Env } from "../env";
+import { revokeMemberTelephonyCredential } from "./webrtc";
 import { ApiError, errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { seatLimit } from "./core/plans";
@@ -194,10 +195,17 @@ teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const rows = unwrap<{ id: string; role: string; deactivated_at: string | null }[]>(
+  const rows = unwrap<
+    {
+      id: string;
+      user_id: string;
+      role: string;
+      deactivated_at: string | null;
+    }[]
+  >(
     await db
       .from("company_members")
-      .select("id,role,deactivated_at")
+      .select("id,user_id,role,deactivated_at")
       .eq("company_id", companyId)
       .eq("id", id)
       .limit(1),
@@ -221,6 +229,21 @@ teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
         .eq("id", id),
       "member deactivate",
     );
+    // D43 (#135): a deactivated member's softphone dies with the seat —
+    // best-effort (deactivation must never fail on Telnyx weather; the
+    // orphaned credential costs nothing and can be re-deleted).
+    try {
+      await revokeMemberTelephonyCredential(
+        getEnv(c.env),
+        companyId,
+        target.user_id,
+      );
+    } catch (cause) {
+      console.error(
+        `softphone revoke on deactivation failed for member ${id}:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
   }
   return c.body(null, 204);
 });
