@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useModules } from "@/lib/api/billing";
+import { useCallCell, useSetCallCell } from "@/lib/api/calls";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
@@ -272,6 +273,86 @@ function ForwardCard({
   );
 }
 
+/**
+ * D38/#132: the caller's OWN cell for outbound calls — per member, so no
+ * canEdit gate (every member may set their own; PUT /v1/calls/cell only ever
+ * writes the caller's row). The thread Call button collects this inline the
+ * first time; this card is where it lives afterwards.
+ */
+function YourCellCard() {
+  const cellQuery = useCallCell();
+  const setCell = useSetCallCell();
+  const [cell, setCellInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const saved = cellQuery.data?.call_cell_e164 ?? "";
+  useEffect(() => setCellInput(saved), [saved]);
+
+  const dirty = cell.trim() !== saved;
+  const invalid = cell.trim().length > 0 && !E164_HINT.test(cell.trim());
+
+  function save() {
+    setError(null);
+    const trimmed = cell.trim();
+    if (trimmed.length > 0 && !E164_HINT.test(trimmed)) {
+      setError("Enter a US or Canada mobile number like +16135551234.");
+      return;
+    }
+    setCell.mutate(trimmed.length > 0 ? trimmed : null, {
+      onSuccess: () => toast.success("Your cell is saved."),
+      onError: (cause) =>
+        setError(
+          cause instanceof ApiError
+            ? cause.message
+            : "Couldn't save. Try again.",
+        ),
+    });
+  }
+
+  return (
+    <SettingsCard
+      title="Your cell for outbound calls"
+      description="When you call a customer from a conversation, we ring your cell first, then connect the customer — they see your business number, never your cell."
+      footer={
+        <div className="flex items-center justify-end">
+          <Button
+            onClick={save}
+            disabled={!dirty || invalid || cellQuery.isPending || setCell.isPending}
+          >
+            {setCell.isPending ? "Saving…" : "Save your cell"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="call-cell" className="text-sm font-medium">
+          Call my cell at
+        </Label>
+        <Input
+          id="call-cell"
+          type="tel"
+          inputMode="tel"
+          value={cell}
+          disabled={cellQuery.isPending || setCell.isPending}
+          placeholder="+16135551234"
+          onChange={(e) => setCellInput(e.target.value)}
+          className="max-w-xs"
+        />
+        <p className="text-xs text-muted-foreground">
+          This is yours alone — every person on the crew sets their own. If
+          it&apos;s blank, the Call button asks for it the first time you use
+          it.
+        </p>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function MissedCallsSettingsPage() {
   const company = useCompany();
   const modules = useModules();
@@ -329,6 +410,7 @@ export default function MissedCallsSettingsPage() {
             canEdit={canEdit}
             includedMinutes={usage.data.voice.included_minutes}
           />
+          <YourCellCard />
         </div>
       )}
     </SettingsPage>

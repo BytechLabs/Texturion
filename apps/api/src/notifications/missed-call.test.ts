@@ -61,8 +61,8 @@ const INPUT = {
   companyId: COMPANY_ID,
   conversationId: CONVERSATION_ID,
   callerE164: "+16135551000",
-  textSent: true,
-};
+  textStatus: "sent",
+} as const;
 
 describe("notifyMissedCall (email)", () => {
   it("emails the crew and carries the opt-out footer + List-Unsubscribe header", async () => {
@@ -98,13 +98,27 @@ describe("notifyMissedCall (email)", () => {
     const world = buildWorld();
     stubFetch(...world.routes);
 
-    await notifyMissedCall(env, { ...INPUT, textSent: false });
+    await notifyMissedCall(env, { ...INPUT, textStatus: "failed" });
 
     const email = world.resend.calls[0] as { text: string };
     expect(email.text).toContain(
       "We tried to text them but the message didn't go through",
     );
     expect(email.text).not.toContain("We sent them a text");
+  });
+
+  it("never claims a text was tried when none was attempted (#132)", async () => {
+    const world = buildWorld();
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, { ...INPUT, textStatus: "none" });
+
+    const email = world.resend.calls[0] as { text: string };
+    expect(email.text).toContain(
+      "They haven't been texted back — call them back when you can.",
+    );
+    expect(email.text).not.toContain("We sent them a text");
+    expect(email.text).not.toContain("We tried to text them");
   });
 
   it("escapes an injected contact name in the email HTML", async () => {

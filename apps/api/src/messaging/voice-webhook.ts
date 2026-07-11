@@ -51,6 +51,7 @@ import {
 } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { notifyMissedCall } from "../notifications/missed-call";
 import { telnyxRequest } from "../telnyx/client";
 import { computeMissedFromEvent } from "./missed-call";
 import { sendMissedCallText } from "./missed-call";
@@ -568,8 +569,9 @@ async function handleTerminalCallEvent(
   const decidingHangup =
     eventType === "call.hangup" &&
     (leg === "forward" || leg === "inbound_untagged" || leg === "out_customer");
+  let thread: ThreadCallResult | null = null;
   if (decidingHangup && call?.outcome) {
-    await threadCallSession(db, {
+    thread = await threadCallSession(db, {
       companyId: resolved.companyId,
       phoneNumberId: resolved.phoneNumberId,
       callSessionId: callId,
@@ -584,13 +586,41 @@ async function handleTerminalCallEvent(
   // no-answer must never text the customer "sorry we missed you".
   if (outboundLeg || !outcome.missed || !finalCaller) return;
 
-  await sendMissedCallText(env, db, {
+  const textBack = await sendMissedCallText(env, db, {
     companyId: resolved.companyId,
     phoneNumberId: resolved.phoneNumberId,
     fromNumberE164: ourNumberE164,
     callerE164: finalCaller,
     callId,
   });
+
+  // #132: the crew alert is a MISSED-CALL behavior, not a TEXT-BACK behavior —
+  // with MCTB off/unauthored (or the caller opted out / throttled) the team
+  // must still learn a call went unanswered. When the text-back path already
+  // alerted (its claim makes that exactly-once, surviving ledger replays), we
+  // are done; otherwise fire here, gated on the timeline event INSERT — true
+  // exactly once per call session, so a Telnyx redelivery never re-alerts.
+  // Best-effort like every §8 alert: the durable record is the timeline event
+  // (which also feeds the D24 bell); push/email failure never fails the hook.
+  if (!textBack.alerted && thread?.eventInserted && thread.conversationId) {
+    try {
+      await notifyMissedCall(
+        env,
+        {
+          companyId: resolved.companyId,
+          conversationId: thread.conversationId,
+          callerE164: call?.caller_e164 ?? finalCaller,
+          textStatus: "none",
+        },
+        db,
+      );
+    } catch (cause) {
+      console.error(
+        `missed-call alert for conversation ${thread.conversationId} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
 }
 
 interface CallSessionRow {
@@ -688,6 +718,14 @@ async function upsertCallSession(
   return (data as CallSessionRow | null) ?? null;
 }
 
+/** What threading decided — the caller alert keys off the event INSERT. */
+interface ThreadCallResult {
+  conversationId: string | null;
+  /** True exactly once per call session: this pass inserted the timeline
+   *  event (the per-call claim for the #132 crew alert). */
+  eventInserted: boolean;
+}
+
 /**
  * #129: thread the finished call into the caller's conversation (missed
  * calls find-or-CREATE — a miss must reach the inbox even with text-back
@@ -705,8 +743,8 @@ async function threadCallSession(
     forwardSeconds: number;
     direction: "inbound" | "outbound";
   },
-): Promise<void> {
-  if (!input.caller) return; // anonymous caller — list-only, never threaded
+): Promise<ThreadCallResult | null> {
+  if (!input.caller) return null; // anonymous caller — list-only, never threaded
 
   const { data, error } = await db.rpc("api_thread_call", {
     p_company_id: input.companyId,
@@ -725,9 +763,9 @@ async function threadCallSession(
     throw new Error(`api_thread_call failed: ${error.message}`);
   }
   const thread = data as
-    | { contact_id?: string; conversation_id?: string }
+    | { contact_id?: string; conversation_id?: string; event_inserted?: boolean }
     | null;
-  if (!thread?.conversation_id) return;
+  if (!thread?.conversation_id) return null;
 
   const { error: linkError } = await db
     .from("calls")
@@ -740,6 +778,10 @@ async function threadCallSession(
   if (linkError) {
     throw new Error(`calls link failed: ${linkError.message}`);
   }
+  return {
+    conversationId: thread.conversation_id,
+    eventInserted: thread.event_inserted === true,
+  };
 }
 
 /**

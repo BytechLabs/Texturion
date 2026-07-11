@@ -1199,3 +1199,158 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(sms.calls).toHaveLength(0);
   });
 });
+
+/**
+ * #132: the crew alert is a missed-call behavior, decoupled from the
+ * text-back. The webhook fires notifyMissedCall itself — gated on
+ * api_thread_call's event_inserted claim — whenever the text-back path did
+ * not (MCTB off, caller opted out). The claim path keeps its own alert, and
+ * the two must never both fire for one call.
+ */
+describe("handleCallEvent — #132 crew alert without a text-back", () => {
+  /** MCTB settings select with the feature DISABLED. */
+  function mctbDisabledStub(): Stub {
+    return stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "companies",
+        (url) => url.searchParams.get("select")?.includes("mctb_message") ?? false,
+      ),
+      () => [
+        {
+          name: "Ace Plumbing",
+          mctb_enabled: false,
+          mctb_message: null,
+          forward_to_cell: null,
+          subscription_status: "active",
+        },
+      ],
+    );
+  }
+
+  /** The notifyMissedCall conversation lookup, with a handle for counting. */
+  function alertConversationStub(): Stub {
+    return stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "conversations",
+        (url) =>
+          url.searchParams.get("select")?.includes("assigned_user_id") ?? false,
+      ),
+      () => [
+        {
+          id: "bbbbbbbb-0000-4000-8000-00000000000b",
+          assigned_user_id: null,
+          contacts: { name: null, phone_e164: CALLER },
+        },
+      ],
+    );
+  }
+
+  /** api_thread_call whose event INSERT landed this pass (a fresh miss). */
+  function freshThreadStub(): Stub {
+    return stubRoute(rpcMatch(env, "api_thread_call"), () => ({
+      contact_id: "ct-1",
+      conversation_id: "bbbbbbbb-0000-4000-8000-00000000000b",
+      event_inserted: true,
+    }));
+  }
+
+  function missedHangup(): TelnyxEvent {
+    return event("call.hangup", {
+      call_control_id: CC_ID,
+      call_session_id: SESSION,
+      direction: "incoming",
+      from: CALLER,
+      to: OUR_NUMBER,
+      hangup_cause: "normal_clearing", // no-forward: the hangup IS the miss
+    });
+  }
+
+  it("MCTB off: the crew alert still fires (no text, no claim)", async () => {
+    const claim = claimStub();
+    const sms = telnyxSms();
+    const conv = alertConversationStub();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      mctbDisabledStub(),
+      claim,
+      sms,
+      conv,
+      stubRoute(restMatch(env, "GET", "company_members"), () => []),
+      stubRoute(restMatch(env, "GET", "notification_prefs"), () => []),
+      freshThreadStub(),
+    );
+
+    await handleCallEvent(env, missedHangup());
+
+    // No text-back machinery ran…
+    expect(claim.calls).toHaveLength(0);
+    expect(sms.calls).toHaveLength(0);
+    // …but the crew alert did (its conversation lookup is the first step).
+    expect(conv.calls).toHaveLength(1);
+  });
+
+  it("a webhook redelivery never re-alerts (event_inserted false)", async () => {
+    const conv = alertConversationStub();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      mctbDisabledStub(),
+      conv,
+      // default threadCallStub (via serve): no event_inserted → replay
+    );
+
+    await handleCallEvent(env, missedHangup());
+
+    expect(conv.calls).toHaveLength(0);
+  });
+
+  it("text sent: exactly ONE alert (the claim path's), never a second from the webhook", async () => {
+    const conv = alertConversationStub();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claimStub(),
+      telnyxSms(),
+      persistStub(),
+      conv,
+      stubRoute(restMatch(env, "GET", "company_members"), () => []),
+      stubRoute(restMatch(env, "GET", "notification_prefs"), () => []),
+      freshThreadStub(), // fresh miss — the webhook WOULD alert if unguarded
+    );
+
+    await handleCallEvent(env, missedHangup());
+
+    expect(conv.calls).toHaveLength(1);
+  });
+
+  it("caller opted out: no text, but the crew alert fires", async () => {
+    const sms = telnyxSms();
+    const conv = alertConversationStub();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
+        skipped: "opted_out",
+      })),
+      sms,
+      conv,
+      stubRoute(restMatch(env, "GET", "company_members"), () => []),
+      stubRoute(restMatch(env, "GET", "notification_prefs"), () => []),
+      freshThreadStub(),
+    );
+
+    await handleCallEvent(env, missedHangup());
+
+    expect(sms.calls).toHaveLength(0);
+    expect(conv.calls).toHaveLength(1);
+  });
+});

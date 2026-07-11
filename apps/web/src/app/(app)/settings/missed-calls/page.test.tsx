@@ -46,6 +46,14 @@ vi.mock("@/lib/api/usage", () => ({
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner" }),
 }));
+vi.mock("@/lib/api/calls", () => ({
+  useCallCell: () => ({
+    isPending: false,
+    isError: false,
+    data: { call_cell_e164: null },
+  }),
+  useSetCallCell: () => ({ isPending: false, mutate: vi.fn() }),
+}));
 
 import MissedCallsSettingsPage from "./page";
 
@@ -88,5 +96,27 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
     const html = render();
     expect(html).toContain("555");
     expect(html).not.toContain("2,500 minutes");
+  });
+});
+
+/**
+ * D38/#132: the member's own outbound-call cell is manageable here — not only
+ * via the Call button's first-use dialog — and the copy carries the privacy
+ * promise (the customer sees the business number, never the cell).
+ */
+describe("/settings/missed-calls — your cell for outbound calls", () => {
+  it("renders the per-member cell card with the privacy promise", () => {
+    state.voiceEnabled = true;
+    const html = render();
+    expect(html).toContain("Your cell for outbound calls");
+    expect(html).toContain("never your cell");
+    expect(html).toContain("every person on the crew sets their own");
+  });
+
+  it("stays behind the voice add-on gate like the rest of the page", () => {
+    state.voiceEnabled = false;
+    const html = render();
+    expect(html).not.toContain("Your cell for outbound calls");
+    state.voiceEnabled = true;
   });
 });

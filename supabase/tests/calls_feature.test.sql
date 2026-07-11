@@ -72,6 +72,10 @@ begin
   if v->>'conversation_id' is null then
     raise exception 'C-2 FAILED: missed call did not thread';
   end if;
+  -- #132: the first pass reports the event INSERT (the crew-alert claim)…
+  if v->>'event_inserted' <> 'true' then
+    raise exception 'C-2 FAILED: fresh thread did not report event_inserted';
+  end if;
   -- Replay: same ids back, no second event.
   v2 := public.api_thread_call(
     '77777777-7777-4777-8777-777000000000',
@@ -79,6 +83,10 @@ begin
     '+14165550111', 'sess-c1', 'missed', 0, true);
   if v2->>'conversation_id' <> v->>'conversation_id' then
     raise exception 'C-2 FAILED: replay threaded a different conversation';
+  end if;
+  -- …and the replay does NOT (a Telnyx redelivery never re-alerts).
+  if v2->>'event_inserted' <> 'false' then
+    raise exception 'C-2 FAILED: replay claimed event_inserted';
   end if;
   select count(*) into n from public.conversation_events
    where type = 'call_completed'

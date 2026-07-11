@@ -1218,7 +1218,11 @@ export interface ForYou {
 }
 
 /** One derived notification (api_notifications RPC row). */
-export type NotificationType = "inbound_message" | "assigned" | "task_assigned";
+export type NotificationType =
+  | "inbound_message"
+  | "assigned"
+  | "task_assigned"
+  | "missed_call";
 
 export interface NotificationItem {
   id: string;

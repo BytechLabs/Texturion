@@ -83,11 +83,14 @@ POST /v1/calls + /calls/cell, oc_agent/oc_customer webhook legs, one
 calling-minutes pool both directions, the thread Call button, two-direction
 call log, marketing claims reversed.
 
+D39 addendum (2026-07-10, #132): P4 remainder shipped — the `missed_call`
+bell arm on the D24 `api_notifications` twins (inbound-only,
+assignee-else-everyone, #106-filtered; migration `20260711000000`), the crew
+alert decoupled from the MCTB claim (`api_thread_call.event_inserted` is the
+per-call claim; tri-state sent/failed/none copy), and the per-member "Your
+cell for outbound calls" card on /settings/missed-calls.
+
 Deferred (next wave, in priority order):
-1. P4 remainder — a `missed_call`/`call_completed` arm on the D24
-   `api_notifications` twins so misses reach the in-app bell, and decoupling
-   `notifyMissedCall` from the MCTB claim so the crew alert fires even with
-   text-back off (deep link /inbox/{id} when threaded, else /calls).
-2. A For You "Recent calls" section as the second mobile entry point.
-3. Per-member cell verification; a visible cell field on Calls settings;
-   the module label rename ("Call forwarding" → "Calling").
+1. A For You "Recent calls" section as the second mobile entry point.
+2. Per-member cell verification; the module label rename
+   ("Call forwarding" → "Calling").

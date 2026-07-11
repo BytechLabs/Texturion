@@ -1254,3 +1254,33 @@ and forward calls from your business number").
   a visible per-member cell field on the Calls settings page (the first-call dialog is the
   collection point this wave); the "Call forwarding" module label rename to "Calling"
   (cosmetic, many pinned marketing strings).
+
+## D39. Missed calls reach the bell; the crew alert stops depending on the text-back (#132, 2026-07-10)
+
+The D37/D38 deferred "P4 remainder", plus the settings half of deferred item 3. Three
+binding choices:
+
+- **Bell audience = push audience:** the new `missed_call` arm on the `api_notifications`
+  twins (migration `20260711000000`) shows an INBOUND missed call to the conversation's
+  assignee when assigned, and to every member when unassigned — exactly the audience
+  `notifyMissedCall` already emails/pushes, so the bell and the push can never tell two
+  different stories. Outbound no-answers NEVER reach the bell (the crew's own unanswered
+  dial is not news); a legacy D37 event with no `direction` key reads as inbound. The
+  #106 deny-list filters the arm like every other arm, twins in lockstep (N7).
+- **The timeline event insert is the alert claim:** `api_thread_call` now returns
+  `event_inserted` (true exactly once per call session). The webhook fires
+  `notifyMissedCall` gated on it whenever the text-back path didn't alert — MCTB
+  off/unauthored, caller opted out, throttled — so a missed call always alerts the crew.
+  The text-DISPATCHED path keeps its claim-gated alert (it alone knows sent-vs-failed and
+  survives ledger replay-heal); `sendMissedCallText` returns `{alerted}` so the two sites
+  can never double-fire (webhook tests pin one-alert-per-call in all four paths).
+- **Tri-state truthful copy:** `notifyMissedCall` takes `textStatus: sent|failed|none` —
+  'none' says "They haven't been texted back — call them back", never "we tried" when
+  nothing was attempted. Trade accepted: if the worker dies between the event insert and
+  the alert, the push/email for that call is lost (never duplicated); the bell arm is the
+  durable record, which is why it ships in the same wave.
+- **Settings:** /settings/missed-calls gains the per-member "Your cell for outbound
+  calls" card (self-service `call_cell_e164`, no owner gate — each member edits only
+  their own; the Call button's first-use dialog remains the inline collection point).
+- **Still deferred:** For You "Recent calls" section; per-member cell verification; the
+  "Call forwarding" → "Calling" label rename.

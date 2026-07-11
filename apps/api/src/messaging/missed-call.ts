@@ -145,6 +145,21 @@ interface MctbSettings {
 }
 
 /**
+ * What the text-back path did, for the webhook's #132 crew-alert decision:
+ * `alerted` true means THIS function already fired notifyMissedCall (the
+ * text-dispatched path — its claim keeps that exactly-once across ledger
+ * replays, and it alone knows whether the send landed, so it alone can pick
+ * the sent/failed copy); false means the caller owns the alert with 'none'
+ * copy (MCTB off/unauthored, opted-out, throttled, non-textable caller,
+ * webhook redelivery — no text was attempted in any of them).
+ */
+export interface MissedCallTextOutcome {
+  alerted: boolean;
+}
+
+const NO_TEXT: MissedCallTextOutcome = { alerted: false };
+
+/**
  * Fire the missed-call text-back for a COMPUTED-MISSED call. Best-effort: any
  * failure is thrown to the caller (the webhook dispatch), which records it on
  * the ledger for the sweeper — the RPC's per-call idempotency makes the replay
@@ -161,7 +176,7 @@ export async function sendMissedCallText(
     callerE164: string;
     callId: string;
   },
-): Promise<void> {
+): Promise<MissedCallTextOutcome> {
   // Company MCTB settings — one small read; mctb_enabled short-circuits so a
   // company without the feature pays nothing beyond this select.
   const { data: companyRows, error: companyError } = await db
@@ -175,16 +190,16 @@ export async function sendMissedCallText(
     throw new Error(`mctb settings lookup failed: ${companyError.message}`);
   }
   const settings = (companyRows ?? [])[0] as MctbSettings | undefined;
-  if (!settings || !settings.mctb_enabled) return;
+  if (!settings || !settings.mctb_enabled) return NO_TEXT;
 
   const template = (settings.mctb_message ?? "").trim();
-  if (template.length === 0) return; // enabled but unauthored → send nothing
+  if (template.length === 0) return NO_TEXT; // enabled but unauthored → send nothing
 
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all
   // 5 ledger retries + a Sentry page on a condition known final on the first
   // pass (mirrors the forward path's caller-less client_state skip).
-  if (!isUsCaDestination(args.callerE164)) return;
+  if (!isUsCaDestination(args.callerE164)) return NO_TEXT;
 
   // §7 send gates (subscription active, US/CA destination registration-clear).
   // A throw here is caught by the webhook dispatch and lands on the ledger.
@@ -209,7 +224,10 @@ export async function sendMissedCallText(
     segmentsEstimate: segments,
   });
 
-  if (!outcome.sent) return; // opted-out / throttled / duplicate → no alert
+  // Opted-out / throttled / duplicate → no text. The webhook decides whether
+  // an alert is still owed (#132: yes for a fresh miss, no for a redelivery —
+  // its timeline-event claim tells those apart; this function cannot).
+  if (!outcome.sent) return NO_TEXT;
 
   // Dispatch the SMS via the exact §8 Telnyx path. The row is the fresh claim's
   // 'queued' insert — or, on a sweeper REPLAY, the prior claim's still-
@@ -240,7 +258,7 @@ export async function sendMissedCallText(
         companyId: args.companyId,
         conversationId: outcome.conversationId,
         callerE164: args.callerE164,
-        textSent,
+        textStatus: textSent ? "sent" : "failed",
       },
       db,
     );
@@ -250,4 +268,7 @@ export async function sendMissedCallText(
       cause instanceof Error ? cause.message : String(cause),
     );
   }
+  // `alerted` even when notifyMissedCall threw: the attempt was made and
+  // best-effort alerts are never retried — the webhook must not double-fire.
+  return { alerted: true };
 }

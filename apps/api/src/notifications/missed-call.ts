@@ -1,7 +1,8 @@
 /**
- * Missed-call crew alert (FEATURE-GAPS voice wave, Step 1). Fired after a
- * computed-missed call has been auto-texted, so the whole crew learns a call
- * came in, went unanswered, and the customer got the booking-forward text.
+ * Missed-call crew alert (FEATURE-GAPS voice wave, Step 1; decoupled from the
+ * text-back in #132). Fired for every computed-missed INBOUND call, so the
+ * whole crew learns a call came in and went unanswered — whether or not the
+ * auto text-back is configured (`textSent` steers the copy).
  *
  * AUDIENCE + CHANNELS mirror the §8 inbound-message pipeline exactly (assignee
  * else all active members; per notification_prefs; one Resend email to each
@@ -9,11 +10,12 @@
  * intentionally a SEPARATE call from notifyInboundMessage (no inbound message
  * exists — a phone call is not a text), but shares its delivery primitives.
  *
- * Idempotency: the caller only reaches here when claim_missed_call_text CLAIMED
- * the text (its per-call event guard makes that at-most-once per call), so a
- * retried Call-Control webhook never re-alerts. Failures are collected and
- * thrown so the ledger records them; a sweeper replay is a no-op (the claim is
- * already spent).
+ * Idempotency is the CALLER's claim, one of two (#132): the text-dispatched
+ * path holds claim_missed_call_text (at-most-once per call); every other path
+ * fires from the webhook gated on api_thread_call's `event_inserted` (true
+ * exactly once per call session). Either way a retried Call-Control webhook
+ * never re-alerts. Failures are collected and thrown; both callers catch and
+ * log — best-effort alerts are never retried.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,11 +30,13 @@ export interface MissedCallNotificationInput {
   conversationId: string;
   callerE164: string;
   /**
-   * Whether the auto text-back actually reached Telnyx. False = the send
-   * failed (the row sits §7-retryable in the thread) — the alert copy must
-   * NOT claim "we texted them"; it tells the crew to call back instead.
+   * What happened to the auto text-back, because the copy must stay truthful:
+   * 'sent' = Telnyx accepted it; 'failed' = we tried and the send failed (the
+   * row sits §7-retryable in the thread); 'none' = no text was ever attempted
+   * (#132: MCTB off/unauthored, caller opted out, or throttled). Anything but
+   * 'sent' tells the crew to call back instead.
    */
-  textSent: boolean;
+  textStatus: "sent" | "failed" | "none";
 }
 
 interface ConversationView {
@@ -122,11 +126,15 @@ export async function notifyMissedCall(
   // shape only exists inside the service worker's legacy-push normalizer).
   const link = `${env.APP_ORIGIN}/inbox/${input.conversationId}`;
 
-  // Truthful copy: only claim "we texted them" when Telnyx accepted the text.
-  // A failed text makes the miss MORE urgent — tell the crew to call back.
-  const sentLine = input.textSent
-    ? "We sent them a text so they can book by reply."
-    : "We tried to text them but the message didn't go through. Call them back.";
+  // Truthful copy: only claim "we texted them" when Telnyx accepted the text,
+  // and only claim we TRIED when we actually did. No text (or a failed one)
+  // makes the miss MORE urgent — tell the crew to call back.
+  const sentLine =
+    input.textStatus === "sent"
+      ? "We sent them a text so they can book by reply."
+      : input.textStatus === "failed"
+        ? "We tried to text them but the message didn't go through. Call them back."
+        : "They haven't been texted back — call them back when you can.";
 
   const failures: unknown[] = [];
 
@@ -179,9 +187,12 @@ export async function notifyMissedCall(
     );
     const payload = JSON.stringify({
       title: `Missed call from ${contactName}`,
-      body: input.textSent
-        ? "We texted them so they can book by reply."
-        : "Their text-back failed. Call them back.",
+      body:
+        input.textStatus === "sent"
+          ? "We texted them so they can book by reply."
+          : input.textStatus === "failed"
+            ? "Their text-back failed. Call them back."
+            : "No text-back went out. Call them back.",
       url: link,
     });
     for (const subscription of subscriptions) {

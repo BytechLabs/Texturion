@@ -436,4 +436,99 @@ begin
   raise notice 'N6 PASSED: p_hidden_number_ids denies read-model rows, count-consistently';
 end $$;
 
+-- ===========================================================================
+-- N7 (#132). The missed_call bell arm: an INBOUND missed call surfaces to the
+--     assignee (assigned thread) or to every member (unassigned thread);
+--     outbound no-answers and answered calls never appear; a legacy D37 event
+--     with no direction key defaults to inbound; the #106 deny-list drops the
+--     rows and the badge in lockstep.
+-- ===========================================================================
+do $$
+declare
+  member_before bigint; lead_before bigint;
+  member_after bigint; lead_after bigint;
+  cnt int;
+begin
+  member_before := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002');
+  lead_before := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001');
+
+  -- created_at is FUTURE-stamped so every event lands past the watermarks the
+  -- earlier tests advanced (now() is transaction-fixed).
+  insert into public.conversation_events
+    (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
+  values
+    -- A: missed INBOUND on the UNASSIGNED thread T -> member AND lead.
+    ('30000000-0000-4000-8000-000000000011', 'c0000000-0000-4000-8000-000000000001',
+     'f0000000-0000-4000-8000-00000000000c', null, 'call_completed',
+     '{"call_session_id":"n7-a","outcome":"missed","direction":"inbound"}'::jsonb,
+     now() + interval '1 minute'),
+    -- B: missed INBOUND on W (assigned to member) -> member only.
+    ('30000000-0000-4000-8000-000000000012', 'c0000000-0000-4000-8000-000000000001',
+     'f0000000-0000-4000-8000-00000000000a', null, 'call_completed',
+     '{"call_session_id":"n7-b","outcome":"missed","direction":"inbound"}'::jsonb,
+     now() + interval '2 minutes'),
+    -- C: missed OUTBOUND on T -> nobody (the crew's own no-answer is not news).
+    ('30000000-0000-4000-8000-000000000013', 'c0000000-0000-4000-8000-000000000001',
+     'f0000000-0000-4000-8000-00000000000c', null, 'call_completed',
+     '{"call_session_id":"n7-c","outcome":"missed","direction":"outbound"}'::jsonb,
+     now() + interval '3 minutes'),
+    -- D: ANSWERED inbound on T -> not a notification.
+    ('30000000-0000-4000-8000-000000000014', 'c0000000-0000-4000-8000-000000000001',
+     'f0000000-0000-4000-8000-00000000000c', null, 'call_completed',
+     '{"call_session_id":"n7-d","outcome":"answered","forward_seconds":60,"direction":"inbound"}'::jsonb,
+     now() + interval '4 minutes'),
+    -- E: legacy D37 event (no direction key), missed, on U (assigned to
+    --    member) -> defaults to inbound, member only.
+    ('30000000-0000-4000-8000-000000000015', 'c0000000-0000-4000-8000-000000000001',
+     'f0000000-0000-4000-8000-00000000000b', null, 'call_completed',
+     '{"call_session_id":"n7-e","outcome":"missed"}'::jsonb,
+     now() + interval '5 minutes');
+
+  -- Member feed: A (unassigned) + B + E (assigned to them) = 3 missed_call rows.
+  select count(*) into cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null) x
+   where x->>'type' = 'missed_call';
+  if cnt <> 3 then
+    raise exception 'N7 FAILED: member expected 3 missed_call rows, got %', cnt;
+  end if;
+
+  -- Lead feed: A only (B and E belong to the assignee).
+  select count(*) into cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000001', 100, null, null) x
+   where x->>'type' = 'missed_call';
+  if cnt <> 1 then
+    raise exception 'N7 FAILED: lead expected 1 missed_call row, got %', cnt;
+  end if;
+
+  -- The badge twin moved by exactly the same amounts.
+  member_after := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002');
+  lead_after := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001');
+  if member_after - member_before <> 3 then
+    raise exception 'N7 FAILED: member badge moved by % (want 3)',
+      member_after - member_before;
+  end if;
+  if lead_after - lead_before <> 1 then
+    raise exception 'N7 FAILED: lead badge moved by % (want 1)',
+      lead_after - lead_before;
+  end if;
+
+  -- #106: denying the number hides every missed_call row for the member.
+  select count(*) into cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null,
+    array['d0000000-0000-4000-8000-000000000001']::uuid[]) x
+   where x->>'type' = 'missed_call';
+  if cnt <> 0 then
+    raise exception 'N7 FAILED: deny-list left % missed_call rows visible', cnt;
+  end if;
+
+  raise notice 'N7 PASSED: missed_call bell arm (inbound-only, assignee-else-everyone, #106-filtered, badge in lockstep)';
+end $$;
+
 rollback;

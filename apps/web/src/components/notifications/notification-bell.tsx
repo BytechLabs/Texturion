@@ -5,6 +5,7 @@ import {
   CheckCheck,
   ListChecks,
   MessageSquareText,
+  PhoneMissed,
   UserRoundPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ const TYPE_ICON: Record<NotificationType, typeof MessageSquareText> = {
   inbound_message: MessageSquareText,
   assigned: UserRoundPlus,
   task_assigned: ListChecks,
+  missed_call: PhoneMissed,
 };
 
 /** One-line, past-tense summary of a notification (calm — the name is the hero). */
@@ -51,6 +53,8 @@ function describe(item: NotificationItem, name: string): string {
       return `${name} assigned to you`;
     case "task_assigned":
       return `Task assigned · ${name}`;
+    case "missed_call":
+      return `Missed call from ${name}`;
     default:
       return name;
   }
