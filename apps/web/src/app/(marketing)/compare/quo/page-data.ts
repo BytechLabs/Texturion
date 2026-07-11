@@ -79,7 +79,7 @@ export const QUO_ROWS: LedgerTableRow[] = [
     label: "Phone calls",
     cells: [
       {
-        value: "Add-on: forwarding, $8/mo",
+        value: "Add-on: Calling, $8/mo",
         note: "Calls to your number forward to your cell, missed ones get a text-back, and you can call customers back from the business number.",
       },
       {

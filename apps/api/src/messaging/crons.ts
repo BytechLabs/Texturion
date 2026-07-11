@@ -256,8 +256,13 @@ interface UnreportedVoiceRow {
 
 /**
  * D36 (#128) voice twin of {@link reportUnreportedUsage}: meter events for
- * forward legs whose Stripe report never landed (recordCallDuration leaves
- * such rows unstamped). Reports the row's RAW billable_seconds — the same
+ * BILLED legs whose Stripe report never landed (recordCallDuration leaves
+ * such rows unstamped). D38 made the billed set two legs — 'forward'
+ * (inbound) and 'out_customer' (outbound) — one pool, both directions; the
+ * re-reporter retries BOTH (#133 fixed it silently dropping out_customer:
+ * the sweep below stamped them non-billable and the retry query never
+ * selected them, so any outbound leg whose inline report failed was never
+ * billed at all). Reports the row's RAW billable_seconds — the same
  * measure the gate/alerts/usage sum, rated 1¢ per 60 s by the metered
  * price — with the leg id as the identifier and the #53
  * duplicate-identifier stamp-through. Also sweep-stamps any NON-billable
@@ -272,11 +277,13 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
   const db = getDb(env);
 
   // Hygiene sweep: rows that can never bill leave the queue immediately.
+  // Billed legs (forward + out_customer, D38) must NEVER match — a billable
+  // row swept here would be silently un-billed forever.
   const { error: sweepError } = await db
     .from("call_records")
     .update({ stripe_reported_at: new Date().toISOString() })
     .is("stripe_reported_at", null)
-    .or("leg.neq.forward,billable_seconds.eq.0");
+    .or("and(leg.neq.forward,leg.neq.out_customer),billable_seconds.eq.0");
   if (sweepError) {
     throw new Error(`voice non-billable sweep failed: ${sweepError.message}`);
   }
@@ -285,7 +292,7 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
     .from("call_records")
     .select("id,billable_seconds,call_leg_id,companies(stripe_customer_id)")
     .is("stripe_reported_at", null)
-    .eq("leg", "forward")
+    .in("leg", ["forward", "out_customer"])
     .gt("billable_seconds", 0)
     .order("created_at", { ascending: true })
     .limit(REPORT_BATCH);
@@ -322,5 +329,28 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
         `call_records stamp failed: ${stampError.message}`,
       );
     }
+  }
+}
+
+/**
+ * #133: flip call sessions wedged in-flight (outcome NULL past a generous
+ * window — lost terminal webhook, failed transfer with exhausted replays,
+ * dial with no events) to 'missed', the conservative "never proved
+ * connected" outcome for both directions. Keeps /calls honest (no eternal
+ * "Calling…") and re-opens the per-conversation double-dial guard. Billing
+ * is per-leg in call_records and unaffected. The RPC owns the window
+ * (4 hours) so the SQL tests pin it.
+ */
+export async function sweepStaleCalls(env: Env): Promise<void> {
+  const db = getDb(env);
+  const { data, error } = await db.rpc("api_sweep_stale_calls", {
+    p_stale_before: null,
+  });
+  if (error) {
+    throw new Error(`stale calls sweep failed: ${error.message}`);
+  }
+  const swept = (data as number | null) ?? 0;
+  if (swept > 0) {
+    console.warn(`stale calls sweep: ${swept} session(s) flipped to missed`);
   }
 }

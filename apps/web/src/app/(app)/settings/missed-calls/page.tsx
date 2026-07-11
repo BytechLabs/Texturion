@@ -16,8 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useModules } from "@/lib/api/billing";
-import { useCallCell, useSetCallCell } from "@/lib/api/calls";
+import { useCallCell, useSetCallCell, useVerifyCallCell } from "@/lib/api/calls";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
@@ -181,17 +180,20 @@ function ForwardCard({
   company,
   canEdit,
   includedMinutes,
+  overageBilled,
 }: {
   company: CompanyView;
   canEdit: boolean;
   /**
-   * The plan's monthly forwarded-minute allowance (voice.included_minutes
-   * from GET /v1/usage, i.e. PLAN_VOICE_MINUTES). D36: past the allowance,
-   * extra minutes bill at 1¢ each up to the spending cap, where forwarding
-   * pauses — the copy states both so nobody is surprised by a billed minute
-   * or a paused feature.
+   * The plan's monthly calling-minute allowance (voice.included_minutes
+   * from GET /v1/usage; the legacy 300 for a grandfathered module, #133).
+   * D36/D38: one pool, both directions — past it, extra minutes bill at 1¢
+   * each up to the spending cap, where calling pauses; the copy states both
+   * so nobody is surprised by a billed minute or a paused feature.
    */
   includedMinutes: number;
+  /** #133: false = grandfathered — nothing bills, the copy promises a pause. */
+  overageBilled: boolean;
 }) {
   const update = useUpdateCompany();
   const [cell, setCell] = useState(company.forward_to_cell ?? "");
@@ -212,7 +214,7 @@ function ForwardCard({
     update.mutate(
       { forward_to_cell: trimmed.length > 0 ? trimmed : null },
       {
-        onSuccess: () => toast.success("Call forwarding saved."),
+        onSuccess: () => toast.success("Forwarding saved."),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
@@ -258,10 +260,11 @@ function ForwardCard({
           <span className="tabular-nums">
             {includedMinutes.toLocaleString()}
           </span>{" "}
-          forwarded minutes a month. After that, extra minutes bill at 1¢ each
-          up to your spending cap; at the cap, new calls stop forwarding and
-          the caller gets your missed-call text instead, so the bill can never
-          run past what you allowed.
+          calling minutes a month, shared by forwarded calls and calls you
+          place from the app.{" "}
+          {overageBilled
+            ? "After that, extra minutes bill at 1¢ each up to your spending cap; at the cap, calling pauses and the caller gets your missed-call text instead, so the bill can never run past what you allowed."
+            : "When they're used up, calling pauses until your next period and missed callers still get your text-back — nothing extra is ever billed."}
         </p>
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -278,14 +281,22 @@ function ForwardCard({
  * canEdit gate (every member may set their own; PUT /v1/calls/cell only ever
  * writes the caller's row). The thread Call button collects this inline the
  * first time; this card is where it lives afterwards.
+ *
+ * D40 (#133): saving a new number texts it a confirmation code from the
+ * business number, and the card walks through entering it — outbound calls
+ * refuse to dial an unverified cell.
  */
 function YourCellCard() {
   const cellQuery = useCallCell();
   const setCell = useSetCallCell();
+  const verifyCell = useVerifyCallCell();
   const [cell, setCellInput] = useState("");
+  const [code, setCode] = useState("");
+  const [codePending, setCodePending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const saved = cellQuery.data?.call_cell_e164 ?? "";
+  const verified = cellQuery.data?.verified ?? false;
   useEffect(() => setCellInput(saved), [saved]);
 
   const dirty = cell.trim() !== saved;
@@ -299,7 +310,20 @@ function YourCellCard() {
       return;
     }
     setCell.mutate(trimmed.length > 0 ? trimmed : null, {
-      onSuccess: () => toast.success("Your cell is saved."),
+      onSuccess: (data) => {
+        if (data.code_sent) {
+          setCodePending(true);
+          setCode("");
+          toast.success("We texted a code to your cell.");
+        } else {
+          setCodePending(false);
+          toast.success(
+            data.call_cell_e164 === null
+              ? "Your cell is cleared."
+              : "Your cell is saved.",
+          );
+        }
+      },
       onError: (cause) =>
         setError(
           cause instanceof ApiError
@@ -308,6 +332,28 @@ function YourCellCard() {
         ),
     });
   }
+
+  function confirmCode() {
+    setError(null);
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError("Enter the 6-digit code we texted you.");
+      return;
+    }
+    verifyCell.mutate(code.trim(), {
+      onSuccess: () => {
+        setCodePending(false);
+        toast.success("Cell confirmed — you're ready to call customers.");
+      },
+      onError: (cause) =>
+        setError(
+          cause instanceof ApiError
+            ? cause.message
+            : "That didn't work. Try again.",
+        ),
+    });
+  }
+
+  const showCodeStep = codePending || (saved.length > 0 && !verified);
 
   return (
     <SettingsCard
@@ -319,15 +365,27 @@ function YourCellCard() {
             onClick={save}
             disabled={!dirty || invalid || cellQuery.isPending || setCell.isPending}
           >
-            {setCell.isPending ? "Saving…" : "Save your cell"}
+            {setCell.isPending ? "Texting a code…" : "Save your cell"}
           </Button>
         </div>
       }
     >
       <div className="space-y-2">
-        <Label htmlFor="call-cell" className="text-sm font-medium">
-          Call my cell at
-        </Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="call-cell" className="text-sm font-medium">
+            Call my cell at
+          </Label>
+          {saved.length > 0 && verified && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              Verified
+            </span>
+          )}
+          {saved.length > 0 && !verified && (
+            <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
+              Unverified
+            </span>
+          )}
+        </div>
         <Input
           id="call-cell"
           type="tel"
@@ -339,10 +397,45 @@ function YourCellCard() {
           className="max-w-xs"
         />
         <p className="text-xs text-muted-foreground">
-          This is yours alone — every person on the crew sets their own. If
-          it&apos;s blank, the Call button asks for it the first time you use
-          it.
+          This is yours alone — every person on the crew sets their own.
+          Saving a new number texts it a code from your business number;
+          calls only go out once it&apos;s confirmed. If it&apos;s blank, the
+          Call button asks for it the first time you use it.
         </p>
+        {showCodeStep && (
+          <div className="flex flex-wrap items-end gap-2 pt-1">
+            <div className="space-y-1">
+              <Label htmlFor="call-cell-code" className="text-sm font-medium">
+                Enter the code we texted you
+              </Label>
+              <Input
+                id="call-cell-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="123456"
+                value={code}
+                disabled={verifyCell.isPending}
+                onChange={(e) => setCode(e.target.value)}
+                className="max-w-[10rem]"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={confirmCode}
+              disabled={verifyCell.isPending || code.trim().length === 0}
+            >
+              {verifyCell.isPending ? "Checking…" : "Confirm"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={save}
+              disabled={setCell.isPending || cell.trim().length === 0 || invalid}
+            >
+              Resend code
+            </Button>
+          </div>
+        )}
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -355,22 +448,21 @@ function YourCellCard() {
 
 export default function MissedCallsSettingsPage() {
   const company = useCompany();
-  const modules = useModules();
   const usage = useUsage();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   // Missed-call text-back and forward-to-cell are both call features, gated by
-  // the "Call forwarding" (voice) add-on — disabling it clears both settings
+  // the "Calling" (voice) add-on — disabling it clears both settings
   // server-side. Reflect that gate here with a link straight to the add-on.
   const voiceEnabled =
-    (modules.data?.modules ?? []).find((m) => m.id === "voice")?.enabled ?? false;
+    company.data?.enabled_modules.includes("voice") ?? false;
 
   return (
     <SettingsPage
       title="Missed calls"
       description="Turn a missed call into a booked job with one automatic text."
     >
-      {company.isPending || modules.isPending || usage.isPending ? (
+      {company.isPending || usage.isPending ? (
         <MissedCallsSkeleton />
       ) : company.isError || usage.isError ? (
         <LoadError
@@ -381,8 +473,9 @@ export default function MissedCallsSettingsPage() {
         />
       ) : !voiceEnabled ? (
         <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
-          Ringing your cell and texting back missed calls need the{" "}
-          <span className="font-medium text-foreground">Call forwarding</span>{" "}
+          Ringing your cell, calling customers from the app, and texting back
+          missed calls need the{" "}
+          <span className="font-medium text-foreground">Calling</span>{" "}
           add-on:{" "}
           <Link
             href="/settings/billing"
@@ -409,6 +502,7 @@ export default function MissedCallsSettingsPage() {
             company={company.data}
             canEdit={canEdit}
             includedMinutes={usage.data.voice.included_minutes}
+            overageBilled={usage.data.voice.overage_billed}
           />
           <YourCellCard />
         </div>

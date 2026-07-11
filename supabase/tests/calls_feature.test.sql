@@ -263,4 +263,107 @@ begin
   raise notice 'C-5 PASSED: calls RPCs are service-role only';
 end $$;
 
+-- ===========================================================================
+-- C-8 (#133). api_sweep_stale_calls: an in-flight session older than the
+--     window flips to 'missed'; fresh in-flight and already-resolved rows
+--     are untouched. (now() is transaction-fixed, so the sweep is driven by
+--     p_stale_before.)
+-- ===========================================================================
+do $$
+declare n int; v_out text;
+begin
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, direction, outcome, started_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c8-stale', 'outbound', null, now() - interval '5 hours'),
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c8-fresh', 'outbound', null, now() - interval '5 minutes'),
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c8-done', 'inbound', 'answered', now() - interval '6 hours');
+
+  n := public.api_sweep_stale_calls();
+  if n <> 1 then
+    raise exception 'C-8 FAILED: swept % rows (want exactly the stale one)', n;
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c8-stale';
+  if v_out <> 'missed' then
+    raise exception 'C-8 FAILED: stale session outcome % (want missed)', v_out;
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c8-fresh';
+  if v_out is not null then
+    raise exception 'C-8 FAILED: fresh in-flight session was swept';
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c8-done';
+  if v_out <> 'answered' then
+    raise exception 'C-8 FAILED: resolved session was rewritten';
+  end if;
+  raise notice 'C-8 PASSED: stale-calls sweep flips only wedged sessions';
+end $$;
+
+-- ===========================================================================
+-- C-9 (#133). The sweep RPC is service-role only, like every calls RPC.
+-- ===========================================================================
+do $$
+begin
+  if exists (
+    select 1 from information_schema.routine_privileges
+     where routine_name = 'api_sweep_stale_calls'
+       and grantee in ('anon', 'authenticated', 'PUBLIC')
+       and privilege_type = 'EXECUTE'
+  ) then
+    raise exception 'C-9 FAILED: api_sweep_stale_calls executable by non-service roles';
+  end if;
+  raise notice 'C-9 PASSED: sweep RPC is service-role only';
+end $$;
+
+-- ===========================================================================
+-- C-10 (#133 review). api_claim_outbound_dial: the atomic double-dial lease —
+--     one winner per conversation, an expired lease is reclaimable, a live
+--     one is not, and the RPC is service-role only. (Fixture conversation
+--     comes from C-2's threading.)
+-- ===========================================================================
+do $$
+declare v_conv uuid; a boolean; b boolean;
+begin
+  select id into v_conv from public.conversations
+   where company_id = '77777777-7777-4777-8777-777000000000'
+   limit 1;
+  if v_conv is null then
+    raise exception 'C-10 FAILED: no fixture conversation';
+  end if;
+
+  a := public.api_claim_outbound_dial('77777777-7777-4777-8777-777000000000', v_conv);
+  b := public.api_claim_outbound_dial('77777777-7777-4777-8777-777000000000', v_conv);
+  if a is distinct from true or b is distinct from false then
+    raise exception 'C-10 FAILED: claim pair was (%, %) — want (true, false)', a, b;
+  end if;
+
+  -- An EXPIRED lease is stolen by the next claimer.
+  update public.outbound_dial_leases
+     set claimed_at = now() - interval '3 minutes'
+   where conversation_id = v_conv;
+  b := public.api_claim_outbound_dial('77777777-7777-4777-8777-777000000000', v_conv);
+  if b is distinct from true then
+    raise exception 'C-10 FAILED: expired lease not reclaimable';
+  end if;
+
+  -- Release re-opens immediately.
+  delete from public.outbound_dial_leases where conversation_id = v_conv;
+  b := public.api_claim_outbound_dial('77777777-7777-4777-8777-777000000000', v_conv);
+  if b is distinct from true then
+    raise exception 'C-10 FAILED: released lease not claimable';
+  end if;
+
+  if exists (
+    select 1 from information_schema.routine_privileges
+     where routine_name = 'api_claim_outbound_dial'
+       and grantee in ('anon', 'authenticated', 'PUBLIC')
+       and privilege_type = 'EXECUTE'
+  ) then
+    raise exception 'C-10 FAILED: claim RPC executable by non-service roles';
+  end if;
+  raise notice 'C-10 PASSED: atomic dial lease (one winner, TTL steal, release, service-role only)';
+end $$;
+
 rollback;

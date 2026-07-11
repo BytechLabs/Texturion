@@ -112,6 +112,7 @@ describe("GET /v1/me", () => {
       { kind: "brand", status: "approved" },
       { kind: "campaign", status: "pending", rejection_reason: null },
     ]);
+    sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", {

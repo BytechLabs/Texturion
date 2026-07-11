@@ -4,7 +4,9 @@
  * Honesty Ledger centerpiece (page-data.ts; never claims a bundled texting
  * allowance for Quo, because it doesn't sell one) → slider chart (the $19
  * seat price in the chart IS Quo's, sourced here) → the honest calling
- * concession (Quo is a full phone system; Loonext can't place calls) →
+ * concession (Quo is a full phone system; our $8/mo Calling add-on rings
+ * your cell, calls customers back on the business number, and texts back
+ * missed calls, but it is not a full phone system, #133/D38) →
  * switching Truth Strip → CTA. Their $19.50 registration disclosure is
  * credited in the footnote, as the deck orders.
  *
@@ -123,9 +125,10 @@ export default function CompareQuoPage() {
             <p>
               Your business lives on phone calls. Quo makes and receives them,
               with unlimited US and Canada calling on every tier, voicemail,
-              and an AI agent. Loonext cannot place a call; our $8/mo add-on
-              only forwards calls to your cell and texts back the ones you
-              miss.
+              and an AI agent. Loonext is texting-first; our $8/mo Calling
+              add-on rings your cell, lets you call customers back from the
+              app on your business number, and texts back the ones you miss,
+              but it is not a full phone system.
             </p>
             <p>
               You want desktop and mobile apps for a distributed team that

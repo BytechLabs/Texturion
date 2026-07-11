@@ -9,7 +9,6 @@ import {
   Info,
   MoreHorizontal,
   OctagonAlert,
-  Phone,
   Pin,
   PinOff,
   Undo2,
@@ -280,13 +279,17 @@ export function ThreadHeader({
       <div className="flex shrink-0 items-center gap-1.5">
         {/* Call — D38: the outbound bridge (business number presented; your
             cell rings first). Degrades to the old tel: link without the
-            voice module. */}
-        <CallButton
-          conversationId={conversation.id}
-          contactName={name}
-          phone={phone}
-          className="hidden sm:inline-flex"
-        />
+            voice module. Visible at EVERY width (#133 — a trades owner lives
+            on their phone; hiding this below sm left mobile with no way to
+            place a call). #106: calling is outreach like texting, so
+            note-level viewers get no dead control (the API would 403). */}
+        {conversation.viewer_level === "text" && (
+          <CallButton
+            conversationId={conversation.id}
+            contactName={name}
+            phone={phone}
+          />
+        )}
 
         {/* Status: inline pill dropdown — the one status control (the redundant
             Done/Reopen bar button was removed; "Closed" lives in this menu). */}

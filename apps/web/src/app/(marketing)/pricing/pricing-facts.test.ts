@@ -197,8 +197,8 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(storage?.detail).not.toMatch(/\bGB\b/);
 
     // The add-ons figure and prose agree with the module catalog mirror.
-    // #97/#103: no Picture-messages card. #121: no Extra-storage card; call
-    // forwarding is the only add-on.
+    // #97/#103: no Picture-messages card. #121: no Extra-storage card;
+    // Calling is the only add-on.
     const addons = LEDGER.find(
       (e) => e.term === "Optional add-ons, if you turn them on",
     );
@@ -339,12 +339,16 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     expect(over?.a).not.toContain("3×");
   });
 
-  it("keeps the voice add-on facts in the what-am-I-not-getting answer", () => {
+  it("keeps the Calling add-on facts in the what-am-I-not-getting answer", () => {
     const not = FAQS.find(
       (f) => f.q === "What am I not getting at these prices?",
     );
-    expect(not?.a).toContain("call forwarding add-on ($8/mo)");
+    // #133/D38: the add-on is named Calling and covers both directions —
+    // the old "no calling inside the app" claim is false now.
+    expect(not?.a).toContain("Calling add-on ($8/mo)");
+    expect(not?.a).toContain("call them back from the app");
     expect(not?.a).toContain("texts back the ones you miss");
+    expect(not?.a).not.toContain("no calling inside the app");
   });
 
   it("keeps the once-ever registration-fee promise", () => {

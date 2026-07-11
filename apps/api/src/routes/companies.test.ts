@@ -264,6 +264,7 @@ describe("GET /v1/company", () => {
     ]);
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -285,6 +286,7 @@ describe("GET /v1/company", () => {
     ]);
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {

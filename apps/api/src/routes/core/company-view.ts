@@ -44,6 +44,11 @@ interface RegistrationRow {
 export interface CompanyView {
   [key: string]: unknown;
   numbers: unknown[];
+  /** #133: live module ids (e.g. 'voice') — the MEMBER-visible on/off state.
+   *  Every calling surface gates on this; GET /v1/billing/modules is
+   *  admin-only (it carries billing detail), and gating member UI on it made
+   *  every member read as module-off (the tel: personal-cell leak). */
+  enabled_modules: string[];
   registration: {
     brand: RegistrationRow | null;
     campaign: RegistrationRow | null;
@@ -87,9 +92,19 @@ export async function loadCompanyView(
     "messaging_registrations lookup",
   );
 
+  const modules = unwrap<{ module: string }[]>(
+    await db
+      .from("company_modules")
+      .select("module")
+      .eq("company_id", companyId)
+      .is("disabled_at", null),
+    "company_modules lookup",
+  );
+
   return {
     ...company,
     numbers,
+    enabled_modules: modules.map((row) => row.module),
     registration: {
       brand: registrations.find((row) => row.kind === "brand") ?? null,
       campaign: registrations.find((row) => row.kind === "campaign") ?? null,

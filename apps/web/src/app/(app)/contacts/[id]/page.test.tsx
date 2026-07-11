@@ -49,6 +49,25 @@ vi.mock("@/lib/api/team", () => ({
 vi.mock("@/lib/api/conversations", () => ({
   useConversations: () => ({ data: state.conversations }),
 }));
+// #133: the page now mounts CallButton — stub its hook chain so the module
+// graph never reaches src/env.ts (which throws without NEXT_PUBLIC_* vars).
+vi.mock("@/lib/api/companies", () => ({
+  useCompany: () => ({
+    isPending: false,
+    isError: false,
+    data: { enabled_modules: ["voice"] },
+  }),
+}));
+vi.mock("@/lib/api/calls", () => ({
+  useCallCell: () => ({
+    isPending: false,
+    isError: false,
+    data: { call_cell_e164: "+16135557777", verified: true },
+  }),
+  useSetCallCell: () => ({ isPending: false, mutate: vi.fn() }),
+  useVerifyCallCell: () => ({ isPending: false, mutate: vi.fn() }),
+  useStartCall: () => ({ isPending: false, mutate: vi.fn() }),
+}));
 
 import ContactDetailPage from "./page";
 

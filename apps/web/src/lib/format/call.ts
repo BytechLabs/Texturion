@@ -14,7 +14,9 @@ export function formatCallDuration(seconds: number): string {
 
 /** The row's plain-language outcome line. D38: outbound calls speak from
  *  the crew's side ("You called…"; a customer no-answer is "No answer",
- *  never "Missed" — nothing was missed by the crew). */
+ *  never "Missed" — nothing was missed by the crew). A null outcome is a
+ *  session still in flight — say so ("Calling…" / "In progress"), never the
+ *  meaningless bare "Call" (#133). */
 export function callOutcomeLabel(call: {
   outcome: "answered" | "voicemail" | "missed" | null;
   direction?: "inbound" | "outbound";
@@ -36,6 +38,6 @@ export function callOutcomeLabel(call: {
         ? `Answered · ${formatCallDuration(call.forward_seconds)}`
         : "Answered";
     default:
-      return outbound ? "Calling…" : "Call";
+      return outbound ? "Calling…" : "In progress";
   }
 }

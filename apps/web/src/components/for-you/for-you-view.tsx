@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCalls } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 import { useCompleteForYouTask, useForYou } from "@/lib/api/for-you";
 import type {
+  Call,
   ForYou,
   ForYouTask,
   ForYouTriageConversation,
@@ -22,7 +24,8 @@ import type {
 } from "@/lib/api/types";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { useActiveCompany } from "@/lib/company/provider";
-import { contactDisplayName } from "@/lib/format/phone";
+import { callOutcomeLabel } from "@/lib/format/call";
+import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
@@ -62,21 +65,25 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-/** A labeled section: small uppercase label + count, then the calm card list. */
+/** A labeled section: small uppercase label + count, then the calm card list.
+ *  `count` is omitted for ambient sections (Recent calls) — a history count
+ *  is not a workload number. */
 function Section({
   label,
   count,
   children,
 }: {
   label: string;
-  count: number;
+  count?: number;
   children: React.ReactNode;
 }) {
   return (
     <section>
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         {label}
-        {count > 0 && <span className="tabular-nums">{count}</span>}
+        {count !== undefined && count > 0 && (
+          <span className="tabular-nums">{count}</span>
+        )}
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
         {children}
@@ -285,6 +292,84 @@ function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
   );
 }
 
+// --- Recent calls (#133) — ambient call history, the mobile entry point to
+// --- /calls. NEVER part of the queue: no header-count contribution, no
+// --- effect on the caught-up card, no skeleton (it appears when data lands).
+
+const RECENT_CALLS_LIMIT = 3;
+
+/** Caller display, /calls vocabulary: name → formatted number → unknown. */
+function recentCallerName(call: Call): string {
+  if (call.contact_name) return call.contact_name;
+  if (call.caller_e164) return formatPhone(call.caller_e164);
+  return "Unknown caller";
+}
+
+function RecentCallRow({ call }: { call: Call }) {
+  const name = recentCallerName(call);
+  // The /calls accent rule (#64): INBOUND misses are the one warning-tinted
+  // element; everything else (answered, voicemail, outbound) stays quiet.
+  const missedInbound =
+    call.outcome === "missed" && call.direction !== "outbound";
+  return (
+    <Card
+      href={call.conversation_id ? `/inbox/${call.conversation_id}` : "/calls"}
+    >
+      <Avatar name={name} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0 truncate text-[13.5px] font-semibold text-app-ink">
+            {name}
+          </span>
+          <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
+            {formatRelativeTime(call.started_at)}
+          </span>
+        </span>
+        <span className="mt-0.5 flex items-center">
+          {missedInbound ? (
+            <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
+              {callOutcomeLabel(call)}
+            </span>
+          ) : (
+            <span className="text-[11.5px] text-app-muted-2">
+              {callOutcomeLabel(call)}
+            </span>
+          )}
+        </span>
+      </span>
+    </Card>
+  );
+}
+
+/**
+ * The first three calls of the log's first page, in the Section/Card
+ * vocabulary, capped by a quiet "View all calls" jump. Renders nothing until
+ * there is at least one call — absence (while loading, on error, or with an
+ * empty log) is the correct calm state for ambient history.
+ */
+function RecentCallsSection() {
+  const calls = useCalls();
+  const recent = (calls.data?.pages[0]?.data ?? []).slice(
+    0,
+    RECENT_CALLS_LIMIT,
+  );
+  if (recent.length === 0) return null;
+  return (
+    <Section label="Recent calls">
+      {recent.map((call) => (
+        <RecentCallRow key={call.id} call={call} />
+      ))}
+      <Link
+        href="/calls"
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink"
+      >
+        View all calls
+        <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+      </Link>
+    </Section>
+  );
+}
+
 /** A gentle 3-line skeleton for one section while the queue first loads. */
 function SectionSkeleton() {
   return (
@@ -314,6 +399,8 @@ function SectionSkeleton() {
  * Triage (owner/lead), Waiting on you, My tasks, Unread. Each card shows WHY it
  * is here (the concrete signal). The header carries a quiet sub-line, the bell,
  * and the search glyph (opens ⌘K). Calm empty state when the queue clears.
+ * #133 adds an ambient "Recent calls" section below everything — history, not
+ * workload, so it never touches the header count or the caught-up card.
  */
 export function ForYouView() {
   const { role } = useActiveCompany();
@@ -393,23 +480,28 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
     triageCount === 0;
 
   if (everythingEmpty) {
-    // The calm, kind empty state (PORTAL-UX §3.1 / §6).
+    // The calm, kind empty state (PORTAL-UX §3.1 / §6). Recent calls are
+    // ambient history, not to-dos — they render BELOW the caught-up card
+    // without disturbing it (#133).
     return (
-      <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-white px-6 py-16 text-center">
-        <span className="grid size-12 place-items-center rounded-full bg-app-tint">
-          <Check className="size-6 text-app-petrol-deep" strokeWidth={2} aria-hidden />
-        </span>
-        <div className="space-y-1">
-          <p className="text-[15px] font-semibold text-app-ink">
-            You&apos;re all caught up.
-          </p>
-          <p className="text-sm text-app-muted">
-            New leads will show up here.
-          </p>
+      <div className="space-y-7">
+        <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-white px-6 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-full bg-app-tint">
+            <Check className="size-6 text-app-petrol-deep" strokeWidth={2} aria-hidden />
+          </span>
+          <div className="space-y-1">
+            <p className="text-[15px] font-semibold text-app-ink">
+              You&apos;re all caught up.
+            </p>
+            <p className="text-sm text-app-muted">
+              New leads will show up here.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/inbox">Open the inbox</Link>
+          </Button>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/inbox">Open the inbox</Link>
-        </Button>
+        <RecentCallsSection />
       </div>
     );
   }
@@ -450,6 +542,8 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
           ))}
         </Section>
       )}
+
+      <RecentCallsSection />
     </div>
   );
 }

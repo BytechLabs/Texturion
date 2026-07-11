@@ -69,7 +69,7 @@ The meter's payload keys are load-bearing: the usage reporter sends exactly
 | `pro` | `Loonext Pro` | `stripe-setup.ts:121` |
 | `us_registration` | `US texting registration` | `stripe-setup.ts:122-125` |
 | `module_mms` | `Loonext — Picture messages` | `stripe-setup.ts:40,186-190` |
-| `module_voice` | `Loonext — Call forwarding` | `stripe-setup.ts:41,186-190` |
+| `module_voice` | `Loonext — Calling` | `stripe-setup.ts:41,186-190` |
 | `module_extra_storage` | `Loonext — Extra storage` | `stripe-setup.ts:42,186-190` |
 | `module_regions_ca` | `Loonext — Canada numbers` | `stripe-setup.ts:43,186-190` |
 
@@ -83,7 +83,7 @@ The meter's payload keys are load-bearing: the usage reporter sends exactly
 | `loonext_pro_overage` | Pro | metered, graduated: 0–2,500 @ $0, then $0.025/seg (`unit_amount_decimal: "2.5"`); bound to the meter | `stripe-setup.ts:162-173` |
 | `loonext_us_registration` | US registration | $29.00 one-time (`unit_amount: 2900`, no recurring) | `stripe-setup.ts:176-181` |
 | `loonext_module_mms_licensed` | Picture messages | $5.00/mo flat (`unit_amount: 500`) | `stripe-setup.ts:40,191-197` |
-| `loonext_module_voice_licensed` | Call forwarding | $8.00/mo flat (`unit_amount: 800`) | `stripe-setup.ts:41,191-197` |
+| `loonext_module_voice_licensed` | Calling | $8.00/mo flat (`unit_amount: 800`) | `stripe-setup.ts:41,191-197` |
 | `loonext_module_extra_storage_licensed` | Extra storage | $5.00/mo flat (`unit_amount: 500`) | `stripe-setup.ts:42,191-197` |
 | `loonext_module_regions_ca_licensed` | Canada numbers | $5.00/mo flat (`unit_amount: 500`) | `stripe-setup.ts:43,191-197` |
 

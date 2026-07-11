@@ -90,7 +90,13 @@ alert decoupled from the MCTB claim (`api_thread_call.event_inserted` is the
 per-call claim; tri-state sent/failed/none copy), and the per-member "Your
 cell for outbound calls" card on /settings/missed-calls.
 
-Deferred (next wave, in priority order):
-1. A For You "Recent calls" section as the second mobile entry point.
-2. Per-member cell verification; the module label rename
-   ("Call forwarding" → "Calling").
+D40 addendum (2026-07-11, #133): NOTHING remains deferred. Shipped: per-member
+cell verification (SMS code, hashed + attempt/window-capped; the bridge refuses
+unverified cells); the For You "Recent calls" section; the "Calling" rename
+(catalogs, live Stripe product, marketing incl. retired false "can't place
+calls" claims); mobile Call button + contact-page Call; /calls realtime
+(call.updated broadcast) + direction icons + in-flight labels + module-off
+upsell; stale-session sweeper; per-conversation double-dial guard with
+dial-compensation hangups; grandfathered-voice honesty (usage, alerts, copy);
+the voice re-reporter now retries BOTH billed legs; the missed-call push/email
+honors the #106 deny list.

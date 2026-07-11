@@ -62,7 +62,7 @@ const MODULE_PRICES: {
   monthlyCents: number;
   envKey: string;
 }[] = [
-  { id: "voice", label: "Call forwarding", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
+  { id: "voice", label: "Calling", monthlyCents: 800, envKey: "STRIPE_MODULE_VOICE_PRICE_ID" },
   { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },
   // #105 (#80): per-plan extra-number prices — quantity on the subscription =
   // paid extras beyond the plan's included numbers (billing/extra-numbers.ts).
@@ -114,7 +114,17 @@ async function ensureProduct(
     limit: 100,
   })) {
     if (product.metadata.loonext_catalog === catalogKey) {
-      console.error(`product: reusing ${product.id} (${catalogKey})`);
+      // #133: converge the display name — a catalog rename (e.g. "Call
+      // forwarding" → "Calling") must reach the LIVE product, or invoices
+      // keep the old name forever.
+      if (product.name !== name) {
+        await stripe.products.update(product.id, { name });
+        console.error(
+          `product: reusing ${product.id} (${catalogKey}), renamed to "${name}"`,
+        );
+      } else {
+        console.error(`product: reusing ${product.id} (${catalogKey})`);
+      }
       return product;
     }
   }
@@ -235,7 +245,7 @@ try {
   }
 
   // D36 (#128) voice fair-use overage: per-plan graduated metered prices on
-  // the voice SECONDS meter, hung off the Call forwarding product — tier 1
+  // the voice SECONDS meter, hung off the Calling product — tier 1
   // at $0 up to the plan's included allowance (in seconds), then 1¢/60 per
   // second, mirroring the SMS overage shape. Attached alongside the $8
   // licensed item wherever the voice module is on the subscription.

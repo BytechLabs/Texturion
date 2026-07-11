@@ -52,7 +52,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — D36 voice metered price (2,500 min at $0, then 1¢/min) | `price_xxxxxxxxxxxx` |
 | `STRIPE_PRO_VOICE_OVERAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — D36 voice metered price (6,000 min at $0, then 1¢/min) | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_MMS_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Picture messages add-on, $5/mo | `price_xxxxxxxxxxxx` |
-| `STRIPE_MODULE_VOICE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Call forwarding add-on, $8/mo | `price_xxxxxxxxxxxx` |
+| `STRIPE_MODULE_VOICE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Calling add-on, $8/mo | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Extra storage add-on, $5/mo | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Canada numbers add-on, $5/mo. Set it now so the live flip is complete, but the module itself stays **coming soon**: the API refuses to sell `regions_ca` regardless of the price id until multi-region provisioning ships (`apps/api/src/billing/company-modules.ts:26-33`). | `price_xxxxxxxxxxxx` |
 | `POSTHOG_API_KEY` | yes — **OPTIONAL** | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |

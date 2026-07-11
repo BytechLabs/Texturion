@@ -110,7 +110,7 @@ export const PLANS: Plan[] = [
  * later "hide the raw numbers" work points behind. Dash-free (Law 6).
  */
 export const PLAN_FAIR_USE_NOTE =
-  "The message, picture, and forwarding allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Storage is free on every plan, with no caps.";
+  "The message, picture, and calling allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Storage is free on every plan, with no caps.";
 
 /* Honesty Ledger (§5.3): every cost, before you pay. Add-on price mirrors
    apps/api/src/billing/plans.ts + modules.ts (voice $8). #97/#103: pictures
@@ -145,7 +145,7 @@ export const LEDGER: LedgerEntry[] = [
     term: "Optional add-ons, if you turn them on",
     figure: `${VOICE.price}/mo`,
     detail:
-      `One add-on exists: call forwarding with missed-call text-back, ${VOICE.price}/mo with generous forwarded minutes under fair use. It's off by default, you switch it on at signup or later in settings, and you can switch it off the same way. Nothing here is required to text.`,
+      `One add-on exists: Calling, ${VOICE.price}/mo. Calls to your number forward to your cell, you can call customers back from the app on your business number, and callers you miss get an automatic text back, with generous calling minutes under fair use. It's off by default, you switch it on at signup or later in settings, and you can switch it off the same way. Nothing here is required to text.`,
   },
   {
     term: "Tax",
@@ -234,9 +234,9 @@ export const ELSEWHERE_FOOTNOTE =
 /* Pricing FAQ (9). COPY-DECK v2 + #121 amendment: all nine kept, dash-free.
    The photo answer states the included-pictures and free-storage truth
    (#97/#103/#121: no add-on, no caps; counting mechanics live on
-   /legal/fair-use), the "not getting" answer carries the $8 call-forwarding
-   module facts, and the keep-my-number answer mirrors the verified porting
-   story. NO FAQPage JSON-LD. */
+   /legal/fair-use), the "not getting" answer carries the $8 Calling module
+   facts (#133/D38: both directions), and the keep-my-number answer mirrors
+   the verified porting story. NO FAQPage JSON-LD. */
 export const FAQS: { q: string; a: string }[] = [
   {
     q: "Is there a free trial?",
@@ -272,6 +272,6 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What am I not getting at these prices?",
-    a: "Loonext is a shared texting inbox, not a phone system: there's no calling inside the app, no mass text blasts, and no review management. Phone calls aren't left hanging, though. The call forwarding add-on ($8/mo) sends calls on your business number to your cell and texts back the ones you miss, so the lead still lands in your inbox. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "Loonext is a shared texting inbox first, not a full phone system: no mass text blasts, no review management, and calling is an optional add-on rather than the core. The Calling add-on ($8/mo) rings your cell when customers call your business number, lets you call them back from the app on that same number, and texts back the ones you miss, so the lead still lands in your inbox. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];

@@ -169,7 +169,7 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toMatch(/up to 15 people/);
     expect(html).toMatch(/first month is \$58/);
     expect(html).toMatch(/receiving texts is\s+always free and unlimited/i);
-    expect(html).toMatch(/\$8\/mo/); // the call-forwarding add-on fact
+    expect(html).toMatch(/\$8\/mo/); // the Calling add-on fact
   });
 
   it("business-number: free porting, the port window, the sole-prop cap, the US wait", () => {

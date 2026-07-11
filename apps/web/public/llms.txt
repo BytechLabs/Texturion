@@ -22,7 +22,7 @@ Website: https://loonext.com
 - Picture messages (MMS) are included on every plan, both directions, nothing to turn on: receiving photos is free, and sending photos draws on the same fair-use texting and overage rules as everything else you send (counting mechanics at https://loonext.com/legal/fair-use).
 
 ## Optional add-on modules (opt in at signup or later, cancel monthly)
-- Call forwarding, $8/mo: calls to your business number forward to a phone you choose, with generous forwarded minutes under fair use, and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. Concrete minute figures live at https://loonext.com/legal/fair-use.
+- Calling, $8/mo: incoming calls to your business number ring a phone you choose, you can call customers back from the app on your business number (your cell rings first, then the customer is connected, and they always see the business number), and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. One pool of generous calling minutes under fair use covers both directions; concrete minute figures live at https://loonext.com/legal/fair-use.
 - Canadian numbers alongside a US number: coming soon; listed in the catalog but not yet purchasable.
 
 ## Keep your existing number (porting)
@@ -42,7 +42,7 @@ Website: https://loonext.com
 - Tags for how you sell (Quote sent, Scheduled, Won, Lost).
 - Pictures both ways: receiving photos is free on every plan and sending photos is included on every plan too; every photo is stored free, with no caps.
 - After-hours auto-reply: outside your business hours, a message you wrote yourself is sent back automatically (at most once per conversation per burst, so nobody gets spammed).
-- Missed-call text-back and call forwarding via the $8/mo module above.
+- Missed-call text-back and calling, both directions, via the $8/mo module above.
 - Search across every message and contact; CSV contact import with a dry-run preview.
 - Works on every phone with no download (a web app you add to your home screen; push notifications; dark mode).
 - Two numbers on Pro (two locations, or an office line and a field line), each with its own inbox.
@@ -57,7 +57,7 @@ Website: https://loonext.com
 
 ## What Loonext does NOT do
 - No mass/broadcast texting, no scheduled campaigns or blast marketing, no review management.
-- No in-app phone calling: the call-forwarding module forwards calls to an existing phone and texts back missed callers, but calls are not made or answered inside Loonext.
+- No softphone or in-browser call audio: with the Calling module, incoming calls ring your cell and you can place outbound calls from the app on your business number, but the audio always goes through your cell (Loonext rings your phone first, then bridges the customer), not through the browser.
 - No CAD billing yet (charged in USD).
 
 ## Security & data

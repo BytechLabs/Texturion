@@ -94,8 +94,10 @@ function toastSnippet(message: Message | undefined): string {
  * `realtime.setAuth(session token)`. The §8 events patch/invalidate the Query
  * cache by ID (including `task.changed`, TASKS.md T1.3 — the cross-client task
  * signal that refetches the affected conversation's checklist + the /tasks
- * lists); reconnect refetches page 1 of active queries; inbound messages in
- * conversations you are NOT viewing raise a quiet toast (G9).
+ * lists, and `call.updated`, #133 — the calls read model changed, so the
+ * /calls log and the for-you Recent calls section refetch); reconnect
+ * refetches page 1 of active queries; inbound messages in conversations you
+ * are NOT viewing raise a quiet toast (G9).
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
@@ -351,6 +353,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    function handleCallUpdated() {
+      // #133: the calls read model changed (new session, outcome merge). The
+      // /calls surface is a plain server list — refetch it whole rather than
+      // patching rows; the [companyId, "calls"] prefix intentionally covers
+      // every outcome filter (keys.calls) and also matches the outbound-cell
+      // query ([companyId, "calls", "cell"]), which is a harmless extra.
+      void queryClient.invalidateQueries({
+        queryKey: [companyId, "calls"],
+        refetchType: "active",
+      });
+      // For-you hosts the ambient "Recent calls" section (#133); invalidated
+      // DIRECTLY here because useForYouNotificationsRealtime only watches
+      // conversations/messages/tasks keys — 'calls' is not watched (which is
+      // also why this can never loop back through that cache subscription).
+      void queryClient.invalidateQueries({
+        queryKey: keys.forYou(companyId),
+        refetchType: "active",
+      });
+    }
+
     function handleProvisioningUpdate() {
       // number.updated / registration.updated (§8): onboarding + settings
       // states re-read their sources of truth.
@@ -422,6 +444,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       .on("broadcast", { event: "task.changed" }, ({ payload }) =>
         handleTaskChanged(payload as TaskChangedEvent),
       )
+      // #133: {call_id, conversation_id} — ID-only like everything else, and
+      // the handler needs neither: the calls list refetches whole.
+      .on("broadcast", { event: "call.updated" }, handleCallUpdated)
       .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
       .on(
         "broadcast",

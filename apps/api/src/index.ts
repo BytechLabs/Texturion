@@ -18,6 +18,7 @@ import {
   failStuckOutboundSends,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
+  sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
 import { sentryOptions } from "./observability/sentry";
@@ -240,6 +241,9 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
     reportUnreportedVoiceUsage,
     runUsageAlertsJob,
     runOverageWarningJob,
+    // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
+    // stays honest and the per-conversation dial guard re-opens.
+    sweepStaleCalls,
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [nudgeSoleProprietorOtp],

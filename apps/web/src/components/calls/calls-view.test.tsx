@@ -8,13 +8,20 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Call } from "@/lib/api/types";
 
-// Hoisted mock state the useCalls hook reads; tests seed it before rendering.
+// Hoisted mock state the hooks read; tests seed it before rendering.
 const state: {
   rows: Call[];
   isPending: boolean;
   isError: boolean;
   hasNextPage: boolean;
-} = { rows: [], isPending: false, isError: false, hasNextPage: false };
+  voiceEnabled: boolean;
+} = {
+  rows: [],
+  isPending: false,
+  isError: false,
+  hasNextPage: false,
+  voiceEnabled: true,
+};
 
 vi.mock("@/lib/api/calls", () => ({
   useCalls: () => ({
@@ -25,6 +32,13 @@ vi.mock("@/lib/api/calls", () => ({
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
     refetch: vi.fn(),
+  }),
+}));
+vi.mock("@/lib/api/companies", () => ({
+  useCompany: () => ({
+    isPending: false,
+    isError: false,
+    data: { enabled_modules: state.voiceEnabled ? ["voice"] : [] },
   }),
 }));
 
@@ -116,10 +130,84 @@ describe("CallsView (#129)", () => {
     expect(html).not.toContain("bg-warning/10");
   });
 
-  it("empty state points at the calls settings", () => {
+  it("empty state points at the calls settings and names the Calling add-on", () => {
     state.rows = [];
     const html = render();
     expect(html).toContain("Calls to your business number will show up here.");
+    expect(html).toContain(
+      "Turn on the Calling add-on or missed-call text-back",
+    );
     expect(html).toContain('href="/settings/missed-calls"');
+  });
+
+  it("#133: each row carries a muted direction glyph next to the outcome", () => {
+    state.rows = [
+      call({ id: "in-missed", outcome: "missed" }),
+      call({ id: "in-answered", outcome: "answered", forward_seconds: 30 }),
+      call({
+        id: "out-answered",
+        direction: "outbound",
+        outcome: "answered",
+        forward_seconds: 30,
+      }),
+    ];
+    const html = render();
+    expect(html).toContain("lucide-phone-missed");
+    expect(html).toContain("lucide-phone-incoming");
+    expect(html).toContain("lucide-phone-outgoing");
+  });
+
+  it("#133: an unthreaded row explains itself; threaded rows don't", () => {
+    state.rows = [
+      call({
+        id: "unthreaded",
+        conversation_id: null,
+        caller_e164: null,
+        contact_name: null,
+        contact_id: null,
+        outcome: "answered",
+        forward_seconds: 60,
+      }),
+    ];
+    let html = render();
+    expect(html).toContain("Not linked to a conversation");
+
+    state.rows = [call()];
+    html = render();
+    expect(html).not.toContain("Not linked to a conversation");
+  });
+});
+
+/**
+ * #133: the log keeps working with the voice module off (history is history),
+ * but a slim banner above the list says calling itself is off and points at
+ * the Calling add-on. Never shown while the module is on, and never doubled
+ * onto the empty state (which already carries the setup pointer).
+ */
+describe("CallsView module-off banner (#133)", () => {
+  it("shows the banner above rows when the voice module is off", () => {
+    state.voiceEnabled = false;
+    state.rows = [call()];
+    const html = render();
+    expect(html).toContain("Calls land here, but calling is off");
+    expect(html).toContain("Calling add-on");
+    expect(html).toContain("to ring your cell and call customers back");
+    expect(html).toContain('href="/settings/billing"');
+  });
+
+  it("hides the banner when there are no rows (the empty state speaks instead)", () => {
+    state.voiceEnabled = false;
+    state.rows = [];
+    const html = render();
+    expect(html).not.toContain("Calls land here, but calling is off");
+    expect(html).toContain("Calls to your business number will show up here.");
+  });
+
+  it("hides the banner when the module is on", () => {
+    state.voiceEnabled = true;
+    state.rows = [call()];
+    const html = render();
+    expect(html).not.toContain("Calls land here, but calling is off");
+    expect(html).not.toContain('href="/settings/billing"');
   });
 });

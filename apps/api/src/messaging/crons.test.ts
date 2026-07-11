@@ -370,7 +370,7 @@ describe("reportUnreportedUsage", () => {
 });
 
 describe("reportUnreportedVoiceUsage (D36)", () => {
-  it("re-reports unstamped forward legs as RAW SECONDS and stamps them", async () => {
+  it("re-reports unstamped billed legs as RAW SECONDS and stamps them", async () => {
     const voiceQuery = stubRoute(
       restMatch(env, "GET", "call_records"),
       () => [
@@ -403,16 +403,21 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
 
     // The hygiene sweep stamps non-billable rows first (no id filter, an OR
     // on leg/seconds), then the queue read, then the per-row guarded stamp.
+    // #133: the sweep must spare BOTH billed legs — a swept out_customer row
+    // whose inline report failed would be silently un-billed forever.
     const sweep = stamp.calls.filter(
       (call) => call.url.searchParams.get("id") === null,
     );
     expect(sweep).toHaveLength(1);
-    expect(sweep[0].url.searchParams.get("or")).toContain("leg.neq.forward");
+    expect(sweep[0].url.searchParams.get("or")).toContain(
+      "and(leg.neq.forward,leg.neq.out_customer)",
+    );
 
-    // The queue is the local stamp gate, forward legs with billable time only.
+    // The queue is the local stamp gate, BILLED legs with billable time only
+    // (one pool, both directions — D38).
     const query = voiceQuery.calls[0].url.searchParams;
     expect(query.get("stripe_reported_at")).toBe("is.null");
-    expect(query.get("leg")).toBe("eq.forward");
+    expect(query.get("leg")).toBe("in.(forward,out_customer)");
     expect(query.get("billable_seconds")).toBe("gt.0");
 
     expect(meter.calls).toHaveLength(1);

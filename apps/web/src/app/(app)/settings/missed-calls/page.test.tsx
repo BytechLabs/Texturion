@@ -9,12 +9,16 @@ const state: {
   voiceEnabled: boolean;
 } = { includedMinutes: 2500, voiceEnabled: true };
 
-const company: CompanyView = {
+const company = {
   name: "Ace Plumbing",
   mctb_enabled: false,
   mctb_message: null,
   forward_to_cell: null,
   numbers: [],
+  // #133: the member-visible module state lives on the company view.
+  get enabled_modules() {
+    return state.voiceEnabled ? ["voice"] : [];
+  },
 } as unknown as CompanyView;
 
 vi.mock("@/lib/api/companies", () => ({
@@ -38,7 +42,11 @@ vi.mock("@/lib/api/usage", () => ({
     isPending: false,
     isError: false,
     data: {
-      voice: { used_minutes: 0, included_minutes: state.includedMinutes },
+      voice: {
+        used_minutes: 0,
+        included_minutes: state.includedMinutes,
+        overage_billed: true,
+      },
     } as unknown as Usage,
     refetch: vi.fn(),
   }),
@@ -50,9 +58,10 @@ vi.mock("@/lib/api/calls", () => ({
   useCallCell: () => ({
     isPending: false,
     isError: false,
-    data: { call_cell_e164: null },
+    data: { call_cell_e164: null, verified: false },
   }),
   useSetCallCell: () => ({ isPending: false, mutate: vi.fn() }),
+  useVerifyCallCell: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
 import MissedCallsSettingsPage from "./page";
@@ -75,10 +84,12 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
     state.includedMinutes = 2500;
     const html = render();
     expect(html).toContain("2,500");
-    expect(html).toContain("forwarded minutes a month");
+    expect(html).toContain("calling minutes a month");
+    // D38: one pool, both directions — the copy must say what drains it.
+    expect(html).toContain("calls you place from the app");
     expect(html).toContain("1¢ each");
     expect(html).toContain("spending cap");
-    expect(html).toContain("stop forwarding");
+    expect(html).toContain("calling pauses");
     expect(html).toContain("missed-call text");
   });
 

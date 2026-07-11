@@ -144,10 +144,12 @@ function PeriodMeter({ usage }: { usage: Usage }) {
   );
 }
 
-/** #12/D36: forwarded minutes vs the fair-use allowance. Past the allowance,
- *  extra minutes bill at 1¢ each (mirroring the texts meter); forwarding only
- *  pauses at the spending cap. This is an in-app honesty surface, so concrete
- *  figures are allowed here (D34). */
+/** #12/D36/D38: calling minutes (both directions — forwarded calls AND calls
+ *  placed from the app) vs the fair-use allowance. Past the allowance, extra
+ *  minutes bill at 1¢ each (mirroring the texts meter); calling only pauses
+ *  at the spending cap. #133 grandfathered: nothing bills — the copy promises
+ *  the pause instead. This is an in-app honesty surface, so concrete figures
+ *  are allowed here (D34). */
 function VoiceMeter({ voice }: { voice: UsageVoice }) {
   const ratio =
     voice.included_minutes > 0
@@ -166,7 +168,7 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
         <span className="text-muted-foreground">
           of {voice.included_minutes.toLocaleString()} included
         </span>
-        {overMinutes > 0 && (
+        {overMinutes > 0 && voice.overage_billed && (
           <span className="text-warning">
             {overMinutes.toLocaleString()} extra at 1¢ each
           </span>
@@ -177,7 +179,7 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
         aria-valuemin={0}
         aria-valuemax={voice.included_minutes}
         aria-valuenow={Math.min(voice.used_minutes, voice.included_minutes)}
-        aria-label={`${voice.used_minutes} of ${voice.included_minutes} included forwarded minutes used`}
+        aria-label={`${voice.used_minutes} of ${voice.included_minutes} included calling minutes used`}
         className="h-2 w-full overflow-hidden rounded-full bg-secondary"
       >
         <div
@@ -188,19 +190,28 @@ function VoiceMeter({ voice }: { voice: UsageVoice }) {
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-sm text-muted-foreground">
-        Calls forwarded to your cell use these minutes. Past the included
-        minutes, extra minutes bill at 1¢ each on your next invoice
-        {voice.cap_minutes !== null && (
-          <>
-            , up to your spending cap ({voice.cap_minutes.toLocaleString()}{" "}
-            min)
-          </>
-        )}
-        . At the cap, new calls stop forwarding and callers get your
-        missed-call text instead, so the bill can never run past what you
-        allowed.
-      </p>
+      {voice.overage_billed ? (
+        <p className="text-sm text-muted-foreground">
+          Calls forwarded to your cell and calls you place from the app share
+          these minutes. Past the included minutes, extra minutes bill at 1¢
+          each on your next invoice
+          {voice.cap_minutes !== null && (
+            <>
+              , up to your spending cap ({voice.cap_minutes.toLocaleString()}{" "}
+              min)
+            </>
+          )}
+          . At the cap, calling pauses — callers get your missed-call text
+          instead — so the bill can never run past what you allowed.
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Calls forwarded to your cell and calls you place from the app share
+          these minutes. When they&apos;re used up, calling pauses until your
+          next period and missed callers still get your text-back — nothing
+          extra is ever billed.
+        </p>
+      )}
     </div>
   );
 }
@@ -357,10 +368,14 @@ export default function UsageSettingsPage() {
     (!!data && nearLimit(data.used_segments, data.included_segments));
   // #121: no storage gate — storage is free and capless, so it is not a
   // usage concern and has no card on this page at all.
+  // #133: any calling activity shows the meter — below 80% there was
+  // previously NO place in the app to see calling minutes at all. Zero
+  // usage stays calm (module off / nobody calls -> no card).
   const showVoice =
     !!data &&
     data.voice.included_minutes > 0 &&
-    (trending ||
+    (data.voice.used_minutes > 0 ||
+      trending ||
       nearLimit(data.voice.used_minutes, data.voice.included_minutes));
   // #97/#103: no picture-message meter — pictures count 3 segments each in the
   // message meter above, with no separate cap.
@@ -412,7 +427,7 @@ export default function UsageSettingsPage() {
               static alert emails at the same threshold, so nothing goes
               unwatched — the meter just stays calm until it matters. */}
           {showVoice && (
-            <SettingsCard title="Call forwarding">
+            <SettingsCard title="Calling">
               <VoiceMeter voice={usage.data.voice} />
             </SettingsCard>
           )}

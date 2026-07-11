@@ -123,9 +123,11 @@ describe("quo ledger facts (their published prices, July 2026)", () => {
     expect(flat).toContain("$1.50 to $3/mo");
   });
 
-  it("concedes Quo's included calling outright and states our $8/mo forwarding add-on", () => {
+  it("concedes Quo's included calling outright and states our $8/mo Calling add-on", () => {
     expect(flat).toContain("Included, US and Canada");
-    expect(flat).toContain("$8/mo");
+    expect(flat).toContain("Add-on: Calling, $8/mo");
+    // #133/D38: the add-on covers both directions, not forwarding alone.
+    expect(flat).toContain("call customers back from the business number");
   });
 
   it("credits their $19.50 registration disclosure in the footnote (deck order)", () => {

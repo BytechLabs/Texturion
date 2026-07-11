@@ -5,6 +5,7 @@
  * import path without duplicating the values.
  */
 import {
+  GRANDFATHERED_VOICE_MINUTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_LIMITS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
@@ -14,6 +15,7 @@ import {
 } from "../../billing/plans";
 
 export {
+  GRANDFATHERED_VOICE_MINUTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,

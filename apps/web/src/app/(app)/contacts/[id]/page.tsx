@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { CallButton } from "@/components/calls/call-button";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -175,7 +176,21 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             exists, open it; otherwise start one via the compose flow (which
             prefills the recipient from ?contact=). Opted-out contacts are gated
             honestly by the composer's own opt-out banner. */}
-        <Button asChild className="ml-auto">
+        {/* #133: call from everywhere you can text. The bridge needs a
+            conversation (the business number to present comes from it), so
+            the control appears once one exists. Opted-out contacts stay
+            callable (D38: STOP is SMS consent — a requested callback may be
+            the only channel). #106 note-level members get the API's honest
+            error — the list row carries no viewer level to gate client-side. */}
+        {existingConversation && (
+          <CallButton
+            conversationId={existingConversation.id}
+            contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
+            phone={contact.phone_e164}
+            className="ml-auto"
+          />
+        )}
+        <Button asChild className={existingConversation ? undefined : "ml-auto"}>
           <Link
             href={
               existingConversation

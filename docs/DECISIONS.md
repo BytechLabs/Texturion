@@ -1284,3 +1284,70 @@ binding choices:
   their own; the Call button's first-use dialog remains the inline collection point).
 - **Still deferred:** For You "Recent calls" section; per-member cell verification; the
   "Call forwarding" → "Calling" label rename.
+
+## D40. The product finishes: cell verification, Recent calls, the Calling rename, and every audit gap (#133, 2026-07-11)
+
+Founder directive: nothing deferred, no half-baked shortcuts. A five-agent discovery +
+adversarial audit mapped the remaining surface; everything confirmed shipped in one wave.
+
+- **Cell verification (the headline):** the bridge may only dial a cell its member has
+  PROVEN they hold. PUT /v1/calls/cell texts a 6-digit code from the business number —
+  a RAW Telnyx send: no messages row, so it can never meter, bill, or count against
+  rate/cap arithmetic (status webhooks for it are ledgered no-ops); it runs the full
+  runPreSendGates compliance chain and pre-checks opt_outs (a prior STOP would otherwise
+  40300-drop the code invisibly). Codes live hashed (sha-256, membership-scoped) with a
+  10-min TTL, 5 guarded-increment attempts, a 60s resend cooldown, a 6-per-24h durable
+  window (cost protection — every send is our money), and VERIFY_RATE_LIMITER keyed on
+  the TARGET cell. POST /v1/calls refuses an unverified cell; cells that predate D40
+  grandfather as verified (they were collected under D38 and already placed real calls).
+  Migration `20260711100000`.
+- **Both BROKEN audit findings fixed:** (1) the voice re-reporter dropped out_customer
+  legs — its hygiene sweep stamped them non-billable and its retry query never selected
+  them, so any outbound leg whose inline Stripe report failed was silently un-billed
+  forever; both billed legs now retry (crons.ts). (2) notifyMissedCall ignored the #106
+  deny list the bell arm honors — level-'none' members received the caller's name by
+  email/push; the audience filter now mirrors notifyInboundMessage.
+- **Liveness:** `calls` gains a §8 broadcast trigger (`call.updated`) + web invalidation,
+  so /calls and the For You section update live; `api_sweep_stale_calls` (hourly cron)
+  flips sessions wedged in-flight >4h to 'missed' (migration `20260711110000`; trade:
+  a >4h-late answered hangup can no longer correct the row — at that age the webhook is
+  lost, not late). POST /v1/calls adds a per-conversation in-flight guard (double-dial =
+  double Telnyx spend), hangs up the agent leg when Telnyx returns no session id or when
+  post-dial persistence fails (the retry-inviting error must be safe to obey), and the
+  Call button holds a 30s "calling" state instead of instantly re-arming.
+- **Grandfathered honesty:** usage.ts, the alerts job, and every fed surface now read the
+  module's grandfathered flag — included = 300, cap = allowance, `overage_billed: false`,
+  pause-not-bill copy, and the 80%/100% alerts fire against the REAL pause line (they
+  previously fired at 12% of it… i.e. never before the pause).
+- **Reach:** the Call button is visible on MOBILE (it was `hidden sm:inline-flex` — the
+  phone-first customer literally could not call), gated off for #106 note-level viewers
+  (dead control), rendered disabled while modules load (the tel: fallback leaked personal
+  cells in that window), and the contact page gains the same Call control next to
+  Message. For You gains "Recent calls" (3 rows + View all — the mobile entry point).
+  /calls rows carry direction icons, in-flight labels ("Calling…"/"In progress"), an
+  unthreaded-row explainer, and a module-off upsell banner when rows exist.
+- **The rename:** the module is "Calling" in both catalogs, the live Stripe product
+  (renamed in place — `prod_UqjfyFqM50VpvM` → "Loonext — Calling"; stripe-setup now
+  converges names), every app string, and all marketing/docs — including retiring the
+  now-FALSE claims "Loonext can't place calls" / "no calling inside the app" on the
+  compare pages and llms.txt. "Forwarding" survives only as the verb for the inbound
+  mechanic.
+
+**D40 addendum — adversarial review (34 agents), 11 confirmed findings, all fixed
+before ship:** the verify handler's TOCTOU (an old code could verify a NEWLY-PUT
+number — the exact harassment-by-proxy D40 exists to stop) closed by scoping the
+code hash to the CELL and guarding the success UPDATE on (cell, hash); the
+double-dial guard made atomic (`api_claim_outbound_dial` lease, one winner per
+conversation, 2-min TTL, released once the calls row is visible) with the state
+check extended to the 4h sweeper window (it lapsed 10 minutes into a live call);
+the code-send window made a guarded increment (the 6/24h budget is enforced, not
+observed); grandfathered alert thresholds ledger under `voice_minutes_grandfathered`
+so a mid-period paid upgrade re-arms the plan alerts; the overage projection reads
+the grandfathered flag (no phantom 1¢ revenue, ceiling at the legacy line, no
+phantom $8 module revenue); and the wave's biggest catch — every calling surface
+gated module state on ADMIN-ONLY GET /v1/billing/modules, so plain members always
+read module-off and got the tel: personal-cell leak: the company view now carries
+member-visible `enabled_modules` and every gate reads it (errored/loading state
+renders a disabled button, never tel:). Verify dialog opens on the code step for
+a saved-unverified cell with an explicit Resend. #106 alert tests use schema-real
+fixtures and pin the notes-only case.

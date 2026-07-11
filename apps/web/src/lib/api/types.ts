@@ -216,6 +216,11 @@ export interface CompanyView {
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];
+  /** #133: live module ids ('voice', 'regions_ca') — the MEMBER-visible
+   *  on/off state. Calling surfaces gate on this, never on the admin-only
+   *  GET /v1/billing/modules (a member reading that gets 403, which made
+   *  every member render as module-off — the tel: personal-cell leak). */
+  enabled_modules: string[];
   registration: {
     brand: RegistrationSummary | null;
     campaign: RegistrationSummary | null;
@@ -685,21 +690,27 @@ export interface UsageStorage {
   mms_budget_bytes: number;
 }
 
-/** #12/D36 call-forwarding minutes embedded in GET /v1/usage. */
+/** #12/D36 calling minutes embedded in GET /v1/usage (both directions, D38). */
 export interface UsageVoice {
-  /** Whole forwarded (dialed-leg) minutes this period — the fair-use measure
-   *  the allowance, the 1¢/min overage meter, and the cap share (D36). */
+  /** Whole billed-leg minutes this period (forwarded + outbound talk time) —
+   *  the fair-use measure the allowance, the overage meter, and the cap
+   *  share (D36/D38). */
   used_minutes: number;
-  /** Included forwarded minutes for the plan (0 pre-checkout). */
+  /** Included calling minutes (0 pre-checkout; the legacy 300 when the
+   *  module is grandfathered, #133). */
   included_minutes: number;
-  /** D36: minutes where forwarding pauses — included × the same spending-cap
-   *  multiplier as texts. Null pre-checkout. */
+  /** D36: minutes where calling pauses — included × the same spending-cap
+   *  multiplier as texts. Null pre-checkout. Grandfathered (#133): equals
+   *  included_minutes (nothing bills; the allowance IS the pause line). */
   cap_minutes: number | null;
   /** D36: whole minutes past the allowance so far (billed at 1¢ each,
-   *  rated to the second). */
+   *  rated to the second; always 0 when overage_billed is false). */
   overage_minutes: number;
   /** D36: overage-so-far in cents (exact overage seconds ÷ 60 × 1¢). */
   projected_overage_cents: number;
+  /** #133: false = a grandfathered module — extra minutes never bill and
+   *  calling pauses at included_minutes; every 1¢ promise must hide. */
+  overage_billed: boolean;
 }
 
 /** #85 dynamic overage projection embedded in GET /v1/usage. */
@@ -730,7 +741,7 @@ export interface Usage {
   history: UsageMonth[];
   /** D30: the company's stored bytes, both arms. */
   storage: UsageStorage;
-  /** #12: call-forwarding minutes used vs the plan allowance. */
+  /** #12: calling minutes used vs the plan allowance (both directions). */
   voice: UsageVoice;
   // #97/#103: no `mms` meter — pictures count 3 segments each in the message
   // meter, with no separate cap.
@@ -755,6 +766,17 @@ export interface Call {
   direction: "inbound" | "outbound";
   forward_seconds: number;
   started_at: string;
+}
+
+/**
+ * GET/PUT /v1/calls/cell (D38, verification D40/#133). `verified` false =
+ * the bridge refuses to dial until the texted code is confirmed;
+ * `code_sent` (PUT only) = a fresh code is on its way to the cell.
+ */
+export interface CallCell {
+  call_cell_e164: string | null;
+  verified: boolean;
+  code_sent?: boolean;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
@@ -885,11 +907,11 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
   // (each picture counts as three texts from the monthly allowance).
   {
     id: "voice",
-    label: "Call forwarding",
+    label: "Calling",
     blurb: "Call customers and forward calls from your business number.",
     price: "$8",
     // #121: the minute figure lives in the fair-use policy, not sales copy.
-    detail: "Generous forwarded minutes under fair use.",
+    detail: "Generous calling minutes under fair use.",
   },
   {
     id: "regions_ca",

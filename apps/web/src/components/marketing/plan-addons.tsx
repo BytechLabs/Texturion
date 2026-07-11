@@ -74,7 +74,7 @@ export function PlanAddons() {
         </h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
           The base plan is the complete shared inbox, nothing above is held
-          back. Call forwarding is the only add-on that exists, optional and
+          back. Calling is the only add-on that exists, optional and
           priced right here, with the limits written out before you pay.
         </p>
       </div>

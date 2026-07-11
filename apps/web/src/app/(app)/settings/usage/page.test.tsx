@@ -53,6 +53,7 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
       cap_minutes: null,
       overage_minutes: 0,
       projected_overage_cents: 0,
+      overage_billed: true,
     },
     ...overrides,
   };
@@ -130,6 +131,7 @@ describe("/settings/usage voice meter (D36)", () => {
     cap_minutes: 7500,
     overage_minutes: 100,
     projected_overage_cents: 100,
+    overage_billed: true,
   };
 
   it("states the 1¢/min overage, the cap pause point, and the overage so far", () => {
@@ -139,8 +141,29 @@ describe("/settings/usage voice meter (D36)", () => {
     expect(html).toContain("100 extra at 1¢ each");
     expect(html).toContain("bill at 1¢ each");
     expect(html).toContain("spending cap (7,500 min)");
-    expect(html).toContain("stop forwarding");
+    expect(html).toContain("calling pauses");
     expect(html).toContain("missed-call text");
+    // D38: the meter names BOTH directions, never just forwarding.
+    expect(html).toContain("calls you place from the app");
+  });
+
+  it("#133 grandfathered: promises the pause, never a 1¢ charge", () => {
+    const html = render(
+      baseUsage({
+        voice: {
+          used_minutes: 250,
+          included_minutes: 300,
+          cap_minutes: 300,
+          overage_minutes: 0,
+          projected_overage_cents: 0,
+          overage_billed: false,
+        },
+      }),
+    );
+    expect(html).toContain("Calling");
+    expect(html).toContain("300");
+    expect(html).toContain("nothing extra is ever billed");
+    expect(html).not.toContain("1¢");
   });
 
   it("never claims calls stop forwarding at the allowance", () => {
@@ -149,7 +172,7 @@ describe("/settings/usage voice meter (D36)", () => {
     expect(html).not.toContain("phone bill can't run past your plan");
   });
 
-  it("stays hidden while voice usage is comfortably within plan", () => {
+  it("#133: ANY calling activity shows the meter (there is no other place to see minutes)", () => {
     const html = render(
       baseUsage({
         voice: {
@@ -158,10 +181,27 @@ describe("/settings/usage voice meter (D36)", () => {
           cap_minutes: 7500,
           overage_minutes: 0,
           projected_overage_cents: 0,
+          overage_billed: true,
         },
       }),
     );
-    expect(html).not.toContain("Call forwarding");
+    expect(html).toContain("included calling minutes used");
+  });
+
+  it("stays hidden with zero calling activity", () => {
+    const html = render(
+      baseUsage({
+        voice: {
+          used_minutes: 0,
+          included_minutes: 2500,
+          cap_minutes: 7500,
+          overage_minutes: 0,
+          projected_overage_cents: 0,
+          overage_billed: true,
+        },
+      }),
+    );
+    expect(html).not.toContain("included calling minutes used");
   });
 });
 

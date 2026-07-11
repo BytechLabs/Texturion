@@ -301,7 +301,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   const db = getDb(env);
 
   // #12 plan builder: call forwarding + missed-call text-back are the opt-in
-  // "Call forwarding" add-on. Block a settings change that TURNS them on when
+  // "Calling" add-on. Block a settings change that TURNS them on when
   // the module is off — a clear upsell before any voice cost is possible.
   // Grandfathered companies (a forward number or MCTB already on) have the
   // module, so this never bites an existing voice user.
@@ -312,7 +312,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if (enablingVoice && !(await isModuleEnabled(db, c.get("companyId"), "voice"))) {
     throw new ApiError(
       "conflict",
-      "Call forwarding needs the Call forwarding add-on — turn it on in Settings › Billing.",
+      "Forwarding calls and texting back missed calls need the Calling add-on — turn it on in Settings › Billing.",
     );
   }
 

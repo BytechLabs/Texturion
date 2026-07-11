@@ -7,9 +7,11 @@
  * avatar, 14px name, 11.5px tabular time), a StatusPill-recipe outcome pill
  * (missed = warning tint — the row's ONE tinted element; answered/voicemail
  * stay quiet), and CalmEmptyState. Missed is the only filter: the weekly
- * question is "who called and do I need to act?".
+ * question is "who called and do I need to act?". #133 polish: a muted
+ * direction glyph per row, a quiet explainer on unthreaded rows, and a slim
+ * module-off banner above the list (history keeps working; calling doesn't).
  */
-import { PhoneIncoming } from "lucide-react";
+import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -17,6 +19,7 @@ import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCompany } from "@/lib/api/companies";
 import { useCalls, type CallOutcomeFilter } from "@/lib/api/calls";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
@@ -28,6 +31,26 @@ function callerName(call: Call): string {
   if (call.contact_name) return call.contact_name;
   if (call.caller_e164) return formatPhone(call.caller_e164);
   return "Unknown caller";
+}
+
+/** #133: a small muted direction glyph on the meta line — at a glance,
+ *  who called whom. Inbound misses get PhoneMissed, every other inbound
+ *  call PhoneIncoming, outbound calls PhoneOutgoing. Muted always; the
+ *  warning tint stays the OutcomePill's alone (accent budget #64). */
+function DirectionIcon({ call }: { call: Call }) {
+  const Icon =
+    call.direction === "outbound"
+      ? PhoneOutgoing
+      : call.outcome === "missed"
+        ? PhoneMissed
+        : PhoneIncoming;
+  return (
+    <Icon
+      aria-hidden
+      className="size-3.5 shrink-0 text-app-muted-2"
+      strokeWidth={1.75}
+    />
+  );
 }
 
 /** The one tinted element per row (accent budget): INBOUND misses only —
@@ -67,7 +90,15 @@ function CallRow({ call }: { call: Call }) {
           </span>
         </span>
         <span className="mt-0.5 flex items-center gap-2">
+          <DirectionIcon call={call} />
           <OutcomePill call={call} />
+          {/* #133: an unthreaded row (anonymous caller / no open thread) is
+              deliberately not a link — say why, quietly. */}
+          {!call.conversation_id && (
+            <span className="ml-auto shrink-0 text-[12px] text-app-muted-2">
+              Not linked to a conversation
+            </span>
+          )}
         </span>
       </span>
     </>
@@ -105,6 +136,15 @@ export function CallsView() {
   );
   const calls = useCalls(outcome);
   const rows = calls.data?.pages.flatMap((page) => page.data) ?? [];
+  // #133: the log keeps working with the voice module off (history is
+  // history), but forwarding + outbound calling don't — say so above the
+  // list, once the module state has actually loaded (no flash while pending).
+  // Member-visible module state (#133 review: GET /v1/billing/modules is
+  // admin-only — members reading it 403'd and every member saw "module off").
+  const company = useCompany();
+  const voiceOff =
+    company.data !== undefined &&
+    !company.data.enabled_modules.includes("voice");
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
@@ -139,6 +179,19 @@ export function CallsView() {
           })}
         </div>
       </div>
+
+      {voiceOff && rows.length > 0 && (
+        <div className="rounded-app-card border border-app-line bg-app-white px-4 py-3 text-[12.5px] leading-relaxed text-app-muted">
+          Calls land here, but calling is off — turn on the{" "}
+          <Link
+            href="/settings/billing"
+            className="font-medium text-app-petrol-deep underline underline-offset-4 hover:no-underline"
+          >
+            Calling add-on
+          </Link>{" "}
+          to ring your cell and call customers back.
+        </div>
+      )}
 
       <section>
         <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
@@ -182,7 +235,7 @@ export function CallsView() {
               description={
                 outcome === "missed"
                   ? undefined
-                  : "Turn on call forwarding or missed-call text-back and every call lands in this log and its conversation."
+                  : "Turn on the Calling add-on or missed-call text-back and every call lands in this log and its conversation."
               }
               action={
                 outcome === "missed" ? undefined : (

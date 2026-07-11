@@ -159,8 +159,10 @@ that ever pauses.
   of the problem and you can text back a photo of the fix.
 - An after-hours auto-reply in your own words, sent at most once per
   conversation so nobody gets spammed.
-- Missed-call text-back and optional call forwarding, so a missed call still
-  turns into a conversation instead of a lost job.
+- An optional Calling add-on ($8/mo): calls to your business number ring your
+  cell, you can call customers back from the app on your business number, and
+  missed callers get an automatic text back, so a missed call still turns into
+  a conversation instead of a lost job.
 - Search across every message and contact, and CSV contact import with a
   dry-run preview.
 - Tasks: turn any message into a tracked to-do with an assignee and a due date.
@@ -207,7 +209,7 @@ one inbox, your whole crew.
 - Turn any text into a task with an assignee and due date
 - Pictures both ways, included on every plan
 - After-hours auto-reply in your own words
-- Missed-call text-back and optional call forwarding ($8/mo add-on)
+- Optional Calling add-on ($8/mo): forwarded calls, outbound calls from the app on the business number, and missed-call text-back
 - Search across every message and contact
 - CSV contact import with a dry-run preview
 - Two numbers on Pro (two locations, or office and field lines)

@@ -53,7 +53,7 @@ you want product analytics (`apps/api/src/env.ts:75`).
 > **The four `STRIPE_MODULE_*_PRICE_ID` secrets are launch-required even though
 > the schema marks them optional** (`apps/api/src/env.ts:64-67` — optional only
 > so the Worker can boot before the Stripe catalog exists). With any of them
-> unset, that opt-in add-on (Picture messages $5/mo, Call forwarding $8/mo,
+> unset, that opt-in add-on (Picture messages $5/mo, Calling $8/mo,
 > Extra storage $5/mo) is refused at checkout and in the module toggle as
 > "isn't available yet" (`apps/api/src/routes/billing.ts:190-200,553-559`) —
 > skipping them silently disables sellable revenue. Set all four; `regions_ca`

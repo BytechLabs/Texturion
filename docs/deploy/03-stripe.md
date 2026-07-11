@@ -61,7 +61,7 @@ re-running is safe and only reprints IDs (`apps/api/scripts/stripe-setup.ts:57-1
 | `Loonext Pro` | `pro` |
 | `US texting registration` | `us_registration` |
 | `Loonext — Picture messages` | `module_mms` |
-| `Loonext — Call forwarding` | `module_voice` |
+| `Loonext — Calling` | `module_voice` |
 | `Loonext — Extra storage` | `module_extra_storage` |
 | `Loonext — Canada numbers` | `module_regions_ca` |
 
@@ -76,7 +76,7 @@ re-running is safe and only reprints IDs (`apps/api/scripts/stripe-setup.ts:57-1
 | Pro overage | graduated metered, bound to meter | tiers: 0–2,500 @ $0, then $0.025/segment (`unit_amount_decimal 2.5`) |
 | US registration fee | one-time (non-recurring) | $29.00 (`unit_amount 2900`) |
 | Picture messages module | recurring monthly | $5.00 (`unit_amount 500`) |
-| Call forwarding module | recurring monthly | $8.00 (`unit_amount 800`) |
+| Calling module | recurring monthly | $8.00 (`unit_amount 800`) |
 | Extra storage module | recurring monthly | $5.00 (`unit_amount 500`) |
 | Canada numbers module | recurring monthly | $5.00 (`unit_amount 500`) |
 

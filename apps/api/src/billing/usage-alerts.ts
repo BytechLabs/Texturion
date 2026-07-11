@@ -14,6 +14,7 @@
 import { billingRecipients } from "./recipients";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import {
+  GRANDFATHERED_VOICE_MINUTES,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -42,6 +43,9 @@ export type UsageAlertMetric =
   // is the absolute-tier abuse alert below.
   | "storage_abuse"
   | "voice_minutes"
+  // #133: grandfathered thresholds ledger under their own metric so a
+  // mid-period upgrade to the paid module re-arms the plan-allowance alerts.
+  | "voice_minutes_grandfathered"
   // "mms_messages" retired with the Picture-messages module (#103) — historic
   // ledger rows keep the value (the DB CHECK still allows it), we just never
   // write it again.
@@ -146,18 +150,36 @@ Loonext`,
  * D36 (#128) voice-minutes alert copy. The allowance is a fair-use line, not
  * a wall: past 100%, extra forwarded minutes bill at 1¢ each up to the
  * owner's spending cap (the same cap that bounds text overage), and only AT
- * the cap does forwarding pause (callers get the text-back instead). The
+ * the cap does calling pause (callers get the text-back instead). The
  * copy mirrors the segments emails so paid overage never begins unnoticed.
+ *
+ * #133 grandfathered voice: nothing bills — calling simply PAUSES at the
+ * legacy allowance (the same line companyOverVoiceCap gates on), so the
+ * copy must promise a pause, never a 1¢ charge that will not happen.
  */
 function voiceAlertCopy(
   company: ActiveCompanyRow,
   threshold: UsageAlertThreshold,
   includedMinutes: number,
   usedMinutes: number,
+  overageBilled: boolean,
   env: Env,
 ): { subject: string; text: string } {
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
   if (threshold === 100) {
+    if (!overageBilled) {
+      return {
+        subject: `${company.name} has used all ${includedMinutes} included calling minutes this period`,
+        text:
+          `Hi,\n\n${company.name} has used all ${includedMinutes} calling ` +
+          `minutes included with your legacy calling access this billing ` +
+          `period (forwarded calls and calls you place, together), so ` +
+          `calling is paused until your next period. Missed callers still ` +
+          `get your missed-call text, and texting keeps working normally. ` +
+          `Reply to this email if you need more minutes.\n\n` +
+          `See usage: ${usageUrl}\n\nLoonext`,
+      };
+    }
     return {
       subject: `${company.name} has used all ${includedMinutes} included calling minutes this period`,
       text:
@@ -168,6 +190,19 @@ function voiceAlertCopy(
         `spending cap. At the cap, calling pauses for the rest of the period ` +
         `and missed callers still get your missed-call text.\n\n` +
         `See usage and manage your cap: ${usageUrl}\n\nLoonext`,
+    };
+  }
+  if (!overageBilled) {
+    return {
+      subject: `${company.name} has used 80% of its included calling minutes`,
+      text:
+        `Hi,\n\n${company.name} has used ${usedMinutes} of the ${includedMinutes} ` +
+        `calling minutes included with your legacy calling access this ` +
+        `billing period (forwarded calls and calls you place, together). ` +
+        `Once they're used up, calling pauses until your next period — ` +
+        `missed callers still get your missed-call text. Reply to this ` +
+        `email if you need more minutes.\n\n` +
+        `See usage: ${usageUrl}\n\nLoonext`,
     };
   }
   return {
@@ -361,10 +396,13 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
       }
 
       // #12/D36 voice arm: measured against the fair-use ALLOWANCE (like the
-      // segments arm), in forwarded (dialed-leg) seconds — the same measure
-      // the Stripe meter bills and the spending-cap gate reads. Threshold
-      // math is on SECONDS to avoid a rounding edge; the copy shows whole
-      // minutes.
+      // segments arm), in billed-leg seconds — the same measure the Stripe
+      // meter bills and the spending-cap gate reads. Threshold math is on
+      // SECONDS to avoid a rounding edge; the copy shows whole minutes.
+      // #133: a grandfathered module measures against ITS pause line (the
+      // legacy allowance) — before this, a grandfathered tenant hit the
+      // pause at 12% of the alert threshold and calls stopped with zero
+      // warning, violating the alert-before-the-cap mandate.
       const { data: voiceSeconds, error: voiceError } = await db.rpc(
         "api_period_forward_seconds",
         { p_company_id: company.id, p_since: company.current_period_start },
@@ -372,20 +410,39 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
       if (voiceError) {
         throw new Error(`voice usage failed: ${voiceError.message}`);
       }
+      const { data: voiceModuleRows, error: voiceModuleError } = await db
+        .from("company_modules")
+        .select("grandfathered")
+        .eq("company_id", company.id)
+        .eq("module", "voice")
+        .is("disabled_at", null)
+        .limit(1);
+      if (voiceModuleError) {
+        throw new Error(
+          `voice module lookup failed: ${voiceModuleError.message}`,
+        );
+      }
+      const voiceGrandfathered =
+        (voiceModuleRows as { grandfathered: boolean }[] | null)?.[0]
+          ?.grandfathered === true;
+      const includedVoiceMinutes = voiceGrandfathered
+        ? GRANDFATHERED_VOICE_MINUTES
+        : PLAN_VOICE_MINUTES[company.plan];
       const usedVoiceSeconds = Number(voiceSeconds);
-      const includedVoiceSeconds = PLAN_VOICE_MINUTES[company.plan] * 60;
+      const includedVoiceSeconds = includedVoiceMinutes * 60;
       for (const threshold of USAGE_ALERT_THRESHOLDS) {
         if (usedVoiceSeconds * 100 >= includedVoiceSeconds * threshold) {
           await recordAndSendAlert(
             env,
             company,
-            "voice_minutes",
+            voiceGrandfathered ? "voice_minutes_grandfathered" : "voice_minutes",
             threshold,
             voiceAlertCopy(
               company,
               threshold,
-              PLAN_VOICE_MINUTES[company.plan],
+              includedVoiceMinutes,
               Math.floor(usedVoiceSeconds / 60),
+              !voiceGrandfathered,
               env,
             ),
           );

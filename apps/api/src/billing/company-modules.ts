@@ -66,6 +66,29 @@ export async function enabledModules(
     .filter(isPlanModule);
 }
 
+/** #133: enabled modules WITH the grandfathered flag — the overage
+ *  projection needs both (a grandfathered voice module earns no revenue and
+ *  pauses at the legacy allowance). */
+export async function enabledModuleFlags(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<{ module: PlanModule; grandfathered: boolean }[]> {
+  const { data, error } = await db
+    .from("company_modules")
+    .select("module,grandfathered")
+    .eq("company_id", companyId)
+    .is("disabled_at", null);
+  if (error) {
+    throw new Error(`company_modules lookup failed: ${error.message}`);
+  }
+  return ((data ?? []) as { module: string; grandfathered: boolean }[])
+    .filter((row) => isPlanModule(row.module))
+    .map((row) => ({
+      module: row.module as PlanModule,
+      grandfathered: row.grandfathered === true,
+    }));
+}
+
 /** The `company_modules` row shape the #17 reconcile decides from. */
 export interface CompanyModuleRow {
   module: string;

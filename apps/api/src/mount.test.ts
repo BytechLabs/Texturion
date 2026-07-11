@@ -21,6 +21,7 @@ import {
   failStuckOutboundSends,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
+  sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
 import { composeRoutes } from "./routes/compose";
@@ -436,6 +437,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       reportUnreportedVoiceUsage,
       runUsageAlertsJob,
       runOverageWarningJob,
+      sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
     ]);
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
     expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);
