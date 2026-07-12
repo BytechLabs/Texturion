@@ -281,50 +281,35 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   if (auth instanceof Response) return auth;
 
   // The line model (D43 phase 3, founder-binding): ONE live call per phone
-  // NUMBER — a held call still occupies its line. Refuse while ANY session
-  // on this number is in flight (outcome null; rows land at call.initiated
-  // for both directions). The 4h window matches the stale-calls sweeper, so
-  // a wedged session re-opens the line.
-  const inflight = unwrap<{ id: string }[]>(
-    await db
-      .from("calls")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("phone_number_id", auth.conversation.phone_number_id)
-      .is("outcome", null)
-      .gt("started_at", new Date(Date.now() - 4 * 60 * 60_000).toISOString())
-      .limit(1),
-    "in-flight lookup",
+  // NUMBER — a held call still occupies its line. Claim the line AND mint the
+  // single-use authorization ATOMICALLY, under the same per-(company,number)
+  // advisory lock the inbound claim uses. The authorization row doubles as the
+  // line reservation (the calls row lands only later at call.initiated), so
+  // two concurrent outbound calls — or an inbound call during the
+  // authorize→initiate window — can never both go live. The nonce also binds
+  // the call to this authenticated member's OWN company/number/caller-ID, so
+  // the browser can never present a number, or place a call, it wasn't
+  // authorized for (closes cross-tenant caller-ID billing, the note-only #106
+  // bypass, and forged/omitted client_state).
+  const nonce = crypto.randomUUID();
+  const claimed = unwrap<boolean>(
+    await db.rpc("api_claim_outbound_line", {
+      p_company_id: companyId,
+      p_phone_number_id: auth.conversation.phone_number_id,
+      p_nonce: nonce,
+      p_from: auth.businessNumber,
+      p_customer: auth.customer,
+      p_window_start: new Date(Date.now() - 4 * 60 * 60_000).toISOString(),
+    }),
+    "outbound line claim",
   );
-  if (inflight.length > 0) {
+  if (claimed !== true) {
     return errorResponse(
       c,
       "conflict",
       "This line is on another call right now.",
     );
   }
-
-  // Mint a SINGLE-USE authorization the webhook requires before it will let
-  // the browser-originated leg connect. Because this endpoint has already
-  // proven the authenticated member has 'text' access to THEIR OWN company's
-  // number (authorizeOutboundCall), the nonce binds the call to that company
-  // + number + caller ID — the browser can never present a number, or place a
-  // call, it wasn't authorized for (closes cross-tenant caller-ID billing, the
-  // note-only #106 bypass, and forged/omitted client_state).
-  const nonce = crypto.randomUUID();
-  unwrap(
-    await db
-      .from("outbound_call_authorizations")
-      .insert({
-        nonce,
-        company_id: companyId,
-        phone_number_id: auth.conversation.phone_number_id,
-        from_e164: auth.businessNumber,
-        customer_e164: auth.customer,
-      })
-      .select("nonce"),
-    "outbound authorization mint",
-  );
 
   return c.json({
     from: auth.businessNumber,

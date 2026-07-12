@@ -24,6 +24,7 @@ import Stripe from "stripe";
 
 import { app } from "../src/index";
 import { expectedIssuer } from "../src/auth/jwt";
+import { generateVapidPair } from "../src/test/vapid-keys";
 import { startFakeJwks, type JwksAuth } from "./fake-jwks";
 import { startFakeStripe, type FakeStripe } from "./fake-stripe";
 import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
@@ -200,6 +201,8 @@ export async function startHarness(): Promise<Harness> {
 
   // The full Bindings object the Worker validates (env.ts). Non-vendor secrets
   // are the completeEnv()-style literals; vendor bases point at the fakes.
+  // The VAPID pair is generated per run (vapid-keys.ts), not a committed literal.
+  const vapid = generateVapidPair();
   const env: Record<string, unknown> = {
     SUPABASE_URL: apiUrl,
     SUPABASE_SECRET_KEY: secretKey,
@@ -214,9 +217,8 @@ export async function startHarness(): Promise<Harness> {
     APP_ORIGIN: "https://app.loonext.com",
     API_ORIGIN: "https://api.loonext.com",
     RESEND_FROM: "Loonext <notifications@loonext.com>",
-    VAPID_PUBLIC_KEY:
-      "BD_hP_N07omlLXk14YXRFvsSICDKoywjGtx-T1_5PdLX155D623P5Ci-5sRhh5g2Qj5j0aQPiDWSgT2DlOefImw",
-    VAPID_PRIVATE_KEY: "L9lOg9x05mb1bG5kwUIpxSSf8YiMrm6KZn-c_GIyqAM",
+    VAPID_PUBLIC_KEY: vapid.publicKey,
+    VAPID_PRIVATE_KEY: vapid.privateKey,
     STRIPE_STARTER_PRICE_ID: "price_starter_licensed_0001",
     STRIPE_PRO_PRICE_ID: "price_pro_licensed_0001",
     STRIPE_STARTER_OVERAGE_PRICE_ID: "price_starter_overage_0001",

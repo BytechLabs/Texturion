@@ -210,6 +210,17 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           now: Date.now(),
         });
         if (call.state === "active") {
+          // Single-active audio: if a DIFFERENT call was active when this one
+          // connected (e.g. a still-ringing outbound leg answering while the
+          // member took a second call), SDK-hold it so only one call owns the
+          // audio sink — matching the reducer's structural demotion to 'held'.
+          const prevActiveId = stateRef.current.activeId;
+          if (prevActiveId && prevActiveId !== call.id) {
+            const prev = callsRef.current.get(prevActiveId);
+            void prev?.hold().catch(() => {
+              /* dead leg — its end event cleans up */
+            });
+          }
           attachActiveAudio(call);
           if (call.direction === "inbound") {
             // The SDK session for an answered inbound call is the ring leg's,

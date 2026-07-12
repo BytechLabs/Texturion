@@ -108,6 +108,34 @@ function updateCall(
   };
 }
 
+/** Make `id` the single ACTIVE call (audio flowing) — demoting ANY other
+ *  call currently 'active' to 'held'. Enforces the one-active-audio invariant
+ *  structurally, so a call that answers while another is live (e.g. a still-
+ *  ringing outbound leg connecting while the member took a second call) can
+ *  never leave two calls fighting for the single audio sink. The provider
+ *  SDK-holds the demoted call to match. */
+function activate(
+  state: SoftphoneState,
+  id: string,
+  now: number,
+): SoftphoneState {
+  return {
+    ...state,
+    calls: state.calls.map((call) => {
+      if (call.id === id) {
+        return {
+          ...call,
+          phase: "active" as const,
+          activeSince: call.activeSince ?? now,
+        };
+      }
+      if (call.phase === "active") return { ...call, phase: "held" as const };
+      return call;
+    }),
+    activeId: id,
+  };
+}
+
 export function softphoneReducer(
   state: SoftphoneState,
   action: SoftphoneAction,
@@ -160,11 +188,7 @@ export function softphoneReducer(
       // Answer/Decline chip, and its end is a SILENT removal.
       if (call.phase === "ringing") {
         if (phase === "active") {
-          const next = updateCall(state, action.id, {
-            phase: "active",
-            activeSince: call.activeSince ?? action.now,
-          });
-          return { ...next, activeId: action.id };
+          return activate(state, action.id, action.now);
         }
         if (phase === "ended") {
           return {
@@ -176,11 +200,7 @@ export function softphoneReducer(
         return state;
       }
       if (phase === "active") {
-        const next = updateCall(state, action.id, {
-          phase: "active",
-          activeSince: call.activeSince ?? action.now,
-        });
-        return { ...next, activeId: action.id };
+        return activate(state, action.id, action.now);
       }
       if (phase === "ended") {
         return {

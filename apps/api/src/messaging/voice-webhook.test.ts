@@ -1379,6 +1379,39 @@ describe("handleCallEvent — outbound call.initiated (D43 nonce authorization)"
 });
 
 describe("handleCallEvent — terminal → text-back", () => {
+  it("SECURITY: a forged OUTGOING inbound-family leg (browser spoofing a victim's number) is dropped — no billing, no thread, no text-back", async () => {
+    // A member ORIGINATES an outgoing WebRTC leg, forges a `bri` (in_browser)
+    // client_state with a 2020 answer stamp, and presents a VICTIM tenant's
+    // number as `to`. Without the direction gate this would bill the victim
+    // (~$34k), push them over their cap, and inject into their inbox.
+    const callRecords = callRecordsInsertStub("cr-attack");
+    const upsert = upsertCallStub();
+    const thread = threadCallStub();
+    const sms = telnyxSms();
+    serve(numberStub(), callRecords, upsert, thread, sms);
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_control_id: "attacker-leg",
+        call_session_id: "attack-sess",
+        direction: "outgoing", // browser-ORIGINATED — never a real inbound call
+        from: CALLER,
+        to: OUR_NUMBER, // the victim's business number, spoofed as `to`
+        hangup_cause: "normal_clearing",
+        client_state: btoa(`bri|${CALLER}|2020-01-01T00:00:00.000Z`),
+        start_time: "2020-01-01T00:00:00.000Z",
+        end_time: "2026-07-12T00:00:00.000Z", // ~200M seconds if it billed
+      }),
+    );
+
+    // The event is dropped before any billing / threading / text-back.
+    expect(callRecords.calls).toHaveLength(0);
+    expect(upsert.calls).toHaveLength(0);
+    expect(thread.calls).toHaveLength(0);
+    expect(sms.calls).toHaveLength(0);
+  });
+
   it("no-forward: inbound-leg hangup fires the text-back", async () => {
     const claim = claimStub();
     const sms = telnyxSms();

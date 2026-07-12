@@ -7,6 +7,14 @@ import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { vi } from "vitest";
 
 import type { Env } from "../env";
+import { generateVapidPair } from "./vapid-keys";
+
+/**
+ * One VAPID pair per test process — stable across every `completeEnv()` call
+ * (as the old committed constant was), but generated at runtime rather than
+ * shipped as a private-key literal. See `vapid-keys.ts`.
+ */
+const VAPID_TEST_PAIR = generateVapidPair();
 
 /** A complete set of bindings, as `wrangler dev` would supply from .dev.vars. */
 export function completeEnv(): Env {
@@ -25,11 +33,10 @@ export function completeEnv(): Env {
     APP_ORIGIN: "https://app.loonext.com",
     API_ORIGIN: "https://api.loonext.com",
     RESEND_FROM: "Loonext <notifications@loonext.com>",
-    // A REAL (test-only) P-256 pair in the standard VAPID encoding, so the
-    // §8 Web Push crypto paths run for real in tests.
-    VAPID_PUBLIC_KEY:
-      "BD_hP_N07omlLXk14YXRFvsSICDKoywjGtx-T1_5PdLX155D623P5Ci-5sRhh5g2Qj5j0aQPiDWSgT2DlOefImw",
-    VAPID_PRIVATE_KEY: "L9lOg9x05mb1bG5kwUIpxSSf8YiMrm6KZn-c_GIyqAM",
+    // A per-process test-only P-256 pair (vapid-keys.ts) in the standard VAPID
+    // encoding, so the §8 Web Push crypto paths run for real in tests.
+    VAPID_PUBLIC_KEY: VAPID_TEST_PAIR.publicKey,
+    VAPID_PRIVATE_KEY: VAPID_TEST_PAIR.privateKey,
     STRIPE_STARTER_PRICE_ID: "price_starter_licensed_0001",
     STRIPE_PRO_PRICE_ID: "price_pro_licensed_0001",
     STRIPE_STARTER_OVERAGE_PRICE_ID: "price_starter_overage_0001",

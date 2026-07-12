@@ -131,6 +131,24 @@ describe("softphoneReducer — call waiting (phase 3)", () => {
     expect(state.calls.find((c) => c.id === "c2")?.phase).toBe("held");
   });
 
+  it("single-active invariant: a call going active while another is active demotes the other to held (no two active calls)", () => {
+    const state = run([
+      // c1 active; c2 is a still-CONNECTING outbound leg; c2 answers while c1
+      // is active — without the reducer guard both would be active and fight
+      // for the single audio sink.
+      { type: "placing", id: "c1", sessionId: "s1", peer: PEER_A },
+      { type: "sdk_state", id: "c1", state: "active", now: 1000 },
+      { type: "placing", id: "c2", sessionId: "s2", peer: PEER_B },
+      { type: "sdk_state", id: "c2", state: "ringing", now: 2000 },
+      { type: "sdk_state", id: "c2", state: "active", now: 3000 },
+    ]);
+    const active = state.calls.filter((c) => c.phase === "active");
+    expect(active).toHaveLength(1);
+    expect(active[0].id).toBe("c2");
+    expect(state.activeId).toBe("c2");
+    expect(state.calls.find((c) => c.id === "c1")?.phase).toBe("held");
+  });
+
   it("the un-answered waiting ring vanishing leaves the active call alone", () => {
     const state = run([
       ...activeCallWithRing,

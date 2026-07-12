@@ -192,6 +192,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       subscriptionStatus?: string;
       voiceSeconds?: number;
       inflight?: unknown[];
+      lineBusy?: boolean;
       role?: string;
     } = {},
   ): SupabaseStub {
@@ -225,10 +226,13 @@ describe("POST /v1/calls/browser (D43)", () => {
       () => opts.voiceSeconds ?? 0,
     );
     sb.on("GET", "/rest/v1/calls", () => opts.inflight ?? []);
-    // D43: the endpoint mints a single-use outbound authorization row.
-    sb.on("POST", "/rest/v1/outbound_call_authorizations", (call) => [
-      (call.body as Record<string, unknown>) ?? {},
-    ]);
+    // D43: the endpoint atomically claims the line + mints the single-use
+    // authorization via api_claim_outbound_line (true = claimed, false = busy).
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_claim_outbound_line",
+      () => !(opts.lineBusy ?? false),
+    );
     return sb;
   }
 
@@ -263,13 +267,14 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(decoded[0]).toBe("oc_customer");
     expect(decoded[1]).toBe("+16135551000");
     expect(decoded[2]).toBeTruthy(); // a nonce is present
-    // A matching authorization row was minted with that exact nonce + caller ID.
-    const mint = sb.find("POST", "/rest/v1/outbound_call_authorizations");
-    expect(mint).toHaveLength(1);
-    expect(mint[0].body).toMatchObject({
-      nonce: decoded[2],
-      from_e164: "+16135550100",
-      customer_e164: "+16135551000",
+    // The atomic line-claim RPC was called with that exact nonce + caller ID
+    // (it reserves the line AND mints the authorization under one lock).
+    const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
+    expect(claim).toHaveLength(1);
+    expect(claim[0].body).toMatchObject({
+      p_nonce: decoded[2],
+      p_from: "+16135550100",
+      p_customer: "+16135551000",
     });
     // The server never dials — the browser does.
     expect(dial.calls).toHaveLength(0);
@@ -309,8 +314,8 @@ describe("POST /v1/calls/browser (D43)", () => {
     });
   });
 
-  it("409s while ANY call on this NUMBER is in flight (line model — one live call per line)", async () => {
-    const sb = browserWorld({ inflight: [{ id: "call-live-1" }] });
+  it("409s while ANY call on this NUMBER is in flight (line model — the atomic claim returns busy)", async () => {
+    const sb = browserWorld({ lineBusy: true });
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(

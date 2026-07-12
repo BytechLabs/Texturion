@@ -93,6 +93,11 @@ export const FORWARD_TIMEOUT_SECS = 20;
  */
 export const MAX_FORWARDED_CALL_SECS = 60 * 60;
 
+/** Hard ceiling on any single leg's BILLABLE seconds — a defense-in-depth
+ *  sanity bound (4h, well above the 2h runaway-call hangup) so a garbage or
+ *  attacker-controlled talk-time anchor can never bill an absurd amount. */
+const MAX_BILLABLE_SECONDS = 4 * 60 * 60;
+
 /**
  * D36: the un-defeatable ceiling a NULL/garbage overage_cap_multiplier
  * resolves to — mirrors the DB CHECK (0,10] and the owner PATCH's null→10
@@ -1022,6 +1027,22 @@ async function handleTerminalCallEvent(
   const leg = classifyLeg(payload);
   const outboundLeg = leg === "out_agent" || leg === "out_customer";
 
+  // SECURITY (D43): a genuine inbound-family leg (the customer's PSTN leg —
+  // untagged, then bri once answered, or vmi in voicemail) is ALWAYS
+  // direction 'incoming', a Telnyx-controlled fact. A member can ORIGINATE an
+  // OUTGOING WebRTC leg and FORGE an inbound-family client_state, presenting
+  // another tenant's number as `to` — its terminal event would otherwise bill
+  // that victim (in_browser seconds come from the attacker-controlled bri
+  // timestamp), push them over their cap (DoS), and inject a conversation /
+  // missed-text into their inbox. Billing + threading for these legs derive
+  // tenant identity from the tag + payload.to alone, so drop any inbound-family
+  // leg that isn't a real incoming call before any of that runs.
+  const inboundFamily =
+    leg === "in_browser" ||
+    leg === "vm_inbound" ||
+    leg === "inbound_untagged";
+  if (inboundFamily && payload.direction !== "incoming") return;
+
   // Our number, per leg:
   //   - inbound (untagged/forwarded) leg: to = our number, from = the caller.
   //   - forward leg + BOTH outbound legs: from = our number (we present it),
@@ -1414,6 +1435,12 @@ async function recordCallDuration(
         ? 0
         : Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
   }
+  // Defense-in-depth clamp: a talk-time anchor that came from a client_state
+  // timestamp (in_browser's bri tag) must never produce an absurd billable
+  // duration even if it somehow reached here with a forged anchor. No genuine
+  // call exceeds the 2h runaway-hangup cap, so the ceiling never touches real
+  // billing — it only neutralises a garbage/attacker anchor.
+  seconds = Math.min(seconds, MAX_BILLABLE_SECONDS);
   const caller =
     leg === "forward"
       ? decodeForwardCaller(payload.client_state ?? null)

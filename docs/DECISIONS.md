@@ -1574,3 +1574,30 @@ forged/omitted client_state (no nonce → rejected). Replay-safe (the RPC
 recognises an already-authorized session's row) and burst-defended (a
 subscription/cap re-check keyed on the authorized company). Suites: API 1414.
 
+**D43 — comprehensive final audit found a CRITICAL + 3 majors, all fixed
+(2026-07-12, migrations 20260712000600 reservation-atomicity in 000700).** A
+full-engine Opus audit (not just the fixes) caught what the incremental rounds
+missed:
+- CRITICAL cross-tenant billing/DoS/injection via a FORGED inbound-family
+  client_state: the nonce closed the OUTBOUND (oc_customer) path, but a member
+  could ORIGINATE an outgoing WebRTC leg, forge a `bri`/`vmi`/untagged tag, and
+  present a VICTIM tenant's number as `to`; the terminal handler derives tenant
+  + billing from the tag + payload.to, so it billed the victim (in_browser
+  seconds come from the attacker-controlled bri timestamp → ~$34k), pushed them
+  over cap (DoS), and injected a conversation/missed-text into their inbox.
+  Fix: a genuine inbound-family leg is ALWAYS Telnyx-direction 'incoming'; the
+  terminal handler now drops any inbound-family leg that isn't, before billing/
+  threading. Plus a 4h billable-seconds clamp (defense in depth).
+- MAJOR outbound line-model race: /calls/browser claimed the line lock-free and
+  created no row (the calls row lands at initiate), so two outbound calls — or
+  an inbound during the authorize→initiate window — could both go live. Fix:
+  api_claim_outbound_line claims the line + mints the authorization atomically
+  under the same per-(company,number) lock the inbound claim uses; the
+  authorization row doubles as a fresh reservation both busy checks now consult.
+- MAJOR member stranded in dead air when the caller hangs up in the answer
+  window (the member's active SIP leg was never torn down): hang it up.
+- MAJOR web two-active-calls audio steal (a still-ringing outbound leg
+  answering while the member is on a second call): the reducer now enforces a
+  single active call structurally (demote the other to held) and the provider
+  SDK-holds it. Suites: API 1415, web 1278.
+

@@ -395,7 +395,14 @@ export async function handleMemberRingAnswered(
     { client_state: buildBrowserAnsweredState(state.caller, answeredAtIso) },
   );
   if (!answered && !isReplay) {
-    // Caller gone before we could answer; the member leg rings out on its own.
+    // Caller gone in the answer window (the answer command 4xx'd on the dead
+    // inbound leg). The member's SIP leg is ALREADY ACTIVE (call.answered is
+    // what fired this) and now bridged to nothing — HANG IT UP so the member
+    // isn't stranded on a silent connected call holding a concurrent-call
+    // slot (nothing else reclaims it: cancelRingingMemberLegs only touches
+    // 'ringing' legs and this one is 'answered'; the runaway sweep acts on the
+    // customer leg, not the member's).
+    await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
     // Undo the early answered stamp (guarded on outcome still null) so the
     // call doesn't read as a 0-second 'answered' — the untagged inbound
     // hangup resolves it as the miss it was.
