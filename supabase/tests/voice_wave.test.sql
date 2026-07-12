@@ -36,12 +36,12 @@ begin
 end $$;
 
 -- ===========================================================================
--- VW-2. companies gains mctb_enabled (bool NOT NULL default false),
---       mctb_message (text NULL), forward_to_cell (text NULL) with an E.164
---       CHECK.
+-- VW-2. companies gains mctb_enabled (bool NOT NULL default false) +
+--       mctb_message (text NULL). (D43 DELETED forward_to_cell — the browser
+--       is the phone; there is no cell to forward to.)
 -- ===========================================================================
 do $$
-declare me_type text; me_null boolean; me_default text; mm_null boolean; fc_null boolean;
+declare me_type text; me_null boolean; me_default text; mm_null boolean; fc_present int;
 begin
   select data_type, is_nullable='YES', column_default into me_type, me_null, me_default
   from information_schema.columns
@@ -56,39 +56,49 @@ begin
   if mm_null is null then raise exception 'VW-2 FAILED: companies.mctb_message missing'; end if;
   if not mm_null then raise exception 'VW-2 FAILED: mctb_message must be NULLable'; end if;
 
-  select is_nullable='YES' into fc_null from information_schema.columns
+  -- D43: forward_to_cell was DROPPED — it must NOT exist.
+  select count(*) into fc_present from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='forward_to_cell';
-  if fc_null is null then raise exception 'VW-2 FAILED: companies.forward_to_cell missing'; end if;
-  if not fc_null then raise exception 'VW-2 FAILED: forward_to_cell must be NULLable'; end if;
+  if fc_present <> 0 then raise exception 'VW-2 FAILED: companies.forward_to_cell should be DROPPED (D43)'; end if;
 
-  raise notice 'VW-2 PASSED: companies mctb columns present';
+  raise notice 'VW-2 PASSED: companies mctb columns present, forward_to_cell dropped';
 end $$;
 
 -- ===========================================================================
--- VW-3. forward_to_cell CHECK rejects a non-E.164 value and accepts a US/CA one.
+-- VW-3. D43 Calls v2 columns on companies: voicemail_greeting, call_screening
+--       (off|flag|divert), cnam_display_name (<=15 alnum+space CHECK),
+--       caller_id_lookup (bool NOT NULL default true).
 -- ===========================================================================
 do $$
-declare ok boolean := false;
+declare cs_default text; cil_type text; cil_null boolean; ok boolean := false;
 begin
-  begin
-    update public.companies set forward_to_cell = 'not-a-number'
-     where id = '00000000-0000-0000-0000-000000000000';
-    -- No row matches, so the UPDATE affects 0 rows; force the CHECK via a
-    -- direct temp company insert instead.
-  exception when others then null;
-  end;
-  -- Insert a throwaway company with a bad forward_to_cell → must raise.
+  if not exists (select 1 from information_schema.columns
+    where table_schema='public' and table_name='companies' and column_name='voicemail_greeting') then
+    raise exception 'VW-3 FAILED: companies.voicemail_greeting missing';
+  end if;
+
+  select column_default into cs_default from information_schema.columns
+  where table_schema='public' and table_name='companies' and column_name='call_screening';
+  if cs_default is null then raise exception 'VW-3 FAILED: companies.call_screening missing'; end if;
+
+  select data_type, is_nullable='YES' into cil_type, cil_null from information_schema.columns
+  where table_schema='public' and table_name='companies' and column_name='caller_id_lookup';
+  if cil_type is null then raise exception 'VW-3 FAILED: companies.caller_id_lookup missing'; end if;
+  if cil_type <> 'boolean' then raise exception 'VW-3 FAILED: caller_id_lookup is % (want boolean)', cil_type; end if;
+  if cil_null then raise exception 'VW-3 FAILED: caller_id_lookup must be NOT NULL'; end if;
+
+  -- The CNAM display-name CHECK rejects a >15-char / non-alnum value.
   begin
     insert into auth.users (id, email) values ('deadbeef-0000-4000-8000-000000000009', 'x@vw.test');
     insert into public.companies
-      (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, forward_to_cell)
+      (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, cnam_display_name)
     values ('deadbeef-0000-4000-8000-00000000000a', 'Bad', 'deadbeef-0000-4000-8000-000000000009',
-            'CA', '416', now(), '4165550100'); -- missing +1
-    raise exception 'VW-3 FAILED: bad forward_to_cell was accepted';
+            'CA', '416', now(), 'WAY TOO LONG A NAME!!'); -- >15 + punctuation
+    raise exception 'VW-3 FAILED: bad cnam_display_name was accepted';
   exception when check_violation then ok := true;
   end;
-  if not ok then raise exception 'VW-3 FAILED: expected a check_violation'; end if;
-  raise notice 'VW-3 PASSED: forward_to_cell E.164 CHECK enforced';
+  if not ok then raise exception 'VW-3 FAILED: expected a check_violation on cnam_display_name'; end if;
+  raise notice 'VW-3 PASSED: D43 calls columns present + cnam_display_name CHECK enforced';
 end $$;
 
 -- ===========================================================================

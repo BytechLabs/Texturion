@@ -9,11 +9,13 @@ insert into auth.users (id, email, raw_user_meta_data)
 values ('77777777-7777-4777-8777-777777777777', 'owner@modules.test',
         '{"display_name":"Modules Owner"}'::jsonb);
 
--- A CA company WITH a forward number → grandfathered into voice + regions_ca.
+-- A CA company → grandfathered into voice + regions_ca. (D42: voice is
+-- included for everyone; D43 dropped companies.forward_to_cell — the browser
+-- is the phone, so there is no forward-number predicate anymore.)
 insert into public.companies
-  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, forward_to_cell)
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
 values ('77777777-7777-4777-8777-777000000000', 'Modules HVAC',
-        '77777777-7777-4777-8777-777777777777', 'CA', '416', now(), '+14165550100');
+        '77777777-7777-4777-8777-777777777777', 'CA', '416', now());
 
 -- ===========================================================================
 -- MOD-1. PK: the same (company, module) twice conflicts.
@@ -66,9 +68,10 @@ exception
 end $$;
 
 -- ===========================================================================
--- MOD-3. the grandfathering queries: a CA company with a forward number seeds
---        exactly voice + regions_ca (not extra_storage; #103: mms is retired
---        and no longer seedable).
+-- MOD-3. the grandfathering queries: a CA company seeds exactly voice +
+--        regions_ca (not extra_storage; #103: mms is retired and no longer
+--        seedable). D42: voice is now seeded for every non-deleted company
+--        (the forward_to_cell predicate died with the column in D43).
 -- ===========================================================================
 do $$
 declare mods text[];
@@ -76,7 +79,7 @@ begin
   insert into public.company_modules (company_id, module)
     select id, 'voice' from public.companies
      where id = '77777777-7777-4777-8777-777000000000'
-       and deleted_at is null and forward_to_cell is not null
+       and deleted_at is null
     on conflict do nothing;
   insert into public.company_modules (company_id, module)
     select id, 'regions_ca' from public.companies

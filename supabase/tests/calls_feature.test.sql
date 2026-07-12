@@ -209,24 +209,13 @@ begin
 end $$;
 
 -- ===========================================================================
--- C-7. D38: company_members.call_cell_e164 accepts NANP cells and rejects
---      garbage; the call_completed event payload carries direction.
+-- C-7. The call_completed event payload carries direction. (D43 DROPPED
+--      company_members.call_cell_e164 — the browser is the agent leg now, so
+--      there is no cell column to validate.)
 -- ===========================================================================
 do $$
 declare v jsonb; d text;
 begin
-  update public.company_members
-     set call_cell_e164 = '+14165559999'
-   where company_id = '77777777-7777-4777-8777-777000000000';
-  begin
-    update public.company_members
-       set call_cell_e164 = 'not-a-number'
-     where company_id = '77777777-7777-4777-8777-777000000000';
-    raise exception 'C-7 FAILED: garbage cell accepted';
-  exception
-    when check_violation then null; -- expected
-  end;
-
   -- Outbound threading writes direction into the event payload. The C-2
   -- fixture conversation is open for this contact+number, so join-only finds it.
   v := public.api_thread_call(
@@ -243,7 +232,7 @@ begin
   if d <> 'outbound' then
     raise exception 'C-7 FAILED: event direction %', d;
   end if;
-  raise notice 'C-7 PASSED: call_cell CHECK + outbound event direction';
+  raise notice 'C-7 PASSED: outbound event direction';
 end $$;
 
 -- ===========================================================================
