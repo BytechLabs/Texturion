@@ -880,3 +880,132 @@ describe("D40 /v1/calls/cell verification", () => {
     expect(await res.json()).toEqual({ call_cell_e164: CELL, verified: true });
   });
 });
+
+/**
+ * D43 (#135) POST /v1/calls/browser — authorize a softphone-placed call. The
+ * server never dials; it runs the outbound gates + line-busy guard and hands
+ * back the number to present, the number to dial, and the oc_customer tag the
+ * client stamps so the PSTN leg records through the D38 out_customer path.
+ */
+describe("POST /v1/calls/browser (D43)", () => {
+  const CONVERSATION = "cccccccc-0000-4000-8000-000000000003";
+
+  function browserWorld(
+    opts: {
+      subscriptionStatus?: string;
+      voiceSeconds?: number;
+      inflight?: unknown[];
+      role?: string;
+    } = {},
+  ): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, opts.role ?? "member"),
+    );
+    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        id: CONVERSATION,
+        contact_id: "aaaaaaaa-0000-4000-8000-000000000009",
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        contacts: { phone_e164: "+16135551000" },
+        phone_numbers: { number_e164: "+16135550100", status: "active" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        plan: "starter",
+        current_period_start: "2026-07-01T00:00:00Z",
+        overage_cap_multiplier: "3.00",
+        subscription_status: opts.subscriptionStatus ?? "active",
+      },
+    ]);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_period_forward_seconds",
+      () => opts.voiceSeconds ?? 0,
+    );
+    sb.on("GET", "/rest/v1/calls", () => opts.inflight ?? []);
+    return sb;
+  }
+
+  it("authorizes: returns the from/to numbers and the oc_customer tag — no Telnyx dial", async () => {
+    const sb = browserWorld();
+    const dial: Stub = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.telnyx.com/v2/calls",
+      () => ({ data: {} }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/calls/browser",
+      { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      from: "+16135550100",
+      to: "+16135551000",
+      client_state: btoa("oc_customer|+16135551000"),
+    });
+    // The server never dials — the browser does.
+    expect(dial.calls).toHaveLength(0);
+  });
+
+  it("402s a non-active subscription", async () => {
+    const sb = browserWorld({ subscriptionStatus: "canceled" });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/calls/browser",
+      { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
+    );
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "subscription_inactive" },
+    });
+  });
+
+  it("402s at the voice spending cap — never authorizes", async () => {
+    const sb = browserWorld({ voiceSeconds: 7500 * 60 }); // 2,500 × 3
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/calls/browser",
+      { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
+    );
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "usage_cap_reached" },
+    });
+  });
+
+  it("409s while a call for this conversation is in flight (line model)", async () => {
+    const sb = browserWorld({ inflight: [{ id: "call-live-1" }] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/calls/browser",
+      { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      error: { message: expect.stringContaining("already in progress") },
+    });
+  });
+});
