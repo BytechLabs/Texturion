@@ -19,9 +19,10 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import type { Env } from "../env";
 import { webrtcRoutes } from "./webrtc";
 
-const env = {
+const env: Env = {
   ...completeEnv(),
   TELNYX_WEBRTC_CONNECTION_ID: "3002000000000000000",
 };
@@ -160,17 +161,15 @@ describe("POST /v1/webrtc/token (D43)", () => {
   });
 
   it("an unconfigured environment refuses honestly (no connection id)", async () => {
-    const bare = { ...env, TELNYX_WEBRTC_CONNECTION_ID: undefined };
+    const bare: typeof env = { ...env, TELNYX_WEBRTC_CONNECTION_ID: undefined };
     const w = world();
     stubFetch(jwksRoute(auth), w.sb.route);
 
-    const res = await apiRequest(
-      app,
-      bare as typeof env,
-      await auth.token(),
-      "/v1/webrtc/token",
-      { companyId: COMPANY_ID, method: "POST", body: {} },
-    );
+    const res = await apiRequest(app, bare, await auth.token(), "/v1/webrtc/token", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: {},
+    });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({
       error: { message: expect.stringContaining("isn't configured") },
