@@ -174,6 +174,83 @@ export async function enableVoiceForCompany(
   return results;
 }
 
+/** D43: what the Calls settings sync pushes to every Telnyx number. */
+export interface CallSettingsSync {
+  /** 'off' | 'flag' | 'divert' — Telnyx-side both flag AND divert map to
+   *  flag_calls (divert is OUR routing choice on the flagged verdict; Telnyx
+   *  reject_calls would block the caller from even reaching voicemail). */
+  callScreening?: "off" | "flag" | "divert";
+  /** Inbound CNAM dip on/off (carrier-billed per lookup). */
+  callerIdLookup?: boolean;
+  /** Outbound CNAM listing (≤15 alphanumeric+space); null clears it. */
+  cnamDisplayName?: string | null;
+}
+
+/**
+ * D43: push the company's Calls settings (screening / CNAM dip / CNAM
+ * listing) to every active, Telnyx-purchased number. Per-number best-effort
+ * — one bad number never blocks the rest (the settings row is the source of
+ * truth; a re-save or the next settings change re-pushes). Only the fields
+ * present in `sync` are sent, so a greeting-only save touches nothing here.
+ */
+export async function syncCallSettingsForCompany(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  sync: CallSettingsSync,
+): Promise<void> {
+  const voicePatch: Record<string, unknown> = {};
+  if (sync.callScreening !== undefined) {
+    voicePatch.inbound_call_screening =
+      sync.callScreening === "off" ? "disabled" : "flag_calls";
+  }
+  if (sync.callerIdLookup !== undefined) {
+    voicePatch.caller_id_name_enabled = sync.callerIdLookup;
+  }
+  const hasCnamListing = sync.cnamDisplayName !== undefined;
+  if (Object.keys(voicePatch).length === 0 && !hasCnamListing) return;
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select("id,telnyx_phone_number_id")
+    .eq("company_id", companyId)
+    .eq("status", "active");
+  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+
+  for (const row of data ?? []) {
+    const telnyxId = row.telnyx_phone_number_id as string | null;
+    if (!telnyxId) continue; // hosted number — voice lives on the old carrier
+    try {
+      if (Object.keys(voicePatch).length > 0) {
+        await telnyxRequest(env, {
+          method: "PATCH",
+          path: `/v2/phone_numbers/${telnyxId}/voice`,
+          body: voicePatch,
+        });
+      }
+      if (hasCnamListing) {
+        await telnyxRequest(env, {
+          method: "PATCH",
+          path: `/v2/phone_numbers/${telnyxId}`,
+          body: {
+            cnam_listing: sync.cnamDisplayName
+              ? {
+                  cnam_listing_enabled: true,
+                  cnam_listing_details: sync.cnamDisplayName,
+                }
+              : { cnam_listing_enabled: false },
+          },
+        });
+      }
+    } catch (cause) {
+      console.error(
+        `call settings sync failed for number ${row.id as string}:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+}
+
 /**
  * §11 reconcile pass (15-minute cron): bind voice on any ACTIVE, un-bound
  * number of any LIVE-subscription workspace — calling is included on every

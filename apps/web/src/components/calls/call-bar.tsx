@@ -9,7 +9,7 @@
  * Fixed above the mobile tab bar; a slim floating card on desktop. Absent
  * entirely at idle so it never occupies space.
  */
-import { Mic, MicOff, PhoneOff, X } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -36,17 +36,19 @@ export function CallBar() {
   const softphone = useSoftphone();
   if (!softphone || softphone.phase === "idle") return null;
 
-  const { phase, peer, muted, activeSince, hangup, toggleMute, clear } =
+  const { phase, peer, muted, activeSince, answer, hangup, toggleMute, clear } =
     softphone;
   const name = peer?.name ?? "Calling";
   const number = peer?.number ? formatPhone(peer.number) : "";
 
   const status =
-    phase === "connecting"
-      ? "Calling…"
-      : phase === "active" && activeSince !== null
-        ? undefined // the timer renders instead
-        : "Call ended";
+    phase === "ringing"
+      ? "Incoming call"
+      : phase === "connecting"
+        ? "Calling…"
+        : phase === "active" && activeSince !== null
+          ? undefined // the timer renders instead
+          : "Call ended";
 
   return (
     <div
@@ -63,14 +65,16 @@ export function CallBar() {
           "flex w-full max-w-md items-center gap-3 rounded-app-card border px-4 py-2.5 shadow-lg",
           phase === "ended"
             ? "border-app-line bg-app-white text-app-muted-2"
-            : "border-primary/20 bg-app-white text-app-ink",
+            : phase === "ringing"
+              ? "border-primary/40 bg-app-white text-app-ink"
+              : "border-primary/20 bg-app-white text-app-ink",
         )}
       >
         <span
           aria-hidden
           className={cn(
             "size-2 shrink-0 rounded-full",
-            phase === "active"
+            phase === "active" || phase === "ringing"
               ? "bg-primary animate-pulse"
               : phase === "connecting"
                 ? "bg-warning animate-pulse"
@@ -86,7 +90,29 @@ export function CallBar() {
           </p>
         </div>
 
-        {phase === "ended" ? (
+        {phase === "ringing" ? (
+          <>
+            {/* Answer/Decline — the whole point of the phase-2 ring. */}
+            <Button
+              size="sm"
+              aria-label="Answer"
+              onClick={answer}
+              className="gap-1.5"
+            >
+              <Phone className="size-4" strokeWidth={1.75} />
+              Answer
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Decline"
+              onClick={hangup}
+              className="text-app-clay hover:bg-app-clay/10"
+            >
+              <PhoneOff className="size-4" strokeWidth={1.75} />
+            </Button>
+          </>
+        ) : phase === "ended" ? (
           <Button
             variant="ghost"
             size="icon-sm"

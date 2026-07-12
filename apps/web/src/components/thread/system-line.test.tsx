@@ -3,9 +3,15 @@
  * #129 pins the call lines (the thread must read as the full history, texts
  * AND calls) and the forward-compat null for unknown types.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ConversationEvent } from "@/lib/api/types";
+
+// D43: SystemLine renders the voicemail player, whose data hook chains to the
+// env-validated API client — mocked out so this stays a pure-sentence test.
+vi.mock("@/components/calls/voicemail-player", () => ({
+  VoicemailPlayer: () => null,
+}));
 
 import { eventSentence } from "./system-line";
 

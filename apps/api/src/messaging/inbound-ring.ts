@@ -1,0 +1,716 @@
+/**
+ * #135 (D43) phase 2: the browser is the phone — the inbound ring engine and
+ * the voicemail pipeline. Dispatched from voice-webhook.ts (which owns event
+ * routing, leg classification, billing, and threading); this module owns the
+ * three inbound-call motions:
+ *
+ *   RING — an inbound call to a company number dials EVERY eligible member's
+ *   WebRTC credential (`sip:<username>@sip.telnyx.com`) as parallel legs.
+ *   The inbound leg is NOT answered while ringing — the caller hears real
+ *   carrier ringback and we bill nothing until a human exists. Eligible =
+ *   active member, holding a credential (they've opened the app and the
+ *   softphone registered), and #106 'text'-level access to the receiving
+ *   number (owners/admins always; a notes-only or hidden member must never
+ *   answer a customer). First answer WINS via api_claim_ring_answer (atomic,
+ *   webhook events land concurrently): the winner answers the inbound leg
+ *   (stamping the `bri|<caller>|<answeredAt>` tag that anchors talk-time
+ *   billing), bridges the two, and hangs up the losers. The LAST leg to fail
+ *   with no winner (api_ring_leg_failed, exactly-once) starts voicemail.
+ *
+ *   VOICEMAIL — answer (tagging `vmi|<caller>`), speak the owner-authored
+ *   greeting (or an honest default), then on call.speak.ended record up to
+ *   {@link VOICEMAIL_MAX_SECS}s (beep, mp3). call.recording.saved fetches
+ *   Telnyx's copy inside its 10-minute presigned window, stores it in the
+ *   private 'voicemails' bucket, stamps the calls row, upgrades the outcome
+ *   to 'voicemail' (the merge rule lets it beat the hangup's 'missed'),
+ *   drops a voicemail timeline event, and DELETES the Telnyx copy — we never
+ *   leave customer audio on a third party.
+ *
+ *   CANCEL — the caller giving up mid-ring hangs up the inbound leg; the
+ *   terminal handler calls {@link cancelRingingMemberLegs} so browsers stop
+ *   ringing a dead call. Their hangups mark legs failed; the "last leg"
+ *   voicemail then no-ops because answering a dead inbound leg fails (caught
+ *   — the missed text-back already ran off the inbound hangup).
+ *
+ * Replay safety: the ring is guarded by the call_member_legs ledger (a
+ * replayed call.initiated sees existing rows and does not re-dial); claim
+ * and last-leg decisions are SQL-atomic; the voicemail store upserts by
+ * session-keyed path; the timeline event is dedupe-scanned. Telnyx commands
+ * on dead legs 4xx — callers catch and continue, because a dead leg always
+ * means the terminal path already owns the outcome.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
+import type { Env } from "../env";
+import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+
+/** client_state tag on each member ring leg:
+ *  `brm|<session>|<user_id>|<caller-or-empty>|<inbound_ccid>` (ccid LAST —
+ *  it is the only pipe-risky field, so it takes the remainder). */
+export const BROWSER_MEMBER_STATE = "brm";
+
+/** client_state stamped on the INBOUND leg when a browser answers:
+ *  `bri|<caller-or-empty>|<answeredAtIso>` — the ISO stamp is the talk-time
+ *  anchor (inbound start_time includes ring time, which must never bill). */
+export const BROWSER_INBOUND_STATE = "bri";
+
+/** client_state on the INBOUND leg once it enters voicemail:
+ *  `vmi|<caller-or-empty>`. */
+export const VOICEMAIL_INBOUND_STATE = "vmi";
+
+/** Ring window for member browser legs. */
+export const RING_TIMEOUT_SECS = 25;
+
+/** Hard cap on one voicemail recording. */
+export const VOICEMAIL_MAX_SECS = 120;
+
+/** Recordings shorter than this are a hangup-on-the-beep, not a message. */
+const VOICEMAIL_MIN_SECS = 2;
+
+/** The private storage bucket voicemail mp3s live in. */
+export const VOICEMAILS_BUCKET = "voicemails";
+
+function b64encode(value: string): string {
+  return btoa(value);
+}
+
+function b64decode(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    return atob(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function buildMemberRingState(input: {
+  sessionId: string;
+  userId: string;
+  caller: string | null;
+  inboundCcid: string;
+}): string {
+  return b64encode(
+    `${BROWSER_MEMBER_STATE}|${input.sessionId}|${input.userId}|${input.caller ?? ""}|${input.inboundCcid}`,
+  );
+}
+
+export interface MemberRingState {
+  sessionId: string;
+  userId: string;
+  caller: string | null;
+  inboundCcid: string;
+}
+
+export function parseMemberRingState(
+  raw: string | null | undefined,
+): MemberRingState | null {
+  const decoded = b64decode(raw);
+  if (!decoded) return null;
+  const parts = decoded.split("|");
+  if (parts[0] !== BROWSER_MEMBER_STATE || parts.length < 5) return null;
+  const [, sessionId, userId, caller, ...ccid] = parts;
+  const inboundCcid = ccid.join("|");
+  if (!sessionId || !userId || !inboundCcid) return null;
+  return { sessionId, userId, caller: caller || null, inboundCcid };
+}
+
+export function buildBrowserAnsweredState(
+  caller: string | null,
+  answeredAtIso: string,
+): string {
+  return b64encode(`${BROWSER_INBOUND_STATE}|${caller ?? ""}|${answeredAtIso}`);
+}
+
+/** The talk-time anchor from a `bri` inbound leg's client_state (ms epoch),
+ *  or null when absent/garbled — the caller then bills zero, never ring time. */
+export function parseBrowserAnsweredAtMs(
+  raw: string | null | undefined,
+): number | null {
+  const decoded = b64decode(raw);
+  if (!decoded) return null;
+  const parts = decoded.split("|");
+  if (parts[0] !== BROWSER_INBOUND_STATE || parts.length < 3) return null;
+  const ms = Date.parse(parts[2] ?? "");
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function buildVoicemailState(caller: string | null): string {
+  return b64encode(`${VOICEMAIL_INBOUND_STATE}|${caller ?? ""}`);
+}
+
+/** True when Telnyx's flag-mode screening verdict marks the caller bad. The
+ *  raw string is stored on the calls row either way; this only drives the
+ *  'divert' routing choice, so unknown vocabulary fails OPEN (ring the team —
+ *  a false negative rings a scam once; a false positive silences a customer). */
+export function screeningFlagged(result: string | null | undefined): boolean {
+  if (!result) return false;
+  const value = result.toLowerCase();
+  if (value.includes("no_flag") || value.includes("clean")) return false;
+  return ["spam", "fraud", "scam", "robo", "flag", "spoof"].some((marker) =>
+    value.includes(marker),
+  );
+}
+
+/** A Telnyx command on a leg that already ended 4xxs — the routine race of
+ *  telephony (caller hung up first). Those are swallowed; real faults rethrow. */
+async function telnyxOnLiveLeg(
+  env: Env,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    await telnyxRequest(env, { method: "POST", path, body });
+    return true;
+  } catch (cause) {
+    if (cause instanceof TelnyxApiError && cause.status < 500) return false;
+    throw cause;
+  }
+}
+
+interface RingInput {
+  callControlId: string; // the inbound (customer) leg
+  callSessionId: string;
+  callerE164: string | null;
+  businessNumberE164: string;
+  companyId: string;
+  phoneNumberId: string;
+  companyName: string;
+  voicemailGreeting: string | null;
+}
+
+/**
+ * Dial every eligible member's browser; when nobody is dialable, go straight
+ * to voicemail. Replay-safe: existing call_member_legs rows for the session
+ * mean a previous pass already rang (or is ringing) — never re-dial.
+ */
+export async function ringMembersOrVoicemail(
+  env: Env,
+  db: SupabaseClient,
+  input: RingInput,
+): Promise<void> {
+  const { data: existing, error: existingError } = await db
+    .from("call_member_legs")
+    .select("call_control_id")
+    .eq("call_session_id", input.callSessionId)
+    .limit(1);
+  if (existingError) {
+    throw new Error(`ring ledger read failed: ${existingError.message}`);
+  }
+  if ((existing ?? []).length > 0) return; // replayed initiated — already rung
+
+  const targets = await eligibleRingTargets(
+    db,
+    input.companyId,
+    input.phoneNumberId,
+  );
+  if (targets.length === 0) {
+    await startVoicemail(env, {
+      callControlId: input.callControlId,
+      caller: input.callerE164,
+      companyName: input.companyName,
+      greeting: input.voicemailGreeting,
+    });
+    return;
+  }
+
+  // One Dial per member browser. Per-target try/catch: one member's dead
+  // credential must not silence the rest of the team. Legs are ledgered as
+  // they land so the answer/failure races have rows to decide on.
+  const dialed: { ccid: string; userId: string }[] = [];
+  for (const target of targets) {
+    try {
+      const response = (await telnyxRequest(env, {
+        method: "POST",
+        path: "/v2/calls",
+        body: {
+          connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+          to: `sip:${target.sipUsername}@sip.telnyx.com`,
+          // The member's browser shows who is calling — the real caller when
+          // known, the business number for anonymous/CLIR callers.
+          from: input.callerE164 ?? input.businessNumberE164,
+          timeout_secs: RING_TIMEOUT_SECS,
+          client_state: buildMemberRingState({
+            sessionId: input.callSessionId,
+            userId: target.userId,
+            caller: input.callerE164,
+            inboundCcid: input.callControlId,
+          }),
+        },
+      })) as { data?: { call_control_id?: string } };
+      const ccid = response.data?.call_control_id;
+      if (ccid) dialed.push({ ccid, userId: target.userId });
+    } catch (cause) {
+      console.error(
+        `member ring dial failed (user ${target.userId}):`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
+  if (dialed.length === 0) {
+    await startVoicemail(env, {
+      callControlId: input.callControlId,
+      caller: input.callerE164,
+      companyName: input.companyName,
+      greeting: input.voicemailGreeting,
+    });
+    return;
+  }
+
+  const { error: insertError } = await db.from("call_member_legs").insert(
+    dialed.map((leg) => ({
+      call_session_id: input.callSessionId,
+      call_control_id: leg.ccid,
+      company_id: input.companyId,
+      user_id: leg.userId,
+    })),
+  );
+  if (insertError) {
+    throw new Error(`ring ledger insert failed: ${insertError.message}`);
+  }
+}
+
+/**
+ * Who rings: active members holding a WebRTC credential whose #106 level for
+ * the receiving number is 'text' (owners/admins unrestricted, per the
+ * resolver's own rule). 'note'/hidden members never take customer calls.
+ */
+async function eligibleRingTargets(
+  db: SupabaseClient,
+  companyId: string,
+  phoneNumberId: string,
+): Promise<{ userId: string; sipUsername: string }[]> {
+  const [credentials, members, rules] = await Promise.all([
+    db
+      .from("member_telephony_credentials")
+      .select("user_id,sip_username")
+      .eq("company_id", companyId),
+    db
+      .from("company_members")
+      .select("user_id,role")
+      .eq("company_id", companyId)
+      .is("deactivated_at", null),
+    db
+      .from("number_access")
+      .select("phone_number_id,principal_kind,principal,level")
+      .eq("company_id", companyId)
+      .eq("phone_number_id", phoneNumberId),
+  ]);
+  if (credentials.error) {
+    throw new Error(`credential list failed: ${credentials.error.message}`);
+  }
+  if (members.error) {
+    throw new Error(`member list failed: ${members.error.message}`);
+  }
+  if (rules.error) {
+    throw new Error(`number_access read failed: ${rules.error.message}`);
+  }
+  const roleByUser = new Map(
+    (members.data ?? []).map((m) => [m.user_id as string, m.role as string]),
+  );
+  const accessRules = (rules.data ?? []) as NumberAccessRule[];
+
+  const targets: { userId: string; sipUsername: string }[] = [];
+  for (const cred of credentials.data ?? []) {
+    const userId = cred.user_id as string;
+    const role = roleByUser.get(userId);
+    if (!role) continue; // deactivated — credential revocation is best-effort
+    const level =
+      role === "owner" || role === "admin"
+        ? "text"
+        : levelFromRules(accessRules, userId, role as "admin" | "member");
+    if (level !== "text") continue;
+    targets.push({ userId, sipUsername: cred.sip_username as string });
+  }
+  return targets;
+}
+
+/**
+ * A member's browser answered. Decide the race atomically; the winner
+ * answers + bridges the customer and dismisses the rest of the team.
+ */
+export async function handleMemberRingAnswered(
+  env: Env,
+  db: SupabaseClient,
+  memberCcid: string,
+  state: MemberRingState,
+): Promise<void> {
+  const { data: won, error } = await db.rpc("api_claim_ring_answer", {
+    p_call_session_id: state.sessionId,
+    p_call_control_id: memberCcid,
+  });
+  if (error) {
+    throw new Error(`api_claim_ring_answer failed: ${error.message}`);
+  }
+  if (won !== true) {
+    // A sibling won first (or this is a replay) — dismiss this browser.
+    await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
+    return;
+  }
+
+  // Answer the customer leg, stamping the bri tag whose timestamp anchors
+  // talk-time billing. Failure = the caller hung up in the same instant; the
+  // inbound hangup path owns the missed outcome — just release the member.
+  const answeredAtIso = new Date().toISOString();
+  const answered = await telnyxOnLiveLeg(
+    env,
+    `/v2/calls/${state.inboundCcid}/actions/answer`,
+    { client_state: buildBrowserAnsweredState(state.caller, answeredAtIso) },
+  );
+  if (!answered) {
+    await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
+    return;
+  }
+
+  const bridged = await telnyxOnLiveLeg(
+    env,
+    `/v2/calls/${memberCcid}/actions/bridge`,
+    { call_control_id: state.inboundCcid },
+  );
+  if (!bridged) {
+    // The member leg died between answer and bridge — never leave the caller
+    // answered into dead air.
+    await telnyxOnLiveLeg(
+      env,
+      `/v2/calls/${state.inboundCcid}/actions/hangup`,
+      {},
+    );
+    return;
+  }
+
+  // Read-model: who answered, and when (also the UI/journey anchor — the
+  // billing anchor rides the bri tag, immune to a lost write here).
+  const { error: stampError } = await db
+    .from("calls")
+    .update({ answered_by_user_id: state.userId, answered_at: answeredAtIso })
+    .eq("call_session_id", state.sessionId)
+    .is("answered_at", null);
+  if (stampError) {
+    console.error(`answered_at stamp failed: ${stampError.message}`);
+  }
+
+  // Dismiss the rest of the team.
+  const { data: siblings, error: siblingError } = await db
+    .from("call_member_legs")
+    .select("call_control_id")
+    .eq("call_session_id", state.sessionId)
+    .eq("state", "ringing")
+    .neq("call_control_id", memberCcid);
+  if (siblingError) {
+    throw new Error(`sibling read failed: ${siblingError.message}`);
+  }
+  for (const sibling of siblings ?? []) {
+    await telnyxOnLiveLeg(
+      env,
+      `/v2/calls/${sibling.call_control_id as string}/actions/hangup`,
+      {},
+    );
+  }
+}
+
+/**
+ * A member ring leg ended without winning (timeout, decline, offline
+ * browser, or dismissed by the winner). When it was the LAST live leg and
+ * nobody answered, the caller gets voicemail — exactly once, the RPC
+ * serializes concurrent failures.
+ */
+export async function handleMemberRingHangup(
+  env: Env,
+  db: SupabaseClient,
+  memberCcid: string,
+  state: MemberRingState,
+): Promise<void> {
+  const { data: last, error } = await db.rpc("api_ring_leg_failed", {
+    p_call_session_id: state.sessionId,
+    p_call_control_id: memberCcid,
+  });
+  if (error) {
+    throw new Error(`api_ring_leg_failed failed: ${error.message}`);
+  }
+  if (last !== true) return;
+
+  const company = await companyForSession(db, state.sessionId);
+  if (!company) return;
+  await startVoicemail(env, {
+    callControlId: state.inboundCcid,
+    caller: state.caller,
+    companyName: company.name,
+    greeting: company.voicemailGreeting,
+  });
+}
+
+async function companyForSession(
+  db: SupabaseClient,
+  sessionId: string,
+): Promise<{ name: string; voicemailGreeting: string | null } | null> {
+  const { data, error } = await db
+    .from("calls")
+    .select("company_id")
+    .eq("call_session_id", sessionId)
+    .limit(1);
+  if (error) throw new Error(`calls read failed: ${error.message}`);
+  const companyId = data?.[0]?.company_id as string | undefined;
+  if (!companyId) return null;
+  const { data: rows, error: companyError } = await db
+    .from("companies")
+    .select("name,voicemail_greeting")
+    .eq("id", companyId)
+    .limit(1);
+  if (companyError) {
+    throw new Error(`company read failed: ${companyError.message}`);
+  }
+  const row = rows?.[0] as
+    | { name: string; voicemail_greeting: string | null }
+    | undefined;
+  return row
+    ? { name: row.name, voicemailGreeting: row.voicemail_greeting }
+    : null;
+}
+
+/** The greeting spoken when the owner has not written one. */
+export function defaultGreeting(companyName: string): string {
+  return (
+    `You've reached ${companyName}. We can't take your call right now. ` +
+    `Please leave a message after the beep, or hang up and text us at this number.`
+  );
+}
+
+/** TTS input is owner-authored — bound it and strip control characters so a
+ *  pathological greeting can never wedge the speak command. */
+function sanitizeGreeting(raw: string | null, companyName: string): string {
+  const text = (raw ?? "").replace(/[\p{Cc}\p{Cf}]/gu, " ").trim();
+  return text ? text.slice(0, 500) : defaultGreeting(companyName);
+}
+
+/**
+ * Put the inbound leg into voicemail: answer (routine-failure = the caller
+ * already hung up; the missed path owns it), then speak the greeting. The
+ * speak's `vmi` tag routes call.speak.ended → record_start.
+ */
+export async function startVoicemail(
+  env: Env,
+  input: {
+    callControlId: string;
+    caller: string | null;
+    companyName: string;
+    greeting: string | null;
+  },
+): Promise<void> {
+  const state = buildVoicemailState(input.caller);
+  const answered = await telnyxOnLiveLeg(
+    env,
+    `/v2/calls/${input.callControlId}/actions/answer`,
+    { client_state: state },
+  );
+  if (!answered) return; // dead leg — the inbound hangup already ran the miss
+  await telnyxOnLiveLeg(env, `/v2/calls/${input.callControlId}/actions/speak`, {
+    payload: sanitizeGreeting(input.greeting, input.companyName),
+    voice: "female",
+    language: "en-US",
+    client_state: state,
+  });
+}
+
+/** Greeting finished — open the recorder (beep, mp3, hard cap). */
+export async function handleVoicemailSpeakEnded(
+  env: Env,
+  callControlId: string,
+): Promise<void> {
+  await telnyxOnLiveLeg(
+    env,
+    `/v2/calls/${callControlId}/actions/record_start`,
+    {
+      format: "mp3",
+      channels: "single",
+      play_beep: true,
+      max_length: VOICEMAIL_MAX_SECS,
+      // Stop on sustained silence so nobody has to wait out the cap.
+      timeout_secs: 15,
+    },
+  );
+}
+
+/** The caller gave up mid-ring: stop every browser still ringing this
+ *  session. Their hangups mark legs failed; the last-leg voicemail then
+ *  no-ops on the dead inbound leg. */
+export async function cancelRingingMemberLegs(
+  env: Env,
+  db: SupabaseClient,
+  callSessionId: string,
+): Promise<void> {
+  const { data, error } = await db
+    .from("call_member_legs")
+    .select("call_control_id")
+    .eq("call_session_id", callSessionId)
+    .eq("state", "ringing");
+  if (error) throw new Error(`ring cancel read failed: ${error.message}`);
+  for (const leg of data ?? []) {
+    await telnyxOnLiveLeg(
+      env,
+      `/v2/calls/${leg.call_control_id as string}/actions/hangup`,
+      {},
+    );
+  }
+}
+
+interface RecordingSavedPayload {
+  call_session_id?: string;
+  call_control_id?: string;
+  client_state?: string | null;
+  from?: string;
+  to?: string;
+  recording_urls?: { mp3?: string; wav?: string };
+  recording_started_at?: string;
+  recording_ended_at?: string;
+}
+
+export interface StoredVoicemail {
+  companyId: string;
+  phoneNumberId: string;
+  callSessionId: string;
+  caller: string | null;
+  seconds: number;
+}
+
+/**
+ * call.recording.saved (vmi leg): copy the message into OUR storage inside
+ * Telnyx's 10-minute presigned window, stamp the calls row, then delete the
+ * Telnyx copy. Returns what the caller (voice-webhook) needs to upgrade the
+ * outcome + thread the voicemail; null when there is nothing to keep (too
+ * short, missing URL, or an expired replay — the call stays an honest miss).
+ */
+export async function storeVoicemailRecording(
+  env: Env,
+  db: SupabaseClient,
+  payload: RecordingSavedPayload,
+  resolved: { companyId: string; phoneNumberId: string },
+): Promise<StoredVoicemail | null> {
+  const sessionId = payload.call_session_id;
+  const url = payload.recording_urls?.mp3;
+  if (!sessionId || !url) return null;
+
+  const startMs = Date.parse(payload.recording_started_at ?? "");
+  const endMs = Date.parse(payload.recording_ended_at ?? "");
+  const seconds =
+    Number.isFinite(startMs) && Number.isFinite(endMs)
+      ? Math.max(0, Math.round((endMs - startMs) / 1000))
+      : 0;
+  if (seconds < VOICEMAIL_MIN_SECS) {
+    await deleteTelnyxRecording(env, sessionId);
+    return null;
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    // Expired presigned URL (a replay landing past the 10-minute window) or
+    // a Telnyx storage fault. The recording is unrecoverable — log and leave
+    // the call a miss rather than erroring into a replay loop that can never
+    // succeed.
+    console.error(
+      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}`,
+    );
+    return null;
+  }
+  const audio = await response.arrayBuffer();
+
+  const path = `${resolved.companyId}/${sessionId}.mp3`;
+  const upload = await db.storage
+    .from(VOICEMAILS_BUCKET)
+    .upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+  if (upload.error) {
+    throw new Error(`voicemail store failed: ${upload.error.message}`);
+  }
+
+  const { error: stampError } = await db
+    .from("calls")
+    .update({ voicemail_path: path, voicemail_seconds: seconds })
+    .eq("call_session_id", sessionId);
+  if (stampError) {
+    throw new Error(`voicemail stamp failed: ${stampError.message}`);
+  }
+
+  await deleteTelnyxRecording(env, sessionId);
+
+  return {
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller: payload.from ?? null,
+    seconds,
+  };
+}
+
+/** Best-effort removal of Telnyx's copy — customer audio must not persist on
+ *  a third party. The webhook payload carries no recording id, so list by
+ *  session and delete every match. A failure logs (Telnyx retention is
+ *  bounded anyway) rather than failing the pipeline. */
+async function deleteTelnyxRecording(
+  env: Env,
+  callSessionId: string,
+): Promise<void> {
+  try {
+    const listing = (await telnyxRequest(env, {
+      method: "GET",
+      path: `/v2/recordings?filter[call_session_id]=${encodeURIComponent(callSessionId)}`,
+    })) as { data?: { id?: string }[] };
+    for (const recording of listing.data ?? []) {
+      if (!recording.id) continue;
+      await telnyxRequest(env, {
+        method: "DELETE",
+        path: `/v2/recordings/${recording.id}`,
+      });
+    }
+  } catch (cause) {
+    console.error(
+      `telnyx recording delete failed for ${callSessionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}
+
+/**
+ * Drop the voicemail line into the conversation timeline (the thread is the
+ * inbox's source of truth; the player fetches its signed URL per session).
+ * Dedupe-scanned per session so webhook replays never double-post.
+ */
+export async function insertVoicemailEvent(
+  db: SupabaseClient,
+  input: {
+    companyId: string;
+    conversationId: string;
+    callSessionId: string;
+    caller: string | null;
+    seconds: number;
+  },
+): Promise<void> {
+  const { data: existing, error: scanError } = await db
+    .from("conversation_events")
+    .select("id")
+    .eq("conversation_id", input.conversationId)
+    .eq("type", "call_completed")
+    .eq("payload->>call_session_id", input.callSessionId)
+    .eq("payload->>kind", "voicemail")
+    .limit(1);
+  if (scanError) {
+    throw new Error(`voicemail event scan failed: ${scanError.message}`);
+  }
+  if ((existing ?? []).length > 0) return;
+
+  const { error } = await db.from("conversation_events").insert({
+    company_id: input.companyId,
+    conversation_id: input.conversationId,
+    actor_user_id: null,
+    type: "call_completed",
+    payload: {
+      kind: "voicemail",
+      call_session_id: input.callSessionId,
+      outcome: "voicemail",
+      voicemail_seconds: input.seconds,
+      caller: input.caller,
+    },
+  });
+  if (error) {
+    throw new Error(`voicemail event insert failed: ${error.message}`);
+  }
+}

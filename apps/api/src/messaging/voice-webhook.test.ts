@@ -60,12 +60,13 @@ function numberStub(status = "active"): Stub {
 }
 
 /**
- * The companies select shared by BOTH the call.initiated and the terminal
- * handlers: exactly id,forward_to_cell (no mctb_message — that is the
- * sendMissedCallText settings select).
+ * The call.initiated companies select (D43 v2): id, name, the voice-cap
+ * fields, and the Calls settings (call_screening / voicemail_greeting). The
+ * legacy first parameter is retained (ignored) so pre-v2 call sites stay
+ * unchanged — the terminal handlers never read companies at all.
  */
 function companyStubs(
-  forward: string | null,
+  _forward: string | null,
   voice?: {
     plan: "starter" | "pro";
     currentPeriodStart: string;
@@ -74,6 +75,7 @@ function companyStubs(
     capMultiplier?: string;
   },
   subscriptionStatus = "active",
+  calls?: { screening?: "off" | "flag" | "divert"; greeting?: string | null },
 ): Stub[] {
   return [
     stubRoute(
@@ -83,21 +85,76 @@ function companyStubs(
         "companies",
         (url) => {
           const sel = url.searchParams.get("select") ?? "";
-          return sel.includes("forward_to_cell") && !sel.includes("mctb_message");
+          return sel.includes("call_screening") && !sel.includes("mctb_message");
         },
       ),
       () => [
         {
           id: COMPANY_ID,
-          forward_to_cell: forward,
+          name: "Ace Plumbing",
           plan: voice?.plan ?? null,
           current_period_start: voice?.currentPeriodStart ?? null,
           overage_cap_multiplier: voice?.capMultiplier ?? "3.00",
           subscription_status: subscriptionStatus,
+          call_screening: calls?.screening ?? "flag",
+          voicemail_greeting: calls?.greeting ?? null,
         },
       ],
     ),
   ];
+}
+
+const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
+const USER_B = "bbbbbbbb-0000-4000-8000-0000000000b0";
+
+/**
+ * D43 ring-world defaults: line not busy, no prior ring ledger, one
+ * credentialed owner (USER_A). Override via options for busy/no-member/
+ * restricted worlds.
+ */
+function ringWorldStubs(opts?: {
+  busyRows?: { id: string }[];
+  credentials?: { user_id: string; sip_username: string }[];
+  members?: { user_id: string; role: string }[];
+  accessRules?: Record<string, unknown>[];
+}): Stub[] {
+  return [
+    stubRoute(restMatch(env, "GET", "calls"), () => opts?.busyRows ?? []),
+    stubRoute(restMatch(env, "GET", "call_member_legs"), () => []),
+    stubRoute(restMatch(env, "POST", "call_member_legs"), () =>
+      Response.json([], { status: 201 }),
+    ),
+    stubRoute(restMatch(env, "GET", "member_telephony_credentials"), () =>
+      opts?.credentials ?? [{ user_id: USER_A, sip_username: "gencred_a" }],
+    ),
+    stubRoute(restMatch(env, "GET", "company_members"), () =>
+      opts?.members ?? [{ user_id: USER_A, role: "owner" }],
+    ),
+    stubRoute(restMatch(env, "GET", "number_access"), () =>
+      opts?.accessRules ?? [],
+    ),
+  ];
+}
+
+/** Telnyx Dial (POST /v2/calls) — the member browser ring legs. */
+function telnyxDial(ccid = "member-leg-1"): Stub {
+  return stubRoute(
+    (url, request) =>
+      request.method === "POST" && url.pathname === "/v2/calls",
+    () => ({ data: { call_control_id: ccid, call_session_id: SESSION } }),
+  );
+}
+
+/** Telnyx call actions the v2 flows use (answer/speak/record/bridge/hangup). */
+function telnyxV2Actions(): Stub {
+  return stubRoute(
+    (url, request) =>
+      request.method === "POST" &&
+      /\/v2\/calls\/[^/]+\/actions\/(answer|speak|record_start|bridge|hangup)$/.test(
+        url.pathname,
+      ),
+    () => ({ data: { result: "ok" } }),
+  );
 }
 
 /** MCTB settings select used by sendMissedCallText. */
@@ -315,12 +372,18 @@ function persistStub(): Stub {
 /**
  * Every terminal event now feeds the #129 calls read model, so its three
  * stubs are served by DEFAULT (appended last — a test's own upsert/thread/
- * link stub, passed explicitly, wins by order). Everything else still fails
- * loudly when unstubbed.
+ * link stub, passed explicitly, wins by order). D43 adds two more defaults:
+ * the untagged-hangup ring-cancel read (GET call_member_legs → none ringing)
+ * and its hangup action. Everything else still fails loudly when unstubbed.
  */
 function serve(...stubs: Stub[]) {
+  const d43Defaults: Stub[] = [
+    stubRoute(restMatch(env, "GET", "call_member_legs"), () => []),
+  ];
   stubFetch(
-    ...([...stubs, ...callsModelStubs()].map((s) => s.route) as FetchRoute[]),
+    ...([...stubs, ...callsModelStubs(), ...d43Defaults].map(
+      (s) => s.route,
+    ) as FetchRoute[]),
   );
 }
 
@@ -328,50 +391,160 @@ function event(eventType: string, payload: Record<string, unknown>): TelnyxEvent
   return { data: { id: "evt-1", event_type: eventType, payload } };
 }
 
-describe("handleCallEvent — inbound call.initiated", () => {
-  it("answers the inbound leg and dials the forward cell with timeout + AMD", async () => {
-    const action = telnyxCallAction();
-    serve(numberStub(), ...companyStubs(CELL), action);
+describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
+  const initiated = () =>
+    event("call.initiated", {
+      call_control_id: CC_ID,
+      call_session_id: SESSION,
+      direction: "incoming",
+      from: CALLER,
+      to: OUR_NUMBER,
+    });
 
-    await handleCallEvent(
-      env,
-      event("call.initiated", {
-        call_control_id: CC_ID,
-        call_session_id: SESSION,
-        direction: "incoming",
-        from: CALLER,
-        to: OUR_NUMBER,
-      }),
+  it("rings the member's browser (sip dial, brm tag) and does NOT answer the inbound leg", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    const ledger = stubRoute(restMatch(env, "POST", "call_member_legs"), () =>
+      Response.json([], { status: 201 }),
     );
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      // The observed ledger stub must precede ringWorldStubs' own POST sink
+      // (first-registered wins in the fetch stub).
+      ledger,
+      ...ringWorldStubs(),
+      dial,
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
+
+    expect(dial.calls).toHaveLength(1);
+    expect(dial.calls[0].body).toMatchObject({
+      to: "sip:gencred_a@sip.telnyx.com",
+      from: CALLER, // the member sees who is really calling
+      connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+    });
+    const state = atob(
+      (dial.calls[0].body as { client_state: string }).client_state,
+    );
+    // brm|<session>|<user>|<caller>|<inbound ccid> — the answer/failure
+    // races and the bridge recover everything from the tag alone.
+    expect(state).toBe(`brm|${SESSION}|${USER_A}|${CALLER}|${CC_ID}`);
+    // The caller keeps hearing real carrier ringback: no answer while ringing.
+    expect(
+      action.calls.filter((c) => c.url.pathname.endsWith("/answer")),
+    ).toHaveLength(0);
+    // The ring ledger rows landed (the races are decided on them).
+    expect(ledger.calls).toHaveLength(1);
+  });
+
+  it("a notes-only member's browser never rings (#106 — customer calls need 'text')", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      ...ringWorldStubs({
+        members: [{ user_id: USER_A, role: "member" }],
+        accessRules: [
+          {
+            phone_number_id: NUMBER_ID,
+            principal_kind: "user",
+            principal: USER_A,
+            level: "note",
+          },
+        ],
+      }),
+      dial,
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
+
+    // Nobody eligible → straight to voicemail (answer + greeting).
+    expect(dial.calls).toHaveLength(0);
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/answer")),
+    ).toBe(true);
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/speak")),
+    ).toBe(true);
+  });
+
+  it("goes to voicemail (answer + default greeting with the company name) when nobody holds a credential", async () => {
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      ...ringWorldStubs({ credentials: [] }),
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
 
     const answer = action.calls.find((c) => c.url.pathname.endsWith("/answer"));
-    const transfer = action.calls.find((c) =>
-      c.url.pathname.endsWith("/transfer"),
-    );
+    const speak = action.calls.find((c) => c.url.pathname.endsWith("/speak"));
     expect(answer).toBeDefined();
-    expect(transfer).toBeDefined();
-    expect(transfer!.body).toMatchObject({
-      to: CELL,
-      answering_machine_detection: "detect_beep",
-      // Telnyx transfer contract: client_state tags the leg the command runs
-      // ON (the inbound leg); target_leg_client_state tags the NEW dialed
-      // leg. The forward tag (with the caller) MUST ride the target param —
-      // putting it on client_state would tag the wrong leg and the text-back
-      // would never fire in production.
-      client_state: btoa(INBOUND_FORWARDED_STATE),
-      target_leg_client_state: forwardState(CALLER),
-    });
-    // Ring timeout is set so a rang-out forward computes MISSED.
-    expect((transfer!.body as { timeout_secs?: number }).timeout_secs).toBeGreaterThan(0);
-    // #12: a per-call duration ceiling bounds one call's cost (1h).
-    expect(
-      (transfer!.body as { time_limit_secs?: number }).time_limit_secs,
-    ).toBe(60 * 60);
+    expect(speak).toBeDefined();
+    // Both carry the vmi tag so speak.ended → record_start routes.
+    expect(atob((answer!.body as { client_state: string }).client_state)).toBe(
+      `vmi|${CALLER}`,
+    );
+    expect((speak!.body as { payload: string }).payload).toContain(
+      "Ace Plumbing",
+    );
   });
 
-  it("never answers when no forward is configured (rings out; hangup is the signal)", async () => {
-    const action = telnyxCallAction();
-    serve(numberStub(), ...companyStubs(null), action);
+  it("speaks the owner-authored greeting when one exists", async () => {
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null, undefined, "active", {
+        greeting: "Leave it after the beep, eh.",
+      }),
+      ...ringWorldStubs({ credentials: [] }),
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
+
+    const speak = action.calls.find((c) => c.url.pathname.endsWith("/speak"));
+    expect((speak!.body as { payload: string }).payload).toBe(
+      "Leave it after the beep, eh.",
+    );
+  });
+
+  it("line busy (another live call on this number) → voicemail, no ring", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      ...ringWorldStubs({ busyRows: [{ id: "other-live-call" }] }),
+      dial,
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
+
+    expect(dial.calls).toHaveLength(0);
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/speak")),
+    ).toBe(true);
+  });
+
+  it("screening 'divert' + a flagged caller → voicemail, the team is never interrupted", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null, undefined, "active", { screening: "divert" }),
+      ...ringWorldStubs(),
+      dial,
+      action,
+    );
 
     await handleCallEvent(
       env,
@@ -381,17 +554,59 @@ describe("handleCallEvent — inbound call.initiated", () => {
         direction: "incoming",
         from: CALLER,
         to: OUR_NUMBER,
+        call_screening_result: "flagged_as_spam",
       }),
     );
 
-    // Answering with no one to connect would be dead air + a billed leg — the
-    // call must be left ringing so the caller hears a natural "no answer".
-    expect(action.calls).toHaveLength(0);
+    expect(dial.calls).toHaveLength(0);
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/speak")),
+    ).toBe(true);
   });
 
-  it("ignores the outgoing forward leg's own call.initiated", async () => {
-    const action = telnyxCallAction();
-    serve(numberStub(), ...companyStubs(CELL), action);
+  it("screening 'flag' only labels — a flagged caller still rings the team", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    const meta = callsLinkStub();
+    serve(
+      numberStub(),
+      ...companyStubs(null, undefined, "active", { screening: "flag" }),
+      ...ringWorldStubs(),
+      meta,
+      dial,
+      action,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        call_screening_result: "flagged_as_spam",
+        shaken_stir_attestation: "C",
+      }),
+    );
+
+    expect(dial.calls).toHaveLength(1);
+    // The verdict is persisted for honest UI labels either way.
+    const stamp = meta.calls.find(
+      (c) =>
+        (c.body as Record<string, unknown> | null)?.screening_result ===
+        "flagged_as_spam",
+    );
+    expect(stamp).toBeDefined();
+    expect((stamp!.body as Record<string, unknown>).stir_attestation).toBe("C");
+    expect(
+      (stamp!.body as Record<string, unknown>).customer_call_control_id,
+    ).toBe(CC_ID);
+  });
+
+  it("ignores our own outgoing legs' call.initiated (tagged/outgoing)", async () => {
+    const action = telnyxV2Actions();
+    serve(numberStub(), ...companyStubs(null), action);
 
     await handleCallEvent(
       env,
@@ -407,112 +622,383 @@ describe("handleCallEvent — inbound call.initiated", () => {
     expect(action.calls).toHaveLength(0);
   });
 
-  it("forwards normally when under the voice spending cap (#12/D36)", async () => {
-    const action = telnyxCallAction();
+  it("rings normally when under the voice spending cap (#12/D36)", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
     serve(
       numberStub(),
-      ...companyStubs(CELL, {
+      ...companyStubs(null, {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
       // D36: PAST the 2,500-min allowance but under the 3× spending cap
-      // (7,500 min) — the call still forwards; the extra minutes bill at
-      // 1¢/min instead of being dropped. (#134: no company_modules read —
-      // every plan gets the plan allowance × cap multiplier.)
+      // (7,500 min) — the call still rings; the extra minutes bill at 1¢/min.
       voiceSecondsStub(3000 * 60),
+      ...ringWorldStubs(),
+      dial,
       action,
     );
 
-    await handleCallEvent(
-      env,
-      event("call.initiated", {
-        call_control_id: CC_ID,
-        call_session_id: SESSION,
-        direction: "incoming",
-        from: CALLER,
-        to: OUR_NUMBER,
-      }),
-    );
+    await handleCallEvent(env, initiated());
 
-    expect(
-      action.calls.some((c) => c.url.pathname.endsWith("/answer")),
-    ).toBe(true);
-    expect(
-      action.calls.some((c) => c.url.pathname.endsWith("/transfer")),
-    ).toBe(true);
+    expect(dial.calls).toHaveLength(1);
   });
 
-  it("rejects the call and never forwards at the voice spending cap (D36 pause boundary)", async () => {
-    const action = telnyxCallAction();
+  it("rejects the call at the voice spending cap (D36 pause boundary)", async () => {
+    const dial = telnyxDial();
     const reject = telnyxReject();
     serve(
       numberStub(),
-      ...companyStubs(CELL, {
+      ...companyStubs(null, {
         plan: "starter",
         currentPeriodStart: "2026-07-01T00:00:00Z",
       }),
       // Exactly at allowance × multiplier: 2,500 min × 3.00 = 7,500 min.
       voiceSecondsStub(7500 * 60),
-      action,
+      dial,
       reject,
     );
 
-    await handleCallEvent(
-      env,
-      event("call.initiated", {
-        call_control_id: CC_ID,
-        call_session_id: SESSION,
-        direction: "incoming",
-        from: CALLER,
-        to: OUR_NUMBER,
-      }),
-    );
+    await handleCallEvent(env, initiated());
 
-    // The expensive two-leg forward is avoided — the call is rejected instead.
-    // Its untagged hangup will flow through the normal missed path (text-back).
+    // No ring, no voicemail — the call is rejected; its untagged hangup
+    // flows through the normal missed path (text-back).
     expect(reject.calls).toHaveLength(1);
     expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
+    expect(dial.calls).toHaveLength(0);
+  });
+
+  it("never rings for a canceled (non-active subscription) company (#43)", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    serve(
+      numberStub(),
+      ...companyStubs(null, undefined, "canceled"),
+      dial,
+      action,
+    );
+
+    await handleCallEvent(env, initiated());
+
+    // A canceled company in its 30-day grace must not run billable legs on
+    // our dollar: no ring, no voicemail — the call rings out and the hangup
+    // is the missed signal (where the text-back's subscription gate applies).
+    expect(dial.calls).toHaveLength(0);
     expect(action.calls).toHaveLength(0);
   });
 
-  it("never forwards for a canceled (non-active subscription) company (#43)", async () => {
-    const action = telnyxCallAction();
-    serve(numberStub(), ...companyStubs(CELL, undefined, "canceled"), action);
+  it("never rings on a suspended number even when the company row reads active (#43)", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    serve(numberStub("suspended"), ...companyStubs(null), dial, action);
+
+    await handleCallEvent(env, initiated());
+
+    expect(dial.calls).toHaveLength(0);
+    expect(action.calls).toHaveLength(0);
+  });
+});
+
+describe("handleCallEvent — D43 member ring races", () => {
+  const MEMBER_LEG = "member-leg-1";
+  const brmState = btoa(`brm|${SESSION}|${USER_A}|${CALLER}|${CC_ID}`);
+
+  function memberEvent(eventType: string): TelnyxEvent {
+    return event(eventType, {
+      call_control_id: MEMBER_LEG,
+      call_session_id: SESSION,
+      direction: "outgoing",
+      from: CALLER,
+      to: "sip:gencred_a@sip.telnyx.com",
+      client_state: brmState,
+    });
+  }
+
+  it("first answer wins: answers the inbound leg (bri tag), bridges, stamps, dismisses siblings", async () => {
+    const action = telnyxV2Actions();
+    const claim = stubRoute(rpcMatch(env, "api_claim_ring_answer"), () => true);
+    const stamp = callsLinkStub();
+    const siblings = stubRoute(
+      restMatch(env, "GET", "call_member_legs"),
+      () => [{ call_control_id: "member-leg-2" }],
+    );
+    serve(claim, stamp, siblings, action);
+
+    await handleCallEvent(env, memberEvent("call.answered"));
+
+    const answer = action.calls.find(
+      (c) =>
+        c.url.pathname === `/v2/calls/${CC_ID}/actions/answer`,
+    );
+    expect(answer).toBeDefined();
+    const briState = atob(
+      (answer!.body as { client_state: string }).client_state,
+    );
+    expect(briState.startsWith(`bri|${CALLER}|`)).toBe(true);
+    // The bridge runs ON the member leg, targeting the inbound leg.
+    const bridge = action.calls.find(
+      (c) => c.url.pathname === `/v2/calls/${MEMBER_LEG}/actions/bridge`,
+    );
+    expect(bridge).toBeDefined();
+    expect(bridge!.body).toMatchObject({ call_control_id: CC_ID });
+    // Who-answered stamp (guarded on answered_at null).
+    const answeredStamp = stamp.calls.find(
+      (c) =>
+        (c.body as Record<string, unknown> | null)?.answered_by_user_id ===
+        USER_A,
+    );
+    expect(answeredStamp).toBeDefined();
+    // The losing sibling is dismissed.
+    const hangup = action.calls.find(
+      (c) => c.url.pathname === "/v2/calls/member-leg-2/actions/hangup",
+    );
+    expect(hangup).toBeDefined();
+  });
+
+  it("a late answer loses the claim and is hung up (never double-bridged)", async () => {
+    const action = telnyxV2Actions();
+    const claim = stubRoute(
+      rpcMatch(env, "api_claim_ring_answer"),
+      () => false,
+    );
+    serve(claim, action);
+
+    await handleCallEvent(env, memberEvent("call.answered"));
+
+    expect(action.calls).toHaveLength(1);
+    expect(action.calls[0].url.pathname).toBe(
+      `/v2/calls/${MEMBER_LEG}/actions/hangup`,
+    );
+  });
+
+  it("the LAST failed leg starts voicemail on the inbound leg", async () => {
+    const action = telnyxV2Actions();
+    const failed = stubRoute(rpcMatch(env, "api_ring_leg_failed"), () => true);
+    const sessionRead = stubRoute(
+      restMatch(env, "GET", "calls"),
+      () => [{ company_id: COMPANY_ID }],
+    );
+    const companyRead = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "companies",
+        (url) =>
+          (url.searchParams.get("select") ?? "").includes(
+            "voicemail_greeting",
+          ),
+      ),
+      () => [{ name: "Ace Plumbing", voicemail_greeting: null }],
+    );
+    serve(failed, sessionRead, companyRead, action);
+
+    await handleCallEvent(env, memberEvent("call.hangup"));
+
+    const answer = action.calls.find(
+      (c) => c.url.pathname === `/v2/calls/${CC_ID}/actions/answer`,
+    );
+    const speak = action.calls.find(
+      (c) => c.url.pathname === `/v2/calls/${CC_ID}/actions/speak`,
+    );
+    expect(answer).toBeDefined();
+    expect(speak).toBeDefined();
+  });
+
+  it("a NON-last failed leg does nothing further", async () => {
+    const action = telnyxV2Actions();
+    const failed = stubRoute(rpcMatch(env, "api_ring_leg_failed"), () => false);
+    serve(failed, action);
+
+    await handleCallEvent(env, memberEvent("call.hangup"));
+
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("caller hangs up mid-ring: every ringing browser is dismissed", async () => {
+    const action = telnyxV2Actions();
+    const ringing = stubRoute(
+      restMatch(env, "GET", "call_member_legs"),
+      () => [
+        { call_control_id: "member-leg-1" },
+        { call_control_id: "member-leg-2" },
+      ],
+    );
+    serve(
+      numberStub(),
+      ringing,
+      action,
+      // The untagged hangup then runs the normal missed path.
+      callRecordsStub(),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claimStub(),
+      telnyxSms(),
+      persistStub(),
+      ...alertStubs(),
+    );
 
     await handleCallEvent(
       env,
-      event("call.initiated", {
+      event("call.hangup", {
         call_control_id: CC_ID,
         call_session_id: SESSION,
         direction: "incoming",
         from: CALLER,
         to: OUR_NUMBER,
+        hangup_cause: "originator_cancel",
+        start_time: "2026-07-12T00:00:00Z",
+        end_time: "2026-07-12T00:00:10Z",
       }),
     );
 
-    // A canceled company in its 30-day grace has forward_to_cell configured
-    // but must NOT run two billable Telnyx legs on our dollar: no answer, no
-    // transfer, no reject — the call rings out and the hangup is the missed
-    // signal (where the text-back's own subscription gate applies).
-    expect(action.calls).toHaveLength(0);
+    expect(
+      action.calls.filter((c) => c.url.pathname.endsWith("/hangup")),
+    ).toHaveLength(2);
   });
+});
 
-  it("never forwards on a suspended number even when the company row reads active (#43)", async () => {
-    const action = telnyxCallAction();
-    serve(numberStub("suspended"), ...companyStubs(CELL), action);
+describe("handleCallEvent — D43 voicemail pipeline", () => {
+  const vmiState = btoa(`vmi|${CALLER}`);
+
+  it("greeting finished (speak.ended, vmi tag) → record_start with beep + cap", async () => {
+    const action = telnyxV2Actions();
+    serve(action);
 
     await handleCallEvent(
       env,
-      event("call.initiated", {
+      event("call.speak.ended", {
         call_control_id: CC_ID,
         call_session_id: SESSION,
-        direction: "incoming",
-        from: CALLER,
-        to: OUR_NUMBER,
+        client_state: vmiState,
       }),
     );
 
-    expect(action.calls).toHaveLength(0);
+    const record = action.calls.find((c) =>
+      c.url.pathname.endsWith("/record_start"),
+    );
+    expect(record).toBeDefined();
+    expect(record!.body).toMatchObject({
+      format: "mp3",
+      play_beep: true,
+      max_length: 120,
+    });
+  });
+
+  it("recording.saved: fetches within the presigned window, stores, stamps, threads, deletes the Telnyx copy", async () => {
+    const audio = new Uint8Array([73, 68, 51, 4]); // "ID3…"
+    const mp3Fetch = stubRoute(
+      (url) => url.hostname === "recordings.telnyx.example",
+      () => new Response(audio, { status: 200 }),
+    );
+    const storagePut = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.pathname.startsWith("/storage/v1/object/voicemails/"),
+      () => Response.json({ Key: "ok" }),
+    );
+    const stamp = callsLinkStub();
+    const upsert = upsertCallStub({ conversation_id: null });
+    const thread = threadCallStub();
+    const eventScan = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    const eventInsert = stubRoute(
+      restMatch(env, "POST", "conversation_events"),
+      () => Response.json([], { status: 201 }),
+    );
+    const recordingList = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.pathname === "/v2/recordings",
+      () => ({ data: [{ id: "rec-1" }] }),
+    );
+    const recordingDelete = stubRoute(
+      (url, request) =>
+        request.method === "DELETE" &&
+        url.pathname === "/v2/recordings/rec-1",
+      () => ({ data: {} }),
+    );
+    serve(
+      numberStub(),
+      mp3Fetch,
+      storagePut,
+      stamp,
+      upsert,
+      thread,
+      eventScan,
+      eventInsert,
+      recordingList,
+      recordingDelete,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.recording.saved", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        client_state: vmiState,
+        from: CALLER,
+        to: OUR_NUMBER,
+        recording_urls: { mp3: "https://recordings.telnyx.example/rec-1.mp3" },
+        recording_started_at: "2026-07-12T00:00:00Z",
+        recording_ended_at: "2026-07-12T00:00:42Z",
+      }),
+    );
+
+    // Stored under the company path, session-keyed (replay-safe upsert).
+    expect(storagePut.calls[0].url.pathname).toBe(
+      `/storage/v1/object/voicemails/${COMPANY_ID}/${SESSION}.mp3`,
+    );
+    // The calls row gets the recording pointer + duration.
+    const vmStamp = stamp.calls.find(
+      (c) =>
+        (c.body as Record<string, unknown> | null)?.voicemail_seconds === 42,
+    );
+    expect(vmStamp).toBeDefined();
+    // Outcome upgraded to 'voicemail' via the merge writer.
+    const outcomeCall = upsert.calls.find(
+      (c) =>
+        (c.body as Record<string, unknown>).p_outcome === "voicemail",
+    );
+    expect(outcomeCall).toBeDefined();
+    // Threaded with CREATE semantics + the voicemail timeline line landed.
+    expect(thread.calls).toHaveLength(1);
+    expect(
+      (thread.calls[0].body as Record<string, unknown>).p_create_if_missing,
+    ).toBe(true);
+    expect(eventInsert.calls).toHaveLength(1);
+    // Telnyx's copy is deleted after the fetch.
+    expect(recordingDelete.calls).toHaveLength(1);
+  });
+
+  it("a hangup-on-the-beep recording (under 2s) is discarded — the call stays an honest miss", async () => {
+    const stamp = callsLinkStub();
+    const recordingList = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.pathname === "/v2/recordings",
+      () => ({ data: [] }),
+    );
+    serve(numberStub(), stamp, recordingList);
+
+    await handleCallEvent(
+      env,
+      event("call.recording.saved", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        client_state: vmiState,
+        from: CALLER,
+        to: OUR_NUMBER,
+        recording_urls: { mp3: "https://recordings.telnyx.example/rec-2.mp3" },
+        recording_started_at: "2026-07-12T00:00:00Z",
+        recording_ended_at: "2026-07-12T00:00:01Z",
+      }),
+    );
+
+    expect(
+      stamp.calls.filter(
+        (c) => (c.body as Record<string, unknown> | null)?.voicemail_seconds,
+      ),
+    ).toHaveLength(0);
   });
 });
 

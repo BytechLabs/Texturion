@@ -2,6 +2,7 @@
 
 import type { ConversationEvent } from "@/lib/api/types";
 
+import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { statusLabel } from "@/components/inbox/status-pill";
 import { isTaskEventType, taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
@@ -131,6 +132,14 @@ export function eventSentence(
           ? `You called · ${formatCallDuration(seconds)}`
           : "You called";
       }
+      // D43: the dedicated voicemail line (kind:'voicemail') carries the
+      // message duration; SystemLine renders the player under it.
+      if (event.payload.kind === "voicemail") {
+        const vmSeconds = Number(event.payload.voicemail_seconds ?? 0);
+        return vmSeconds > 0
+          ? `Left a voicemail · ${formatCallDuration(vmSeconds)}`
+          : "Left a voicemail";
+      }
       if (outcome === "voicemail") return "Call went to voicemail";
       if (outcome === "missed") return "Missed call";
       return seconds > 0
@@ -180,6 +189,28 @@ export function SystemLine({
           {sentence}
         </button>
       </p>
+    );
+  }
+
+  // D43: a voicemail line carries its message — the player renders right
+  // under the sentence, fetched on demand (signed URL).
+  const voicemailSession =
+    event.type === "call_completed" &&
+    event.payload.kind === "voicemail" &&
+    typeof event.payload.call_session_id === "string"
+      ? event.payload.call_session_id
+      : null;
+  if (voicemailSession) {
+    return (
+      <div className="space-y-1.5 py-1 text-center">
+        <p className="text-xs text-muted-foreground">{sentence}</p>
+        <div className="flex justify-center">
+          <VoicemailPlayer
+            callSessionId={voicemailSession}
+            seconds={Number(event.payload.voicemail_seconds ?? 0) || null}
+          />
+        </div>
+      </div>
     );
   }
 

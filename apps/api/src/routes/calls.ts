@@ -32,6 +32,7 @@ import {
   OUTBOUND_CUSTOMER_STATE,
   type CompanyVoiceState,
 } from "../messaging/voice-webhook";
+import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import {
   parseCursor,
@@ -48,13 +49,23 @@ const listQuerySchema = z.object({
 /** One row of GET /v1/calls (mirrored by the web `Call` type). */
 export interface CallRow {
   id: string;
+  /** D43: the Telnyx session id — voicemail playback + live-call identity. */
+  call_session_id: string;
   caller_e164: string | null;
   contact_id: string | null;
   contact_name: string | null;
+  /** D43: CNAM-dipped display name (when the owner enabled the lookup). */
+  caller_name: string | null;
   phone_number_id: string | null;
   conversation_id: string | null;
+  /** null = the call is IN PROGRESS (D43 creates the row at call.initiated). */
   outcome: "answered" | "voicemail" | "missed" | null;
   forward_seconds: number;
+  /** D43: raw carrier screening verdict + STIR/SHAKEN attestation (A/B/C). */
+  screening_result: string | null;
+  stir_attestation: string | null;
+  voicemail_seconds: number | null;
+  answered_by_user_id: string | null;
   started_at: string;
 }
 
@@ -85,6 +96,57 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
     "calls list",
   );
   return c.json(buildPage(rows, limit, "started_at"));
+});
+
+/**
+ * D43: voicemail playback. Returns a short-lived signed URL for the
+ * session's stored recording. #106-enforced: the call's number must be
+ * readable by the caller (a hidden number's voicemail must not even
+ * enumerate — same not_found shape as its conversations).
+ */
+callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) => {
+  const sessionId = c.req.param("sessionId");
+  const db = getDb(getEnv(c.env));
+
+  const rows = unwrap<
+    {
+      phone_number_id: string | null;
+      voicemail_path: string | null;
+      voicemail_seconds: number | null;
+    }[]
+  >(
+    await db
+      .from("calls")
+      .select("phone_number_id,voicemail_path,voicemail_seconds")
+      .eq("company_id", c.get("companyId"))
+      .eq("call_session_id", sessionId)
+      .limit(1),
+    "call lookup",
+  );
+  const call = rows[0];
+  if (!call?.voicemail_path) {
+    return errorResponse(c, "not_found", "No voicemail for this call.");
+  }
+  await assertNumberLevel(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+    phoneNumberId: call.phone_number_id,
+    need: "read",
+  });
+
+  const signed = await db.storage
+    .from(VOICEMAILS_BUCKET)
+    .createSignedUrl(call.voicemail_path, 60 * 60);
+  if (signed.error || !signed.data?.signedUrl) {
+    throw new Error(
+      `voicemail sign failed: ${signed.error?.message ?? "no URL"}`,
+    );
+  }
+  return c.json({
+    url: signed.data.signedUrl,
+    seconds: call.voicemail_seconds ?? 0,
+  });
 });
 
 /** D38: the member's own cell (NANP), matching companies.forward_to_cell. */

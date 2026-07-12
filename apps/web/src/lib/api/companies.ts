@@ -62,6 +62,13 @@ export interface CompanyPatch {
   mctb_message?: string | null;
   /** Optional E.164 cell to forward calls to; null clears it. */
   forward_to_cell?: string | null;
+  /** D43 Calls v2 (O/A): voicemail greeting (null = spoken default),
+   *  screening routing, CNAM display name (<=15 alnum+space; null clears),
+   *  inbound caller-name lookup. */
+  voicemail_greeting?: string | null;
+  call_screening?: "off" | "flag" | "divert";
+  cnam_display_name?: string | null;
+  caller_id_lookup?: boolean;
 }
 
 /** PATCH /v1/company — workspace name (O/A) + overage cap (owner). */

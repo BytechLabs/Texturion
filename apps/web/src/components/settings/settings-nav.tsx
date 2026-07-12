@@ -59,10 +59,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Clock,
   },
   {
-    // FEATURE-GAPS voice wave — missed-call text-back.
+    // D43 Calls v2 — the whole calling surface (text-back, voicemail,
+    // screening, caller ID). The slug stays 'missed-calls' so old links keep
+    // working.
     slug: "missed-calls",
-    label: "Missed calls",
-    description: "Text back when a call goes unanswered",
+    label: "Calling",
+    description: "Voicemail, screening, caller ID, text-back",
     icon: PhoneMissed,
   },
   {

@@ -150,3 +150,22 @@ export function useWebrtcToken() {
       ),
   });
 }
+
+/**
+ * D43: fetch a voicemail's signed playback URL on demand (the player mounts
+ * it into an <audio>). Signed for an hour; the query cache mirrors that.
+ */
+export function useVoicemailUrl(callSessionId: string, enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "calls", "voicemail", callSessionId] as const,
+    queryFn: () =>
+      apiFetch<{ url: string; seconds: number }>(
+        `/v1/calls/${encodeURIComponent(callSessionId)}/voicemail`,
+        { companyId },
+      ),
+    enabled,
+    staleTime: 50 * 60_000, // just under the URL's 60-min signature
+    retry: false,
+  });
+}

@@ -31,7 +31,10 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { enableVoiceForCompany } from "../telnyx/voice";
+import {
+  enableVoiceForCompany,
+  syncCallSettingsForCompany,
+} from "../telnyx/voice";
 import { COMPANY_COLUMNS, loadCompanyView } from "./core/company-view";
 import { parseJsonBody, unwrap } from "./core/http";
 import { isValidIanaTimezone } from "./core/timezone";
@@ -107,6 +110,22 @@ const patchSchema = z
     mctb_enabled: z.boolean().optional(),
     mctb_message: z.string().trim().max(1000).nullable().optional(),
     forward_to_cell: z.string().trim().max(20).nullable().optional(),
+    // D43 Calls v2 (O/A): the voicemail greeting is owner-authored TTS text
+    // (null clears back to the honest default); call screening is the carrier
+    // verdict routing choice; CNAM is the caller-ID pair — the ≤15-char
+    // outbound listing (carrier alphabet rule) and the inbound name dip.
+    voicemail_greeting: z.string().trim().max(500).nullable().optional(),
+    call_screening: z.enum(["off", "flag", "divert"]).optional(),
+    cnam_display_name: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9 ]{1,15}$/, {
+        message:
+          "cnam_display_name must be 1-15 letters, digits, or spaces (carrier rule).",
+      })
+      .nullable()
+      .optional(),
+    caller_id_lookup: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -122,7 +141,11 @@ const patchSchema = z
       "away_message" in body ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
-      "forward_to_cell" in body,
+      "forward_to_cell" in body ||
+      "voicemail_greeting" in body ||
+      body.call_screening !== undefined ||
+      "cnam_display_name" in body ||
+      body.caller_id_lookup !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -295,6 +318,23 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       patch.forward_to_cell = null;
     }
   }
+  // D43 Calls v2 settings. Empty greeting clears to null (the voicemail then
+  // speaks the honest default built from the company name).
+  if ("voicemail_greeting" in body) {
+    patch.voicemail_greeting =
+      body.voicemail_greeting && body.voicemail_greeting.length > 0
+        ? body.voicemail_greeting
+        : null;
+  }
+  if (body.call_screening !== undefined) {
+    patch.call_screening = body.call_screening;
+  }
+  if ("cnam_display_name" in body) {
+    patch.cnam_display_name = body.cnam_display_name ?? null;
+  }
+  if (body.caller_id_lookup !== undefined) {
+    patch.caller_id_lookup = body.caller_id_lookup;
+  }
 
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -445,6 +485,36 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     const ctx = executionCtxOf(c);
     if (ctx) ctx.waitUntil(enable);
     else await enable;
+  }
+
+  // D43: screening/CNAM changes must reach the numbers themselves (Telnyx
+  // per-number settings). Best-effort in the background, same contract as
+  // the voice enable above — the companies row is the source of truth and a
+  // re-save re-pushes.
+  if (
+    body.call_screening !== undefined ||
+    body.caller_id_lookup !== undefined ||
+    "cnam_display_name" in body
+  ) {
+    const sync = syncCallSettingsForCompany(env, db, c.get("companyId"), {
+      ...(body.call_screening !== undefined
+        ? { callScreening: body.call_screening }
+        : {}),
+      ...(body.caller_id_lookup !== undefined
+        ? { callerIdLookup: body.caller_id_lookup }
+        : {}),
+      ...("cnam_display_name" in body
+        ? { cnamDisplayName: body.cnam_display_name ?? null }
+        : {}),
+    }).catch((cause: unknown) => {
+      console.error(
+        `call settings sync for company ${c.get("companyId")} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    });
+    const ctx = executionCtxOf(c);
+    if (ctx) ctx.waitUntil(sync);
+    else await sync;
   }
 
   return c.json(company);

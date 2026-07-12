@@ -16,6 +16,10 @@ import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  screeningLabel,
+  VoicemailPlayer,
+} from "@/components/calls/voicemail-player";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
@@ -29,6 +33,8 @@ import { cn } from "@/lib/utils";
 
 function callerName(call: Call): string {
   if (call.contact_name) return call.contact_name;
+  // D43: the CNAM-dipped carrier name, when the owner enabled the lookup.
+  if (call.caller_name) return call.caller_name;
   if (call.caller_e164) return formatPhone(call.caller_e164);
   return "Unknown caller";
 }
@@ -92,6 +98,13 @@ function CallRow({ call }: { call: Call }) {
         <span className="mt-0.5 flex items-center gap-2">
           <DirectionIcon call={call} />
           <OutcomePill call={call} />
+          {/* D43: honest carrier-screening label — quiet, never a color
+              scream; the verdict itself came from the network. */}
+          {screeningLabel(call.screening_result) && (
+            <span className="inline-flex items-center rounded-full bg-app-stone-1 px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
+              {screeningLabel(call.screening_result)}
+            </span>
+          )}
           {/* #133: an unthreaded row (anonymous caller / no open thread) is
               deliberately not a link — say why, quietly. */}
           {!call.conversation_id && (
@@ -100,6 +113,15 @@ function CallRow({ call }: { call: Call }) {
             </span>
           )}
         </span>
+        {/* D43: the message itself, playable in place. */}
+        {call.outcome === "voicemail" && call.voicemail_seconds ? (
+          <span className="mt-1.5 block">
+            <VoicemailPlayer
+              callSessionId={call.call_session_id}
+              seconds={call.voicemail_seconds}
+            />
+          </span>
+        ) : null}
       </span>
     </>
   );
@@ -213,10 +235,9 @@ export function CallsView() {
               description={
                 outcome === "missed"
                   ? undefined
-                  : // #134/D42: calling is included on every plan — the empty
-                    // state just says where calls land and where the setup
-                    // (forwarding + text-back) lives.
-                    "Once calls start coming in, each one lands in this log and its conversation. Forwarding to your cell and the missed-call text-back live in Settings › Missed calls."
+                  : // D43: the browser is the phone — say what happens and
+                    // where the voicemail/screening knobs live.
+                    "Calls ring right here in the app; unanswered ones go to your voicemail and land in this log. Your greeting, call screening, and the missed-call text-back live in Settings › Calling."
               }
               action={
                 outcome === "missed" ? undefined : (

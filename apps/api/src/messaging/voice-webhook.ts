@@ -52,6 +52,22 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { telnyxRequest } from "../telnyx/client";
+import {
+  BROWSER_INBOUND_STATE,
+  BROWSER_MEMBER_STATE,
+  VOICEMAIL_INBOUND_STATE,
+  cancelRingingMemberLegs,
+  handleMemberRingAnswered,
+  handleMemberRingHangup,
+  handleVoicemailSpeakEnded,
+  insertVoicemailEvent,
+  parseBrowserAnsweredAtMs,
+  parseMemberRingState,
+  ringMembersOrVoicemail,
+  startVoicemail,
+  screeningFlagged,
+  storeVoicemailRecording,
+} from "./inbound-ring";
 import { computeMissedFromEvent } from "./missed-call";
 import { sendMissedCallText } from "./missed-call";
 import type { TelnyxEvent } from "./types";
@@ -106,6 +122,15 @@ interface CallPayload {
   result?: string; // AMD result on machine.detection.ended
   start_time?: string; // ISO — leg answered/started (call.hangup)
   end_time?: string; // ISO — leg ended (call.hangup)
+  // D43 phase 2 — inbound call.initiated extras (all optional; absent when
+  // the number-level feature is off or Telnyx has nothing to say):
+  call_screening_result?: string; // native inbound_call_screening verdict
+  shaken_stir_attestation?: string; // STIR/SHAKEN A/B/C
+  caller_id_name?: string; // CNAM dip result
+  // call.recording.saved:
+  recording_urls?: { mp3?: string; wav?: string };
+  recording_started_at?: string;
+  recording_ended_at?: string;
 }
 
 /** Cause we reject an over-spending-cap inbound call with (D36 cap). */
@@ -167,20 +192,6 @@ function decodeClientState(raw: string | null | undefined): string | null {
   }
 }
 
-function encodeClientState(value: string): string {
-  return btoa(value);
-}
-
-/**
- * The client_state we stamp on the forward (dial) leg encodes both the tag AND
- * the original inbound caller as `mctb_forward|<caller_e164>`, so the forward
- * leg's terminal events (which do not carry the inbound caller) recover it with
- * no DB round-trip. Build + parse are kept together so they never drift.
- */
-function buildForwardState(callerE164: string): string {
-  return encodeClientState(`${FORWARD_LEG_STATE}|${callerE164}`);
-}
-
 /** Which leg an event belongs to, from its echoed client_state tag alone. */
 export type CallLeg =
   | "forward"
@@ -188,7 +199,11 @@ export type CallLeg =
   | "inbound_untagged"
   // D38 outbound bridge legs:
   | "out_agent"
-  | "out_customer";
+  | "out_customer"
+  // D43 phase 2 — browser answering:
+  | "browser_member" // a member's WebRTC ring leg ('brm')
+  | "in_browser" // the INBOUND leg after a browser answered it ('bri')
+  | "vm_inbound"; // the INBOUND leg once it entered voicemail ('vmi')
 
 function classifyLeg(payload: CallPayload): CallLeg {
   const decoded = decodeClientState(payload.client_state);
@@ -197,6 +212,9 @@ function classifyLeg(payload: CallPayload): CallLeg {
   if (tag === INBOUND_FORWARDED_STATE) return "inbound_forwarded";
   if (tag === OUTBOUND_AGENT_STATE) return "out_agent";
   if (tag === OUTBOUND_CUSTOMER_STATE) return "out_customer";
+  if (tag === BROWSER_MEMBER_STATE) return "browser_member";
+  if (tag === BROWSER_INBOUND_STATE) return "in_browser";
+  if (tag === VOICEMAIL_INBOUND_STATE) return "vm_inbound";
   return "inbound_untagged";
 }
 
@@ -219,18 +237,15 @@ export function buildOutboundState(
   return btoa(`${tag}|${customerE164}`);
 }
 
-/** True when this event belongs to the forward (dial) leg we placed. */
-function isForwardLeg(payload: CallPayload): boolean {
-  return classifyLeg(payload) === "forward";
-}
-
-interface McTbCompany {
+interface InboundCompany {
   id: string;
-  forward_to_cell: string | null;
+  name: string;
   plan: PlanId | null;
   current_period_start: string | null;
   overage_cap_multiplier: number | string | null;
   subscription_status: string;
+  call_screening: "off" | "flag" | "divert";
+  voicemail_greeting: string | null;
 }
 
 /** Call-Control entry point (dispatched from /webhooks/telnyx). */
@@ -248,23 +263,116 @@ export async function handleCallEvent(
   if (eventType === "call.initiated") {
     return handleInboundInitiated(env, db, payload);
   }
+
+  const leg = classifyLeg(payload);
+
+  // D43: member browser ring legs never reach the terminal handler — their
+  // whole lifecycle (answer race, last-leg voicemail) is the ring engine's,
+  // and they must never bill, thread, or text-back.
+  if (leg === "browser_member") {
+    const state = parseMemberRingState(payload.client_state);
+    if (!state || !payload.call_control_id) return;
+    if (eventType === "call.answered") {
+      return handleMemberRingAnswered(env, db, payload.call_control_id, state);
+    }
+    if (eventType === "call.hangup") {
+      return handleMemberRingHangup(env, db, payload.call_control_id, state);
+    }
+    return;
+  }
+
+  // D43 voicemail pipeline: greeting finished → open the recorder; recording
+  // saved → copy into our storage, upgrade the outcome, thread the message.
+  if (
+    eventType === "call.speak.ended" &&
+    leg === "vm_inbound" &&
+    payload.call_control_id
+  ) {
+    return handleVoicemailSpeakEnded(env, payload.call_control_id);
+  }
+  if (eventType === "call.recording.saved" && leg === "vm_inbound") {
+    return handleVoicemailSaved(env, db, payload);
+  }
+
   // D38: the outbound AGENT leg's AMD verdict is a ROUTING decision, not a
   // terminal one — human/undetermined bridges to the customer, a machine
   // (the member's own voicemail) hangs up so voicemail can never be
   // connected to a customer.
-  if (
-    eventType === "call.machine.detection.ended" &&
-    classifyLeg(payload) === "out_agent"
-  ) {
+  if (eventType === "call.machine.detection.ended" && leg === "out_agent") {
     return handleOutboundAgentVerdict(env, db, payload);
   }
   if (
     eventType === "call.hangup" ||
     eventType === "call.machine.detection.ended"
   ) {
+    // The caller giving up mid-ring must stop every browser still ringing —
+    // BEFORE the terminal merge, so members' screens clear the instant the
+    // call dies, not after our bookkeeping.
+    if (
+      eventType === "call.hangup" &&
+      leg === "inbound_untagged" &&
+      payload.call_session_id
+    ) {
+      await cancelRingingMemberLegs(env, db, payload.call_session_id);
+    }
     return handleTerminalCallEvent(env, db, eventType, payload);
   }
   // call.answered and other lifecycle events are acked no-ops.
+}
+
+/**
+ * D43: a voicemail recording landed. Store it (our bucket, Telnyx copy
+ * deleted), upgrade the session outcome to 'voicemail' (the merge rule lets
+ * it beat the hangup's 'missed' in either arrival order), thread the call if
+ * the miss-path hasn't already, and drop the voicemail timeline line.
+ */
+async function handleVoicemailSaved(
+  env: Env,
+  db: SupabaseClient,
+  payload: CallPayload,
+): Promise<void> {
+  const sessionId = payload.call_session_id;
+  const ourNumberE164 = payload.to;
+  if (!sessionId || !ourNumberE164) return;
+  const resolved = await resolveNumber(db, ourNumberE164);
+  if (!resolved) return;
+
+  const stored = await storeVoicemailRecording(env, db, payload, resolved);
+  if (!stored) return; // nothing kept — the call stays an honest miss
+
+  const call = await upsertCallSession(db, {
+    eventType: "call.recording.saved",
+    payload,
+    leg: "vm_inbound",
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller: stored.caller,
+    missed: true,
+  });
+
+  // Thread (idempotent — the vmi hangup usually got here first) and fetch
+  // the conversation for the voicemail line. Anonymous callers stay
+  // list-only, same rule as every other call.
+  const thread = await threadCallSession(db, {
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller: call?.caller_e164 ?? stored.caller,
+    outcome: "voicemail",
+    forwardSeconds: 0,
+    direction: "inbound",
+  });
+  const conversationId = thread?.conversationId ?? call?.conversation_id;
+  if (conversationId) {
+    await insertVoicemailEvent(db, {
+      companyId: resolved.companyId,
+      conversationId,
+      callSessionId: sessionId,
+      caller: call?.caller_e164 ?? stored.caller,
+      seconds: stored.seconds,
+    });
+  }
 }
 
 /**
@@ -295,26 +403,47 @@ async function resolveNumber(
     : null;
 }
 
+/** In-flight window for the line-busy read: an outcome-less calls row older
+ *  than this is a crashed session, not a live call — never wedge the line. */
+const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
+
 /**
- * On inbound `call.initiated`: when a forward cell is configured, answer the
- * inbound leg and DIAL the cell (with timeout + AMD). With NO forward there is
- * no one to connect the caller to, so the call is left UNANSWERED — it rings
- * out naturally (answering would put the caller into dead air and bill the
- * leg) and the caller's hangup is the missed signal. Only INCOMING calls are
- * handled; the forward (outgoing) leg's own `call.initiated` (which Telnyx
- * also emits) is ignored via its direction + client_state.
+ * On inbound `call.initiated` (D43 phase 2 — the browser is the phone):
+ *
+ *   1. Gates, unchanged in spirit: not our number / suspended / non-live
+ *      subscription → the call rings out naturally (never answer into dead
+ *      air); over the voice spending cap → reject (the untagged hangup still
+ *      runs the missed text-back).
+ *   2. The session row is created NOW (outcome null = a live call): it
+ *      carries the carrier screening verdict, STIR/SHAKEN attestation, and
+ *      dipped caller name for honest UI labels, and its presence is the
+ *      LINE-BUSY signal — one live call per number, the founder's line model.
+ *   3. Routing: line busy → voicemail. Screening 'divert' + flagged caller →
+ *      voicemail. Otherwise ring every eligible member's browser
+ *      simultaneously; no browsers to ring → voicemail.
+ *
+ * The inbound leg stays UNANSWERED while browsers ring (real carrier
+ * ringback, no billable seconds until a human answers). Cell forwarding is
+ * GONE — D43 deleted it; the browser softphone is how calls are taken.
  */
 async function handleInboundInitiated(
   env: Env,
   db: SupabaseClient,
   payload: CallPayload,
 ): Promise<void> {
-  // The forward leg we placed is 'outgoing' and tagged — never re-forward it.
-  if (payload.direction !== "incoming" || isForwardLeg(payload)) return;
+  // Legs WE placed (member rings, outbound dials, legacy forwards) are
+  // 'outgoing' and/or tagged — only the raw customer leg routes here.
+  if (
+    payload.direction !== "incoming" ||
+    classifyLeg(payload) !== "inbound_untagged"
+  ) {
+    return;
+  }
 
   const callControlId = payload.call_control_id;
+  const sessionId = payload.call_session_id;
   const toE164 = payload.to;
-  if (!callControlId || !toE164) return;
+  if (!callControlId || !sessionId || !toE164) return;
 
   const resolved = await resolveNumber(db, toE164);
   if (!resolved) return; // a number we do not own → no-op
@@ -322,26 +451,21 @@ async function handleInboundInitiated(
   const { data: companyRows, error: companyError } = await db
     .from("companies")
     .select(
-      "id,forward_to_cell,plan,current_period_start,overage_cap_multiplier,subscription_status",
+      "id,name,plan,current_period_start,overage_cap_multiplier,subscription_status,call_screening,voicemail_greeting",
     )
     .eq("id", resolved.companyId)
     .limit(1);
   if (companyError) {
     throw new Error(`company lookup failed: ${companyError.message}`);
   }
-  const company = (companyRows ?? [])[0] as McTbCompany | undefined;
-  // No forward target → leave the call ringing (never answer into dead air);
-  // the inbound leg's call.hangup is the missed signal (handleTerminalCallEvent).
-  if (!company?.forward_to_cell) return;
+  const company = (companyRows ?? [])[0] as InboundCompany | undefined;
+  if (!company) return;
 
   // #43 suspended-tenant gate: a suspended number (canceled → 30-day grace,
-  // D6) or a non-live subscription gets NO forwarding — answering + dialing
-  // runs two billable Telnyx legs with zero revenue, a cost the SMS side
-  // already blocks via the SQL send gate's subscription_status = 'active'
-  // check, mirrored here. The call rings out exactly like the no-forward
-  // case; its untagged hangup flows through handleTerminalCallEvent as a
-  // missed call, where the text-back's own claim RPC applies the same
-  // subscription gate. Inbound SMS storage stays live throughout (D6).
+  // D6) or a non-live subscription gets NO ring and NO voicemail — both run
+  // billable legs with zero revenue. The call rings out; its untagged hangup
+  // flows through handleTerminalCallEvent as a missed call, where the
+  // text-back's own claim RPC applies the same subscription gate.
   if (
     resolved.status === "suspended" ||
     company.subscription_status !== "active"
@@ -349,15 +473,9 @@ async function handleInboundInitiated(
     return;
   }
 
-  // D36 voice spending cap: between the fair-use allowance and the cap, extra
-  // minutes BILL at 1¢/min (metered below on hangup) — but AT the cap
-  // (allowance × overage_cap_multiplier, the same owner control that pauses
-  // text sending) forwarding pauses so the bill can never run past what the
-  // owner allowed. Reject the inbound call; the reject's untagged-leg hangup
-  // flows through handleTerminalCallEvent as a missed call, so the caller
-  // still gets the "sorry we missed you, text us" SMS (idempotent per call,
-  // and only if the owner enabled text-back). The owner was alerted at
-  // 80%/100% of the ALLOWANCE by the voice arm of the usage-alerts cron.
+  // D36 voice spending cap: AT the cap (allowance × overage_cap_multiplier)
+  // inbound answering pauses entirely — reject; the reject's untagged-leg
+  // hangup still runs the missed text-back (idempotent per call).
   if (await companyOverVoiceCap(db, resolved.companyId, company)) {
     await telnyxRequest(env, {
       method: "POST",
@@ -367,40 +485,86 @@ async function handleInboundInitiated(
     return;
   }
 
-  // Answer the inbound leg so we control it (required before we can dial/bridge
-  // and before AMD can run on the forward leg).
-  await telnyxRequest(env, {
-    method: "POST",
-    path: `/v2/calls/${callControlId}/actions/answer`,
-  });
+  // Line model (D43, founder-binding): ONE live call per number. A live call
+  // = an outcome-less session row on this number inside the in-flight
+  // window. Checked BEFORE this call's own row lands.
+  const { data: busyRows, error: busyError } = await db
+    .from("calls")
+    .select("id")
+    .eq("phone_number_id", resolved.phoneNumberId)
+    .is("outcome", null)
+    .neq("call_session_id", sessionId)
+    .gte(
+      "created_at",
+      new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
+    )
+    .limit(1);
+  if (busyError) {
+    throw new Error(`line-busy read failed: ${busyError.message}`);
+  }
+  const lineBusy = (busyRows ?? []).length > 0;
 
-  // Dial the owner's cell as a second leg with a ring timeout + AMD. The
-  // forward leg's terminal signal (hangup cause / AMD result) computes missed.
-  // Per the Telnyx transfer contract, `client_state` tags the leg the command
-  // is issued ON (the inbound leg) and `target_leg_client_state` tags the NEW
-  // dialed leg — so the forward tag (carrying the original caller for a
-  // DB-free recovery at terminal time) goes on target_leg_client_state, and
-  // the inbound leg gets its own 'forwarded' tag so its later hangup is never
-  // misread as a no-forward miss. An anonymous caller (no `from`) still gets
-  // forwarded — the owner wants the call — with a caller-less tag, which
-  // simply means no text-back can fire later.
-  const callerE164 = payload.from;
-  await telnyxRequest(env, {
-    method: "POST",
-    path: `/v2/calls/${callControlId}/actions/transfer`,
-    body: {
-      to: company.forward_to_cell,
-      from: toE164, // present the business number to the owner's cell
-      timeout_secs: FORWARD_TIMEOUT_SECS,
-      // #12: cap a single forwarded call's billable length (Telnyx ends the leg
-      // at this limit) so one long call can't overrun the period voice cap.
-      time_limit_secs: MAX_FORWARDED_CALL_SECS,
-      answering_machine_detection: "detect_beep",
-      client_state: encodeClientState(INBOUND_FORWARDED_STATE),
-      target_leg_client_state: callerE164
-        ? buildForwardState(callerE164)
-        : encodeClientState(FORWARD_LEG_STATE),
-    },
+  // The session row, from second zero: outcome null marks the line occupied,
+  // and the v2 metadata (screening verdict, attestation, dipped name, the
+  // customer leg's control id for phase-3 hold/transfer) rides on it.
+  await upsertCallSession(db, {
+    eventType: "call.initiated",
+    payload,
+    leg: "inbound_untagged",
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller: payload.from ?? null,
+    missed: false,
+  });
+  const { error: metaError } = await db
+    .from("calls")
+    .update({
+      screening_result: payload.call_screening_result ?? null,
+      stir_attestation: payload.shaken_stir_attestation ?? null,
+      caller_name: payload.caller_id_name ?? null,
+      customer_call_control_id: callControlId,
+    })
+    .eq("call_session_id", sessionId);
+  if (metaError) {
+    throw new Error(`call metadata stamp failed: ${metaError.message}`);
+  }
+
+  if (lineBusy) {
+    await startVoicemail(env, {
+      callControlId,
+      caller: payload.from ?? null,
+      companyName: company.name,
+      greeting: company.voicemail_greeting,
+    });
+    return;
+  }
+
+  // Screening 'divert': a carrier-flagged caller goes straight to voicemail —
+  // the team is never interrupted, but a misflagged human still gets to
+  // leave a message (and the raw verdict is on the row for honest UI).
+  if (
+    company.call_screening === "divert" &&
+    screeningFlagged(payload.call_screening_result)
+  ) {
+    await startVoicemail(env, {
+      callControlId,
+      caller: payload.from ?? null,
+      companyName: company.name,
+      greeting: company.voicemail_greeting,
+    });
+    return;
+  }
+
+  await ringMembersOrVoicemail(env, db, {
+    callControlId,
+    callSessionId: sessionId,
+    callerE164: payload.from ?? null,
+    businessNumberE164: toE164,
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    companyName: company.name,
+    voicemailGreeting: company.voicemail_greeting,
   });
 }
 
@@ -515,12 +679,23 @@ async function handleTerminalCallEvent(
   // The missed-cause classification. The pure classifier's leg semantics are
   // the INBOUND wave's; outbound legs borrow the 'forward' cause table
   // (timeout/busy/declined = not connected) while keeping their real leg for
-  // all routing below.
+  // all routing below. D43: a browser-answered inbound leg ('in_browser')
+  // also reads through the 'forward' table (a connected leg's
+  // normal_clearing is never a miss); a voicemail-path inbound leg
+  // ('vm_inbound') reads as the untagged miss it is — the text-back still
+  // fires for a caller who reached voicemail.
   const outcome = computeMissedFromEvent({
     eventType,
     hangupCause: payload.hangup_cause ?? null,
     amdResult: payload.result ?? null,
-    leg: outboundLeg ? "forward" : leg,
+    leg:
+      outboundLeg || leg === "in_browser"
+        ? "forward"
+        : // 'browser_member' is routed away before this handler; the mapping
+          // only satisfies the pure classifier's narrower leg vocabulary.
+          leg === "vm_inbound" || leg === "browser_member"
+          ? "inbound_untagged"
+          : leg,
   });
 
   // The far party, per leg: inbound legs carry the caller as `from`; the
@@ -556,7 +731,13 @@ async function handleTerminalCallEvent(
   // reads call-then-text in insertion order.
   const decidingHangup =
     eventType === "call.hangup" &&
-    (leg === "forward" || leg === "inbound_untagged" || leg === "out_customer");
+    (leg === "forward" ||
+      leg === "inbound_untagged" ||
+      leg === "out_customer" ||
+      // D43: the inbound leg IS the whole call once a browser answered it
+      // (or once it entered voicemail — a later recording upgrades the line).
+      leg === "in_browser" ||
+      leg === "vm_inbound");
   let thread: ThreadCallResult | null = null;
   if (decidingHangup && call?.outcome) {
     thread = await threadCallSession(db, {
@@ -671,7 +852,19 @@ async function upsertCallSession(
           forwardSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
         }
       }
-    } else if (leg === "inbound_untagged") {
+    } else if (leg === "in_browser") {
+      // D43: a browser answered — the inbound leg carries the whole call.
+      // Talk time anchors on the bri tag's answer stamp, NEVER the leg's
+      // start_time (that includes ring time, which must not count or bill).
+      outcome = "answered";
+      const answeredAtMs = parseBrowserAnsweredAtMs(payload.client_state);
+      const endMs = Date.parse(payload.end_time ?? "");
+      if (answeredAtMs !== null && Number.isFinite(endMs)) {
+        forwardSeconds = Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
+      }
+    } else if (leg === "inbound_untagged" || leg === "vm_inbound") {
+      // Nobody answered (vm_inbound: ...yet — a saved recording upgrades the
+      // session to 'voicemail', which wins the merge in either order).
       outcome = "missed";
     } else if (leg === "out_agent" && input.missed) {
       // D38: the member never picked up their own cell (timeout/decline) —
@@ -680,6 +873,9 @@ async function upsertCallSession(
       // verdict (the customer leg already decided).
       outcome = "missed";
     }
+  } else if (eventType === "call.recording.saved" && leg === "vm_inbound") {
+    // D43: a kept voicemail recording IS the session verdict.
+    outcome = "voicemail";
   }
 
   const startMs = Date.parse(payload.start_time ?? "");
@@ -741,10 +937,13 @@ async function threadCallSession(
     p_call_session_id: input.callSessionId,
     p_outcome: input.outcome,
     p_forward_seconds: input.forwardSeconds,
-    // An inbound MISS must reach the inbox even with text-back off; an
-    // outbound call started FROM a conversation, so join-only always finds it.
+    // An inbound MISS must reach the inbox even with text-back off — and so
+    // must a VOICEMAIL (D43: it is OUR voicemail now; a first-time caller's
+    // message can't live in a conversation that doesn't exist). An outbound
+    // call started FROM a conversation, so join-only always finds it.
     p_create_if_missing:
-      input.direction === "inbound" && input.outcome === "missed",
+      input.direction === "inbound" &&
+      (input.outcome === "missed" || input.outcome === "voicemail"),
     p_direction: input.direction,
   });
   if (error) {
@@ -811,20 +1010,32 @@ async function recordCallDuration(
   if (!resolved) return;
 
   const windowSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
-  // D36/D38: the BILLED legs are the far-party legs — 'forward' (inbound
-  // calls) and 'out_customer' (outbound calls). A rang-out far-party leg is
-  // a MISS (same pure cause table the text-back path uses) — it must never
-  // consume allowance or bill.
-  const billedLeg = leg === "forward" || leg === "out_customer";
+  // D36/D38/D43: the BILLED legs are the far-party legs — 'forward' (legacy
+  // cell-forwarded), 'out_customer' (outbound), and 'in_browser' (a
+  // browser-answered inbound call, where the inbound leg IS the call). A
+  // rang-out far-party leg is a MISS (same pure cause table the text-back
+  // path uses) — it must never consume allowance or bill.
+  const billedLeg =
+    leg === "forward" || leg === "out_customer" || leg === "in_browser";
   const rangOut =
-    billedLeg &&
+    (leg === "forward" || leg === "out_customer") &&
     computeMissedFromEvent({
       eventType: "call.hangup",
       hangupCause: payload.hangup_cause ?? null,
       amdResult: null,
       leg: "forward",
     }).missed;
-  const seconds = rangOut ? 0 : windowSeconds;
+  // 'in_browser' talk time anchors on the bri tag's answer stamp — the
+  // inbound leg's start_time includes RING time, which must never bill. A
+  // garbled/missing anchor bills ZERO (fail toward the customer).
+  let seconds = rangOut ? 0 : windowSeconds;
+  if (leg === "in_browser") {
+    const answeredAtMs = parseBrowserAnsweredAtMs(payload.client_state);
+    seconds =
+      answeredAtMs === null
+        ? 0
+        : Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
+  }
   const caller =
     leg === "forward"
       ? decodeForwardCaller(payload.client_state ?? null)
@@ -844,7 +1055,10 @@ async function recordCallDuration(
         call_session_id: payload.call_session_id ?? null,
         call_leg_id: legId,
         leg:
-          leg === "forward" || leg === "out_agent" || leg === "out_customer"
+          leg === "forward" ||
+          leg === "out_agent" ||
+          leg === "out_customer" ||
+          leg === "in_browser"
             ? leg
             : "inbound",
         caller_e164: caller,

@@ -39,10 +39,16 @@ import {
  *  SDK types never leak into the server bundle via a top-level import). */
 interface TelnyxCall {
   state: string;
+  direction?: string; // 'inbound' | 'outbound'
+  answer: () => void;
   hangup: () => void;
   muteAudio: () => void;
   unmuteAudio: () => void;
   remoteStream?: MediaStream;
+  options?: {
+    remoteCallerName?: string;
+    remoteCallerNumber?: string;
+  };
 }
 interface TelnyxClient {
   on: (event: string, handler: (payload?: unknown) => void) => void;
@@ -62,6 +68,8 @@ interface SoftphoneContextValue extends SoftphoneState {
     conversationId: string;
     contactName: string;
   }) => Promise<void>;
+  /** Answer the ringing inbound call (phase 'ringing'). */
+  answer: () => void;
   hangup: () => void;
   toggleMute: () => void;
   /** Dismiss the "Call ended" bar. */
@@ -96,6 +104,18 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // D43 phase 2: register EAGERLY — an open app is a phone that can RING.
+  // (Registration is also what creates this member's credential, which is
+  // what makes the ring engine dial them at all.) Failure is silent: a
+  // workspace without a live subscription simply doesn't become a phone,
+  // and outbound attempts re-try via their own ensureClient path.
+  useEffect(() => {
+    void ensureClient().catch(() => {
+      /* no toast — texting is unaffected; the Call button retries on use */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
+  }, []);
+
   /** Register (or reuse) the SDK client — lazy import, single flight. */
   const ensureClient = useCallback(async (): Promise<TelnyxClient> => {
     if (clientRef.current) return clientRef.current;
@@ -118,13 +138,40 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       client.on("telnyx.notification", (payload) => {
         const note = payload as { type?: string; call?: TelnyxCall } | undefined;
         const call = note?.call;
-        if (!call || call !== callRef.current) return;
+        if (!call) return;
+        if (call !== callRef.current) {
+          // D43 phase 2: a NEW inbound invite — the ring engine dialed this
+          // member's credential. One live call per member: if a call is
+          // already up, decline immediately (the leg fails fast, so the
+          // answer race resolves to another member or voicemail without
+          // waiting out the ring timeout). Phase 3 brings call waiting.
+          if (call.direction === "inbound" && call.state === "ringing") {
+            if (callRef.current) {
+              try {
+                call.hangup();
+              } catch {
+                /* already gone */
+              }
+              return;
+            }
+            callRef.current = call;
+            const number = call.options?.remoteCallerNumber ?? "";
+            dispatch({
+              type: "incoming",
+              peer: {
+                name: call.options?.remoteCallerName || number || "Unknown caller",
+                number,
+              },
+            });
+          }
+          return;
+        }
         dispatch({ type: "sdk_state", state: call.state, now: Date.now() });
         // Attach remote audio once the media is flowing.
         if (call.state === "active" && call.remoteStream && audioRef.current) {
           audioRef.current.srcObject = call.remoteStream;
           void audioRef.current.play().catch(() => {
-            /* autoplay policy — the user gesture that placed the call covers it */
+            /* autoplay policy — the answer/place gesture covers it */
           });
         }
         if (call.state === "destroy" || call.state === "hangup") {
@@ -182,6 +229,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     [authorize, ensureClient, state.phase],
   );
 
+  const answer = useCallback(() => {
+    try {
+      callRef.current?.answer();
+    } catch {
+      /* the caller hung up in the same instant — the ring bar clears itself */
+    }
+  }, []);
+
   const hangup = useCallback(() => {
     try {
       callRef.current?.hangup();
@@ -206,7 +261,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   return (
     <SoftphoneContext.Provider
-      value={{ ...state, placeCall, hangup, toggleMute, clear }}
+      value={{ ...state, placeCall, answer, hangup, toggleMute, clear }}
     >
       {children}
       {/* The single remote-audio sink; hidden, always mounted. */}

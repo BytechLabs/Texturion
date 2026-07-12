@@ -14,7 +14,10 @@ const company = {
   name: "Ace Plumbing",
   mctb_enabled: false,
   mctb_message: null,
-  forward_to_cell: null,
+  voicemail_greeting: null,
+  call_screening: "flag",
+  cnam_display_name: null,
+  caller_id_lookup: true,
   numbers: [],
   enabled_modules: [],
 } as unknown as CompanyView;
@@ -45,45 +48,29 @@ vi.mock("@/lib/api/usage", () => ({
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner" }),
 }));
-vi.mock("@/lib/api/calls", () => ({
-  useCallCell: () => ({
-    isPending: false,
-    isError: false,
-    data: { call_cell_e164: null, verified: false },
-  }),
-  useSetCallCell: () => ({ isPending: false, mutate: vi.fn() }),
-  useVerifyCallCell: () => ({ isPending: false, mutate: vi.fn() }),
-}));
 
-import MissedCallsSettingsPage from "./page";
+import CallingSettingsPage from "./page";
 
 function render(): string {
-  return renderToStaticMarkup(<MissedCallsSettingsPage />);
+  return renderToStaticMarkup(<CallingSettingsPage />);
 }
 
 /**
- * Finding 4 + D36: the forward-to-cell copy must state the honest allowance
- * AND what happens past it — extra minutes bill at 1¢ each up to the spending
- * cap, where forwarding pauses (no silent drop at the allowance, no surprise
- * bill past the cap). The figure must derive from the plan's allowance
- * (voice.included_minutes = PLAN_VOICE_MINUTES) rather than being a retyped
- * literal.
+ * D36/D43: the fair-use line must state the honest allowance AND the 1¢/min
+ * overage, with the figure derived from the plan's allowance
+ * (voice.included_minutes = PLAN_VOICE_MINUTES), never a retyped literal.
  */
-describe("/settings/missed-calls forwarding fair-use honesty", () => {
-  it("states the allowance, the 1¢/min overage, and the pause-at-cap behaviour", () => {
+describe("/settings/missed-calls (Calling) fair-use honesty", () => {
+  it("states the allowance and the 1¢ overage", () => {
     state.includedMinutes = 2500;
     const html = render();
     expect(html).toContain("2,500");
     expect(html).toContain("calling minutes a month");
-    // D38: one pool, both directions — the copy must say what drains it.
-    expect(html).toContain("calls you place from the app");
     expect(html).toContain("1¢ each");
     expect(html).toContain("spending cap");
-    expect(html).toContain("calling pauses");
-    expect(html).toContain("missed-call text");
   });
 
-  it("does not promise unlimited/uncapped forwarding", () => {
+  it("does not promise unlimited/uncapped calling", () => {
     state.includedMinutes = 2500;
     const html = render();
     expect(html).not.toContain("don't cost extra");
@@ -99,33 +86,38 @@ describe("/settings/missed-calls forwarding fair-use honesty", () => {
 });
 
 /**
- * D38/#132: the member's own outbound-call cell is manageable here — not only
- * via the Call button's first-use dialog — and the copy carries the privacy
- * promise (the customer sees the business number, never the cell).
+ * D43: cell forwarding is DELETED — no forward card, no cell card, no
+ * verification flow. The page is the browser-calling surface: text-back,
+ * voicemail greeting, call screening, caller ID.
  */
-describe("/settings/missed-calls — your cell for outbound calls", () => {
-  it("renders the per-member cell card with the privacy promise", () => {
-    const html = render();
-    expect(html).toContain("Your cell for outbound calls");
-    expect(html).toContain("never your cell");
-    expect(html).toContain("every person on the crew sets their own");
-  });
-});
-
-/**
- * #134/D42: calling is included on every plan — the old "needs the Calling
- * add-on" gate retired. The page renders all three cards for an active
- * workspace even though enabled_modules carries no 'voice' (the mock above
- * is deliberately module-free).
- */
-describe("/settings/missed-calls without the voice module (#134/D42)", () => {
-  it("renders all three cards with no module gate and no billing pointer", () => {
+describe("/settings/missed-calls — D43 Calling surface", () => {
+  it("renders the four calling cards", () => {
     const html = render();
     expect(html).toContain("Text back a missed call");
-    expect(html).toContain("Ring your cell first (optional)");
-    expect(html).toContain("Your cell for outbound calls");
-    expect(html).not.toContain("Calling");
+    expect(html).toContain("Voicemail");
+    expect(html).toContain("Call screening");
+    expect(html).toContain("Caller ID");
+  });
+
+  it("carries no trace of cell forwarding or the retired add-on gate", () => {
+    const html = render();
+    expect(html).not.toContain("Ring your cell");
+    expect(html).not.toContain("Your cell for outbound calls");
+    expect(html).not.toContain("forward");
     expect(html).not.toContain("add-on");
     expect(html).not.toContain('href="/settings/billing"');
+  });
+
+  it("previews the spoken default greeting from the company name", () => {
+    const html = render();
+    expect(html).toContain("You&#x27;ve reached Ace Plumbing");
+    expect(html).toContain("after the beep");
+  });
+
+  it("offers the three screening choices with the divert-to-voicemail promise", () => {
+    const html = render();
+    expect(html).toContain("Label suspicious calls");
+    expect(html).toContain("Send suspicious calls to voicemail");
+    expect(html).toContain("misflagged can still leave a message");
   });
 });

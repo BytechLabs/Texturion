@@ -49,14 +49,20 @@ import { ForYouView } from "./for-you-view";
 function call(overrides: Partial<Call> = {}): Call {
   return {
     id: "call-1",
+    call_session_id: "sess-call-1",
     direction: "inbound",
     caller_e164: "+16135551000",
     contact_id: "ct-1",
     contact_name: "Dana Roofer",
+    caller_name: null,
     phone_number_id: "pn-1",
     conversation_id: "conv-1",
     outcome: "missed",
     forward_seconds: 0,
+    screening_result: null,
+    stir_attestation: null,
+    voicemail_seconds: null,
+    answered_by_user_id: null,
     started_at: new Date().toISOString(),
     ...overrides,
   };

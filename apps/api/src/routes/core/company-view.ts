@@ -17,6 +17,8 @@ export const COMPANY_COLUMNS =
   "business_hours,away_enabled,away_message," +
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   "mctb_enabled,mctb_message,forward_to_cell," +
+  // D43 Calls v2: voicemail greeting, screening routing, CNAM pair.
+  "voicemail_greeting,call_screening,cnam_display_name,caller_id_lookup," +
   // Choose-your-number: the staged onboarding pick, so the plan-step review can
   // show "your number" pre-checkout. Cleared once provisioning drains it.
   "chosen_number_e164," +

@@ -213,6 +213,13 @@ export interface CompanyView {
   mctb_message: string | null;
   /** Optional E.164 cell the inbound call is forwarded to (null = no forward). */
   forward_to_cell: string | null;
+  /** D43 Calls v2 — voicemail greeting (null = the spoken default), the
+   *  carrier-screening routing choice, and the CNAM pair (outbound display
+   *  name <=15 alphanumeric+space; inbound name-dip toggle). */
+  voicemail_greeting: string | null;
+  call_screening: "off" | "flag" | "divert";
+  cnam_display_name: string | null;
+  caller_id_lookup: boolean;
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];
@@ -760,15 +767,25 @@ export interface Usage {
  */
 export interface Call {
   id: string;
+  /** D43: Telnyx session id — the voicemail playback + live-call key. */
+  call_session_id: string;
   caller_e164: string | null;
   contact_id: string | null;
   contact_name: string | null;
+  /** D43: CNAM-dipped caller display name (owner-enabled lookup). */
+  caller_name: string | null;
   phone_number_id: string | null;
   conversation_id: string | null;
+  /** null = the call is IN PROGRESS (D43 creates the row at ring time). */
   outcome: "answered" | "voicemail" | "missed" | null;
-  /** D38: 'outbound' = a bridge call the crew placed from the app. */
+  /** D38: 'outbound' = a call the crew placed from the app. */
   direction: "inbound" | "outbound";
   forward_seconds: number;
+  /** D43: raw carrier screening verdict + STIR/SHAKEN attestation. */
+  screening_result: string | null;
+  stir_attestation: string | null;
+  voicemail_seconds: number | null;
+  answered_by_user_id: string | null;
   started_at: string;
 }
 
