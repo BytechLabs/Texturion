@@ -3,8 +3,10 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { CallBar } from "@/components/calls/call-bar";
 import { UnreadTitleManager } from "@/components/notifications/unread-title-manager";
 import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
+import { SoftphoneProvider } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
@@ -70,39 +72,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex h-svh overflow-hidden app-ground">
-      {/* Full-height sidebar on the left is the whole desktop shell; the content
+    <SoftphoneProvider>
+      <div className="flex h-svh overflow-hidden app-ground">
+        {/* Full-height sidebar on the left is the whole desktop shell; the content
           column (status banner + destination) fills the rest. */}
-      <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* #100: no mobile top header — the bottom tab bar's avatar sheet now
+        <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* #100: no mobile top header — the bottom tab bar's avatar sheet now
             carries the workspace switcher, the copyable number(s), the
             notifications feed, theme, Settings, and Sign out. Content starts at
             the very top on every mobile route. */}
-        {/* Ambient workspace status (number provisioning / registration / billing).
+          {/* Ambient workspace status (number provisioning / registration / billing).
             Mounted app-wide so a not-ready workspace is obvious on every page;
             renders null when there's nothing to say. */}
-        <WorkspaceStatusBanner />
-        <main
-          className={cn(
-            "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
-            fixedFrame ? "overflow-hidden" : "overflow-y-auto",
-          )}
-        >
-          {children}
-        </main>
-      </div>
-      <MobileTabBar />
-      <ComposeFab />
-      <CommandPalette />
-      {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable
+          <WorkspaceStatusBanner />
+          <main
+            className={cn(
+              "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
+              fixedFrame ? "overflow-hidden" : "overflow-y-auto",
+            )}
+          >
+            {children}
+          </main>
+        </div>
+        <MobileTabBar />
+        <CallBar />
+        <ComposeFab />
+        <CommandPalette />
+        {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable
           from the /tasks views, the checklist, and thread task-event lines. */}
-      <TaskDrawerHost />
-      {/* G9 unread indicators: `(3) …` title prefix + favicon dot. */}
-      <UnreadTitleManager />
-      {/* D28: cancel the browser's navigate-to-file on drops that miss a
+        <TaskDrawerHost />
+        {/* G9 unread indicators: `(3) …` title prefix + favicon dot. */}
+        <UnreadTitleManager />
+        {/* D28: cancel the browser's navigate-to-file on drops that miss a
           dropzone, so a stray drop never blows away an unsent draft. */}
-      <WindowDropGuard />
-    </div>
+        <WindowDropGuard />
+      </div>
+    </SoftphoneProvider>
   );
 }

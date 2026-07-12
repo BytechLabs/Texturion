@@ -113,3 +113,40 @@ export function useStartCall() {
     },
   });
 }
+
+/** D43 (#135): what the softphone needs to place a browser call — the number
+ *  to present, the number to dial, and the leg tag Telnyx echoes on webhooks. */
+export interface BrowserCallAuth {
+  from: string;
+  to: string;
+  client_state: string;
+}
+
+/**
+ * D43: authorize a browser-placed call. The server runs the outbound gates +
+ * line-busy guard and returns the origination parameters; the softphone then
+ * dials via the WebRTC SDK. Never dials server-side.
+ */
+export function useAuthorizeBrowserCall() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiFetch<BrowserCallAuth>("/v1/calls/browser", {
+        companyId,
+        method: "POST",
+        body: { conversation_id: conversationId },
+      }),
+  });
+}
+
+/** D43: mint a short-lived WebRTC login token for this member's softphone. */
+export function useWebrtcToken() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ token: string; sip_username: string; expires_in_hours: number }>(
+        "/v1/webrtc/token",
+        { companyId, method: "POST", body: {} },
+      ),
+  });
+}

@@ -41,6 +41,7 @@ import {
   useVerifyCallCell,
 } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
+import { useSoftphone } from "@/lib/softphone/provider";
 
 const CELL_HINT = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 const CODE_HINT = /^\d{6}$/;
@@ -56,6 +57,7 @@ export function CallButton({
   contactName: string;
   className?: string;
 }) {
+  const softphone = useSoftphone();
   const cell = useCallCell();
   const setCell = useSetCallCell();
   const verifyCell = useVerifyCallCell();
@@ -66,6 +68,13 @@ export function CallButton({
   const [draftCode, setDraftCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [dialing, setDialing] = useState(false);
+
+  // D43 (#135): the browser IS the phone. When the softphone is mounted the
+  // call happens in-app (the CallBar takes over); the cell-bridge dialog below
+  // is the mic-less fallback, kept until browser calling is proven and then
+  // deleted with forwarding + cell verification.
+  const softphoneBusy =
+    softphone?.phase === "connecting" || softphone?.phase === "active";
 
   function dial() {
     startCall.mutate(conversationId, {
@@ -86,6 +95,20 @@ export function CallButton({
   }
 
   function onClick() {
+    // D43: prefer the browser softphone — the call happens in-app.
+    if (softphone) {
+      void softphone
+        .placeCall({ conversationId, contactName })
+        .catch((cause) =>
+          toast.error(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't start the call. Try again.",
+          ),
+        );
+      return;
+    }
+    // Fallback (no softphone mounted): the cell bridge.
     if (cell.data?.call_cell_e164 && cell.data.verified) {
       dial();
       return;
@@ -167,7 +190,7 @@ export function CallButton({
     });
   }
 
-  const busy = startCall.isPending || dialing;
+  const busy = startCall.isPending || dialing || softphoneBusy;
 
   return (
     <>
