@@ -420,8 +420,13 @@ export async function handleMemberRingAnswered(
     { call_control_id: state.inboundCcid },
   );
   if (!bridged && !isReplay) {
-    // The member leg died between answer and bridge — never leave the caller
-    // answered into dead air.
+    // Bridge failed: EITHER the member leg died between answer and bridge, OR
+    // the CALLER hung up in that window (bridge 4xxs on either dead leg). Hang
+    // up BOTH — the member's active SIP leg must not be left bridged to
+    // nothing (a silent stranded call holding a concurrent slot), and the
+    // inbound leg (if it's the survivor) must not be left answered into dead
+    // air. A hangup on the already-dead one 4xx-swallows.
+    await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
     await telnyxOnLiveLeg(
       env,
       `/v2/calls/${state.inboundCcid}/actions/hangup`,

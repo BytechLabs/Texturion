@@ -1601,3 +1601,28 @@ missed:
   single active call structurally (demote the other to held) and the provider
   SDK-holds it. Suites: API 1415, web 1278.
 
+**D43 — fix-verification round 2 found the direction gate MISSED the legacy
+'forward' tag (still critical) + 2 majors, all fixed (2026-07-12, migration
+20260712000800).** Verifying the previous fixes caught:
+- CRITICAL: the direction gate covered in_browser/vm_inbound/inbound_untagged
+  but NOT the legacy 'forward' tag (mctb_forward) — which is legitimately an
+  OUTGOING leg, so direction can't catch it. A forged forward tag presenting a
+  victim number as `from` still billed/injected/text-backed the victim. ROOT
+  FIX: every leg reaching the terminal handler is now gated by an UNFORGEABLE
+  server-side proof — inbound-family legs (tenant from payload.to; now
+  including inbound_forwarded) require Telnyx-direction 'incoming'; tenant-
+  from-`from` legs (forward, out_agent, out_customer) require a genuine
+  server-created calls row (created at the authorized inbound-claim / outbound-
+  authorize). forward + out_agent are dead so never have one; a forged
+  out_customer was rejected at initiate so has none either. The three
+  dispatched leg types (brm/brt/brc) never reach the terminal handler and have
+  their own ledger checks. The whole leg surface is now closed.
+- MAJOR: the line reservation was 'fresh' for 30s but the nonce lived 120s, so
+  a dial landing 30-120s later found the line free → race. Fix:
+  api_authorize_outbound_call re-runs the per-number line busy check under the
+  per-(company,number) lock at initiate and refuses a call whose line went
+  live meanwhile (lock order session→number, no cycle with the claim RPCs).
+- MAJOR: the answer→bridge window had the same dead-air strand as the answer
+  window — a bridge failure (caller OR member gone) now hangs up BOTH legs.
+Suites: API 1416, web 1278.
+

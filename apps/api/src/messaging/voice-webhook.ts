@@ -1027,21 +1027,40 @@ async function handleTerminalCallEvent(
   const leg = classifyLeg(payload);
   const outboundLeg = leg === "out_agent" || leg === "out_customer";
 
-  // SECURITY (D43): a genuine inbound-family leg (the customer's PSTN leg —
-  // untagged, then bri once answered, or vmi in voicemail) is ALWAYS
-  // direction 'incoming', a Telnyx-controlled fact. A member can ORIGINATE an
-  // OUTGOING WebRTC leg and FORGE an inbound-family client_state, presenting
-  // another tenant's number as `to` — its terminal event would otherwise bill
-  // that victim (in_browser seconds come from the attacker-controlled bri
-  // timestamp), push them over their cap (DoS), and inject a conversation /
-  // missed-text into their inbox. Billing + threading for these legs derive
-  // tenant identity from the tag + payload.to alone, so drop any inbound-family
-  // leg that isn't a real incoming call before any of that runs.
+  // SECURITY (D43): billing + threading for these legs derive the TENANT from
+  // the browser-echoed client_state tag, so a member could ORIGINATE an
+  // OUTGOING WebRTC leg, forge a tag, and present a VICTIM tenant's number to
+  // bill/DoS/inject into that victim. Two unforgeable server-side proofs:
+  //
+  //   (a) INBOUND-FAMILY legs (tenant from payload.TO: in_browser, vm_inbound,
+  //       inbound_untagged, inbound_forwarded) are ALWAYS Telnyx-direction
+  //       'incoming' for a genuine inbound call — drop any that isn't.
+  //   (b) TENANT-FROM-`from` legs (forward, out_agent, out_customer) are
+  //       legitimately OUTGOING, so direction can't tell a real one from a
+  //       forgery. Instead require the genuine server-created calls row
+  //       (inbound claim / outbound authorize create it at call.initiated).
+  //       forward + out_agent are DEAD (D43 deleted cell forwarding + the
+  //       bridge) so they never have a row and are always dropped; a forged
+  //       out_customer was rejected at initiate so has no row either.
   const inboundFamily =
     leg === "in_browser" ||
     leg === "vm_inbound" ||
-    leg === "inbound_untagged";
+    leg === "inbound_untagged" ||
+    leg === "inbound_forwarded";
   if (inboundFamily && payload.direction !== "incoming") return;
+  const tenantFromFrom =
+    leg === "forward" || leg === "out_agent" || leg === "out_customer";
+  if (tenantFromFrom) {
+    const { data: existing, error: existErr } = await db
+      .from("calls")
+      .select("id")
+      .eq("call_session_id", callId)
+      .limit(1);
+    if (existErr) {
+      throw new Error(`terminal session existence check failed: ${existErr.message}`);
+    }
+    if ((existing ?? []).length === 0) return; // forged/dead leg — drop
+  }
 
   // Our number, per leg:
   //   - inbound (untagged/forwarded) leg: to = our number, from = the caller.

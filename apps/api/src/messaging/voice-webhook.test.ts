@@ -390,9 +390,14 @@ function persistStub(): Stub {
 function serve(...stubs: Stub[]) {
   const d43Defaults: Stub[] = [
     stubRoute(restMatch(env, "GET", "call_member_legs"), () => []),
-    // Phase 3 answer-time threading reads the calls row; an empty read makes
-    // it a graceful no-op unless a test opts in with its own stub.
-    stubRoute(restMatch(env, "GET", "calls"), () => []),
+    // Default GET calls: a bare {id} row. Enough for the terminal handler's
+    // "does a genuine server-created row exist?" security check on
+    // forward/out_agent/out_customer legs to pass (a real call has one), but
+    // WITHOUT phone_number_id/answered_at so the answer-time threading + the
+    // out_customer billing anchor stay graceful no-ops unless a test opts in
+    // with its own richer stub. A test proving a FORGED leg is dropped
+    // overrides this with an empty read.
+    stubRoute(restMatch(env, "GET", "calls"), () => [{ id: "existing-row" }]),
   ];
   stubFetch(
     ...([...stubs, ...callsModelStubs(), ...d43Defaults].map(
@@ -1410,6 +1415,37 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(upsert.calls).toHaveLength(0);
     expect(thread.calls).toHaveLength(0);
     expect(sms.calls).toHaveLength(0);
+  });
+
+  it("SECURITY: a forged out_customer / forward leg with NO server-created calls row is dropped (tenant-from-`from` spoof)", async () => {
+    // A member forges an oc_customer (or legacy mctb_forward) tag on a leg
+    // presenting a VICTIM number as `from`. It was rejected at initiate so has
+    // no calls row; the terminal handler must drop it, never bill/thread the
+    // victim.
+    const callRecords = callRecordsInsertStub("cr-attack2");
+    const upsert = upsertCallStub();
+    const noRow = stubRoute(restMatch(env, "GET", "calls"), () => []); // no genuine row
+    serve(numberStub(), noRow, callRecords, upsert);
+
+    for (const state of [`oc_customer|${CALLER}`, `mctb_forward|${CALLER}`]) {
+      await handleCallEvent(
+        env,
+        event("call.hangup", {
+          call_control_id: "attacker-leg-2",
+          call_session_id: "attack-sess-2",
+          direction: "outgoing",
+          from: OUR_NUMBER, // victim number spoofed as caller ID
+          to: CALLER,
+          hangup_cause: "normal_clearing",
+          client_state: btoa(state),
+          start_time: "2020-01-01T00:00:00.000Z",
+          end_time: "2026-07-12T00:00:00.000Z",
+        }),
+      );
+    }
+
+    expect(callRecords.calls).toHaveLength(0);
+    expect(upsert.calls).toHaveLength(0);
   });
 
   it("no-forward: inbound-leg hangup fires the text-back", async () => {
