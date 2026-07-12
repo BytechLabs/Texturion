@@ -261,12 +261,20 @@ export async function handleCallEvent(
     if (payload.direction === "outgoing") {
       // Distinguish our OWN server-issued legs from browser-originated ones by
       // the DIAL TARGET, not the client_state tag — the browser controls the
-      // tag (it could forge a brm/brc/brt tag), but it cannot fake reaching a
-      // PSTN number: to call a PSTN destination the leg's `to` MUST be that
-      // E.164. Every leg WE place (member rings, consult, transfer targets)
-      // dials a SIP credential URI (sip:...@sip.telnyx.com); those are trusted
-      // and bookkept by their own ledgers.
-      if ((payload.to ?? "").startsWith("sip:")) return;
+      // tag (it could forge a brm/brc/brt tag). Every leg WE place (member
+      // rings, consult, transfer targets) dials a Telnyx CREDENTIAL URI
+      // (sip:<username>@sip.telnyx.com, a WebRTC-registered username — never a
+      // phone number). Requiring the sip.telnyx.com host AND a non-numeric
+      // user part means a browser can't reach the PSTN by crafting
+      // `sip:+15551234567@sip.telnyx.com` — that is gated like any PSTN call.
+      const to = payload.to ?? "";
+      if (
+        to.startsWith("sip:") &&
+        to.includes("@sip.telnyx.com") &&
+        !/^sip:\+?\d/.test(to)
+      ) {
+        return;
+      }
       // Any outgoing leg to a PSTN number is browser-originated and MUST pass
       // the server-side gate (cap / subscription / number ownership) before it
       // can bridge to the carrier — the softphone sets its own client_state,
@@ -430,6 +438,18 @@ async function handleVoicemailSaved(
     phoneNumberId: row.phone_number_id,
   };
 
+  // Hang up the voicemail leg FIRST — before any store that could throw. The
+  // recording is already finalized at Telnyx (that's what fired this event),
+  // and the presigned mp3 URL is independent of the leg being alive, so
+  // terminating it here never breaks the fetch below. Doing it first
+  // guarantees a silent-caller inbound leg (a robocaller holding the line past
+  // the recorder's silence/max-length stop) is closed even if the store then
+  // throws and the whole handler replays — an uncapped PSTN cost center
+  // otherwise.
+  if (payload.call_control_id) {
+    await telnyxRejectLeg(env, payload.call_control_id);
+  }
+
   // Replay recovery: if a prior pass already stored the audio in OUR bucket
   // (voicemail_path stamped) but threw before threading, reconstruct from the
   // calls row WITHOUT re-fetching Telnyx (its copy may already be gone) so the
@@ -442,12 +462,6 @@ async function handleVoicemailSaved(
         row.voicemail_seconds,
       )
     : await storeVoicemailRecording(env, db, payload, resolved, row.caller_e164);
-  // Whether or not a recording was kept, the voicemail leg has served its
-  // purpose — hang it up so an answered-but-idle inbound leg (a silent
-  // robocaller holding the line) can't run as an uncapped PSTN cost center.
-  if (payload.call_control_id) {
-    await telnyxRejectLeg(env, payload.call_control_id);
-  }
   if (!stored) {
     // Nothing kept (too short / unfetchable) — the call stays an honest miss.
     // The Telnyx copy was already deleted on those paths inside store*.
@@ -565,10 +579,15 @@ async function handleOutboundInitiated(
   //   - that company must have a LIVE subscription (no calls on a dead plan);
   //   - the company must be UNDER the D36 voice spending cap (the cost cap is
   //     enforced here, not just at the skippable authorize endpoint).
-  // A failure hangs the leg up before it bridges to the PSTN. (#106 per-member
-  // access can't be checked here — the leg carries no member identity — but a
-  // member forging a call from their OWN company's number only bills their own
-  // workspace, the far smaller residual than cross-tenant/over-cap spend.)
+  // A failure hangs the leg up before it bridges to the PSTN. This closes the
+  // cost bypass (over-cap / dead-subscription) and the outside-account spoof
+  // (a number we don't own is rejected). RESIDUAL (deferred to #106 /
+  // per-company WebRTC connections): the leg carries no authenticated member
+  // identity, so the gate checks the PRESENTED number's company, not the
+  // caller's — a member who can present ANOTHER of our tenants' numbers as
+  // caller ID would be gated against that tenant and bill it (its
+  // reachability further depends on Telnyx caller-ID enforcement on the shared
+  // connection). Documented, not yet closed.
   const resolved = await resolveNumber(db, businessNumberE164);
   if (!resolved) {
     // A number we do not own presented as caller ID — refuse the leg.
@@ -674,8 +693,7 @@ async function stampOutboundAnswered(
   }
   if ((data ?? []).length > 0) return; // freshly stamped
 
-  // 0 rows updated: either already stamped (idempotent — fine) OR the row
-  // doesn't exist yet (answered raced ahead of initiated).
+  // 0 rows updated: distinguish already-stamped (row exists) from missing.
   const { data: exists, error: existsError } = await db
     .from("calls")
     .select("id")
@@ -684,11 +702,19 @@ async function stampOutboundAnswered(
   if (existsError) {
     throw new Error(`outbound answered existence check failed: ${existsError.message}`);
   }
-  if ((exists ?? []).length === 0) {
-    throw new Error(
-      `outbound answered before initiated for ${sessionId} — replay after the row lands`,
-    );
-  }
+  if ((exists ?? []).length > 0) return; // row exists, answered_at already set — idempotent.
+
+  // The row does NOT exist. Either (a) a genuine out-of-order delivery where
+  // initiated will still land, OR (b) an initiated the gate REJECTED (over-cap
+  // / dead subscription / unowned number) that will NEVER create a row — the
+  // customer answered in the ~300ms reject window. Do NOT throw: throwing
+  // would dead-letter case (b) and page Sentry on a call already being torn
+  // down (the anti-pattern the inbound over-cap reject already guards). A
+  // rejected call must not bill; a genuine out-of-order legit call
+  // self-corrects (its far-party hangup finalizes billing conservatively).
+  console.warn(
+    `outbound answered for ${sessionId} with no calls row (rejected leg or out-of-order) — not stamping`,
+  );
 }
 
 /**
