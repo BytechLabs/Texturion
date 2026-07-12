@@ -1530,3 +1530,28 @@ all confirmed ones are fixed:
   a note-only member forging a call only bills their OWN workspace, the small
   residual behind the two closed holes. Suites: API 1411, web 1277.
 
+**D43 hardening round 2 — the fix-verification workflow found 8 bugs IN THE
+FIXES (2026-07-12, migration 20260712000500).** An Opus adversarial re-review
+of the round-1 fixes (42 confirmed good, 8 real, 1 refuted) caught:
+- MAJOR: api_claim_ring_answer had the same write-skew the sibling
+  api_ring_leg_failed was already locked against — two distinct member legs
+  answering concurrently both passed the lock-free NOT EXISTS and both won,
+  stranding a leg; added the per-session advisory lock.
+- MAJOR: the outbound gate only fired for the oc_customer-TAGGED leg, so a
+  browser call crafted WITHOUT the tag (untagged outgoing → inbound_untagged
+  → handleInboundInitiated returns) skipped the gate entirely and still hit
+  the PSTN; now EVERY outgoing initiated routes through the gate (our own
+  server-issued legs are recognized and skipped; an untagged/forged leg is
+  rejected outright).
+- MAJOR: the Telnyx recording was deleted BEFORE the outcome/thread/timeline
+  writes committed — a replay after a throw in that window lost the voicemail
+  (no re-fetch source); the delete now happens LAST, and a replay recovers
+  from our own bucket (voicemail_path stamped) instead of re-fetching.
+- MINOR (all fixed): the answered stamp is compensated when the caller
+  abandons in the answer window; ring compensation hangups are per-leg
+  best-effort; /consult/complete requires the caller to BE the sender;
+  stampOutboundAnswered throws (→ replay) when answered races ahead of
+  initiated; the blind-transfer target leg is now resolvable (its real ccid
+  is stamped onto the ledger row and by-leg matches kind in ring|transfer).
+Suites: API 1413, web 1277.
+

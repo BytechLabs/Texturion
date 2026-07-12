@@ -234,10 +234,19 @@ export async function issueTransfer(
 export async function handleTransferAnswered(
   db: SupabaseClient,
   state: TransferState,
+  realLegCcid: string | undefined,
 ): Promise<void> {
+  // Claim the ledgered intent AND stamp the real leg ccid onto it (the ledger
+  // row was inserted with a synthetic `transfer:<user>:<hops>` token — the
+  // real ccid is only known now). The by-leg resolver then finds this row by
+  // the target browser's leg ccid, so the transferee can drive live-call ops.
   const { data: claimed, error: claimError } = await db
     .from("call_member_legs")
-    .update({ state: "answered" })
+    .update(
+      realLegCcid
+        ? { state: "answered", call_control_id: realLegCcid }
+        : { state: "answered" },
+    )
     .eq("call_session_id", state.sessionId)
     .eq("user_id", state.targetUserId)
     .eq("kind", "transfer")

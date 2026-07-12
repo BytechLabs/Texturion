@@ -1074,6 +1074,95 @@ describe("handleCallEvent — D43 voicemail pipeline", () => {
     expect(recordingDelete.calls).toHaveLength(1);
   });
 
+  it("REPLAY after a prior store: recovers from OUR bucket (no re-fetch/re-upload), completes the writes, deletes the Telnyx copy last", async () => {
+    // The calls row already has voicemail_path stamped (a prior pass stored it
+    // but threw before threading) — recovery skips the Telnyx re-fetch.
+    const callsResolve = stubRoute(restMatch(env, "GET", "calls"), () => [
+      {
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+        caller_e164: CALLER,
+        voicemail_path: `${COMPANY_ID}/${SESSION}.mp3`,
+        voicemail_seconds: 42,
+      },
+    ]);
+    const mp3Fetch = stubRoute(
+      (url) => url.hostname === "recordings.telnyx.example",
+      () => new Response(new Uint8Array([1]), { status: 200 }),
+    );
+    const storagePut = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.pathname.startsWith("/storage/v1/object/voicemails/"),
+      () => Response.json({ Key: "ok" }),
+    );
+    const legHangup = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/hangup$/.test(url.pathname),
+      () => ({ data: { result: "ok" } }),
+    );
+    const upsert = upsertCallStub({ conversation_id: null });
+    const thread = threadCallStub();
+    const eventScan = stubRoute(
+      restMatch(env, "GET", "conversation_events"),
+      () => [],
+    );
+    const eventInsert = stubRoute(
+      restMatch(env, "POST", "conversation_events"),
+      () => Response.json([], { status: 201 }),
+    );
+    const recordingList = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.pathname === "/v2/recordings",
+      () => ({ data: [{ id: "rec-1" }] }),
+    );
+    const recordingDelete = stubRoute(
+      (url, request) =>
+        request.method === "DELETE" && url.pathname === "/v2/recordings/rec-1",
+      () => ({ data: {} }),
+    );
+    serve(
+      callsResolve,
+      mp3Fetch,
+      storagePut,
+      legHangup,
+      upsert,
+      thread,
+      eventScan,
+      eventInsert,
+      recordingList,
+      recordingDelete,
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.recording.saved", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        client_state: vmiState,
+        from: CALLER,
+        to: OUR_NUMBER,
+        recording_urls: { mp3: "https://recordings.telnyx.example/rec-1.mp3" },
+        recording_started_at: "2026-07-12T00:00:00Z",
+        recording_ended_at: "2026-07-12T00:00:42Z",
+      }),
+    );
+
+    // Recovery path: NO Telnyx re-fetch, NO re-upload.
+    expect(mp3Fetch.calls).toHaveLength(0);
+    expect(storagePut.calls).toHaveLength(0);
+    // The downstream writes still complete on the replay.
+    expect(
+      upsert.calls.some(
+        (c) => (c.body as Record<string, unknown>).p_outcome === "voicemail",
+      ),
+    ).toBe(true);
+    expect(eventInsert.calls).toHaveLength(1);
+    // And only now is the Telnyx copy deleted (after the writes are durable).
+    expect(recordingDelete.calls).toHaveLength(1);
+  });
+
   it("a hangup-on-the-beep recording (under 2s) is discarded — the call stays an honest miss", async () => {
     const stamp = callsLinkStub();
     const recordingList = stubRoute(
@@ -1210,6 +1299,33 @@ describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () =>
 
     expect(
       action.calls.some((c) => c.url.pathname.endsWith("/hangup")),
+    ).toBe(true);
+    expect(upsert.calls).toHaveLength(0);
+  });
+
+  it("REJECTS an UNTAGGED outgoing leg outright (the real bypass — a browser call crafted without the oc_customer tag)", async () => {
+    const action = telnyxV2Actions();
+    const upsert = upsertCallStub();
+    // No company/number reads should even be reached — reject is immediate.
+    serve(action, upsert);
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: "forged-leg",
+        call_session_id: SESSION,
+        direction: "outgoing",
+        from: OUR_NUMBER,
+        to: CALLER,
+        // No client_state at all → classifies as inbound_untagged on an
+        // OUTGOING leg = a browser call bypassing /calls/browser.
+      }),
+    );
+
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === "/v2/calls/forged-leg/actions/hangup",
+      ),
     ).toBe(true);
     expect(upsert.calls).toHaveLength(0);
   });

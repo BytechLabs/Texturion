@@ -272,10 +272,19 @@ export async function ringMembersOrVoicemail(
   if (insertError) {
     // COMPENSATE: the legs are already ringing but unledgered — a replay would
     // re-dial the WHOLE team (the guard reads the empty ledger) and a fast
-    // answer would find no row to claim. Hang the just-dialed legs up so the
-    // replay starts clean, then rethrow to the ledger sweeper.
+    // answer would find no row to claim. Hang EVERY just-dialed leg up so the
+    // replay starts clean. Each hangup is best-effort in its own try/catch so
+    // a single 5xx can't abort the loop and strand the rest, then rethrow to
+    // the ledger sweeper.
     for (const leg of dialed) {
-      await telnyxOnLiveLeg(env, `/v2/calls/${leg.ccid}/actions/hangup`, {});
+      try {
+        await telnyxOnLiveLeg(env, `/v2/calls/${leg.ccid}/actions/hangup`, {});
+      } catch (cause) {
+        console.error(
+          `ring compensation hangup failed for ${leg.ccid}:`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      }
     }
     throw new Error(`ring ledger insert failed: ${insertError.message}`);
   }
@@ -387,6 +396,14 @@ export async function handleMemberRingAnswered(
   );
   if (!answered && !isReplay) {
     // Caller gone before we could answer; the member leg rings out on its own.
+    // Undo the early answered stamp (guarded on outcome still null) so the
+    // call doesn't read as a 0-second 'answered' — the untagged inbound
+    // hangup resolves it as the miss it was.
+    await db
+      .from("calls")
+      .update({ answered_by_user_id: null, answered_at: null })
+      .eq("call_session_id", state.sessionId)
+      .is("outcome", null);
     return;
   }
 
@@ -698,8 +715,11 @@ export async function storeVoicemailRecording(
     throw new Error(`voicemail stamp failed: ${stampError.message}`);
   }
 
-  await deleteTelnyxRecording(env, sessionId);
-
+  // NB: the Telnyx copy is deleted by the CALLER (handleVoicemailSaved), only
+  // AFTER the outcome/thread/timeline writes commit — deleting here would make
+  // a replay after a downstream throw unable to re-fetch the audio (our
+  // bucket recovery below handles that, but the ordering keeps the Telnyx
+  // copy as a safety net until the message is durably threaded).
   return {
     companyId: resolved.companyId,
     phoneNumberId: resolved.phoneNumberId,
@@ -709,11 +729,30 @@ export async function storeVoicemailRecording(
   };
 }
 
+/** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path
+ *  stamped) — reconstruct the StoredVoicemail from the calls row without
+ *  re-fetching Telnyx (whose copy may already be deleted), so the downstream
+ *  outcome/thread/timeline writes can complete on a replay. */
+export function recoverStoredVoicemail(
+  resolved: { companyId: string; phoneNumberId: string },
+  sessionId: string,
+  caller: string | null,
+  voicemailSeconds: number | null,
+): StoredVoicemail {
+  return {
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller,
+    seconds: voicemailSeconds ?? 0,
+  };
+}
+
 /** Best-effort removal of Telnyx's copy — customer audio must not persist on
  *  a third party. The webhook payload carries no recording id, so list by
  *  session and delete every match. A failure logs (Telnyx retention is
  *  bounded anyway) rather than failing the pipeline. */
-async function deleteTelnyxRecording(
+export async function deleteTelnyxRecording(
   env: Env,
   callSessionId: string,
 ): Promise<void> {

@@ -117,6 +117,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const resolveSession = useResolveLiveSession();
   const resolveRef = useRef(resolveSession);
   resolveRef.current = resolveSession;
+  // Ring-leg ccids we've already resolved to a customer session — the SDK
+  // fires 'active' repeatedly, and we only need to resolve once per call.
+  const resolvedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
@@ -211,9 +214,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           if (call.direction === "inbound") {
             // The SDK session for an answered inbound call is the ring leg's,
             // not the customer's — resolve the real (customer) session so
-            // transfer / consult / notes address the right calls row.
+            // transfer / consult / notes address the right calls row. Once
+            // per call (the SDK re-fires 'active').
             const legCcid = call.telnyxIDs?.telnyxCallControlId;
-            if (legCcid) {
+            if (legCcid && !resolvedRef.current.has(legCcid)) {
+              resolvedRef.current.add(legCcid);
               void resolveRef.current
                 .mutateAsync(legCcid)
                 .then((r) =>
@@ -224,7 +229,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
                   }),
                 )
                 .catch(() => {
-                  /* live-call ops stay disabled for this call; audio is fine */
+                  // Retry allowed on a later 'active' if the ledger row hadn't
+                  // landed yet; live-call ops stay disabled meanwhile.
+                  resolvedRef.current.delete(legCcid);
                 });
             }
           } else {

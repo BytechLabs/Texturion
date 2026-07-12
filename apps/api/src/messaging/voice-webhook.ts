@@ -38,12 +38,14 @@ import {
   BROWSER_MEMBER_STATE,
   VOICEMAIL_INBOUND_STATE,
   cancelRingingMemberLegs,
+  deleteTelnyxRecording,
   handleMemberRingAnswered,
   handleMemberRingHangup,
   handleVoicemailSpeakEnded,
   insertVoicemailEvent,
   parseBrowserAnsweredAtMs,
   parseMemberRingState,
+  recoverStoredVoicemail,
   ringMembersOrVoicemail,
   startVoicemail,
   screeningFlagged,
@@ -256,15 +258,29 @@ export async function handleCallEvent(
   const db = getDb(env);
 
   if (eventType === "call.initiated") {
-    // D43 phase 3 (line model): an outbound browser call OCCUPIES its number
-    // from the first ring — the session row lands NOW (outcome null = the
-    // line is busy), not at hangup. Only the oc_customer leg qualifies; the
-    // ring/consult legs we place are bookkept by their own ledgers.
-    if (
-      payload.direction === "outgoing" &&
-      classifyLeg(payload) === "out_customer"
-    ) {
-      return handleOutboundInitiated(env, db, payload);
+    if (payload.direction === "outgoing") {
+      const initLeg = classifyLeg(payload);
+      // Our OWN server-issued outgoing legs (member rings, consult/transfer
+      // legs, the legacy agent/forward dials) are trusted and bookkept by
+      // their own ledgers — no outbound gate at initiate.
+      if (
+        initLeg === "browser_member" ||
+        initLeg === "consult" ||
+        initLeg === "transfer_target" ||
+        initLeg === "out_agent" ||
+        initLeg === "forward" ||
+        initLeg === "inbound_forwarded"
+      ) {
+        return;
+      }
+      // Everything else outgoing is BROWSER-ORIGINATED (the WebRTC softphone).
+      // It MUST pass the server-side gate — the browser sets its own
+      // client_state, so a member could forge/omit the oc_customer tag to try
+      // to skip the cap/subscription/ownership check. handleOutboundInitiated
+      // gates on server-controlled facts (the presented number's company) and
+      // rejects the leg before it can bridge to the PSTN; a leg with no valid
+      // oc_customer tag (untrackable/unbillable) is rejected outright.
+      return handleOutboundInitiated(env, db, payload, initLeg === "out_customer");
     }
     return handleInboundInitiated(env, db, payload);
   }
@@ -293,7 +309,7 @@ export async function handleCallEvent(
     const state = parseTransferState(payload.client_state);
     if (!state) return;
     if (eventType === "call.answered") {
-      return handleTransferAnswered(db, state);
+      return handleTransferAnswered(db, state, payload.call_control_id);
     }
     if (eventType === "call.hangup") {
       const missed = computeMissedFromEvent({
@@ -396,7 +412,7 @@ async function handleVoicemailSaved(
   // on the payload here silently killed the whole voicemail pipeline.
   const { data: callRows, error: callError } = await db
     .from("calls")
-    .select("company_id,phone_number_id,caller_e164")
+    .select("company_id,phone_number_id,caller_e164,voicemail_path,voicemail_seconds")
     .eq("call_session_id", sessionId)
     .limit(1);
   if (callError) {
@@ -407,6 +423,8 @@ async function handleVoicemailSaved(
         company_id: string;
         phone_number_id: string | null;
         caller_e164: string | null;
+        voicemail_path: string | null;
+        voicemail_seconds: number | null;
       }
     | undefined;
   if (!row?.phone_number_id) return; // unknown/released number → drop
@@ -415,20 +433,29 @@ async function handleVoicemailSaved(
     phoneNumberId: row.phone_number_id,
   };
 
-  const stored = await storeVoicemailRecording(
-    env,
-    db,
-    payload,
-    resolved,
-    row.caller_e164,
-  );
+  // Replay recovery: if a prior pass already stored the audio in OUR bucket
+  // (voicemail_path stamped) but threw before threading, reconstruct from the
+  // calls row WITHOUT re-fetching Telnyx (its copy may already be gone) so the
+  // downstream idempotent writes complete on this replay.
+  const stored = row.voicemail_path
+    ? recoverStoredVoicemail(
+        resolved,
+        sessionId,
+        row.caller_e164,
+        row.voicemail_seconds,
+      )
+    : await storeVoicemailRecording(env, db, payload, resolved, row.caller_e164);
   // Whether or not a recording was kept, the voicemail leg has served its
   // purpose — hang it up so an answered-but-idle inbound leg (a silent
   // robocaller holding the line) can't run as an uncapped PSTN cost center.
   if (payload.call_control_id) {
     await telnyxRejectLeg(env, payload.call_control_id);
   }
-  if (!stored) return; // nothing kept — the call stays an honest miss
+  if (!stored) {
+    // Nothing kept (too short / unfetchable) — the call stays an honest miss.
+    // The Telnyx copy was already deleted on those paths inside store*.
+    return;
+  }
 
   const call = await upsertCallSession(db, {
     eventType: "call.recording.saved",
@@ -463,6 +490,12 @@ async function handleVoicemailSaved(
       seconds: stored.seconds,
     });
   }
+
+  // ONLY now — after the outcome, thread, and timeline line are durable —
+  // delete the Telnyx copy. A replay before this point re-fetches (or recovers
+  // from our bucket) and completes; a replay after finds the copy gone AND the
+  // writes already done (idempotent), so nothing is lost.
+  await deleteTelnyxRecording(env, sessionId);
 }
 
 /**
@@ -508,11 +541,21 @@ async function handleOutboundInitiated(
   env: Env,
   db: SupabaseClient,
   payload: CallPayload,
+  hasOutboundTag: boolean,
 ): Promise<void> {
   const sessionId = payload.call_session_id;
   const callControlId = payload.call_control_id;
   const businessNumberE164 = payload.from; // we present the business number
   if (!sessionId || !callControlId || !businessNumberE164) return;
+
+  // A browser-originated outbound leg MUST carry the oc_customer tag (what
+  // POST /v1/calls/browser returns). An untagged/garbage-tagged outgoing leg
+  // is a call crafted to bypass /calls/browser — it is untrackable and
+  // unbillable, so reject it outright even before the cost/ownership gate.
+  if (!hasOutboundTag) {
+    await telnyxRejectLeg(env, callControlId);
+    return;
+  }
 
   // SECURITY (adversarial-review): the browser ORIGINATES the outbound leg via
   // the WebRTC SDK, so POST /v1/calls/browser's gates are advisory — a member
@@ -615,18 +658,39 @@ async function telnyxRejectLeg(
 }
 
 /** D43: stamp the outbound customer answer time (transfer-eligibility +
- *  talk-time billing anchor). Guarded so a replay/duplicate never moves it. */
+ *  talk-time billing anchor). Guarded so a replay/duplicate never moves it.
+ *  If call.answered arrives BEFORE call.initiated created the row (out-of-order
+ *  webhook delivery), throw so the ledger replays this event AFTER the row
+ *  exists — otherwise the guarded update no-ops and the call bills zero. */
 async function stampOutboundAnswered(
   db: SupabaseClient,
   sessionId: string,
 ): Promise<void> {
-  const { error } = await db
+  const { data, error } = await db
     .from("calls")
     .update({ answered_at: new Date().toISOString() })
     .eq("call_session_id", sessionId)
-    .is("answered_at", null);
+    .is("answered_at", null)
+    .select("id");
   if (error) {
     throw new Error(`outbound answered stamp failed: ${error.message}`);
+  }
+  if ((data ?? []).length > 0) return; // freshly stamped
+
+  // 0 rows updated: either already stamped (idempotent — fine) OR the row
+  // doesn't exist yet (answered raced ahead of initiated).
+  const { data: exists, error: existsError } = await db
+    .from("calls")
+    .select("id")
+    .eq("call_session_id", sessionId)
+    .limit(1);
+  if (existsError) {
+    throw new Error(`outbound answered existence check failed: ${existsError.message}`);
+  }
+  if ((exists ?? []).length === 0) {
+    throw new Error(
+      `outbound answered before initiated for ${sessionId} — replay after the row lands`,
+    );
   }
 }
 

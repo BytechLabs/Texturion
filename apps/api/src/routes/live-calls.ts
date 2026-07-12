@@ -149,9 +149,11 @@ liveCallsRoutes.get(
         .select("call_session_id")
         .eq("company_id", c.get("companyId"))
         .eq("call_control_id", c.req.param("legCcid"))
-        .eq("kind", "ring")
+        // A member's leg is a 'ring' leg (inbound answer) OR a 'transfer' leg
+        // (blind-transfer target) — both resolve to the customer session.
+        .in("kind", ["ring", "transfer"])
         .limit(1),
-      "ring leg lookup",
+      "member leg lookup",
     );
     const sessionId = rows[0]?.call_session_id;
     if (!sessionId) return errorResponse(c, "not_found", "No such call leg.");
@@ -432,6 +434,16 @@ liveCallsRoutes.post(
     const senderLeg = legs.find(
       (leg) => leg.state === "answered" && leg.user_id === c.get("userId"),
     );
+    // Only the consult's SENDER (an answered consult leg is theirs) may
+    // complete it — a non-participant with 'text' access must not bridge the
+    // customer onto an arbitrary leg.
+    if (!senderLeg) {
+      return errorResponse(
+        c,
+        "conflict",
+        "You're not on this consult.",
+      );
+    }
     if (!targetLeg) {
       return errorResponse(
         c,
