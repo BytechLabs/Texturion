@@ -81,6 +81,43 @@ interface TelnyxClient {
 /** At most one active + one waiting/held — a third concurrent call declines. */
 const MAX_CONCURRENT_CALLS = 2;
 
+/** A microphone-permission failure carrying a member-facing, actionable
+ *  message (distinguished from an ApiError in the call catch blocks). */
+class MicPermissionError extends Error {}
+
+/**
+ * Prove we can capture the microphone BEFORE any server-side effect (the line
+ * reservation + billing gate in POST /calls/browser). getUserMedia raises the
+ * browser's permission prompt on the click gesture; a denial — a fresh "Block",
+ * a previously-remembered block (no prompt, instant throw), or a missing device
+ * — throws here with a message that tells the member exactly how to recover.
+ * Calling this BEFORE authorize() means a denial never strands a line
+ * reservation (the "on another call" phantom) and never touches billing. The
+ * tracks are released immediately; the SDK re-acquires with the now-granted
+ * permission, so there is no second prompt.
+ */
+async function acquireMicOrThrow(): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new MicPermissionError(
+      "This browser can't access a microphone. Try a recent Chrome, Edge, or Safari.",
+    );
+  }
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (cause) {
+    const name = cause instanceof DOMException ? cause.name : "";
+    throw new MicPermissionError(
+      name === "NotFoundError" || name === "DevicesNotFoundError"
+        ? "No microphone found. Connect or enable a mic, then try the call again."
+        : name === "NotAllowedError" || name === "SecurityError"
+          ? "Microphone access is blocked. Click the 🎤 or 🔒 icon in your browser's address bar, choose Allow, then try the call again."
+          : "Couldn't access your microphone. Check your browser's mic permission and try again.",
+    );
+  }
+  for (const track of stream.getTracks()) track.stop();
+}
+
 interface SoftphoneContextValue extends SoftphoneState {
   /** The active call's info (audio flowing), if any. */
   activeCall: CallInfo | null;
@@ -304,7 +341,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       const live = stateRef.current.calls.filter((c) => c.phase !== "ended");
       if (live.length >= MAX_CONCURRENT_CALLS) return;
       try {
-        // Authorize FIRST (gates + line busy) — a refusal never spins up audio.
+        // Mic FIRST — before we reserve the line. A denial here never strands a
+        // reservation (no "on another call" phantom), never bills, and surfaces
+        // an actionable message instead of a silent "ended".
+        await acquireMicOrThrow();
+        // Authorize (gates + line busy) — a refusal never spins up audio.
         const auth = await authorize.mutateAsync(conversationId);
         holdActive();
         const client = await ensureClient();
@@ -324,7 +365,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         dispatch({
           type: "error",
           message:
-            cause instanceof ApiError
+            cause instanceof MicPermissionError || cause instanceof ApiError
               ? cause.message
               : "Couldn't start the call.",
         });
@@ -335,9 +376,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   );
 
   const answer = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const call = callsRef.current.get(id);
       if (!call) return;
+      // Answering also needs the mic — surface a clear reason (not a dead
+      // chip) if it's blocked, and don't hold the active call for an answer
+      // that can't capture audio.
+      try {
+        await acquireMicOrThrow();
+      } catch (cause) {
+        dispatch({
+          type: "error",
+          message:
+            cause instanceof MicPermissionError
+              ? cause.message
+              : "Couldn't answer the call.",
+        });
+        return;
+      }
       holdActive();
       try {
         call.answer();
