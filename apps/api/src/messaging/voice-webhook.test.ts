@@ -620,19 +620,21 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     ).toBe(CC_ID);
   });
 
-  it("ignores our own outgoing legs' call.initiated (tagged/outgoing)", async () => {
+  it("ignores our OWN server-issued outgoing legs — those dial a SIP credential URI (never gated)", async () => {
     const action = telnyxV2Actions();
     serve(numberStub(), ...companyStubs(null), action);
 
     await handleCallEvent(
       env,
       event("call.initiated", {
-        call_control_id: "forward-cc",
+        call_control_id: "member-ring-cc",
         call_session_id: SESSION,
         direction: "outgoing",
-        from: OUR_NUMBER,
-        to: CELL,
-        client_state: forwardState(CALLER),
+        from: CALLER,
+        // A member ring / consult / transfer leg dials a SIP URI — the
+        // server-controlled discriminator that a browser can't fake for PSTN.
+        to: "sip:gencred_a@sip.telnyx.com",
+        client_state: btoa(`brm|${SESSION}|${USER_A}|${CALLER}|cc-inbound`),
       }),
     );
     expect(action.calls).toHaveLength(0);

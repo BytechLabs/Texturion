@@ -259,28 +259,25 @@ export async function handleCallEvent(
 
   if (eventType === "call.initiated") {
     if (payload.direction === "outgoing") {
-      const initLeg = classifyLeg(payload);
-      // Our OWN server-issued outgoing legs (member rings, consult/transfer
-      // legs, the legacy agent/forward dials) are trusted and bookkept by
-      // their own ledgers — no outbound gate at initiate.
-      if (
-        initLeg === "browser_member" ||
-        initLeg === "consult" ||
-        initLeg === "transfer_target" ||
-        initLeg === "out_agent" ||
-        initLeg === "forward" ||
-        initLeg === "inbound_forwarded"
-      ) {
-        return;
-      }
-      // Everything else outgoing is BROWSER-ORIGINATED (the WebRTC softphone).
-      // It MUST pass the server-side gate — the browser sets its own
-      // client_state, so a member could forge/omit the oc_customer tag to try
-      // to skip the cap/subscription/ownership check. handleOutboundInitiated
-      // gates on server-controlled facts (the presented number's company) and
-      // rejects the leg before it can bridge to the PSTN; a leg with no valid
-      // oc_customer tag (untrackable/unbillable) is rejected outright.
-      return handleOutboundInitiated(env, db, payload, initLeg === "out_customer");
+      // Distinguish our OWN server-issued legs from browser-originated ones by
+      // the DIAL TARGET, not the client_state tag — the browser controls the
+      // tag (it could forge a brm/brc/brt tag), but it cannot fake reaching a
+      // PSTN number: to call a PSTN destination the leg's `to` MUST be that
+      // E.164. Every leg WE place (member rings, consult, transfer targets)
+      // dials a SIP credential URI (sip:...@sip.telnyx.com); those are trusted
+      // and bookkept by their own ledgers.
+      if ((payload.to ?? "").startsWith("sip:")) return;
+      // Any outgoing leg to a PSTN number is browser-originated and MUST pass
+      // the server-side gate (cap / subscription / number ownership) before it
+      // can bridge to the carrier — the softphone sets its own client_state,
+      // so the gate can never trust the tag. Only a properly oc_customer-tagged
+      // leg is trackable/billable; anything else is rejected outright.
+      return handleOutboundInitiated(
+        env,
+        db,
+        payload,
+        classifyLeg(payload) === "out_customer",
+      );
     }
     return handleInboundInitiated(env, db, payload);
   }
