@@ -176,20 +176,21 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             exists, open it; otherwise start one via the compose flow (which
             prefills the recipient from ?contact=). Opted-out contacts are gated
             honestly by the composer's own opt-out banner. */}
-        {/* #133: call from everywhere you can text. The bridge needs a
-            conversation (the business number to present comes from it), so
-            the control appears once one exists. Opted-out contacts stay
-            callable (D38: STOP is SMS consent — a requested callback may be
-            the only channel). #106 note-level members get the API's honest
-            error — the list row carries no viewer level to gate client-side. */}
-        {existingConversation && (
-          <CallButton
-            conversationId={existingConversation.id}
-            contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
-            className="ml-auto"
-          />
-        )}
-        <Button asChild className={existingConversation ? undefined : "ml-auto"}>
+        {/* #135: call ANY contact — including a fresh import you've never
+            texted. From an existing thread (its number presents as caller ID)
+            or straight from the contact (the server resolves the business
+            number; threading creates the conversation on answer). Opted-out
+            contacts stay callable (STOP is SMS consent — a requested callback
+            may be the only channel). #106 note-level members get the API's
+            honest error — the list row carries no viewer level to gate
+            client-side. */}
+        <CallButton
+          conversationId={existingConversation?.id}
+          contactId={existingConversation ? undefined : contact.id}
+          contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
+          className="ml-auto"
+        />
+        <Button asChild>
           <Link
             href={
               existingConversation

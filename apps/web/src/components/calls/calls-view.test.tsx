@@ -33,6 +33,15 @@ vi.mock("@/lib/api/calls", () => ({
   }),
 }));
 
+// The Dialer (in the Calls header) reaches for the company's numbers and the
+// softphone; stub both so this render test needs no live env/client.
+vi.mock("@/lib/api/numbers", () => ({
+  useNumbers: () => ({ data: { data: [] } }),
+}));
+vi.mock("@/lib/softphone/provider", () => ({
+  useSoftphone: () => null,
+}));
+
 import { CallsView } from "./calls-view";
 
 function call(overrides: Partial<Call> = {}): Call {

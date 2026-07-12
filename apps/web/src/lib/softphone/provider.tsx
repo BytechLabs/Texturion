@@ -121,9 +121,15 @@ async function acquireMicOrThrow(): Promise<void> {
 interface SoftphoneContextValue extends SoftphoneState {
   /** The active call's info (audio flowing), if any. */
   activeCall: CallInfo | null;
-  /** Place a call to the conversation's customer from the business number. */
+  /** Place a call from the business number. The destination comes from EXACTLY
+   *  one origin: an existing thread, a contact (no thread yet), or a raw number
+   *  typed into the dialer. phoneNumberId optionally picks the caller-ID number
+   *  when the company owns several. */
   placeCall: (args: {
-    conversationId: string;
+    conversationId?: string;
+    contactId?: string;
+    to?: string;
+    phoneNumberId?: string;
     contactName: string;
   }) => Promise<void>;
   /** Answer a ringing call; any active call is put on hold first. */
@@ -333,9 +339,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const placeCall = useCallback(
     async ({
       conversationId,
+      contactId,
+      to,
+      phoneNumberId,
       contactName,
     }: {
-      conversationId: string;
+      conversationId?: string;
+      contactId?: string;
+      to?: string;
+      phoneNumberId?: string;
       contactName: string;
     }) => {
       const live = stateRef.current.calls.filter((c) => c.phase !== "ended");
@@ -345,8 +357,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // reservation (no "on another call" phantom), never bills, and surfaces
         // an actionable message instead of a silent "ended".
         await acquireMicOrThrow();
-        // Authorize (gates + line busy) — a refusal never spins up audio.
-        const auth = await authorize.mutateAsync(conversationId);
+        // Authorize (gates + line busy) — a refusal never spins up audio. The
+        // server resolves the destination from whichever origin is set.
+        const auth = await authorize.mutateAsync({
+          conversation_id: conversationId,
+          contact_id: contactId,
+          to,
+          phone_number_id: phoneNumberId,
+        });
         holdActive();
         const client = await ensureClient();
         const call = client.newCall({

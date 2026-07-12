@@ -20,10 +20,14 @@ import { useSoftphone } from "@/lib/softphone/provider";
 
 export function CallButton({
   conversationId,
+  contactId,
   contactName,
   className,
 }: {
-  conversationId: string;
+  /** Call from an existing thread… */
+  conversationId?: string;
+  /** …or a contact with no thread yet (fresh import). Exactly one is set. */
+  contactId?: string;
   contactName: string;
   className?: string;
 }) {
@@ -41,7 +45,7 @@ export function CallButton({
       return;
     }
     void softphone
-      .placeCall({ conversationId, contactName })
+      .placeCall({ conversationId, contactId, contactName })
       .catch((cause) =>
         toast.error(
           cause instanceof ApiError

@@ -49,14 +49,24 @@ export interface BrowserCallAuth {
  * line-busy guard and returns the origination parameters; the softphone then
  * dials via the WebRTC SDK. Never dials server-side.
  */
+/** A browser call can start from a thread, a contact (no thread yet), or a raw
+ *  number (the dialer). Exactly one origin is set; phone_number_id optionally
+ *  picks the caller-ID number when the company owns several. */
+export interface BrowserCallRequest {
+  conversation_id?: string;
+  contact_id?: string;
+  to?: string;
+  phone_number_id?: string;
+}
+
 export function useAuthorizeBrowserCall() {
   const companyId = useCompanyId();
   return useMutation({
-    mutationFn: (conversationId: string) =>
+    mutationFn: (request: BrowserCallRequest) =>
       apiFetch<BrowserCallAuth>("/v1/calls/browser", {
         companyId,
         method: "POST",
-        body: { conversation_id: conversationId },
+        body: request,
       }),
   });
 }

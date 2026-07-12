@@ -37,6 +37,7 @@ import {
   parseWith,
   unwrap,
 } from "./core/http";
+import { normalizeNanpPhone } from "./core/phone";
 
 const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
@@ -145,71 +146,185 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
   });
 });
 
-const outboundBodySchema = z.object({
-  conversation_id: z.uuid(),
-});
+// A browser call can start from an existing THREAD (conversation_id), a CONTACT
+// with no thread yet (contact_id — the fresh-import case), or a raw NUMBER typed
+// into the DIALER (to). The optional phone_number_id chooses which business
+// number presents as caller ID when the company owns more than one.
+const outboundBodySchema = z
+  .object({
+    conversation_id: z.uuid().optional(),
+    contact_id: z.uuid().optional(),
+    to: z.string().trim().min(1).max(32).optional(),
+    phone_number_id: z.uuid().optional(),
+  })
+  .refine((b) => Boolean(b.conversation_id ?? b.contact_id ?? b.to), {
+    message: "Provide a conversation, a contact, or a number to call.",
+  });
+type OutboundBody = z.infer<typeof outboundBodySchema>;
 
-/** The conversation + gate result an outbound call authorization needs. */
+/** The resolved parties + gate result an outbound call authorization needs.
+ *  contactId is null for a dialer call to a not-yet-known number (threading
+ *  find-or-creates the contact on answer). */
 interface OutboundAuth {
-  conversation: { id: string; contact_id: string; phone_number_id: string };
+  phoneNumberId: string;
   customer: string;
   businessNumber: string;
+  contactId: string | null;
 }
 
 /**
- * Shared outbound-call gates (D38 bridge AND D43 browser origination): the
- * conversation names the customer + business number; #106 'text' level (calling
- * is outreach); a live subscription; and the D36 voice spending cap. Returns
- * the resolved parties, or a Response to short-circuit with.
+ * Which business number presents as caller ID for a contact- or dialer-
+ * originated call (a thread already names its own). An explicit, still-active
+ * phone_number_id wins; otherwise the company's SOLE active number is implied;
+ * a company with several must choose (the dialer's From selector sends one),
+ * and a company with none can't place the call. Company-scoped throughout, so a
+ * caller can never present another tenant's number.
+ */
+async function resolveBusinessNumber(
+  c: Context<AppEnv>,
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  wanted: string | undefined,
+): Promise<{ phoneNumberId: string; businessNumber: string } | Response> {
+  const rows = unwrap<{ id: string; number_e164: string }[]>(
+    await db
+      .from("phone_numbers")
+      .select("id,number_e164")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
+    "active numbers",
+  );
+  if (wanted) {
+    const match = rows.find((r) => r.id === wanted);
+    if (!match) {
+      return errorResponse(c, "conflict", "That number isn't active right now.");
+    }
+    return { phoneNumberId: match.id, businessNumber: match.number_e164 };
+  }
+  if (rows.length === 0) {
+    return errorResponse(c, "conflict", "You have no active number to call from.");
+  }
+  if (rows.length > 1) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "Choose which of your numbers to call from.",
+    );
+  }
+  return { phoneNumberId: rows[0].id, businessNumber: rows[0].number_e164 };
+}
+
+/**
+ * Shared outbound-call gates (D43 browser origination). Resolves the customer
+ * number + the business number to present from whichever origin the caller
+ * used — an existing THREAD, a CONTACT with no thread yet, or a raw NUMBER from
+ * the dialer — then runs the SAME gates for all three: #106 'text' level on the
+ * resolved number (calling is outreach), a live subscription, and the D36 voice
+ * spending cap. Every lookup is company-scoped, so a caller can only ever call
+ * from a number their own company owns. Returns the resolved parties, or a
+ * Response to short-circuit with.
  */
 async function authorizeOutboundCall(
   c: Context<AppEnv>,
   db: ReturnType<typeof getDb>,
   companyId: string,
   userId: string,
-  conversationId: string,
+  body: OutboundBody,
 ): Promise<OutboundAuth | Response> {
-  const conversations = unwrap<
-    {
-      id: string;
-      contact_id: string;
-      phone_number_id: string | null;
-      contacts: { phone_e164: string } | null;
-      phone_numbers: { number_e164: string; status: string } | null;
-    }[]
-  >(
-    await db
-      .from("conversations")
-      .select(
-        "id,contact_id,phone_number_id,contacts(phone_e164),phone_numbers(number_e164,status)",
-      )
-      .eq("company_id", companyId)
-      .eq("id", conversationId)
-      .limit(1),
-    "conversation lookup",
-  );
-  const conversation = conversations[0];
-  if (!conversation) {
-    return errorResponse(c, "not_found", "No such conversation.");
-  }
-  const customer = conversation.contacts?.phone_e164;
-  const businessNumber = conversation.phone_numbers?.number_e164;
-  if (!customer || !businessNumber || !conversation.phone_number_id) {
-    return errorResponse(
-      c,
-      "conflict",
-      "This conversation has no callable number.",
+  let customer: string;
+  let businessNumber: string;
+  let phoneNumberId: string;
+  let contactId: string | null = null;
+
+  if (body.conversation_id) {
+    // From an existing thread: it names the customer AND the business number.
+    const conversations = unwrap<
+      {
+        id: string;
+        contact_id: string;
+        phone_number_id: string | null;
+        contacts: { phone_e164: string } | null;
+        phone_numbers: { number_e164: string; status: string } | null;
+      }[]
+    >(
+      await db
+        .from("conversations")
+        .select(
+          "id,contact_id,phone_number_id,contacts(phone_e164),phone_numbers(number_e164,status)",
+        )
+        .eq("company_id", companyId)
+        .eq("id", body.conversation_id)
+        .limit(1),
+      "conversation lookup",
     );
-  }
-  if (conversation.phone_numbers?.status !== "active") {
-    return errorResponse(c, "conflict", "This number isn't active right now.");
+    const conversation = conversations[0];
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    if (
+      !conversation.contacts?.phone_e164 ||
+      !conversation.phone_numbers?.number_e164 ||
+      !conversation.phone_number_id
+    ) {
+      return errorResponse(
+        c,
+        "conflict",
+        "This conversation has no callable number.",
+      );
+    }
+    if (conversation.phone_numbers.status !== "active") {
+      return errorResponse(c, "conflict", "This number isn't active right now.");
+    }
+    customer = conversation.contacts.phone_e164;
+    businessNumber = conversation.phone_numbers.number_e164;
+    phoneNumberId = conversation.phone_number_id;
+    contactId = conversation.contact_id;
+  } else {
+    // From a contact (fresh import — no thread) or the dialer (raw number).
+    // Threading find-or-creates the contact + conversation on ANSWER.
+    if (body.contact_id) {
+      const rows = unwrap<{ phone_e164: string }[]>(
+        await db
+          .from("contacts")
+          .select("phone_e164")
+          .eq("company_id", companyId)
+          .eq("id", body.contact_id)
+          .limit(1),
+        "contact lookup",
+      );
+      if (!rows[0]) {
+        return errorResponse(c, "not_found", "No such contact.");
+      }
+      customer = rows[0].phone_e164;
+      contactId = body.contact_id;
+    } else {
+      const normalized = normalizeNanpPhone(body.to ?? "");
+      if (!normalized) {
+        return errorResponse(
+          c,
+          "validation_failed",
+          "Enter a valid US or Canada number.",
+        );
+      }
+      customer = normalized;
+    }
+    const resolved = await resolveBusinessNumber(
+      c,
+      db,
+      companyId,
+      body.phone_number_id,
+    );
+    if (resolved instanceof Response) return resolved;
+    phoneNumberId = resolved.phoneNumberId;
+    businessNumber = resolved.businessNumber;
   }
 
   await assertNumberLevel(db, {
     companyId,
     userId,
     role: c.get("role"),
-    phoneNumberId: conversation.phone_number_id,
+    phoneNumberId,
     need: "text",
   });
 
@@ -241,15 +356,7 @@ async function authorizeOutboundCall(
     );
   }
 
-  return {
-    conversation: {
-      id: conversation.id,
-      contact_id: conversation.contact_id,
-      phone_number_id: conversation.phone_number_id,
-    },
-    customer,
-    businessNumber,
-  };
+  return { phoneNumberId, customer, businessNumber, contactId };
 }
 
 /**
@@ -271,13 +378,7 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   const userId = c.get("userId");
   const body = await parseJsonBody(c, outboundBodySchema);
 
-  const auth = await authorizeOutboundCall(
-    c,
-    db,
-    companyId,
-    userId,
-    body.conversation_id,
-  );
+  const auth = await authorizeOutboundCall(c, db, companyId, userId, body);
   if (auth instanceof Response) return auth;
 
   // The line model (D43 phase 3, founder-binding): ONE live call per phone
@@ -295,7 +396,7 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   const claimed = unwrap<boolean>(
     await db.rpc("api_claim_outbound_line", {
       p_company_id: companyId,
-      p_phone_number_id: auth.conversation.phone_number_id,
+      p_phone_number_id: auth.phoneNumberId,
       p_nonce: nonce,
       p_from: auth.businessNumber,
       p_customer: auth.customer,

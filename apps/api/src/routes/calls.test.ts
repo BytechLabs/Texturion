@@ -187,6 +187,9 @@ describe("GET /v1/calls", () => {
 describe("POST /v1/calls/browser (D43)", () => {
   const CONVERSATION = "cccccccc-0000-4000-8000-000000000003";
 
+  const BUSINESS_NUMBER_ID = "bbbbbbbb-0000-4000-8000-000000000002";
+  const CONTACT_ID = "aaaaaaaa-0000-4000-8000-000000000009";
+
   function browserWorld(
     opts: {
       subscriptionStatus?: string;
@@ -194,6 +197,10 @@ describe("POST /v1/calls/browser (D43)", () => {
       inflight?: unknown[];
       lineBusy?: boolean;
       role?: string;
+      /** Active numbers the company owns (contact/dialer number resolution). */
+      numbers?: { id: string; number_e164: string }[];
+      /** The stored number for a contact_id call. */
+      contactPhone?: string | null;
     } = {},
   ): SupabaseStub {
     const sb = supabaseStub(env);
@@ -206,12 +213,22 @@ describe("POST /v1/calls/browser (D43)", () => {
     sb.on("GET", "/rest/v1/conversations", () => [
       {
         id: CONVERSATION,
-        contact_id: "aaaaaaaa-0000-4000-8000-000000000009",
-        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        contact_id: CONTACT_ID,
+        phone_number_id: BUSINESS_NUMBER_ID,
         contacts: { phone_e164: "+16135551000" },
         phone_numbers: { number_e164: "+16135550100", status: "active" },
       },
     ]);
+    // Contact- and dialer-originated calls resolve the customer + the business
+    // number from these two reads (the conversation path never hits them).
+    sb.on("GET", "/rest/v1/contacts", () =>
+      opts.contactPhone === null
+        ? []
+        : [{ phone_e164: opts.contactPhone ?? "+16135551000" }],
+    );
+    sb.on("GET", "/rest/v1/phone_numbers", () =>
+      opts.numbers ?? [{ id: BUSINESS_NUMBER_ID, number_e164: "+16135550100" }],
+    );
     sb.on("GET", "/rest/v1/companies", () => [
       {
         plan: "starter",
@@ -329,5 +346,98 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(await res.json()).toMatchObject({
       error: { message: expect.stringContaining("on another call") },
     });
+  });
+
+  it("calls a CONTACT with no thread yet (contact_id) — resolves the sole active number", async () => {
+    const sb = browserWorld({ contactPhone: "+16475551234" });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { contact_id: CONTACT_ID },
+    });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { from: string; to: string };
+    expect(out.from).toBe("+16135550100"); // the company's sole active number
+    expect(out.to).toBe("+16475551234"); // the contact's stored number
+    const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
+    expect(claim[0].body).toMatchObject({
+      p_phone_number_id: BUSINESS_NUMBER_ID,
+      p_from: "+16135550100",
+      p_customer: "+16475551234",
+    });
+  });
+
+  it("DIALS a raw number (dialer) — normalizes it and resolves the sole active number", async () => {
+    const sb = browserWorld();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { to: "(418) 655-3839" }, // human-typed → normalized to +1418…
+    });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { from: string; to: string };
+    expect(out.from).toBe("+16135550100");
+    expect(out.to).toBe("+14186553839");
+  });
+
+  it("422s an uncallable dialer number", async () => {
+    const sb = browserWorld();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { to: "123" },
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      error: { code: "validation_failed" },
+    });
+  });
+
+  it("asks which number to call from when the company owns several (no phone_number_id)", async () => {
+    const sb = browserWorld({
+      numbers: [
+        { id: BUSINESS_NUMBER_ID, number_e164: "+16135550100" },
+        { id: "bbbbbbbb-0000-4000-8000-000000000003", number_e164: "+14165550200" },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { to: "+14186553839" },
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      error: { message: expect.stringContaining("which of your numbers") },
+    });
+  });
+
+  it("presents the chosen phone_number_id when the company owns several", async () => {
+    const sb = browserWorld({
+      numbers: [
+        { id: BUSINESS_NUMBER_ID, number_e164: "+16135550100" },
+        { id: "bbbbbbbb-0000-4000-8000-000000000003", number_e164: "+14165550200" },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: {
+        to: "+14186553839",
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000003",
+      },
+    });
+    expect(res.status).toBe(200);
+    const out = (await res.json()) as { from: string };
+    expect(out.from).toBe("+14165550200"); // the chosen number
   });
 });

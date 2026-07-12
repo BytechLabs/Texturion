@@ -12,7 +12,12 @@
  * #134/D42: calling is included on every plan, so the old module-off banner
  * is gone — there is no module state to warn about.
  */
-import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
+import {
+  Grid3x3,
+  PhoneIncoming,
+  PhoneMissed,
+  PhoneOutgoing,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -20,6 +25,7 @@ import {
   screeningLabel,
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
+import { Dialer } from "@/components/calls/dialer";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
@@ -162,7 +168,21 @@ export function CallsView() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-[17px] font-semibold text-app-ink">Calls</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-[17px] font-semibold text-app-ink">Calls</h1>
+          <Dialer
+            trigger={
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-[12.5px]"
+              >
+                <Grid3x3 className="size-3.5" strokeWidth={1.75} />
+                Dial
+              </Button>
+            }
+          />
+        </div>
         {/* The inbox filter-bar segmented control, verbatim shape: a stone
             track with the lifted active pill. */}
         <div
