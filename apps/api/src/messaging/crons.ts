@@ -348,6 +348,20 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
 export async function sweepStaleCalls(env: Env): Promise<void> {
   const db = getDb(env);
 
+  // D43: garbage-collect outbound-call authorizations that were minted but
+  // never consumed (the browser failed to dial). They're single-use and
+  // age-checked at consume time, so a stale one is harmless — this just keeps
+  // the table small.
+  const { error: authSweepError } = await db
+    .from("outbound_call_authorizations")
+    .delete()
+    .lt("created_at", new Date(Date.now() - 10 * 60_000).toISOString());
+  if (authSweepError) {
+    console.error(
+      `outbound authorization sweep failed: ${authSweepError.message}`,
+    );
+  }
+
   // D43 cost backstop: a browser-answered call has NO Telnyx-side time limit
   // (unlike the legacy cell forward's time_limit_secs — a client-originated /
   // browser-answered leg can't carry one), so a member who leaves a call

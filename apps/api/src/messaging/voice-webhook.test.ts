@@ -1205,20 +1205,35 @@ describe("handleCallEvent — D43 voicemail pipeline", () => {
   });
 });
 
-describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () => {
+describe("handleCallEvent — outbound call.initiated (D43 nonce authorization)", () => {
   const OC_LEG = "oc-leg-1";
-  const outboundInit = () =>
+  const NONCE = "nonce-abc";
+  const outboundInit = (nonce: string | null = NONCE) =>
     event("call.initiated", {
       call_control_id: OC_LEG,
       call_session_id: SESSION,
       direction: "outgoing",
       from: OUR_NUMBER, // the business number the browser presented
       to: CALLER, // the customer
-      client_state: btoa(`oc_customer|${CALLER}`),
+      client_state: btoa(
+        nonce ? `oc_customer|${CALLER}|${nonce}` : `oc_customer|${CALLER}`,
+      ),
     });
 
-  /** The outbound company read (plan/period/cap/subscription — distinct from
-   *  the inbound select) + the voice-usage RPC that drives the cap. */
+  /** The single-use authorization RPC — the webhook's gate. */
+  function authStub(
+    result:
+      | { authorized: false }
+      | { authorized: true; company_id: string; phone_number_id: string; replay?: boolean },
+  ): Stub {
+    return stubRoute(
+      rpcMatch(env, "api_authorize_outbound_call"),
+      () => result,
+    );
+  }
+
+  /** The defense-in-depth company read (keyed on the AUTHORIZED company) +
+   *  its voice-usage RPC. */
   function outboundCompanyStubs(status: string, usedSeconds: number): Stub[] {
     return [
       stubRoute(
@@ -1243,14 +1258,44 @@ describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () =>
     ];
   }
 
-  it("REJECTS (hangs up) the leg when the company is OVER the voice cap — the browser can't skip the cap", async () => {
+  it("REJECTS a leg with NO valid authorization (forged/omitted/expired nonce, or a mismatched caller ID) — the RPC returns authorized:false", async () => {
     const action = telnyxV2Actions();
-    const upsert = upsertCallStub();
-    // 2,500 × 3.00 = 7,500 min cap; at it.
+    // The RPC could not consume a matching nonce → not authorized.
+    serve(authStub({ authorized: false }), action);
+
+    await handleCallEvent(env, outboundInit("forged-or-stale"));
+
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${OC_LEG}/actions/hangup`,
+      ),
+    ).toBe(true);
+  });
+
+  it("REJECTS an UNTAGGED / nonce-less outgoing leg outright — no RPC call is even made", async () => {
+    const action = telnyxV2Actions();
+    // A raw oc_customer tag with NO nonce (a browser call crafted to bypass
+    // /calls/browser) is rejected before the authorization RPC.
+    serve(action);
+
+    await handleCallEvent(env, outboundInit(null));
+
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${OC_LEG}/actions/hangup`,
+      ),
+    ).toBe(true);
+  });
+
+  it("REJECTS an authorized leg whose company is now OVER the voice cap (burst defense — keyed on the AUTHORIZED company)", async () => {
+    const action = telnyxV2Actions();
     serve(
-      numberStub(),
-      ...outboundCompanyStubs("active", 7500 * 60),
-      upsert,
+      authStub({
+        authorized: true,
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+      }),
+      ...outboundCompanyStubs("active", 7500 * 60), // 2,500 × 3.00 cap, at it
       action,
     );
 
@@ -1261,39 +1306,17 @@ describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () =>
         (c) => c.url.pathname === `/v2/calls/${OC_LEG}/actions/hangup`,
       ),
     ).toBe(true);
-    // A rejected call never creates a billable session row.
-    expect(upsert.calls).toHaveLength(0);
   });
 
-  it("REJECTS a leg presenting a number we don't own (cross-account caller-ID spoof)", async () => {
+  it("REJECTS an authorized leg whose subscription LAPSED between authorize and dial", async () => {
     const action = telnyxV2Actions();
-    const noNumber = stubRoute(
-      restMatch(
-        env,
-        "GET",
-        "phone_numbers",
-        (url) => url.searchParams.get("select")?.includes("company_id") ?? false,
-      ),
-      () => [],
-    );
-    serve(noNumber, action);
-
-    await handleCallEvent(env, outboundInit());
-
-    expect(
-      action.calls.some(
-        (c) => c.url.pathname === `/v2/calls/${OC_LEG}/actions/hangup`,
-      ),
-    ).toBe(true);
-  });
-
-  it("REJECTS a leg from a non-active subscription", async () => {
-    const action = telnyxV2Actions();
-    const upsert = upsertCallStub();
     serve(
-      numberStub(),
+      authStub({
+        authorized: true,
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+      }),
       ...outboundCompanyStubs("canceled", 0),
-      upsert,
       action,
     );
 
@@ -1302,44 +1325,18 @@ describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () =>
     expect(
       action.calls.some((c) => c.url.pathname.endsWith("/hangup")),
     ).toBe(true);
-    expect(upsert.calls).toHaveLength(0);
   });
 
-  it("REJECTS an UNTAGGED outgoing leg outright (the real bypass — a browser call crafted without the oc_customer tag)", async () => {
+  it("ALLOWS an authorized, under-cap, active call — stamps the customer leg ccid (the RPC already created the row)", async () => {
     const action = telnyxV2Actions();
-    const upsert = upsertCallStub();
-    // No company/number reads should even be reached — reject is immediate.
-    serve(action, upsert);
-
-    await handleCallEvent(
-      env,
-      event("call.initiated", {
-        call_control_id: "forged-leg",
-        call_session_id: SESSION,
-        direction: "outgoing",
-        from: OUR_NUMBER,
-        to: CALLER,
-        // No client_state at all → classifies as inbound_untagged on an
-        // OUTGOING leg = a browser call bypassing /calls/browser.
-      }),
-    );
-
-    expect(
-      action.calls.some(
-        (c) => c.url.pathname === "/v2/calls/forged-leg/actions/hangup",
-      ),
-    ).toBe(true);
-    expect(upsert.calls).toHaveLength(0);
-  });
-
-  it("ALLOWS an under-cap, active, owned-number call — creates the session row + stamps the customer leg ccid", async () => {
-    const action = telnyxV2Actions();
-    const upsert = upsertCallStub();
     const meta = callsLinkStub();
     serve(
-      numberStub(),
+      authStub({
+        authorized: true,
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+      }),
       ...outboundCompanyStubs("active", 100 * 60),
-      upsert,
       meta,
       action,
     );
@@ -1349,13 +1346,35 @@ describe("handleCallEvent — outbound call.initiated (D43 webhook gate)", () =>
     expect(
       action.calls.some((c) => c.url.pathname.endsWith("/hangup")),
     ).toBe(false);
-    expect(upsert.calls).toHaveLength(1);
     const ccidStamp = meta.calls.find(
       (c) =>
         (c.body as Record<string, unknown> | null)?.customer_call_control_id ===
         OC_LEG,
     );
     expect(ccidStamp).toBeDefined();
+  });
+
+  it("a REPLAY (authorized:true, replay:true) skips the cost re-check and just re-stamps idempotently", async () => {
+    const action = telnyxV2Actions();
+    const meta = callsLinkStub();
+    // No company/cap stubs — the replay path must NOT read them.
+    serve(
+      authStub({
+        authorized: true,
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+        replay: true,
+      }),
+      meta,
+      action,
+    );
+
+    await handleCallEvent(env, outboundInit());
+
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/hangup")),
+    ).toBe(false);
+    expect(meta.calls).toHaveLength(1);
   });
 });
 

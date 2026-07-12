@@ -1555,3 +1555,22 @@ of the round-1 fixes (42 confirmed good, 8 real, 1 refuted) caught:
   is stamped onto the ledger row and by-leg matches kind in ring|transfer).
 Suites: API 1413, web 1277.
 
+**D43 — cross-tenant caller-ID residual CLOSED (2026-07-12, migration
+20260712000600).** The founder rejected shipping the documented residual (a
+member presenting another tenant's number as caller ID and billing it). Root
+cause: the browser originates the WebRTC leg, so the webhook saw only the
+presented number, not who placed the call. Fix: POST /v1/calls/browser —
+which already proves the authenticated member has #106 'text' access to THEIR
+OWN company's number, with a live subscription and under the voice cap — now
+mints a SINGLE-USE authorization (outbound_call_authorizations nonce);
+handleOutboundInitiated requires it (api_authorize_outbound_call consumes it
+IFF minted for exactly this presented caller number + fresh, and binds the
+call to the AUTHORIZED company/number, never the presented one). A member can
+only ever mint a nonce for their own company's numbers, so a call presenting
+any other number has no valid authorization and is rejected. This ONE change
+closes all three residuals at once: cross-tenant caller-ID billing, the
+note-only #106 bypass (a note-only member can't mint a nonce), and the
+forged/omitted client_state (no nonce → rejected). Replay-safe (the RPC
+recognises an already-authorized session's row) and burst-defended (a
+subscription/cap re-check keyed on the authorized company). Suites: API 1414.
+

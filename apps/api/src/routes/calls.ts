@@ -304,9 +304,35 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
     );
   }
 
+  // Mint a SINGLE-USE authorization the webhook requires before it will let
+  // the browser-originated leg connect. Because this endpoint has already
+  // proven the authenticated member has 'text' access to THEIR OWN company's
+  // number (authorizeOutboundCall), the nonce binds the call to that company
+  // + number + caller ID — the browser can never present a number, or place a
+  // call, it wasn't authorized for (closes cross-tenant caller-ID billing, the
+  // note-only #106 bypass, and forged/omitted client_state).
+  const nonce = crypto.randomUUID();
+  unwrap(
+    await db
+      .from("outbound_call_authorizations")
+      .insert({
+        nonce,
+        company_id: companyId,
+        phone_number_id: auth.conversation.phone_number_id,
+        from_e164: auth.businessNumber,
+        customer_e164: auth.customer,
+      })
+      .select("nonce"),
+    "outbound authorization mint",
+  );
+
   return c.json({
     from: auth.businessNumber,
     to: auth.customer,
-    client_state: buildOutboundState(OUTBOUND_CUSTOMER_STATE, auth.customer),
+    client_state: buildOutboundState(
+      OUTBOUND_CUSTOMER_STATE,
+      auth.customer,
+      nonce,
+    ),
   });
 });

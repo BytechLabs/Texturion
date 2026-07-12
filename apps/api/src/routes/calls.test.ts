@@ -225,10 +225,14 @@ describe("POST /v1/calls/browser (D43)", () => {
       () => opts.voiceSeconds ?? 0,
     );
     sb.on("GET", "/rest/v1/calls", () => opts.inflight ?? []);
+    // D43: the endpoint mints a single-use outbound authorization row.
+    sb.on("POST", "/rest/v1/outbound_call_authorizations", (call) => [
+      (call.body as Record<string, unknown>) ?? {},
+    ]);
     return sb;
   }
 
-  it("authorizes: returns the from/to numbers and the oc_customer tag — no Telnyx dial", async () => {
+  it("authorizes: mints a single-use auth + returns from/to and the oc_customer tag WITH the nonce — no Telnyx dial", async () => {
     const sb = browserWorld();
     const dial: Stub = stubRoute(
       (url, request) =>
@@ -246,10 +250,26 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      from: "+16135550100",
-      to: "+16135551000",
-      client_state: btoa("oc_customer|+16135551000"),
+    const bodyOut = (await res.json()) as {
+      from: string;
+      to: string;
+      client_state: string;
+    };
+    expect(bodyOut.from).toBe("+16135550100");
+    expect(bodyOut.to).toBe("+16135551000");
+    // client_state = base64("oc_customer|<customer>|<nonce>") — the nonce is
+    // the webhook's single-use authorization.
+    const decoded = atob(bodyOut.client_state).split("|");
+    expect(decoded[0]).toBe("oc_customer");
+    expect(decoded[1]).toBe("+16135551000");
+    expect(decoded[2]).toBeTruthy(); // a nonce is present
+    // A matching authorization row was minted with that exact nonce + caller ID.
+    const mint = sb.find("POST", "/rest/v1/outbound_call_authorizations");
+    expect(mint).toHaveLength(1);
+    expect(mint[0].body).toMatchObject({
+      nonce: decoded[2],
+      from_e164: "+16135550100",
+      customer_e164: "+16135551000",
     });
     // The server never dials — the browser does.
     expect(dial.calls).toHaveLength(0);

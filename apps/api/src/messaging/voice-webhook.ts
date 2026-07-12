@@ -226,12 +226,26 @@ function decodeOutboundCustomer(raw: string | null | undefined): string | null {
     : null;
 }
 
-/** D38: build the tagged client_state for an outbound leg. */
+/** Build the tagged client_state for an outbound leg. A browser-originated
+ *  oc_customer leg also carries the single-use authorization NONCE minted by
+ *  POST /v1/calls/browser (`oc_customer|<customer>|<nonce>`) — the webhook
+ *  requires it to authorize the call (D43 cross-tenant/forgery fix). */
 export function buildOutboundState(
   tag: typeof OUTBOUND_AGENT_STATE | typeof OUTBOUND_CUSTOMER_STATE,
   customerE164: string,
+  nonce?: string,
 ): string {
-  return btoa(`${tag}|${customerE164}`);
+  return btoa(nonce ? `${tag}|${customerE164}|${nonce}` : `${tag}|${customerE164}`);
+}
+
+/** The authorization nonce a browser-originated oc_customer leg carries
+ *  (`oc_customer|<customer>|<nonce>`), or null when absent (a forged/omitted
+ *  tag — the webhook then rejects the leg). */
+function parseOutboundNonce(raw: string | null | undefined): string | null {
+  const decoded = decodeClientState(raw ?? null);
+  if (!decoded) return null;
+  const parts = decoded.split("|");
+  return parts[0] === OUTBOUND_CUSTOMER_STATE && parts[2] ? parts[2] : null;
 }
 
 interface InboundCompany {
@@ -559,73 +573,78 @@ async function handleOutboundInitiated(
   const businessNumberE164 = payload.from; // we present the business number
   if (!sessionId || !callControlId || !businessNumberE164) return;
 
-  // A browser-originated outbound leg MUST carry the oc_customer tag (what
-  // POST /v1/calls/browser returns). An untagged/garbage-tagged outgoing leg
-  // is a call crafted to bypass /calls/browser — it is untrackable and
-  // unbillable, so reject it outright even before the cost/ownership gate.
-  if (!hasOutboundTag) {
+  // SECURITY (D43): the browser ORIGINATES the outbound WebRTC leg itself, so
+  // the webhook cannot see WHO placed it — only the presented caller number.
+  // The AUTHORIZATION is a single-use nonce that POST /v1/calls/browser minted
+  // AFTER proving the authenticated member has 'text' access (#106) to THEIR
+  // OWN company's number, with a live subscription and under the voice cap.
+  // api_authorize_outbound_call consumes that nonce IFF it was minted for
+  // exactly this presented caller number (from) and is fresh, and binds the
+  // call to the AUTHORIZED company/number — never the browser-presented one.
+  // This closes ALL of: cross-tenant caller-ID billing (a member can only mint
+  // a nonce for their own company's numbers), the note-only #106 bypass (a
+  // note-only member can't mint one at all), and the forged/omitted tag (no
+  // valid nonce → rejected).
+  const nonce = parseOutboundNonce(payload.client_state);
+  if (!hasOutboundTag || !nonce) {
+    await telnyxRejectLeg(env, callControlId);
+    return;
+  }
+  const customerE164 =
+    decodeOutboundCustomer(payload.client_state) ?? payload.to ?? "";
+  const { data: authData, error: authError } = await db.rpc(
+    "api_authorize_outbound_call",
+    {
+      p_nonce: nonce,
+      p_from: businessNumberE164,
+      p_customer: customerE164,
+      p_call_session_id: sessionId,
+      p_max_age_secs: OUTBOUND_AUTH_MAX_AGE_SECS,
+    },
+  );
+  if (authError) {
+    throw new Error(`outbound authorize failed: ${authError.message}`);
+  }
+  const auth = (authData ?? {}) as {
+    authorized?: boolean;
+    company_id?: string;
+    phone_number_id?: string;
+    replay?: boolean;
+  };
+  if (!auth.authorized || !auth.company_id || !auth.phone_number_id) {
+    // No valid authorization (forged/omitted/expired nonce, a mismatched
+    // caller number, or a leg that skipped /calls/browser) — refuse it.
     await telnyxRejectLeg(env, callControlId);
     return;
   }
 
-  // SECURITY (adversarial-review): the browser ORIGINATES the outbound leg via
-  // the WebRTC SDK, so POST /v1/calls/browser's gates are advisory — a member
-  // could skip it and craft newCall() from the console with an arbitrary
-  // caller number and destination. This webhook is the REAL server-side gate,
-  // running on the leg BEFORE it can connect:
-  //   - the presented number must belong to a company (resolveNumber) —
-  //     a call presenting a number we don't own is hung up (no free calls,
-  //     no spoofing a number outside our account);
-  //   - that company must have a LIVE subscription (no calls on a dead plan);
-  //   - the company must be UNDER the D36 voice spending cap (the cost cap is
-  //     enforced here, not just at the skippable authorize endpoint).
-  // A failure hangs the leg up before it bridges to the PSTN. This closes the
-  // cost bypass (over-cap / dead-subscription) and the outside-account spoof
-  // (a number we don't own is rejected). RESIDUAL (deferred to #106 /
-  // per-company WebRTC connections): the leg carries no authenticated member
-  // identity, so the gate checks the PRESENTED number's company, not the
-  // caller's — a member who can present ANOTHER of our tenants' numbers as
-  // caller ID would be gated against that tenant and bill it (its
-  // reachability further depends on Telnyx caller-ID enforcement on the shared
-  // connection). Documented, not yet closed.
-  const resolved = await resolveNumber(db, businessNumberE164);
-  if (!resolved) {
-    // A number we do not own presented as caller ID — refuse the leg.
-    await telnyxRejectLeg(env, callControlId);
-    return;
+  // Defense in depth: a subscription that LAPSED between authorize and dial
+  // must not connect (the authorize gate ran a beat ago, but state can move).
+  // Keyed on the AUTHORIZED company, never the presented number.
+  if (!auth.replay) {
+    const { data: companyRows, error: companyError } = await db
+      .from("companies")
+      .select("plan,current_period_start,overage_cap_multiplier,subscription_status")
+      .eq("id", auth.company_id)
+      .limit(1);
+    if (companyError) {
+      throw new Error(`outbound company lookup failed: ${companyError.message}`);
+    }
+    const company = (companyRows ?? [])[0] as
+      | (CompanyVoiceState & { subscription_status: string })
+      | undefined;
+    if (
+      !company ||
+      company.subscription_status !== "active" ||
+      (await companyOverVoiceCap(db, auth.company_id, company))
+    ) {
+      await telnyxRejectLeg(env, callControlId);
+      return;
+    }
   }
 
-  const { data: companyRows, error: companyError } = await db
-    .from("companies")
-    .select("plan,current_period_start,overage_cap_multiplier,subscription_status")
-    .eq("id", resolved.companyId)
-    .limit(1);
-  if (companyError) {
-    throw new Error(`outbound company lookup failed: ${companyError.message}`);
-  }
-  const company = (companyRows ?? [])[0] as
-    | (CompanyVoiceState & { subscription_status: string })
-    | undefined;
-  if (
-    !company ||
-    company.subscription_status !== "active" ||
-    resolved.status !== "active" ||
-    (await companyOverVoiceCap(db, resolved.companyId, company))
-  ) {
-    await telnyxRejectLeg(env, callControlId);
-    return;
-  }
-
-  await upsertCallSession(db, {
-    eventType: "call.initiated",
-    payload,
-    leg: "out_customer",
-    companyId: resolved.companyId,
-    phoneNumberId: resolved.phoneNumberId,
-    callSessionId: sessionId,
-    caller: decodeOutboundCustomer(payload.client_state) ?? payload.to ?? null,
-    missed: false,
-  });
+  // The session row was created by the RPC (bound to the authorized company/
+  // number). Stamp the customer leg's control id for phase-3 hold/transfer.
   const { error } = await db
     .from("calls")
     .update({ customer_call_control_id: callControlId })
@@ -634,6 +653,10 @@ async function handleOutboundInitiated(
     throw new Error(`outbound metadata stamp failed: ${error.message}`);
   }
 }
+
+/** How long a minted outbound authorization stays valid (the browser dials
+ *  immediately; this is generous headroom for a slow client). */
+const OUTBOUND_AUTH_MAX_AGE_SECS = 120;
 
 /** The outbound customer's answer time (ms), from the calls row — the
  *  talk-time billing anchor. Null when never answered / not yet stamped. */
