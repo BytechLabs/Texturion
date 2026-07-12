@@ -379,13 +379,19 @@ export async function handleConsultLegEvent(
   state: ConsultState,
 ): Promise<void> {
   if (eventType === "call.answered") {
-    const { error } = await db
+    // Only proceed if THIS is a ledgered consult leg of the session (the
+    // update matched a real row) — mirrors handleTransferAnswered and the
+    // consult-hangup branch. A forged/stale brc tag matches zero rows and must
+    // never reach the bridge command below (which would STEAL a live leg).
+    const { data: claimed, error } = await db
       .from("call_member_legs")
       .update({ state: "answered" })
       .eq("call_session_id", state.sessionId)
       .eq("call_control_id", ccid)
-      .eq("kind", "consult");
+      .eq("kind", "consult")
+      .select("call_control_id");
     if (error) throw new Error(`consult stamp failed: ${error.message}`);
+    if ((claimed?.length ?? 0) === 0) return;
 
     // Both sides up → bridge them.
     const legs = await consultLegs(db, state.sessionId);

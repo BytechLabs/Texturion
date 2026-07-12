@@ -271,9 +271,10 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
 describe("D43 phase 3 — consult legs (brc)", () => {
   it("bridges the two members when BOTH consult legs are answered", async () => {
     const actions = telnyxActions();
+    // The guarded answer-claim now returns the matched row (a real consult leg).
     const legPatch = stubRoute(
       restMatch(env, "PATCH", "call_member_legs"),
-      () => new Response(null, { status: 204 }),
+      () => [{ call_control_id: "brc-t" }],
     );
     const legs = stubRoute(restMatch(env, "GET", "call_member_legs"), () => [
       { call_control_id: "brc-s", user_id: SENDER, state: "answered" },
@@ -303,11 +304,38 @@ describe("D43 phase 3 — consult legs (brc)", () => {
     expect(bridge!.body).toMatchObject({ call_control_id: "brc-s" });
   });
 
+  it("SECURITY: a FORGED brc answer (no ledgered consult leg) never bridges — the guard drops it", async () => {
+    const actions = telnyxActions();
+    // The claim update matches ZERO rows (no such consult leg for the session).
+    const legPatch = stubRoute(
+      restMatch(env, "PATCH", "call_member_legs"),
+      () => [],
+    );
+    serve(legPatch, actions);
+
+    await handleCallEvent(
+      env,
+      event("call.answered", {
+        call_control_id: "brc-forged",
+        call_session_id: SESSION,
+        direction: "outgoing",
+        client_state: buildConsultState({
+          sessionId: SESSION,
+          userId: TARGET,
+          role: "t",
+        }),
+      }),
+    );
+
+    // No consultLegs read, no bridge — a forged brc can't steal a live leg.
+    expect(actions.calls).toHaveLength(0);
+  });
+
   it("one side up: no bridge yet", async () => {
     const actions = telnyxActions();
     const legPatch = stubRoute(
       restMatch(env, "PATCH", "call_member_legs"),
-      () => new Response(null, { status: 204 }),
+      () => [{ call_control_id: "brc-t" }],
     );
     const legs = stubRoute(restMatch(env, "GET", "call_member_legs"), () => [
       { call_control_id: "brc-s", user_id: SENDER, state: "ringing" },

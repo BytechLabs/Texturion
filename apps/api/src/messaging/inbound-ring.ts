@@ -432,6 +432,11 @@ export async function handleMemberRingAnswered(
       `/v2/calls/${state.inboundCcid}/actions/hangup`,
       {},
     );
+    // The inbound leg was already answered (bri tag), so its hangup won't
+    // classify as inbound_untagged → cancelRingingMemberLegs won't fire for it.
+    // Dismiss the OTHER still-ringing browsers here so no teammate rings a
+    // call that is already dead.
+    await cancelRingingMemberLegs(env, db, state.sessionId);
     return;
   }
 
