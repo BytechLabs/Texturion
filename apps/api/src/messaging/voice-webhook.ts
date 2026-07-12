@@ -49,6 +49,15 @@ import {
   screeningFlagged,
   storeVoicemailRecording,
 } from "./inbound-ring";
+import {
+  CONSULT_LEG_STATE,
+  TRANSFER_TARGET_STATE,
+  handleConsultLegEvent,
+  handleTransferAnswered,
+  handleTransferLegHangup,
+  parseConsultState,
+  parseTransferState,
+} from "./live-call";
 import { computeMissedFromEvent } from "./missed-call";
 import { sendMissedCallText } from "./missed-call";
 import type { TelnyxEvent } from "./types";
@@ -184,7 +193,10 @@ export type CallLeg =
   // D43 phase 2 — browser answering:
   | "browser_member" // a member's WebRTC ring leg ('brm')
   | "in_browser" // the INBOUND leg after a browser answered it ('bri')
-  | "vm_inbound"; // the INBOUND leg once it entered voicemail ('vmi')
+  | "vm_inbound" // the INBOUND leg once it entered voicemail ('vmi')
+  // D43 phase 3 — live-call handling:
+  | "transfer_target" // a transfer's new member leg ('brt')
+  | "consult"; // an announce-transfer consult leg ('brc')
 
 function classifyLeg(payload: CallPayload): CallLeg {
   const decoded = decodeClientState(payload.client_state);
@@ -196,6 +208,8 @@ function classifyLeg(payload: CallPayload): CallLeg {
   if (tag === BROWSER_MEMBER_STATE) return "browser_member";
   if (tag === BROWSER_INBOUND_STATE) return "in_browser";
   if (tag === VOICEMAIL_INBOUND_STATE) return "vm_inbound";
+  if (tag === TRANSFER_TARGET_STATE) return "transfer_target";
+  if (tag === CONSULT_LEG_STATE) return "consult";
   return "inbound_untagged";
 }
 
@@ -242,6 +256,16 @@ export async function handleCallEvent(
   const db = getDb(env);
 
   if (eventType === "call.initiated") {
+    // D43 phase 3 (line model): an outbound browser call OCCUPIES its number
+    // from the first ring — the session row lands NOW (outcome null = the
+    // line is busy), not at hangup. Only the oc_customer leg qualifies; the
+    // ring/consult legs we place are bookkept by their own ledgers.
+    if (
+      payload.direction === "outgoing" &&
+      classifyLeg(payload) === "out_customer"
+    ) {
+      return handleOutboundInitiated(db, payload);
+    }
     return handleInboundInitiated(env, db, payload);
   }
 
@@ -258,6 +282,45 @@ export async function handleCallEvent(
     }
     if (eventType === "call.hangup") {
       return handleMemberRingHangup(env, db, payload.call_control_id, state);
+    }
+    return;
+  }
+
+  // D43 phase 3: transfer target legs — answer stamps the new owner +
+  // journey line; a MISSED transfer auto-recovers (snap back to the sender,
+  // voicemail at the hop cap). These legs never bill or thread themselves.
+  if (leg === "transfer_target") {
+    const state = parseTransferState(payload.client_state);
+    if (!state) return;
+    if (eventType === "call.answered") {
+      return handleTransferAnswered(db, state);
+    }
+    if (eventType === "call.hangup") {
+      const missed = computeMissedFromEvent({
+        eventType,
+        hangupCause: payload.hangup_cause ?? null,
+        amdResult: null,
+        leg: "forward",
+      }).missed;
+      return handleTransferLegHangup(env, db, state, missed);
+    }
+    return;
+  }
+
+  // D43 phase 3: consult legs (the member-to-member announce call). Answer
+  // marks the ledger and bridges when both sides are up; hangup dismisses
+  // the sibling. Never bills, never threads.
+  if (leg === "consult") {
+    const state = parseConsultState(payload.client_state);
+    if (!state || !payload.call_control_id) return;
+    if (eventType === "call.answered" || eventType === "call.hangup") {
+      return handleConsultLegEvent(
+        env,
+        db,
+        eventType,
+        payload.call_control_id,
+        state,
+      );
     }
     return;
   }
@@ -387,6 +450,43 @@ async function resolveNumber(
 /** In-flight window for the line-busy read: an outcome-less calls row older
  *  than this is a crashed session, not a live call — never wedge the line. */
 const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * D43 phase 3: the outbound customer leg's call.initiated — create the
+ * in-flight session row so the line reads busy for its whole life (the
+ * browser endpoint's guard and the inbound busy check both scan outcome-null
+ * rows). The customer leg's control id lands too (phase-3 hold/transfer act
+ * on it). Idempotent: api_upsert_call merges per session.
+ */
+async function handleOutboundInitiated(
+  db: SupabaseClient,
+  payload: CallPayload,
+): Promise<void> {
+  const sessionId = payload.call_session_id;
+  const callControlId = payload.call_control_id;
+  const businessNumberE164 = payload.from; // we present the business number
+  if (!sessionId || !callControlId || !businessNumberE164) return;
+  const resolved = await resolveNumber(db, businessNumberE164);
+  if (!resolved) return;
+
+  await upsertCallSession(db, {
+    eventType: "call.initiated",
+    payload,
+    leg: "out_customer",
+    companyId: resolved.companyId,
+    phoneNumberId: resolved.phoneNumberId,
+    callSessionId: sessionId,
+    caller: decodeOutboundCustomer(payload.client_state) ?? payload.to ?? null,
+    missed: false,
+  });
+  const { error } = await db
+    .from("calls")
+    .update({ customer_call_control_id: callControlId })
+    .eq("call_session_id", sessionId);
+  if (error) {
+    throw new Error(`outbound metadata stamp failed: ${error.message}`);
+  }
+}
 
 /**
  * On inbound `call.initiated` (D43 phase 2 — the browser is the phone):
@@ -672,9 +772,13 @@ async function handleTerminalCallEvent(
     leg:
       outboundLeg || leg === "in_browser"
         ? "forward"
-        : // 'browser_member' is routed away before this handler; the mapping
-          // only satisfies the pure classifier's narrower leg vocabulary.
-          leg === "vm_inbound" || leg === "browser_member"
+        : // 'browser_member'/'transfer_target'/'consult' are routed away
+          // before this handler; the mapping only satisfies the pure
+          // classifier's narrower leg vocabulary.
+          leg === "vm_inbound" ||
+            leg === "browser_member" ||
+            leg === "transfer_target" ||
+            leg === "consult"
           ? "inbound_untagged"
           : leg,
   });
@@ -897,7 +1001,7 @@ interface ThreadCallResult {
  * off; answered/voicemail only JOIN an open conversation) and link the ids
  * back onto the calls row. Idempotent end to end.
  */
-async function threadCallSession(
+export async function threadCallSession(
   db: SupabaseClient,
   input: {
     companyId: string;
@@ -918,13 +1022,13 @@ async function threadCallSession(
     p_call_session_id: input.callSessionId,
     p_outcome: input.outcome,
     p_forward_seconds: input.forwardSeconds,
-    // An inbound MISS must reach the inbox even with text-back off — and so
-    // must a VOICEMAIL (D43: it is OUR voicemail now; a first-time caller's
-    // message can't live in a conversation that doesn't exist). An outbound
-    // call started FROM a conversation, so join-only always finds it.
-    p_create_if_missing:
-      input.direction === "inbound" &&
-      (input.outcome === "missed" || input.outcome === "voicemail"),
+    // Every inbound call must reach the inbox: a MISS even with text-back
+    // off, a VOICEMAIL (D43: it is OUR voicemail — a first-time caller's
+    // message can't live in a conversation that doesn't exist), and an
+    // ANSWERED call (D43 phase 3: threading happens at ANSWER time so the
+    // member can take notes DURING the call). An outbound call started FROM
+    // a conversation, so join-only always finds it.
+    p_create_if_missing: input.direction === "inbound",
     p_direction: input.direction,
   });
   if (error) {

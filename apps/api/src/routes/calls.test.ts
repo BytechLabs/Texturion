@@ -289,7 +289,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     });
   });
 
-  it("409s while a call for this conversation is in flight (line model)", async () => {
+  it("409s while ANY call on this NUMBER is in flight (line model — one live call per line)", async () => {
     const sb = browserWorld({ inflight: [{ id: "call-live-1" }] });
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -302,7 +302,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     );
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({
-      error: { message: expect.stringContaining("already in progress") },
+      error: { message: expect.stringContaining("on another call") },
     });
   });
 });

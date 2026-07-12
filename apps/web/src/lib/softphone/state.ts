@@ -4,23 +4,23 @@
  * or a mic (the audio itself needs real-device verification; the STATE
  * transitions do not).
  *
- * The @telnyx/webrtc call state machine is new → trying → ringing → active →
- * hangup → destroy; we collapse it to the phases the UI cares about. Phase 2
- * adds INBOUND: an invite raises 'ringing' (answer/decline bar); a ringing
- * call that ends un-answered collapses silently back to idle — another
- * member won the race or the caller gave up, and neither is this member's
- * "Call ended" moment.
+ * Phase 3 makes this MULTI-CALL (call waiting): the state holds a small list
+ * of calls — at most one ACTIVE (audio flowing), the rest held or ringing.
+ * The rules mirror the line model's member side: one active call per member,
+ * flip freely between a held call and an incoming one. A ringing inbound
+ * call that ends un-answered vanishes silently (another member won the race
+ * or the caller gave up — not this member's "Call ended" moment).
  */
 
-/** The UI-facing phase of the single active call (one live call per member). */
+/** One call's UI phase. 'held' is a client-side state (SDK hold). */
 export type CallPhase =
-  | "idle"
-  | "ringing" // INBOUND invite — the bar offers Answer / Decline
-  | "connecting" // placed, ringing the customer (SDK new/trying/ringing)
-  | "active" // connected (either direction)
-  | "ended"; // hangup/destroy — the bar shows a brief "Call ended"
+  | "ringing" // INBOUND invite — Answer / Decline
+  | "connecting" // placed, ringing the far side (SDK new/trying/ringing)
+  | "active" // connected, audio flowing
+  | "held" // connected, on hold (SDK hold — the far side stays connected)
+  | "ended"; // hangup/destroy — a brief "Call ended" chip
 
-/** Map a raw @telnyx/webrtc call.state string to our UI phase. */
+/** Map a raw @telnyx/webrtc call.state string to a phase (outbound view). */
 export function phaseFromSdkState(state: string): CallPhase {
   switch (state) {
     case "new":
@@ -32,6 +32,8 @@ export function phaseFromSdkState(state: string): CallPhase {
       return "connecting";
     case "active":
       return "active";
+    case "held":
+      return "held";
     case "hangup":
     case "destroy":
     case "purge":
@@ -41,42 +43,70 @@ export function phaseFromSdkState(state: string): CallPhase {
   }
 }
 
-/** The full softphone snapshot the UI renders from. */
+export interface CallInfo {
+  /** The SDK call's id — the provider's map key. */
+  id: string;
+  /** Telnyx call_session_id once known — the server-side handle (transfers,
+   *  conversation lookup). */
+  sessionId: string | null;
+  peer: { name: string; number: string };
+  direction: "inbound" | "outbound";
+  phase: CallPhase;
+  muted: boolean;
+  /** Unix ms this call went active first — the live timer's anchor. */
+  activeSince: number | null;
+}
+
 export interface SoftphoneState {
-  /** false until the SDK has registered (telnyx.ready) — the button waits. */
+  /** false until the SDK has registered (telnyx.ready). */
   ready: boolean;
   /** A registration/auth error the UI surfaces (never blocks texting). */
   error: string | null;
-  phase: CallPhase;
-  /** The far party (name + number), for the call bar. */
-  peer: { name: string; number: string } | null;
-  /** 'inbound' while answering/on an answered inbound call; 'outbound' for
-   *  placed calls. Drives the bar's copy. */
-  direction: "inbound" | "outbound" | null;
-  /** Whether the local mic is muted. */
-  muted: boolean;
-  /** Unix ms the call went active — the bar derives the live timer from it. */
-  activeSince: number | null;
+  calls: CallInfo[];
+  /** The call whose audio is flowing (at most one). */
+  activeId: string | null;
 }
 
 export const INITIAL_SOFTPHONE_STATE: SoftphoneState = {
   ready: false,
   error: null,
-  phase: "idle",
-  peer: null,
-  direction: null,
-  muted: false,
-  activeSince: null,
+  calls: [],
+  activeId: null,
 };
 
 export type SoftphoneAction =
   | { type: "ready" }
   | { type: "error"; message: string }
-  | { type: "placing"; peer: { name: string; number: string } }
-  | { type: "incoming"; peer: { name: string; number: string } }
-  | { type: "sdk_state"; state: string; now: number }
-  | { type: "muted"; muted: boolean }
-  | { type: "cleared" };
+  | {
+      type: "placing";
+      id: string;
+      sessionId: string | null;
+      peer: { name: string; number: string };
+    }
+  | {
+      type: "incoming";
+      id: string;
+      sessionId: string | null;
+      peer: { name: string; number: string };
+    }
+  | { type: "session_known"; id: string; sessionId: string }
+  | { type: "sdk_state"; id: string; state: string; now: number }
+  | { type: "held"; id: string; held: boolean }
+  | { type: "muted"; id: string; muted: boolean }
+  | { type: "dismissed"; id: string };
+
+function updateCall(
+  state: SoftphoneState,
+  id: string,
+  patch: Partial<CallInfo>,
+): SoftphoneState {
+  return {
+    ...state,
+    calls: state.calls.map((call) =>
+      call.id === id ? { ...call, ...patch } : call,
+    ),
+  };
+}
 
 export function softphoneReducer(
   state: SoftphoneState,
@@ -86,63 +116,114 @@ export function softphoneReducer(
     case "ready":
       return { ...state, ready: true, error: null };
     case "error":
-      // A registration error never disturbs an in-progress call's UI.
       return { ...state, error: action.message };
-    case "placing":
-      return {
-        ...state,
-        phase: "connecting",
+    case "placing": {
+      const call: CallInfo = {
+        id: action.id,
+        sessionId: action.sessionId,
         peer: action.peer,
         direction: "outbound",
+        phase: "connecting",
         muted: false,
         activeSince: null,
-        error: null,
       };
-    case "incoming":
-      // Only from rest — the provider never surfaces a second call over a
-      // live one (it declines it; phase 3 brings call waiting).
-      if (state.phase !== "idle" && state.phase !== "ended") return state;
       return {
         ...state,
-        phase: "ringing",
+        error: null,
+        calls: [...state.calls.filter((c) => c.phase !== "ended"), call],
+        activeId: action.id,
+      };
+    }
+    case "incoming": {
+      if (state.calls.some((c) => c.id === action.id)) return state;
+      const call: CallInfo = {
+        id: action.id,
+        sessionId: action.sessionId,
         peer: action.peer,
         direction: "inbound",
+        phase: "ringing",
         muted: false,
         activeSince: null,
-        error: null,
       };
+      return {
+        ...state,
+        calls: [...state.calls.filter((c) => c.phase !== "ended"), call],
+      };
+    }
+    case "session_known":
+      return updateCall(state, action.id, { sessionId: action.sessionId });
     case "sdk_state": {
+      const call = state.calls.find((c) => c.id === action.id);
+      if (!call) return state;
       const phase = phaseFromSdkState(action.state);
-      // An un-answered inbound ring: the SDK's early states must not morph
-      // the Answer/Decline bar into "Calling…", and its end is a SILENT
-      // return to idle (another member answered, or the caller gave up).
-      if (state.phase === "ringing") {
+      // An un-answered inbound ring: early SDK states must not morph the
+      // Answer/Decline chip, and its end is a SILENT removal.
+      if (call.phase === "ringing") {
         if (phase === "active") {
-          return { ...state, phase, activeSince: action.now };
+          const next = updateCall(state, action.id, {
+            phase: "active",
+            activeSince: call.activeSince ?? action.now,
+          });
+          return { ...next, activeId: action.id };
         }
         if (phase === "ended") {
           return {
-            ...INITIAL_SOFTPHONE_STATE,
-            ready: state.ready,
+            ...state,
+            calls: state.calls.filter((c) => c.id !== action.id),
+            activeId: state.activeId === action.id ? null : state.activeId,
           };
         }
         return state;
       }
-      if (phase === "active" && state.phase !== "active") {
-        return { ...state, phase, activeSince: action.now };
+      if (phase === "active") {
+        const next = updateCall(state, action.id, {
+          phase: "active",
+          activeSince: call.activeSince ?? action.now,
+        });
+        return { ...next, activeId: action.id };
       }
       if (phase === "ended") {
-        return { ...state, phase: "ended" };
+        return {
+          ...state,
+          calls: state.calls.map((c) =>
+            c.id === action.id ? { ...c, phase: "ended" as const } : c,
+          ),
+          activeId: state.activeId === action.id ? null : state.activeId,
+        };
       }
-      return { ...state, phase };
+      if (phase === "held") {
+        const next = updateCall(state, action.id, { phase: "held" });
+        return {
+          ...next,
+          activeId: state.activeId === action.id ? null : state.activeId,
+        };
+      }
+      return updateCall(state, action.id, { phase });
+    }
+    case "held": {
+      const call = state.calls.find((c) => c.id === action.id);
+      if (!call || (call.phase !== "active" && call.phase !== "held")) {
+        return state;
+      }
+      const next = updateCall(state, action.id, {
+        phase: action.held ? "held" : "active",
+      });
+      return {
+        ...next,
+        activeId: action.held
+          ? state.activeId === action.id
+            ? null
+            : state.activeId
+          : action.id,
+      };
     }
     case "muted":
-      return { ...state, muted: action.muted };
-    case "cleared":
-      // Back to idle but keep `ready` — the SDK stays registered between calls.
+      return updateCall(state, action.id, { muted: action.muted });
+    case "dismissed":
       return {
-        ...INITIAL_SOFTPHONE_STATE,
-        ready: state.ready,
+        ...state,
+        calls: state.calls.filter((c) => c.id !== action.id),
+        activeId: state.activeId === action.id ? null : state.activeId,
       };
     default:
       return state;

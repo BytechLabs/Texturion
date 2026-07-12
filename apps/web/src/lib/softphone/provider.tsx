@@ -2,19 +2,22 @@
 
 /**
  * D43 (#135) softphone provider — the browser IS the phone. Holds one
- * @telnyx/webrtc client for the signed-in member and exposes placing/ending a
- * call. Mounted once from the app shell.
+ * @telnyx/webrtc client for the signed-in member and the live call set
+ * (phase 3: MULTI-CALL — one active, others held or ringing; call waiting is
+ * hold-and-answer). Mounted once from the app shell.
  *
- * SSR-safe + lazy: the ~65KB SDK is imported dynamically the first time a call
- * is placed (never at module load, never on the server), so it never touches
- * the OpenNext server bundle and never delays first paint. The client
- * registers on first use with a short-lived JWT from POST /v1/webrtc/token and
- * stays registered between calls; a mid-session auth failure re-mints.
+ * SSR-safe + lazy: the ~65KB SDK is imported dynamically (never at module
+ * load, never on the server). Registration is EAGER on mount — an open app
+ * is a phone that can RING, and registering is also what creates this
+ * member's credential (what makes the ring engine dial them at all). A
+ * registration failure is silent: texting is unaffected; the Call button
+ * retries on use.
  *
- * Audio is a single hidden <audio> element the SDK's remote stream is attached
- * to. The state machine lives in ./state (unit-tested); this file is the
- * imperative SDK glue, which is verified on a real device (mic + WebRTC can't
- * be exercised in the screenshot harness).
+ * Audio is a single hidden <audio> element carrying the ACTIVE call's remote
+ * stream (one active call per member — the line model's member side). The
+ * pure state machine lives in ./state (unit-tested); this file is the
+ * imperative SDK glue, verified on a real device (mic + WebRTC can't run in
+ * the screenshot harness).
  */
 import {
   createContext,
@@ -32,19 +35,28 @@ import { ApiError } from "@/lib/api/error";
 import {
   INITIAL_SOFTPHONE_STATE,
   softphoneReducer,
+  type CallInfo,
   type SoftphoneState,
 } from "./state";
 
 /** The minimal slice of the @telnyx/webrtc surface we touch (kept local so the
  *  SDK types never leak into the server bundle via a top-level import). */
 interface TelnyxCall {
+  id: string;
   state: string;
   direction?: string; // 'inbound' | 'outbound'
   answer: () => void;
   hangup: () => void;
+  hold: () => Promise<unknown>;
+  unhold: () => Promise<unknown>;
   muteAudio: () => void;
   unmuteAudio: () => void;
   remoteStream?: MediaStream;
+  telnyxIDs?: {
+    telnyxCallControlId?: string;
+    telnyxSessionId?: string;
+    telnyxLegId?: string;
+  };
   options?: {
     remoteCallerName?: string;
     remoteCallerNumber?: string;
@@ -62,18 +74,26 @@ interface TelnyxClient {
   }) => TelnyxCall;
 }
 
+/** At most one active + one waiting/held — a third concurrent call declines. */
+const MAX_CONCURRENT_CALLS = 2;
+
 interface SoftphoneContextValue extends SoftphoneState {
+  /** The active call's info (audio flowing), if any. */
+  activeCall: CallInfo | null;
   /** Place a call to the conversation's customer from the business number. */
   placeCall: (args: {
     conversationId: string;
     contactName: string;
   }) => Promise<void>;
-  /** Answer the ringing inbound call (phase 'ringing'). */
-  answer: () => void;
-  hangup: () => void;
-  toggleMute: () => void;
-  /** Dismiss the "Call ended" bar. */
-  clear: () => void;
+  /** Answer a ringing call; any active call is put on hold first. */
+  answer: (id: string) => void;
+  /** Hang up one call (default: the active one). */
+  hangup: (id?: string) => void;
+  /** Hold/unhold flip — unholding another call swaps the active audio. */
+  toggleHold: (id: string) => void;
+  toggleMute: (id: string) => void;
+  /** Dismiss an ended call's chip. */
+  dismiss: (id: string) => void;
 }
 
 const SoftphoneContext = createContext<SoftphoneContextValue | null>(null);
@@ -84,7 +104,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     INITIAL_SOFTPHONE_STATE,
   );
   const clientRef = useRef<TelnyxClient | null>(null);
-  const callRef = useRef<TelnyxCall | null>(null);
+  const callsRef = useRef<Map<string, TelnyxCall>>(new Map());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const connectingRef = useRef<Promise<TelnyxClient> | null>(null);
 
@@ -94,26 +114,26 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
     return () => {
-      try {
-        callRef.current?.hangup();
-      } catch {
-        /* already gone */
+      for (const call of callsRef.current.values()) {
+        try {
+          call.hangup();
+        } catch {
+          /* already gone */
+        }
       }
+      callsRef.current.clear();
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
   }, []);
 
-  // D43 phase 2: register EAGERLY — an open app is a phone that can RING.
-  // (Registration is also what creates this member's credential, which is
-  // what makes the ring engine dial them at all.) Failure is silent: a
-  // workspace without a live subscription simply doesn't become a phone,
-  // and outbound attempts re-try via their own ensureClient path.
-  useEffect(() => {
-    void ensureClient().catch(() => {
-      /* no toast — texting is unaffected; the Call button retries on use */
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
+  const attachActiveAudio = useCallback((call: TelnyxCall) => {
+    if (call.remoteStream && audioRef.current) {
+      audioRef.current.srcObject = call.remoteStream;
+      void audioRef.current.play().catch(() => {
+        /* autoplay policy — the answer/place gesture covers it */
+      });
+    }
   }, []);
 
   /** Register (or reuse) the SDK client — lazy import, single flight. */
@@ -139,14 +159,17 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         const note = payload as { type?: string; call?: TelnyxCall } | undefined;
         const call = note?.call;
         if (!call) return;
-        if (call !== callRef.current) {
-          // D43 phase 2: a NEW inbound invite — the ring engine dialed this
-          // member's credential. One live call per member: if a call is
-          // already up, decline immediately (the leg fails fast, so the
-          // answer race resolves to another member or voicemail without
-          // waiting out the ring timeout). Phase 3 brings call waiting.
+
+        if (!callsRef.current.has(call.id)) {
+          // A NEW inbound invite — the ring engine (or a transfer/consult)
+          // dialed this member. Beyond the member's two-call ceiling it
+          // declines immediately, so the answer race resolves elsewhere
+          // without waiting out the ring timeout.
           if (call.direction === "inbound" && call.state === "ringing") {
-            if (callRef.current) {
+            const live = [...callsRef.current.values()].filter(
+              (c) => c.state !== "destroy" && c.state !== "hangup",
+            );
+            if (live.length >= MAX_CONCURRENT_CALLS) {
               try {
                 call.hangup();
               } catch {
@@ -154,28 +177,37 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               }
               return;
             }
-            callRef.current = call;
+            callsRef.current.set(call.id, call);
             const number = call.options?.remoteCallerNumber ?? "";
             dispatch({
               type: "incoming",
+              id: call.id,
+              sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
               peer: {
-                name: call.options?.remoteCallerName || number || "Unknown caller",
+                name:
+                  call.options?.remoteCallerName || number || "Unknown caller",
                 number,
               },
             });
           }
           return;
         }
-        dispatch({ type: "sdk_state", state: call.state, now: Date.now() });
-        // Attach remote audio once the media is flowing.
-        if (call.state === "active" && call.remoteStream && audioRef.current) {
-          audioRef.current.srcObject = call.remoteStream;
-          void audioRef.current.play().catch(() => {
-            /* autoplay policy — the answer/place gesture covers it */
-          });
+
+        dispatch({
+          type: "sdk_state",
+          id: call.id,
+          state: call.state,
+          now: Date.now(),
+        });
+        const sessionId = call.telnyxIDs?.telnyxSessionId;
+        if (sessionId) {
+          dispatch({ type: "session_known", id: call.id, sessionId });
+        }
+        if (call.state === "active") {
+          attachActiveAudio(call);
         }
         if (call.state === "destroy" || call.state === "hangup") {
-          callRef.current = null;
+          callsRef.current.delete(call.id);
         }
       });
 
@@ -189,7 +221,31 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     } finally {
       connectingRef.current = null;
     }
-  }, [mintToken]);
+  }, [attachActiveAudio, mintToken]);
+
+  // Eager registration: an open app is a phone that can ring.
+  useEffect(() => {
+    void ensureClient().catch(() => {
+      /* no toast — texting is unaffected; the Call button retries on use */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
+  }, []);
+
+  // The reducer state, readable from stable callbacks without re-binding.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  /** Hold the currently-active call (before answering/placing another). */
+  const holdActive = useCallback(() => {
+    const activeId = stateRef.current.activeId;
+    if (!activeId) return;
+    const call = callsRef.current.get(activeId);
+    if (!call) return;
+    void call.hold().catch(() => {
+      /* dead leg — its end event cleans up */
+    });
+    dispatch({ type: "held", id: activeId, held: true });
+  }, []);
 
   const placeCall = useCallback(
     async ({
@@ -199,21 +255,25 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       conversationId: string;
       contactName: string;
     }) => {
-      if (state.phase === "connecting" || state.phase === "active") return;
+      const live = stateRef.current.calls.filter((c) => c.phase !== "ended");
+      if (live.length >= MAX_CONCURRENT_CALLS) return;
       try {
-        // Authorize FIRST (gates + line-busy) — a refusal never spins up audio.
+        // Authorize FIRST (gates + line busy) — a refusal never spins up audio.
         const auth = await authorize.mutateAsync(conversationId);
-        dispatch({
-          type: "placing",
-          peer: { name: contactName, number: auth.to },
-        });
+        holdActive();
         const client = await ensureClient();
         const call = client.newCall({
           destinationNumber: auth.to,
           callerNumber: auth.from,
           clientState: auth.client_state,
         });
-        callRef.current = call;
+        callsRef.current.set(call.id, call);
+        dispatch({
+          type: "placing",
+          id: call.id,
+          sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
+          peer: { name: contactName, number: auth.to },
+        });
       } catch (cause) {
         dispatch({
           type: "error",
@@ -222,46 +282,92 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               ? cause.message
               : "Couldn't start the call.",
         });
-        dispatch({ type: "cleared" });
         throw cause;
       }
     },
-    [authorize, ensureClient, state.phase],
+    [authorize, ensureClient, holdActive],
   );
 
-  const answer = useCallback(() => {
-    try {
-      callRef.current?.answer();
-    } catch {
-      /* the caller hung up in the same instant — the ring bar clears itself */
-    }
-  }, []);
+  const answer = useCallback(
+    (id: string) => {
+      const call = callsRef.current.get(id);
+      if (!call) return;
+      holdActive();
+      try {
+        call.answer();
+      } catch {
+        /* the caller hung up in the same instant — the chip clears itself */
+      }
+    },
+    [holdActive],
+  );
 
-  const hangup = useCallback(() => {
+  const hangup = useCallback((id?: string) => {
+    const targetId = id ?? stateRef.current.activeId;
+    if (!targetId) return;
+    const call = callsRef.current.get(targetId);
     try {
-      callRef.current?.hangup();
+      call?.hangup();
     } catch {
       /* already gone */
     }
   }, []);
 
-  const toggleMute = useCallback(() => {
-    const call = callRef.current;
-    if (!call) return;
-    if (state.muted) {
+  const toggleHold = useCallback((id: string) => {
+    const info = stateRef.current.calls.find((c) => c.id === id);
+    const call = callsRef.current.get(id);
+    if (!info || !call) return;
+    if (info.phase === "held") {
+      // Unholding swaps: anything currently active goes on hold first.
+      const activeId = stateRef.current.activeId;
+      if (activeId && activeId !== id) {
+        const active = callsRef.current.get(activeId);
+        void active?.hold().catch(() => {});
+        dispatch({ type: "held", id: activeId, held: true });
+      }
+      void call
+        .unhold()
+        .then(() => attachActiveAudio(call))
+        .catch(() => {});
+      dispatch({ type: "held", id, held: false });
+    } else if (info.phase === "active") {
+      void call.hold().catch(() => {});
+      dispatch({ type: "held", id, held: true });
+    }
+  }, [attachActiveAudio]);
+
+  const toggleMute = useCallback((id: string) => {
+    const info = stateRef.current.calls.find((c) => c.id === id);
+    const call = callsRef.current.get(id);
+    if (!info || !call) return;
+    if (info.muted) {
       call.unmuteAudio();
-      dispatch({ type: "muted", muted: false });
+      dispatch({ type: "muted", id, muted: false });
     } else {
       call.muteAudio();
-      dispatch({ type: "muted", muted: true });
+      dispatch({ type: "muted", id, muted: true });
     }
-  }, [state.muted]);
+  }, []);
 
-  const clear = useCallback(() => dispatch({ type: "cleared" }), []);
+  const dismiss = useCallback(
+    (id: string) => dispatch({ type: "dismissed", id }),
+    [],
+  );
+
+  const activeCall = state.calls.find((c) => c.id === state.activeId) ?? null;
 
   return (
     <SoftphoneContext.Provider
-      value={{ ...state, placeCall, answer, hangup, toggleMute, clear }}
+      value={{
+        ...state,
+        activeCall,
+        placeCall,
+        answer,
+        hangup,
+        toggleHold,
+        toggleMute,
+        dismiss,
+      }}
     >
       {children}
       {/* The single remote-audio sink; hidden, always mounted. */}

@@ -73,6 +73,55 @@ export function useWebrtcToken() {
   });
 }
 
+/** D43 phase 3: the live call's server-side facts (notes link). */
+export function useLiveCall(sessionId: string | null) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "calls", "live", sessionId] as const,
+    queryFn: () =>
+      apiFetch<{ conversation_id: string | null; caller_e164: string | null }>(
+        `/v1/calls/live/${encodeURIComponent(sessionId ?? "")}`,
+        { companyId },
+      ),
+    enabled: sessionId !== null,
+    // The conversation link appears once answer-time threading lands — a
+    // couple of quick retries beat a dead "Open conversation" affordance.
+    retry: 2,
+    staleTime: 30_000,
+  });
+}
+
+/** D43 phase 3: who can take this call (credentialed, #106-cleared, busy flag). */
+export function useTransferTargets(sessionId: string | null, enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "calls", "targets", sessionId] as const,
+    queryFn: () =>
+      apiFetch<{ targets: { user_id: string; busy: boolean }[] }>(
+        `/v1/calls/live/${encodeURIComponent(sessionId ?? "")}/targets`,
+        { companyId },
+      ),
+    enabled: enabled && sessionId !== null,
+    staleTime: 10_000,
+  });
+}
+
+/** D43 phase 3: blind transfer — the customer re-rings at the target. */
+export function useTransferCall() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (input: { sessionId: string; targetUserId: string }) =>
+      apiFetch<{ status: string }>(
+        `/v1/calls/live/${encodeURIComponent(input.sessionId)}/transfer`,
+        {
+          companyId,
+          method: "POST",
+          body: { target_user_id: input.targetUserId },
+        },
+      ),
+  });
+}
+
 /**
  * D43: fetch a voicemail's signed playback URL on demand (the player mounts
  * it into an <audio>). Signed for an hour; the query cache mirrors that.

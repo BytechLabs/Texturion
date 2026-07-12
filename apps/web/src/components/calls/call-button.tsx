@@ -28,11 +28,12 @@ export function CallButton({
   className?: string;
 }) {
   const softphone = useSoftphone();
-  // One live call per member: the button rests while any call is up.
+  // Phase 3 (call waiting): a member can hold one call and start another —
+  // the button rests only at the 2-call ceiling or while one is connecting.
+  const liveCount =
+    softphone?.calls.filter((c) => c.phase !== "ended").length ?? 0;
   const busy =
-    softphone?.phase === "connecting" ||
-    softphone?.phase === "active" ||
-    softphone?.phase === "ringing";
+    liveCount >= 2 || softphone?.calls.some((c) => c.phase === "connecting");
 
   function onClick() {
     if (!softphone) {

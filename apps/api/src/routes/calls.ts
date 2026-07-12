@@ -280,16 +280,17 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   );
   if (auth instanceof Response) return auth;
 
-  // The line model (D43): one live call per number. Refuse while an outbound
-  // session for this conversation is genuinely in flight (matches the
-  // stale-calls sweeper window; a wedged session re-opens it).
+  // The line model (D43 phase 3, founder-binding): ONE live call per phone
+  // NUMBER — a held call still occupies its line. Refuse while ANY session
+  // on this number is in flight (outcome null; rows land at call.initiated
+  // for both directions). The 4h window matches the stale-calls sweeper, so
+  // a wedged session re-opens the line.
   const inflight = unwrap<{ id: string }[]>(
     await db
       .from("calls")
       .select("id")
       .eq("company_id", companyId)
-      .eq("conversation_id", auth.conversation.id)
-      .eq("direction", "outbound")
+      .eq("phone_number_id", auth.conversation.phone_number_id)
       .is("outcome", null)
       .gt("started_at", new Date(Date.now() - 4 * 60 * 60_000).toISOString())
       .limit(1),
@@ -299,7 +300,7 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
     return errorResponse(
       c,
       "conflict",
-      "A call for this conversation is already in progress.",
+      "This line is on another call right now.",
     );
   }
 

@@ -1455,3 +1455,34 @@ deletion is DONE:
   sees rows after hangup), and real-device audio verification (mic + WebRTC
   cannot run in the screenshot harness — founder test pending).
 
+**D43 phase-3 progress (2026-07-12, same day).** Live-call handling shipped
+under the line model (one live call per NUMBER; no Telnyx conferences ever):
+
+- The session row now lands at call.initiated for OUTBOUND browser calls too
+  (oc_customer leg) — the line reads busy for the call's whole life, and the
+  browser-dial guard is NUMBER-scoped ("This line is on another call").
+- Threading happens at ANSWER (create-if-missing for every inbound call), so
+  the member takes notes DURING the call — the call bar deep-links to the
+  conversation. api_thread_call's create rule widened accordingly.
+- HOLD is client-side (@telnyx/webrtc call.hold(); the customer stays
+  connected — held time bills honestly, per design). The web softphone is
+  MULTI-CALL: one active + one held/ringing per member (call waiting =
+  hold-and-answer, flip freely); a third concurrent invite auto-declines so
+  races resolve fast.
+- BLIND TRANSFER: Telnyx `transfer` on the customer leg to the target's
+  credential (brt tag carrying session/target/sender/hops/caller; the
+  customer leg's client_state is never re-sent, preserving the bri billing
+  anchor). Decline/timeout auto-recovers: hop 0 snaps the customer back to
+  the sender; the hop cap (1) diverts to voicemail — never dead air.
+- ANNOUNCE (CONSULT) TRANSFER: the consult is its own two-party member call
+  (both legs dialed on the Call-Control app, brc tags, call_member_legs
+  kind='consult' — the ring RPCs now filter kind='ring'); complete =
+  bridge-STEAL the customer onto the target's consult leg + hang up the
+  sender's. Journey lines ("A transferred the call to B") land on the
+  thread via dedupe-scanned call_completed events.
+- Endpoints: GET/POST /v1/calls/live/:sessionId{,/targets,/transfer,
+  /consult,/consult/complete,/consult/cancel} — all #106 'text'-gated on
+  the call's number, company-scoped, live-and-answered only.
+- Suites: API 1403, web 1277, tsc+eslint clean both. Real-device audio
+  verification (mic + WebRTC) remains the founder's test.
+

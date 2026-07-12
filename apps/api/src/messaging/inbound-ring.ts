@@ -44,6 +44,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+// Function-level circular import (voice-webhook imports this module's
+// handlers): safe — neither module calls the other at load time.
+import { threadCallSession } from "./voice-webhook";
 
 /** client_state tag on each member ring leg:
  *  `brm|<session>|<user_id>|<caller-or-empty>|<inbound_ccid>` (ccid LAST —
@@ -388,6 +391,43 @@ export async function handleMemberRingAnswered(
     .is("answered_at", null);
   if (stampError) {
     console.error(`answered_at stamp failed: ${stampError.message}`);
+  }
+
+  // D43 phase 3: thread the call at ANSWER time (create the conversation for
+  // a first-time caller) so the member can take notes DURING the call — the
+  // call bar deep-links to it. Idempotent per session; the hangup pass later
+  // just updates duration on the calls row. Best-effort: a threading fault
+  // must never kill the answer (the bridge already happened).
+  try {
+    const { data: rows, error: rowError } = await db
+      .from("calls")
+      .select("company_id,phone_number_id,caller_e164")
+      .eq("call_session_id", state.sessionId)
+      .limit(1);
+    if (rowError) throw new Error(rowError.message);
+    const row = rows?.[0] as
+      | {
+          company_id: string;
+          phone_number_id: string | null;
+          caller_e164: string | null;
+        }
+      | undefined;
+    if (row?.phone_number_id) {
+      await threadCallSession(db, {
+        companyId: row.company_id,
+        phoneNumberId: row.phone_number_id,
+        callSessionId: state.sessionId,
+        caller: row.caller_e164 ?? state.caller,
+        outcome: "answered",
+        forwardSeconds: 0,
+        direction: "inbound",
+      });
+    }
+  } catch (cause) {
+    console.error(
+      `answer-time threading failed for ${state.sessionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
   }
 
   // Dismiss the rest of the team.

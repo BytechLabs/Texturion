@@ -105,7 +105,6 @@ function companyStubs(
 }
 
 const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
-const USER_B = "bbbbbbbb-0000-4000-8000-0000000000b0";
 
 /**
  * D43 ring-world defaults: line not busy, no prior ring ledger, one
@@ -379,6 +378,9 @@ function persistStub(): Stub {
 function serve(...stubs: Stub[]) {
   const d43Defaults: Stub[] = [
     stubRoute(restMatch(env, "GET", "call_member_legs"), () => []),
+    // Phase 3 answer-time threading reads the calls row; an empty read makes
+    // it a graceful no-op unless a test opts in with its own stub.
+    stubRoute(restMatch(env, "GET", "calls"), () => []),
   ];
   stubFetch(
     ...([...stubs, ...callsModelStubs(), ...d43Defaults].map(
@@ -1204,7 +1206,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(meter.calls).toHaveLength(0);
   });
 
-  it("#129: an answered forward-leg hangup merges the session, threads it (join-only), and links the row", async () => {
+  it("#129/D43: an answered forward-leg hangup merges the session, threads it (CREATE — every inbound call reaches the inbox), and links the row", async () => {
     const upsert = upsertCallStub();
     const thread = threadCallStub();
     const link = callsLinkStub();
@@ -1240,12 +1242,14 @@ describe("handleCallEvent — terminal → text-back", () => {
       p_outcome: "answered",
       p_forward_seconds: 272,
     });
-    // Answered calls JOIN an open conversation, never create one.
+    // D43 phase 3: EVERY inbound call threads with CREATE — answered calls
+    // are threaded at answer time so notes can happen mid-call, and the
+    // hangup pass converges idempotently with the same semantics.
     expect(thread.calls).toHaveLength(1);
     expect(thread.calls[0].body).toMatchObject({
       p_outcome: "answered",
       p_forward_seconds: 272,
-      p_create_if_missing: false,
+      p_create_if_missing: true,
     });
     // The returned ids are linked onto the calls row (guarded on null).
     expect(link.calls).toHaveLength(1);

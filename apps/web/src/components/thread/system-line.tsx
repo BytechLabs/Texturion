@@ -132,6 +132,21 @@ export function eventSentence(
           ? `You called · ${formatCallDuration(seconds)}`
           : "You called";
       }
+      // D43 phase 3: the transfer journey line — who handed the call to whom.
+      if (event.payload.kind === "transferred") {
+        const to = memberName(
+          typeof event.payload.to_user_id === "string"
+            ? event.payload.to_user_id
+            : null,
+        );
+        const from = memberName(
+          typeof event.payload.from_user_id === "string"
+            ? event.payload.from_user_id
+            : null,
+        );
+        if (to && from) return `${from} transferred the call to ${to}`;
+        return to ? `Call transferred to ${to}` : "Call transferred";
+      }
       // D43: the dedicated voicemail line (kind:'voicemail') carries the
       // message duration; SystemLine renders the player under it.
       if (event.payload.kind === "voicemail") {
