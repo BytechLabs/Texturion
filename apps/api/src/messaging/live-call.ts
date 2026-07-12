@@ -29,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
-import { startVoicemail } from "./inbound-ring";
+import { hangupLiveLeg } from "./inbound-ring";
 
 /** Transfer target leg: `brt|<session>|<targetUser>|<senderUser>|<hops>|<caller-or-empty>` */
 export const TRANSFER_TARGET_STATE = "brt";
@@ -161,48 +161,105 @@ export async function liveCallBySession(
   return (data?.[0] as LiveCallRow | undefined) ?? null;
 }
 
-/** Issue the blind transfer on the customer leg. `client_state` is NOT sent —
- *  the customer leg must keep its `bri` billing anchor. */
+/**
+ * LEDGER a transfer intent, then issue the blind transfer on the customer
+ * leg. The ledger row (kind='transfer') is the proof handleTransferAnswered
+ * checks before it trusts the echoed `brt` tag — without it, a member could
+ * forge a brt client_state on their own softphone call and rewrite the
+ * 'who answered' audit field / fabricate a journey line on any session.
+ * `client_state` is NOT sent on the transfer command — the customer leg must
+ * keep its `bri` billing anchor; only `target_leg_client_state` (the new
+ * member leg) is tagged. The target sees the CUSTOMER as caller ID (who they
+ * are about to talk to), not the workspace's own number.
+ */
 export async function issueTransfer(
   env: Env,
+  db: SupabaseClient,
   input: {
+    companyId: string;
     customerCcid: string;
     targetSipUsername: string;
-    businessNumberE164: string;
+    callerNumberForTarget: string;
     state: TransferState;
   },
 ): Promise<boolean> {
-  return telnyxOnLiveLeg(
+  const legToken = `transfer:${input.state.targetUserId}:${input.state.hops}`;
+  const { error: ledgerError } = await db.from("call_member_legs").upsert(
+    {
+      call_session_id: input.state.sessionId,
+      call_control_id: legToken,
+      company_id: input.companyId,
+      user_id: input.state.targetUserId,
+      kind: "transfer",
+      state: "ringing",
+    },
+    { onConflict: "call_session_id,call_control_id" },
+  );
+  if (ledgerError) {
+    throw new Error(`transfer ledger insert failed: ${ledgerError.message}`);
+  }
+
+  const issued = await telnyxOnLiveLeg(
     env,
     `/v2/calls/${input.customerCcid}/actions/transfer`,
     {
       to: `sip:${input.targetSipUsername}@sip.telnyx.com`,
-      from: input.businessNumberE164,
+      // The target member sees who they're getting (falls back to the
+      // business number only for an anonymous caller).
+      from: input.callerNumberForTarget,
       timeout_secs: TRANSFER_TIMEOUT_SECS,
       target_leg_client_state: buildTransferState(input.state),
     },
   );
+  if (!issued) {
+    // The customer leg died before we could transfer — drop the intent.
+    await db
+      .from("call_member_legs")
+      .delete()
+      .eq("call_session_id", input.state.sessionId)
+      .eq("call_control_id", legToken);
+  }
+  return issued;
 }
 
 /**
- * A transfer target answered: the customer is now theirs. Stamp the
- * read-model and drop the journey line. (Telnyx bridged the legs itself —
- * that is the transfer command's contract.)
+ * A transfer target answered: the customer is now theirs. VERIFY the transfer
+ * was actually issued (a ledgered kind='transfer' intent for this session +
+ * target) before trusting the echoed tag — a forged brt with no ledger row is
+ * ignored. The ledger transition 'ringing'→'answered' also makes a webhook
+ * REPLAY idempotent (the second pass matches zero rows) and stops a stale
+ * earlier-transfer replay from overwriting the current owner. Company scope
+ * comes from the trusted ledger row, never the client tag.
  */
 export async function handleTransferAnswered(
   db: SupabaseClient,
   state: TransferState,
 ): Promise<void> {
+  const { data: claimed, error: claimError } = await db
+    .from("call_member_legs")
+    .update({ state: "answered" })
+    .eq("call_session_id", state.sessionId)
+    .eq("user_id", state.targetUserId)
+    .eq("kind", "transfer")
+    .eq("state", "ringing")
+    .select("company_id");
+  if (claimError) {
+    throw new Error(`transfer claim failed: ${claimError.message}`);
+  }
+  const companyId = claimed?.[0]?.company_id as string | undefined;
+  if (!companyId) return; // no issued transfer (forged tag or replay) — ignore
+
   const { error } = await db
     .from("calls")
     .update({ answered_by_user_id: state.targetUserId })
-    .eq("call_session_id", state.sessionId);
+    .eq("call_session_id", state.sessionId)
+    .eq("company_id", companyId);
   if (error) throw new Error(`transfer stamp failed: ${error.message}`);
 
   const call = await liveCallBySession(db, state.sessionId);
   if (!call?.conversation_id) return; // unthreaded (anonymous) — list-only
   await insertJourneyEvent(db, {
-    companyId: call.company_id,
+    companyId,
     conversationId: call.conversation_id,
     callSessionId: state.sessionId,
     kind: "transferred",
@@ -224,14 +281,29 @@ export async function handleTransferLegHangup(
   state: TransferState,
   missed: boolean,
 ): Promise<void> {
-  if (!missed) return;
+  // Mark this transfer intent terminal so a replay can't re-drive recovery.
+  // Only a MISSED transfer (timeout/decline/busy) that WON the transition
+  // proceeds — a normal end-of-call hangup carries no verdict, and a replay
+  // matches zero rows.
+  const { data: closed, error: closeError } = await db
+    .from("call_member_legs")
+    .update({ state: "failed" })
+    .eq("call_session_id", state.sessionId)
+    .eq("user_id", state.targetUserId)
+    .eq("kind", "transfer")
+    .eq("state", "ringing")
+    .select("call_control_id");
+  if (closeError) {
+    throw new Error(`transfer close failed: ${closeError.message}`);
+  }
+  if (!missed || (closed?.length ?? 0) === 0) return;
 
   const call = await liveCallBySession(db, state.sessionId);
   if (!call?.customer_call_control_id) return;
   if (call.outcome !== null) return; // the call already ended — nothing to save
 
   if (state.hops < MAX_TRANSFER_HOPS) {
-    // Snap back to the sender.
+    // Snap the customer back to the sender.
     const { data, error } = await db
       .from("member_telephony_credentials")
       .select("sip_username")
@@ -241,10 +313,12 @@ export async function handleTransferLegHangup(
     if (error) throw new Error(`credential read failed: ${error.message}`);
     const sip = data?.[0]?.sip_username as string | undefined;
     if (sip) {
-      const issued = await issueTransfer(env, {
+      const issued = await issueTransfer(env, db, {
+        companyId: call.company_id,
         customerCcid: call.customer_call_control_id,
         targetSipUsername: sip,
-        businessNumberE164: await businessNumberFor(db, call),
+        callerNumberForTarget:
+          state.caller ?? (await businessNumberFor(db, call)),
         state: {
           sessionId: state.sessionId,
           targetUserId: state.senderUserId,
@@ -257,7 +331,12 @@ export async function handleTransferLegHangup(
     }
   }
 
-  await voicemailForLiveCall(env, db, call, state.caller);
+  // Hop cap (or no sender credential): end the customer leg CLEANLY. Hanging
+  // up bills the pre-transfer talk time correctly (the in_browser/out_customer
+  // hangup) — re-tagging the answered leg to voicemail would lose that bill
+  // and, if `answer` 4xxs on the already-answered leg, strand the caller in
+  // silence. A caller who wants to leave a message redials into voicemail.
+  await hangupLiveLeg(env, call.customer_call_control_id);
 }
 
 /** The business number a live call rides on (present it on new legs). */
@@ -275,31 +354,6 @@ async function businessNumberFor(
   const number = data?.[0]?.number_e164 as string | undefined;
   if (!number) throw new Error("live call number missing");
   return number;
-}
-
-/** Fetch greeting + name and put the customer into voicemail. */
-async function voicemailForLiveCall(
-  env: Env,
-  db: SupabaseClient,
-  call: LiveCallRow,
-  caller: string | null,
-): Promise<void> {
-  const { data, error } = await db
-    .from("companies")
-    .select("name,voicemail_greeting")
-    .eq("id", call.company_id)
-    .limit(1);
-  if (error) throw new Error(`company read failed: ${error.message}`);
-  const company = data?.[0] as
-    | { name: string; voicemail_greeting: string | null }
-    | undefined;
-  if (!company || !call.customer_call_control_id) return;
-  await startVoicemail(env, {
-    callControlId: call.customer_call_control_id,
-    caller: caller ?? call.caller_e164,
-    companyName: company.name,
-    greeting: company.voicemail_greeting,
-  });
 }
 
 /**
@@ -338,14 +392,25 @@ export async function handleConsultLegEvent(
   }
 
   if (eventType === "call.hangup") {
-    const { error } = await db
+    // Only dismiss the sibling if THIS was a live consult leg of the session
+    // (the update matched a real ledger row). A FORGED brc tag naming a
+    // victim's session — or a hangup arriving AFTER /consult/complete deleted
+    // the ledger rows (the customer is now bridged onto the target leg and
+    // must NOT be torn down) — matches zero rows and is ignored.
+    const { data: closed, error } = await db
       .from("call_member_legs")
       .update({ state: "failed" })
       .eq("call_session_id", state.sessionId)
       .eq("call_control_id", ccid)
-      .eq("kind", "consult");
+      .eq("kind", "consult")
+      .neq("state", "failed")
+      .select("call_control_id");
     if (error) throw new Error(`consult hangup stamp failed: ${error.message}`);
-    // Dismiss the sibling (idempotent; dead legs 4xx and are swallowed).
+    if ((closed?.length ?? 0) === 0) return;
+
+    // Dismiss any still-live sibling consult leg (a member declined the
+    // consult before it completed — never leave the other listening to
+    // silence). Idempotent; dead legs 4xx and are swallowed.
     const legs = await consultLegs(db, state.sessionId);
     for (const leg of legs) {
       if (leg.call_control_id === ccid) continue;

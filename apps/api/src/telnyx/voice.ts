@@ -199,6 +199,10 @@ export async function syncCallSettingsForCompany(
   companyId: string,
   sync: CallSettingsSync,
 ): Promise<void> {
+  // ALL of screening, the inbound CNAM dip, AND the outbound CNAM listing
+  // live on the /voice sub-resource — cnam_listing on the BASE phone-number
+  // resource is silently ignored (verified against the live Telnyx API), so
+  // the outbound display name never took effect there.
   const voicePatch: Record<string, unknown> = {};
   if (sync.callScreening !== undefined) {
     voicePatch.inbound_call_screening =
@@ -207,8 +211,15 @@ export async function syncCallSettingsForCompany(
   if (sync.callerIdLookup !== undefined) {
     voicePatch.caller_id_name_enabled = sync.callerIdLookup;
   }
-  const hasCnamListing = sync.cnamDisplayName !== undefined;
-  if (Object.keys(voicePatch).length === 0 && !hasCnamListing) return;
+  if (sync.cnamDisplayName !== undefined) {
+    voicePatch.cnam_listing = sync.cnamDisplayName
+      ? {
+          cnam_listing_enabled: true,
+          cnam_listing_details: sync.cnamDisplayName,
+        }
+      : { cnam_listing_enabled: false };
+  }
+  if (Object.keys(voicePatch).length === 0) return;
 
   const { data, error } = await db
     .from("phone_numbers")
@@ -221,27 +232,11 @@ export async function syncCallSettingsForCompany(
     const telnyxId = row.telnyx_phone_number_id as string | null;
     if (!telnyxId) continue; // hosted number — voice lives on the old carrier
     try {
-      if (Object.keys(voicePatch).length > 0) {
-        await telnyxRequest(env, {
-          method: "PATCH",
-          path: `/v2/phone_numbers/${telnyxId}/voice`,
-          body: voicePatch,
-        });
-      }
-      if (hasCnamListing) {
-        await telnyxRequest(env, {
-          method: "PATCH",
-          path: `/v2/phone_numbers/${telnyxId}`,
-          body: {
-            cnam_listing: sync.cnamDisplayName
-              ? {
-                  cnam_listing_enabled: true,
-                  cnam_listing_details: sync.cnamDisplayName,
-                }
-              : { cnam_listing_enabled: false },
-          },
-        });
-      }
+      await telnyxRequest(env, {
+        method: "PATCH",
+        path: `/v2/phone_numbers/${telnyxId}/voice`,
+        body: voicePatch,
+      });
     } catch (cause) {
       console.error(
         `call settings sync failed for number ${row.id as string}:`,

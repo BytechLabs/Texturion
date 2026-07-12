@@ -73,6 +73,23 @@ export function useWebrtcToken() {
   });
 }
 
+/**
+ * D43: resolve a member RING leg's call_control_id to the CUSTOMER inbound
+ * session id. An answered inbound call's SDK session is the ring leg's own
+ * session (the engine Dials without link_to), not the customer session the
+ * calls row + all live-call ops key on — the softphone resolves it here.
+ */
+export function useResolveLiveSession() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (legCcid: string) =>
+      apiFetch<{ call_session_id: string }>(
+        `/v1/calls/live/by-leg/${encodeURIComponent(legCcid)}`,
+        { companyId },
+      ),
+  });
+}
+
 /** D43 phase 3: the live call's server-side facts (notes link). */
 export function useLiveCall(sessionId: string | null) {
   const companyId = useCompanyId();

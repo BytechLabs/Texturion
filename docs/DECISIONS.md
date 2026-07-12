@@ -1486,3 +1486,47 @@ under the line model (one live call per NUMBER; no Telnyx conferences ever):
 - Suites: API 1403, web 1277, tsc+eslint clean both. Real-device audio
   verification (mic + WebRTC) remains the founder's test.
 
+**D43 hardening — adversarial review, ~15 confirmed findings fixed
+(2026-07-12, migration 20260712000400).** A multi-dimension adversarial
+review (race, replay, security, telephony, billing, ux) surfaced real bugs;
+all confirmed ones are fixed:
+
+- CRITICAL fixes: (a) voicemail pipeline no longer depends on
+  payload.to/from (call.recording.saved doesn't carry them) — it resolves
+  company/number/caller from the calls row, so voicemail actually persists;
+  (b) inbound answered calls resolve the CUSTOMER session id via
+  GET /v1/calls/live/by-leg/:legCcid (the SDK exposes the member RING leg's
+  session, which is NOT the calls-row key) — transfer/consult/notes now
+  address the right row; (c) api_claim_ring_answer returns won|already|lost
+  and the handler NEVER hangs up the winner on a replayed call.answered
+  (the old boolean claim killed live calls on webhook redelivery);
+  (d) announce-transfer complete deletes the consult ledger rows BEFORE
+  hanging up the sender leg, so the sender-hangup's dismiss can't tear down
+  the target leg now carrying the customer.
+- SECURITY: the outbound gate is enforced SERVER-SIDE in the webhook
+  (handleOutboundInitiated rejects a leg over the voice cap, from a dead
+  subscription, or presenting a number we don't own) — the browser can no
+  longer skip POST /calls/browser to place ungated/cross-tenant calls; and
+  the blind-transfer leg is now LEDGERED (kind='transfer') so a forged brt
+  client_state can't rewrite answered_by / fabricate journey events.
+- COST: in_browser billable legs rejoin the Stripe re-report queue (the #133
+  bug reintroduced); a runaway-call sweep hangs up any live call answered >2h
+  ago (browser legs carry no Telnyx time_limit); the voicemail leg is hung
+  up after the recording saves; out_customer bills from answered_at (not
+  ring time), matching the inbound bri anchor.
+- CORRECTNESS: anonymous/CLIR callers ('anonymous' marker) normalize to null
+  so the SIP dial presents the business number instead of 422-ing;
+  api_ring_leg_failed takes a per-session advisory lock (no deadlock on
+  simultaneous timeouts); line-busy is an ATOMIC claim (api_claim_inbound_line
+  under a per-number advisory lock); the transfer hop-cap ends the call
+  cleanly (correct talk-time billing) instead of a broken answer on the
+  already-answered leg; cnam_listing moves to the /voice sub-resource (the
+  base PATCH silently ignored it — verified against the live Telnyx API);
+  transfer/consult targets see the CUSTOMER as caller ID; a replayed
+  initiated for an ended call no longer re-rings; the over-cap reject
+  tolerates a dead-leg 4xx (no ledger-replay burn).
+- Refuted / not-a-bug (documented residuals): the client-side WebRTC #106
+  per-member check can't run in the webhook (the leg carries no member id) —
+  a note-only member forging a call only bills their OWN workspace, the small
+  residual behind the two closed holes. Suites: API 1411, web 1277.
+

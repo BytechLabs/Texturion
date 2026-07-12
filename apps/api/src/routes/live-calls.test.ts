@@ -89,6 +89,9 @@ function liveWorld(opts: {
   sb.on("POST", "/rest/v1/call_member_legs", () =>
     Response.json([], { status: 201 }),
   );
+  sb.on("DELETE", "/rest/v1/call_member_legs", () =>
+    new Response(null, { status: 204 }),
+  );
   sb.on("PATCH", "/rest/v1/calls", () => new Response(null, { status: 204 }));
   sb.on("GET", "/rest/v1/conversation_events", () => []);
   sb.on("POST", "/rest/v1/conversation_events", () =>
@@ -143,7 +146,8 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     );
     const body = transfer.calls[0].body as Record<string, unknown>;
     expect(body.to).toBe("sip:gencred_target@sip.telnyx.com");
-    expect(body.from).toBe("+16135550100");
+    // The target sees the CUSTOMER (who they're getting).
+    expect(body.from).toBe("+16135551000");
     // The customer leg keeps its bri billing anchor.
     expect(body.client_state).toBeUndefined();
     const state = atob(body.target_leg_client_state as string);

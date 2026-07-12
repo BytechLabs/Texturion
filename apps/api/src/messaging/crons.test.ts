@@ -409,15 +409,16 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
       (call) => call.url.searchParams.get("id") === null,
     );
     expect(sweep).toHaveLength(1);
+    // D43: in_browser joins the spared billed legs (the #133 bug re-check).
     expect(sweep[0].url.searchParams.get("or")).toContain(
-      "and(leg.neq.forward,leg.neq.out_customer)",
+      "and(leg.neq.forward,leg.neq.out_customer,leg.neq.in_browser)",
     );
 
     // The queue is the local stamp gate, BILLED legs with billable time only
-    // (one pool, both directions — D38).
+    // (one pool, both directions + D43 browser-answered — D38/D43).
     const query = voiceQuery.calls[0].url.searchParams;
     expect(query.get("stripe_reported_at")).toBe("is.null");
-    expect(query.get("leg")).toBe("in.(forward,out_customer)");
+    expect(query.get("leg")).toBe("in.(forward,out_customer,in_browser)");
     expect(query.get("billable_seconds")).toBe("gt.0");
 
     expect(meter.calls).toHaveLength(1);

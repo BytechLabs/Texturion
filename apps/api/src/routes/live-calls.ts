@@ -129,6 +129,36 @@ async function eligibleTarget(
   return level === "text" ? { sipUsername } : null;
 }
 
+/**
+ * D43 resolver: an INBOUND call is answered on a member RING leg whose Telnyx
+ * session id differs from the customer inbound leg's session (the ring engine
+ * Dials without link_to). The customer session — which every live-call op and
+ * the calls row key on — is only known server-side, in call_member_legs. The
+ * softphone calls this with its ring-leg call_control_id (telnyxIDs) once an
+ * inbound call goes active, to learn the real session. Scoped to the caller's
+ * company via the ledger row.
+ */
+liveCallsRoutes.get(
+  "/calls/live/by-leg/:legCcid",
+  requireRole("member"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<{ call_session_id: string }[]>(
+      await db
+        .from("call_member_legs")
+        .select("call_session_id")
+        .eq("company_id", c.get("companyId"))
+        .eq("call_control_id", c.req.param("legCcid"))
+        .eq("kind", "ring")
+        .limit(1),
+      "ring leg lookup",
+    );
+    const sessionId = rows[0]?.call_session_id;
+    if (!sessionId) return errorResponse(c, "not_found", "No such call leg.");
+    return c.json({ call_session_id: sessionId });
+  },
+);
+
 /** What the call bar needs about a live call (notes link, transfer state). */
 liveCallsRoutes.get(
   "/calls/live/:sessionId",
@@ -244,10 +274,13 @@ liveCallsRoutes.post(
       );
     }
 
-    const issued = await issueTransfer(env, {
+    const issued = await issueTransfer(env, db, {
+      companyId: c.get("companyId"),
       customerCcid: gate.call.customer_call_control_id as string,
       targetSipUsername: target.sipUsername,
-      businessNumberE164: gate.businessNumber,
+      // Present the customer to the target (who they're about to talk to),
+      // falling back to the business number for an anonymous caller.
+      callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
       state: {
         sessionId,
         targetUserId: body.target_user_id,
@@ -412,6 +445,21 @@ liveCallsRoutes.post(
       path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
       body: { call_control_id: gate.call.customer_call_control_id },
     });
+
+    // CRITICAL ORDERING: remove the consult ledger rows BEFORE hanging up the
+    // sender leg. The sender-hangup fires call.hangup (still brc-tagged) →
+    // handleConsultLegEvent, which dismisses live sibling consult legs. With
+    // the rows gone it matches nothing, so it can never tear down the target
+    // leg that now carries the bridged customer. (The target's brc leg keeps
+    // ringing the customer; its own later hangup is a harmless no-op.)
+    const { error: clearError } = await db
+      .from("call_member_legs")
+      .delete()
+      .eq("call_session_id", sessionId)
+      .eq("kind", "consult");
+    if (clearError) {
+      throw new Error(`consult ledger clear failed: ${clearError.message}`);
+    }
     if (senderLeg) {
       try {
         await telnyxRequest(env, {

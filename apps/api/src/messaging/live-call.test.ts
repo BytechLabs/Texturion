@@ -93,11 +93,21 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
       caller: CALLER,
     });
 
-  it("answer: stamps the new owner and drops the journey line", async () => {
+  // The ledgered transfer intent (kind='transfer') — the proof the answer
+  // path checks before trusting the echoed brt tag. `claimed` rows drive the
+  // guarded UPDATE .select() results.
+  function transferLegPatch(claimed: unknown[]): Stub {
+    return stubRoute(restMatch(env, "PATCH", "call_member_legs"), () =>
+      claimed,
+    );
+  }
+
+  it("answer: verifies the ledgered intent, stamps the new owner, drops the journey line", async () => {
+    const claim = transferLegPatch([{ company_id: COMPANY_ID }]);
     const stamp = callsPatch();
     const scan = eventScan();
     const insert = eventInsert();
-    serve(liveCallStub(), stamp, scan, insert);
+    serve(claim, liveCallStub(), stamp, scan, insert);
 
     await handleCallEvent(
       env,
@@ -127,17 +137,38 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
     });
   });
 
-  it("missed at hop 0: the customer SNAPS BACK to the sender (hop 1, no client_state on the customer leg)", async () => {
+  it("answer: a FORGED brt with no ledgered intent is ignored (no stamp, no journey)", async () => {
+    const claim = transferLegPatch([]); // no issued transfer for this session
+    const stamp = callsPatch();
+    const insert = eventInsert();
+    serve(claim, liveCallStub(), stamp, insert);
+
+    await handleCallEvent(
+      env,
+      event("call.answered", {
+        call_control_id: "brt-forged",
+        call_session_id: SESSION,
+        direction: "outgoing",
+        client_state: brtState(0),
+      }),
+    );
+
+    expect(stamp.calls).toHaveLength(0);
+    expect(insert.calls).toHaveLength(0);
+  });
+
+  it("missed at hop 0: SNAPS the customer BACK to the sender (hop 1; target sees the customer; no client_state on the customer leg)", async () => {
     const actions = telnyxActions();
+    const close = transferLegPatch([{ call_control_id: "transfer:x:0" }]);
+    const ledgerInsert = stubRoute(
+      restMatch(env, "POST", "call_member_legs"),
+      () => Response.json([], { status: 201 }),
+    );
     const credential = stubRoute(
       restMatch(env, "GET", "member_telephony_credentials"),
       () => [{ sip_username: "gencred_sender" }],
     );
-    const numberRead = stubRoute(
-      restMatch(env, "GET", "phone_numbers"),
-      () => [{ number_e164: "+16135550100" }],
-    );
-    serve(liveCallStub(), credential, numberRead, actions);
+    serve(close, liveCallStub(), ledgerInsert, credential, actions);
 
     await handleCallEvent(
       env,
@@ -159,25 +190,18 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
     );
     const body = transfer!.body as Record<string, unknown>;
     expect(body.to).toBe("sip:gencred_sender@sip.telnyx.com");
+    // The target sees the CUSTOMER (who they're getting), not the business #.
+    expect(body.from).toBe(CALLER);
     // The customer leg keeps its bri billing anchor — never re-tagged.
     expect(body.client_state).toBeUndefined();
     const echoed = atob(body.target_leg_client_state as string);
     expect(echoed).toBe(`brt|${SESSION}|${SENDER}|${SENDER}|1|${CALLER}`);
   });
 
-  it("missed at the hop cap: the customer goes to voicemail (answer + greeting)", async () => {
+  it("missed at the hop cap: the customer leg is HUNG UP cleanly (bills talk time; no broken voicemail on the answered leg)", async () => {
     const actions = telnyxActions();
-    const company = stubRoute(
-      restMatch(
-        env,
-        "GET",
-        "companies",
-        (url) =>
-          (url.searchParams.get("select") ?? "").includes("voicemail_greeting"),
-      ),
-      () => [{ name: "Ace Plumbing", voicemail_greeting: null }],
-    );
-    serve(liveCallStub(), company, actions);
+    const close = transferLegPatch([{ call_control_id: "transfer:x:1" }]);
+    serve(close, liveCallStub(), actions);
 
     await handleCallEvent(
       env,
@@ -196,16 +220,21 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
       }),
     );
 
+    const hangup = actions.calls.find(
+      (c) => c.url.pathname === `/v2/calls/${CUSTOMER_CCID}/actions/hangup`,
+    );
+    expect(hangup).toBeDefined();
+    // Never a broken answer/speak on the already-answered customer leg.
     expect(
-      actions.calls.some(
-        (c) => c.url.pathname === `/v2/calls/${CUSTOMER_CCID}/actions/speak`,
-      ),
-    ).toBe(true);
+      actions.calls.some((c) => c.url.pathname.endsWith("/speak")),
+    ).toBe(false);
   });
 
   it("a normal end-of-call hangup of the transferee leg does nothing", async () => {
     const actions = telnyxActions();
-    serve(liveCallStub(), actions);
+    // The intent is already terminal ('answered') → close matches 0 rows.
+    const close = transferLegPatch([]);
+    serve(close, liveCallStub(), actions);
 
     await handleCallEvent(
       env,
@@ -222,7 +251,8 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
 
   it("a missed transfer on an already-ended call recovers nothing", async () => {
     const actions = telnyxActions();
-    serve(liveCallStub({ outcome: "answered" }), actions);
+    const close = transferLegPatch([{ call_control_id: "transfer:x:0" }]);
+    serve(close, liveCallStub({ outcome: "answered" }), actions);
 
     await handleCallEvent(
       env,
@@ -303,9 +333,10 @@ describe("D43 phase 3 — consult legs (brc)", () => {
 
   it("a consult leg hanging up dismisses its sibling", async () => {
     const actions = telnyxActions();
+    // The guarded close matches this live consult leg (returns it) → dismiss.
     const legPatch = stubRoute(
       restMatch(env, "PATCH", "call_member_legs"),
-      () => new Response(null, { status: 204 }),
+      () => [{ call_control_id: "brc-s" }],
     );
     const legs = stubRoute(restMatch(env, "GET", "call_member_legs"), () => [
       { call_control_id: "brc-s", user_id: SENDER, state: "answered" },

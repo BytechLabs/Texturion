@@ -31,6 +31,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { telnyxRequest } from "../telnyx/client";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
 import { STUCK_SEND_SECONDS } from "./send";
@@ -277,13 +278,16 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
   const db = getDb(env);
 
   // Hygiene sweep: rows that can never bill leave the queue immediately.
-  // Billed legs (forward + out_customer, D38) must NEVER match — a billable
-  // row swept here would be silently un-billed forever.
+  // Billed legs (forward + out_customer + D43 in_browser) must NEVER match —
+  // a billable row swept here would be silently un-billed forever (the #133
+  // bug; D43 re-introduced it by omitting in_browser).
   const { error: sweepError } = await db
     .from("call_records")
     .update({ stripe_reported_at: new Date().toISOString() })
     .is("stripe_reported_at", null)
-    .or("and(leg.neq.forward,leg.neq.out_customer),billable_seconds.eq.0");
+    .or(
+      "and(leg.neq.forward,leg.neq.out_customer,leg.neq.in_browser),billable_seconds.eq.0",
+    );
   if (sweepError) {
     throw new Error(`voice non-billable sweep failed: ${sweepError.message}`);
   }
@@ -292,7 +296,7 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
     .from("call_records")
     .select("id,billable_seconds,call_leg_id,companies(stripe_customer_id)")
     .is("stripe_reported_at", null)
-    .in("leg", ["forward", "out_customer"])
+    .in("leg", ["forward", "out_customer", "in_browser"])
     .gt("billable_seconds", 0)
     .order("created_at", { ascending: true })
     .limit(REPORT_BATCH);
@@ -343,6 +347,49 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
  */
 export async function sweepStaleCalls(env: Env): Promise<void> {
   const db = getDb(env);
+
+  // D43 cost backstop: a browser-answered call has NO Telnyx-side time limit
+  // (unlike the legacy cell forward's time_limit_secs — a client-originated /
+  // browser-answered leg can't carry one), so a member who leaves a call
+  // connected (a PBX hold queue, a forgotten tab) could run it for hours. Hang
+  // up the customer leg of any call answered longer ago than the hard ceiling;
+  // its terminal hangup then bills the talk time and finalizes the outcome
+  // normally. This bounds a single call's cost even between period-cap checks.
+  const { data: runaway, error: runawayError } = await db
+    .from("calls")
+    .select("call_session_id,customer_call_control_id")
+    .is("outcome", null)
+    .not("answered_at", "is", null)
+    .not("customer_call_control_id", "is", null)
+    .lt(
+      "answered_at",
+      new Date(Date.now() - MAX_LIVE_CALL_MS).toISOString(),
+    )
+    .limit(200);
+  if (runawayError) {
+    throw new Error(`runaway calls read failed: ${runawayError.message}`);
+  }
+  for (const row of runaway ?? []) {
+    const ccid = row.customer_call_control_id as string;
+    try {
+      await telnyxRequest(env, {
+        method: "POST",
+        path: `/v2/calls/${ccid}/actions/hangup`,
+        body: {},
+      });
+      console.warn(
+        `runaway call hung up: session ${row.call_session_id as string}`,
+      );
+    } catch (cause) {
+      // Dead leg / already gone (4xx) is the normal case — the stale-outcome
+      // RPC below finalizes its row.
+      console.error(
+        `runaway call hangup failed for ${ccid}:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
   const { data, error } = await db.rpc("api_sweep_stale_calls", {
     p_stale_before: null,
   });
@@ -354,3 +401,7 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
     console.warn(`stale calls sweep: ${swept} session(s) flipped to missed`);
   }
 }
+
+/** D43: hard ceiling on a single live call's duration (2h) — the cost
+ *  backstop for browser legs that carry no Telnyx-side time limit. */
+const MAX_LIVE_CALL_MS = 2 * 60 * 60 * 1000;

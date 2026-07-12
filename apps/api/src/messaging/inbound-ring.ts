@@ -270,6 +270,13 @@ export async function ringMembersOrVoicemail(
     })),
   );
   if (insertError) {
+    // COMPENSATE: the legs are already ringing but unledgered — a replay would
+    // re-dial the WHOLE team (the guard reads the empty ledger) and a fast
+    // answer would find no row to claim. Hang the just-dialed legs up so the
+    // replay starts clean, then rethrow to the ledger sweeper.
+    for (const leg of dialed) {
+      await telnyxOnLiveLeg(env, `/v2/calls/${leg.ccid}/actions/hangup`, {});
+    }
     throw new Error(`ring ledger insert failed: ${insertError.message}`);
   }
 }
@@ -339,30 +346,47 @@ export async function handleMemberRingAnswered(
   memberCcid: string,
   state: MemberRingState,
 ): Promise<void> {
-  const { data: won, error } = await db.rpc("api_claim_ring_answer", {
+  const { data: verdict, error } = await db.rpc("api_claim_ring_answer", {
     p_call_session_id: state.sessionId,
     p_call_control_id: memberCcid,
   });
   if (error) {
     throw new Error(`api_claim_ring_answer failed: ${error.message}`);
   }
-  if (won !== true) {
-    // A sibling won first (or this is a replay) — dismiss this browser.
+  // 'lost' = a sibling won (or this leg never rang) — dismiss THIS browser.
+  // 'won'  = this pass claimed the call — run the full connect.
+  // 'already' = a webhook REPLAY of the leg that already won — re-run the
+  //   connect IDEMPOTENTLY (never hang the winner up; the answer/bridge just
+  //   4xx-and-continue) so a first pass that threw mid-sequence completes.
+  if (verdict === "lost") {
     await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
     return;
   }
+  const isReplay = verdict === "already";
 
-  // Answer the customer leg, stamping the bri tag whose timestamp anchors
-  // talk-time billing. Failure = the caller hung up in the same instant; the
-  // inbound hangup path owns the missed outcome — just release the member.
+  // Stamp answered_at/by FIRST (guarded on null) — this is the durable
+  // "this member won" signal, committed before the risky Telnyx calls so a
+  // throw-then-replay is recognised as 'already' and never hangs the winner.
   const answeredAtIso = new Date().toISOString();
+  const { error: stampError } = await db
+    .from("calls")
+    .update({ answered_by_user_id: state.userId, answered_at: answeredAtIso })
+    .eq("call_session_id", state.sessionId)
+    .is("answered_at", null);
+  if (stampError) {
+    throw new Error(`answered stamp failed: ${stampError.message}`);
+  }
+
+  // Answer the customer leg with the bri billing anchor. On the FIRST win a
+  // failure means the caller hung up in the answer window (dead leg) → release
+  // the member. On a REPLAY the leg is already answered (4xx) → continue.
   const answered = await telnyxOnLiveLeg(
     env,
     `/v2/calls/${state.inboundCcid}/actions/answer`,
     { client_state: buildBrowserAnsweredState(state.caller, answeredAtIso) },
   );
-  if (!answered) {
-    await telnyxOnLiveLeg(env, `/v2/calls/${memberCcid}/actions/hangup`, {});
+  if (!answered && !isReplay) {
+    // Caller gone before we could answer; the member leg rings out on its own.
     return;
   }
 
@@ -371,7 +395,7 @@ export async function handleMemberRingAnswered(
     `/v2/calls/${memberCcid}/actions/bridge`,
     { call_control_id: state.inboundCcid },
   );
-  if (!bridged) {
+  if (!bridged && !isReplay) {
     // The member leg died between answer and bridge — never leave the caller
     // answered into dead air.
     await telnyxOnLiveLeg(
@@ -380,17 +404,6 @@ export async function handleMemberRingAnswered(
       {},
     );
     return;
-  }
-
-  // Read-model: who answered, and when (also the UI/journey anchor — the
-  // billing anchor rides the bri tag, immune to a lost write here).
-  const { error: stampError } = await db
-    .from("calls")
-    .update({ answered_by_user_id: state.userId, answered_at: answeredAtIso })
-    .eq("call_session_id", state.sessionId)
-    .is("answered_at", null);
-  if (stampError) {
-    console.error(`answered_at stamp failed: ${stampError.message}`);
   }
 
   // D43 phase 3: thread the call at ANSWER time (create the conversation for
@@ -552,6 +565,18 @@ export async function startVoicemail(
   });
 }
 
+/** End an ALREADY-answered leg cleanly (transfer-recovery terminus). Hanging
+ *  up bills the talk time correctly via the in_browser/out_customer hangup —
+ *  re-tagging the live leg to voicemail would instead lose that bill and
+ *  strand the caller if `answer` 4xxs on the answered leg. A caller who wants
+ *  to leave a message redials and reaches voicemail (no team answers). */
+export async function hangupLiveLeg(
+  env: Env,
+  callControlId: string,
+): Promise<void> {
+  await telnyxOnLiveLeg(env, `/v2/calls/${callControlId}/actions/hangup`, {});
+}
+
 /** Greeting finished — open the recorder (beep, mp3, hard cap). */
 export async function handleVoicemailSpeakEnded(
   env: Env,
@@ -625,6 +650,7 @@ export async function storeVoicemailRecording(
   db: SupabaseClient,
   payload: RecordingSavedPayload,
   resolved: { companyId: string; phoneNumberId: string },
+  caller: string | null,
 ): Promise<StoredVoicemail | null> {
   const sessionId = payload.call_session_id;
   const url = payload.recording_urls?.mp3;
@@ -646,10 +672,12 @@ export async function storeVoicemailRecording(
     // Expired presigned URL (a replay landing past the 10-minute window) or
     // a Telnyx storage fault. The recording is unrecoverable — log and leave
     // the call a miss rather than erroring into a replay loop that can never
-    // succeed.
+    // succeed. Still DELETE the Telnyx copy: the "recordings must not persist
+    // at Telnyx" decision holds even when we couldn't keep our own copy.
     console.error(
       `voicemail fetch failed for ${sessionId}: HTTP ${response.status}`,
     );
+    await deleteTelnyxRecording(env, sessionId);
     return null;
   }
   const audio = await response.arrayBuffer();
@@ -676,7 +704,7 @@ export async function storeVoicemailRecording(
     companyId: resolved.companyId,
     phoneNumberId: resolved.phoneNumberId,
     callSessionId: sessionId,
-    caller: payload.from ?? null,
+    caller,
     seconds,
   };
 }

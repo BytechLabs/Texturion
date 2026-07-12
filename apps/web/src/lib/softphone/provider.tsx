@@ -29,7 +29,11 @@ import {
   type ReactNode,
 } from "react";
 
-import { useAuthorizeBrowserCall, useWebrtcToken } from "@/lib/api/calls";
+import {
+  useAuthorizeBrowserCall,
+  useResolveLiveSession,
+  useWebrtcToken,
+} from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 
 import {
@@ -110,6 +114,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   const authorize = useAuthorizeBrowserCall();
   const mintToken = useWebrtcToken();
+  const resolveSession = useResolveLiveSession();
+  const resolveRef = useRef(resolveSession);
+  resolveRef.current = resolveSession;
 
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
@@ -199,12 +206,33 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           state: call.state,
           now: Date.now(),
         });
-        const sessionId = call.telnyxIDs?.telnyxSessionId;
-        if (sessionId) {
-          dispatch({ type: "session_known", id: call.id, sessionId });
-        }
         if (call.state === "active") {
           attachActiveAudio(call);
+          if (call.direction === "inbound") {
+            // The SDK session for an answered inbound call is the ring leg's,
+            // not the customer's — resolve the real (customer) session so
+            // transfer / consult / notes address the right calls row.
+            const legCcid = call.telnyxIDs?.telnyxCallControlId;
+            if (legCcid) {
+              void resolveRef.current
+                .mutateAsync(legCcid)
+                .then((r) =>
+                  dispatch({
+                    type: "session_known",
+                    id: call.id,
+                    sessionId: r.call_session_id,
+                  }),
+                )
+                .catch(() => {
+                  /* live-call ops stay disabled for this call; audio is fine */
+                });
+            }
+          } else {
+            const sessionId = call.telnyxIDs?.telnyxSessionId;
+            if (sessionId) {
+              dispatch({ type: "session_known", id: call.id, sessionId });
+            }
+          }
         }
         if (call.state === "destroy" || call.state === "hangup") {
           callsRef.current.delete(call.id);

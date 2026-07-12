@@ -32,7 +32,7 @@ import {
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
-import { telnyxRequest } from "../telnyx/client";
+import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
   BROWSER_MEMBER_STATE,
@@ -264,7 +264,7 @@ export async function handleCallEvent(
       payload.direction === "outgoing" &&
       classifyLeg(payload) === "out_customer"
     ) {
-      return handleOutboundInitiated(db, payload);
+      return handleOutboundInitiated(env, db, payload);
     }
     return handleInboundInitiated(env, db, payload);
   }
@@ -338,6 +338,17 @@ export async function handleCallEvent(
     return handleVoicemailSaved(env, db, payload);
   }
 
+  // D43: the outbound customer leg answered — stamp answered_at so the call
+  // is transferable (requireLiveCall needs it) AND so billing anchors on
+  // talk time, not the ring window (mirrors the inbound bri anchor).
+  if (
+    eventType === "call.answered" &&
+    leg === "out_customer" &&
+    payload.call_session_id
+  ) {
+    return stampOutboundAnswered(db, payload.call_session_id);
+  }
+
   // D38: the outbound AGENT leg's AMD verdict is a ROUTING decision, not a
   // terminal one — human/undetermined bridges to the customer, a machine
   // (the member's own voicemail) hangs up so voicemail can never be
@@ -376,12 +387,47 @@ async function handleVoicemailSaved(
   payload: CallPayload,
 ): Promise<void> {
   const sessionId = payload.call_session_id;
-  const ourNumberE164 = payload.to;
-  if (!sessionId || !ourNumberE164) return;
-  const resolved = await resolveNumber(db, ourNumberE164);
-  if (!resolved) return;
+  if (!sessionId) return;
 
-  const stored = await storeVoicemailRecording(env, db, payload, resolved);
+  // Resolve the company + number + caller from OUR calls row (keyed by the
+  // session), NOT from payload.to/from — call.recording.saved does not
+  // reliably carry those fields, and the calls row is our source of truth
+  // (created with phone_number_id + caller_e164 at call.initiated). Depending
+  // on the payload here silently killed the whole voicemail pipeline.
+  const { data: callRows, error: callError } = await db
+    .from("calls")
+    .select("company_id,phone_number_id,caller_e164")
+    .eq("call_session_id", sessionId)
+    .limit(1);
+  if (callError) {
+    throw new Error(`voicemail calls lookup failed: ${callError.message}`);
+  }
+  const row = callRows?.[0] as
+    | {
+        company_id: string;
+        phone_number_id: string | null;
+        caller_e164: string | null;
+      }
+    | undefined;
+  if (!row?.phone_number_id) return; // unknown/released number → drop
+  const resolved = {
+    companyId: row.company_id,
+    phoneNumberId: row.phone_number_id,
+  };
+
+  const stored = await storeVoicemailRecording(
+    env,
+    db,
+    payload,
+    resolved,
+    row.caller_e164,
+  );
+  // Whether or not a recording was kept, the voicemail leg has served its
+  // purpose — hang it up so an answered-but-idle inbound leg (a silent
+  // robocaller holding the line) can't run as an uncapped PSTN cost center.
+  if (payload.call_control_id) {
+    await telnyxRejectLeg(env, payload.call_control_id);
+  }
   if (!stored) return; // nothing kept — the call stays an honest miss
 
   const call = await upsertCallSession(db, {
@@ -391,7 +437,7 @@ async function handleVoicemailSaved(
     companyId: resolved.companyId,
     phoneNumberId: resolved.phoneNumberId,
     callSessionId: sessionId,
-    caller: stored.caller,
+    caller: stored.caller ?? row.caller_e164,
     missed: true,
   });
 
@@ -459,6 +505,7 @@ const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
  * on it). Idempotent: api_upsert_call merges per session.
  */
 async function handleOutboundInitiated(
+  env: Env,
   db: SupabaseClient,
   payload: CallPayload,
 ): Promise<void> {
@@ -466,8 +513,49 @@ async function handleOutboundInitiated(
   const callControlId = payload.call_control_id;
   const businessNumberE164 = payload.from; // we present the business number
   if (!sessionId || !callControlId || !businessNumberE164) return;
+
+  // SECURITY (adversarial-review): the browser ORIGINATES the outbound leg via
+  // the WebRTC SDK, so POST /v1/calls/browser's gates are advisory — a member
+  // could skip it and craft newCall() from the console with an arbitrary
+  // caller number and destination. This webhook is the REAL server-side gate,
+  // running on the leg BEFORE it can connect:
+  //   - the presented number must belong to a company (resolveNumber) —
+  //     a call presenting a number we don't own is hung up (no free calls,
+  //     no spoofing a number outside our account);
+  //   - that company must have a LIVE subscription (no calls on a dead plan);
+  //   - the company must be UNDER the D36 voice spending cap (the cost cap is
+  //     enforced here, not just at the skippable authorize endpoint).
+  // A failure hangs the leg up before it bridges to the PSTN. (#106 per-member
+  // access can't be checked here — the leg carries no member identity — but a
+  // member forging a call from their OWN company's number only bills their own
+  // workspace, the far smaller residual than cross-tenant/over-cap spend.)
   const resolved = await resolveNumber(db, businessNumberE164);
-  if (!resolved) return;
+  if (!resolved) {
+    // A number we do not own presented as caller ID — refuse the leg.
+    await telnyxRejectLeg(env, callControlId);
+    return;
+  }
+
+  const { data: companyRows, error: companyError } = await db
+    .from("companies")
+    .select("plan,current_period_start,overage_cap_multiplier,subscription_status")
+    .eq("id", resolved.companyId)
+    .limit(1);
+  if (companyError) {
+    throw new Error(`outbound company lookup failed: ${companyError.message}`);
+  }
+  const company = (companyRows ?? [])[0] as
+    | (CompanyVoiceState & { subscription_status: string })
+    | undefined;
+  if (
+    !company ||
+    company.subscription_status !== "active" ||
+    resolved.status !== "active" ||
+    (await companyOverVoiceCap(db, resolved.companyId, company))
+  ) {
+    await telnyxRejectLeg(env, callControlId);
+    return;
+  }
 
   await upsertCallSession(db, {
     eventType: "call.initiated",
@@ -485,6 +573,60 @@ async function handleOutboundInitiated(
     .eq("call_session_id", sessionId);
   if (error) {
     throw new Error(`outbound metadata stamp failed: ${error.message}`);
+  }
+}
+
+/** The outbound customer's answer time (ms), from the calls row — the
+ *  talk-time billing anchor. Null when never answered / not yet stamped. */
+async function outboundAnsweredAtMs(
+  db: SupabaseClient,
+  sessionId: string | undefined,
+): Promise<number | null> {
+  if (!sessionId) return null;
+  const { data, error } = await db
+    .from("calls")
+    .select("answered_at")
+    .eq("call_session_id", sessionId)
+    .limit(1);
+  if (error) throw new Error(`answered_at read failed: ${error.message}`);
+  const iso = data?.[0]?.answered_at as string | null | undefined;
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Hang up a leg we are refusing (dead-leg 4xx tolerated). */
+async function telnyxRejectLeg(
+  env: Env,
+  callControlId: string,
+): Promise<void> {
+  try {
+    await telnyxRequest(env, {
+      method: "POST",
+      path: `/v2/calls/${callControlId}/actions/hangup`,
+      body: {},
+    });
+  } catch (cause) {
+    console.error(
+      `outbound leg reject hangup failed for ${callControlId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}
+
+/** D43: stamp the outbound customer answer time (transfer-eligibility +
+ *  talk-time billing anchor). Guarded so a replay/duplicate never moves it. */
+async function stampOutboundAnswered(
+  db: SupabaseClient,
+  sessionId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("calls")
+    .update({ answered_at: new Date().toISOString() })
+    .eq("call_session_id", sessionId)
+    .is("answered_at", null);
+  if (error) {
+    throw new Error(`outbound answered stamp failed: ${error.message}`);
   }
 }
 
@@ -526,8 +668,29 @@ async function handleInboundInitiated(
   const toE164 = payload.to;
   if (!callControlId || !sessionId || !toE164) return;
 
+  // Anonymous/CLIR callers arrive as a NON-E164 marker ('anonymous',
+  // 'Restricted', 'unavailable') — normalize to null so it is never dialed
+  // as a SIP `from` (Telnyx 422s an invalid from → no browser rings) and
+  // never text-backed.
+  const callerE164 = normalizeCaller(payload.from);
+
   const resolved = await resolveNumber(db, toE164);
   if (!resolved) return; // a number we do not own → no-op
+
+  // Replay guard: an `initiated` redelivered AFTER the call already ended
+  // (terminal outcome set) must never re-ring the team. The ring-ledger
+  // guard alone can't catch a first pass that threw before ledgering.
+  const { data: priorRows, error: priorError } = await db
+    .from("calls")
+    .select("outcome")
+    .eq("call_session_id", sessionId)
+    .limit(1);
+  if (priorError) {
+    throw new Error(`initiated replay read failed: ${priorError.message}`);
+  }
+  if (priorRows?.[0] && (priorRows[0] as { outcome: string | null }).outcome) {
+    return;
+  }
 
   const { data: companyRows, error: companyError } = await db
     .from("companies")
@@ -556,48 +719,42 @@ async function handleInboundInitiated(
 
   // D36 voice spending cap: AT the cap (allowance × overage_cap_multiplier)
   // inbound answering pauses entirely — reject; the reject's untagged-leg
-  // hangup still runs the missed text-back (idempotent per call).
+  // hangup still runs the missed text-back (idempotent per call). A dead-leg
+  // 4xx (caller hung up during the cap RPC; or a replay of an ended call's
+  // initiated) is tolerated — the cap condition is durable, so a raw throw
+  // here would burn all 5 ledger replays and page Sentry on a state that can
+  // never heal.
   if (await companyOverVoiceCap(db, resolved.companyId, company)) {
-    await telnyxRequest(env, {
-      method: "POST",
-      path: `/v2/calls/${callControlId}/actions/reject`,
-      body: { cause: OVER_BUDGET_REJECT_CAUSE },
-    });
+    try {
+      await telnyxRequest(env, {
+        method: "POST",
+        path: `/v2/calls/${callControlId}/actions/reject`,
+        body: { cause: OVER_BUDGET_REJECT_CAUSE },
+      });
+    } catch (cause) {
+      if (!(cause instanceof TelnyxApiError) || cause.status >= 500) throw cause;
+    }
     return;
   }
 
-  // Line model (D43, founder-binding): ONE live call per number. A live call
-  // = an outcome-less session row on this number inside the in-flight
-  // window. Checked BEFORE this call's own row lands.
-  const { data: busyRows, error: busyError } = await db
-    .from("calls")
-    .select("id")
-    .eq("phone_number_id", resolved.phoneNumberId)
-    .is("outcome", null)
-    .neq("call_session_id", sessionId)
-    .gte(
-      "created_at",
-      new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
-    )
-    .limit(1);
-  if (busyError) {
-    throw new Error(`line-busy read failed: ${busyError.message}`);
-  }
-  const lineBusy = (busyRows ?? []).length > 0;
+  // Line model (D43, founder-binding): ONE live call per NUMBER, decided
+  // ATOMICALLY. api_claim_inbound_line takes a per-(company,number) advisory
+  // lock, checks for another in-flight session on the number, and inserts
+  // THIS call's row under that same lock — so two calls to one number in the
+  // same instant can never both go live (one wins the line, the other is
+  // told busy). outcome null on the fresh row marks the line occupied.
+  const lineBusy = unwrapBool(
+    await db.rpc("api_claim_inbound_line", {
+      p_company_id: resolved.companyId,
+      p_phone_number_id: resolved.phoneNumberId,
+      p_call_session_id: sessionId,
+      p_caller_e164: callerE164,
+      p_window_start: new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
+    }),
+  );
 
-  // The session row, from second zero: outcome null marks the line occupied,
-  // and the v2 metadata (screening verdict, attestation, dipped name, the
-  // customer leg's control id for phase-3 hold/transfer) rides on it.
-  await upsertCallSession(db, {
-    eventType: "call.initiated",
-    payload,
-    leg: "inbound_untagged",
-    companyId: resolved.companyId,
-    phoneNumberId: resolved.phoneNumberId,
-    callSessionId: sessionId,
-    caller: payload.from ?? null,
-    missed: false,
-  });
+  // The v2 metadata (screening verdict, attestation, dipped name, the
+  // customer leg's control id for phase-3 hold/transfer) rides on the row.
   const { error: metaError } = await db
     .from("calls")
     .update({
@@ -614,7 +771,7 @@ async function handleInboundInitiated(
   if (lineBusy) {
     await startVoicemail(env, {
       callControlId,
-      caller: payload.from ?? null,
+      caller: callerE164,
       companyName: company.name,
       greeting: company.voicemail_greeting,
     });
@@ -630,7 +787,7 @@ async function handleInboundInitiated(
   ) {
     await startVoicemail(env, {
       callControlId,
-      caller: payload.from ?? null,
+      caller: callerE164,
       companyName: company.name,
       greeting: company.voicemail_greeting,
     });
@@ -640,13 +797,29 @@ async function handleInboundInitiated(
   await ringMembersOrVoicemail(env, db, {
     callControlId,
     callSessionId: sessionId,
-    callerE164: payload.from ?? null,
+    callerE164,
     businessNumberE164: toE164,
     companyId: resolved.companyId,
     phoneNumberId: resolved.phoneNumberId,
     companyName: company.name,
     voicemailGreeting: company.voicemail_greeting,
   });
+}
+
+/** A caller number is E.164 or nothing. Telnyx delivers a non-E164 marker
+ *  ('anonymous', 'Restricted', 'unavailable') for CLIR/blocked callers —
+ *  normalize those to null so they are never dialed or texted. */
+export function normalizeCaller(from: string | null | undefined): string | null {
+  return from && /^\+[1-9]\d{6,14}$/.test(from) ? from : null;
+}
+
+/** Coerce a boolean-returning RPC result (PostgREST may serialize it loosely). */
+function unwrapBool(result: { data: unknown; error: unknown }): boolean {
+  if (result.error) {
+    const e = result.error as { message?: string };
+    throw new Error(`rpc failed: ${e.message ?? String(result.error)}`);
+  }
+  return result.data === true;
 }
 
 /**
@@ -1110,12 +1283,22 @@ async function recordCallDuration(
       amdResult: null,
       leg: "forward",
     }).missed;
-  // 'in_browser' talk time anchors on the bri tag's answer stamp — the
-  // inbound leg's start_time includes RING time, which must never bill. A
-  // garbled/missing anchor bills ZERO (fail toward the customer).
+  // Talk-time anchoring (never ring time): 'in_browser' rides the bri tag's
+  // answer stamp; 'out_customer' rides calls.answered_at (stamped when the
+  // customer picked up). A missing anchor bills ZERO (fail toward the
+  // customer — a call that never proved it connected never bills).
   let seconds = rangOut ? 0 : windowSeconds;
   if (leg === "in_browser") {
     const answeredAtMs = parseBrowserAnsweredAtMs(payload.client_state);
+    seconds =
+      answeredAtMs === null
+        ? 0
+        : Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
+  } else if (leg === "out_customer" && !rangOut) {
+    const answeredAtMs = await outboundAnsweredAtMs(
+      db,
+      payload.call_session_id,
+    );
     seconds =
       answeredAtMs === null
         ? 0
