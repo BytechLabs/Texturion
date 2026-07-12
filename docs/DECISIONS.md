@@ -1626,3 +1626,35 @@ missed:
   window — a bridge failure (caller OR member gone) now hangs up BOTH legs.
 Suites: API 1416, web 1278.
 
+**D43 — LAUNCH BLOCKER: the security header disabled the microphone (2026-07-12,
+founder's first live call).** Every outbound call died instantly with a
+"[contact] ended" toast; zero calls rows, zero `call.initiated` webhooks, zero
+Telnyx CDRs — the call never left the browser. The whole calls stack (server
+gates, nonce auth, line model, Telnyx connection) checked out; the failure was
+one line UPSTREAM of all of it. The D8 hardening header
+(`apps/web/src/lib/observability/security-headers.ts`), written before calling
+existed ("deny features nothing uses"), set `Permissions-Policy: microphone=()`
+— microphone disabled for our OWN origin. The @telnyx/webrtc SDK's
+`getUserMedia({audio:true})` was refused at the policy layer
+(`MEDIA_MICROPHONE_PERMISSION_DENIED`) BEFORE any SIP INVITE, so nothing ever
+reached Telnyx. Symptom chain: mic blocked → SDK aborts peer-init → call
+"ended" → the line reservation minted a beat earlier strands for 30s → the
+NEXT click hits "This line is on another call" (the phantom the founder first
+reported). Fix: `microphone=(self)` (first-party only; camera/geo/payment/usb
+stay fully denied, mic denied to any embedded frame). Verified end-to-end on
+prod: an outbound call to a real number recorded `outbound|answered`.
+LESSON: a feature that needs a powerful browser API (mic/camera/geolocation)
+must be co-designed with the Permissions-Policy — the softphone shipped without
+anyone re-checking the D8 header, and no test/preview catches it (the mic can't
+run in the screenshot harness; the header value was locked by a unit test that
+asserted the OLD, mic-denying string).
+
+**D43 — a denied mic prompt is now recoverable, not a dead end (same day).**
+Follow-on hardening after the header fix: placing AND answering a call now runs
+`getUserMedia` BEFORE reserving the line. A denial (a fresh Block, a
+browser-remembered Block that throws with no prompt, or a missing device) throws
+a `MicPermissionError` with an actionable message ("click the 🎤 in the address
+bar → Allow") instead of a silent "ended", creates NO line reservation (so no
+"on another call" phantom on retry), and never bills. Tracks are released
+immediately; the SDK re-acquires with the granted permission (no second prompt).
+
