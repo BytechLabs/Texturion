@@ -32,9 +32,9 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
     expect(byKey.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
   });
 
-  it("denies the powerful browser features the product never uses", () => {
+  it("denies powerful features but allows the mic for our own origin (D43 softphone)", () => {
     expect(byKey.get("Permissions-Policy")).toBe(
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+      "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
     );
   });
 

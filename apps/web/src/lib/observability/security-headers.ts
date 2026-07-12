@@ -41,11 +41,16 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
   // Full URL only to same-origin destinations; origin only cross-origin —
   // conversation/contact UUIDs in paths never leak to third parties.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Deny powerful features nothing in the product uses (the app uses the
-  // Contact Picker, clipboard paste, and Web Push — none are governed by
-  // these directives).
+  // Deny powerful features nothing in the product uses, but ALLOW the
+  // microphone for our OWN origin (self) — the D43 browser softphone
+  // (@telnyx/webrtc) calls getUserMedia({audio:true}) to place/receive calls,
+  // and a `microphone=()` policy blocks that with
+  // MEDIA_MICROPHONE_PERMISSION_DENIED before any SIP INVITE is sent. `(self)`
+  // keeps the mic denied to any embedded third-party frame; camera stays off
+  // (audio-only calling). The app's other features (Contact Picker, clipboard
+  // paste, Web Push) aren't governed by these directives.
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
   },
 ];
