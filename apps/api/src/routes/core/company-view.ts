@@ -15,8 +15,9 @@ export const COMPANY_COLUMNS =
   "cancel_at_period_end," +
   // FEATURE-GAPS Step 1: after-hours away settings.
   "business_hours,away_enabled,away_message," +
-  // FEATURE-GAPS voice wave: missed-call text-back settings.
-  "mctb_enabled,mctb_message,forward_to_cell," +
+  // FEATURE-GAPS voice wave: missed-call text-back settings. (D43 deleted
+  // forward_to_cell — the browser is the phone; the column is dropped.)
+  "mctb_enabled,mctb_message," +
   // D43 Calls v2: voicemail greeting, screening routing, CNAM pair.
   "voicemail_greeting,call_screening,cnam_display_name,caller_id_lookup," +
   // Choose-your-number: the staged onboarding pick, so the plan-step review can

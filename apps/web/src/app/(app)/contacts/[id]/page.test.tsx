@@ -61,13 +61,6 @@ vi.mock("@/lib/api/companies", () => ({
   }),
 }));
 vi.mock("@/lib/api/calls", () => ({
-  useCallCell: () => ({
-    isPending: false,
-    isError: false,
-    data: { call_cell_e164: "+16135557777", verified: true },
-  }),
-  useSetCallCell: () => ({ isPending: false, mutate: vi.fn() }),
-  useVerifyCallCell: () => ({ isPending: false, mutate: vi.fn() }),
   useStartCall: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 

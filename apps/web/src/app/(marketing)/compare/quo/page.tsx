@@ -126,9 +126,10 @@ export default function CompareQuoPage() {
               Your business lives on phone calls. Quo makes and receives them,
               with unlimited US and Canada calling on every tier, voicemail,
               and an AI agent. Loonext is texting-first; calling is included
-              on every plan (calls ring your cell, you can call customers
-              back from the app on your business number, and the ones you
-              miss get a text back), but it is not a full phone system.
+              on every plan (calls ring your whole crew in the app, unanswered
+              calls take a voicemail, you can call customers back on your
+              business number, and the ones you miss get a text back), but
+              it is not a full phone system.
             </p>
             <p>
               You want desktop and mobile apps for a distributed team that

@@ -18,9 +18,7 @@
  *         SPEC §2 cap, §10 matrix).
  */
 import {
-  isUsCaDestination,
   isValidBusinessHours,
-  lookupAreaCode,
   NANP_AREA_CODES,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -105,11 +103,10 @@ const patchSchema = z
     // multi-line emergency-aware message.
     away_message: z.string().trim().max(1000).nullable().optional(),
     // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
-    // owner-authored (null clears it); forward_to_cell is an optional E.164 cell
-    // (null clears it), validated against the NANP table below.
+    // owner-authored (null clears it). D43: forward_to_cell is DELETED —
+    // calls ring the browser, never a cell.
     mctb_enabled: z.boolean().optional(),
     mctb_message: z.string().trim().max(1000).nullable().optional(),
-    forward_to_cell: z.string().trim().max(20).nullable().optional(),
     // D43 Calls v2 (O/A): the voicemail greeting is owner-authored TTS text
     // (null clears back to the honest default); call screening is the carrier
     // verdict routing choice; CNAM is the caller-ID pair — the ≤15-char
@@ -141,7 +138,6 @@ const patchSchema = z
       "away_message" in body ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
-      "forward_to_cell" in body ||
       "voicemail_greeting" in body ||
       body.call_screening !== undefined ||
       "cnam_display_name" in body ||
@@ -302,22 +298,6 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
         ? body.mctb_message
         : null;
   }
-  if ("forward_to_cell" in body) {
-    if (body.forward_to_cell && body.forward_to_cell.length > 0) {
-      // Must be a real US/CA E.164 cell (the DB CHECK is the storage backstop;
-      // this is the friendly validation the owner sees).
-      if (!isUsCaDestination(body.forward_to_cell) ||
-          !lookupAreaCode(body.forward_to_cell)?.geographic) {
-        throw new ApiError(
-          "validation_failed",
-          "forward_to_cell must be a valid US or Canada mobile number (+1…).",
-        );
-      }
-      patch.forward_to_cell = body.forward_to_cell;
-    } else {
-      patch.forward_to_cell = null;
-    }
-  }
   // D43 Calls v2 settings. Empty greeting clears to null (the voicemail then
   // speaks the honest default built from the company name).
   if ("voicemail_greeting" in body) {
@@ -345,10 +325,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // text-back would get a success toast for a feature that can never fire
   // (the voice webhook refuses non-active subscriptions) — an honest 402
   // beats a silently dead setting.
-  const enablingVoice =
-    body.mctb_enabled === true ||
-    (typeof patch.forward_to_cell === "string" &&
-      patch.forward_to_cell.length > 0);
+  const enablingVoice = body.mctb_enabled === true;
   if (enablingVoice) {
     const rows = unwrap<{ subscription_status: string }[]>(
       await db
@@ -469,10 +446,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // background so the settings write returns immediately; a failure here is
   // logged and the number stays SMS-only until the next enable (settings re-save
   // or a cron), never blocking the settings save.
-  const turnedOnVoice =
-    body.mctb_enabled === true ||
-    (typeof patch.forward_to_cell === "string" &&
-      patch.forward_to_cell.length > 0);
+  const turnedOnVoice = body.mctb_enabled === true;
   if (turnedOnVoice) {
     const enable = enableVoiceForCompany(env, db, c.get("companyId")).catch(
       (cause: unknown) => {

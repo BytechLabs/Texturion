@@ -1414,3 +1414,44 @@ settings toggle gets the honest "calling is included now" 409). Known bounded
 gap accepted: a pre-D42 PENDING-DOWNGRADE schedule owns its items and carries
 no voice price until it releases at period end — fails toward unbilled,
 customer-favorable, prod population zero.
+
+**D43 phase-1+2 progress (2026-07-12).** Phase 1 (browser softphone) and
+phase 2 (inbound ring + voicemail + screening + CNAM) are BUILT and the
+deletion is DONE:
+
+- Outbound: POST /v1/webrtc/token mints per-member credentials on the shared
+  WebRTC connection; POST /v1/calls/browser authorizes (all gates
+  server-side) and the SDK dials with the `oc_customer` tag so billing/
+  threading ride the existing webhook path unchanged.
+- Inbound: call.initiated rings every eligible member's credential in
+  parallel (`brm` legs; #106 'text' holders only; the caller keeps carrier
+  ringback — nothing answers or bills until a human does). First answer wins
+  atomically (api_claim_ring_answer); the winner's answer stamps the `bri`
+  tag whose timestamp anchors talk-time billing (new call_records leg
+  'in_browser' in the one D36 pool). Last leg to fail → voicemail
+  (api_ring_leg_failed, exactly-once): TTS greeting → beeped mp3 (≤120s) →
+  fetched into the private 'voicemails' bucket inside Telnyx's 10-minute
+  window → Telnyx copy deleted → outcome upgraded via the voicemail-wins
+  merge → threaded with CREATE + a playable timeline line. Text-back fires
+  for every unanswered path.
+- Line model (founder-binding): the calls row lands at call.initiated
+  (outcome null = the line is occupied); a busy line goes straight to
+  voicemail. One live call per number; NO conferencing ever.
+- Screening: off/flag/divert. Telnyx-side both flag and divert map to
+  flag_calls — divert is OUR routing (flagged → voicemail), so a misflagged
+  human can still leave a message. Verdict + STIR/SHAKEN + dipped caller
+  name persist on the calls row for honest labels.
+- DELETED (founder: "no forwarding whatsoever"): companies.forward_to_cell,
+  the D38 cell bridge (POST /v1/calls), the D40 cell verification (endpoints
+  + company_members.call_cell_* columns), the ForwardCard/YourCellCard/
+  dialog UI, and the marketing "rings your cell" copy. The webhook keeps
+  classifying legacy forward-leg tags so calls in flight across the deploy
+  terminate correctly; nothing creates them anymore.
+- Settings › Calling (nav renamed from "Missed calls"; slug kept): text-back,
+  voicemail greeting (spoken default from the company name), screening
+  choice, CNAM display name + caller-name lookup — synced per number.
+- Open for phase 3: hold/transfer/call-waiting/in-call notes, outbound
+  in-flight rows at call.initiated (the browser-dial guard currently only
+  sees rows after hangup), and real-device audio verification (mic + WebRTC
+  cannot run in the screenshot harness — founder test pending).
+

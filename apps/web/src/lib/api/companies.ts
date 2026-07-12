@@ -60,8 +60,6 @@ export interface CompanyPatch {
   /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
   mctb_enabled?: boolean;
   mctb_message?: string | null;
-  /** Optional E.164 cell to forward calls to; null clears it. */
-  forward_to_cell?: string | null;
   /** D43 Calls v2 (O/A): voicemail greeting (null = spoken default),
    *  screening routing, CNAM display name (<=15 alnum+space; null clears),
    *  inbound caller-name lookup. */

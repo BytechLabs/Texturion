@@ -1,45 +1,26 @@
 /**
- * Inbound-call Call-Control handler (FEATURE-GAPS voice wave, Step 1c),
- * dispatched from /webhooks/telnyx on `call.*` event types (same verified,
- * ledgered, ack-then-waitUntil path the messaging webhooks use).
+ * Call-Control webhook handler, dispatched from /webhooks/telnyx on `call.*`
+ * event types (same verified, ledgered, ack-then-waitUntil path the
+ * messaging webhooks use).
  *
- * Flow for an INBOUND call to a per-company number:
+ * D43 (#135): the browser is the phone. An INBOUND call to a company number
+ * rings every eligible member's WebRTC leg (the ring engine —
+ * ./inbound-ring); unanswered calls take a voicemail; the missed text-back
+ * fires for every unanswered path. Cell forwarding and the D38 cell bridge
+ * are DELETED — no call ever dials a personal cell.
  *
- *   call.initiated (direction=incoming)
- *     → resolve the receiving number → (company, phone_number).
- *     → load the company's forward_to_cell.
- *         - forward_to_cell SET  → ANSWER the inbound leg (POST
- *           /v2/calls/:id/actions/answer) and DIAL the cell as a second leg
- *           with timeout_secs + AMD (client_state='mctb_forward' so the
- *           forward leg's events are identifiable), then WAIT for its
- *           terminal signal.
- *         - forward_to_cell NULL → do NOT answer. There is no one to connect
- *           the caller to, so answering would put them into dead air (and
- *           bill the leg). The call rings out naturally — the caller hears
- *           exactly "nobody picked up" — and the inbound leg's later
- *           call.hangup is the missed signal.
+ * Leg classification is purely from the echoed client_state tag (the routing
+ * decision captured at call time): 'brm' member ring legs, 'bri' the inbound
+ * leg once a browser answered it (the tag carries the answer timestamp — the
+ * talk-time/billing anchor), 'vmi' the inbound leg in voicemail, 'oc_agent'/
+ * 'oc_customer' outbound legs, and NO tag = the raw inbound customer leg
+ * (its hangup with nobody answered IS the miss). The legacy 'mctb_forward'/
+ * 'mctb_inbound_fwd' tags remain classifiable so any call in flight across
+ * the D43 deploy still terminates correctly; nothing creates them anymore.
  *
- *   call.machine.detection.ended (forward leg) → AMD verdict:
- *     'human' → answered, stop. 'machine'/'not_human' → MISSED → text-back.
- *
- *   call.hangup → compute missed per {@link computeMissedFromEvent}; on missed
- *     fire the text-back + crew alert via {@link sendMissedCallText}.
- *
- * "Missed" is COMPUTED from the dial timeout + AMD result (no human answered in
- * time) — never a bare hangup on an answered call. Idempotency is per
- * call_session_id at the claim RPC, so a retried webhook never double-texts.
- *
- * client_state tagging (per the Telnyx transfer contract — the two params tag
- * DIFFERENT legs): `client_state` attaches to the leg the command is issued ON
- * (the inbound leg), `target_leg_client_state` to the NEW dialed leg. We stamp
- * BOTH on the transfer: 'mctb_inbound_fwd' on the inbound leg and
- * 'mctb_forward|<caller>' on the forward leg. Terminal events then classify
- * their leg from the echoed tag alone — 'mctb_forward' = the forward leg
- * (decides missed/answered), 'mctb_inbound_fwd' = the inbound leg of a
- * forwarded call (never decides), NO tag = the inbound leg of a NO-FORWARD
- * call (we issued no commands on it; its hangup IS the miss). Deciding from
- * the tag — the state at call time — also means a mid-call settings change to
- * forward_to_cell can never flip how the in-flight call is computed.
+ * "Missed" is COMPUTED per {@link computeMissedFromEvent} — never a bare
+ * hangup on an answered call. Idempotency is per call_session_id at the
+ * claim RPC, so a retried webhook never double-texts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 

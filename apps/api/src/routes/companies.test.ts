@@ -605,7 +605,7 @@ describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2
 });
 
 describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)", () => {
-  it("admin saves mctb_enabled + mctb_message + forward_to_cell and enables voice", async () => {
+  it("admin saves mctb_enabled + mctb_message and enables voice", async () => {
     const sb = stubWithRole("admin");
     // #134 review: ENABLING call features reads the subscription status (an
     // honest 402 for canceled/pre-checkout beats a silently dead setting).
@@ -627,7 +627,6 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
         mctb_enabled: true,
         mctb_message:
           "Sorry we missed your call — reply with your address and we'll book you in.",
-        forward_to_cell: "+16135559999",
       },
     });
     expect(res.status).toBe(200);
@@ -635,7 +634,6 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
       mctb_enabled: true,
       mctb_message:
         "Sorry we missed your call — reply with your address and we'll book you in.",
-      forward_to_cell: "+16135559999",
     });
   });
 
@@ -656,13 +654,12 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
       method: "PATCH",
       companyId: COMPANY_ID,
-      body: { mctb_enabled: true, forward_to_cell: "+16135559999" },
+      body: { mctb_enabled: true },
     });
     expect(res.status).toBe(200);
     // The settings write landed…
     expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
       mctb_enabled: true,
-      forward_to_cell: "+16135559999",
     });
     // …no module gate consulted…
     expect(sb.find("GET", "/rest/v1/company_modules")).toHaveLength(0);
@@ -670,33 +667,19 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(1);
   });
 
-  it("422s an invalid forward_to_cell (not a US/CA number)", async () => {
+  it("D43: forward_to_cell is DELETED — a PATCH carrying it is a 422 unknown field", async () => {
     const sb = stubWithRole("admin");
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
       method: "PATCH",
       companyId: COMPANY_ID,
-      body: { forward_to_cell: "+447700900000" }, // UK number
+      body: { forward_to_cell: "+16135559999" },
     });
+    // The schema no longer knows the field; with nothing else in the body
+    // the "provide at least one field" refinement refuses it.
     expect(res.status).toBe(422);
     expect(await errorCodeOf(res)).toBe("validation_failed");
-  });
-
-  it("clears forward_to_cell with null (and does not enable voice)", async () => {
-    const sb = stubWithRole("admin");
-    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
-    stubFetch(jwksRoute(auth), sb.route);
-    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
-      method: "PATCH",
-      companyId: COMPANY_ID,
-      body: { forward_to_cell: null },
-    });
-    expect(res.status).toBe(200);
-    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
-      forward_to_cell: null,
-    });
-    // No phone_numbers lookup — nothing turned voice on.
-    expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
 
   it("clears mctb_message with an empty value", async () => {
@@ -756,7 +739,7 @@ describe("PATCH /v1/company — call-feature honesty gate (#134 review)", () => 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
       method: "PATCH",
       companyId: COMPANY_ID,
-      body: { mctb_enabled: false, forward_to_cell: null },
+      body: { mctb_enabled: false },
     });
     expect(res.status).toBe(200);
   });

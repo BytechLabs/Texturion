@@ -1,47 +1,15 @@
 /**
- * Missed-call text-back (FEATURE-GAPS voice wave, Step 1c). Driven by Telnyx
- * Call-Control webhook events for an INBOUND call to a per-company number.
+ * Missed-call classification + the missed-call text-back (MCTB).
  *
- * HOW WE COMPUTE "MISSED" (the load-bearing rule — NOT a bare call.hangup):
- *
- *   A call is MISSED when no human answered it live within the dial window.
- *   Concretely, given the owner's optional forward_to_cell:
- *
- *   (A) forward_to_cell IS SET → on the inbound `call.initiated` we ANSWER the
- *       inbound leg and DIAL the cell as a second leg with:
- *         - timeout_secs  (the ring window), and
- *         - answering_machine_detection = 'detect_beep' (AMD).
- *       The outbound (forward) leg's `call.hangup` carries a `hangup_cause`, and
- *       AMD emits `call.machine.detection.ended` with `result`. We treat the
- *       call as MISSED when, for the FORWARD leg, ANY of:
- *         - hangup_cause is 'timeout' / 'time_out' / 'no_answer' (rang out), OR
- *         - hangup_cause is 'busy' / 'rejected' / 'call_rejected' (declined), OR
- *         - AMD result is 'machine' or 'not_human' (voicemail/IVR picked up —
- *           a human did NOT answer in time).
- *       We treat it as ANSWERED (do NOT text) when the forward leg's AMD result
- *       is 'human' — a person picked up, so there is nothing to text back about.
- *
- *   (B) forward_to_cell IS NULL → there is no one to answer the call live, so
- *       an inbound `call.hangup` (the caller gave up / the carrier ended the
- *       unanswered inbound leg) is a MISSED call immediately.
- *
- *   The compute is expressed by {@link computeMissedFromEvent}, a pure function
- *   over the (event_type, payload) pair plus the event's LEG (classified from
- *   the client_state tag stamped at call time) — fully unit-testable without
- *   any network.
- *
- * On COMPUTED-MISSED and mctb_enabled with a non-empty mctb_message, we route
- * through the SHARED auto-send guard (claim_missed_call_text) to:
- *   - thread the caller into (create if needed) a conversation,
- *   - send ONE booking-forward SMS (reply-exempt, D4; opt-out + STOP honored),
- *   - log a 'missed_call' conversation_event (idempotent per call_id), and
- *   - fire a crew-wide alert (the §8 notification pipeline, reused).
- *
- * Idempotency: the RPC dedupes on the per-call event (call_session_id), so a
- * retried Call-Control webhook — Telnyx retries like the messaging webhooks —
- * never double-texts. The webhook ledger (webhook_events PK) is the outer guard;
- * this RPC-level check is the inner guard for the same call arriving via two
- * different event ids.
+ * D43 (#135): the browser is the phone — an unanswered inbound call (nobody
+ * answered a browser ring, the caller reached voicemail, the line was busy,
+ * or the workspace was gated) is a MISS, and the text-back fires once per
+ * call. computeMissedFromEvent stays a PURE cause-table classifier over
+ * (eventType, hangup cause, AMD verdict, leg): deciding from the leg tag —
+ * the state captured at call time — means a mid-call settings change can
+ * never flip how an in-flight call is computed. The legacy forward-leg
+ * vocabulary remains for calls in flight across the D43 deploy; nothing
+ * dials a cell anymore.
  */
 import { estimateSegments, isUsCaDestination } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -140,7 +108,6 @@ interface MctbSettings {
   name: string;
   mctb_enabled: boolean;
   mctb_message: string | null;
-  forward_to_cell: string | null;
   subscription_status: string;
 }
 
@@ -181,9 +148,7 @@ export async function sendMissedCallText(
   // company without the feature pays nothing beyond this select.
   const { data: companyRows, error: companyError } = await db
     .from("companies")
-    .select(
-      "name,mctb_enabled,mctb_message,forward_to_cell,subscription_status",
-    )
+    .select("name,mctb_enabled,mctb_message,subscription_status")
     .eq("id", args.companyId)
     .limit(1);
   if (companyError) {

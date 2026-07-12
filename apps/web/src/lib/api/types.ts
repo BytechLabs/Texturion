@@ -211,8 +211,6 @@ export interface CompanyView {
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;
-  /** Optional E.164 cell the inbound call is forwarded to (null = no forward). */
-  forward_to_cell: string | null;
   /** D43 Calls v2 — voicemail greeting (null = the spoken default), the
    *  carrier-screening routing choice, and the CNAM pair (outbound display
    *  name <=15 alphanumeric+space; inbound name-dip toggle). */
@@ -787,17 +785,6 @@ export interface Call {
   voicemail_seconds: number | null;
   answered_by_user_id: string | null;
   started_at: string;
-}
-
-/**
- * GET/PUT /v1/calls/cell (D38, verification D40/#133). `verified` false =
- * the bridge refuses to dial until the texted code is confirmed;
- * `code_sent` (PUT only) = a fresh code is on its way to the cell.
- */
-export interface CallCell {
-  call_cell_e164: string | null;
-  verified: boolean;
-  code_sent?: boolean;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
