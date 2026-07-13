@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -76,6 +76,18 @@ describe("blog routes match the registry (zero dead links, both ways)", () => {
       const mdxPath = path.join(BLOG_DIR, post.slug, "content.mdx");
       expect(existsSync(mdxPath), `missing content.mdx for ${post.slug}`).toBe(
         true,
+      );
+    }
+  });
+
+  it("no post prose uses em-dashes or en-dashes (house voice rule)", () => {
+    for (const post of BLOG_POSTS) {
+      const prose = readFileSync(
+        path.join(BLOG_DIR, post.slug, "content.mdx"),
+        "utf8",
+      );
+      expect(prose, `em/en-dash in ${post.slug}/content.mdx`).not.toMatch(
+        /[–—]/,
       );
     }
   });
