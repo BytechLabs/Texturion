@@ -16,6 +16,7 @@ import {
   isDuplicateMeterIdentifierError,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
+  sweepStaleCalls,
   sweepWebhookEvents,
 } from "./crons";
 import { STUCK_SEND_SECONDS } from "./send";
@@ -543,5 +544,109 @@ describe("isDuplicateMeterIdentifierError (#53)", () => {
     ["null", null],
   ])("stays a retryable failure for %s", (_label, cause) => {
     expect(isDuplicateMeterIdentifierError(cause)).toBe(false);
+  });
+});
+
+describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
+  /** Telnyx customer-leg hangup sink. */
+  function hangupStub() {
+    return stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/hangup$/.test(url.pathname),
+      () => ({ data: { result: "ok" } }),
+    );
+  }
+
+  /** The two invariant tail stubs sweepStaleCalls always issues. */
+  function tailStubs() {
+    return [
+      stubRoute(
+        restMatch(env, "DELETE", "outbound_call_authorizations"),
+        () => new Response(null, { status: 204 }),
+      ),
+      stubRoute(rpcMatch(env, "api_sweep_stale_calls"), () => 0),
+    ];
+  }
+
+  it("hangs up an OUTBOUND call whose answer stamp was lost — answered_at=null, aged by created_at (#145)", async () => {
+    const hangup = hangupStub();
+    // Query (a): ANSWERED runaways — none here.
+    const answered = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "calls",
+        (url) => url.searchParams.get("answered_at") !== "is.null",
+      ),
+      () => [],
+    );
+    // Query (b, #145): the unstamped outbound leg the old sweep would skip.
+    const unstamped = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "calls",
+        (url) => url.searchParams.get("answered_at") === "is.null",
+      ),
+      (call) => {
+        // It really is the outbound + null-answer + creation-aged query.
+        expect(call.url.searchParams.get("direction")).toBe("eq.outbound");
+        expect(call.url.searchParams.get("created_at")).toMatch(/^lt\./);
+        return [
+          {
+            call_session_id: "sess-unstamped",
+            customer_call_control_id: "cust-ccid-unstamped",
+          },
+        ];
+      },
+    );
+    stubFetch(answered.route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
+
+    await sweepStaleCalls(env);
+
+    expect(hangup.calls).toHaveLength(1);
+    expect(hangup.calls[0].url.pathname).toBe(
+      "/v2/calls/cust-ccid-unstamped/actions/hangup",
+    );
+  });
+
+  it("hangs up each distinct leg once across both the answered and unstamped sets", async () => {
+    const hangup = hangupStub();
+    const answered = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "calls",
+        (url) => url.searchParams.get("answered_at") !== "is.null",
+      ),
+      () => [
+        { call_session_id: "sess-a", customer_call_control_id: "ccid-a" },
+        // Same leg surfaces in both queries — it must be hung up ONCE.
+        { call_session_id: "sess-dup", customer_call_control_id: "ccid-dup" },
+      ],
+    );
+    const unstamped = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "calls",
+        (url) => url.searchParams.get("answered_at") === "is.null",
+      ),
+      () => [
+        { call_session_id: "sess-dup", customer_call_control_id: "ccid-dup" },
+        { call_session_id: "sess-b", customer_call_control_id: "ccid-b" },
+      ],
+    );
+    stubFetch(answered.route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
+
+    await sweepStaleCalls(env);
+
+    const hungUp = hangup.calls.map((c) => c.url.pathname).sort();
+    expect(hungUp).toEqual([
+      "/v2/calls/ccid-a/actions/hangup",
+      "/v2/calls/ccid-b/actions/hangup",
+      "/v2/calls/ccid-dup/actions/hangup",
+    ]);
   });
 });

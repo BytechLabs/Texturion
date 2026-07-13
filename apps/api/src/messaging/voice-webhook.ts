@@ -156,6 +156,13 @@ export async function companyOverVoiceCap(
   db: SupabaseClient,
   companyId: string,
   company: CompanyVoiceState,
+  // #144: seconds to RESERVE on top of terminated usage for calls that are
+  // already live but not yet billed (they bill only on hangup). The outbound
+  // starter passes a per-live-call estimate so a tenant sitting AT the cap
+  // can't fan out several concurrent new calls that each pass the same
+  // pre-answer boundary and collectively overshoot. 0 (the default, used by the
+  // inbound path) preserves the exact terminated-usage boundary.
+  reserveSeconds = 0,
 ): Promise<boolean> {
   if (!company.plan || !company.current_period_start) return false;
   const { data, error } = await db.rpc("api_period_forward_seconds", {
@@ -165,7 +172,7 @@ export async function companyOverVoiceCap(
   if (error) {
     throw new Error(`voice usage lookup failed: ${error.message}`);
   }
-  const usedSeconds = Number(data);
+  const usedSeconds = Number(data) + reserveSeconds;
   // #134/D42: calling is included on every plan — the grandfathered legacy
   // pause line retired with the module; every workspace gets the plan
   // allowance × cap multiplier.

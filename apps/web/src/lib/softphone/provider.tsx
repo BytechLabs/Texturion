@@ -522,13 +522,17 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           to,
           phone_number_id: phoneNumberId,
         });
-        holdActive();
+        // Build the client + leg BEFORE demoting the current call (#148). If
+        // ensureClient()/newCall throws (a token-mint or webrtc import failure
+        // during a socket flap), a pre-emptive hold would have left the member's
+        // active call needlessly on hold. Hold only once the new leg exists.
         const client = await ensureClient();
         const call = client.newCall({
           destinationNumber: auth.to,
           callerNumber: auth.from,
           clientState: auth.client_state,
         });
+        holdActive();
         callsRef.current.set(call.id, call);
         dispatch({
           type: "placing",

@@ -162,6 +162,13 @@ const outboundBodySchema = z
   });
 type OutboundBody = z.infer<typeof outboundBodySchema>;
 
+/** #144: committed-minutes reserve per already-live outbound call when checking
+ *  the spending cap. A conservative estimate (2 min) — big enough to stop a
+ *  near-cap tenant from fanning out several concurrent new calls, small enough
+ *  that it only ever bites within a couple minutes of the cap. In-flight calls
+ *  are never dropped (a soft cap); they finish and bill their real talk time. */
+const OUTBOUND_LIVE_CALL_RESERVE_SECS = 120;
+
 /** The resolved parties + gate result an outbound call authorization needs.
  *  contactId is null for a dialer call to a not-yet-known number (threading
  *  find-or-creates the contact on answer). */
@@ -361,7 +368,27 @@ async function authorizeOutboundCall(
       "Your subscription isn't active.",
     );
   }
-  if (await companyOverVoiceCap(db, companyId, company)) {
+  // #144: reserve committed minutes for the company's already-live outbound
+  // calls (they bill only on hangup, so they're invisible to the terminated-
+  // usage cap check). Without this, a tenant AT the cap could start one call
+  // per number simultaneously — each passing the same pre-answer boundary — and
+  // overshoot. Counting live outbound calls tightens the boundary only near the
+  // cap; a crew comfortably under it is never affected. (The exact same-instant
+  // double-start before either row exists remains bounded by the runaway
+  // ceiling in sweepStaleCalls.)
+  const liveOutbound = unwrap<{ id: string }[]>(
+    await db
+      .from("calls")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("direction", "outbound")
+      .is("outcome", null)
+      .not("customer_call_control_id", "is", null)
+      .limit(50),
+    "live outbound count",
+  );
+  const reserveSeconds = liveOutbound.length * OUTBOUND_LIVE_CALL_RESERVE_SECS;
+  if (await companyOverVoiceCap(db, companyId, company, reserveSeconds)) {
     return errorResponse(
       c,
       "usage_cap_reached",

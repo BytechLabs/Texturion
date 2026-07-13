@@ -366,34 +366,63 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
   // (unlike the legacy cell forward's time_limit_secs — a client-originated /
   // browser-answered leg can't carry one), so a member who leaves a call
   // connected (a PBX hold queue, a forgotten tab) could run it for hours. Hang
-  // up the customer leg of any call answered longer ago than the hard ceiling;
-  // its terminal hangup then bills the talk time and finalizes the outcome
+  // up the customer leg of any call open longer ago than the hard ceiling; its
+  // terminal hangup then bills the talk time and finalizes the outcome
   // normally. This bounds a single call's cost even between period-cap checks.
+  const ceiling = new Date(Date.now() - MAX_LIVE_CALL_MS).toISOString();
+
+  // (a) The common case — an ANSWERED call open past the ceiling (talk time is
+  //     known, so age by answered_at).
   const { data: runaway, error: runawayError } = await db
     .from("calls")
     .select("call_session_id,customer_call_control_id")
     .is("outcome", null)
     .not("answered_at", "is", null)
     .not("customer_call_control_id", "is", null)
-    .lt(
-      "answered_at",
-      new Date(Date.now() - MAX_LIVE_CALL_MS).toISOString(),
-    )
+    .lt("answered_at", ceiling)
     .limit(200);
   if (runawayError) {
     throw new Error(`runaway calls read failed: ${runawayError.message}`);
   }
-  for (const row of runaway ?? []) {
-    const ccid = row.customer_call_control_id as string;
+
+  // (b) #145: the call.answered webhook can race ahead of call.initiated and
+  //     leave answered_at=null on a genuinely-connected OUTBOUND call. Such a
+  //     call is EXCLUDED from (a), so if its terminal hangup is lost it could
+  //     run unbounded on the carrier (direct Telnyx cost) while billing sees 0
+  //     seconds — defeating the exact backstop, for the exact out-of-order race
+  //     the surrounding code already treats as possible. Catch it by CREATION
+  //     age: an outbound call still open a full ceiling after it was minted is
+  //     runaway regardless of a missing answer stamp. (Inbound outcome-null
+  //     rows are left to api_sweep_stale_calls, which flips them to 'missed'.)
+  const { data: unstamped, error: unstampedError } = await db
+    .from("calls")
+    .select("call_session_id,customer_call_control_id")
+    .is("outcome", null)
+    .is("answered_at", null)
+    .eq("direction", "outbound")
+    .not("customer_call_control_id", "is", null)
+    .lt("created_at", ceiling)
+    .limit(200);
+  if (unstampedError) {
+    throw new Error(`unstamped runaway calls read failed: ${unstampedError.message}`);
+  }
+
+  // One hangup per distinct customer leg across both sets.
+  const runawayByCcid = new Map<string, string>();
+  for (const row of [...(runaway ?? []), ...(unstamped ?? [])]) {
+    runawayByCcid.set(
+      row.customer_call_control_id as string,
+      row.call_session_id as string,
+    );
+  }
+  for (const [ccid, sessionId] of runawayByCcid) {
     try {
       await telnyxRequest(env, {
         method: "POST",
         path: `/v2/calls/${ccid}/actions/hangup`,
         body: {},
       });
-      console.warn(
-        `runaway call hung up: session ${row.call_session_id as string}`,
-      );
+      console.warn(`runaway call hung up: session ${sessionId}`);
     } catch (cause) {
       // Dead leg / already gone (4xx) is the normal case — the stale-outcome
       // RPC below finalizes its row.

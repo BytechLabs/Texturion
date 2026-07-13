@@ -78,15 +78,34 @@ function formatPushNotification(rawText, origin) {
       body,
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-72.png",
-      // A call is one live alert (tag 'loonext:call'), kept on screen until
-      // acted on and buzzing; a message is one-per-thread and quiet.
-      tag: isCall ? "loonext:call" : `loonext:${url}`,
+      // A call is one live alert PER SESSION, kept on screen until acted on and
+      // buzzing; a message is one-per-thread and quiet. Scoping a call's tag to
+      // its session (#149) keeps two concurrent inbound calls on two different
+      // numbers as DISTINCT notifications — a shared 'loonext:call' tag would let
+      // the second silently overwrite the first, hiding a still-live call — while
+      // repeat pushes for the SAME call still coalesce.
+      tag: isCall ? callTag(url, origin) : `loonext:${url}`,
       renotify: true,
       requireInteraction: isCall,
       vibrate: isCall ? [200, 100, 200, 100, 200] : undefined,
       data: { url },
     },
   };
+}
+
+/**
+ * Per-session tag for a ringing-call notification. The session rides on the
+ * push url as `?call=<session>`; scope the tag to it so concurrent calls don't
+ * collapse. Falls back to the constant `loonext:call` when absent/unparseable
+ * so a malformed payload behaves exactly as before.
+ */
+function callTag(url, origin) {
+  try {
+    const session = new URL(url, origin).searchParams.get("call");
+    return session ? `loonext:call:${session}` : "loonext:call";
+  } catch {
+    return "loonext:call";
+  }
 }
 
 self.addEventListener("install", (event) => {

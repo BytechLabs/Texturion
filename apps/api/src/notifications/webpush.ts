@@ -29,6 +29,14 @@ export interface PushResult {
    * (browser unsubscribed / expired) — the caller deletes the row.
    */
   gone: boolean;
+  /**
+   * A bounded snippet of the push service's error body on a NON-OK response
+   * (#147): FCM/Mozilla explain the rejection here (e.g. a VAPID key mismatch),
+   * which is the lead for diagnosing a silent push-to-wake outage. Empty on a
+   * successful send (we never read the body then). Never contains our payload —
+   * it's the service's own diagnostic text.
+   */
+  errorBody: string;
 }
 
 const UNCOMPRESSED_POINT_BYTES = 65;
@@ -273,11 +281,23 @@ export async function sendWebPush(
     },
     body: body as BodyInit,
   });
-  // Push service responses carry no body we need; drain to release the socket.
-  await response.body?.cancel();
+  // On success there's no body we need — drain to release the socket. On a
+  // NON-OK response, keep a bounded snippet of the service's error text (#147):
+  // it's the diagnostic lead for a silent push outage (a VAPID mismatch etc.).
+  let errorBody = "";
+  if (response.ok) {
+    await response.body?.cancel();
+  } else {
+    try {
+      errorBody = (await response.text()).slice(0, 300).trim();
+    } catch {
+      /* body already consumed / not text — status alone still tells the story */
+    }
+  }
   return {
     ok: response.ok,
     status: response.status,
     gone: response.status === 404 || response.status === 410,
+    errorBody,
   };
 }

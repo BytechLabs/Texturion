@@ -258,7 +258,8 @@ export async function notifyInboundMessage(
           }
         } else if (!result.ok) {
           throw new Error(
-            `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}`,
+            `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
+              (result.errorBody ? ` — ${result.errorBody}` : ""),
           );
         }
       } catch (cause) {

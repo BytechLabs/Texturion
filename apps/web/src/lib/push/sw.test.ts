@@ -149,11 +149,32 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
     expect(title).toBe("Incoming call");
     expect(options).toMatchObject({
       body: "+16135551000",
-      tag: "loonext:call", // one live call alert, never collapsed onto a thread
+      tag: "loonext:call", // no session in the url → the constant fallback
       requireInteraction: true, // stays on screen until acted on
       data: { url: "/calls" },
     });
     expect(Array.isArray(options.vibrate)).toBe(true);
+  });
+
+  it("scopes a call notification's tag to its session so concurrent calls don't collapse (#149)", () => {
+    const one = sw.formatPushNotification(
+      JSON.stringify({ kind: "call", title: "Call", url: "/calls?call=sess-A" }),
+      ORIGIN,
+    );
+    const two = sw.formatPushNotification(
+      JSON.stringify({ kind: "call", title: "Call", url: "/calls?call=sess-B" }),
+      ORIGIN,
+    );
+    expect(one.options.tag).toBe("loonext:call:sess-A");
+    expect(two.options.tag).toBe("loonext:call:sess-B");
+    // Two live calls on two numbers render as DISTINCT notifications.
+    expect(one.options.tag).not.toBe(two.options.tag);
+    // A repeat push for the SAME call still coalesces (same tag).
+    const repeat = sw.formatPushNotification(
+      JSON.stringify({ kind: "call", title: "Call", url: "/calls?call=sess-A" }),
+      ORIGIN,
+    );
+    expect(repeat.options.tag).toBe(one.options.tag);
   });
 
   it("still shows a calm generic notification for empty or garbage payloads", () => {

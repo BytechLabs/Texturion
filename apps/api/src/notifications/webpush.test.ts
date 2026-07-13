@@ -183,7 +183,12 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
       url: `${env.APP_ORIGIN}/conversations/bbbbbbbb-0000-4000-8000-00000000000b`,
     });
     const result = await sendWebPush(env, subscription.target, payload);
-    expect(result).toEqual({ ok: true, status: 201, gone: false });
+    expect(result).toEqual({
+      ok: true,
+      status: 201,
+      gone: false,
+      errorBody: "",
+    });
 
     expect(service.captured.headers?.get("content-encoding")).toBe("aes128gcm");
     expect(service.captured.headers?.get("ttl")).toBe(String(24 * 60 * 60));
@@ -263,9 +268,26 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
       const service = pushServiceRoute(status);
       stubFetch(service.route);
       const result = await sendWebPush(env, subscription.target, "x");
-      expect(result).toEqual({ ok: false, status, gone });
+      expect(result).toEqual({ ok: false, status, gone, errorBody: "" });
       vi.unstubAllGlobals();
     }
+  });
+
+  it("captures a bounded snippet of the push service's error body on a non-OK send (#147)", async () => {
+    const subscription = await makeSubscription();
+    const longReason = "UnauthorizedRegistration: VAPID key mismatch. ".repeat(20);
+    const route: FetchRoute = (url) =>
+      url.href.startsWith(ENDPOINT)
+        ? new Response(longReason, { status: 403 })
+        : undefined;
+    stubFetch(route);
+
+    const result = await sendWebPush(env, subscription.target, "x");
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(403);
+    expect(result.errorBody).toContain("VAPID key mismatch");
+    // Bounded — the diagnostic snippet never balloons the log line.
+    expect(result.errorBody.length).toBeLessThanOrEqual(300);
   });
 
   it("rejects malformed subscription keys before touching the network", async () => {

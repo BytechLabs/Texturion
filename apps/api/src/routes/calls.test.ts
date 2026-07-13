@@ -331,6 +331,44 @@ describe("POST /v1/calls/browser (D43)", () => {
     });
   });
 
+  it("402s when live in-flight calls' reserved minutes push a near-cap tenant over (#144)", async () => {
+    // Terminated usage alone is 60s UNDER the cap (2,500 × 3 = 450,000s), so
+    // the old boundary check would authorize. Two already-live outbound calls
+    // reserve 2 × 120s = 240s, projecting past the cap → refuse the fan-out.
+    const sb = browserWorld({
+      voiceSeconds: 7500 * 60 - 60,
+      inflight: [{ id: "live-1" }, { id: "live-2" }],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "usage_cap_reached" },
+    });
+    // The atomic line claim is never reached — the cap refuses first.
+    expect(sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line")).toHaveLength(
+      0,
+    );
+  });
+
+  it("authorizes a near-cap tenant with NO live calls — the reserve only bites on concurrency (#144)", async () => {
+    // Same 60s-under-cap usage, but no in-flight calls → reserve 0 → allowed.
+    const sb = browserWorld({ voiceSeconds: 7500 * 60 - 60, inflight: [] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("409s while ANY call on this NUMBER is in flight (line model — the atomic claim returns busy)", async () => {
     const sb = browserWorld({ lineBusy: true });
     stubFetch(jwksRoute(auth), sb.route);

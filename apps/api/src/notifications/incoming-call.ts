@@ -126,11 +126,12 @@ async function deliverIncomingCallPush(
             "info",
           );
         } else if (!result.ok) {
-          // #142: surface WHICH status came back (VAPID 403, malformed 400,
-          // throttled 429, push-service 5xx) so a total wake outage is
-          // diagnosable — still best-effort, still never throws.
+          // #142/#147: surface WHICH status came back (VAPID 403, malformed 400,
+          // throttled 429, push-service 5xx) AND the service's own error text —
+          // the lead for diagnosing a silent wake outage. Best-effort, no throw.
+          const detail = result.errorBody ? ` — ${result.errorBody}` : "";
           Sentry.captureMessage(
-            `incoming-call push: delivery failed (${endpointHost(sub.endpoint)}, HTTP ${result.status})`,
+            `incoming-call push: delivery failed (${endpointHost(sub.endpoint)}, HTTP ${result.status})${detail}`,
             "warning",
           );
         }
