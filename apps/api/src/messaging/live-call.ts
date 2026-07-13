@@ -144,6 +144,8 @@ export interface LiveCallRow {
   customer_call_control_id: string | null;
   answered_at: string | null;
   outcome: string | null;
+  /** 'inbound' | 'outbound' — ring-me (#139) is inbound-only. */
+  direction: string | null;
 }
 
 export async function liveCallBySession(
@@ -153,7 +155,7 @@ export async function liveCallBySession(
   const { data, error } = await db
     .from("calls")
     .select(
-      "company_id,phone_number_id,conversation_id,caller_e164,customer_call_control_id,answered_at,outcome",
+      "company_id,phone_number_id,conversation_id,caller_e164,customer_call_control_id,answered_at,outcome,direction",
     )
     .eq("call_session_id", sessionId)
     .limit(1);

@@ -74,6 +74,7 @@ function liveWorld(opts: {
             customer_call_control_id: CUSTOMER_CCID,
             answered_at: "2026-07-12T00:00:00Z",
             outcome: null,
+            direction: "inbound",
             ...(opts.call ?? {}),
           },
         ],
@@ -397,6 +398,30 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
     expect(res.status).toBe(409);
+  });
+
+  it("409s a still-ringing OUTBOUND call and fires NO dial (#139 direction gate)", async () => {
+    // A teammate's in-flight outbound call: outcome + answered_at both null,
+    // both ccids set — it would pass every other gate. Only direction stops it.
+    const sb = liveWorld({
+      call: { answered_at: null, outcome: null, direction: "outbound" },
+    });
+    const telnyx = telnyxDialAndActions();
+    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/ring-me`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(409);
+    // No spurious billable dial and no ledgered leg onto the outbound line.
+    expect(telnyx.calls.filter((c) => c.url.pathname === "/v2/calls")).toHaveLength(
+      0,
+    );
+    expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(0);
   });
 
   it("404s a session from another company (scoped read finds nothing)", async () => {

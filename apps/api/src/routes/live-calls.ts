@@ -555,6 +555,15 @@ liveCallsRoutes.post(
     if (!call || call.company_id !== companyId) {
       return errorResponse(c, "not_found", "No such call.");
     }
+    // ring-me is INBOUND push-to-wake only. A still-ringing OUTBOUND call
+    // (outcome + answered_at both null, both ccids set) would otherwise pass
+    // every gate below — letting any text-level member fire a spurious billable
+    // dial onto a teammate's live outbound line and, on a race, bridge-steal it
+    // (#139). The ring engine never fans a member ring leg onto an outbound
+    // call, so there is nothing legitimate to re-ring here.
+    if (call.direction !== "inbound") {
+      return errorResponse(c, "conflict", "This call can't be rung.");
+    }
     if (call.outcome !== null || call.answered_at) {
       return errorResponse(c, "conflict", "This call isn't ringing anymore.");
     }
