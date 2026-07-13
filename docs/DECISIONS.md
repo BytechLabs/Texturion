@@ -1658,3 +1658,43 @@ bar → Allow") instead of a silent "ended", creates NO line reservation (so no
 "on another call" phantom on retry), and never bills. Tracks are released
 immediately; the SDK re-acquires with the granted permission (no second prompt).
 
+**D43 — INBOUND calling fixed: two bugs, live-verified answered call (2026-07-12).**
+Founder: "they called me, nothing popped up, went to voicemail, then 'this line
+is on another call'." (1) LINE-WEDGE: `handleTerminalCallEvent` gated inbound-
+family legs on `direction === 'incoming'`, but Telnyx OMITS `direction` on the
+LATER events of an ANSWERED leg (the voicemail leg's call.hangup), so the hangup
+that resolves the call was dropped → the calls row stuck outcome-null → line busy
+4h → every SUBSEQUENT inbound call correctly skipped the ring → straight to
+voicemail (outbound got "on another call"). FIX: gate inbound-family on the SAME
+unforgeable calls-row-exists check the outbound legs use (a forgery has no
+server-created row; the bri/vmi/in_browser legs all share the customer session
+that holds it). (2) RING NEVER REACHED THE BROWSER: the ring dialed
+`sip:<sip_username>@sip.telnyx.com` from the number's VOICE connection, but every
+browser registers its credential/JWT on the WebRTC connection (webrtc.ts) — a
+SIP-username INVITE only resolves to a registered client when it enters THAT
+connection's realm, so the leg came back `state='failed'`. FIX (both halves
+required): dial the ring FROM `TELNYX_WEBRTC_CONNECTION_ID` (inbound-ring.ts;
+guard → voicemail if unset) + set `sip_uri_calling_preference:'internal'` on that
+connection (the preference is read on the ORIGINATING connection; create-default
+is null/disabled — see docs/deploy/04-telnyx.md). Diagnosed with a 3-angle +
+adversarial-verify Workflow. Verified LIVE: inbound went failed→ringing→answered,
+`outcome=answered`, 0 wedged rows. Also this wave: call-any-contact + a real
+dialer (`/v1/calls/browser` takes conversation_id | contact_id | raw `to`; US/CA
+NANP guard).
+
+**D43 — softphone reliability + in-call UX round (2026-07-12).** Building on the
+inbound fix, four increments (all `provider.tsx`-centred, device-verified per its
+contract, tsc+eslint+suite green each): (a) AUTO-RECOVERY — the SDK self-reconnects
+transient socket drops, but on exhaustion (long-backgrounded tab, network flap,
+token expiry) nothing re-established it → the phone silently stopped RECEIVING
+until reload; now `telnyx.socket.close`/`telnyx.error` + `visibilitychange`/`online`
+rebuild the client (fresh token → fresh SIP registration) ONLY when down (never
+disturbs a live call). (b) A "Ready / Connecting…" status chip on /calls — the
+whole incident was invisible because nothing showed whether the browser was
+registered. (c) OS notification on an inbound ring (backgrounded-tab members miss
+the in-app call bar); permission rides the existing Web Push flow, never prompts.
+(d) In-call DTMF keypad (`call.dtmf(digit)`) for phone-menu/IVR navigation.
+LESSON (browser-as-phone): a WebRTC softphone only rings while a tab is OPEN +
+its socket registered; "ring when closed" needs push-to-wake (Telnyx supports it
+mobile-first) — a separate, larger piece, deferred.
+
