@@ -159,6 +159,37 @@ describe("init", () => {
     });
   });
 
+  it("re-upserts the existing subscription on load so a pruned/rotated server row self-heals (#143)", async () => {
+    const { machine, env } = harness({
+      permission: "granted",
+      existing: fakeSubscription("https://push.example.net/rotated").subscription,
+    });
+    await machine.init();
+    expect(machine.snapshot().phase).toBe("subscribed");
+    // The reconcile re-POSTs the current browser subscription — so a
+    // server-side prune (incoming-call 410 cleanup) is repaired on next open.
+    expect(env.saveSubscription).toHaveBeenCalledTimes(1);
+    expect(env.saveSubscription).toHaveBeenCalledWith({
+      endpoint: "https://push.example.net/rotated",
+      keys: { p256dh: "P256DH", auth: "AUTH" },
+    });
+  });
+
+  it("stays subscribed when the on-load reconcile save fails — best-effort (#143)", async () => {
+    const { machine, env } = harness({
+      permission: "granted",
+      existing: fakeSubscription().subscription,
+    });
+    vi.mocked(env.saveSubscription).mockRejectedValueOnce(new Error("offline"));
+    await machine.init();
+    // A failed reconcile must not knock the device out of 'subscribed' — it IS
+    // subscribed; the reconcile simply retries on the next init().
+    expect(machine.snapshot()).toMatchObject({
+      phase: "subscribed",
+      error: null,
+    });
+  });
+
   it("lands on idle when supported but not subscribed", async () => {
     const { machine } = harness({ permission: "default" });
     await machine.init();
@@ -276,7 +307,8 @@ describe("subscribe", () => {
       permission: "granted",
       existing: fakeSubscription().subscription,
     });
-    await machine.init(); // → subscribed
+    await machine.init(); // → subscribed (the on-load reconcile saves once here)
+    vi.mocked(env.saveSubscription).mockClear();
     await machine.subscribe();
     expect(env.saveSubscription).not.toHaveBeenCalled();
     expect(machine.snapshot().phase).toBe("subscribed");
@@ -288,6 +320,10 @@ describe("unsubscribe", () => {
     const { subscription, unsubscribed } = fakeSubscription();
     const h = harness({ permission: "granted", existing: subscription });
     await h.machine.init();
+    // Drop the init-time on-load reconcile save (#143) so tests assert only the
+    // unsubscribe sequence.
+    h.calls.length = 0;
+    vi.mocked(h.env.saveSubscription).mockClear();
     return { ...h, subscription, unsubscribed };
   }
 

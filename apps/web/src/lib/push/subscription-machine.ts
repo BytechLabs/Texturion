@@ -158,11 +158,24 @@ export function createPushMachine(
     try {
       const manager = await env.getPushManager();
       const existing = await manager.getSubscription();
-      set({
-        phase: existing && permission === "granted" ? "subscribed" : "idle",
-        permission,
-        error: null,
-      });
+      if (existing && permission === "granted") {
+        // Reconcile on load (#143): the server may have PRUNED our row after a
+        // single FCM 404/410 (the incoming-call push cleanup), or this device's
+        // FCM endpoint may have rotated, while the browser still reports us
+        // 'subscribed'. Left alone, push-to-wake stays permanently dead and the
+        // UI shows 'subscribed', so the user never re-toggles. Re-upsert the
+        // current browser subscription so a lost/rotated server row self-heals
+        // on the next app open. Best-effort: a failed save still lands us
+        // 'subscribed' (the device IS subscribed) and retries next load.
+        try {
+          await env.saveSubscription(subscriptionToKeys(existing));
+        } catch {
+          /* keep 'subscribed'; the reconcile retries on the next init() */
+        }
+        set({ phase: "subscribed", permission, error: null });
+        return;
+      }
+      set({ phase: "idle", permission, error: null });
     } catch {
       // SW registration/lookup failed — offer subscribe(), which retries and
       // surfaces a real sentence if it fails again.

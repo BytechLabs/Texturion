@@ -168,6 +168,65 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(openThread(path));
 });
 
+/**
+ * Shape a browser PushSubscription.toJSON() into the /v1/push-subscriptions
+ * body, or null when it is incomplete. Pure — asserted by the unit tests.
+ */
+function subscriptionSaveBody(json) {
+  if (!json || typeof json.endpoint !== "string") return null;
+  const keys = json.keys || {};
+  if (typeof keys.p256dh !== "string" || typeof keys.auth !== "string") {
+    return null;
+  }
+  return { endpoint: json.endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } };
+}
+
+/**
+ * `pushsubscriptionchange` (#143): the browser rotated our push endpoint (or
+ * dropped it after a server-side 404/410 prune). Web Push subscriptions rotate
+ * silently and this event is not fired reliably across browsers, so it is a
+ * best-effort renewal, NOT the primary repair — the client's on-load reconcile
+ * (subscription-machine init) is the reliable backstop.
+ *
+ * We cannot POST to the Bearer-authenticated API from here (a service worker
+ * holds no session token), so we do the two things a worker can: (1) re-subscribe
+ * with the SAME VAPID application key so a VALID browser subscription exists for
+ * the on-load reconcile to save, and (2) message any open tab so it re-saves
+ * immediately through the authenticated client instead of waiting for a reload.
+ */
+async function handlePushSubscriptionChange(event) {
+  let subscription = event && event.newSubscription ? event.newSubscription : null;
+  if (!subscription) {
+    const old = event && event.oldSubscription;
+    const applicationServerKey =
+      old && old.options ? old.options.applicationServerKey : undefined;
+    if (!applicationServerKey) return; // no key to renew with — reconcile handles it
+    try {
+      subscription = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+    } catch {
+      return; // renewal failed — the on-load reconcile is the backstop
+    }
+  }
+  const body = subscriptionSaveBody(subscription.toJSON());
+  if (!body) return;
+  const windows = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  for (const client of windows) {
+    if (typeof client.postMessage === "function") {
+      client.postMessage({ type: "loonext:push-subscription-changed" });
+    }
+  }
+}
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(handlePushSubscriptionChange(event));
+});
+
 self.addEventListener("fetch", (event) => {
   // App-shell fallback for page loads only. Everything else (API calls,
   // realtime, assets) goes straight to the network untouched.
@@ -198,4 +257,5 @@ self.__loonextSw = {
   PRECACHE,
   normalizeNotificationUrl,
   formatPushNotification,
+  subscriptionSaveBody,
 };

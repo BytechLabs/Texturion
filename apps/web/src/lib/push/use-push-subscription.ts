@@ -116,6 +116,27 @@ export function usePushSubscription(): PushSubscriptionState {
     void machineRef.current?.init();
   }, []);
 
+  useEffect(() => {
+    // #143: when the service worker renews a rotated/pruned push subscription,
+    // re-run init() — its on-load reconcile re-saves the (now valid) browser
+    // subscription through the authenticated client, so push-to-wake self-heals
+    // in an OPEN tab without waiting for a reload.
+    if (!pushSupported() || typeof navigator === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.data &&
+        (event.data as { type?: string }).type ===
+          "loonext:push-subscription-changed"
+      ) {
+        void machineRef.current?.init();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () =>
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
+
   const subscribe = useCallback(
     () => machineRef.current?.subscribe() ?? Promise.resolve(),
     [],

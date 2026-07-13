@@ -27,13 +27,21 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
   const listeners = new Map<string, (event: unknown) => void>();
   const showNotification = vi.fn(() => Promise.resolve());
   const openWindow = vi.fn(() => Promise.resolve(null));
+  const pushSubscribe = vi.fn(() =>
+    Promise.resolve({
+      toJSON: () => ({
+        endpoint: "https://push.example.net/renewed",
+        keys: { p256dh: "P256DH", auth: "AUTH" },
+      }),
+    }),
+  );
 
   const self: Record<string, unknown> = {
     addEventListener: (type: string, listener: (event: unknown) => void) => {
       listeners.set(type, listener);
     },
     location: { origin: ORIGIN },
-    registration: { showNotification },
+    registration: { showNotification, pushManager: { subscribe: pushSubscribe } },
     clients: {
       matchAll: vi.fn(() => Promise.resolve(clients)),
       openWindow,
@@ -68,6 +76,7 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
     listeners,
     showNotification,
     openWindow,
+    pushSubscribe,
     formatPushNotification: exposed.formatPushNotification as (
       rawText: string | null,
       origin: string,
@@ -76,6 +85,9 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
       rawUrl: unknown,
       origin: string,
     ) => string,
+    subscriptionSaveBody: exposed.subscriptionSaveBody as (
+      json: unknown,
+    ) => { endpoint: string; keys: { p256dh: string; auth: string } } | null,
   };
 }
 
@@ -372,5 +384,82 @@ describe("offline fallback wiring", () => {
       respondWith,
     });
     expect(respondWith).not.toHaveBeenCalled();
+  });
+});
+
+describe("subscriptionSaveBody", () => {
+  const sw = loadServiceWorker();
+
+  it("shapes a complete subscription into the POST body", () => {
+    expect(
+      sw.subscriptionSaveBody({
+        endpoint: "https://push.example.net/x",
+        keys: { p256dh: "P", auth: "A" },
+      }),
+    ).toEqual({ endpoint: "https://push.example.net/x", keys: { p256dh: "P", auth: "A" } });
+  });
+
+  it("returns null for missing endpoint or keys", () => {
+    expect(sw.subscriptionSaveBody(null)).toBeNull();
+    expect(sw.subscriptionSaveBody({ keys: { p256dh: "P", auth: "A" } })).toBeNull();
+    expect(
+      sw.subscriptionSaveBody({ endpoint: "https://x", keys: { p256dh: "P" } }),
+    ).toBeNull();
+    expect(sw.subscriptionSaveBody({ endpoint: "https://x" })).toBeNull();
+  });
+});
+
+describe("pushsubscriptionchange listener (#143)", () => {
+  it("re-subscribes with the old VAPID key and messages every open tab to re-save", async () => {
+    const tab = { url: `${ORIGIN}/calls`, postMessage: vi.fn() };
+    const sw = loadServiceWorker([tab]);
+    const applicationServerKey = new Uint8Array([4, 1, 2, 3]);
+
+    await dispatch(sw.listeners, "pushsubscriptionchange", {
+      oldSubscription: { options: { applicationServerKey } },
+      newSubscription: null,
+    });
+
+    // Renewed with the SAME key the browser used before.
+    expect(sw.pushSubscribe).toHaveBeenCalledExactlyOnceWith({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+    // Open tabs are told to re-save through the authenticated client.
+    expect(tab.postMessage).toHaveBeenCalledWith({
+      type: "loonext:push-subscription-changed",
+    });
+  });
+
+  it("uses the browser-provided newSubscription without re-subscribing", async () => {
+    const tab = { url: `${ORIGIN}/inbox`, postMessage: vi.fn() };
+    const sw = loadServiceWorker([tab]);
+
+    await dispatch(sw.listeners, "pushsubscriptionchange", {
+      newSubscription: {
+        toJSON: () => ({
+          endpoint: "https://push.example.net/new",
+          keys: { p256dh: "P", auth: "A" },
+        }),
+      },
+    });
+
+    expect(sw.pushSubscribe).not.toHaveBeenCalled();
+    expect(tab.postMessage).toHaveBeenCalledWith({
+      type: "loonext:push-subscription-changed",
+    });
+  });
+
+  it("no-ops when there is no key to renew with (reconcile is the backstop)", async () => {
+    const tab = { url: `${ORIGIN}/inbox`, postMessage: vi.fn() };
+    const sw = loadServiceWorker([tab]);
+
+    await dispatch(sw.listeners, "pushsubscriptionchange", {
+      oldSubscription: { options: {} },
+      newSubscription: null,
+    });
+
+    expect(sw.pushSubscribe).not.toHaveBeenCalled();
+    expect(tab.postMessage).not.toHaveBeenCalled();
   });
 });
