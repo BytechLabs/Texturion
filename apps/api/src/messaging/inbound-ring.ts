@@ -63,8 +63,10 @@ export const BROWSER_INBOUND_STATE = "bri";
  *  `vmi|<caller-or-empty>`. */
 export const VOICEMAIL_INBOUND_STATE = "vmi";
 
-/** Ring window for member browser legs. */
-export const RING_TIMEOUT_SECS = 25;
+/** Ring window for member browser legs. Long enough (#135 push-to-wake) that a
+ *  mobile member has time to be pushed, tap, open the app, and answer — while
+ *  the caller keeps hearing ringback. */
+export const RING_TIMEOUT_SECS = 45;
 
 /** Hard cap on one voicemail recording. */
 export const VOICEMAIL_MAX_SECS = 120;
@@ -225,6 +227,7 @@ export async function ringMembersOrVoicemail(
   void notifyIncomingCall(env, db, {
     userIds: targets.map((t) => t.userId),
     caller: input.callerE164,
+    callSessionId: input.callSessionId,
   });
 
   // The ring leg is a Call Control dial, which MUST originate from a Call
@@ -309,6 +312,66 @@ export async function ringMembersOrVoicemail(
     }
     throw new Error(`ring ledger insert failed: ${insertError.message}`);
   }
+}
+
+/**
+ * Push-to-wake (#135): (re-)ring ONE member's browser for a call that is ALREADY
+ * live — the customer is on the line hearing ringback. Called by
+ * POST /v1/calls/live/:sessionId/ring-me when a member opens the app from an
+ * incoming-call push: dial their now-awake browser so the ringing call surfaces
+ * and they can answer it. Cancels the session's stale ring legs first (the
+ * suspended-tab leg would otherwise double up), then dials one fresh leg and
+ * ledgers it. Returns the new leg's control id, or null if Telnyx returned none.
+ */
+export async function ringMemberBrowser(
+  env: Env,
+  db: SupabaseClient,
+  input: {
+    callSessionId: string;
+    companyId: string;
+    userId: string;
+    sipUsername: string;
+    caller: string | null;
+    businessNumberE164: string;
+    inboundCcid: string;
+  },
+): Promise<string | null> {
+  await cancelRingingMemberLegs(env, db, input.callSessionId);
+
+  const response = (await telnyxRequest(env, {
+    method: "POST",
+    path: "/v2/calls",
+    body: {
+      connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+      to: `sip:${input.sipUsername}@sip.telnyx.com`,
+      from: input.caller ?? input.businessNumberE164,
+      timeout_secs: RING_TIMEOUT_SECS,
+      client_state: buildMemberRingState({
+        sessionId: input.callSessionId,
+        userId: input.userId,
+        caller: input.caller,
+        inboundCcid: input.inboundCcid,
+      }),
+    },
+  })) as { data?: { call_control_id?: string } };
+  const ccid = response.data?.call_control_id;
+  if (!ccid) return null;
+
+  const { error } = await db.from("call_member_legs").insert({
+    call_session_id: input.callSessionId,
+    call_control_id: ccid,
+    company_id: input.companyId,
+    user_id: input.userId,
+  });
+  if (error) {
+    try {
+      await telnyxOnLiveLeg(env, `/v2/calls/${ccid}/actions/hangup`, {});
+    } catch {
+      /* best-effort — an orphan leg self-heals when it times out */
+    }
+    throw new Error(`ring-me ledger insert failed: ${error.message}`);
+  }
+  return ccid;
 }
 
 /**

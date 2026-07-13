@@ -37,7 +37,10 @@ function normalizeNotificationUrl(rawUrl, origin) {
   if (url.origin !== origin) return "/inbox";
   const thread = url.pathname.match(/^\/conversations\/([^/]+)\/?$/);
   const path = thread ? `/inbox/${thread[1]}` : url.pathname;
-  return path.startsWith("/") ? path : "/inbox";
+  if (!path.startsWith("/")) return "/inbox";
+  // Preserve the query for non-thread links — the incoming-call push carries
+  // `/calls?call=<session>`, which the app needs to re-ring the right call.
+  return thread ? path : path + url.search;
 }
 
 /**

@@ -38,6 +38,7 @@ import {
   type LiveCallRow,
 } from "../messaging/live-call";
 import { insertJourneyEvent } from "../messaging/live-call";
+import { ringMemberBrowser } from "../messaging/inbound-ring";
 import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -528,5 +529,77 @@ liveCallsRoutes.post(
       }
     }
     return c.json({ status: "cancelled" });
+  },
+);
+
+/**
+ * POST /v1/calls/live/:sessionId/ring-me (#135 push-to-wake) — a member who just
+ * opened the app from an incoming-call push asks to be (re-)rung for a call that
+ * is STILL ringing (the customer is on the line, no one has answered). Dials
+ * their now-awake browser so the ringing call surfaces and they can answer it.
+ * Unlike the other live-call ops this accepts a NOT-yet-answered call (that's the
+ * whole point) — but is otherwise gated identically: live, company-scoped, #106
+ * 'text' access to the number.
+ */
+liveCallsRoutes.post(
+  "/calls/live/:sessionId/ring-me",
+  requireRole("member"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const sessionId = c.req.param("sessionId");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+
+    const call = await liveCallBySession(db, sessionId);
+    if (!call || call.company_id !== companyId) {
+      return errorResponse(c, "not_found", "No such call.");
+    }
+    if (call.outcome !== null || call.answered_at) {
+      return errorResponse(c, "conflict", "This call isn't ringing anymore.");
+    }
+    if (!call.customer_call_control_id || !call.phone_number_id) {
+      return errorResponse(c, "conflict", "This call can't be rung.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      phoneNumberId: call.phone_number_id,
+      need: "text",
+    });
+
+    const target = await eligibleTarget(
+      db,
+      companyId,
+      call.phone_number_id,
+      userId,
+    );
+    if (!target) {
+      return errorResponse(c, "conflict", "Your device can't take calls yet.");
+    }
+    const numbers = unwrap<{ number_e164: string }[]>(
+      await db
+        .from("phone_numbers")
+        .select("number_e164")
+        .eq("id", call.phone_number_id)
+        .limit(1),
+      "number lookup",
+    );
+    const businessNumber = numbers[0]?.number_e164;
+    if (!businessNumber) {
+      return errorResponse(c, "conflict", "This call can't be rung.");
+    }
+
+    await ringMemberBrowser(env, db, {
+      callSessionId: sessionId,
+      companyId,
+      userId,
+      sipUsername: target.sipUsername,
+      caller: call.caller_e164,
+      businessNumberE164: businessNumber,
+      inboundCcid: call.customer_call_control_id,
+    });
+    return c.json({ ok: true });
   },
 );

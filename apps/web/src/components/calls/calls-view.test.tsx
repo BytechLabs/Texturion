@@ -31,15 +31,21 @@ vi.mock("@/lib/api/calls", () => ({
     fetchNextPage: vi.fn(),
     refetch: vi.fn(),
   }),
+  // Push-to-wake re-ring mutation (fired only when ?call is present + ready).
+  useRingMe: () => ({ mutate: vi.fn() }),
 }));
 
 // The Dialer (in the Calls header) reaches for the company's numbers and the
-// softphone; stub both so this render test needs no live env/client.
+// softphone; the push-to-wake effect reads the URL. Stub them all so this
+// render test needs no live env/client/router.
 vi.mock("@/lib/api/numbers", () => ({
   useNumbers: () => ({ data: { data: [] } }),
 }));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => null,
+}));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { CallsView } from "./calls-view";

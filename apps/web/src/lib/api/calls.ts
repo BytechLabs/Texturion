@@ -100,6 +100,22 @@ export function useResolveLiveSession() {
   });
 }
 
+/**
+ * D43 push-to-wake (#135): after opening the app from an incoming-call push,
+ * ask the server to (re-)ring this member's now-awake browser for the still-live
+ * call, so the ringing call surfaces and can be answered.
+ */
+export function useRingMe() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      apiFetch<{ ok: boolean }>(
+        `/v1/calls/live/${encodeURIComponent(sessionId)}/ring-me`,
+        { companyId, method: "POST", body: {} },
+      ),
+  });
+}
+
 /** D43 phase 3: the live call's server-side facts (notes link). */
 export function useLiveCall(sessionId: string | null) {
   const companyId = useCompanyId();

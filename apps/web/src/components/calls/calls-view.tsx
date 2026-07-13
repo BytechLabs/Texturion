@@ -19,7 +19,8 @@ import {
   PhoneOutgoing,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import {
   screeningLabel,
@@ -31,11 +32,12 @@ import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCalls, type CallOutcomeFilter } from "@/lib/api/calls";
+import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { useSoftphone } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
 
 function callerName(call: Call): string {
@@ -164,6 +166,22 @@ export function CallsView() {
     undefined,
   );
   const calls = useCalls(outcome);
+
+  // Push-to-wake (#135 pt.2): opened from an incoming-call push at
+  // /calls?call=<session>. Once the softphone is registered, ask the server to
+  // ring THIS awake browser for the still-live call — it then surfaces in the
+  // call bar to answer. Fire once per session (a re-ring on every render would
+  // spam Telnyx).
+  const softphone = useSoftphone();
+  const ringMe = useRingMe();
+  const pendingCall = useSearchParams().get("call");
+  const rungRef = useRef<string | null>(null);
+  const ready = softphone?.ready ?? false;
+  useEffect(() => {
+    if (!pendingCall || !ready || rungRef.current === pendingCall) return;
+    rungRef.current = pendingCall;
+    ringMe.mutate(pendingCall);
+  }, [pendingCall, ready, ringMe]);
   const rows = calls.data?.pages.flatMap((page) => page.data) ?? [];
 
   return (

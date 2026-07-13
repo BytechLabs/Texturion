@@ -29,7 +29,7 @@ const CALL_PUSH_TTL_SECS = 30;
 export async function notifyIncomingCall(
   env: Env,
   db: SupabaseClient,
-  input: { userIds: string[]; caller: string | null },
+  input: { userIds: string[]; caller: string | null; callSessionId: string },
 ): Promise<void> {
   if (input.userIds.length === 0) return;
 
@@ -44,7 +44,9 @@ export async function notifyIncomingCall(
     kind: "call", // the service worker renders this as an urgent call alert
     title: "Incoming call",
     body: input.caller ?? "Someone is calling your business number",
-    url: "/calls",
+    // Land on /calls carrying the session — the app re-rings this member's
+    // now-awake browser for it (push-to-wake part 2).
+    url: `/calls?call=${encodeURIComponent(input.callSessionId)}`,
   });
 
   await Promise.all(

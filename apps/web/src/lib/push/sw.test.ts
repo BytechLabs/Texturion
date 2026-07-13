@@ -176,6 +176,12 @@ describe("normalizeNotificationUrl", () => {
     ).toBe("/inbox/abc-123");
   });
 
+  it("preserves the query on the incoming-call push URL (#135 push-to-wake)", () => {
+    expect(
+      sw.normalizeNotificationUrl("/calls?call=sess-abc-123", ORIGIN),
+    ).toBe("/calls?call=sess-abc-123");
+  });
+
   it("keeps already-correct same-origin paths", () => {
     expect(sw.normalizeNotificationUrl(`${ORIGIN}/inbox/abc`, ORIGIN)).toBe(
       "/inbox/abc",
