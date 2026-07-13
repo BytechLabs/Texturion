@@ -319,9 +319,9 @@ export async function ringMembersOrVoicemail(
  * live — the customer is on the line hearing ringback. Called by
  * POST /v1/calls/live/:sessionId/ring-me when a member opens the app from an
  * incoming-call push: dial their now-awake browser so the ringing call surfaces
- * and they can answer it. Cancels the session's stale ring legs first (the
- * suspended-tab leg would otherwise double up), then dials one fresh leg and
- * ledgers it. Returns the new leg's control id, or null if Telnyx returned none.
+ * and they can answer it. Cancels only THIS member's own stale (suspended-tab)
+ * ring leg first (#137 — never the rest of the team's), then dials one fresh leg
+ * and ledgers it. Returns the new leg's control id, or null if Telnyx returned none.
  */
 export async function ringMemberBrowser(
   env: Env,
@@ -336,7 +336,14 @@ export async function ringMemberBrowser(
     inboundCcid: string;
   },
 ): Promise<string | null> {
-  await cancelRingingMemberLegs(env, db, input.callSessionId);
+  // Clear ONLY this member's own stale (suspended-tab) ring leg — never the
+  // rest of the team's still-ringing browsers (#137).
+  await cancelRingingMemberLegsForUser(
+    env,
+    db,
+    input.callSessionId,
+    input.userId,
+  );
 
   const response = (await telnyxRequest(env, {
     method: "POST",
@@ -726,6 +733,32 @@ export async function cancelRingingMemberLegs(
     .from("call_member_legs")
     .select("call_control_id")
     .eq("call_session_id", callSessionId)
+    .eq("state", "ringing");
+  if (error) throw new Error(`ring cancel read failed: ${error.message}`);
+  for (const leg of data ?? []) {
+    await telnyxOnLiveLeg(
+      env,
+      `/v2/calls/${leg.call_control_id as string}/actions/hangup`,
+      {},
+    );
+  }
+}
+
+/** Like {@link cancelRingingMemberLegs} but scoped to ONE member (#137). The
+ *  push-to-wake re-ring clears only the requester's OWN stale suspended-tab leg
+ *  before dialing them fresh — the rest of the team's browsers keep ringing, so
+ *  waking one member never silences the crew. */
+async function cancelRingingMemberLegsForUser(
+  env: Env,
+  db: SupabaseClient,
+  callSessionId: string,
+  userId: string,
+): Promise<void> {
+  const { data, error } = await db
+    .from("call_member_legs")
+    .select("call_control_id")
+    .eq("call_session_id", callSessionId)
+    .eq("user_id", userId)
     .eq("state", "ringing");
   if (error) throw new Error(`ring cancel read failed: ${error.message}`);
   for (const leg of data ?? []) {

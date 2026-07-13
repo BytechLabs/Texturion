@@ -336,3 +336,80 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel)", () => {
+  it("rings the requester's browser and cancels ONLY their own stale ring leg (scoped by user_id)", async () => {
+    // Still ringing (no one answered yet) — the whole point of ring-me.
+    const sb = liveWorld({
+      call: { answered_at: null, outcome: null },
+      // A stale suspended-tab leg belonging to the REQUESTER themselves.
+      consultLegs: [
+        { call_control_id: "stale-self", user_id: auth.subject, state: "ringing" },
+      ],
+    });
+    const telnyx = telnyxDialAndActions();
+    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/ring-me`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(200);
+
+    // #137: the pre-dial cancel MUST be scoped to the requesting member — it
+    // filters on user_id, so waking one member never silences the rest of the
+    // crew's still-ringing browsers.
+    const cancelReads = sb.find("GET", "/rest/v1/call_member_legs");
+    expect(cancelReads).toHaveLength(1);
+    expect(cancelReads[0].url.searchParams.get("user_id")).toBe(
+      `eq.${auth.subject}`,
+    );
+    expect(cancelReads[0].url.searchParams.get("state")).toBe("eq.ringing");
+
+    // Exactly the requester's own stale leg is hung up — not a team-wide sweep.
+    const hangups = telnyx.calls.filter((c) =>
+      c.url.pathname.endsWith("/hangup"),
+    );
+    expect(hangups).toHaveLength(1);
+    expect(hangups[0].url.pathname).toBe("/v2/calls/stale-self/actions/hangup");
+
+    // A fresh dial to the requester's browser + a ledgered leg.
+    const dials = telnyx.calls.filter((c) => c.url.pathname === "/v2/calls");
+    expect(dials).toHaveLength(1);
+    expect((dials[0].body as { to: string }).to).toBe(
+      "sip:gencred_target@sip.telnyx.com",
+    );
+    expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(1);
+  });
+
+  it("409s when the call has already been answered (not ringing anymore)", async () => {
+    const sb = liveWorld({}); // default call has answered_at set
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/ring-me`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("404s a session from another company (scoped read finds nothing)", async () => {
+    const sb = liveWorld({ call: null });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/ring-me`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(404);
+  });
+});
