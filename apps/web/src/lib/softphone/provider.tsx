@@ -38,6 +38,7 @@ import { ApiError } from "@/lib/api/error";
 
 import {
   INITIAL_SOFTPHONE_STATE,
+  isTerminalSdkState,
   softphoneReducer,
   type CallInfo,
   type SoftphoneState,
@@ -227,6 +228,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // once inside ensureClient) can reach it without a callback dependency cycle.
   const scheduleRecoverRef = useRef<(() => void) | null>(null);
 
+  /** True while any tracked call is still up (not torn down). A live call OWNS
+   *  its client's RTP/peer connection, so the recovery watchdog must never
+   *  rebuild the client underneath it (#138). */
+  const hasLiveCall = useCallback(
+    () =>
+      [...callsRef.current.values()].some((c) => !isTerminalSdkState(c.state)),
+    [],
+  );
+
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
     return () => {
@@ -298,7 +308,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           // without waiting out the ring timeout.
           if (call.direction === "inbound" && call.state === "ringing") {
             const live = [...callsRef.current.values()].filter(
-              (c) => c.state !== "destroy" && c.state !== "hangup",
+              (c) => !isTerminalSdkState(c.state),
             );
             if (live.length >= MAX_CONCURRENT_CALLS) {
               try {
@@ -376,9 +386,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           // Answered — the ring notification has done its job.
           closeRingNotification(ringNotesRef.current, call.id);
         }
-        if (call.state === "destroy" || call.state === "hangup") {
+        if (isTerminalSdkState(call.state)) {
           closeRingNotification(ringNotesRef.current, call.id);
           callsRef.current.delete(call.id);
+          // A recovery may have been deferred while this call held the client
+          // (#138). Now that the line may be idle, re-arm the watchdog so a
+          // genuinely down socket still gets rebuilt once no call is left.
+          if (!readyRef.current && !hasLiveCall()) {
+            scheduleRecoverRef.current?.();
+          }
         }
       });
 
@@ -392,14 +408,18 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     } finally {
       connectingRef.current = null;
     }
-  }, [attachActiveAudio, mintToken]);
+  }, [attachActiveAudio, mintToken, hasLiveCall]);
 
   /** Tear a dead client down and build a fresh one — re-mints the token, so a
    *  NEW SIP registration is established (that's what makes the phone ring
-   *  again). Never touches a live call's audio (a rebuild only runs when the
-   *  socket is already down). */
+   *  again). Never touches a live call's audio: it bails while any call is up
+   *  (#138) — disconnecting the owning client would kill the in-progress call's
+   *  media. The destroy/hangup handler re-arms recovery once the line is idle. */
   const rebuildClient = useCallback(() => {
     if (connectingRef.current) return; // a build is already in flight
+    // A down socket during an ACTIVE call is exactly when a rebuild is most
+    // harmful: let the SDK's own reconnect own in-call media recovery.
+    if (hasLiveCall()) return;
     const old = clientRef.current;
     clientRef.current = null;
     readyRef.current = false;
@@ -411,20 +431,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     void ensureClient().catch(() => {
       /* stays down; the next visibility/online tick retries */
     });
-  }, [ensureClient]);
+  }, [ensureClient, hasLiveCall]);
 
   /** If the phone can't currently ring, rebuild it — after a short delay so the
    *  SDK's OWN backoff reconnect wins for transient drops and we only step in
    *  when it has genuinely failed. Debounced: a burst of close/visibility/online
-   *  events collapses into one rebuild. No-op while healthy. */
+   *  events collapses into one rebuild. No-op while healthy, and deferred while
+   *  a call is live (#138) — the call-end handler re-arms it once the line clears. */
   const scheduleRecover = useCallback(() => {
     if (readyRef.current || connectingRef.current) return;
     if (recoverTimerRef.current) return;
     recoverTimerRef.current = setTimeout(() => {
       recoverTimerRef.current = null;
-      if (!readyRef.current && !connectingRef.current) rebuildClient();
+      if (readyRef.current || connectingRef.current) return;
+      // Defer while a call owns the client; re-armed on destroy/hangup.
+      if (hasLiveCall()) return;
+      rebuildClient();
     }, 4000);
-  }, [rebuildClient]);
+  }, [rebuildClient, hasLiveCall]);
   scheduleRecoverRef.current = scheduleRecover;
 
   // Eager registration: an open app is a phone that can ring.

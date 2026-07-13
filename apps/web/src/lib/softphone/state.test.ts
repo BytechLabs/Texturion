@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   INITIAL_SOFTPHONE_STATE,
+  isTerminalSdkState,
   phaseFromSdkState,
   softphoneReducer,
   type SoftphoneAction,
@@ -34,6 +35,50 @@ describe("phaseFromSdkState", () => {
     }
     // Unknown states read as in-flight, never as ended.
     expect(phaseFromSdkState("wat")).toBe("connecting");
+  });
+});
+
+describe("isTerminalSdkState (#138 watchdog guard)", () => {
+  it("treats only the torn-down states as terminal — matching the 'ended' phase", () => {
+    // Terminal: the recovery watchdog is free to rebuild the client.
+    for (const s of ["hangup", "destroy", "purge"]) {
+      expect(isTerminalSdkState(s)).toBe(true);
+    }
+    // Live: a call in any of these still owns the client's media, so the
+    // watchdog must NOT rebuild underneath it.
+    for (const s of [
+      "new",
+      "trying",
+      "requesting",
+      "recovering",
+      "ringing",
+      "early",
+      "active",
+      "held",
+    ]) {
+      expect(isTerminalSdkState(s)).toBe(false);
+    }
+    // An unknown state is treated as live (fail safe: never tear down on it).
+    expect(isTerminalSdkState("wat")).toBe(false);
+  });
+
+  it("stays in lockstep with phaseFromSdkState's ended arm", () => {
+    for (const s of [
+      "new",
+      "trying",
+      "requesting",
+      "recovering",
+      "ringing",
+      "early",
+      "active",
+      "held",
+      "hangup",
+      "destroy",
+      "purge",
+      "wat",
+    ]) {
+      expect(isTerminalSdkState(s)).toBe(phaseFromSdkState(s) === "ended");
+    }
   });
 });
 

@@ -43,6 +43,15 @@ export function phaseFromSdkState(state: string): CallPhase {
   }
 }
 
+/** A call's SDK state is terminal once the session is being torn down. The
+ *  recovery watchdog keys off this: a call in any NON-terminal state still owns
+ *  its client's media, so the client must not be rebuilt underneath it (#138).
+ *  Mirrors the "ended" arm of {@link phaseFromSdkState} — `purge` counts, so a
+ *  purged-but-not-yet-deleted call never wedges the watchdog open. */
+export function isTerminalSdkState(state: string): boolean {
+  return state === "hangup" || state === "destroy" || state === "purge";
+}
+
 export interface CallInfo {
   /** The SDK call's id — the provider's map key. */
   id: string;
