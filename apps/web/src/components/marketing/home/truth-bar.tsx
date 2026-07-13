@@ -5,15 +5,15 @@ import { FrSection, MonoFigure } from "@/components/marketing/fr";
  * flat price and kill the "what's the catch" reflex before the scroll
  * continues.
  *
- * One display-scale mono figure ($29, prices-as-art per §3) and three stat
- * chips (the Frost fixture). #121: no allowance figure on the chips; texting
+ * One display-scale mono figure ($29, prices-as-art per §3) and two stat
+ * chips (the Frost fixture). #121: no allowance figure and no "unlimited"
+ * emphasis on the chips (founder) — plain "send and receive" wording; texting
  * is included under the automated fair-use policy and the concrete numbers
  * live only on /legal/fair-use. Server component, zero JS.
  */
 
 const CHIPS: readonly { figure?: string; label: string }[] = [
-  { label: "Texting included, automated fair use" },
-  { label: "Receiving texts: free, unlimited" },
+  { label: "Send and receive texts and pictures" },
   { label: "Month to month, cancel anytime" },
 ];
 

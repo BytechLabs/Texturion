@@ -134,15 +134,17 @@ describe("laws that hold across the whole page (Laws 1, 6, 11)", () => {
 });
 
 describe("plan cards (#70 unit-language guard, ported from night/pricing.test.ts)", () => {
-  it("frames texting as fair use, not a hard message count (#85)", () => {
+  it("uses plain de-emphasized bullets with a fair-use asterisk, no 'unlimited' (#121)", () => {
     const starter = HOME_PLANS.find((plan) => plan.name === "Starter");
     const pro = HOME_PLANS.find((plan) => plan.name === "Pro");
-    expect(starter?.items.map(planItemText).join(" ")).toContain(
-      "Texting included, bound by fair use",
-    );
-    expect(pro?.items.map(planItemText).join(" ")).toContain(
-      "More texting for a bigger crew, bound by fair use",
-    );
+    for (const plan of [starter, pro]) {
+      const joined = plan!.items.map(planItemText).join(" ");
+      expect(joined).toContain("Send and receive texts and pictures*");
+      expect(joined.toLowerCase()).not.toContain("unlimited");
+      // No allowance count or per-text figure on the home cards (#121).
+      expect(joined).not.toMatch(/\d(\.\d+)?¢/);
+      expect(joined).not.toMatch(/\b500\b|\b2,500\b/);
+    }
   });
 
   it("never uses 'segments' jargon anywhere on the page (CONVERSION.md §3)", () => {

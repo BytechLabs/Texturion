@@ -78,9 +78,7 @@ export const PLANS: Plan[] = [
     features: [
       `${S.seats} teammates included`,
       `${S.numbers} local business number (US or Canada, your area code)`,
-      "Texting included, bound by fair use (a plain text up to 160 characters is one; the composer shows the count before you send)",
-      "Receiving texts: free and unlimited; photos free to receive",
-      "Extra texts: a small per-text rate if a month runs hot, with a spending cap you control",
+      "Send and receive texts and pictures*",
       "Month to month, cancel anytime",
     ],
     cta: "Start with Starter",
@@ -95,9 +93,7 @@ export const PLANS: Plan[] = [
     features: [
       `${P.seats} teammates included`,
       `${P.numbers} local business numbers (two locations, or office and field)`,
-      "More texting for a bigger crew, bound by fair use (same count rule; the composer always shows it before you send)",
-      "Receiving texts: free and unlimited; photos free to receive",
-      "Extra texts: a small per-text rate if a month runs hot, with a spending cap you control",
+      "Send and receive texts and pictures*",
       "Month to month, cancel anytime",
     ],
     cta: "Start with Pro",
@@ -112,7 +108,7 @@ export const PLANS: Plan[] = [
  * later "hide the raw numbers" work points behind. Dash-free (Law 6).
  */
 export const PLAN_FAIR_USE_NOTE =
-  "The message, picture, and calling allowances reflect fair use, not a hard wall: almost every crew stays well inside them, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Storage is free on every plan, with no caps.";
+  "* Texting, pictures, and calling are included under fair use, not a hard wall: almost every crew stays well inside it, a busy month now and then is fine, and we reach out early if usage ever paces past what your plan covers. Extra texts, if a month runs hot, bill at a small per-text rate up to a spending cap you control. Storage is free on every plan, with no caps.";
 
 /* Honesty Ledger (§5.3): every cost, before you pay. Add-on price mirrors
    apps/api/src/billing/modules.ts (regions_ca $5). #97/#103: pictures are

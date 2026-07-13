@@ -61,9 +61,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
     items: [
       [{ m: "3" }, " teammates included"],
       [{ m: "1" }, " local business number"],
-      ["Texting included, bound by fair use (the composer shows the count before you send)"],
-      ["Receiving texts: free, unlimited"],
-      ["Extra texts: a small per-text rate, with a spending cap you control"],
+      ["Send and receive texts and pictures*"],
     ],
     cta: "Start with Starter",
   },
@@ -78,9 +76,7 @@ export const HOME_PLANS: readonly HomePlan[] = [
         { m: "2" },
         " local business numbers (two locations, or office and field)",
       ],
-      ["More texting for a bigger crew, bound by fair use (same count rule)"],
-      ["Receiving texts: free, unlimited"],
-      ["Extra texts: a small per-text rate, with a spending cap you control"],
+      ["Send and receive texts and pictures*"],
     ],
     cta: "Start with Pro",
   },
@@ -207,10 +203,11 @@ export function TheDeal() {
       </p>
 
       {/* #121: the home page carries no allowance or per-text figures; the
-          concrete mechanics live in one place, and this is the link to it. */}
+          concrete mechanics live in one place, and this is the "*" the plan
+          cards point to. */}
       <p className="font-body-mkt mx-auto mt-3 max-w-4xl text-center text-sm text-[color:var(--fr-ink-70)]">
-        Texting and pictures are included under an automated fair-use policy,
-        and almost every crew stays well inside it.{" "}
+        * Texting, pictures, and calling are included under an automated
+        fair-use policy, and almost every crew stays well inside it.{" "}
         <Link
           href={LIVE_ROUTES.fairUse}
           className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"

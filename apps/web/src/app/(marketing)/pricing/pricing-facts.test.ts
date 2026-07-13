@@ -126,7 +126,7 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     );
   });
 
-  it("plan cards carry the mirror's prices and seats, and frame texting/overage as fair use with no figures", () => {
+  it("plan cards carry the mirror's prices and seats, and use plain de-emphasized bullets that point to fair use", () => {
     const starter = PLANS.find((p) => p.id === "starter");
     const pro = PLANS.find((p) => p.id === "pro");
     expect(starter?.price).toBe(`$${PLAN_PRICING.starter.monthlyDollars}`);
@@ -137,27 +137,23 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(pro?.features.join(" ")).toContain(
       `${PLAN_PRICING.pro.seats} teammates`,
     );
-    // #85: the plan card frames texting as fair use, not a hard message count.
-    expect(starter?.features.join(" ")).toContain(
-      "Texting included, bound by fair use",
-    );
-    expect(pro?.features.join(" ")).toContain(
-      "More texting for a bigger crew, bound by fair use",
-    );
-    // #121: overage exists with a cap you control, but NO per-text ¢ figure
-    // and NO allowance count on the plan cards.
+    // #121 (founder): plain "send and receive" bullets, no "unlimited" emphasis,
+    // and an asterisk that points to the fair-use footnote (PLAN_FAIR_USE_NOTE).
     for (const plan of PLANS) {
       const joined = plan.features.join(" ");
-      expect(joined).toContain("spending cap you control");
+      expect(joined).toContain("Send and receive texts and pictures*");
+      expect(joined.toLowerCase()).not.toContain("unlimited");
+      // No allowance count, per-text ¢ figure, or billing jargon on the cards.
       expect(joined).not.toMatch(/\d(\.\d+)?¢/);
       expect(joined).not.toMatch(/\b500\b|\b2,500\b/);
-    }
-    // Plain "texts", never billing jargon, in a plan line item (#70).
-    for (const plan of PLANS) {
       for (const f of plan.features) {
         expect(f.toLowerCase()).not.toContain("segment");
       }
     }
+    // The overage + cap mechanics move to the asterisk footnote, not the cards.
+    expect(PLAN_FAIR_USE_NOTE.startsWith("*")).toBe(true);
+    expect(PLAN_FAIR_USE_NOTE).toContain("spending cap you control");
+    expect(PLAN_FAIR_USE_NOTE).not.toMatch(/\d(\.\d+)?¢/);
   });
 
   it("the ledger names every cost: plans, one-time fee, overage, storage, add-ons, tax, and closes the list", () => {
