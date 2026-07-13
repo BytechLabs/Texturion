@@ -1028,29 +1028,33 @@ async function handleTerminalCallEvent(
   const outboundLeg = leg === "out_agent" || leg === "out_customer";
 
   // SECURITY (D43): billing + threading for these legs derive the TENANT from
-  // the browser-echoed client_state tag, so a member could ORIGINATE an
-  // OUTGOING WebRTC leg, forge a tag, and present a VICTIM tenant's number to
-  // bill/DoS/inject into that victim. Two unforgeable server-side proofs:
+  // browser-echoed data (the client_state tag, or the presented number), so a
+  // member could ORIGINATE an OUTGOING WebRTC leg, forge a tag, and present a
+  // VICTIM tenant's number to bill/DoS/inject into that victim. The unforgeable
+  // proof, for BOTH the inbound-family legs (tenant from payload.TO) AND the
+  // tenant-from-`from` legs, is a GENUINE server-created calls row for this
+  // session: api_claim_inbound_line (inbound) and api_authorize_outbound_call
+  // (outbound customer) each create it at call.initiated, keyed by the
+  // AUTHORIZED tenant — a browser-originated forgery is a different session with
+  // no such row. forward + out_agent are DEAD (D43 deleted cell forwarding + the
+  // bridge) so they never have a row and are always dropped.
   //
-  //   (a) INBOUND-FAMILY legs (tenant from payload.TO: in_browser, vm_inbound,
-  //       inbound_untagged, inbound_forwarded) are ALWAYS Telnyx-direction
-  //       'incoming' for a genuine inbound call — drop any that isn't.
-  //   (b) TENANT-FROM-`from` legs (forward, out_agent, out_customer) are
-  //       legitimately OUTGOING, so direction can't tell a real one from a
-  //       forgery. Instead require the genuine server-created calls row
-  //       (inbound claim / outbound authorize create it at call.initiated).
-  //       forward + out_agent are DEAD (D43 deleted cell forwarding + the
-  //       bridge) so they never have a row and are always dropped; a forged
-  //       out_customer was rejected at initiate so has no row either.
+  // NOTE: an earlier version gated inbound-family on `direction === 'incoming'`.
+  // Telnyx OMITS `direction` on the later events of an ANSWERED leg (the
+  // voicemail leg's call.hangup, an answered inbound hangup), so that check
+  // silently dropped the hangup that resolves the call → the calls row stayed
+  // outcome-null → the line wedged for 4h → every later inbound call skipped the
+  // ring and went straight to voicemail. The row check is both correct and
+  // strictly stronger (direction is attacker-influenceable / inconsistent;
+  // a server-created row is not).
   const inboundFamily =
     leg === "in_browser" ||
     leg === "vm_inbound" ||
     leg === "inbound_untagged" ||
     leg === "inbound_forwarded";
-  if (inboundFamily && payload.direction !== "incoming") return;
   const tenantFromFrom =
     leg === "forward" || leg === "out_agent" || leg === "out_customer";
-  if (tenantFromFrom) {
+  if (inboundFamily || tenantFromFrom) {
     const { data: existing, error: existErr } = await db
       .from("calls")
       .select("id")

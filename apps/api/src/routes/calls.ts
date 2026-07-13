@@ -320,6 +320,18 @@ async function authorizeOutboundCall(
     businessNumber = resolved.businessNumber;
   }
 
+  // US/CA only, on EVERY origin (defense in depth — the dialer already
+  // NANP-normalizes; a contact/thread could in theory hold a non-NANP number).
+  // The Telnyx outbound profile is whitelisted to US+CA too; this gives an
+  // honest error instead of a carrier reject, and blocks costly international.
+  if (!/^\+1[2-9]\d{2}[2-9]\d{6}$/.test(customer)) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "Calling is available to US and Canada numbers only.",
+    );
+  }
+
   await assertNumberLevel(db, {
     companyId,
     userId,

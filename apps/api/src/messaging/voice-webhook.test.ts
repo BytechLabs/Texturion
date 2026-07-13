@@ -1387,13 +1387,17 @@ describe("handleCallEvent — terminal → text-back", () => {
   it("SECURITY: a forged OUTGOING inbound-family leg (browser spoofing a victim's number) is dropped — no billing, no thread, no text-back", async () => {
     // A member ORIGINATES an outgoing WebRTC leg, forges a `bri` (in_browser)
     // client_state with a 2020 answer stamp, and presents a VICTIM tenant's
-    // number as `to`. Without the direction gate this would bill the victim
-    // (~$34k), push them over their cap, and inject into their inbox.
+    // number as `to`. Without the gate this would bill the victim (~$34k), push
+    // them over their cap, and inject into their inbox. A forged leg was
+    // rejected at initiate, so it has NO genuine server-created calls row — the
+    // terminal handler drops it on that (the unforgeable proof; `direction` is
+    // unreliable — Telnyx omits it on an answered leg's later events).
     const callRecords = callRecordsInsertStub("cr-attack");
     const upsert = upsertCallStub();
     const thread = threadCallStub();
     const sms = telnyxSms();
-    serve(numberStub(), callRecords, upsert, thread, sms);
+    const noRow = stubRoute(restMatch(env, "GET", "calls"), () => []); // no genuine row
+    serve(numberStub(), noRow, callRecords, upsert, thread, sms);
 
     await handleCallEvent(
       env,
@@ -1471,6 +1475,42 @@ describe("handleCallEvent — terminal → text-back", () => {
         from: CALLER,
         to: OUR_NUMBER,
         hangup_cause: "normal_clearing",
+      }),
+    );
+
+    expect(claim.calls).toHaveLength(1);
+    expect(sms.calls).toHaveLength(1);
+  });
+
+  it("REGRESSION (#135): a genuine voicemail-leg hangup with NO `direction` still resolves (Telnyx omits it on answered legs)", async () => {
+    // The exact prod wedge: a caller reaches voicemail, hangs up, and Telnyx's
+    // call.hangup for the (answered) vm_inbound leg carries NO `direction`. The
+    // old `direction === 'incoming'` gate dropped it → the calls row stayed
+    // outcome-null → the line wedged 4h → later inbound calls skipped the ring.
+    // The genuine calls row (default stub) must let it resolve + text-back.
+    const claim = claimStub();
+    const sms = telnyxSms();
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      claim,
+      sms,
+      persistStub(),
+      ...alertStubs(),
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        // NO `direction` — as Telnyx delivers it on the voicemail leg's hangup.
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+        client_state: btoa(`vmi|${CALLER}|2026-07-12T00:00:00.000Z`),
       }),
     );
 
