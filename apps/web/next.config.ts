@@ -1,5 +1,7 @@
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
+import rehypeSlug from "rehype-slug";
 
 import { SECURITY_HEADERS } from "./src/lib/observability/security-headers";
 
@@ -74,7 +76,30 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// #130: MDX blog. `content.mdx` files are imported into each post's thin
+// page.tsx and compiled to React at BUILD time (webpack loader — `next build`
+// is webpack here, no turbopack), so there's no runtime MDX and the OpenNext/
+// Workers output is unchanged. rehype-slug gives every `##` heading a stable
+// id so in-article anchors keep working. The element→component styling map is
+// src/mdx-components.tsx (Next App Router convention).
+//
+// KNOWN `next dev` LIMITATION (production is unaffected): under `next dev`,
+// Next's SWC transforms the MDX-emitted JSX with the *development* jsx runtime
+// (`jsxDEV`), and React 19.2's `jsxDEV` reads an owner-stack internal
+// (`recentlyCreatedOwnerStacks`) that isn't initialized in the RSC server
+// dispatcher Next 15.5 wires, so an individual /blog/<slug> post 500s in the
+// dev server (the /blog index and the rest of the app render fine). `next build`
+// uses the stable `jsx` runtime and prerenders every post correctly, so the
+// deployed blog works. Preview posts via a production build or the deployed
+// site until the upstream Next/React combo ships the fix — no code change here
+// will be needed then.
+const withMDX = createMDX({
+  options: {
+    rehypePlugins: [rehypeSlug],
+  },
+});
+
+export default withMDX(nextConfig);
 
 // Gives `next dev` access to the Cloudflare bindings declared in wrangler.jsonc.
 // No-op outside the dev server.

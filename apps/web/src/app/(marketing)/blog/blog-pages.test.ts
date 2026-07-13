@@ -71,6 +71,15 @@ describe("blog routes match the registry (zero dead links, both ways)", () => {
     }
   });
 
+  it("every post authors its prose in content.mdx (#130)", () => {
+    for (const post of BLOG_POSTS) {
+      const mdxPath = path.join(BLOG_DIR, post.slug, "content.mdx");
+      expect(existsSync(mdxPath), `missing content.mdx for ${post.slug}`).toBe(
+        true,
+      );
+    }
+  });
+
   it("every post directory on disk has a registry entry", () => {
     const registered = new Set(BLOG_POSTS.map((post) => post.slug));
     for (const dir of postDirsOnDisk()) {

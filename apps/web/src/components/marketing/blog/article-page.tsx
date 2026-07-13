@@ -66,7 +66,11 @@ export function ArticlePage({
             </p>
           </header>
 
-          <div className="mt-12 space-y-12">{children}</div>
+          {/* MDX content (#130): the mdx-components map (src/mdx-components.tsx)
+              owns the inter-element rhythm since MDX renders a flat sibling
+              list, so the wrapper only sets the gap from the header and zeroes
+              the first element's own top margin. */}
+          <div className="mt-12 [&>:first-child]:mt-0">{children}</div>
         </article>
       </div>
 
@@ -76,41 +80,10 @@ export function ArticlePage({
 }
 
 /**
- * The article lede: the opening paragraphs before the first heading, set in
- * full-ink body so the hook reads a shade heavier than the sections below.
+ * Inline cobalt link; identical anatomy to legal prose links. The blog authors
+ * in MDX now, so this is the ONE article component left — src/mdx-components.tsx
+ * maps Markdown `[text](href)` onto it. Headings, paragraphs, and lists are
+ * mapped there too, so the old ArticleLede/ArticleSection/ArticleList JSX
+ * helpers retired with the TSX posts (#130).
  */
-export function ArticleLede({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fr-body space-y-4 text-[color:var(--fr-ink)]">
-      {children}
-    </div>
-  );
-}
-
-/** An anchored h2 section in the article's prose register. */
-export function ArticleSection({
-  id,
-  heading,
-  children,
-}: {
-  id: string;
-  heading: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-28">
-      <h2 className="fr-h3 text-[color:var(--fr-ink)]">{heading}</h2>
-      <div className="fr-body mt-3 space-y-4 text-[color:var(--fr-ink-70)]">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-/** Bulleted list in the prose register (same idiom as the legal pages). */
-export function ArticleList({ children }: { children: React.ReactNode }) {
-  return <ul className="list-disc space-y-2 pl-6">{children}</ul>;
-}
-
-/** Inline cobalt link; identical anatomy to legal prose links. */
 export { LegalLink as ArticleLink } from "@/components/marketing/legal/legal-page";

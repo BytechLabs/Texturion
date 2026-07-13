@@ -28,6 +28,12 @@ jobs:
       # the middleware serves ONLY marketing pages on loonext.com and ONLY the
       # product on this origin. Both hostnames must be attached to the web Worker.
       NEXT_PUBLIC_APP_ORIGIN: ${{ secrets.NEXT_PUBLIC_APP_ORIGIN }}
+      # #130: the blog subdomain. When set, the middleware serves the blog at
+      # blog.loonext.com's root (blog.loonext.com/<slug> renders /blog/<slug>).
+      # The value is public (it ships in the browser bundle), so it's inlined
+      # here directly rather than via a secret. blog.loonext.com must also be
+      # attached as a custom domain on the web Worker for the host to resolve.
+      NEXT_PUBLIC_BLOG_ORIGIN: https://blog.loonext.com
       # Optional client telemetry (blank = off — env.ts coerces "" → undefined,
       # both are schema-optional). Browser Sentry (D13) and PostHog (D8/D12)
       # activate only when set. NEXT_PUBLIC_* are inlined by `next build`, so
