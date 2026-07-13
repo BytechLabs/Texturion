@@ -118,6 +118,53 @@ async function acquireMicOrThrow(): Promise<void> {
   for (const track of stream.getTracks()) track.stop();
 }
 
+/** Raise an OS notification for a ringing inbound call so a member whose app tab
+ *  is backgrounded still notices it. Best-effort: silently no-ops where
+ *  Notifications are unsupported or not granted (we never prompt here — the Web
+ *  Push flow owns permission). Clicking it focuses the app. */
+function showRingNotification(
+  notes: Map<string, Notification>,
+  id: string,
+  name: string,
+  number: string,
+): void {
+  if (
+    typeof Notification === "undefined" ||
+    Notification.permission !== "granted"
+  ) {
+    return;
+  }
+  try {
+    const note = new Notification("Incoming call", {
+      body: number && number !== name ? `${name} · ${number}` : name,
+      tag: `call-${id}`, // collapse re-fires for the same call
+    });
+    note.onclick = () => {
+      try {
+        window.focus();
+      } catch {
+        /* cross-origin/embedded — ignore */
+      }
+      note.close();
+    };
+    notes.set(id, note);
+  } catch {
+    /* Notifications unsupported in this context — non-fatal */
+  }
+}
+
+/** Dismiss a call's ring notification once it is answered or ends. */
+function closeRingNotification(notes: Map<string, Notification>, id: string): void {
+  const note = notes.get(id);
+  if (!note) return;
+  try {
+    note.close();
+  } catch {
+    /* already gone */
+  }
+  notes.delete(id);
+}
+
 interface SoftphoneContextValue extends SoftphoneState {
   /** The active call's info (audio flowing), if any. */
   activeCall: CallInfo | null;
@@ -168,6 +215,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // healthy connection.
   const readyRef = useRef(false);
   const recoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // OS-level notifications for a ringing inbound call, keyed by call id — so a
+  // member with the app open but the TAB BACKGROUNDED still notices the ring
+  // (the in-app call bar is invisible then). Closed the moment the call is
+  // answered/ends. Permission is already granted via Web Push; we never prompt.
+  const ringNotesRef = useRef<Map<string, Notification>>(new Map());
   // Holds the latest recovery scheduler so the SDK event handlers (captured
   // once inside ensureClient) can reach it without a callback dependency cycle.
   const scheduleRecoverRef = useRef<(() => void) | null>(null);
@@ -255,16 +307,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             }
             callsRef.current.set(call.id, call);
             const number = call.options?.remoteCallerNumber ?? "";
+            const name =
+              call.options?.remoteCallerName || number || "Unknown caller";
             dispatch({
               type: "incoming",
               id: call.id,
               sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
-              peer: {
-                name:
-                  call.options?.remoteCallerName || number || "Unknown caller",
-                number,
-              },
+              peer: { name, number },
             });
+            showRingNotification(ringNotesRef.current, call.id, name, number);
           }
           return;
         }
@@ -318,7 +369,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             }
           }
         }
+        if (call.state === "active") {
+          // Answered — the ring notification has done its job.
+          closeRingNotification(ringNotesRef.current, call.id);
+        }
         if (call.state === "destroy" || call.state === "hangup") {
+          closeRingNotification(ringNotesRef.current, call.id);
           callsRef.current.delete(call.id);
         }
       });
