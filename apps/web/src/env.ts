@@ -14,6 +14,11 @@ const publicEnvSchema = z.object({
   // the marketing site (lib/hosts.ts). Unset (dev/CI/previews) = no gating;
   // every route stays reachable on one origin.
   NEXT_PUBLIC_APP_ORIGIN: z.url().optional(),
+  // Optional: the blog subdomain origin (#130, e.g. https://blog.loonext.com).
+  // When set, the middleware serves the blog at this host's ROOT via an
+  // internal rewrite (blog.loonext.com/<slug> → the /blog/<slug> route), while
+  // loonext.com/blog keeps working. Unset (dev/CI/previews) = no blog host.
+  NEXT_PUBLIC_BLOG_ORIGIN: z.url().optional(),
   // Optional: Sentry browser DSN (D13 client observability). When set, the
   // client instrumentation lazily loads @sentry/browser with the same PII
   // scrubbing posture as the API Worker (lib/observability/sentry.ts);
@@ -46,6 +51,7 @@ const parsed = publicEnvSchema.safeParse({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY:
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
   NEXT_PUBLIC_APP_ORIGIN: process.env.NEXT_PUBLIC_APP_ORIGIN || undefined,
+  NEXT_PUBLIC_BLOG_ORIGIN: process.env.NEXT_PUBLIC_BLOG_ORIGIN || undefined,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
   NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID || undefined,

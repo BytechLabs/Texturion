@@ -1,9 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import {
+  breadcrumbJsonLd,
+  buildMetadata,
+  type Breadcrumb,
+} from "@/lib/marketing/seo";
 import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
 
 /**
@@ -30,18 +35,18 @@ export const metadata: Metadata = {
 };
 
 export default function BlogIndexPage() {
+  const crumbs: Breadcrumb[] = [
+    { name: "Home", path: "/" },
+    { name: "Blog", path: PATH },
+  ];
   return (
     <>
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: "Home", path: "/" },
-          { name: "Blog", path: PATH },
-        ])}
-      />
+      <JsonLd data={breadcrumbJsonLd(crumbs)} />
 
       <div className="bg-[color:var(--fr-ground)] py-16 md:py-24">
         <div className="mx-auto w-full max-w-[68ch] px-6 md:px-8">
           <header>
+            <Breadcrumbs crumbs={crumbs} className="mb-6" />
             <h1 className="font-display text-[2rem] font-extrabold leading-[1.1] tracking-[-0.01em] text-[color:var(--fr-ink)] sm:text-[2.5rem] text-balance">
               The Loonext blog.
             </h1>

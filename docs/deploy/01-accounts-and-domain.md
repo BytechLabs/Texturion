@@ -38,6 +38,7 @@ config and env, so decide them before setting secrets.
 | `app.loonext.com` | The product (app/auth/onboarding) — `loonext-web` Worker | Custom domain on `loonext-web` | `APP_ORIGIN` (api secret), `NEXT_PUBLIC_APP_ORIGIN` (web build, optional — D27) |
 | `api.loonext.com` | The API + webhooks (`loonext-api` Worker) | Custom domain on `loonext-api` | `API_ORIGIN` (api secret), `NEXT_PUBLIC_API_URL` (web build) |
 | `loonext.com` (root) + `www.loonext.com` | Marketing site **only** (D27) | Custom domains on the same `loonext-web` Worker | — |
+| `blog.loonext.com` | The blog **only** (#130) — same `loonext-web` Worker, served at the host root | Custom domain on `loonext-web` | `NEXT_PUBLIC_BLOG_ORIGIN` (web build, optional) |
 | `status.loonext.com` | Hosted status page | CNAME to the status provider | — |
 
 > **D27 — marketing/app host split** (`docs/DECISIONS.md` D27): there is still
@@ -64,6 +65,13 @@ Why these matter in code:
 - **`NEXT_PUBLIC_APP_ORIGIN`** (optional, web build) must equal `APP_ORIGIN` and
   activates the D27 host split (`apps/web/src/env.ts:11-16`,
   `apps/web/src/lib/hosts.ts`).
+- **`NEXT_PUBLIC_BLOG_ORIGIN`** (optional, web build; #130) = `https://blog.loonext.com`.
+  When set, the middleware (`decideBlogRewrite`, `apps/web/src/lib/hosts.ts`)
+  serves the blog at the subdomain root: `blog.loonext.com/<slug>` rewrites
+  internally to the `/blog/<slug>` route, `blog.loonext.com/` → the index,
+  `/rss.xml` → the feed. `loonext.com/blog` keeps working unchanged, and blog
+  canonical URLs stay `loonext.com/blog/<slug>` (one canonical, no duplicate
+  content) until you decide to flip them. Unset (dev/CI/previews) = no blog host.
 
 `APP_ORIGIN`, `API_ORIGIN`, `NEXT_PUBLIC_API_URL` (and `NEXT_PUBLIC_APP_ORIGIN`
 when set) must all agree with the actual deployed Worker URLs or CORS, webhooks,
@@ -87,7 +95,13 @@ links, and the host split break.
    add `loonext.com` **and** `www.loonext.com` as additional custom domains on
    `loonext-web` in [05](./05-workers-deploy.md) §4. (With the D27 host split
    active, `www` must be attached so the middleware can 308 it to the apex.)
-5. For **`status.loonext.com`**, add a `CNAME` to whatever host your status provider
+5. For the **blog** (#130), add `blog.loonext.com` as **another** custom domain on
+   the same `loonext-web` Worker (its custom-domain binding creates the proxied
+   DNS record for you), then set `NEXT_PUBLIC_BLOG_ORIGIN=https://blog.loonext.com`
+   in the web build env and redeploy. The middleware then serves the blog at the
+   subdomain root. No new Worker, no MDX pipeline: the existing typed blog routes
+   render identically on the subdomain.
+6. For **`status.loonext.com`**, add a `CNAME` to whatever host your status provider
    gives you (this is external to the Workers).
 
 > **DNS records are created for you** when you attach a Worker custom domain — you

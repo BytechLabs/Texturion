@@ -1,10 +1,15 @@
 import { Dateline } from "@/components/marketing/fr";
 import { FeatureCta } from "@/components/marketing/features/feature-page";
+import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import type { BlogPost } from "@/lib/marketing/blog";
 import { blogPostPath } from "@/lib/marketing/blog";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
-import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/marketing/seo";
+import {
+  blogPostingJsonLd,
+  breadcrumbJsonLd,
+  type Breadcrumb,
+} from "@/lib/marketing/seo";
 
 /**
  * ARTICLE template (#127): the quiet register, same 68ch single column as
@@ -27,15 +32,16 @@ export function ArticlePage({
   children: React.ReactNode;
 }) {
   const path = blogPostPath(post.slug);
+  // One crumb trail feeds BOTH the BreadcrumbList JSON-LD (search engines) and
+  // the visible <nav> trail (humans + a11y), so the two can never disagree.
+  const crumbs: Breadcrumb[] = [
+    { name: "Home", path: "/" },
+    { name: "Blog", path: LIVE_ROUTES.blog },
+    { name: post.title, path },
+  ];
   return (
     <>
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: "Home", path: "/" },
-          { name: "Blog", path: LIVE_ROUTES.blog },
-          { name: post.title, path },
-        ])}
-      />
+      <JsonLd data={breadcrumbJsonLd(crumbs)} />
       <JsonLd
         data={blogPostingJsonLd({
           headline: post.title,
@@ -48,6 +54,7 @@ export function ArticlePage({
       <div className="bg-[color:var(--fr-ground)] py-16 md:py-24">
         <article className="mx-auto w-full max-w-[68ch] px-6 md:px-8">
           <header>
+            <Breadcrumbs crumbs={crumbs} className="mb-6" />
             <Dateline>{post.dateline}</Dateline>
             <h1 className="font-display mt-5 text-[2rem] font-extrabold leading-[1.1] tracking-[-0.01em] text-[color:var(--fr-ink)] sm:text-[2.5rem] text-balance">
               {post.title}

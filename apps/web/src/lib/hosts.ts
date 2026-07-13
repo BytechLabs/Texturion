@@ -91,3 +91,41 @@ export function decideHostRedirect(args: {
 
   return null; // unknown host (previews, tunnels) → untouched
 }
+
+/**
+ * The blog subdomain (#130): blog.loonext.com serves the blog as its OWN
+ * surface, with the posts at the host ROOT (blog.loonext.com/<slug>) instead of
+ * a /blog path. This is a REWRITE, not a redirect — the browser URL stays on the
+ * subdomain while the app renders the existing app/(marketing)/blog/* routes.
+ * The main site's loonext.com/blog keeps working unchanged (canonical URLs stay
+ * loonext.com/blog/<slug> until the subdomain is verified live), so this is a
+ * purely additive, SEO-safe access path.
+ *
+ * Activates only when NEXT_PUBLIC_BLOG_ORIGIN is set (production, once the
+ * Cloudflare custom domain + DNS exist). Returns the internal pathname to
+ * rewrite to, or null to pass through. Never throws.
+ *
+ * Mapping on the blog host:
+ *   /            → /blog        (the index)
+ *   /rss.xml     → /blog/rss.xml
+ *   /<slug>      → /blog/<slug>
+ *   /blog, /blog/*  → unchanged (defensive: already-prefixed passes through)
+ */
+export function decideBlogRewrite(args: {
+  host: string | null;
+  pathname: string;
+  blogOrigin: string | undefined;
+}): string | null {
+  const { host, pathname, blogOrigin } = args;
+  if (!blogOrigin || !host) return null;
+  let blogHost: string;
+  try {
+    blogHost = new URL(blogOrigin).host.toLowerCase();
+  } catch {
+    return null; // misconfigured origin → no rewrite, never a broken site
+  }
+  if (host.toLowerCase() !== blogHost) return null;
+  if (pathname === "/blog" || pathname.startsWith("/blog/")) return null;
+  if (pathname === "/") return "/blog";
+  return `/blog${pathname}`;
+}

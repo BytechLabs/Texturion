@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { decideAuthRedirect } from "@/lib/auth/redirects";
-import { decideHostRedirect } from "@/lib/hosts";
+import { decideBlogRewrite, decideHostRedirect } from "@/lib/hosts";
 
 /**
  * Session-refreshing auth middleware (SPEC §10, G12): enforces the
@@ -16,6 +16,20 @@ import { decideHostRedirect } from "@/lib/hosts";
  * not support Next 15.2+ Node middleware (SPEC §3).
  */
 export async function middleware(request: NextRequest) {
+  // Blog subdomain FIRST (#130): blog.loonext.com serves the blog at its root
+  // via an internal rewrite (no session, no redirect — the URL stays on the
+  // subdomain). Only active when NEXT_PUBLIC_BLOG_ORIGIN is set.
+  const blogRewrite = decideBlogRewrite({
+    host: request.headers.get("host"),
+    pathname: request.nextUrl.pathname,
+    blogOrigin: process.env.NEXT_PUBLIC_BLOG_ORIGIN || undefined,
+  });
+  if (blogRewrite) {
+    const url = request.nextUrl.clone();
+    url.pathname = blogRewrite;
+    return NextResponse.rewrite(url);
+  }
+
   // Host split BEFORE any auth work: a cross-host hop needs no session read.
   // 308: the mapping is architectural and stable (and safe — these are GET
   // navigations; the app itself never POSTs cross-surface).
