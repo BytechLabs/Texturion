@@ -163,6 +163,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // Ring-leg ccids we've already resolved to a customer session — the SDK
   // fires 'active' repeatedly, and we only need to resolve once per call.
   const resolvedRef = useRef<Set<string>>(new Set());
+  // Is the SDK authenticated + REGISTERED right now (able to ring)? Tracked so
+  // recovery only ever acts when the phone is DOWN — it never disturbs a
+  // healthy connection.
+  const readyRef = useRef(false);
+  const recoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Holds the latest recovery scheduler so the SDK event handlers (captured
+  // once inside ensureClient) can reach it without a callback dependency cycle.
+  const scheduleRecoverRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
@@ -201,13 +209,27 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         login_token: token,
       }) as unknown as TelnyxClient;
 
-      client.on("telnyx.ready", () => dispatch({ type: "ready" }));
-      client.on("telnyx.error", () =>
+      client.on("telnyx.ready", () => {
+        readyRef.current = true;
+        dispatch({ type: "ready" });
+      });
+      client.on("telnyx.error", () => {
+        readyRef.current = false;
         dispatch({
           type: "error",
           message: "Calling is temporarily unavailable.",
-        }),
-      );
+        });
+        // An error is often an auth/token failure — a fresh token + registration
+        // is the recovery. The SDK's own reconnect can't fix a bad token.
+        scheduleRecoverRef.current?.();
+      });
+      // The WebSocket dropped (network flap, backgrounded tab, server close).
+      // The SDK auto-reconnects with backoff; if it exhausts, only a rebuild
+      // brings the phone back. Mark down + let the recovery watchdog decide.
+      client.on("telnyx.socket.close", () => {
+        readyRef.current = false;
+        scheduleRecoverRef.current?.();
+      });
       client.on("telnyx.notification", (payload) => {
         const note = payload as { type?: string; call?: TelnyxCall } | undefined;
         const call = note?.call;
@@ -312,6 +334,39 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     }
   }, [attachActiveAudio, mintToken]);
 
+  /** Tear a dead client down and build a fresh one — re-mints the token, so a
+   *  NEW SIP registration is established (that's what makes the phone ring
+   *  again). Never touches a live call's audio (a rebuild only runs when the
+   *  socket is already down). */
+  const rebuildClient = useCallback(() => {
+    if (connectingRef.current) return; // a build is already in flight
+    const old = clientRef.current;
+    clientRef.current = null;
+    readyRef.current = false;
+    try {
+      old?.disconnect();
+    } catch {
+      /* already gone */
+    }
+    void ensureClient().catch(() => {
+      /* stays down; the next visibility/online tick retries */
+    });
+  }, [ensureClient]);
+
+  /** If the phone can't currently ring, rebuild it — after a short delay so the
+   *  SDK's OWN backoff reconnect wins for transient drops and we only step in
+   *  when it has genuinely failed. Debounced: a burst of close/visibility/online
+   *  events collapses into one rebuild. No-op while healthy. */
+  const scheduleRecover = useCallback(() => {
+    if (readyRef.current || connectingRef.current) return;
+    if (recoverTimerRef.current) return;
+    recoverTimerRef.current = setTimeout(() => {
+      recoverTimerRef.current = null;
+      if (!readyRef.current && !connectingRef.current) rebuildClient();
+    }, 4000);
+  }, [rebuildClient]);
+  scheduleRecoverRef.current = scheduleRecover;
+
   // Eager registration: an open app is a phone that can ring.
   useEffect(() => {
     void ensureClient().catch(() => {
@@ -319,6 +374,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
+
+  // Keep the phone ring-ready across the real-world drops the SDK can't recover
+  // on its own: a tab that was backgrounded (its socket throttled/closed) coming
+  // back to the foreground, and the network returning. Both only rebuild when
+  // the phone is actually down (scheduleRecover no-ops while healthy).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") scheduleRecover();
+    };
+    const onOnline = () => scheduleRecover();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+      if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+    };
+  }, [scheduleRecover]);
 
   // The reducer state, readable from stable callbacks without re-binding.
   const stateRef = useRef(state);
