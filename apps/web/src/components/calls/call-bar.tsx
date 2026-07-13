@@ -12,6 +12,7 @@
  */
 import {
   ArrowRightLeft,
+  Grid3x3,
   MessageSquareText,
   Mic,
   MicOff,
@@ -202,10 +203,67 @@ function CallChip({ call }: { call: CallInfo }) {
   );
 }
 
+const DTMF_KEYS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "*",
+  "0",
+  "#",
+] as const;
+
+/** An in-call keypad — sends DTMF touch-tones to navigate phone menus / IVRs
+ *  ("press 1 for sales…") when calling a supplier or utility. */
+function DtmfKeypad({
+  callId,
+  onClose,
+}: {
+  callId: string;
+  onClose: () => void;
+}) {
+  const softphone = useSoftphone()!;
+  return (
+    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-white p-3 shadow-lg">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+          Keypad
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close keypad"
+          className="text-app-muted-2 transition-colors hover:text-app-ink"
+        >
+          <X className="size-3.5" strokeWidth={2} />
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {DTMF_KEYS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => softphone.sendDtmf(callId, key)}
+            className="rounded-lg border border-app-line py-2.5 text-base font-medium text-app-ink transition-colors duration-100 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {key}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** The active call's full control card. */
 function ActiveCard({ call }: { call: CallInfo }) {
   const softphone = useSoftphone()!;
   const [transferOpen, setTransferOpen] = useState(false);
+  const [keypadOpen, setKeypadOpen] = useState(false);
   const live = useLiveCall(call.sessionId);
   const name = call.peer.name || formatPhone(call.peer.number);
   const number = call.peer.number ? formatPhone(call.peer.number) : "";
@@ -217,6 +275,9 @@ function ActiveCard({ call }: { call: CallInfo }) {
           sessionId={call.sessionId}
           onDone={() => setTransferOpen(false)}
         />
+      )}
+      {keypadOpen && call.phase === "active" && (
+        <DtmfKeypad callId={call.id} onClose={() => setKeypadOpen(false)} />
       )}
       <span
         aria-hidden
@@ -263,6 +324,17 @@ function ActiveCard({ call }: { call: CallInfo }) {
           onClick={() => setTransferOpen((open) => !open)}
         >
           <ArrowRightLeft className="size-4" strokeWidth={1.75} />
+        </Button>
+      )}
+      {call.phase === "active" && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Keypad"
+          aria-expanded={keypadOpen}
+          onClick={() => setKeypadOpen((open) => !open)}
+        >
+          <Grid3x3 className="size-4" strokeWidth={1.75} />
         </Button>
       )}
       {call.phase === "active" && (

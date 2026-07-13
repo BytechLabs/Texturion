@@ -55,6 +55,7 @@ interface TelnyxCall {
   unhold: () => Promise<unknown>;
   muteAudio: () => void;
   unmuteAudio: () => void;
+  dtmf: (digit: string) => void;
   remoteStream?: MediaStream;
   telnyxIDs?: {
     telnyxCallControlId?: string;
@@ -186,6 +187,8 @@ interface SoftphoneContextValue extends SoftphoneState {
   /** Hold/unhold flip — unholding another call swaps the active audio. */
   toggleHold: (id: string) => void;
   toggleMute: (id: string) => void;
+  /** Send a DTMF touch-tone on a call (keypad — navigating phone menus/IVRs). */
+  sendDtmf: (id: string, digit: string) => void;
   /** Dismiss an ended call's chip. */
   dismiss: (id: string) => void;
 }
@@ -599,6 +602,16 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const sendDtmf = useCallback((id: string, digit: string) => {
+    const call = callsRef.current.get(id);
+    if (!call) return;
+    try {
+      call.dtmf(digit);
+    } catch {
+      /* leg gone mid-press — the chip clears itself */
+    }
+  }, []);
+
   const dismiss = useCallback(
     (id: string) => dispatch({ type: "dismissed", id }),
     [],
@@ -616,6 +629,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         hangup,
         toggleHold,
         toggleMute,
+        sendDtmf,
         dismiss,
       }}
     >
