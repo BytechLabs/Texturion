@@ -228,6 +228,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // brings the phone back. Mark down + let the recovery watchdog decide.
       client.on("telnyx.socket.close", () => {
         readyRef.current = false;
+        dispatch({ type: "disconnected" });
         scheduleRecoverRef.current?.();
       });
       client.on("telnyx.notification", (payload) => {

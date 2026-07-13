@@ -26,6 +26,7 @@ import {
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
 import { Dialer } from "@/components/calls/dialer";
+import { SoftphoneStatus } from "@/components/calls/softphone-status";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { Button } from "@/components/ui/button";
@@ -170,6 +171,7 @@ export function CallsView() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h1 className="text-[17px] font-semibold text-app-ink">Calls</h1>
+          <SoftphoneStatus />
           <Dialer
             trigger={
               <Button

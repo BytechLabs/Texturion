@@ -197,4 +197,17 @@ describe("softphoneReducer — call waiting (phase 3)", () => {
     expect(state.calls[0].phase).toBe("active");
     expect(state.activeId).toBe("c1");
   });
+
+  it("disconnected flips ready off (the phone can't ring) and back on when it recovers, without touching live calls", () => {
+    const state = run([
+      { type: "ready" },
+      { type: "placing", id: "c1", sessionId: null, peer: PEER_A },
+      { type: "sdk_state", id: "c1", state: "active", now: 1000 },
+      { type: "disconnected" },
+    ]);
+    expect(state.ready).toBe(false);
+    expect(state.calls[0].phase).toBe("active"); // the live call is untouched
+    const back = softphoneReducer(state, { type: "ready" });
+    expect(back.ready).toBe(true);
+  });
 });
