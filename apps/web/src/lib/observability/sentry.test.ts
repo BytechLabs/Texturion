@@ -37,14 +37,34 @@ afterEach(() => {
 
 describe("sentryClientOptions (D8/§10 posture, mirroring the API Worker)", () => {
   it("wires the DSN with PII off, tracing off, and the scrubbers installed", async () => {
-    const { sentryClientOptions, scrubEvent, scrubBreadcrumb } =
-      await importSentry(DSN);
+    const { sentryClientOptions, scrubBreadcrumb } = await importSentry(DSN);
     const options = sentryClientOptions(DSN);
     expect(options.dsn).toBe(DSN);
     expect(options.sendDefaultPii).toBe(false);
     expect(options.tracesSampleRate).toBe(0);
-    expect(options.beforeSend).toBe(scrubEvent);
+    expect(typeof options.beforeSend).toBe("function");
     expect(options.beforeBreadcrumb).toBe(scrubBreadcrumb);
+  });
+
+  it("beforeSend DROPS bare network fetch failures (device connectivity, not our bug)", async () => {
+    const { sentryClientOptions } = await importSentry(DSN);
+    const beforeSend = sentryClientOptions(DSN).beforeSend!;
+    for (const value of ["Failed to fetch", "Load failed", "NetworkError"]) {
+      const event = { exception: { values: [{ type: "TypeError", value }] } };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(beforeSend(event as any, {} as any)).toBeNull();
+    }
+  });
+
+  it("beforeSend KEEPS (and scrubs) a genuine app error", async () => {
+    const { sentryClientOptions } = await importSentry(DSN);
+    const beforeSend = sentryClientOptions(DSN).beforeSend!;
+    const event = {
+      exception: { values: [{ type: "Error", value: "boom" }] },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const out = beforeSend(event as any, {} as any);
+    expect(out).not.toBeNull();
   });
 });
 
@@ -56,13 +76,13 @@ describe("initSentryClient (NEXT_PUBLIC_SENTRY_DSN optional — absent = off)", 
   });
 
   it("initializes the browser SDK with the scrubbed options when the DSN is set", async () => {
-    const { initSentryClient, scrubEvent } = await importSentry(DSN);
+    const { initSentryClient } = await importSentry(DSN);
     await initSentryClient();
     expect(initSpy).toHaveBeenCalledTimes(1);
     const options = initSpy.mock.calls[0][0];
     expect(options.dsn).toBe(DSN);
     expect(options.sendDefaultPii).toBe(false);
-    expect(options.beforeSend).toBe(scrubEvent);
+    expect(typeof options.beforeSend).toBe("function");
   });
 
   it("initializes at most once", async () => {

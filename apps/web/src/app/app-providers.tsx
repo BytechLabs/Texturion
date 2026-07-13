@@ -15,12 +15,31 @@ import { ApiError } from "@/lib/api/error";
 import { reportClientError } from "@/lib/observability/sentry";
 
 /**
+ * A bare network fetch failure — `TypeError: Failed to fetch` (Chrome/Firefox)
+ * or `Load failed` (Safari). These come from the USER's connectivity (a mobile
+ * signal drop, offline, flaky wifi) OR a total CORS/deploy misconfig — never a
+ * one-off application bug. We deliberately do NOT report them: a real
+ * misconfiguration is an immediate, total outage that surfaces on its own, while
+ * transient drops (very common on mobile) would otherwise drown real signal.
+ */
+function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof TypeError &&
+    /failed to fetch|load failed|networkerror|network request failed/i.test(
+      error.message,
+    )
+  );
+}
+
+/**
  * A client-side failure worth reporting to Sentry (D13): an unexpected server
- * 5xx, or a network / CORS error (not an ApiError at all). Expected 4xx (auth,
- * conflict, validation, not-found) are normal UX and stay out of Sentry.
+ * 5xx, or a genuine unexpected exception. Expected 4xx (auth, conflict,
+ * validation, not-found) are normal UX, and transient network drops are the
+ * device's connectivity — both stay out of Sentry.
  */
 function isReportable(error: unknown): boolean {
-  return !(error instanceof ApiError) || error.status >= 500;
+  if (error instanceof ApiError) return error.status >= 500;
+  return !isNetworkError(error);
 }
 
 /**

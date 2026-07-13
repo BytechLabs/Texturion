@@ -9,11 +9,29 @@
  * `instrumentation-client.ts`, so `@sentry/browser` ships as its own lazy
  * chunk and costs unconfigured deploys nothing.
  */
-import type { BrowserOptions } from "@sentry/browser";
+import type { BrowserOptions, ErrorEvent } from "@sentry/browser";
 
 import { publicEnv } from "@/env";
 
 import { scrubBreadcrumb, scrubEvent } from "./scrub";
+
+/**
+ * A bare network fetch failure (`TypeError: Failed to fetch` / Safari's `Load
+ * failed`). These are the user's connectivity — a mobile signal drop, offline,
+ * flaky wifi — or a total CORS/deploy misconfig (an immediate, obvious outage),
+ * never a one-off app bug. Dropped so device connectivity never drowns real
+ * signal. Catches the auto-instrumented (unhandled) paths; the react-query path
+ * is gated the same way in app-providers.tsx.
+ */
+function isNetworkErrorEvent(event: ErrorEvent): boolean {
+  return (event.exception?.values ?? []).some(
+    (v) =>
+      v.type === "TypeError" &&
+      /failed to fetch|load failed|networkerror|network request failed/i.test(
+        v.value ?? "",
+      ),
+  );
+}
 
 /** Options for `Sentry.init` — same PII posture as the API Worker (D8/§10). */
 export function sentryClientOptions(dsn: string): BrowserOptions {
@@ -22,7 +40,8 @@ export function sentryClientOptions(dsn: string): BrowserOptions {
     environment: process.env.NODE_ENV,
     sendDefaultPii: false,
     tracesSampleRate: 0,
-    beforeSend: scrubEvent,
+    beforeSend: (event) =>
+      isNetworkErrorEvent(event) ? null : scrubEvent(event),
     beforeBreadcrumb: scrubBreadcrumb,
   };
 }
