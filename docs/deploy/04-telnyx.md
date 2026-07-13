@@ -64,6 +64,20 @@ profile, `inbound.codecs: ["OPUS","G722","G711U"]`. Copy the id → the
 `TELNYX_WEBRTC_CONNECTION_ID` Worker secret. Done for prod on 2026-07-11
 (connection `3002012715179836808`, "loonext-webrtc").
 
+> **REQUIRED for INBOUND ringing (#135, learned the hard way in prod):** this
+> connection MUST have `sip_uri_calling_preference: "internal"` —
+> `PATCH /v2/credential_connections/{id}` with `{"sip_uri_calling_preference":
+> "internal"}`. Every member browser REGISTERS its telephony credential/JWT on
+> THIS connection, and the ring engine dials `sip:<sip_username>@sip.telnyx.com`
+> from THIS connection (`connection_id = TELNYX_WEBRTC_CONNECTION_ID`,
+> `apps/api/src/messaging/inbound-ring.ts`). A SIP-username INVITE only resolves
+> to a registered client when it enters that client's own connection realm with
+> SIP-URI calling enabled. Set on prod 2026-07-12. WITHOUT it (the create-time
+> default is null/disabled) the ring leg returns `state='failed'` and the
+> browser never rings — the call goes straight to voicemail. Dialing the ring
+> from the number's VOICE connection has the same failure (cross-connection: the
+> registration isn't visible), so the ring MUST originate from this connection.
+
 The Worker does the rest at runtime: when a company enables missed-call text-back
 or sets a forward-to-cell, it PATCHes each active number's voice settings to
 `connection_id = TELNYX_VOICE_CONNECTION_ID`
