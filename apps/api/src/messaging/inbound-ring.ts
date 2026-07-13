@@ -43,6 +43,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
 import type { Env } from "../env";
+import { notifyIncomingCall } from "../notifications/incoming-call";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
 // Function-level circular import (voice-webhook imports this module's
 // handlers): safe — neither module calls the other at load time.
@@ -216,6 +217,15 @@ export async function ringMembersOrVoicemail(
     });
     return;
   }
+
+  // Push-to-wake (#135): alert every eligible member on their PHONE in parallel
+  // with the browser ring. A mobile tab that's been suspended can't render the
+  // in-app ring, so without this a phone stays silent. Fire-and-forget and
+  // never-throwing — a push failure must not disturb the ring/voicemail path.
+  void notifyIncomingCall(env, db, {
+    userIds: targets.map((t) => t.userId),
+    caller: input.callerE164,
+  });
 
   // The ring leg is a Call Control dial, which MUST originate from a Call
   // Control APPLICATION — the number's voice connection

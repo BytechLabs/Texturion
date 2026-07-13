@@ -120,6 +120,28 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
     expect(options.tag).toBe(
       "loonext:/inbox/7c9e6679-7425-40de-944b-e07fc1f90ae7",
     );
+    // A message is not persistent and does not buzz.
+    expect(options.requireInteraction).toBe(false);
+    expect(options.vibrate).toBeUndefined();
+  });
+
+  it("renders a kind:'call' push as an urgent, persistent, buzzing alert (#135 push-to-wake)", () => {
+    // Exact payload shape sent by apps/api/src/notifications/incoming-call.ts.
+    const raw = JSON.stringify({
+      kind: "call",
+      title: "Incoming call",
+      body: "+16135551000",
+      url: "/calls",
+    });
+    const { title, options } = sw.formatPushNotification(raw, ORIGIN);
+    expect(title).toBe("Incoming call");
+    expect(options).toMatchObject({
+      body: "+16135551000",
+      tag: "loonext:call", // one live call alert, never collapsed onto a thread
+      requireInteraction: true, // stays on screen until acted on
+      data: { url: "/calls" },
+    });
+    expect(Array.isArray(options.vibrate)).toBe(true);
   });
 
   it("still shows a calm generic notification for empty or garbage payloads", () => {

@@ -254,6 +254,7 @@ export async function sendWebPush(
   target: PushTarget,
   payload: string,
   ttlSeconds = 24 * 60 * 60,
+  urgency: "normal" | "high" = "normal",
 ): Promise<PushResult> {
   const [authorization, body] = await Promise.all([
     vapidAuthorization(env, target.endpoint),
@@ -264,7 +265,9 @@ export async function sendWebPush(
     headers: {
       Authorization: authorization,
       TTL: String(ttlSeconds),
-      Urgency: "normal",
+      // A ringing call needs immediate delivery + device wake; a message push
+      // is normal. (Web Push urgency, RFC 8030 §5.3.)
+      Urgency: urgency,
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
     },

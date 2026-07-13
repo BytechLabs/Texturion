@@ -42,9 +42,11 @@ function normalizeNotificationUrl(rawUrl, origin) {
 
 /**
  * Pure formatter: raw push payload text -> showNotification arguments.
- * Payload shape: { title: contact display name, body: 80-char snippet,
- * url: deep link }. Anything malformed still produces a calm, honest
- * notification; a subscribed push should never be silently dropped.
+ * Payload shape: { title, body, url, kind? }. `kind: "call"` (#135 push-to-wake)
+ * renders an URGENT, persistent alert — a ringing call is not a message: it must
+ * stay on screen until acted on, vibrate, and never collapse onto a thread
+ * notification. Anything malformed still produces a calm, honest notification;
+ * a subscribed push should never be silently dropped.
  */
 function formatPushNotification(rawText, origin) {
   let payload = null;
@@ -55,6 +57,7 @@ function formatPushNotification(rawText, origin) {
       payload = null;
     }
   }
+  const isCall = Boolean(payload) && payload.kind === "call";
   const title =
     payload && typeof payload.title === "string" && payload.title.trim() !== ""
       ? payload.title
@@ -62,7 +65,9 @@ function formatPushNotification(rawText, origin) {
   const body =
     payload && typeof payload.body === "string" && payload.body.trim() !== ""
       ? payload.body
-      : "You have a new message.";
+      : isCall
+        ? "Someone is calling your business number."
+        : "You have a new message.";
   const url = normalizeNotificationUrl(payload ? payload.url : null, origin);
   return {
     title,
@@ -70,10 +75,12 @@ function formatPushNotification(rawText, origin) {
       body,
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-72.png",
-      // One notification per thread: a second text from the same customer
-      // replaces the first instead of stacking, but still alerts.
-      tag: `loonext:${url}`,
+      // A call is one live alert (tag 'loonext:call'), kept on screen until
+      // acted on and buzzing; a message is one-per-thread and quiet.
+      tag: isCall ? "loonext:call" : `loonext:${url}`,
       renotify: true,
+      requireInteraction: isCall,
+      vibrate: isCall ? [200, 100, 200, 100, 200] : undefined,
       data: { url },
     },
   };
