@@ -202,12 +202,21 @@ export async function ringMembersOrVoicemail(
   }
   if ((existing ?? []).length > 0) return; // replayed initiated — already rung
 
-  const targets = await eligibleRingTargets(
-    db,
-    input.companyId,
-    input.phoneNumberId,
-  );
-  if (targets.length === 0) {
+  // The ring leg MUST originate from the connection the member's browser is
+  // registered on — the shared WebRTC credential connection (webrtc.ts mints
+  // every credential/JWT on it). A `sip:<sip_username>@sip.telnyx.com` INVITE
+  // only resolves to a registered client when it enters that connection's
+  // registrar realm (with its sip_uri_calling_preference = 'internal'); dialing
+  // from the number's VOICE connection can't see the WebRTC registration, so the
+  // leg comes back state='failed' and the browser never rings (#135). Without
+  // the WebRTC connection configured there is no browser to ring — go straight
+  // to voicemail rather than dial a wrong-connection leg that always fails.
+  const ringConnectionId = env.TELNYX_WEBRTC_CONNECTION_ID;
+
+  const targets = ringConnectionId
+    ? await eligibleRingTargets(db, input.companyId, input.phoneNumberId)
+    : [];
+  if (targets.length === 0 || !ringConnectionId) {
     await startVoicemail(env, {
       callControlId: input.callControlId,
       caller: input.callerE164,
@@ -227,7 +236,7 @@ export async function ringMembersOrVoicemail(
         method: "POST",
         path: "/v2/calls",
         body: {
-          connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+          connection_id: ringConnectionId,
           to: `sip:${target.sipUsername}@sip.telnyx.com`,
           // The member's browser shows who is calling — the real caller when
           // known, the business number for anonymous/CLIR callers.

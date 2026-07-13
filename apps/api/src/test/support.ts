@@ -26,6 +26,10 @@ export function completeEnv(): Env {
     TELNYX_API_KEY: "KEY0123456789ABCDEF",
     TELNYX_PUBLIC_KEY: "3fJ8mQz1xW9yK2vL5nB7cD4eF6gH8iJ0kL2mN4oP6qR=",
     TELNYX_VOICE_CONNECTION_ID: "2000000000000000001",
+    // The shared WebRTC credential connection — the inbound ring dials FROM it
+    // (that's where member browsers register); without it, ringing degrades to
+    // voicemail (#135).
+    TELNYX_WEBRTC_CONNECTION_ID: "3000000000000000002",
     STRIPE_SECRET_KEY: "rk_test_0123456789abcdef",
     STRIPE_WEBHOOK_SECRET: "whsec_0123456789abcdef",
     RESEND_API_KEY: "re_0123456789abcdef",

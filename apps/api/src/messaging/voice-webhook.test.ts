@@ -443,7 +443,9 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     expect(dial.calls[0].body).toMatchObject({
       to: "sip:gencred_a@sip.telnyx.com",
       from: CALLER, // the member sees who is really calling
-      connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+      // The ring originates from the WebRTC connection the browser registers
+      // on — so the SIP-username INVITE resolves to the registered client (#135).
+      connection_id: env.TELNYX_WEBRTC_CONNECTION_ID,
     });
     const state = atob(
       (dial.calls[0].body as { client_state: string }).client_state,
