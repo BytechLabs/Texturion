@@ -202,21 +202,12 @@ export async function ringMembersOrVoicemail(
   }
   if ((existing ?? []).length > 0) return; // replayed initiated — already rung
 
-  // The ring leg MUST originate from the connection the member's browser is
-  // registered on — the shared WebRTC credential connection (webrtc.ts mints
-  // every credential/JWT on it). A `sip:<sip_username>@sip.telnyx.com` INVITE
-  // only resolves to a registered client when it enters that connection's
-  // registrar realm (with its sip_uri_calling_preference = 'internal'); dialing
-  // from the number's VOICE connection can't see the WebRTC registration, so the
-  // leg comes back state='failed' and the browser never rings (#135). Without
-  // the WebRTC connection configured there is no browser to ring — go straight
-  // to voicemail rather than dial a wrong-connection leg that always fails.
-  const ringConnectionId = env.TELNYX_WEBRTC_CONNECTION_ID;
-
-  const targets = ringConnectionId
-    ? await eligibleRingTargets(db, input.companyId, input.phoneNumberId)
-    : [];
-  if (targets.length === 0 || !ringConnectionId) {
+  const targets = await eligibleRingTargets(
+    db,
+    input.companyId,
+    input.phoneNumberId,
+  );
+  if (targets.length === 0) {
     await startVoicemail(env, {
       callControlId: input.callControlId,
       caller: input.callerE164,
@@ -226,6 +217,17 @@ export async function ringMembersOrVoicemail(
     return;
   }
 
+  // The ring leg is a Call Control dial, which MUST originate from a Call
+  // Control APPLICATION — the number's voice connection
+  // (TELNYX_VOICE_CONNECTION_ID). A credential connection (where the browsers
+  // register) CANNOT originate `POST /v2/calls` — Telnyx rejects it, the dial
+  // throws, no leg is ledgered, and the call falls to voicemail with the browser
+  // never ringing (#135 regression, 2026-07-13). What makes the
+  // `sip:<sip_username>@sip.telnyx.com` INVITE resolve to the registered browser
+  // is `sip_uri_calling_preference:'internal'` on the WebRTC credential
+  // connection (set once, docs/deploy/04-telnyx.md) — NOT the originating
+  // connection. So: originate from the Call Control app, resolve via the
+  // credential connection's preference.
   // One Dial per member browser. Per-target try/catch: one member's dead
   // credential must not silence the rest of the team. Legs are ledgered as
   // they land so the answer/failure races have rows to decide on.
@@ -236,7 +238,7 @@ export async function ringMembersOrVoicemail(
         method: "POST",
         path: "/v2/calls",
         body: {
-          connection_id: ringConnectionId,
+          connection_id: env.TELNYX_VOICE_CONNECTION_ID,
           to: `sip:${target.sipUsername}@sip.telnyx.com`,
           // The member's browser shows who is calling — the real caller when
           // known, the business number for anonymous/CLIR callers.
