@@ -1281,6 +1281,40 @@ describe("handleCallEvent — outbound call.initiated (D43 nonce authorization)"
     ).toBe(true);
   });
 
+  it("SECURITY (#136): REJECTS a leg whose REAL dialed number (payload.to) is outside US/CA — Caribbean toll-pumping — before the auth RPC", async () => {
+    const action = telnyxV2Actions();
+    // The browser chooses destinationNumber itself, so payload.to is the real,
+    // Telnyx-assigned dialed number. A member keeps a benign nonce/caller ID but
+    // dials +1-876 (Jamaica — NANP yet billed international). The auth RPC would
+    // consume the nonce, so prove the destination check fires FIRST.
+    const auth = authStub({
+      authorized: true,
+      company_id: COMPANY_ID,
+      phone_number_id: "pn-1",
+    });
+    serve(auth, action);
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: OC_LEG,
+        call_session_id: SESSION,
+        direction: "outgoing",
+        from: OUR_NUMBER,
+        to: "+18765550123", // Jamaica — excluded by the shared US/CA table
+        client_state: btoa(`oc_customer|${CALLER}|${NONCE}`),
+      }),
+    );
+
+    // Rejected on the destination; the nonce is never even consulted.
+    expect(auth.calls).toHaveLength(0);
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${OC_LEG}/actions/hangup`,
+      ),
+    ).toBe(true);
+  });
+
   it("REJECTS an UNTAGGED / nonce-less outgoing leg outright — no RPC call is even made", async () => {
     const action = telnyxV2Actions();
     // A raw oc_customer tag with NO nonce (a browser call crafted to bypass

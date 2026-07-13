@@ -32,6 +32,7 @@ import {
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
+import { normalizeNanpPhone } from "../routes/core/phone";
 import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
@@ -595,8 +596,18 @@ async function handleOutboundInitiated(
     await telnyxRejectLeg(env, callControlId);
     return;
   }
-  const customerE164 =
-    decodeOutboundCustomer(payload.client_state) ?? payload.to ?? "";
+  // SECURITY (#136): the BROWSER chose the dialed number itself, so the app's
+  // US/CA-only invariant must be enforced on the TELNYX-REPORTED destination
+  // (`payload.to`, Telnyx-assigned + unforgeable) — NOT the browser-echoed
+  // client_state customer, which a member could keep benign while dialing a
+  // premium/Caribbean number. normalizeNanpPhone rejects Caribbean +1 (the
+  // toll-pumping target) and everything outside US/CA, independent of the Telnyx
+  // outbound profile. The validated number becomes the customer of record.
+  const customerE164 = normalizeNanpPhone(payload.to ?? "");
+  if (!customerE164) {
+    await telnyxRejectLeg(env, callControlId);
+    return;
+  }
   const { data: authData, error: authError } = await db.rpc(
     "api_authorize_outbound_call",
     {

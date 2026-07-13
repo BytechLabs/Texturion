@@ -322,9 +322,10 @@ async function authorizeOutboundCall(
 
   // US/CA only, on EVERY origin (defense in depth — the dialer already
   // NANP-normalizes; a contact/thread could in theory hold a non-NANP number).
-  // The Telnyx outbound profile is whitelisted to US+CA too; this gives an
-  // honest error instead of a carrier reject, and blocks costly international.
-  if (!/^\+1[2-9]\d{2}[2-9]\d{6}$/.test(customer)) {
+  // normalizeNanpPhone consults the shared US/CA table (EXCLUDES Caribbean +1,
+  // the toll-pumping target) — a bare `+1[2-9]…` regex would let 876/etc.
+  // through. The webhook re-validates the real dialed number too (#136).
+  if (!normalizeNanpPhone(customer)) {
     return errorResponse(
       c,
       "validation_failed",
