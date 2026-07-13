@@ -144,6 +144,11 @@ function ringWorldStubs(opts?: {
     stubRoute(restMatch(env, "GET", "number_access"), () =>
       opts?.accessRules ?? [],
     ),
+    // Push-to-wake (#135) fans out on the ring path: honor push_enabled (#146)
+    // then send. No prefs rows (default ON) and no subscriptions here — the
+    // send is exercised in incoming-call.test.ts.
+    stubRoute(restMatch(env, "GET", "notification_prefs"), () => []),
+    stubRoute(restMatch(env, "GET", "push_subscriptions"), () => []),
   ];
 }
 

@@ -222,9 +222,14 @@ export async function ringMembersOrVoicemail(
 
   // Push-to-wake (#135): alert every eligible member on their PHONE in parallel
   // with the browser ring. A mobile tab that's been suspended can't render the
-  // in-app ring, so without this a phone stays silent. Fire-and-forget and
-  // never-throwing — a push failure must not disturb the ring/voicemail path.
-  void notifyIncomingCall(env, db, {
+  // in-app ring, so without this a phone stays silent. Never-throwing — a push
+  // failure must not disturb the ring/voicemail path. Kick it off here (in
+  // parallel with dialing, so the FCM round-trip never delays the ring) but
+  // AWAIT it after the dial loop (#140): a bare `void` let the webhook isolate
+  // wind down and cancel the in-flight push before FCM was reached, silently
+  // dropping the wake for exactly the suspended tabs it exists to serve.
+  const notifyDone = notifyIncomingCall(env, db, {
+    companyId: input.companyId,
     userIds: targets.map((t) => t.userId),
     caller: input.callerE164,
     callSessionId: input.callSessionId,
@@ -274,6 +279,11 @@ export async function ringMembersOrVoicemail(
       );
     }
   }
+
+  // Hold the isolate for the push (started before dialing). One await here
+  // covers every exit below — voicemail fallback, ledger success, ledger
+  // compensation — so the wake always settles inside the alive webhook chain.
+  await notifyDone;
 
   if (dialed.length === 0) {
     await startVoicemail(env, {
