@@ -831,11 +831,36 @@ async function handleInboundInitiated(
   const company = (companyRows ?? [])[0] as InboundCompany | undefined;
   if (!company) return;
 
+  // Line model (D43, founder-binding): ONE live call per NUMBER, decided
+  // ATOMICALLY. api_claim_inbound_line takes a per-(company,number) advisory
+  // lock, checks for another in-flight session on the number, and inserts
+  // THIS call's row (outcome null → line occupied) under that same lock — so
+  // two calls to one number in the same instant can never both go live.
+  //
+  // Minted HERE, before the suspended and cap gates (#141): both of those are
+  // legitimate early returns, but their caller leg still hangs up untagged, and
+  // the D43 terminal handler drops any inbound-family hangup that has no genuine
+  // calls row (its forgery gate). Without a row first, a suspended or
+  // over-cap caller is lost with ZERO record — no threaded miss, no crew alert,
+  // no text-back — silent lead loss for a lead-capture product. With the row,
+  // that hangup resolves through the normal missed path (outcome='missed',
+  // line freed, alert + text-back where the subscription allows).
+  const lineBusy = unwrapBool(
+    await db.rpc("api_claim_inbound_line", {
+      p_company_id: resolved.companyId,
+      p_phone_number_id: resolved.phoneNumberId,
+      p_call_session_id: sessionId,
+      p_caller_e164: callerE164,
+      p_window_start: new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
+    }),
+  );
+
   // #43 suspended-tenant gate: a suspended number (canceled → 30-day grace,
   // D6) or a non-live subscription gets NO ring and NO voicemail — both run
   // billable legs with zero revenue. The call rings out; its untagged hangup
-  // flows through handleTerminalCallEvent as a missed call, where the
-  // text-back's own claim RPC applies the same subscription gate.
+  // now threads a missed call (the row was minted above) + crew alert, and the
+  // text-back's own claim RPC applies the same subscription gate (so a
+  // suspended tenant still sees the miss, but no billable SMS goes out).
   if (
     resolved.status === "suspended" ||
     company.subscription_status !== "active"
@@ -845,11 +870,11 @@ async function handleInboundInitiated(
 
   // D36 voice spending cap: AT the cap (allowance × overage_cap_multiplier)
   // inbound answering pauses entirely — reject; the reject's untagged-leg
-  // hangup still runs the missed text-back (idempotent per call). A dead-leg
-  // 4xx (caller hung up during the cap RPC; or a replay of an ended call's
-  // initiated) is tolerated — the cap condition is durable, so a raw throw
-  // here would burn all 5 ledger replays and page Sentry on a state that can
-  // never heal.
+  // hangup still runs the missed text-back + crew alert (the row was minted
+  // above; idempotent per call). A dead-leg 4xx (caller hung up during the cap
+  // RPC; or a replay of an ended call's initiated) is tolerated — the cap
+  // condition is durable, so a raw throw here would burn all 5 ledger replays
+  // and page Sentry on a state that can never heal.
   if (await companyOverVoiceCap(db, resolved.companyId, company)) {
     try {
       await telnyxRequest(env, {
@@ -862,22 +887,6 @@ async function handleInboundInitiated(
     }
     return;
   }
-
-  // Line model (D43, founder-binding): ONE live call per NUMBER, decided
-  // ATOMICALLY. api_claim_inbound_line takes a per-(company,number) advisory
-  // lock, checks for another in-flight session on the number, and inserts
-  // THIS call's row under that same lock — so two calls to one number in the
-  // same instant can never both go live (one wins the line, the other is
-  // told busy). outcome null on the fresh row marks the line occupied.
-  const lineBusy = unwrapBool(
-    await db.rpc("api_claim_inbound_line", {
-      p_company_id: resolved.companyId,
-      p_phone_number_id: resolved.phoneNumberId,
-      p_call_session_id: sessionId,
-      p_caller_e164: callerE164,
-      p_window_start: new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
-    }),
-  );
 
   // The v2 metadata (screening verdict, attestation, dipped name, the
   // customer leg's control id for phase-3 hold/transfer) rides on the row.

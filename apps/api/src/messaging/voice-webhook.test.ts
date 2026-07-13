@@ -242,6 +242,13 @@ function voiceSecondsStub(seconds: number): Stub {
   return stubRoute(rpcMatch(env, "api_period_forward_seconds"), () => seconds);
 }
 
+/** api_claim_inbound_line RPC → mints the outcome-null row, returns line-busy.
+ *  Now on the suspended + cap-reject paths too (#141), so those early returns
+ *  still leave a genuine row for the untagged hangup to resolve as a miss. */
+function inboundLineStub(busy = false): Stub {
+  return stubRoute(rpcMatch(env, "api_claim_inbound_line"), () => busy);
+}
+
 /** call_records insert sink (#12 voice metering). Returns [] — the shape of
  *  an ignoreDuplicates conflict — so D36 meter reporting stays quiet unless a
  *  test opts in via {@link callRecordsInsertStub}. */
@@ -721,6 +728,7 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
   it("rejects the call at the voice spending cap (D36 pause boundary)", async () => {
     const dial = telnyxDial();
     const reject = telnyxReject();
+    const claim = inboundLineStub();
     serve(
       numberStub(),
       ...companyStubs(null, {
@@ -729,17 +737,68 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
       }),
       // Exactly at allowance × multiplier: 2,500 min × 3.00 = 7,500 min.
       voiceSecondsStub(7500 * 60),
+      claim,
       dial,
       reject,
     );
 
     await handleCallEvent(env, initiated());
 
-    // No ring, no voicemail — the call is rejected; its untagged hangup
-    // flows through the normal missed path (text-back).
+    // No ring, no voicemail — the call is rejected. The row is minted FIRST
+    // (#141) so the untagged hangup can still resolve as a miss.
     expect(reject.calls).toHaveLength(1);
     expect(reject.calls[0].body).toMatchObject({ cause: "USER_BUSY" });
     expect(dial.calls).toHaveLength(0);
+    expect(claim.calls).toHaveLength(1);
+  });
+
+  it("over-cap end-to-end (#141): the rejected caller's untagged hangup still threads a miss + fires the text-back", async () => {
+    const reject = telnyxReject();
+    const claim = inboundLineStub();
+    const missedText = claimStub(); // claim_missed_call_text (the text-back)
+    const upsert = upsertCallStub(); // #129 threaded-miss read model
+    serve(
+      numberStub(),
+      ...companyStubs(null, {
+        plan: "starter",
+        currentPeriodStart: "2026-07-01T00:00:00Z",
+      }),
+      voiceSecondsStub(7500 * 60), // at the cap
+      claim,
+      reject,
+      // The follow-on untagged hangup runs the normal missed path.
+      callRecordsStub(),
+      mctbSettingsStub(),
+      ...sendGateStubs(),
+      missedText,
+      telnyxSms(),
+      persistStub(),
+      upsert,
+      ...alertStubs(),
+    );
+
+    // 1) initiated → the caller is rejected, but the row is minted before it.
+    await handleCallEvent(env, initiated());
+    expect(reject.calls).toHaveLength(1);
+    expect(claim.calls).toHaveLength(1);
+
+    // 2) the rejected caller hangs up untagged → it passes the D43 row gate
+    //    (the row exists now) and threads a miss + attempts the text-back.
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+        start_time: "2026-07-12T00:00:00Z",
+        end_time: "2026-07-12T00:00:05Z",
+      }),
+    );
+    expect(upsert.calls.length).toBeGreaterThan(0); // threaded miss
+    expect(missedText.calls).toHaveLength(1); // text-back attempted
   });
 
   it("never rings for a canceled (non-active subscription) company (#43)", async () => {
@@ -748,6 +807,7 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     serve(
       numberStub(),
       ...companyStubs(null, undefined, "canceled"),
+      inboundLineStub(),
       dial,
       action,
     );
@@ -755,8 +815,9 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     await handleCallEvent(env, initiated());
 
     // A canceled company in its 30-day grace must not run billable legs on
-    // our dollar: no ring, no voicemail — the call rings out and the hangup
-    // is the missed signal (where the text-back's subscription gate applies).
+    // our dollar: no ring, no voicemail. The row is still minted (#141) so the
+    // hangout is the missed signal (where the text-back's subscription gate
+    // applies) — the miss is threaded rather than lost.
     expect(dial.calls).toHaveLength(0);
     expect(action.calls).toHaveLength(0);
   });
@@ -764,7 +825,13 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
   it("never rings on a suspended number even when the company row reads active (#43)", async () => {
     const dial = telnyxDial();
     const action = telnyxV2Actions();
-    serve(numberStub("suspended"), ...companyStubs(null), dial, action);
+    serve(
+      numberStub("suspended"),
+      ...companyStubs(null),
+      inboundLineStub(),
+      dial,
+      action,
+    );
 
     await handleCallEvent(env, initiated());
 
