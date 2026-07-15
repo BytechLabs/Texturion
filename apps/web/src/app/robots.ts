@@ -15,7 +15,10 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: [
         "/inbox",
+        "/calls",
         "/contacts",
+        "/for-you",
+        "/tasks",
         "/templates",
         "/settings",
         "/onboarding",

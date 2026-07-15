@@ -12,6 +12,7 @@ export const metadata: Metadata = buildMetadata({
   title: POST.title,
   description: POST.description,
   path: blogPostPath(POST.slug),
+  article: { publishedTimeIso: POST.datePublishedIso },
 });
 
 export default function Page() {

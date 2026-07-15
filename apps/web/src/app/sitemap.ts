@@ -11,12 +11,11 @@ import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
  * they appear here automatically.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
-
   const entries: Array<{
     path: string;
     priority: number;
     changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
+    lastModified?: Date;
   }> = [
     { path: LIVE_ROUTES.home, priority: 1, changeFrequency: "weekly" },
     { path: LIVE_ROUTES.pricing, priority: 0.9, changeFrequency: "weekly" },
@@ -27,6 +26,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       path: blogPostPath(post.slug),
       priority: 0.5,
       changeFrequency: "monthly" as const,
+      // Real publish date. A `new Date()` here (the launch-batch shape) stamps
+      // every crawl as "changed now", which teaches engines the field is noise.
+      lastModified: new Date(post.datePublishedIso),
     })),
 
     // Feature pages (BLUEPRINT §2, §5).
@@ -101,9 +103,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: LIVE_ROUTES.cookies, priority: 0.3, changeFrequency: "yearly" },
   ];
 
-  return entries.map(({ path, priority, changeFrequency }) => ({
+  // Static routes carry no lastModified: we don't track per-page edit dates,
+  // and an honest omission beats a timestamp that resets on every request.
+  return entries.map(({ path, priority, changeFrequency, lastModified }) => ({
     url: absoluteUrl(path),
-    lastModified: now,
+    ...(lastModified ? { lastModified } : {}),
     changeFrequency,
     priority,
   }));
