@@ -18,6 +18,7 @@
  * remains the safety net for typed/bookmarked URLs. www canonicalizes to the
  * apex for free.
  */
+import { BLOG_POSTS } from "@/lib/marketing/blog";
 import { SITE_URL } from "@/lib/marketing/site";
 import { isAuthPage, isProtectedPath } from "@/lib/auth/redirects";
 
@@ -92,31 +93,44 @@ export function decideHostRedirect(args: {
   return null; // unknown host (previews, tunnels) → untouched
 }
 
+/** What the middleware should do with a request on the blog host. */
+export type BlogRoute =
+  | { kind: "rewrite"; pathname: string }
+  | { kind: "redirect"; url: string };
+
 /**
  * The blog subdomain (#130): blog.loonext.com serves the blog as its OWN
  * surface, with the posts at the host ROOT (blog.loonext.com/<slug>) instead of
- * a /blog path. This is a REWRITE, not a redirect — the browser URL stays on the
- * subdomain while the app renders the existing app/(marketing)/blog/* routes.
- * The main site's loonext.com/blog keeps working unchanged (canonical URLs stay
- * loonext.com/blog/<slug> until the subdomain is verified live), so this is a
- * purely additive, SEO-safe access path.
+ * a /blog path. Blog content is a REWRITE, not a redirect — the browser URL
+ * stays on the subdomain while the app renders the existing
+ * app/(marketing)/blog/* routes. The main site's loonext.com/blog keeps working
+ * unchanged (canonical URLs stay loonext.com/blog/<slug> until the subdomain is
+ * verified live), so this is a purely additive, SEO-safe access path.
+ *
+ * Everything that is NOT blog content redirects (308) to the canonical site:
+ * blog pages render the shared marketing chrome, whose links are root-relative
+ * (/pricing, /features, /legal/*) — on the blog host those must bounce to
+ * loonext.com, not be rewritten under /blog/* where they 404. App-surface
+ * paths take the same bounce; the marketing origin's own host split then hops
+ * them to the app origin.
  *
  * Activates only when NEXT_PUBLIC_BLOG_ORIGIN is set (production, once the
- * Cloudflare custom domain + DNS exist). Returns the internal pathname to
- * rewrite to, or null to pass through. Never throws.
+ * Cloudflare custom domain + DNS exist). Never throws.
  *
  * Mapping on the blog host:
- *   /            → /blog        (the index)
- *   /rss.xml     → /blog/rss.xml
- *   /<slug>      → /blog/<slug>
+ *   /               → rewrite /blog        (the index)
+ *   /rss.xml        → rewrite /blog/rss.xml
+ *   /<known-slug>   → rewrite /blog/<slug>  (slug ∈ BLOG_POSTS registry)
  *   /blog, /blog/*  → unchanged (defensive: already-prefixed passes through)
+ *   anything else   → redirect to the canonical site, search preserved
  */
-export function decideBlogRewrite(args: {
+export function decideBlogRoute(args: {
   host: string | null;
   pathname: string;
+  search: string;
   blogOrigin: string | undefined;
-}): string | null {
-  const { host, pathname, blogOrigin } = args;
+}): BlogRoute | null {
+  const { host, pathname, search, blogOrigin } = args;
   if (!blogOrigin || !host) return null;
   let blogHost: string;
   try {
@@ -126,6 +140,13 @@ export function decideBlogRewrite(args: {
   }
   if (host.toLowerCase() !== blogHost) return null;
   if (pathname === "/blog" || pathname.startsWith("/blog/")) return null;
-  if (pathname === "/") return "/blog";
-  return `/blog${pathname}`;
+  if (pathname === "/") return { kind: "rewrite", pathname: "/blog" };
+  if (pathname === "/rss.xml") {
+    return { kind: "rewrite", pathname: "/blog/rss.xml" };
+  }
+  const slug = pathname.slice(1);
+  if (BLOG_POSTS.some((post) => post.slug === slug)) {
+    return { kind: "rewrite", pathname: `/blog/${slug}` };
+  }
+  return { kind: "redirect", url: `${SITE_URL}${pathname}${search}` };
 }

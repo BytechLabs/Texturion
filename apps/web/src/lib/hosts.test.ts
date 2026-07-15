@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  decideBlogRewrite,
+  decideBlogRoute,
   decideHostRedirect,
   isAppSurfacePath,
 } from "./hosts";
@@ -118,39 +118,88 @@ describe("decideHostRedirect — split disabled / unknown hosts", () => {
   });
 });
 
-describe("decideBlogRewrite — blog subdomain (#130)", () => {
-  const rewrite = (host: string | null, pathname: string) =>
-    decideBlogRewrite({ host, pathname, blogOrigin: BLOG });
+describe("decideBlogRoute — blog subdomain (#130)", () => {
+  const route = (host: string | null, pathname: string, search = "") =>
+    decideBlogRoute({ host, pathname, search, blogOrigin: BLOG });
 
   it("serves the index at the blog host root", () => {
-    expect(rewrite("blog.loonext.com", "/")).toBe("/blog");
+    expect(route("blog.loonext.com", "/")).toEqual({
+      kind: "rewrite",
+      pathname: "/blog",
+    });
   });
 
-  it("maps a post slug at the root onto the /blog route", () => {
-    expect(rewrite("blog.loonext.com", "/how-to-text-quotes-to-customers")).toBe(
-      "/blog/how-to-text-quotes-to-customers",
-    );
-    expect(rewrite("blog.loonext.com", "/rss.xml")).toBe("/blog/rss.xml");
+  it("maps a registered post slug at the root onto the /blog route", () => {
+    expect(route("blog.loonext.com", "/how-to-text-quotes-to-customers")).toEqual({
+      kind: "rewrite",
+      pathname: "/blog/how-to-text-quotes-to-customers",
+    });
+    expect(route("blog.loonext.com", "/rss.xml")).toEqual({
+      kind: "rewrite",
+      pathname: "/blog/rss.xml",
+    });
   });
 
   it("passes already-/blog-prefixed paths through unchanged (defensive)", () => {
-    expect(rewrite("blog.loonext.com", "/blog")).toBeNull();
-    expect(rewrite("blog.loonext.com", "/blog/some-post")).toBeNull();
+    expect(route("blog.loonext.com", "/blog")).toBeNull();
+    expect(route("blog.loonext.com", "/blog/some-post")).toBeNull();
+  });
+
+  it("bounces marketing paths (the shared chrome's links) to the canonical site", () => {
+    expect(route("blog.loonext.com", "/pricing")).toEqual({
+      kind: "redirect",
+      url: "https://loonext.com/pricing",
+    });
+    expect(route("blog.loonext.com", "/legal/fair-use")).toEqual({
+      kind: "redirect",
+      url: "https://loonext.com/legal/fair-use",
+    });
+    expect(route("blog.loonext.com", "/features", "?utm_source=rss")).toEqual({
+      kind: "redirect",
+      url: "https://loonext.com/features?utm_source=rss",
+    });
+  });
+
+  it("bounces unknown slugs to the canonical site (which 404s them)", () => {
+    expect(route("blog.loonext.com", "/not-a-real-post")).toEqual({
+      kind: "redirect",
+      url: "https://loonext.com/not-a-real-post",
+    });
+  });
+
+  it("bounces app-surface paths too; the marketing host hops them onward", () => {
+    expect(route("blog.loonext.com", "/login")).toEqual({
+      kind: "redirect",
+      url: "https://loonext.com/login",
+    });
   });
 
   it("is case-insensitive on the host", () => {
-    expect(rewrite("BLOG.loonext.com", "/x")).toBe("/blog/x");
+    expect(route("BLOG.loonext.com", "/how-to-text-quotes-to-customers")).toEqual({
+      kind: "rewrite",
+      pathname: "/blog/how-to-text-quotes-to-customers",
+    });
   });
 
   it("does nothing off the blog host, or when unconfigured/misconfigured", () => {
-    expect(rewrite("loonext.com", "/pricing")).toBeNull();
-    expect(rewrite("app.loonext.com", "/inbox")).toBeNull();
-    expect(rewrite(null, "/")).toBeNull();
+    expect(route("loonext.com", "/pricing")).toBeNull();
+    expect(route("app.loonext.com", "/inbox")).toBeNull();
+    expect(route(null, "/")).toBeNull();
     expect(
-      decideBlogRewrite({ host: "blog.loonext.com", pathname: "/", blogOrigin: undefined }),
+      decideBlogRoute({
+        host: "blog.loonext.com",
+        pathname: "/",
+        search: "",
+        blogOrigin: undefined,
+      }),
     ).toBeNull();
     expect(
-      decideBlogRewrite({ host: "blog.loonext.com", pathname: "/", blogOrigin: "not-a-url" }),
+      decideBlogRoute({
+        host: "blog.loonext.com",
+        pathname: "/",
+        search: "",
+        blogOrigin: "not-a-url",
+      }),
     ).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { decideAuthRedirect } from "@/lib/auth/redirects";
-import { decideBlogRewrite, decideHostRedirect } from "@/lib/hosts";
+import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
 
 /**
  * Session-refreshing auth middleware (SPEC §10, G12): enforces the
@@ -16,18 +16,23 @@ import { decideBlogRewrite, decideHostRedirect } from "@/lib/hosts";
  * not support Next 15.2+ Node middleware (SPEC §3).
  */
 export async function middleware(request: NextRequest) {
-  // Blog subdomain FIRST (#130): blog.loonext.com serves the blog at its root
-  // via an internal rewrite (no session, no redirect — the URL stays on the
-  // subdomain). Only active when NEXT_PUBLIC_BLOG_ORIGIN is set.
-  const blogRewrite = decideBlogRewrite({
+  // Blog subdomain FIRST (#130): blog.loonext.com serves blog content at its
+  // root via an internal rewrite (the URL stays on the subdomain) and bounces
+  // every non-blog path — the marketing chrome's root-relative links — to the
+  // canonical site. Only active when NEXT_PUBLIC_BLOG_ORIGIN is set.
+  const blogRoute = decideBlogRoute({
     host: request.headers.get("host"),
     pathname: request.nextUrl.pathname,
+    search: request.nextUrl.search,
     blogOrigin: process.env.NEXT_PUBLIC_BLOG_ORIGIN || undefined,
   });
-  if (blogRewrite) {
+  if (blogRoute?.kind === "rewrite") {
     const url = request.nextUrl.clone();
-    url.pathname = blogRewrite;
+    url.pathname = blogRoute.pathname;
     return NextResponse.rewrite(url);
+  }
+  if (blogRoute?.kind === "redirect") {
+    return NextResponse.redirect(blogRoute.url, 308);
   }
 
   // Host split BEFORE any auth work: a cross-host hop needs no session read.
@@ -85,5 +90,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Skip static assets and files; run everywhere a session decision matters.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // /rss.xml is the one dotted path that NEEDS middleware: the blog host
+  // rewrites it to /blog/rss.xml (#130) — the dotted-file exclusion above
+  // would otherwise skip it and 404 the feed on blog.loonext.com.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)", "/rss.xml"],
 };
