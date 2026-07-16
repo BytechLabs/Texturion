@@ -1,0 +1,32 @@
+# XcodeGen project — run `xcodegen generate` (brew install xcodegen) on macOS,
+# then open Loonext.xcodeproj in Xcode 26+. Deployment target is iOS 26 so the
+# whole app adopts Liquid Glass natively.
+name: Loonext
+options:
+  bundleIdPrefix: com.loonext
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+packages:
+  TelnyxRTC:
+    url: https://github.com/team-telnyx/telnyx-webrtc-ios
+    majorVersion: 3.0.0
+targets:
+  Loonext:
+    type: application
+    platform: iOS
+    sources:
+      - Loonext
+    dependencies:
+      - package: TelnyxRTC
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls."
+        INFOPLIST_KEY_UIBackgroundModes: "audio voip remote-notification"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
