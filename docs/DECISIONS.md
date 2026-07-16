@@ -1698,3 +1698,50 @@ LESSON (browser-as-phone): a WebRTC softphone only rings while a tab is OPEN +
 its socket registered; "ring when closed" needs push-to-wake (Telnyx supports it
 mobile-first) — a separate, larger piece, deferred.
 
+
+## D44
+
+**D44 — Native mobile apps are IN scope: Android (Material 3 Expressive) +
+iOS 26 (Liquid Glass), epic #150 (2026-07-15/16).** Supersedes the MVP-era
+"native apps are out of scope" lines above (§D-early, deliberately-not-built
+list): the founder called web "not optimal for enterprise" and mandated full
+native parity — calls, texts, settings, teams, invites, tasks, notifications,
+auth, everything. Standing decisions:
+
+- **Stack.** Android: Kotlin + Jetpack Compose, `MaterialExpressiveTheme`
+  (material3 1.5.0-alpha24 — the Expressive APIs are internal in 1.4.0 stable),
+  AGP 9.3 / compileSdk 37 / minSdk 28, no DI framework (one hand-rolled
+  `AppGraph`). iOS: Swift 6 + SwiftUI, deployment target iOS 26 so Liquid
+  Glass is native everywhere, XcodeGen (`project.yml`), SPM only. Both apps
+  bundle Golos Text (OFL) and the calm-petrol G11 identity.
+- **No auth SDKs.** Both clients speak GoTrue REST directly (4 endpoints) and
+  hit /v1 with `Authorization: Bearer` + `X-Company-Id` — the API's existing
+  contract, zero server changes. Sessions: DataStore (Android app sandbox) /
+  Keychain (iOS). Refresh is single-flight with a stale-token force path (a
+  401 on an unexpired-looking token still refreshes exactly once).
+- **Wire models are decode-proof.** Server string enums stay strings with
+  constant namespaces client-side (a lagging app must never crash on a new
+  server value); every list is `{data, next_cursor}`; realtime payloads are
+  ID-only → refetch; signed attachment URLs are minted per view, never cached.
+- **Push.** One FCM HTTP v1 sender in the api Worker (#151) serves BOTH
+  platforms (Android data-only messages, iOS via FCM's APNs bridge);
+  `device_push_tokens` (cap 10/user, oldest-evict) mirrors push_subscriptions.
+  iOS incoming-call wake is NOT FCM — it's Telnyx's own VoIP push credential
+  (PushKit + CallKit, founder uploads the VoIP cert in the Telnyx portal);
+  Android call wake rides our FCM `kind:'call'` + ring-me. Everything
+  degrades to a logged no-op until the founder provisions Firebase
+  (PRODUCTION.md §Firebase) — deploys stay green.
+- **Store posture (BINDING).** The apps sell nothing: workspace creation +
+  checkout stay on the web (the apps hand off to app.loonext.com in the
+  EXTERNAL browser and say so honestly); billing portal/checkout links always
+  open external Safari/Chrome, never a webview, and the apps contain no
+  purchase language — the Spotify/reader posture, no IAP obligation.
+- **Calls native = same plumbing as web.** `POST /v1/webrtc/token` mints the
+  same Telnyx credential login token for the native SDKs (Android 3.5.0 via
+  JitPack, iOS 4.1.0 via SPM); `client_state` must hit the wire VERBATIM —
+  both native SDKs base64 what they're given, so the adaptation lives at the
+  SDK boundary (verified from Android SDK bytecode; unit-tested round-trip).
+- **Parallel-agent dev discipline.** The epic was built by exclusive-file-
+  partition agents (one dir tree per agent, shared files integrator-only,
+  compile serialized through one Gradle daemon) — the same rule as parallel
+  sessions on this tree; it held twice (waves of 6), zero merge conflicts.

@@ -224,3 +224,19 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 *Authoritative sources this file is generated from: `apps/api/src/env.ts`,
 `apps/web/src/env.ts`, `apps/api/scripts/stripe-setup.ts`, `apps/api/wrangler.jsonc`,
 `.github/workflows/deploy.yml`. If they change, regenerate this table.*
+
+## 8. Native mobile apps — store readiness (#150/#164)
+
+Everything below is founder-only (accounts, certificates, signing keys). The
+apps are code-complete and self-disable each capability until its step is done
+— nothing here blocks a deploy.
+
+| Step | What to do |
+| --- | --- |
+| **Firebase (push, both platforms)** | §6 Firebase row above — one project serves Android + iOS. Then drop `google-services.json` into `apps/android/app/` (+ apply the `com.google.gms.google-services` plugin in `app/build.gradle.kts`) and `GoogleService-Info.plist` into the Xcode target. |
+| **Telnyx VoIP push (iOS incoming-call wake)** | Apple Developer → Keys/Certificates → create a **VoIP Services certificate** for `com.loonext.ios` → Telnyx portal → **API Keys → Push Credentials** → upload it → assign the credential to the WebRTC **credential connection** (`TELNYX_WEBRTC_CONNECTION_ID`). Without it, iOS rings only while the app is open (the app says so honestly). Android call-wake needs nothing — it rides our own FCM `kind:'call'` push. |
+| **Android signing** | Generate a release keystore (`keytool -genkeypair -v -keystore loonext-release.keystore -alias loonext -keyalg RSA -keysize 4096 -validity 10000`). NEVER commit it. Add a `release` signingConfig locally/CI via env vars. Play Console App Signing will re-sign; use the **Play-provided** SHA-256 below. |
+| **Android App Links** | After Play signing exists: serve `https://app.loonext.com/.well-known/assetlinks.json` (apps/web `public/.well-known/`) with relation `delegate_permission/common.handle_all_urls`, package `com.loonext.android`, and the Play App Signing SHA-256 fingerprint; then add the autoVerify `https://app.loonext.com` intent-filter to `MainActivity` (deliberately not shipped inert — notification taps already deep-link via explicit intents without it). |
+| **iOS Universal Links** | Serve `https://app.loonext.com/.well-known/apple-app-site-association` (no extension, `application/json`) with `appIDs: ["<TEAM_ID>.com.loonext.ios"]`, paths `/inbox/*`, `/calls`, `/invite/*`; add the `applinks:app.loonext.com` Associated Domains entitlement in `project.yml`. |
+| **Store posture (BINDING, D44)** | The apps sell nothing: workspace creation/checkout/billing portal always open the EXTERNAL browser; no purchase language in-app; no IAP. Review notes should state subscriptions are purchased on the web (reader posture). Legal URLs used in-app: `https://loonext.com/legal/fair-use` (billing section), standard privacy/TOS links for store listings: `https://loonext.com/legal/privacy`, `https://loonext.com/legal/terms`. |
+| **Store listings** | Google Play: data-safety form (collects: email, name, phone contacts the business itself uploads; no ads, no tracking). App Store: privacy nutrition labels same facts; microphone purpose string ships in the target ("Loonext uses the microphone for phone calls."). |
