@@ -48,6 +48,30 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: [...SECURITY_HEADERS],
       },
+      // Edge-cache the marketing HTML so repeat requests skip the OpenNext
+      // worker (and its Cloudflare cold-isolate TTFB, ~1.3-1.9s on a cold hit;
+      // Ahrefs Site Audit "Slow page", 2026-07). Every (marketing) page is
+      // fully static SSG — no cookies()/headers()/dynamic — and identical for
+      // all visitors (country, consent, theme are client-side), so the HTML is
+      // safe to share-cache. HOST-scoped to the apex: `source` matches PATH
+      // only, and `/` (plus other shared paths) also resolves on
+      // app.loonext.com, so a path rule would cache authed dashboard pages —
+      // the host predicate is what keeps the app's responses uncached.
+      // Pairs with a Cloudflare Cache Rule that marks http.host eq
+      // "loonext.com" eligible for cache (HTML is not cached by default);
+      // s-maxage drives the shared-cache TTL, max-age=0 keeps browsers
+      // revalidating so a deploy-time purge is visible on the next reload.
+      {
+        source: "/(.*)",
+        has: [{ type: "host", value: "loonext.com" }],
+        headers: [
+          {
+            key: "Cache-Control",
+            value:
+              "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
     ];
   },
   async redirects() {

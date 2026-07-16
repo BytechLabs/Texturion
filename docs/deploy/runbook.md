@@ -110,9 +110,9 @@ Verify: after deploy, `GET ${API_ORIGIN}/health` re-runs env validation and 500s
 
 ## 3. Configure GitHub Actions secrets
 
-Set these **8 required** repo/environment secrets so CI + Deploy work (`.github/workflows/`):
+Set these **9 required** repo/environment secrets so CI + Deploy work (`.github/workflows/`):
 
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
+`CLOUDFLARE_API_TOKEN` (Workers Scripts + DNS + Cache Purge), `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`.
 
 `NEXT_PUBLIC_API_URL` is wired in: the deploy job builds the web Worker with it (`deploy.yml:22`), while CI builds with fixed placeholders for all three `NEXT_PUBLIC_*` vars and reads no repo secrets (`ci.yml:81-92` — the CI artifact is never deployed), so only the Deploy-side secrets are needed.
 

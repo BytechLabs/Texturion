@@ -79,3 +79,23 @@ jobs:
 
       - name: Deploy web Worker (OpenNext build + deploy)
         run: pnpm --filter @loonext/web run deploy
+
+      # The marketing HTML is edge-cached (Cloudflare Cache Rule on
+      # http.host eq "loonext.com" + Cache-Control s-maxage=3600 from
+      # next.config.ts) so repeat requests skip the OpenNext cold-isolate.
+      # That means a fresh deploy stays hidden behind stale cache for up to an
+      # hour unless we purge. purge_everything is safe here: only the marketing
+      # apex is cacheable, and _next/static assets are content-hashed so they
+      # re-cache on the next request under new URLs. Needs the deploy token to
+      # carry Zone → Cache Purge for the loonext.com zone.
+      - name: Purge Cloudflare cache
+        env:
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          resp=$(curl -fsS -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}')
+          echo "$resp"
+          echo "$resp" | grep -q '"success":true'

@@ -195,8 +195,9 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 
 | Secret | Used by |
 |--------|---------|
-| `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy.yml:18` |
+| `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy.yml:18` — needs **Workers Scripts + DNS + Cache Purge** |
 | `CLOUDFLARE_ACCOUNT_ID` | `.github/workflows/deploy.yml:19` |
+| `CLOUDFLARE_ZONE_ID` | `.github/workflows/deploy.yml` cache-purge step (loonext.com zone → Overview → Zone ID) |
 | `NEXT_PUBLIC_SUPABASE_URL` | web build — `deploy.yml:20` (CI uses a fixed placeholder — `ci.yml:90`) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `deploy.yml:21` (CI uses a fixed placeholder — `ci.yml:91`) |
 | `NEXT_PUBLIC_API_URL` | web build — `deploy.yml:22` (set to your API origin) |

@@ -15,7 +15,7 @@ const LAST_UPDATED = "July 10, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Cookie policy",
   description:
-    "Loonext sets a few essential, first-party cookies: one to keep you signed in, one to remember which workspace you're viewing, one to remember your cookie choice. On our marketing pages, analytics or advertising cookies are set only if you say yes to the consent banner; say no and none are set. Our product analytics is cookieless.",
+    "The cookies Loonext sets: essential first-party ones to keep you signed in and remember your choices, analytics or ad cookies only if you say yes, nothing more.",
   path: PATH,
 });
 

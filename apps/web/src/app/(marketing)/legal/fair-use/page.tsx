@@ -14,7 +14,7 @@ const LAST_UPDATED = "July 11, 2026";
 export const metadata: Metadata = buildMetadata({
   title: "Fair use policy",
   description:
-    "Loonext is flat-rate texting for a real crew under an automated fair-use policy. This page is the one place the concrete numbers live: Starter includes 500 texts a month, Pro 2,500, extra texts are 3¢ (Starter) or 2.5¢ (Pro) each up to a spending cap you control, a sent photo counts as three texts, calling is included on every plan with 2,500 (Starter) or 6,000 (Pro) calling minutes across forwarding and outbound calls and extra minutes at 1¢ each under the same cap, and storage is free with no caps.",
+    "Loonext's flat-rate texting fair-use policy, in one place: what each plan includes, overage rates under a spending cap you control, and free storage.",
   path: PATH,
 });
 

@@ -114,9 +114,12 @@ links, and the host split break.
 
 Capture into a secure store (you'll paste them in [02](./02-supabase.md)–[05](./05-workers-deploy.md)):
 
-- Cloudflare **Account ID** (`CLOUDFLARE_ACCOUNT_ID`) and an **API token** with
-  *Workers Scripts: Edit* + *Workers Routes: Edit* + *DNS: Edit* on the zone
-  (`CLOUDFLARE_API_TOKEN`) — both used by CI (`.github/workflows/deploy.yml:18-19`).
+- Cloudflare **Account ID** (`CLOUDFLARE_ACCOUNT_ID`), **Zone ID**
+  (`CLOUDFLARE_ZONE_ID`, from the loonext.com zone → Overview), and an **API
+  token** with *Workers Scripts: Edit* + *Workers Routes: Edit* + *DNS: Edit* +
+  *Cache Purge* on the zone (`CLOUDFLARE_API_TOKEN`) — all used by CI
+  (`.github/workflows/deploy.yml`; Cache Purge + Zone ID drive the post-deploy
+  marketing-cache purge).
 - The three chosen hostnames.
 
 Next: [02 — Supabase](./02-supabase.md).

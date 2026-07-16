@@ -123,8 +123,9 @@ The pipeline is `CI` → (on success, main) → `Deploy` (`.github/workflows/dep
 
 | GitHub secret | Used where | Purpose |
 | --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | `deploy.yml:18` | wrangler auth for both `wrangler deploy` steps. |
+| `CLOUDFLARE_API_TOKEN` | `deploy.yml:18` | wrangler auth for both `wrangler deploy` steps **and** the post-deploy cache purge (needs Workers Scripts + DNS + Cache Purge). |
 | `CLOUDFLARE_ACCOUNT_ID` | `deploy.yml:19` | wrangler account target. |
+| `CLOUDFLARE_ZONE_ID` | `deploy.yml` cache-purge step | Purges the edge cache of the static marketing HTML after each deploy so a release isn't hidden behind stale cache. |
 | `NEXT_PUBLIC_SUPABASE_URL` | `deploy.yml:20` | Inlined into the **deployed** web build. CI builds with a fixed placeholder instead (`ci.yml:90`) and reads no repo secrets — the CI artifact is never deployed. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `deploy.yml:21` | Inlined into the **deployed** web build. CI builds with a fixed placeholder instead (`ci.yml:91`). |
 | `NEXT_PUBLIC_API_URL` | `deploy.yml:22` | Inlined into the **deployed** web build; set to the API origin. CI builds with a fixed placeholder instead (`ci.yml:92`). |

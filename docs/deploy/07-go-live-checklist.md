@@ -54,7 +54,7 @@ prerequisites flagged by the marketing/legal docs.
       token>` + `X-Company-Id`, `apps/api/src/index.ts:63,79`) — easiest to run
       during the §C smoke test, right after the first signup, from the app's
       session (DevTools → copy the request headers off any `/v1/*` call).
-- [ ] All **8** required GitHub Actions secrets set — including
+- [ ] All **9** required GitHub Actions secrets set (incl. `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` carrying Cache Purge) — including
       `NEXT_PUBLIC_API_URL`, which Deploy now reads
       (`.github/workflows/deploy.yml:22`) — plus the optional two:
       `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`, **required before

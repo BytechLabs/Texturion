@@ -53,8 +53,8 @@ Two Workers rate-limiting bindings, deployed with the Worker — **nothing to pu
 - **Required:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_URL`
 - **Optional:** `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (signup captcha), `NEXT_PUBLIC_APP_ORIGIN` (marketing/app host split)
 
-### (d) GitHub Actions secrets — **8 required + 2 optional** (CI/deploy)
-Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_*` — including
+### (d) GitHub Actions secrets — **9 required + 2 optional** (CI/deploy)
+Cloudflare auth (3 — `CLOUDFLARE_API_TOKEN` with **Workers Scripts + DNS + Cache Purge**, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`), Supabase link/push (3), the web build's three `NEXT_PUBLIC_*` — including
 `NEXT_PUBLIC_API_URL` which **must exist before the first automated deploy** — plus the optional
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_APP_ORIGIN`. See [05-workers-deploy.md](docs/deploy/05-workers-deploy.md) §5.
 
@@ -67,6 +67,7 @@ Cloudflare auth (2), Supabase link/push (3), the web build's three `NEXT_PUBLIC_
 - **Telnyx → create one Call-Control (voice) application**, webhook + failover both `https://api.loonext.com/webhooks/telnyx`; its id becomes `TELNYX_VOICE_CONNECTION_ID`.
 - **Stripe → webhook endpoint** `https://api.loonext.com/webhooks/stripe` (7 events); enable **Tax**; configure the **customer portal** and **dunning → cancel**.
 - **Cloudflare → attach three custom domains to `loonext-web`** (`loonext.com`, `www.loonext.com`, `app.loonext.com`) and `api.loonext.com` to `loonext-api`.
+- **Cloudflare → Caching → Cache Rules → create a rule** matching `http.host eq "loonext.com"`, **Eligible for cache**, Edge + Browser TTL = *use cache-control header if present*. This edge-caches the static marketing HTML (the app sends `Cache-Control: s-maxage=3600` on apex responses, `apps/web/next.config.ts`) so repeat requests skip the OpenNext cold-isolate (~1.3–1.9 s TTFB). The Deploy workflow purges the cache after each release (`deploy.yml`), which is why `CLOUDFLARE_API_TOKEN` needs **Cache Purge** and `CLOUDFLARE_ZONE_ID` is a secret. Host-scoped, so `app.loonext.com` authed pages are never cached.
 
 ---
 

@@ -143,7 +143,7 @@ browser bundle).
 
 ---
 
-## C. GitHub Actions secrets (CI / Deploy) — 8 required + 2 optional
+## C. GitHub Actions secrets (CI / Deploy) — 9 required + 2 optional
 
 Consumed by the **Deploy** workflow only; never reach the Workers as runtime
 bindings. CI reads **no repo secrets** — its web build uses fixed placeholders
@@ -152,8 +152,9 @@ artifact is never deployed).
 
 | Name | Secret? | Source | Used at |
 |------|:------:|--------|---------|
-| `CLOUDFLARE_API_TOKEN` | yes | Cloudflare → My Profile → API Tokens (Workers + DNS edit) | `deploy.yml:18` |
+| `CLOUDFLARE_API_TOKEN` | yes | Cloudflare → My Profile → API Tokens (Workers Scripts + DNS edit + **Cache Purge**) | `deploy.yml:18` |
 | `CLOUDFLARE_ACCOUNT_ID` | yes | Cloudflare dashboard (account ID) | `deploy.yml:19` |
+| `CLOUDFLARE_ZONE_ID` | yes | Cloudflare → loonext.com zone → Overview → Zone ID | `deploy.yml` cache-purge step |
 | `NEXT_PUBLIC_SUPABASE_URL` | yes (as GitHub secret) | Supabase Project URL | `deploy.yml:20` (CI uses a fixed placeholder instead — `ci.yml:90`) |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes (as GitHub secret) | Supabase publishable key | `deploy.yml:21` (CI uses a fixed placeholder instead — `ci.yml:91`) |
 | `NEXT_PUBLIC_API_URL` | yes (as GitHub secret) | Operator decision = API origin | `deploy.yml:22` (CI uses a fixed placeholder instead — `ci.yml:92`) |

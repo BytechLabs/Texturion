@@ -23,7 +23,7 @@ const PATH = "/contact";
 export const metadata: Metadata = buildMetadata({
   title: "Contact",
   description:
-    "Email us and we answer. No sales team: your message goes to the people who built Loonext.",
+    "Email Loonext and a real person answers. No sales team and no phone tree: your message goes straight to the small crew who built and run the product.",
   path: PATH,
 });
 
