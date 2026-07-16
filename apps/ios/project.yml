@@ -21,7 +21,10 @@ targets:
     sources:
       - Loonext
     dependencies:
+      # The package's PRODUCT is named telnyx-webrtc-ios; the module you
+      # `import` stays TelnyxRTC (the target name).
       - package: TelnyxRTC
+        product: telnyx-webrtc-ios
       # Alert pushes ride the #151 FCM sender; FirebaseMessaging supplies the
       # registration token. Init is guarded — absent GoogleService-Info.plist
       # keeps the whole stack a no-op (mirrors Android's PushRegistrar).

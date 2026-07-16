@@ -37,9 +37,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # compileSdk 37 — newer than the runner image's preinstalled set.
+      # compileSdk 37 — newer than the image's preinstalled set, and the
+      # image's own sdkmanager is too old to see it (run 1). This action
+      # installs current cmdline-tools first, then the packages.
       - name: Install SDK 37
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0" > /dev/null
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-37 build-tools;37.0.0 platform-tools"
+          log-accepted-android-sdk-licenses: false
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
