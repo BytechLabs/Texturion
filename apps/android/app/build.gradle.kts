@@ -85,6 +85,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.telnyx.webrtc)
+    // Initialized manually from BuildConfig when the founder provisions
+    // Firebase (no google-services plugin) — no-ops gracefully until then.
+    implementation(libs.firebase.messaging)
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.ui.tooling.preview)
 
