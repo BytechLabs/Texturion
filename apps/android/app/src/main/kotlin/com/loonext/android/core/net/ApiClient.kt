@@ -1,7 +1,7 @@
 package com.loonext.android.core.net
 
 import com.loonext.android.core.auth.Session
-import com.loonext.android.core.auth.SessionStore
+import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,13 +20,15 @@ import java.io.IOException
 private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
 /**
- * The /v1 API client: bearer injection from [SessionStore], proactive token
- * refresh, single-flight refresh on 401, SPEC §7 envelope decoding.
+ * The /v1 API client: bearer injection from [SessionStore], X-Company-Id
+ * tenancy header, proactive token refresh, single-flight refresh on 401,
+ * SPEC §7 envelope decoding, and Idempotency-Key passthrough for the send
+ * paths that require it.
  */
 class ApiClient(
     val http: OkHttpClient,
     private val baseUrl: String,
-    private val sessionStore: SessionStore,
+    private val sessionStore: SessionSource,
     private val supabaseAuth: SupabaseAuth,
 ) {
     val json = Json {
@@ -42,24 +44,54 @@ class ApiClient(
     /** Fires when the refresh token itself is rejected — UI returns to login. */
     val signedOut: SharedFlow<Unit> = _signedOut
 
-    suspend inline fun <reified T> get(path: String, query: Map<String, String?> = emptyMap()): T =
-        json.decodeFromString(raw("GET", path, query = query))
+    /** Fires with every fresh access token — realtime re-auths from this. */
+    private val _tokenRefreshed = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val tokenRefreshed: SharedFlow<String> = _tokenRefreshed
 
-    suspend inline fun <reified T, reified B> post(path: String, body: B): T =
-        json.decodeFromString(raw("POST", path, body = json.encodeToString(body)))
+    suspend inline fun <reified T> get(
+        path: String,
+        query: Map<String, String?> = emptyMap(),
+        companyId: String? = null,
+    ): T = json.decodeFromString(raw("GET", path, query = query, companyId = companyId))
 
-    suspend inline fun <reified T> post(path: String): T =
-        json.decodeFromString(raw("POST", path, body = "{}"))
+    suspend inline fun <reified T, reified B> post(
+        path: String,
+        body: B,
+        companyId: String? = null,
+        idempotencyKey: String? = null,
+    ): T = json.decodeFromString(
+        raw(
+            "POST",
+            path,
+            body = json.encodeToString(body),
+            companyId = companyId,
+            idempotencyKey = idempotencyKey,
+        ),
+    )
 
-    suspend inline fun <reified T, reified B> patch(path: String, body: B): T =
-        json.decodeFromString(raw("PATCH", path, body = json.encodeToString(body)))
+    suspend inline fun <reified T> post(
+        path: String,
+        companyId: String? = null,
+    ): T = json.decodeFromString(raw("POST", path, body = "{}", companyId = companyId))
 
-    suspend inline fun <reified B> delete(path: String, body: B? = null) {
-        raw("DELETE", path, body = body?.let { json.encodeToString(it) })
-    }
+    suspend inline fun <reified T, reified B> patch(
+        path: String,
+        body: B,
+        companyId: String? = null,
+    ): T = json.decodeFromString(
+        raw("PATCH", path, body = json.encodeToString(body), companyId = companyId),
+    )
 
-    suspend fun delete(path: String) {
-        raw("DELETE", path)
+    suspend inline fun <reified T, reified B> put(
+        path: String,
+        body: B,
+        companyId: String? = null,
+    ): T = json.decodeFromString(
+        raw("PUT", path, body = json.encodeToString(body), companyId = companyId),
+    )
+
+    suspend fun delete(path: String, companyId: String? = null) {
+        raw("DELETE", path, companyId = companyId)
     }
 
     /**
@@ -72,42 +104,54 @@ class ApiClient(
         path: String,
         query: Map<String, String?> = emptyMap(),
         body: String? = null,
+        companyId: String? = null,
+        idempotencyKey: String? = null,
     ): String {
         val session = freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
             "You're signed out.",
             401,
         )
-        val first = execute(method, path, query, body, session.accessToken)
-        if (first.status != 401) return first.expectSuccess()
+        val first =
+            execute(method, path, query, body, session.accessToken, companyId, idempotencyKey)
+        if (first.status != 401) return first.expectSuccess(json)
 
         // Access token rejected — refresh once (single-flight) and retry.
-        val refreshed = refreshNow()
+        // Force past the expiry check: the server just told us it's dead.
+        val refreshed = refreshNow(staleToken = session.accessToken)
         if (refreshed == null) {
             _signedOut.tryEmit(Unit)
             throw ApiException(ApiErrorCode.UNAUTHORIZED, "Session expired.", 401)
         }
-        val second = execute(method, path, query, body, refreshed.accessToken)
+        val second =
+            execute(method, path, query, body, refreshed.accessToken, companyId, idempotencyKey)
         if (second.status == 401) {
             _signedOut.tryEmit(Unit)
         }
-        return second.expectSuccess()
+        return second.expectSuccess(json)
     }
 
     /** Returns a session whose access token is not (about to be) expired. */
-    private suspend fun freshSession(): Session? {
+    suspend fun freshSession(): Session? {
         val session = sessionStore.current() ?: return null
         if (!session.isExpired()) return session
         return refreshNow()
     }
 
-    private suspend fun refreshNow(): Session? = refreshMutex.withLock {
-        // Someone may have refreshed while we waited on the lock.
+    /**
+     * Single-flight refresh. [staleToken] is the access token the server just
+     * rejected — when the stored token still equals it, refresh even if the
+     * clock says it's fine; when it differs, someone already refreshed.
+     */
+    private suspend fun refreshNow(staleToken: String? = null): Session? =
+        refreshMutex.withLock {
         val current = sessionStore.current() ?: return null
-        if (!current.isExpired()) return current
+        val alreadyReplaced = staleToken != null && current.accessToken != staleToken
+        if ((staleToken == null || alreadyReplaced) && !current.isExpired()) return current
         return try {
             val next = supabaseAuth.refresh(current.refreshToken).toSession()
             sessionStore.save(next)
+            _tokenRefreshed.tryEmit(next.accessToken)
             next
         } catch (cause: ApiException) {
             if (cause.code == ApiErrorCode.NETWORK) throw cause
@@ -117,12 +161,11 @@ class ApiClient(
         }
     }
 
-    private class RawResponse(val status: Int, val bodyText: String) {
-        fun expectSuccess(): String {
+    class RawResponse(val status: Int, val bodyText: String) {
+        fun expectSuccess(json: Json): String {
             if (status in 200..299) return bodyText
             val parsed = try {
-                Json { ignoreUnknownKeys = true }
-                    .decodeFromString<ErrorEnvelope>(bodyText)
+                json.decodeFromString<ErrorEnvelope>(bodyText)
             } catch (_: Exception) {
                 null
             }
@@ -140,6 +183,8 @@ class ApiClient(
         query: Map<String, String?>,
         body: String?,
         accessToken: String,
+        companyId: String?,
+        idempotencyKey: String?,
     ): RawResponse {
         val url = (baseUrl + path).toHttpUrl().newBuilder().apply {
             query.forEach { (k, v) -> if (v != null) addQueryParameter(k, v) }
@@ -148,6 +193,10 @@ class ApiClient(
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $accessToken")
+            .apply {
+                if (companyId != null) header("X-Company-Id", companyId)
+                if (idempotencyKey != null) header("Idempotency-Key", idempotencyKey)
+            }
             .method(method, requestBody)
             .build()
         val response = try {

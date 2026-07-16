@@ -89,11 +89,16 @@ class SupabaseAuth(
     suspend fun signUp(
         email: String,
         password: String,
+        displayName: String? = null,
         captchaToken: String? = null,
     ): SignUpResult {
         val body = buildJsonObject {
             put("email", email)
             put("password", password)
+            // Mirrors the web: a DB trigger copies data.display_name to profiles.
+            if (!displayName.isNullOrBlank()) {
+                putJsonObject("data") { put("display_name", displayName) }
+            }
             if (captchaToken != null) {
                 putJsonObject("gotrue_meta_security") { put("captcha_token", captchaToken) }
             }

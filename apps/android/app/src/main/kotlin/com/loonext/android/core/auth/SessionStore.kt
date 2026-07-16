@@ -25,12 +25,20 @@ data class Session(
 
 private val Context.sessionDataStore by preferencesDataStore(name = "session")
 
+/** Session persistence seam — [SessionStore] in the app, in-memory in tests. */
+interface SessionSource {
+    val session: Flow<Session?>
+    suspend fun current(): Session?
+    suspend fun save(session: Session)
+    suspend fun clear()
+}
+
 /**
  * App-private DataStore persistence for the Supabase session. Android's app
  * sandbox is the protection boundary (current platform guidance — the old
  * security-crypto wrappers are deprecated).
  */
-class SessionStore(private val context: Context) {
+class SessionStore(private val context: Context) : SessionSource {
     private object Keys {
         val ACCESS = stringPreferencesKey("access_token")
         val REFRESH = stringPreferencesKey("refresh_token")
@@ -39,7 +47,7 @@ class SessionStore(private val context: Context) {
         val EMAIL = stringPreferencesKey("email")
     }
 
-    val session: Flow<Session?> = context.sessionDataStore.data.map { prefs ->
+    override val session: Flow<Session?> = context.sessionDataStore.data.map { prefs ->
         val access = prefs[Keys.ACCESS] ?: return@map null
         val refresh = prefs[Keys.REFRESH] ?: return@map null
         Session(
@@ -51,9 +59,9 @@ class SessionStore(private val context: Context) {
         )
     }
 
-    suspend fun current(): Session? = session.first()
+    override suspend fun current(): Session? = session.first()
 
-    suspend fun save(session: Session) {
+    override suspend fun save(session: Session) {
         context.sessionDataStore.edit { prefs ->
             prefs[Keys.ACCESS] = session.accessToken
             prefs[Keys.REFRESH] = session.refreshToken
@@ -63,7 +71,7 @@ class SessionStore(private val context: Context) {
         }
     }
 
-    suspend fun clear() {
+    override suspend fun clear() {
         context.sessionDataStore.edit { it.clear() }
     }
 }
