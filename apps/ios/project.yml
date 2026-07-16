@@ -10,7 +10,10 @@ options:
 packages:
   TelnyxRTC:
     url: https://github.com/team-telnyx/telnyx-webrtc-ios
-    majorVersion: 3.0.0
+    majorVersion: 4.1.0
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    majorVersion: 12.16.0
 targets:
   Loonext:
     type: application
@@ -19,6 +22,11 @@ targets:
       - Loonext
     dependencies:
       - package: TelnyxRTC
+      # Alert pushes ride the #151 FCM sender; FirebaseMessaging supplies the
+      # registration token. Init is guarded — absent GoogleService-Info.plist
+      # keeps the whole stack a no-op (mirrors Android's PushRegistrar).
+      - package: Firebase
+        product: FirebaseMessaging
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios
