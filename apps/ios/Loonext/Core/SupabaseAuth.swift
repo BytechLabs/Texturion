@@ -61,11 +61,17 @@ struct SupabaseAuth: Sendable {
     func signUp(
         email: String,
         password: String,
+        displayName: String? = nil,
         captchaToken: String? = nil
     ) async throws -> SignUpResult {
+        var fields: [String: Any] = ["email": email, "password": password]
+        // Mirrors the web: a DB trigger copies data.display_name to profiles.
+        if let displayName, !displayName.isEmpty {
+            fields["data"] = ["display_name": displayName]
+        }
         let data = try await request(
             "signup",
-            body: authBody(["email": email, "password": password], captchaToken: captchaToken)
+            body: authBody(fields, captchaToken: captchaToken)
         )
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["access_token"] != nil {
@@ -109,9 +115,11 @@ struct SupabaseAuth: Sendable {
             var components = URLComponents(
                 url: AppConfig.supabaseURL.appending(path: "auth/v1/\(parts[0])"),
                 resolvingAgainstBaseURL: false
-            )!
-            components.query = String(parts[1])
-            request = URLRequest(url: components.url!)
+            )
+            components?.query = String(parts[1])
+            if let url = components?.url {
+                request = URLRequest(url: url)
+            }
         }
         request.httpMethod = "POST"
         request.setValue(AppConfig.supabasePublishableKey, forHTTPHeaderField: "apikey")

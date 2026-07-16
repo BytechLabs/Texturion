@@ -24,9 +24,34 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios
         MARKETING_VERSION: 1.0.0
         CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls."
         INFOPLIST_KEY_UIBackgroundModes: "audio voip remote-notification"
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
+  LoonextTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - LoonextTests
+    dependencies:
+      - target: Loonext
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+schemes:
+  Loonext:
+    build:
+      targets:
+        Loonext: all
+        LoonextTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - LoonextTests
