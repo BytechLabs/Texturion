@@ -38,6 +38,13 @@ final class WatermarkTests: XCTestCase {
         XCTAssertFalse(applied[0].unread)
     }
 
+    func testRespectsNonUtcOffsets() {
+        // 07:00-04:00 == 11:00Z: at the watermark, so read.
+        let items = [item("eastern", createdAt: "2026-07-15T07:00:00-04:00")]
+        let applied = applyWatermark(items: items, lastSeenAt: "2026-07-15T11:00:00Z")
+        XCTAssertFalse(applied[0].unread)
+    }
+
     func testUnparseableItemTimestampIsLeftAlone() {
         let items = [item("odd", createdAt: "not-a-date")]
         let applied = applyWatermark(items: items, lastSeenAt: "2026-07-15T12:00:00Z")
@@ -90,6 +97,19 @@ final class WatermarkTests: XCTestCase {
         XCTAssertEqual(
             advanceWatermark(current: "2026-07-15T12:00:00Z", candidate: "garbage"),
             "2026-07-15T12:00:00Z"
+        )
+    }
+
+    func testEqualOffsetAndZuluWatermarksDoNotRegressEachOther() {
+        // Same instant spelled two ways — either spelling is an acceptable
+        // "kept" value; the instant must not move.
+        let kept = advanceWatermark(
+            current: "2026-07-15T12:00:00+00:00",
+            candidate: "2026-07-15T12:00:00Z"
+        )
+        XCTAssertEqual(
+            parseWireTimestamp(kept),
+            parseWireTimestamp("2026-07-15T12:00:00Z")
         )
     }
 }

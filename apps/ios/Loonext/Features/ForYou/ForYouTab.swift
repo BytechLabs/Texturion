@@ -1,25 +1,38 @@
 import SwiftUI
 
 /// /for-you — the default landing: Triage (owner/admin), Waiting on you,
-/// My tasks, Unread. Realtime events refetch the queue.
+/// My tasks, Unread. Realtime events refetch the queue; every row deep-links
+/// into `ThreadView` in place (task rows open their conversation — task
+/// detail itself is the Tasks tab's surface, #160).
 @MainActor
 struct ForYouTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
 
+    @State private var openConversationId: String?
     @State private var state: LoadState<ForYou> = .loading
     @State private var refreshKey = 0
 
     var body: some View {
         Group {
-            switch state {
-            case .loading:
-                CenteredLoading()
-            case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
-            case .ready(let forYou):
-                ForYouList(forYou: forYou)
+            if let openId = openConversationId {
+                ThreadView(
+                    graph: graph,
+                    companyId: companyId,
+                    me: me,
+                    conversationId: openId,
+                    onBack: { openConversationId = nil }
+                )
+            } else {
+                switch state {
+                case .loading:
+                    CenteredLoading()
+                case .failed(let message):
+                    CenteredError(message: message) { refreshKey += 1 }
+                case .ready(let forYou):
+                    ForYouList(forYou: forYou) { openConversationId = $0 }
+                }
             }
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
@@ -33,6 +46,11 @@ struct ForYouTab: View {
                     event.event.hasPrefix("call.") {
                     refreshKey += 1
                 }
+            }
+        }
+        .task(id: companyId) {
+            for await _ in await graph.realtime.reconnected() {
+                refreshKey += 1
             }
         }
     }
@@ -49,6 +67,7 @@ struct ForYouTab: View {
 
 private struct ForYouList: View {
     let forYou: ForYou
+    let onOpenConversation: @MainActor (String) -> Void
 
     private var total: Int {
         forYou.waiting_on_you.count + forYou.my_tasks.count + forYou.unread.count +
@@ -81,10 +100,14 @@ private struct ForYouList: View {
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: row.unread
-                        )
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                     ForEach(triage.tasks, id: \.task_id) { row in
-                        TaskLineRow(title: row.title, overdue: row.overdue, dueAt: row.due_at)
+                        TaskLineRow(
+                            title: row.title,
+                            overdue: row.overdue,
+                            dueAt: row.due_at
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                 } header: {
                     SectionHeader("Needs an owner")
@@ -98,7 +121,7 @@ private struct ForYouList: View {
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: row.unread
-                        )
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                 } header: {
                     SectionHeader("Waiting on you")
@@ -108,7 +131,11 @@ private struct ForYouList: View {
             if !forYou.my_tasks.isEmpty {
                 Section {
                     ForEach(forYou.my_tasks, id: \.task_id) { row in
-                        TaskLineRow(title: row.title, overdue: row.overdue, dueAt: row.due_at)
+                        TaskLineRow(
+                            title: row.title,
+                            overdue: row.overdue,
+                            dueAt: row.due_at
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                 } header: {
                     SectionHeader("Your tasks")
@@ -122,7 +149,7 @@ private struct ForYouList: View {
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: true
-                        )
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                 } header: {
                     SectionHeader("Unread")
@@ -152,6 +179,7 @@ private struct PersonRow: View {
     let name: String?
     let meta: String
     let unread: Bool
+    let onTap: @MainActor () -> Void
 
     private var displayName: String {
         let trimmed = name ?? ""
@@ -159,16 +187,20 @@ private struct PersonRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            InitialsAvatar(name: name)
-            Text(displayName)
-                .font(unread ? .body.weight(.semibold) : .body)
-            Spacer()
-            Text(meta)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                InitialsAvatar(name: name)
+                Text(displayName)
+                    .font(unread ? .body.weight(.semibold) : .body)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(meta)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
+        .buttonStyle(.plain)
     }
 }
 
@@ -176,21 +208,26 @@ private struct TaskLineRow: View {
     let title: String
     let overdue: Bool
     let dueAt: String?
+    let onTap: @MainActor () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.body)
-            Text(subtitle)
-                .font(.caption)
-                // Overdue = amber, never red (calm system).
-                .foregroundStyle(
-                    overdue
-                        ? AnyShapeStyle(BrandColor.overdueAmber)
-                        : AnyShapeStyle(Color.secondary)
-                )
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    // Overdue = amber, never red (calm system).
+                    .foregroundStyle(
+                        overdue
+                            ? AnyShapeStyle(BrandColor.overdueAmber)
+                            : AnyShapeStyle(Color.secondary)
+                    )
+            }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
+        .buttonStyle(.plain)
     }
 
     private var subtitle: String {

@@ -1,0 +1,713 @@
+import SwiftUI
+
+/// One conversation: header (status/assignee/overflow) → interleaved timeline
+/// (newest-first, flipped scroll so index 0 is the bottom) → composer or gate
+/// banner. State-based detail screen — callers own the "which conversation is
+/// open" state, mirroring the Android ThreadScreen.
+@MainActor
+struct ThreadView: View {
+    let graph: AppGraph
+    let companyId: String
+    let me: Me
+    let conversationId: String
+    let onBack: @MainActor () -> Void
+
+    @State private var controller: ThreadController?
+    @State private var composer: ComposerState?
+
+    var body: some View {
+        Group {
+            if let controller, let composer {
+                ThreadBody(
+                    controller: controller,
+                    composer: composer,
+                    me: me,
+                    onBack: onBack
+                )
+            } else {
+                CenteredLoading()
+            }
+        }
+        .task(id: conversationId) {
+            if controller?.conversationId != conversationId {
+                let repo = MessagingRepository(api: graph.api)
+                let created = ThreadController(
+                    repo: repo,
+                    meApi: graph.meApi,
+                    uploader: NoteFileUploader(
+                        sessionStore: graph.sessionStore,
+                        meApi: graph.meApi
+                    ),
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    meUserId: me.user_id
+                )
+                controller = created
+                composer = ComposerState(draftKey: conversationId, drafts: ComposerDrafts())
+                created.start()
+            }
+        }
+        .task(id: conversationId) {
+            for await event in await graph.realtime.events() {
+                controller?.onRealtime(event)
+            }
+        }
+        .task(id: conversationId) {
+            for await _ in await graph.realtime.reconnected() {
+                controller?.refreshAfterReconnect()
+            }
+        }
+    }
+}
+
+/// The loaded thread — split out so the controller is non-optional inside.
+@MainActor
+private struct ThreadBody: View {
+    @Bindable var controller: ThreadController
+    let composer: ComposerState
+    let me: Me
+    let onBack: @MainActor () -> Void
+
+    @State private var makeTaskFor: Message?
+    @State private var makeTaskTitle = ""
+    @State private var assigneeSheetOpen = false
+    @State private var confirmOptOut = false
+    @State private var confirmRevoke = false
+    @State private var showNewPill = false
+    @State private var isAtBottom = true
+    @State private var jumpToMessageId: String?
+    @State private var visibleNotice: ThreadNotice?
+    @State private var noticeDismissTask: Task<Void, Never>?
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            content
+            if let notice = visibleNotice {
+                ToastView(notice: notice) {
+                    visibleNotice = nil
+                }
+                .padding(.bottom, 90)
+            }
+        }
+        .onChange(of: controller.notice?.id) { _, _ in
+            guard let notice = controller.notice else { return }
+            visibleNotice = notice
+            noticeDismissTask?.cancel()
+            noticeDismissTask = Task {
+                try? await Task.sleep(for: .seconds(notice.actionLabel == nil ? 3 : 5))
+                if !Task.isCancelled { visibleNotice = nil }
+            }
+        }
+        // Mark read on open and again whenever the newest message id changes.
+        .task(id: controller.newestMessageId ?? "") {
+            controller.markRead()
+        }
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch controller.load {
+        case .loading:
+            CenteredLoading()
+        case .failed(let message):
+            if controller.loadErrorCode == ApiErrorCode.notFound {
+                VStack(spacing: 12) {
+                    Text("This conversation doesn't exist or was removed.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Back to inbox", action: onBack)
+                        .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                CenteredError(message: message) { controller.retryInitialLoad() }
+            }
+        case .ready:
+            loaded
+        }
+    }
+
+    @ViewBuilder
+    private var loaded: some View {
+        if let detail = controller.conversation {
+            let names = memberNames(controller.members)
+            let contactName = detail.contact.name ?? formatPhone(detail.contact.phone_e164)
+
+            VStack(spacing: 0) {
+                ThreadHeader(
+                    controller: controller,
+                    detail: detail,
+                    contactName: contactName,
+                    phoneLabel: formatPhone(detail.contact.phone_e164),
+                    meUserId: me.user_id,
+                    onBack: onBack,
+                    onPickAssignee: { assigneeSheetOpen = true },
+                    onConfirmOptOut: { confirmOptOut = true },
+                    onConfirmRevoke: { confirmRevoke = true }
+                )
+                Divider()
+
+                if !controller.pinnedMessages.isEmpty {
+                    PinnedBanner(pinned: controller.pinnedMessages) { messageId in
+                        Task {
+                            if await controller.ensureMessageLoaded(messageId) {
+                                jumpToMessageId = messageId
+                            }
+                        }
+                    }
+                    Divider()
+                }
+
+                timelinePane(names: names, contactName: contactName)
+
+                composerPane(detail: detail)
+            }
+            .sheet(isPresented: $assigneeSheetOpen) {
+                AssigneePickerSheet(
+                    members: controller.members,
+                    meUserId: me.user_id,
+                    selectedUserId: detail.assigned_user_id
+                ) { userId in
+                    assigneeSheetOpen = false
+                    if userId != detail.assigned_user_id {
+                        controller.setAssignee(userId)
+                    }
+                }
+            }
+            .alert("Opt this customer out?", isPresented: $confirmOptOut) {
+                Button("Cancel", role: .cancel) {}
+                Button("Opt out") { controller.optOutContact() }
+            } message: {
+                Text(
+                    "They won't receive texts from you until the opt-out is removed. "
+                        + "This is recorded in the conversation timeline."
+                )
+            }
+            .alert("Remove the opt-out?", isPresented: $confirmRevoke) {
+                Button("Cancel", role: .cancel) {}
+                Button("Remove opt-out") { controller.revokeOptOut() }
+            } message: {
+                Text(
+                    "You'll be able to text this customer again. Only do this if they "
+                        + "asked to hear from you."
+                )
+            }
+            .alert(
+                "Make a task",
+                isPresented: Binding(
+                    get: { makeTaskFor != nil },
+                    set: { if !$0 { makeTaskFor = nil } }
+                )
+            ) {
+                TextField("Task title", text: $makeTaskTitle)
+                Button("Cancel", role: .cancel) { makeTaskFor = nil }
+                Button("Create") {
+                    if let message = makeTaskFor {
+                        let title = makeTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !title.isEmpty {
+                            controller.makeTask(message, title: String(title.prefix(200)))
+                        }
+                    }
+                    makeTaskFor = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Timeline
+
+    private func timelinePane(names: [String: String], contactName: String) -> some View {
+        let timeline = buildTimeline(
+            messages: controller.messages,
+            events: controller.events,
+            pending: controller.pendingSends,
+            filter: controller.filter,
+            allMessagesLoaded: controller.allMessagesLoaded,
+            calendar: .current,
+            now: Date()
+        )
+        return ZStack(alignment: .bottom) {
+            if timeline.isEmpty {
+                Text("No messages yet.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(timeline.enumerated()), id: \.element.key) { index, item in
+                                itemView(item, names: names, contactName: contactName)
+                                    .scaleEffect(x: 1, y: -1)
+                                    .id(item.key)
+                                    .onAppear { handleItemAppear(index: index, total: timeline.count) }
+                                    .onDisappear { handleItemDisappear(index: index) }
+                            }
+                            if controller.loadingOlder {
+                                ProgressView()
+                                    .padding(12)
+                                    .scaleEffect(x: 1, y: -1)
+                            }
+                        }
+                    }
+                    .scaleEffect(x: 1, y: -1)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: controller.newestMessageId ?? "") { _, _ in
+                        if isAtBottom, let first = timeline.first {
+                            proxy.scrollTo(first.key, anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: controller.pendingSends.count) { _, _ in
+                        if isAtBottom, let first = timeline.first {
+                            proxy.scrollTo(first.key, anchor: .bottom)
+                        }
+                    }
+                    // "New message ↓" pill when an inbound lands while scrolled up.
+                    .onChange(of: controller.newInboundTick) { _, tick in
+                        guard tick > 0 else { return }
+                        if isAtBottom {
+                            if let first = timeline.first {
+                                withAnimation { proxy.scrollTo(first.key, anchor: .bottom) }
+                            }
+                        } else {
+                            showNewPill = true
+                        }
+                    }
+                    // Pinned-banner jump: scroll once the message is loaded.
+                    .onChange(of: jumpToMessageId) { _, target in
+                        guard let target else { return }
+                        withAnimation { proxy.scrollTo("m:\(target)", anchor: .center) }
+                        jumpToMessageId = nil
+                    }
+                    .overlay(alignment: .bottom) {
+                        if showNewPill {
+                            Button {
+                                showNewPill = false
+                                if let first = timeline.first {
+                                    withAnimation { proxy.scrollTo(first.key, anchor: .bottom) }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text("New message")
+                                        .font(.footnote.weight(.medium))
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundStyle(BrandColor.onPetrol)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(BrandColor.petrol))
+                            }
+                            .padding(.bottom, 12)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func handleItemAppear(index: Int, total: Int) {
+        if index == 0 {
+            isAtBottom = true
+            showNewPill = false
+        }
+        // Flipped list: high indexes are the oldest items at the visual top.
+        if total > 0, index >= total - 5 {
+            controller.loadOlderMessages()
+        }
+    }
+
+    private func handleItemDisappear(index: Int) {
+        if index == 0 { isAtBottom = false }
+    }
+
+    @ViewBuilder
+    private func itemView(
+        _ item: TimelineItem,
+        names: [String: String],
+        contactName: String
+    ) -> some View {
+        switch item {
+        case .message(let message):
+            MessageBubble(
+                message: message,
+                authorName: message.direction == MessageDirection.note
+                    ? (message.sent_by_user_id.flatMap { names[$0] } ?? "Internal note")
+                    : nil,
+                doneByName: message.done_by_user_id.flatMap { names[$0] },
+                noteFilesState: message.direction == MessageDirection.note
+                    ? controller.noteFiles[message.id]
+                    : nil,
+                onLoadNoteFiles: { controller.loadNoteFiles(message.id) },
+                onOpenFile: { openFile($0) },
+                mintAttachmentUrl: { try await controller.mintAttachmentUrl($0) },
+                actions: MessageBubbleActions(
+                    onToggleDone: { controller.toggleDone(message) },
+                    onTogglePin: { controller.togglePin(message) },
+                    onRetry: { controller.retrySend(message.id) },
+                    onMakeTask: {
+                        makeTaskTitle = String(
+                            message.body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)
+                        )
+                        if makeTaskTitle.isEmpty { makeTaskTitle = "Follow up" }
+                        makeTaskFor = message
+                    },
+                    onCopied: { controller.markCopied() }
+                )
+            )
+        case .pending(let pending):
+            PendingBubble(pending: pending)
+        case .event(let event):
+            EventLine(
+                text: eventLine(event, memberNames: names, contactName: contactName),
+                timeIso: event.created_at
+            )
+        case .dayDivider(let label, _):
+            DayDividerLine(label: label)
+        }
+    }
+
+    private func openFile(_ attachment: Attachment) {
+        Task {
+            do {
+                let minted = try await controller.mintAttachmentUrl(attachment.id)
+                if let url = URL(string: minted) {
+                    openURL(url)
+                }
+            } catch {
+                controller.notifyExternally(error.userMessage)
+            }
+        }
+    }
+
+    // MARK: - Composer
+
+    @ViewBuilder
+    private func composerPane(detail: ConversationDetail) -> some View {
+        let banner = selectComposerBanner(
+            contactOptedOut: controller.contact?.opted_out == true,
+            subscriptionStatus: controller.company?.subscription_status
+                ?? SubscriptionStatus.active,
+            destinationCountry: Nanp.destinationCountry(detail.contact.phone_e164),
+            usApproved: controller.company.map(usSendApproved) ?? true,
+            usage: controller.usage
+        )
+        ThreadComposerView(
+            state: composer,
+            noteOnly: detail.viewer_level == "note",
+            banner: banner,
+            contactName: detail.contact.name,
+            businessName: controller.company?.name,
+            loadTemplates: { [repo = controller.repo, companyId = detail.company_id] in
+                try await repo.templates(companyId: companyId).data
+            },
+            onSendText: { body, photos in
+                controller.sendText(body: body, photos: photos) {
+                    composer.restore(body: body, photos: photos, files: [])
+                }
+            },
+            onSaveNote: { body, files in
+                controller.saveNote(body: body, files: files) {
+                    composer.restore(body: body, photos: [], files: files)
+                }
+            },
+            onNotice: { controller.notifyExternally($0) }
+        )
+    }
+}
+
+// MARK: - Header
+
+@MainActor
+private struct ThreadHeader: View {
+    @Bindable var controller: ThreadController
+    let detail: ConversationDetail
+    let contactName: String
+    let phoneLabel: String
+    let meUserId: String
+    let onBack: @MainActor () -> Void
+    let onPickAssignee: @MainActor () -> Void
+    let onConfirmOptOut: @MainActor () -> Void
+    let onConfirmRevoke: @MainActor () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.backward")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Back")
+
+            InitialsAvatar(name: contactName, size: 34)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(contactName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(
+                    controller.contact?.opted_out == true
+                        ? "\(phoneLabel) · Opted out"
+                        : phoneLabel
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Status pill + menu (the single status control).
+            Menu {
+                ForEach(
+                    [
+                        ConversationStatus.new,
+                        ConversationStatus.open,
+                        ConversationStatus.waiting,
+                        ConversationStatus.closed,
+                    ],
+                    id: \.self
+                ) { status in
+                    Button {
+                        if status != detail.status { controller.setStatus(status) }
+                    } label: {
+                        if detail.status == status {
+                            Label(statusLabel(status), systemImage: "checkmark")
+                        } else {
+                            Text(statusLabel(status))
+                        }
+                    }
+                }
+            } label: {
+                Text(statusLabel(detail.status))
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(BrandColor.onPetrolContainer)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(BrandColor.petrolContainer))
+            }
+
+            // Assignee control.
+            Button(action: onPickAssignee) {
+                if let assignee = controller.members.first(where: {
+                    $0.user_id == detail.assigned_user_id
+                }) {
+                    InitialsAvatar(
+                        name: assignee.display_name.isBlank ? nil : assignee.display_name,
+                        size: 28
+                    )
+                } else {
+                    Image(systemName: "person")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                }
+            }
+            .accessibilityLabel("Assign")
+
+            // Overflow.
+            Menu {
+                Button {
+                    controller.toggleConversationPin()
+                } label: {
+                    Label(
+                        detail.pinned_at == nil ? "Pin conversation" : "Unpin conversation",
+                        systemImage: "pin"
+                    )
+                }
+                Button {
+                    controller.setSpam(!detail.is_spam)
+                } label: {
+                    Label(
+                        detail.is_spam ? "Not spam" : "Mark as spam",
+                        systemImage: "exclamationmark.octagon"
+                    )
+                }
+                if controller.contact?.opted_out == true {
+                    Button {
+                        onConfirmRevoke()
+                    } label: {
+                        Label("Remove opt-out", systemImage: "hand.raised.slash")
+                    }
+                } else {
+                    Button {
+                        onConfirmOptOut()
+                    } label: {
+                        Label("Opt out of texts", systemImage: "hand.raised")
+                    }
+                }
+                Divider()
+                Toggle(
+                    "Show messages",
+                    isOn: Binding(
+                        get: { controller.filter.messages },
+                        set: { _ in controller.filter = controller.filter.toggledMessages() }
+                    )
+                )
+                Toggle(
+                    "Show notes",
+                    isOn: Binding(
+                        get: { controller.filter.notes },
+                        set: { _ in controller.filter = controller.filter.toggledNotes() }
+                    )
+                )
+                Toggle(
+                    "Show events",
+                    isOn: Binding(
+                        get: { controller.filter.events },
+                        set: { _ in controller.filter = controller.filter.toggledEvents() }
+                    )
+                )
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.medium))
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("More")
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 6)
+    }
+}
+
+/// Active-member picker with an Unassigned entry.
+@MainActor
+private struct AssigneePickerSheet: View {
+    let members: [Member]
+    let meUserId: String
+    let selectedUserId: String?
+    let onPick: @MainActor (String?) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Button {
+                    onPick(nil)
+                } label: {
+                    HStack {
+                        Text("Unassigned")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if selectedUserId == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(BrandColor.petrol)
+                        }
+                    }
+                }
+                ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
+                    Button {
+                        onPick(member.user_id)
+                    } label: {
+                        HStack(spacing: 12) {
+                            InitialsAvatar(
+                                name: member.display_name.isBlank ? nil : member.display_name,
+                                size: 30
+                            )
+                            Text(
+                                (member.display_name.isBlank ? "Teammate" : member.display_name)
+                                    + (member.user_id == meUserId ? " (you)" : "")
+                            )
+                            .foregroundStyle(.primary)
+                            Spacer()
+                            if selectedUserId == member.user_id {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(BrandColor.petrol)
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Assign to")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
+@MainActor
+private struct PinnedBanner: View {
+    let pinned: [Message]
+    let onJump: @MainActor (String) -> Void
+
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation { expanded.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text("Pinned · \(pinned.count)")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(expanded ? "Collapse pinned" : "Expand pinned")
+
+            if expanded {
+                ForEach(pinned, id: \.id) { message in
+                    Button {
+                        onJump(message.id)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(message.body.isBlank ? "Photo" : message.body)
+                                .font(.footnote)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(bubbleTime(message.created_at))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .background(Color(.secondarySystemBackground))
+    }
+}
+
+/// One-line transient notice with an optional action — the Android snackbar's
+/// calm iOS stand-in.
+private struct ToastView: View {
+    let notice: ThreadNotice
+    let onDismiss: @MainActor () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(notice.text)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+            if let label = notice.actionLabel {
+                Button(label) {
+                    notice.action?()
+                    onDismiss()
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(BrandColor.petrol)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .padding(.horizontal, 24)
+        .onTapGesture { onDismiss() }
+    }
+}

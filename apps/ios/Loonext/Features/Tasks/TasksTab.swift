@@ -1,21 +1,36 @@
 import SwiftUI
 
-/// /tasks — the thin LIST screen: segmented Open | Mine | All | Done with the
-/// route's exact default-filter semantics, due chips, debounced title search,
-/// sequential multi-arm cursor pagination, and the derived-done toggle.
+/// /tasks — segmented Open | Mine | All | Done with the route's exact
+/// default-filter semantics, assignee/unassigned/due chips, debounced title
+/// search, sequential multi-arm cursor pagination, and a List ⇄ Board toggle.
 /// Done toggles ALWAYS write `PATCH /v1/messages/{message_id}` (derived done).
-/// The board view + task detail land with the full tasks pass (#160).
+/// Row tap pushes `TaskDetailView`.
+///
+/// `onOpenConversation` deep-links a task's source thread anchored to the
+/// promoted message — the shell wires it to the inbox thread screen (#159);
+/// until wired the affordance stays hidden.
 @MainActor
 struct TasksTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    var onOpenConversation: ((_ conversationId: String, _ messageId: String) -> Void)? = nil
+
+    private struct TaskRoute: Hashable, Identifiable {
+        let id: String
+    }
 
     @State private var tab: TasksTabKind = .open
+    @State private var board = false
+    @State private var assigneeChip: String?
+    @State private var unassignedChip = false
     @State private var dueChip: DueChip?
     @State private var search = ""
     @State private var debouncedQ = ""
     @State private var refreshKey = 0
+    @State private var members: [Member] = []
+    @State private var pickerOpen = false
+    @State private var openTask: TaskRoute?
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -25,29 +40,49 @@ struct TasksTab: View {
     @State private var toggleError: String?
 
     private var filtersActive: Bool {
-        dueChip != nil || !debouncedQ.isEmpty
+        assigneeChip != nil || unassignedChip || dueChip != nil || !debouncedQ.isEmpty
     }
 
     private var reloadToken: String {
-        "\(companyId)|\(tab.rawValue)|\(dueChip?.rawValue ?? "")|\(debouncedQ)|\(refreshKey)"
+        [
+            companyId, tab.rawValue, assigneeChip ?? "", unassignedChip ? "u" : "",
+            dueChip?.rawValue ?? "", debouncedQ, String(refreshKey), board ? "b" : "",
+        ].joined(separator: "|")
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Filter", selection: $tab) {
-                ForEach(TasksTabKind.allCases) { item in
-                    Text(item.rawValue).tag(item)
+        NavigationStack {
+            VStack(spacing: 0) {
+                headerRow
+                searchField
+                filterChips
+                if board {
+                    TaskBoardView(
+                        graph: graph,
+                        companyId: companyId,
+                        tab: tab,
+                        assigneeChip: assigneeChip,
+                        unassignedChip: unassignedChip,
+                        dueChip: dueChip,
+                        q: debouncedQ,
+                        refreshKey: refreshKey,
+                        onOpenTask: { openTask = TaskRoute(id: $0) },
+                        onToggleDone: { task, done in toggleDone(task, done: done) }
+                    )
+                } else {
+                    listContent
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-
-            searchField
-
-            dueChips
-
-            content
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $openTask) { route in
+                TaskDetailView(
+                    graph: graph,
+                    companyId: companyId,
+                    me: me,
+                    taskId: route.id,
+                    onOpenConversation: onOpenConversation
+                )
+            }
         }
         .task(id: search) {
             // Debounce typing; an empty query applies immediately.
@@ -59,7 +94,16 @@ struct TasksTab: View {
                 search.trimmingCharacters(in: .whitespacesAndNewlines).prefix(taskSearchMax)
             )
         }
-        .task(id: reloadToken) { await reload() }
+        .task(id: reloadToken) {
+            if !board { await reload() }
+        }
+        .task(id: companyId) {
+            // Active members back the assignee chip label and the picker. A
+            // quiet fetch — a failure leaves the generic chip label.
+            if let page = try? await graph.tasksApi.members(companyId: companyId) {
+                members = page.data
+            }
+        }
         .task(id: companyId) {
             // Realtime: any task create/assign/due/delete (task.changed) or
             // done flip (message.status) refreshes the current view quietly.
@@ -73,6 +117,24 @@ struct TasksTab: View {
                 refreshKey += 1
             }
         }
+        .onChange(of: board) { _, isBoard in
+            // Board organizes by status, so the Open/Done dimension is a
+            // no-op there (#113): entering the board coerces to Mine.
+            if isBoard && (tab == .open || tab == .done) {
+                tab = .mine
+            }
+        }
+        .sheet(isPresented: $pickerOpen) {
+            MemberPickerSheet(
+                members: members,
+                meUserId: me.user_id,
+                selectedUserId: assigneeChip,
+                showUnassigned: false
+            ) { userId in
+                assigneeChip = userId
+                if userId != nil { unassignedChip = false }
+            }
+        }
         .alert(
             "Couldn't update the task",
             isPresented: Binding(
@@ -84,6 +146,27 @@ struct TasksTab: View {
         } message: {
             Text(toggleError ?? "")
         }
+    }
+
+    private var headerRow: some View {
+        HStack(spacing: 8) {
+            Picker("Filter", selection: $tab) {
+                ForEach(board ? [TasksTabKind.mine, .all] : TasksTabKind.allCases) { item in
+                    Text(item.rawValue).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+            Button {
+                board.toggle()
+            } label: {
+                Image(systemName: board ? "list.bullet" : "square.grid.2x2")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(board ? "List view" : "Board view")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 
     private var searchField: some View {
@@ -116,31 +199,41 @@ struct TasksTab: View {
         .padding(.vertical, 8)
     }
 
-    private var dueChips: some View {
+    private var assigneeChipLabel: String {
+        guard let id = assigneeChip else { return "Assignee" }
+        if id == me.user_id { return "You" }
+        let name = members.first { $0.user_id == id }?.display_name
+        return (name?.isBlank ?? true) ? "Teammate" : (name ?? "Teammate")
+    }
+
+    private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                filterChip(
+                    label: assigneeChipLabel,
+                    selected: assigneeChip != nil,
+                    clearLabel: assigneeChip != nil ? "Clear assignee filter" : nil,
+                    onTap: { pickerOpen = true },
+                    onClear: { assigneeChip = nil }
+                )
+                filterChip(
+                    label: "Unassigned",
+                    selected: unassignedChip,
+                    clearLabel: nil,
+                    onTap: {
+                        unassignedChip.toggle()
+                        if unassignedChip { assigneeChip = nil }
+                    },
+                    onClear: {}
+                )
                 ForEach(DueChip.allCases) { chip in
-                    let selected = dueChip == chip
-                    Button {
-                        dueChip = selected ? nil : chip
-                    } label: {
-                        Text(chip.rawValue)
-                            .font(.subheadline)
-                            .foregroundStyle(
-                                selected
-                                    ? AnyShapeStyle(BrandColor.onPetrolContainer)
-                                    : AnyShapeStyle(Color.primary)
-                            )
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(
-                                selected
-                                    ? AnyShapeStyle(BrandColor.petrolContainer)
-                                    : AnyShapeStyle(Color(.secondarySystemFill)),
-                                in: Capsule()
-                            )
-                    }
-                    .buttonStyle(.plain)
+                    filterChip(
+                        label: chip.rawValue,
+                        selected: dueChip == chip,
+                        clearLabel: nil,
+                        onTap: { dueChip = dueChip == chip ? nil : chip },
+                        onClear: {}
+                    )
                 }
             }
             .padding(.horizontal, 16)
@@ -148,8 +241,45 @@ struct TasksTab: View {
         .padding(.bottom, 4)
     }
 
+    private func filterChip(
+        label: String,
+        selected: Bool,
+        clearLabel: String?,
+        onTap: @escaping @MainActor () -> Void,
+        onClear: @escaping @MainActor () -> Void
+    ) -> some View {
+        let foreground = selected
+            ? AnyShapeStyle(BrandColor.onPetrolContainer)
+            : AnyShapeStyle(Color.primary)
+        return HStack(spacing: 4) {
+            Button(action: onTap) {
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(foreground)
+            }
+            .buttonStyle(.plain)
+            if let clearLabel {
+                Button(action: onClear) {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                        .foregroundStyle(foreground)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(clearLabel)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(
+            selected
+                ? AnyShapeStyle(BrandColor.petrolContainer)
+                : AnyShapeStyle(Color(.secondarySystemFill)),
+            in: Capsule()
+        )
+    }
+
     @ViewBuilder
-    private var content: some View {
+    private var listContent: some View {
         switch state {
         case .loading:
             CenteredLoading()
@@ -173,6 +303,8 @@ struct TasksTab: View {
                         TaskListRow(task: task) { done in
                             toggleDone(task, done: done)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { openTask = TaskRoute(id: task.id) }
                     }
                     if hasMore {
                         HStack {
@@ -199,8 +331,8 @@ struct TasksTab: View {
         if rows.isEmpty { state = .loading }
         let arms = taskListArms(
             tab: tab,
-            assigneeUserId: nil,
-            unassigned: false,
+            assigneeUserId: assigneeChip,
+            unassigned: unassignedChip,
             due: dueChip,
             q: debouncedQ.isEmpty ? nil : debouncedQ
         )
