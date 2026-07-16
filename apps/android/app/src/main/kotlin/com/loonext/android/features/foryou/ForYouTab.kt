@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
@@ -33,10 +36,27 @@ import com.loonext.android.ui.common.userMessage
 
 /**
  * /for-you — the default landing: Triage (owner/admin), Waiting on you,
- * My tasks, Unread. Realtime events refetch the queue.
+ * My tasks, Unread. Realtime events refetch the queue; every row deep-links
+ * into [ThreadScreen] in place (task rows open their conversation — task
+ * detail itself is the Tasks tab's surface, #154).
  */
 @Composable
 fun ForYouTab(graph: AppGraph, companyId: String, me: Me, modifier: Modifier = Modifier) {
+    var openConversationId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+
+    val openId = openConversationId
+    if (openId != null) {
+        ThreadScreen(
+            graph = graph,
+            companyId = companyId,
+            me = me,
+            conversationId = openId,
+            onBack = { openConversationId = null },
+            modifier = modifier,
+        )
+        return
+    }
+
     var state by remember(companyId) { mutableStateOf<LoadState<ForYou>>(LoadState.Loading) }
     var refreshKey by remember { mutableStateOf(0) }
 
@@ -60,16 +80,27 @@ fun ForYouTab(graph: AppGraph, companyId: String, me: Me, modifier: Modifier = M
             }
         }
     }
+    LaunchedEffect(companyId) {
+        graph.realtime.reconnected.collect { refreshKey++ }
+    }
 
     when (val current = state) {
         is LoadState.Loading -> CenteredLoading(modifier)
         is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ }, modifier)
-        is LoadState.Ready -> ForYouList(current.value, modifier)
+        is LoadState.Ready -> ForYouList(
+            forYou = current.value,
+            onOpenConversation = { openConversationId = it },
+            modifier = modifier,
+        )
     }
 }
 
 @Composable
-private fun ForYouList(forYou: ForYou, modifier: Modifier = Modifier) {
+private fun ForYouList(
+    forYou: ForYou,
+    onOpenConversation: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val total = forYou.waiting_on_you.size + forYou.my_tasks.size + forYou.unread.size +
         (forYou.triage?.let { it.conversations.size + it.tasks.size } ?: 0)
 
@@ -94,10 +125,16 @@ private fun ForYouList(forYou: ForYou, modifier: Modifier = Modifier) {
                         name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                         meta = relativeTime(row.last_message_at),
                         unread = row.unread,
+                        onClick = { onOpenConversation(row.conversation_id) },
                     )
                 }
                 items(triage.tasks, key = { "tt:${it.task_id}" }) { row ->
-                    TaskRow(title = row.title, overdue = row.overdue, dueAt = row.due_at)
+                    TaskRow(
+                        title = row.title,
+                        overdue = row.overdue,
+                        dueAt = row.due_at,
+                        onClick = { onOpenConversation(row.conversation_id) },
+                    )
                 }
             }
         }
@@ -109,6 +146,7 @@ private fun ForYouList(forYou: ForYou, modifier: Modifier = Modifier) {
                     name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                     meta = relativeTime(row.last_message_at),
                     unread = row.unread,
+                    onClick = { onOpenConversation(row.conversation_id) },
                 )
             }
         }
@@ -116,7 +154,12 @@ private fun ForYouList(forYou: ForYou, modifier: Modifier = Modifier) {
         if (forYou.my_tasks.isNotEmpty()) {
             item { SectionHeader("Your tasks") }
             items(forYou.my_tasks, key = { "t:${it.task_id}" }) { row ->
-                TaskRow(title = row.title, overdue = row.overdue, dueAt = row.due_at)
+                TaskRow(
+                    title = row.title,
+                    overdue = row.overdue,
+                    dueAt = row.due_at,
+                    onClick = { onOpenConversation(row.conversation_id) },
+                )
             }
         }
 
@@ -127,6 +170,7 @@ private fun ForYouList(forYou: ForYou, modifier: Modifier = Modifier) {
                     name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                     meta = relativeTime(row.last_message_at),
                     unread = true,
+                    onClick = { onOpenConversation(row.conversation_id) },
                 )
             }
         }
@@ -144,10 +188,11 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun PersonRow(name: String?, meta: String, unread: Boolean) {
+private fun PersonRow(name: String?, meta: String, unread: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -170,10 +215,11 @@ private fun PersonRow(name: String?, meta: String, unread: Boolean) {
 }
 
 @Composable
-private fun TaskRow(title: String, overdue: Boolean, dueAt: String?) {
+private fun TaskRow(title: String, overdue: Boolean, dueAt: String?, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
