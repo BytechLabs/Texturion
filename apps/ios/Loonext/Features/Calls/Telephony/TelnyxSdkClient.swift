@@ -160,7 +160,8 @@ final class TelnyxSdkClient: NSObject, SoftphoneSdk {
         }
     }
 
-    static func phase(from state: CallState) -> CallPhase? {
+    // Pure enum mapping — no state touched, callable from SDK delegate threads.
+    nonisolated static func phase(from state: CallState) -> CallPhase? {
         switch state {
         case .NEW, .CONNECTING, .RINGING:
             return .connecting
