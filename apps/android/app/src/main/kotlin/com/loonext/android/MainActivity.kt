@@ -44,8 +44,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.model.Me
+import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
+import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
@@ -96,6 +98,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         parseDeepLink(intent?.data)?.let { deepLinks.value = it }
+        // OAuth redirect (#166) — buffered until AuthFlow mounts on cold start.
+        intent?.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
+            ?.let(AuthCallbacks::deliver)
         val graph = (application as LoonextApp).graph
         setContent {
             val themePref by graph.prefs.theme
@@ -114,6 +119,8 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         parseDeepLink(intent.data)?.let { deepLinks.value = it }
+        intent.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
+            ?.let(AuthCallbacks::deliver)
     }
 }
 

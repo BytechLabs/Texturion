@@ -44,6 +44,10 @@ targets:
         # without GoogleService-Info.plist); archive export rewrites this to
         # production.
         aps-environment: development
+        # Native Sign in with Apple (#166) — App Store requires Apple sign-in
+        # whenever another third-party sign-in (Google) is offered.
+        com.apple.developer.applesignin:
+          - Default
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios

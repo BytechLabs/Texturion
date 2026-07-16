@@ -37,7 +37,9 @@ enum SignUpResult: Sendable {
     case confirmationEmailSent
 }
 
-/// Direct GoTrue REST client (four endpoints — no SDK dependency needed).
+/// Direct GoTrue REST client (a handful of endpoints — no SDK dependency
+/// needed): password/refresh/signup/recover/logout plus the #166 native-auth
+/// grants (PKCE code exchange, id_token sign-in).
 struct SupabaseAuth: Sendable {
     func signInWithPassword(
         email: String,
@@ -84,9 +86,59 @@ struct SupabaseAuth: Sendable {
         _ = try await request("recover", body: authBody(["email": email], captchaToken: captchaToken))
     }
 
+    /// PKCE code exchange (#166): the auth code from the OAuth browser leg
+    /// plus this attempt's verifier become a session. apikey only — NO bearer.
+    func exchangePkce(authCode: String, codeVerifier: String) async throws -> AuthSession {
+        try decode(
+            await request(
+                "token?grant_type=pkce",
+                body: ["auth_code": authCode, "code_verifier": codeVerifier]
+            )
+        )
+    }
+
+    /// Native id_token sign-in (#166, Sign in with Apple). `nonce` is the RAW
+    /// nonce whose SHA-256 hex rode inside the identity token request —
+    /// GoTrue recomputes the hash and matches it against the token's claim.
+    func signInWithIdToken(
+        provider: String,
+        idToken: String,
+        nonce: String? = nil
+    ) async throws -> AuthSession {
+        var body: [String: Any] = ["provider": provider, "id_token": idToken]
+        if let nonce {
+            body["nonce"] = nonce
+        }
+        return try decode(await request("token?grant_type=id_token", body: body))
+    }
+
     /// Best-effort server-side revocation; local sign-out never depends on it.
     func signOut(accessToken: String) async {
         _ = try? await request("logout", body: [:], bearer: accessToken)
+    }
+
+    // MARK: - Error classification (#166)
+
+    /// GoTrue's captcha gate. Structural where the server allows it
+    /// (`error_code == "captcha_failed"`); the message sniff stays as the
+    /// documented fallback because older GoTrue versions return only prose
+    /// ("captcha protection: request disallowed (no captcha_token found)").
+    static func isCaptchaRejection(_ error: Error) -> Bool {
+        guard let apiError = error as? ApiError else { return false }
+        return apiError.code == "captcha_failed"
+            || apiError.message.range(of: "captcha", options: .caseInsensitive) != nil
+    }
+
+    /// GoTrue's ways of saying "this OAuth provider isn't configured": the
+    /// provider toggle is off, or (Apple) the id_token audience — our bundle
+    /// id — isn't registered as a client id. Message-keyed because GoTrue
+    /// returns generic `validation_failed`/`bad_jwt` codes for these.
+    static func isProviderSetupError(_ error: Error) -> Bool {
+        guard let apiError = error as? ApiError else { return false }
+        let message = apiError.message.lowercased()
+        return message.contains("provider is not enabled")
+            || message.contains("unsupported provider")
+            || message.contains("unacceptable audience")
     }
 
     // MARK: - Internals
@@ -147,7 +199,9 @@ struct SupabaseAuth: Sendable {
     }
 
     /// GoTrue error shapes vary by endpoint/version — parse defensively.
-    private static func parseAuthError(_ data: Data, status: Int) -> ApiError {
+    /// Internal (not private): the Google flow's /authorize preflight reuses
+    /// it to classify GoTrue's provider errors (#166).
+    static func parseAuthError(_ data: Data, status: Int) -> ApiError {
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         let code = (object?["error_code"] as? String)
             ?? (object?["error"] as? String)

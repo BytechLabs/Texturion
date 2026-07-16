@@ -1,9 +1,24 @@
+import AuthenticationServices
 import Observation
 import SwiftUI
 
-/// The signed-out surface's state: busy/error plus the two "email sent"
-/// terminal notes. Session appearance is observed upstream (Root) — success
-/// needs no callback.
+/// One password-path attempt, kept whole so the SAME call can be retried
+/// with a fresh single-use captcha token (#166).
+enum PasswordAuthAction: Equatable {
+    case signIn(email: String, password: String)
+    case signUp(name: String, email: String, password: String)
+    case reset(email: String)
+}
+
+/// The signed-out surface's state: busy/error, the two "email sent" terminal
+/// notes, and the #166 captcha-retry machine. Session appearance is observed
+/// upstream (Root) — success needs no callback.
+///
+/// Captcha machine: every password path first runs WITHOUT a token; when
+/// Supabase answers with its captcha gate, the attempt parks in
+/// `pendingAction`, the Turnstile bridge sheet opens, and the token it mints
+/// retries the SAME call. Tokens are single-use — a rejected retry never
+/// loops; the next tap re-mints from scratch.
 @MainActor
 @Observable
 final class AuthViewModel {
@@ -14,53 +29,170 @@ final class AuthViewModel {
     /// Password-reset email fired.
     private(set) var resetSent = false
 
+    /// Turnstile bridge sheet visibility (settable: the sheet binding writes
+    /// false on swipe-down; onDismiss then routes a nil token here).
+    var captchaVisible = false
+
+    /// The attempt waiting on a captcha token.
+    private var pendingAction: PasswordAuthAction?
+
+    /// Raw SIWA nonce for the in-flight Apple request — its SHA-256 hex rides
+    /// in the request; the raw value goes to Supabase for the exchange.
+    private var appleRawNonce = ""
+
     private let authManager: AuthManager
 
     init(authManager: AuthManager) {
         self.authManager = authManager
     }
 
+    // MARK: - Password paths (captcha-aware)
+
     func signIn(email: String, password: String) {
-        run(fallback: "Sign-in failed.") { [authManager] in
-            try await authManager.signIn(
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                password: password
-            )
-        }
+        start(.signIn(email: normalized(email), password: password))
     }
 
     func signUp(name: String, email: String, password: String) {
-        run(fallback: "Sign-up failed.") { [authManager, weak self] in
-            let signedIn = try await authManager.signUp(
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                password: password,
-                displayName: name.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            if !signedIn { self?.confirmationSent = true }
-        }
+        start(.signUp(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            email: normalized(email),
+            password: password
+        ))
     }
 
     func sendReset(email: String) {
-        run(fallback: "Couldn't send the reset email.") { [authManager, weak self] in
-            try await authManager.sendPasswordReset(
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            self?.resetSent = true
+        start(.reset(email: normalized(email)))
+    }
+
+    /// Token from the captcha sheet (nil = canceled). The presenter's
+    /// onDismiss ALSO routes nil here — `pendingAction` makes that idempotent.
+    func captchaResolved(_ token: String?) {
+        captchaVisible = false
+        guard let action = pendingAction else { return }
+        pendingAction = nil
+        guard let token else {
+            busy = false // user closed the check — calm, no error line
+            return
+        }
+        perform(action, captchaToken: token)
+    }
+
+    private func start(_ action: PasswordAuthAction) {
+        guard !busy else { return }
+        perform(action, captchaToken: nil)
+    }
+
+    private func perform(_ action: PasswordAuthAction, captchaToken: String?) {
+        busy = true
+        error = nil
+        Task { [self] in
+            do {
+                try await execute(action, captchaToken: captchaToken)
+                busy = false
+            } catch let failure where SupabaseAuth.isCaptchaRejection(failure) {
+                if captchaToken == nil {
+                    // Supabase wants a captcha: mint one on the bridge page,
+                    // then retry the SAME call. busy stays true — the sheet
+                    // owns the screen until it resolves.
+                    pendingAction = action
+                    captchaVisible = true
+                } else {
+                    // The minted token was rejected (expired or consumed —
+                    // they're single-use). The next tap re-mints from scratch.
+                    busy = false
+                    error = "That security check didn't go through. Please try again."
+                }
+            } catch let failure {
+                busy = false
+                let message = failure.userMessage
+                error = message.isEmpty ? fallbackMessage(for: action) : message
+            }
         }
     }
 
-    private func run(fallback: String, _ block: @escaping @MainActor () async throws -> Void) {
+    private func execute(_ action: PasswordAuthAction, captchaToken: String?) async throws {
+        switch action {
+        case .signIn(let email, let password):
+            try await authManager.signIn(
+                email: email,
+                password: password,
+                captchaToken: captchaToken
+            )
+        case .signUp(let name, let email, let password):
+            let signedIn = try await authManager.signUp(
+                email: email,
+                password: password,
+                displayName: name,
+                captchaToken: captchaToken
+            )
+            if !signedIn { confirmationSent = true }
+        case .reset(let email):
+            try await authManager.sendPasswordReset(email: email, captchaToken: captchaToken)
+            resetSent = true
+        }
+    }
+
+    private func fallbackMessage(for action: PasswordAuthAction) -> String {
+        switch action {
+        case .signIn: "Sign-in failed."
+        case .signUp: "Sign-up failed."
+        case .reset: "Couldn't send the reset email."
+        }
+    }
+
+    private func normalized(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Providers (#166)
+
+    func signInWithGoogle() {
         guard !busy else { return }
         busy = true
         error = nil
         Task { [self] in
             do {
-                try await block()
-                self.busy = false
-            } catch {
-                self.busy = false
-                let message = error.userMessage
-                self.error = message.isEmpty ? fallback : message
+                // false = the user closed the sheet (calm no-op); on success
+                // the session appears in the store and Root routes away.
+                _ = try await authManager.signInWithGoogle()
+                busy = false
+            } catch let failure {
+                busy = false
+                error = failure.userMessage
+            }
+        }
+    }
+
+    /// SignInWithAppleButton.onRequest — mint a fresh nonce per attempt.
+    func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
+        appleRawNonce = SiwaNonce.random()
+        AppleSignIn.configure(request, rawNonce: appleRawNonce)
+    }
+
+    /// SignInWithAppleButton.onCompletion.
+    func completeApple(_ result: Result<ASAuthorization, Error>) {
+        let credential: AppleSignIn.Credential?
+        do {
+            credential = try AppleSignIn.credential(from: result)
+        } catch let failure {
+            error = failure.userMessage
+            return
+        }
+        guard let credential else { return } // user canceled — silent no-op
+        let rawNonce = appleRawNonce
+        busy = true
+        error = nil
+        Task { [self] in
+            do {
+                try await authManager.signInWithApple(
+                    idToken: credential.idToken,
+                    rawNonce: rawNonce,
+                    fullName: credential.fullName
+                )
+                busy = false
+            } catch let failure {
+                busy = false
+                error = failure.userMessage
             }
         }
     }
@@ -107,6 +239,12 @@ struct AuthFlow: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color(uiColor: .systemBackground))
+        .sheet(
+            isPresented: $model.captchaVisible,
+            onDismiss: { model.captchaResolved(nil) }
+        ) {
+            CaptchaSheet { token in model.captchaResolved(token) }
+        }
     }
 }
 
@@ -124,6 +262,51 @@ private struct Wordmark: View {
     }
 }
 
+/// SSO stacked above the email form (mirrors the web login §1.7): Apple's
+/// required native button first, then Google, then a quiet "or" rule.
+@MainActor
+private struct SsoButtons: View {
+    let model: AuthViewModel
+    let appleLabel: SignInWithAppleButton.Label
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 10) {
+            SignInWithAppleButton(appleLabel) { request in
+                model.prepareAppleRequest(request)
+            } onCompletion: { result in
+                model.completeApple(result)
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: 46)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .disabled(model.busy)
+
+            Button {
+                model.signInWithGoogle()
+            } label: {
+                Text("Continue with Google")
+                    .font(.body.weight(.medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .disabled(model.busy)
+
+            HStack(spacing: 10) {
+                Rectangle().fill(.quaternary).frame(height: 1)
+                Text("or")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Rectangle().fill(.quaternary).frame(height: 1)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
 @MainActor
 private struct LoginForm: View {
     let model: AuthViewModel
@@ -135,6 +318,7 @@ private struct LoginForm: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            SsoButtons(model: model, appleLabel: .signIn)
             AuthField("Email", text: $email, kind: .email)
             AuthField("Password", text: $password, kind: .password)
             ErrorLine(error: model.error)
@@ -172,6 +356,7 @@ private struct SignUpForm: View {
             }
         } else {
             VStack(spacing: 12) {
+                SsoButtons(model: model, appleLabel: .signUp)
                 AuthField("Your name", text: $name, kind: .name)
                 AuthField("Email", text: $email, kind: .email)
                 AuthField("Password (8+ characters)", text: $password, kind: .newPassword)

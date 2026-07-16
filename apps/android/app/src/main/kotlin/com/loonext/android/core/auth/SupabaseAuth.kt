@@ -20,6 +20,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.net.URLEncoder
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -62,6 +63,11 @@ class SupabaseAuth(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** /authorize preflight must SEE the 3xx, not follow it to the provider. */
+    private val noRedirectClient by lazy {
+        client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+    }
+
     suspend fun signInWithPassword(
         email: String,
         password: String,
@@ -84,6 +90,62 @@ class SupabaseAuth(
         return json.decodeFromString<AuthSession>(
             request("token?grant_type=refresh_token", body),
         )
+    }
+
+    /** OAuth PKCE completion (#166): swap the redirect's code for a session. */
+    suspend fun exchangePkce(authCode: String, codeVerifier: String): AuthSession {
+        val body = buildJsonObject {
+            put("auth_code", authCode)
+            put("code_verifier", codeVerifier)
+        }
+        return json.decodeFromString<AuthSession>(
+            request("token?grant_type=pkce", body),
+        )
+    }
+
+    /**
+     * Builds the OAuth authorize URL and preflights it (#166). A healthy
+     * GoTrue answers /authorize with a 3xx to the provider's consent page;
+     * anything else is the provider-not-configured response ("Unsupported
+     * provider: provider is not enabled") — caught HERE so the user gets an
+     * honest error instead of being dumped on a browser JSON page.
+     */
+    suspend fun beginOAuthAuthorize(
+        provider: String,
+        redirectTo: String,
+        codeChallenge: String,
+    ): String = withContext(Dispatchers.IO) {
+        // The challenge is base64url (URL-safe by construction); redirect_to
+        // carries a scheme + query and must be encoded.
+        val url = "$supabaseUrl/auth/v1/authorize" +
+            "?provider=$provider" +
+            "&redirect_to=${URLEncoder.encode(redirectTo, "UTF-8")}" +
+            "&code_challenge=$codeChallenge" +
+            "&code_challenge_method=s256"
+        val request = Request.Builder()
+            .url(url)
+            .header("apikey", publishableKey)
+            .get()
+            .build()
+        val response = try {
+            noRedirectClient.newCall(request).await()
+        } catch (cause: IOException) {
+            throw ApiException(
+                ApiErrorCode.NETWORK,
+                "Can't reach the sign-in service. Check your connection.",
+                0,
+            )
+        }
+        response.use {
+            if (it.code !in 300..399) {
+                throw ApiException(
+                    "oauth_provider_unavailable",
+                    "Google sign-in isn't set up for this app yet.",
+                    it.code,
+                )
+            }
+        }
+        url
     }
 
     suspend fun signUp(

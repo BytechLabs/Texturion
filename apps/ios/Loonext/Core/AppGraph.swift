@@ -49,11 +49,14 @@ final class AuthManager {
     private let auth: SupabaseAuth
     private let sessionStore: SessionStore
     private let prefs: AppPrefs
+    /// For the Apple first-auth display_name backfill (#166).
+    private let meApi: MeApi
 
-    init(auth: SupabaseAuth, sessionStore: SessionStore, prefs: AppPrefs) {
+    init(auth: SupabaseAuth, sessionStore: SessionStore, prefs: AppPrefs, meApi: MeApi) {
         self.auth = auth
         self.sessionStore = sessionStore
         self.prefs = prefs
+        self.meApi = meApi
     }
 
     func signIn(email: String, password: String, captchaToken: String? = nil) async throws {
@@ -90,6 +93,44 @@ final class AuthManager {
         try await auth.sendPasswordReset(email: email, captchaToken: captchaToken)
     }
 
+    /// Native Google via the PKCE browser flow (#166). Returns false when the
+    /// user closed the sheet (calm no-op); on success the saved session
+    /// routes upstream (Root observes the store).
+    func signInWithGoogle() async throws -> Bool {
+        let flow = GoogleSignInFlow(auth: auth)
+        guard let authSession = try await flow.signIn() else { return false }
+        sessionStore.save(authSession.session)
+        return true
+    }
+
+    /// Native Sign in with Apple (#166): exchange the identity token, then
+    /// backfill an EMPTY profile display_name with the one-shot name Apple
+    /// only sends on first authorization. The backfill is best-effort — a
+    /// name-write failure never blocks the sign-in.
+    func signInWithApple(idToken: String, rawNonce: String, fullName: String?) async throws {
+        let authSession: AuthSession
+        do {
+            authSession = try await auth.signInWithIdToken(
+                provider: "apple",
+                idToken: idToken,
+                nonce: rawNonce
+            )
+        } catch let error as ApiError where SupabaseAuth.isProviderSetupError(error) {
+            // FOUNDER STEP (PRODUCTION.md §8): enable the Apple provider in
+            // Supabase with bundle id com.loonext.ios as a client id.
+            throw ApiError(
+                code: "provider_not_configured",
+                message: "Apple sign-in isn't set up for this app yet.",
+                httpStatus: error.httpStatus
+            )
+        }
+        sessionStore.save(authSession.session)
+        if let fullName, !fullName.isBlank,
+           let me = try? await meApi.me(), me.display_name.isBlank {
+            try? await meApi.updateDisplayName(fullName)
+        }
+    }
+
     func signOut() async {
         if let session = sessionStore.current() {
             await auth.signOut(accessToken: session.accessToken)
@@ -124,15 +165,21 @@ final class AppGraph {
         let supabaseAuth = SupabaseAuth()
         let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth)
         let realtime = RealtimeClient()
+        let meApi = MeApi(api: api)
 
         self.sessionStore = sessionStore
         self.prefs = prefs
         self.supabaseAuth = supabaseAuth
         self.api = api
         self.realtime = realtime
-        self.authManager = AuthManager(auth: supabaseAuth, sessionStore: sessionStore, prefs: prefs)
+        self.authManager = AuthManager(
+            auth: supabaseAuth,
+            sessionStore: sessionStore,
+            prefs: prefs,
+            meApi: meApi
+        )
 
-        self.meApi = MeApi(api: api)
+        self.meApi = meApi
         self.forYouApi = ForYouApi(api: api)
         self.inboxApi = InboxApi(api: api)
         self.tasksApi = TasksApi(api: api)
