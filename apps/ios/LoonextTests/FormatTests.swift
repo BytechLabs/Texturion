@@ -32,8 +32,9 @@ final class FormatTests: XCTestCase {
         let now = try date("2026-07-15T12:00:00Z")
         // Postgres offset form.
         XCTAssertEqual(relativeTime("2026-07-15T07:55:00-04:00", now: now, calendar: utc), "5m")
-        // Fractional seconds.
-        XCTAssertEqual(relativeTime("2026-07-15T11:55:00.123Z", now: now, calendar: utc), "5m")
+        // Fractional seconds parse; 299.877s floors to 4m (Duration.toMinutes
+        // truncation — same semantics as the Android twin).
+        XCTAssertEqual(relativeTime("2026-07-15T11:55:00.123Z", now: now, calendar: utc), "4m")
         // Garbage renders nothing, never crashes.
         XCTAssertEqual(relativeTime("not-a-date", now: now, calendar: utc), "")
     }
