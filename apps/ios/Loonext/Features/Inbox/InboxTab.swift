@@ -675,26 +675,46 @@ private struct FilterChipRow: View {
     let onPickAssignee: @MainActor () -> Void
     let onPickTag: @MainActor () -> Void
 
+    // Chip labels/clear-actions extracted with explicit types — the inline
+    // map/ternary optional-closure expressions made swiftc's type checker
+    // give up (CI run 7).
+    private var assigneeLabel: String {
+        guard let assignee = controller.assignee else { return "Assignee" }
+        let name = assignee.display_name.isBlank ? "Teammate" : assignee.display_name
+        return "Assignee: \(name)"
+    }
+
+    private var assigneeClear: (@MainActor () -> Void)? {
+        guard controller.assignee != nil else { return nil }
+        return { controller.setAssigneeFilter(nil) }
+    }
+
+    private var tagLabel: String {
+        guard let tag = controller.tag else { return "Tag" }
+        return "Tag: \(tag.name)"
+    }
+
+    private var tagClear: (@MainActor () -> Void)? {
+        guard controller.tag != nil else { return nil }
+        return { controller.setTagFilter(nil) }
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if controller.tab != .mine {
                     FilterChip(
-                        label: controller.assignee.map {
-                            "Assignee: \($0.display_name.isBlank ? "Teammate" : $0.display_name)"
-                        } ?? "Assignee",
+                        label: assigneeLabel,
                         selected: controller.assignee != nil,
                         onTap: onPickAssignee,
-                        onClear: controller.assignee != nil
-                            ? { controller.setAssigneeFilter(nil) }
-                            : nil
+                        onClear: assigneeClear
                     )
                 }
                 FilterChip(
-                    label: controller.tag.map { "Tag: \($0.name)" } ?? "Tag",
+                    label: tagLabel,
                     selected: controller.tag != nil,
                     onTap: onPickTag,
-                    onClear: controller.tag != nil ? { controller.setTagFilter(nil) } : nil
+                    onClear: tagClear
                 )
                 FilterChip(
                     label: "Unread",

@@ -106,19 +106,28 @@ private struct ForYouList: View {
             (forYou.triage.map { $0.conversations.count + $0.tasks.count } ?? 0)
     }
 
+    // Extracted with explicit types — the interpolated nested ternary and the
+    // Optional.map closure-of-closure below made swiftc's type checker give
+    // up on the whole body (CI run 7).
+    private var subtitle: String {
+        if total == 0 { return "You're all caught up." }
+        return total == 1 ? "1 thing needs you" : "\(total) things need you"
+    }
+
+    private func callTap(_ call: Call) -> (@MainActor () -> Void)? {
+        guard let id = call.conversation_id else { return nil }
+        return { onOpenConversation(id) }
+    }
+
     var body: some View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("For you")
                         .font(.title2.weight(.semibold))
-                    Text(
-                        total == 0
-                            ? "You're all caught up."
-                            : "\(total) \(total == 1 ? "thing needs" : "things need") you"
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 .listRowSeparator(.hidden)
                 .padding(.vertical, 4)
@@ -207,12 +216,7 @@ private struct ForYouList: View {
                 if !calls.isEmpty {
                     Section {
                         ForEach(calls, id: \.id) { call in
-                            RecentCallRow(
-                                call: call,
-                                onTap: call.conversation_id.map { id in
-                                    { onOpenConversation(id) }
-                                }
-                            )
+                            RecentCallRow(call: call, onTap: callTap(call))
                         }
                     } header: {
                         RecentCallsHeader(onOpenCalls: onOpenCalls)
