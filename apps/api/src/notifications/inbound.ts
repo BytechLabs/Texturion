@@ -297,7 +297,18 @@ export async function notifyInboundMessage(
       );
       for (const device of deviceTokens) {
         try {
-          const result = await sendFcm(env, device, payload);
+          // #162 iOS coalescing: repeat texts in one thread REPLACE the
+          // pending alert (apns-collapse-id) instead of stacking — the same
+          // `conversation:<id>` tag the clients coalesce on. TTL/urgency ride
+          // the sender defaults.
+          const result = await sendFcm(
+            env,
+            device,
+            payload,
+            undefined,
+            undefined,
+            `conversation:${input.conversationId}`,
+          );
           if (result.gone) {
             // FCM says UNREGISTERED (app uninstalled / token rotated): drop
             // the row, mirroring the Web Push 404/410 prune.

@@ -372,6 +372,16 @@ describe("notifyInboundMessage — native device push (#151)", () => {
       body: "Hi, do you do gutters?",
       url: `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
     });
+
+    // #162 iOS coalescing: the iOS send tags apns-collapse-id per
+    // conversation, so repeat texts in one thread replace, never stack.
+    const iosSend = service.sends.find(
+      (send) => (send.message as { token: string }).token === "tok-b",
+    );
+    const headers = (
+      iosSend?.message as { apns: { headers: Record<string, string> } }
+    ).apns.headers;
+    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
   });
 
   it("prunes an UNREGISTERED token row (cleanup, not a failure)", async () => {

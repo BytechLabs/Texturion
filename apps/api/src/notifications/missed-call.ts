@@ -285,7 +285,17 @@ export async function notifyMissedCall(
       );
       for (const device of deviceTokens) {
         try {
-          const result = await sendFcm(env, device, nativePayload);
+          // #162 iOS coalescing: like the inbound-message push, missed-call
+          // alerts tag per conversation (apns-collapse-id) — the client
+          // coalescing contract keys missed calls on `conversation:<id>` too.
+          const result = await sendFcm(
+            env,
+            device,
+            nativePayload,
+            undefined,
+            undefined,
+            `conversation:${input.conversationId}`,
+          );
           if (result.gone) {
             // UNREGISTERED token: drop the row (the Web Push 404/410 mirror).
             const { error } = await db

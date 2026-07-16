@@ -124,12 +124,15 @@ describe("GET /v1/me", () => {
         plan: string;
         subscription_status: string;
         numbers: unknown[];
+        billing_writes_enabled: boolean;
         registration: { brand: unknown; campaign: unknown };
       };
     };
     expect(body.company.plan).toBe("starter");
     expect(body.company.subscription_status).toBe("active");
     expect(body.company.numbers).toHaveLength(1);
+    // #163: in-app billing writes default ON (kill-switch unset).
+    expect(body.company.billing_writes_enabled).toBe(true);
     expect(body.company.registration.brand).toMatchObject({
       kind: "brand",
       status: "approved",
@@ -138,6 +141,53 @@ describe("GET /v1/me", () => {
       kind: "campaign",
       status: "pending",
     });
+  });
+
+  it("flips billing_writes_enabled to false under the BILLING_WRITES_DISABLED kill-switch (#163)", async () => {
+    const sb = baseStub();
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        country: "US",
+        plan: "starter",
+        subscription_status: "active",
+        created_at: "2026-06-14T00:00:00+00:00",
+        updated_at: "2026-06-15T00:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const flag of ["1", "true", "TRUE "]) {
+      const res = await apiRequest(
+        app,
+        { ...env, BILLING_WRITES_DISABLED: flag },
+        await auth.token(),
+        "/v1/me",
+        { companyId: COMPANY_ID },
+      );
+      expect(res.status, flag).toBe(200);
+      const body = (await res.json()) as {
+        company: { billing_writes_enabled: boolean };
+      };
+      expect(body.company.billing_writes_enabled, flag).toBe(false);
+    }
+
+    // Anything that isn't the documented on-values keeps writes enabled.
+    const res = await apiRequest(
+      app,
+      { ...env, BILLING_WRITES_DISABLED: "0" },
+      await auth.token(),
+      "/v1/me",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as {
+      company: { billing_writes_enabled: boolean };
+    };
+    expect(body.company.billing_writes_enabled).toBe(true);
   });
 
   it("403s when X-Company-Id is not one of the caller's active memberships", async () => {

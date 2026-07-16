@@ -50,6 +50,7 @@ import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
+import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.shell.AccountSheet
@@ -190,6 +191,12 @@ private fun ReadyShell(
     var countsKey by remember { mutableIntStateOf(0) }
     var hydratedMe by remember(companyId) { mutableStateOf(me) }
 
+    // The thread the user is LOOKING at right now (tab-internal or overlay) —
+    // suppresses the global inbound toast for that conversation (#165).
+    var tabViewedConversation by remember { mutableStateOf<String?>(null) }
+    val viewedConversation = (overlay as? Overlay.Thread)?.conversationId
+        ?: tabViewedConversation
+
     // Session-scoped device wiring: push registration (no-op without Firebase
     // config) + softphone ring-registration + the call-push wake hook.
     LaunchedEffect(companyId) {
@@ -259,6 +266,8 @@ private fun ReadyShell(
                 activeTab, graph, hydratedMe, companyId, modifier,
                 onOpenThread = { overlay = Overlay.Thread(it) },
                 onComposeNew = { overlay = Overlay.Compose(it) },
+                onOpenCalls = { overlay = Overlay.Calls },
+                onViewedConversationChanged = { tabViewedConversation = it },
             )
         }
 
@@ -272,6 +281,15 @@ private fun ReadyShell(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),
+        )
+
+        // Global inbound toast for conversations the user is NOT viewing (#165).
+        InboundMessageToastHost(
+            graph = graph,
+            companyId = companyId,
+            viewedConversationId = { viewedConversation },
+            onView = { overlay = Overlay.Thread(it) },
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
 
         // Inbound texts landing outside the viewed thread surface as a

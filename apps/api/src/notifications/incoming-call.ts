@@ -181,6 +181,9 @@ async function deliverIncomingCallPush(
           payload,
           CALL_PUSH_TTL_SECS,
           "high",
+          // #162/#149 iOS coalescing: per call SESSION — repeats for one call
+          // replace each other; two concurrent calls stay two alerts.
+          `call:${input.callSessionId}`,
         );
         if (result.gone) {
           // UNREGISTERED token (app uninstalled / rotated): drop the row —

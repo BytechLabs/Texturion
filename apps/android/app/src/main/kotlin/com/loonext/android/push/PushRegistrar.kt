@@ -91,21 +91,23 @@ class PushRegistrar(context: Context, private val api: ApiClient) {
     }
 
     /**
-     * Sign-out teardown: delete the server row (by remembered id, else by
-     * re-upserting to learn it — the web unsubscribe does the same dance),
-     * then invalidate the device token so this phone stops receiving.
-     * Call BEFORE the session is cleared; every step is best-effort.
+     * Sign-out teardown: delete the server row — the #151 contract is
+     * `DELETE /v1/device-push-tokens` with `{token}` in the BODY (there is no
+     * per-id route) — then invalidate the device token so this phone stops
+     * receiving. Call BEFORE the session is cleared; every step is best-effort.
      */
     suspend fun unregister() {
-        val companyId = PushPrefs.companyId(appContext)
         val token = PushPrefs.token(appContext)
-        var rowId = PushPrefs.rowId(appContext)
         try {
-            if (rowId == null && companyId != null && token != null) {
-                rowId = postToken(companyId, token)
-            }
-            if (rowId != null) {
-                api.delete("/v1/device-push-tokens/$rowId", companyId = companyId)
+            if (token != null) {
+                api.raw(
+                    "DELETE",
+                    "/v1/device-push-tokens",
+                    body = api.json.encodeToString(
+                        JsonObject.serializer(),
+                        JsonObject(mapOf("token" to JsonPrimitive(token))),
+                    ),
+                )
                 Log.i(TAG, "Deleted device push token registration.")
             }
         } catch (cause: ApiException) {

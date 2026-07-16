@@ -137,10 +137,20 @@ fun ShellContent(
     modifier: Modifier = Modifier,
     onOpenThread: (conversationId: String) -> Unit,
     onComposeNew: (prefillContactId: String?) -> Unit,
+    onOpenCalls: () -> Unit,
+    onViewedConversationChanged: (conversationId: String?) -> Unit,
 ) {
     when (tab) {
-        ShellTab.ForYou -> ForYouTab(graph, companyId, me, modifier)
-        ShellTab.Inbox -> InboxTab(graph, companyId, me, modifier)
+        ShellTab.ForYou -> ForYouTab(
+            graph, companyId, me, modifier,
+            onOpenCalls = onOpenCalls,
+            onViewedConversationChanged = onViewedConversationChanged,
+        )
+
+        ShellTab.Inbox -> InboxTab(
+            graph, companyId, me, modifier,
+            onViewedConversationChanged = onViewedConversationChanged,
+        )
         ShellTab.Tasks -> TasksTab(
             graph, companyId, me, modifier,
             onOpenConversation = { conversationId, _ -> onOpenThread(conversationId) },

@@ -58,7 +58,8 @@ meRoutes.patch("/me", async (c) => {
 });
 
 meRoutes.get("/me", async (c) => {
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
   const userId = c.get("userId");
 
   const profiles = unwrap<{ display_name: string }[]>(
@@ -116,7 +117,7 @@ meRoutes.get("/me", async (c) => {
         "Not an active member of this company.",
       );
     }
-    const company = await loadCompanyView(db, parsed.data);
+    const company = await loadCompanyView(db, parsed.data, env);
     if (!company) {
       return errorResponse(c, "not_found", "No such company.");
     }

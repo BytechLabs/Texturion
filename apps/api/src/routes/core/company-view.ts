@@ -5,6 +5,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { Env } from "../../env";
+
 import { unwrap } from "./http";
 
 /** Customer-visible company columns (SPEC §10: internals stay server-side). */
@@ -52,10 +54,24 @@ export interface CompanyView {
    *  admin-only (it carries billing detail), and gating member UI on it made
    *  every member read as module-off (the tel: personal-cell leak). */
   enabled_modules: string[];
+  /** #163: false = native apps hide in-app billing WRITES (plan change,
+   *  module toggles) and route everything to the external-browser Stripe
+   *  surfaces — the store-rules kill-switch. Config, not a DB column. */
+  billing_writes_enabled: boolean;
   registration: {
     brand: RegistrationRow | null;
     campaign: RegistrationRow | null;
   };
+}
+
+/**
+ * #163: in-app billing writes are enabled unless the BILLING_WRITES_DISABLED
+ * kill-switch is flipped ("1"/"true"). Lagging clients that predate the field
+ * default it to true, so the switch only ever REMOVES affordances.
+ */
+export function billingWritesEnabled(env: Env): boolean {
+  const raw = env.BILLING_WRITES_DISABLED?.trim().toLowerCase() ?? "";
+  return raw !== "1" && raw !== "true";
 }
 
 /**
@@ -65,6 +81,7 @@ export interface CompanyView {
 export async function loadCompanyView(
   db: SupabaseClient,
   companyId: string,
+  env: Env,
 ): Promise<CompanyView | null> {
   const companies = unwrap<Record<string, unknown>[]>(
     await db
@@ -108,6 +125,7 @@ export async function loadCompanyView(
     ...company,
     numbers,
     enabled_modules: modules.map((row) => row.module),
+    billing_writes_enabled: billingWritesEnabled(env),
     registration: {
       brand: registrations.find((row) => row.kind === "brand") ?? null,
       campaign: registrations.find((row) => row.kind === "campaign") ?? null,

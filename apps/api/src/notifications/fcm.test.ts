@@ -249,6 +249,60 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
       apns: { headers: Record<string, string> };
     };
     expect(message.apns.headers["apns-priority"]).toBe("5");
+    // No coalescing tag given — no collapse header (never an empty one).
+    expect(message.apns.headers).not.toHaveProperty("apns-collapse-id");
+  });
+
+  it("ios: the caller's coalescing tag rides apns-collapse-id, bounded to APNs' 64 bytes (#162)", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(...service.routes);
+    const env = fcmEnv(account);
+
+    await sendFcm(
+      env,
+      { platform: "ios", token: "ios-tok" },
+      MESSAGE_PAYLOAD,
+      undefined,
+      undefined,
+      "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
+    );
+    await sendFcm(
+      env,
+      { platform: "ios", token: "ios-tok" },
+      MESSAGE_PAYLOAD,
+      undefined,
+      undefined,
+      `conversation:${"x".repeat(100)}`,
+    );
+
+    const headersOf = (index: number) =>
+      (service.sends[index].message as { apns: { headers: Record<string, string> } })
+        .apns.headers;
+    expect(headersOf(0)["apns-collapse-id"]).toBe(
+      "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
+    );
+    expect(headersOf(1)["apns-collapse-id"]).toHaveLength(64);
+  });
+
+  it("android: the coalescing tag changes NOTHING (client-side tags own coalescing there)", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(...service.routes);
+
+    await sendFcm(
+      fcmEnv(account),
+      { platform: "android", token: "android-tok" },
+      MESSAGE_PAYLOAD,
+      undefined,
+      undefined,
+      "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
+    );
+
+    const message = service.sends[0].message;
+    expect(message).not.toHaveProperty("apns");
+    expect(message).not.toHaveProperty("notification");
+    expect(JSON.stringify(message)).not.toContain("collapse");
   });
 });
 

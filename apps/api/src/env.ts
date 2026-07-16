@@ -148,6 +148,14 @@ const envSchema = z.object({
    */
   POSTHOG_API_KEY: z.string().min(1).optional(),
   /**
+   * #163 store-rules kill-switch: set to "1" (or "true") to flip
+   * `billing_writes_enabled` to false on the company views, telling native
+   * apps to hide in-app billing WRITES (plan change, module toggles) and fall
+   * back to the external-browser Stripe surfaces. OPTIONAL: unset = writes
+   * enabled (the default posture). Reads are never gated.
+   */
+  BILLING_WRITES_DISABLED: z.string().optional(),
+  /**
    * The per-company outbound rate limiter (SPEC §10 layer 3: ~1 msg/s),
    * declared in wrangler.jsonc as a "ratelimit" unsafe binding. Workers rate
    * limiting only supports 10s/60s periods, so 1 msg/s is configured as

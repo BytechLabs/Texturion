@@ -217,13 +217,19 @@ async function getAccessToken(account: ServiceAccount): Promise<string> {
  *             sends (Doze wake is a budgeted resource), ttl from ttlSeconds.
  *   ios     — notification (alert) + data via the APNs bridge; TTL maps to
  *             apns-expiration (absolute epoch seconds), urgency to
- *             apns-priority (10 immediate / 5 power-considerate).
+ *             apns-priority (10 immediate / 5 power-considerate), and the
+ *             caller's coalescing tag to apns-collapse-id (#162: repeats for
+ *             one thread/call REPLACE in Notification Center instead of
+ *             stacking — the iOS client can't retag a remote alert push, so
+ *             coalescing is server-side by contract; Android coalesces
+ *             client-side via notification tags and takes no collapse key).
  */
 function buildMessage(
   target: DevicePushTarget,
   payload: string,
   ttlSeconds: number,
   urgency: "normal" | "high",
+  collapseId?: string,
 ): Record<string, unknown> {
   let parsed: Record<string, unknown>;
   try {
@@ -247,6 +253,15 @@ function buildMessage(
       },
     };
   }
+  const apnsHeaders: Record<string, string> = {
+    "apns-priority": urgency === "high" ? "10" : "5",
+    "apns-expiration": String(Math.floor(Date.now() / 1000) + ttlSeconds),
+  };
+  if (collapseId !== undefined && collapseId.length > 0) {
+    // APNs rejects a collapse id over 64 bytes (our ids are ASCII, so
+    // chars == bytes) — bound it rather than fail the whole send.
+    apnsHeaders["apns-collapse-id"] = collapseId.slice(0, 64);
+  }
   return {
     token: target.token,
     notification: {
@@ -254,12 +269,7 @@ function buildMessage(
       body: data.body ?? "",
     },
     data,
-    apns: {
-      headers: {
-        "apns-priority": urgency === "high" ? "10" : "5",
-        "apns-expiration": String(Math.floor(Date.now() / 1000) + ttlSeconds),
-      },
-    },
+    apns: { headers: apnsHeaders },
   };
 }
 
@@ -275,6 +285,8 @@ export async function sendFcm(
   payload: string,
   ttlSeconds = 24 * 60 * 60,
   urgency: "normal" | "high" = "normal",
+  /** iOS coalescing tag (#162): apns-collapse-id, e.g. `conversation:<id>`. */
+  collapseId?: string,
 ): Promise<FcmResult> {
   if (!isFcmConfigured(env)) {
     console.log(
@@ -283,7 +295,7 @@ export async function sendFcm(
     return { ok: true, status: 0, gone: false, errorBody: "" };
   }
   const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON as string);
-  const message = buildMessage(target, payload, ttlSeconds, urgency);
+  const message = buildMessage(target, payload, ttlSeconds, urgency, collapseId);
   const accessToken = await getAccessToken(account);
 
   const response = await fetch(

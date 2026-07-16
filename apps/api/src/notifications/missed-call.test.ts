@@ -249,6 +249,12 @@ describe("notifyMissedCall — native device push (#151)", () => {
         platform: "android",
         token: "tok-a",
       },
+      {
+        id: "40000000-aaaa-4000-8000-000000000002",
+        user_id: OWNER,
+        platform: "ios",
+        token: "tok-b",
+      },
     ]);
     stubFetch(...world.routes, ...service.routes);
 
@@ -259,7 +265,7 @@ describe("notifyMissedCall — native device push (#151)", () => {
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
     expect(lookup.url.searchParams.get("limit")).toBe("50");
 
-    expect(service.sends).toHaveLength(1);
+    expect(service.sends).toHaveLength(2);
     const data = service.sends[0].message.data as Record<string, string>;
     expect(data.title).toBe("Missed call from Dana Smith");
     expect(data.body).toBe("We texted them so they can book by reply.");
@@ -267,6 +273,16 @@ describe("notifyMissedCall — native device push (#151)", () => {
     // #165: the NATIVE payload carries the structural discriminator so the
     // Android client routes it to its dedicated missed-calls channel.
     expect(data.kind).toBe("missed_call");
+
+    // #162 iOS coalescing: missed-call alerts tag per conversation too — the
+    // client contract keys them on `conversation:<id>` (PushPayload parity).
+    const iosSend = service.sends.find(
+      (send) => (send.message as { token: string }).token === "tok-b",
+    );
+    const headers = (
+      iosSend?.message as { apns: { headers: Record<string, string> } }
+    ).apns.headers;
+    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
   });
 
   it("keeps the Web Push payload kind-less (#165: discriminator is native-only)", async () => {
