@@ -144,9 +144,7 @@ struct CallsView: View {
                             call: call,
                             service: service,
                             companyId: companyId,
-                            onOpen: call.conversation_id.map { id in
-                                { openConversation(id) }
-                            }
+                            onOpen: openAction(for: call)
                         )
                     }
                     if nextCursor != nil {
@@ -167,6 +165,14 @@ struct CallsView: View {
                 .listStyle(.plain)
             }
         }
+    }
+
+    /// Extracted with explicit types — the inline Optional.map producing a
+    /// closure-of-closure inside the ForEach made swiftc's type checker give
+    /// up ("failed to produce diagnostic", CI run 5).
+    private func openAction(for call: Call) -> (@MainActor () -> Void)? {
+        guard let id = call.conversation_id else { return nil }
+        return { openConversation(id) }
     }
 
     private func reload() async {
