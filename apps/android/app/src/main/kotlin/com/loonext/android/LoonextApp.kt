@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit
  * Hand-rolled object graph — the app is one process with one composition
  * root; a DI framework would be ceremony without payoff at this size.
  */
-class AppGraph(app: Application) {
+class AppGraph(private val app: Application) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val http: OkHttpClient = OkHttpClient.Builder()
@@ -58,6 +58,9 @@ class AppGraph(app: Application) {
         scope = appScope,
     )
 
+    /** Device push registration (#156) — no-ops until Firebase is configured. */
+    val pushRegistrar by lazy { com.loonext.android.push.PushRegistrar(app, api) }
+
     val meRepo = MeRepository(api)
     val forYouRepo = ForYouRepository(api)
     val inboxRepo = InboxRepository(api)
@@ -81,5 +84,6 @@ class LoonextApp : Application() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
+        com.loonext.android.push.ensureChannels(this)
     }
 }

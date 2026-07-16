@@ -72,7 +72,12 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     fun signOut() {
-        viewModelScope.launch { graph.authManager.signOut() }
+        viewModelScope.launch {
+            // Drop the device push token while the bearer still works —
+            // best-effort; a dead token also self-prunes server-side (#151).
+            runCatching { graph.pushRegistrar.unregister() }
+            graph.authManager.signOut()
+        }
     }
 
     private suspend fun bootstrap() {

@@ -135,12 +135,24 @@ fun ShellContent(
     me: Me,
     companyId: String,
     modifier: Modifier = Modifier,
+    onOpenThread: (conversationId: String) -> Unit,
+    onComposeNew: (prefillContactId: String?) -> Unit,
 ) {
     when (tab) {
         ShellTab.ForYou -> ForYouTab(graph, companyId, me, modifier)
         ShellTab.Inbox -> InboxTab(graph, companyId, me, modifier)
-        ShellTab.Tasks -> TasksTab(graph, companyId, me, modifier)
-        ShellTab.Contacts -> ContactsTab(graph, companyId, modifier)
+        ShellTab.Tasks -> TasksTab(
+            graph, companyId, me, modifier,
+            onOpenConversation = { conversationId, _ -> onOpenThread(conversationId) },
+        )
+
+        ShellTab.Contacts -> ContactsTab(
+            graph, companyId, modifier,
+            me = me,
+            onOpenConversation = onOpenThread,
+            onComposeNew = { contactId -> onComposeNew(contactId) },
+        )
+
         ShellTab.You -> Unit // handled by the account sheet
     }
 }

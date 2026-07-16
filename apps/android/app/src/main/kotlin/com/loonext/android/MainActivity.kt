@@ -1,24 +1,36 @@
 package com.loonext.android
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,21 +46,54 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
+import com.loonext.android.features.calls.CallsOverlay
+import com.loonext.android.features.calls.CallsScreen
+import com.loonext.android.features.compose.NewConversationScreen
+import com.loonext.android.features.notifications.NotificationsScreen
+import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.shell.AccountSheet
 import com.loonext.android.features.shell.MainShell
 import com.loonext.android.features.shell.RootState
 import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
+import com.loonext.android.features.shell.ShellTab
+import com.loonext.android.features.thread.ThreadScreen
+import com.loonext.android.push.PushHooks
+import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.theme.LoonextTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+
+/** A navigation request parsed from a notification tap / app-link intent. */
+sealed interface DeepLink {
+    data class Thread(val conversationId: String) : DeepLink
+    data object Calls : DeepLink
+}
+
+/** Notification-tap URLs: https://app.loonext.com/inbox/{id} or /calls?call=… */
+private fun parseDeepLink(uri: Uri?): DeepLink? {
+    val segments = uri?.pathSegments ?: return null
+    return when {
+        segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
+            DeepLink.Thread(segments[1])
+
+        segments.firstOrNull() == "calls" -> DeepLink.Calls
+        else -> null
+    }
+}
 
 class MainActivity : ComponentActivity() {
+    /** Latest unconsumed deep link; the Ready shell consumes and clears it. */
+    private val deepLinks = MutableStateFlow<DeepLink?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        parseDeepLink(intent?.data)?.let { deepLinks.value = it }
         val graph = (application as LoonextApp).graph
         setContent {
             val themePref by graph.prefs.theme
@@ -59,9 +104,14 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             LoonextTheme(darkTheme = darkTheme) {
-                Root(graph)
+                Root(graph, deepLinks)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        parseDeepLink(intent.data)?.let { deepLinks.value = it }
     }
 }
 
@@ -76,7 +126,7 @@ private class GraphVmFactory(private val graph: AppGraph) : ViewModelProvider.Fa
 }
 
 @Composable
-private fun Root(graph: AppGraph) {
+private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
     val factory = remember(graph) { GraphVmFactory(graph) }
     val root: RootViewModel = viewModel(factory = factory)
     val state by root.state.collectAsStateWithLifecycle()
@@ -110,17 +160,63 @@ private fun Root(graph: AppGraph) {
 
         is RootState.Failed -> CenteredError(current.message, onRetry = root::retry)
 
-        is RootState.Ready -> ReadyShell(graph, current.me, current.companyId, root)
+        is RootState.Ready -> ReadyShell(graph, current.me, current.companyId, root, deepLinks)
     }
 }
 
+/** Full-screen surfaces layered over the tab shell (state-based, no NavHost). */
+private sealed interface Overlay {
+    data class Thread(val conversationId: String) : Overlay
+    data class Compose(val prefillContactId: String?) : Overlay
+    data object Calls : Overlay
+    data object Notifications : Overlay
+    data object Settings : Overlay
+}
+
 @Composable
-private fun ReadyShell(graph: AppGraph, me: Me, companyId: String, root: RootViewModel) {
+private fun ReadyShell(
+    graph: AppGraph,
+    me: Me,
+    companyId: String,
+    root: RootViewModel,
+    deepLinks: MutableStateFlow<DeepLink?>,
+) {
+    val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf(com.loonext.android.features.shell.ShellTab.ForYou) }
+    var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
+    var overlay by remember { mutableStateOf<Overlay?>(null) }
     var counts by remember { mutableStateOf(ShellCounts()) }
-    var countsKey by remember { mutableStateOf(0) }
+    var countsKey by remember { mutableIntStateOf(0) }
     var hydratedMe by remember(companyId) { mutableStateOf(me) }
+
+    // Session-scoped device wiring: push registration (no-op without Firebase
+    // config) + softphone ring-registration + the call-push wake hook.
+    LaunchedEffect(companyId) {
+        runCatching { graph.pushRegistrar.register(companyId) }
+        val softphone = SoftphoneManager.get(context.applicationContext, graph.api)
+        PushHooks.callWakeHandler = com.loonext.android.push.CallWakeHandler { content ->
+            content.callSessionId?.let { sessionId ->
+                graph.appScope.launch {
+                    runCatching { softphone.onIncomingCallPush(sessionId) }
+                }
+            }
+        }
+        runCatching {
+            softphone.start(companyId, callerIdName = hydratedMe.display_name)
+        }
+    }
+
+    // Notification taps / app links.
+    LaunchedEffect(companyId) {
+        deepLinks.collect { link ->
+            when (link) {
+                is DeepLink.Thread -> overlay = Overlay.Thread(link.conversationId)
+                DeepLink.Calls -> overlay = Overlay.Calls
+                null -> Unit
+            }
+            if (link != null) deepLinks.value = null
+        }
+    }
 
     // Hydrate the company view (numbers etc.) + live nav counts. Badges cap at
     // 9+, so one 100-row page gives an exact-up-to-cap count.
@@ -149,17 +245,96 @@ private fun ReadyShell(graph: AppGraph, me: Me, companyId: String, root: RootVie
         graph.realtime.events.collect { countsKey++ }
     }
 
-    MainShell(
-        me = hydratedMe,
-        counts = counts,
-        tab = tab,
-        onTabChange = { tab = it },
-        // The compose screen ships with the messaging pass (#153); until it
-        // lands the FAB lands on the inbox (no dead tap, no fake UI).
-        onCompose = { tab = com.loonext.android.features.shell.ShellTab.Inbox },
-        onOpenAccountSheet = { sheetOpen = true },
-    ) { activeTab, modifier ->
-        ShellContent(activeTab, graph, hydratedMe, companyId, modifier)
+    Box(Modifier.fillMaxSize()) {
+        MainShell(
+            me = hydratedMe,
+            counts = counts,
+            tab = tab,
+            onTabChange = { tab = it },
+            onCompose = { overlay = Overlay.Compose(null) },
+            onOpenAccountSheet = { sheetOpen = true },
+        ) { activeTab, modifier ->
+            ShellContent(
+                activeTab, graph, hydratedMe, companyId, modifier,
+                onOpenThread = { overlay = Overlay.Thread(it) },
+                onComposeNew = { overlay = Overlay.Compose(it) },
+            )
+        }
+
+        // The persistent call chip (renders nothing while idle). Mounting it is
+        // what makes this member ring-eligible while the app is open (#155).
+        CallsOverlay(
+            graph = graph,
+            companyId = companyId,
+            me = hydratedMe,
+            openConversation = { overlay = Overlay.Thread(it) },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 96.dp),
+        )
+
+        overlay?.let { active ->
+            BackHandler { overlay = null }
+            Surface(Modifier.fillMaxSize()) {
+                when (active) {
+                    is Overlay.Thread -> ThreadScreen(
+                        graph = graph,
+                        companyId = companyId,
+                        me = hydratedMe,
+                        conversationId = active.conversationId,
+                        onBack = { overlay = null },
+                    )
+
+                    is Overlay.Compose -> NewConversationScreen(
+                        graph = graph,
+                        companyId = companyId,
+                        me = hydratedMe,
+                        prefillContactId = active.prefillContactId,
+                        onCreated = { overlay = Overlay.Thread(it) },
+                        onBack = { overlay = null },
+                    )
+
+                    Overlay.Calls -> OverlayScaffold("Calls", onBack = { overlay = null }) {
+                        CallsScreen(
+                            graph = graph,
+                            companyId = companyId,
+                            me = hydratedMe,
+                            modifier = it,
+                            openConversation = { conversationId ->
+                                overlay = Overlay.Thread(conversationId)
+                            },
+                        )
+                    }
+
+                    Overlay.Notifications -> OverlayScaffold(
+                        "Notifications",
+                        onBack = { overlay = null },
+                    ) {
+                        NotificationsScreen(
+                            graph = graph,
+                            companyId = companyId,
+                            modifier = it,
+                            onOpenConversation = { conversationId ->
+                                overlay = Overlay.Thread(conversationId)
+                            },
+                        )
+                    }
+
+                    Overlay.Settings -> OverlayScaffold(
+                        "Settings",
+                        onBack = { overlay = null },
+                    ) {
+                        SettingsHome(
+                            graph = graph,
+                            companyId = companyId,
+                            me = hydratedMe,
+                            modifier = it,
+                            onSignOut = root::signOut,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     if (sheetOpen) {
@@ -167,10 +342,32 @@ private fun ReadyShell(graph: AppGraph, me: Me, companyId: String, root: RootVie
             graph = graph,
             me = hydratedMe,
             companyId = companyId,
+            unreadNotifications = counts.unreadNotifications,
+            onOpenCalls = { overlay = Overlay.Calls },
+            onOpenNotifications = { overlay = Overlay.Notifications },
+            onOpenSettings = { overlay = Overlay.Settings },
             onSwitchWorkspace = root::switchWorkspace,
             onSignOut = root::signOut,
             onDismiss = { sheetOpen = false },
         )
+    }
+}
+
+/** Back-arrow header around overlay surfaces that don't own navigation. */
+@Composable
+private fun OverlayScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(title, style = MaterialTheme.typography.titleMedium)
+        }
+        content(Modifier.fillMaxSize())
     }
 }
 

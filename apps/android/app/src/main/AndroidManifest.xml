@@ -33,5 +33,28 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FCM entry point (#156): message + token-refresh delivery. -->
+        <service
+            android:name=".push.LoonextMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Self-managed telecom integration (#155). exported=true gated by the
+             BIND_TELECOM_CONNECTION_SERVICE permission is the framework contract. -->
+        <service
+            android:name=".telephony.LoonextConnectionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".telephony.CallActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

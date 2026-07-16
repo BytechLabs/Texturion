@@ -47,6 +47,10 @@ fun AccountSheet(
     graph: AppGraph,
     me: Me,
     companyId: String,
+    unreadNotifications: Int,
+    onOpenCalls: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenSettings: () -> Unit,
     onSwitchWorkspace: (String) -> Unit,
     onSignOut: () -> Unit,
     onDismiss: () -> Unit,
@@ -142,6 +146,27 @@ fun AccountSheet(
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
+            SheetLink("Calls") {
+                onOpenCalls()
+                onDismiss()
+            }
+            SheetLink(
+                if (unreadNotifications > 0) {
+                    "Notifications ($unreadNotifications new)"
+                } else {
+                    "Notifications"
+                },
+            ) {
+                onOpenNotifications()
+                onDismiss()
+            }
+            SheetLink("Settings") {
+                onOpenSettings()
+                onDismiss()
+            }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
             Text(
                 "Theme",
                 style = MaterialTheme.typography.titleSmall,
@@ -170,6 +195,18 @@ fun AccountSheet(
             Spacer(Modifier.height(20.dp))
         }
     }
+}
+
+@Composable
+private fun SheetLink(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    )
 }
 
 private fun copy(context: Context, text: String) {
