@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 
+import { isFcmConfigured, sendFcm } from "./fcm";
 import { sendWebPush } from "./webpush";
 
 interface SubscriptionRow {
@@ -25,6 +26,13 @@ interface SubscriptionRow {
   endpoint: string;
   p256dh: string;
   auth: string;
+}
+
+interface DeviceTokenRow {
+  id: string;
+  user_id: string;
+  platform: "android" | "ios";
+  token: string;
 }
 
 /** How long a ringing-call push is worth delivering (≈ the ring window). */
@@ -95,8 +103,8 @@ async function deliverIncomingCallPush(
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
     .in("user_id", pushUserIds);
-  if (error || !data || data.length === 0) return; // best-effort — never throw
-  const subscriptions = data as SubscriptionRow[];
+  if (error) return; // best-effort — never throw
+  const subscriptions = (data ?? []) as SubscriptionRow[];
 
   const payload = JSON.stringify({
     kind: "call", // the service worker renders this as an urgent call alert
@@ -138,6 +146,62 @@ async function deliverIncomingCallPush(
       } catch (cause) {
         // A network drop or local crypto failure — observable but never fatal
         // to the live call. Push weather must never break a ring.
+        Sentry.captureException(cause);
+      }
+    }),
+  );
+
+  // NATIVE DEVICE PUSH (#151): the same wake payload to every registered
+  // Android/iOS device of the ring targets — FCM HIGH priority + the same 30s
+  // TTL, so a dozing phone actually wakes for the ring window. Same
+  // best-effort contract as the Web Push branch above. Skipped with one log
+  // line until Firebase is provisioned (optional secret, deploys green).
+  if (!isFcmConfigured(env)) {
+    console.log(
+      "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
+    );
+    return;
+  }
+  const { data: tokenRows, error: tokenError } = await db
+    .from("device_push_tokens")
+    .select("id,user_id,platform,token")
+    .in("user_id", pushUserIds)
+    // #30-style defensive bound: newest 50 across the audience.
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (tokenError) return; // best-effort — never throw into the ring path
+  const deviceTokens = (tokenRows ?? []) as DeviceTokenRow[];
+
+  await Promise.all(
+    deviceTokens.map(async (device) => {
+      try {
+        const result = await sendFcm(
+          env,
+          device,
+          payload,
+          CALL_PUSH_TTL_SECS,
+          "high",
+        );
+        if (result.gone) {
+          // UNREGISTERED token (app uninstalled / rotated): drop the row —
+          // and make the prune visible, exactly like the subscription prune
+          // (#142's push-to-wake outage lead). Platform + status only; the
+          // token itself is a per-device credential we never log.
+          await db.from("device_push_tokens").delete().eq("id", device.id);
+          Sentry.captureMessage(
+            `incoming-call push: pruned dead device token (${device.platform}, HTTP ${result.status})`,
+            "info",
+          );
+        } else if (!result.ok) {
+          const detail = result.errorBody ? ` — ${result.errorBody}` : "";
+          Sentry.captureMessage(
+            `incoming-call push: native delivery failed (${device.platform}, HTTP ${result.status})${detail}`,
+            "warning",
+          );
+        }
+      } catch (cause) {
+        // OAuth weather / network drop — observable but never fatal to the
+        // live call.
         Sentry.captureException(cause);
       }
     }),

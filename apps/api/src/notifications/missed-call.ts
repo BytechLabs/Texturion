@@ -25,6 +25,7 @@ import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { isFcmConfigured, sendFcm } from "./fcm";
 import { sendWebPush } from "./webpush";
 
 export interface MissedCallNotificationInput {
@@ -60,6 +61,13 @@ interface SubscriptionRow {
   endpoint: string;
   p256dh: string;
   auth: string;
+}
+
+interface DeviceTokenRow {
+  id: string;
+  user_id: string;
+  platform: "android" | "ios";
+  token: string;
 }
 
 function unwrapRows<T>(
@@ -245,6 +253,50 @@ export async function notifyMissedCall(
         }
       } catch (cause) {
         failures.push(cause);
+      }
+    }
+
+    // NATIVE DEVICE PUSH (#151): same audience, same payload — one FCM send
+    // per registered device of every push-enabled recipient. Skipped with one
+    // log line until Firebase is provisioned (optional secret, deploys green).
+    if (!isFcmConfigured(env)) {
+      console.log(
+        "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
+      );
+    } else {
+      // #30-style defensive bound: newest 50 across the audience.
+      const deviceTokens = unwrapRows<DeviceTokenRow>(
+        await db
+          .from("device_push_tokens")
+          .select("id,user_id,platform,token")
+          .in("user_id", pushUsers)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        "device push tokens lookup",
+      );
+      for (const device of deviceTokens) {
+        try {
+          const result = await sendFcm(env, device, payload);
+          if (result.gone) {
+            // UNREGISTERED token: drop the row (the Web Push 404/410 mirror).
+            const { error } = await db
+              .from("device_push_tokens")
+              .delete()
+              .eq("id", device.id);
+            if (error) {
+              throw new Error(
+                `dead device push token cleanup failed: ${error.message}`,
+              );
+            }
+          } else if (!result.ok) {
+            throw new Error(
+              `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
+                (result.errorBody ? ` — ${result.errorBody}` : ""),
+            );
+          }
+        } catch (cause) {
+          failures.push(cause);
+        }
       }
     }
   }

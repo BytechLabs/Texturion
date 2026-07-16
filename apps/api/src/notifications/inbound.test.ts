@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { NumberAccessRule } from "../auth/number-access";
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { notificationSnippet, notifyInboundMessage } from "./inbound";
@@ -324,5 +325,89 @@ describe("notifyInboundMessage (§8)", () => {
     expect(world.resend.calls).toHaveLength(0);
     expect(world.push.calls).toHaveLength(0);
     expect(world.sb.find("GET", "/rest/v1/company_members")).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #151 native device push: the FCM branch rides the SAME audience/prefs as the
+// Web Push branch. Message shapes/TTL/urgency are covered in fcm.test.ts; this
+// asserts the WIRING — audience-scoped bounded token query, per-row sends of
+// the same payload, the UNREGISTERED prune, and aggregate-throw on failure.
+// ---------------------------------------------------------------------------
+
+const DEVICE_ROW_ID = "30000000-aaaa-4000-8000-000000000001";
+
+describe("notifyInboundMessage — native device push (#151)", () => {
+  it("skips the token query entirely (no-op) when FCM is not configured", async () => {
+    const world = buildWorld({ members: [OWNER] });
+    stubFetch(...world.routes); // an unstubbed device_push_tokens GET would throw
+
+    await notifyInboundMessage(env, INPUT);
+    expect(world.sb.find("GET", "/rest/v1/device_push_tokens")).toHaveLength(0);
+  });
+
+  it("sends one FCM push per registered device with the same payload contract", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+      { id: crypto.randomUUID(), user_id: OWNER, platform: "ios", token: "tok-b" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), INPUT);
+
+    // Audience-scoped, newest-first, #30-style bounded query.
+    const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+    expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
+    expect(lookup.url.searchParams.get("limit")).toBe("50");
+
+    // One send per row, carrying the §8 payload contract verbatim.
+    expect(service.sends).toHaveLength(2);
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data).toEqual({
+      title: "Dana Smith",
+      body: "Hi, do you do gutters?",
+      url: `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
+    });
+  });
+
+  it("prunes an UNREGISTERED token row (cleanup, not a failure)", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({
+      sendStatus: 404,
+      sendBody: JSON.stringify({
+        error: { code: 404, details: [{ errorCode: "UNREGISTERED" }] },
+      }),
+    });
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "dead" },
+    ]);
+    world.sb.on("DELETE", "/rest/v1/device_push_tokens", () => []);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), INPUT); // never throws for gone
+
+    const deletes = world.sb.find("DELETE", "/rest/v1/device_push_tokens");
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0].url.searchParams.get("id")).toBe(`eq.${DEVICE_ROW_ID}`);
+  });
+
+  it("collects native-push failures and throws (never silent), after email + web push", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({ sendStatus: 500 });
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "ios", token: "tok-a" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await expect(notifyInboundMessage(fcmEnv(account), INPUT)).rejects.toThrow(
+      /delivery step\(s\) failed/,
+    );
+    expect(world.resend.calls).toHaveLength(1); // email still went out
   });
 });

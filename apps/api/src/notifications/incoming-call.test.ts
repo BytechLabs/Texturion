@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Sentry from "@sentry/cloudflare";
 
 import { getDb } from "../db";
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { encodeBase64Url } from "./webpush";
@@ -168,5 +169,131 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
     expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #151 native device push: the call wake reaches registered Android/iOS
+// devices as an FCM HIGH-priority, 30s-TTL send with the same kind:'call'
+// payload. Shapes are covered in fcm.test.ts; this asserts the wiring, the
+// prune, and that the token value never leaks into Sentry.
+// ---------------------------------------------------------------------------
+
+const DEVICE_ROW_ID = "50000000-aaaa-4000-8000-000000000001";
+const DEVICE_TOKEN = "secret-device-token-abc";
+
+function nativeWorld(tokens: unknown[]): {
+  sb: SupabaseStub;
+  deleted: string[];
+} {
+  const sb = supabaseStub(env);
+  const deleted: string[] = [];
+  sb.on("GET", "/rest/v1/notification_prefs", () => []);
+  sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+  sb.on("GET", "/rest/v1/device_push_tokens", () => tokens);
+  sb.on("DELETE", "/rest/v1/device_push_tokens", (call) => {
+    deleted.push(call.url.searchParams.get("id") ?? "");
+    return new Response(null, { status: 204 });
+  });
+  return { sb, deleted };
+}
+
+describe("notifyIncomingCall — native device push (#151)", () => {
+  it("skips the token query entirely when FCM is not configured", async () => {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    stubFetch(sb.route); // an unstubbed device_push_tokens GET would throw
+
+    await notifyIncomingCall(env, getDb(env), { ...INPUT, userIds: [USER_A] });
+    expect(sb.find("GET", "/rest/v1/device_push_tokens")).toHaveLength(0);
+  });
+
+  it("delivers the kind:'call' wake payload at HIGH priority with the 30s ring TTL", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = nativeWorld([
+      {
+        id: DEVICE_ROW_ID,
+        user_id: USER_A,
+        platform: "android",
+        token: DEVICE_TOKEN,
+      },
+    ]);
+    stubFetch(world.sb.route, ...service.routes);
+    const env2 = fcmEnv(account);
+
+    await notifyIncomingCall(env2, getDb(env2), { ...INPUT, userIds: [USER_A] });
+
+    expect(service.sends).toHaveLength(1);
+    const message = service.sends[0].message as {
+      token: string;
+      data: Record<string, string>;
+      android: { priority: string; ttl: string };
+    };
+    expect(message.token).toBe(DEVICE_TOKEN);
+    expect(message.android).toEqual({ priority: "HIGH", ttl: "30s" });
+    expect(message.data.kind).toBe("call");
+    expect(message.data.title).toBe("Incoming call");
+    expect(message.data.url).toBe("/calls?call=sess-1");
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("prunes an UNREGISTERED token and reports it to Sentry WITHOUT the token value", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({
+      sendStatus: 404,
+      sendBody: JSON.stringify({
+        error: { code: 404, details: [{ errorCode: "UNREGISTERED" }] },
+      }),
+    });
+    const world = nativeWorld([
+      {
+        id: DEVICE_ROW_ID,
+        user_id: USER_A,
+        platform: "ios",
+        token: DEVICE_TOKEN,
+      },
+    ]);
+    stubFetch(world.sb.route, ...service.routes);
+    const env2 = fcmEnv(account);
+
+    await notifyIncomingCall(env2, getDb(env2), { ...INPUT, userIds: [USER_A] });
+
+    expect(world.deleted).toEqual([`eq.${DEVICE_ROW_ID}`]);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const [msg, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
+    expect(level).toBe("info");
+    expect(msg).toContain("ios");
+    expect(msg).toContain("404");
+    // The token is a per-device push credential — never logged.
+    expect(msg).not.toContain(DEVICE_TOKEN);
+  });
+
+  it("reports a non-OK native delivery as a warning WITHOUT pruning, never throws", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({ sendStatus: 429 });
+    const world = nativeWorld([
+      {
+        id: DEVICE_ROW_ID,
+        user_id: USER_A,
+        platform: "android",
+        token: DEVICE_TOKEN,
+      },
+    ]);
+    stubFetch(world.sb.route, ...service.routes);
+    const env2 = fcmEnv(account);
+
+    await expect(
+      notifyIncomingCall(env2, getDb(env2), { ...INPUT, userIds: [USER_A] }),
+    ).resolves.toBeUndefined();
+
+    expect(world.deleted).toEqual([]);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const [msg, level] = vi.mocked(Sentry.captureMessage).mock.calls[0];
+    expect(level).toBe("warning");
+    expect(msg).toContain("429");
+    expect(msg).not.toContain(DEVICE_TOKEN);
   });
 });

@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { notifyMissedCall } from "./missed-call";
@@ -220,5 +221,48 @@ describe("notifyMissedCall — #106 number access", () => {
     await notifyMissedCall(env, INPUT);
 
     expect(world.resend.calls).toHaveLength(0);
+  });
+});
+
+/**
+ * #151 native device push: the FCM branch rides the same audience as the Web
+ * Push one. Shapes/TTL/urgency live in fcm.test.ts; this asserts the wiring —
+ * the truthful missed-call payload reaches every registered device.
+ */
+describe("notifyMissedCall — native device push (#151)", () => {
+  it("skips the token query entirely when FCM is not configured", async () => {
+    const world = buildWorld();
+    stubFetch(...world.routes); // an unstubbed device_push_tokens GET would throw
+
+    await notifyMissedCall(env, INPUT);
+    expect(world.sb.find("GET", "/rest/v1/device_push_tokens")).toHaveLength(0);
+  });
+
+  it("sends the truthful missed-call payload to each registered device", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld();
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      {
+        id: "40000000-aaaa-4000-8000-000000000001",
+        user_id: OWNER,
+        platform: "android",
+        token: "tok-a",
+      },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyMissedCall(fcmEnv(account), INPUT);
+
+    // Audience-scoped, newest-first, #30-style bounded query.
+    const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+    expect(lookup.url.searchParams.get("limit")).toBe("50");
+
+    expect(service.sends).toHaveLength(1);
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.title).toBe("Missed call from Dana Smith");
+    expect(data.body).toBe("We texted them so they can book by reply.");
+    expect(data.url).toBe(`${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`);
   });
 });

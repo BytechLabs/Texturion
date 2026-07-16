@@ -31,6 +31,12 @@ const COMPANY_EXEMPT_ROUTES = new Set([
   // company row exists, so it can't carry X-Company-Id. Read-only, public
   // Telnyx inventory only (routes/available-numbers.ts).
   "GET /v1/available-numbers",
+  // #151: native apps register/remove their FCM device token right after
+  // sign-in, before any company is selected. Tokens are per-USER, exactly
+  // like push_subscriptions (§6) — the audience/prefs split happens at send
+  // time (§8) — so no company scope exists to require.
+  "POST /v1/device-push-tokens",
+  "DELETE /v1/device-push-tokens",
 ]);
 
 /**

@@ -82,6 +82,14 @@ const envSchema = z.object({
    */
   VAPID_PUBLIC_KEY: z.string().min(1),
   VAPID_PRIVATE_KEY: z.string().min(1),
+  /**
+   * #151 native device push: the Firebase service-account key JSON
+   * (project_id + client_email + private_key) used for FCM HTTP v1 sends to
+   * registered Android/iOS devices (notifications/fcm.ts). OPTIONAL so deploys
+   * stay green until the founder provisions Firebase: unset, every native send
+   * is a logged no-op — Web Push is unaffected.
+   */
+  FCM_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
   // Stripe catalog ids printed by `pnpm stripe:setup` (SPEC §9: the catalog is
   // created by a checked-in setup script, ids stored as env config).
   STRIPE_STARTER_PRICE_ID: z.string().min(1),

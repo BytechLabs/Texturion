@@ -82,6 +82,7 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 | `SENTRY_DSN` | Req | Sentry → Project → Client Keys (DSN) |
 | `VAPID_PUBLIC_KEY` | Req | `npx web-push generate-vapid-keys` (once, forever) — base64url P-256 point |
 | `VAPID_PRIVATE_KEY` | Req | same command — base64url private scalar |
+| `FCM_SERVICE_ACCOUNT_JSON` | Opt | Firebase **service-account key JSON** (the whole downloaded file, pasted as one value) for native Android/iOS device push over FCM HTTP v1 (#151). Unset = native pushes are logged no-ops; Web Push is unaffected. Founder steps in §6 (Firebase row) |
 | `TURNSTILE_SECRET_KEY` | Opt | Cloudflare Turnstile **secret** for server-side verification on `/contact`. Unset = honeypot + rate-limit + daily-cap only |
 | `POSTHOG_API_KEY` | Opt | PostHog Cloud project key. Unset = analytics is a silent no-op |
 
@@ -93,7 +94,8 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 **Required count: 21 secrets** (Supabase 3 · Telnyx 3 · Stripe static 2 · Stripe
 catalog 6 · Resend 2 · Origins 2 · Sentry 1 · VAPID 2). Plus the recommended
 optionals: `SITE_ORIGIN`, `RESEND_REPLY_TO`, the 4 `STRIPE_MODULE_*_PRICE_ID`,
-`TURNSTILE_SECRET_KEY`, `POSTHOG_API_KEY`.
+`TURNSTILE_SECRET_KEY`, `POSTHOG_API_KEY`, and — once the native mobile apps
+ship — `FCM_SERVICE_ACCOUNT_JSON`.
 
 ---
 
@@ -203,6 +205,7 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 | **Telnyx** | Create one **Call-Control (voice) application**, webhook + failover both `https://api.loonext.com/webhooks/telnyx`; its id → `TELNYX_VOICE_CONNECTION_ID` |
 | **Stripe** | Create the **webhook endpoint** `https://api.loonext.com/webhooks/stripe` (the 7 events in `apps/api/src/webhooks/stripe.ts`); enable **Tax**; configure the **customer portal** + dunning → cancel |
 | **Cloudflare** | Attach custom domains: `loonext.com` + `www.loonext.com` + `app.loonext.com` → `loonext-web`; `api.loonext.com` → `loonext-api`. Enable **Email Routing** for support@/privacy@/security@/notifications@/dmarc@ ([docs/deploy/10-email-inbox.md](docs/deploy/10-email-inbox.md)). Add the **DMARC** TXT record |
+| **Firebase** (#151, needed only when the native mobile apps ship) | 1) [console.firebase.google.com](https://console.firebase.google.com) → **Add project** (any name, Google Analytics not needed). 2) Project settings → **Service accounts** → **Generate new private key** → downloads a JSON key file. 3) `wrangler secret put FCM_SERVICE_ACCOUNT_JSON --config apps/api/wrangler.jsonc` and paste the **entire file contents** as the value (it is already one JSON document; newlines inside `private_key` stay as the literal `\n` escapes in the file — paste it unmodified). 4) **iOS delivery**: Apple Developer → Certificates, Identifiers & Profiles → **Keys** → create an **APNs auth key** (.p8), then Firebase → Project settings → **Cloud Messaging** → your Apple app → upload the .p8 with its Key ID + Team ID (without this, iOS pushes silently die at the APNs bridge; Android needs nothing more). 5) Register the Android/iOS apps in the same Firebase project when they ship (`google-services.json` / `GoogleService-Info.plist` are client-side; the Worker only needs the service-account secret) |
 
 ---
 
