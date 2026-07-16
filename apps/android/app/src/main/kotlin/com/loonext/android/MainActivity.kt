@@ -49,6 +49,7 @@ import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
+import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.shell.AccountSheet
@@ -268,6 +269,18 @@ private fun ReadyShell(
             companyId = companyId,
             me = hydratedMe,
             openConversation = { overlay = Overlay.Thread(it) },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 96.dp),
+        )
+
+        // Inbound texts landing outside the viewed thread surface as a
+        // one-line snackbar with a View action (#165).
+        InboundMessageToastHost(
+            graph = graph,
+            companyId = companyId,
+            viewedConversationId = { (overlay as? Overlay.Thread)?.conversationId },
+            onView = { overlay = Overlay.Thread(it) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),

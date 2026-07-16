@@ -1,9 +1,14 @@
 package com.loonext.android.features.thread
 
+import android.Manifest
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,16 +22,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -67,6 +76,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.features.compose.ComposerDrafts
 import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.features.compose.ThreadComposer
@@ -86,9 +96,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
- * One conversation: header (status/assignee/overflow) → interleaved timeline
- * (newest-first, reverseLayout) → composer or gate banner. State-based detail
- * screen — callers own the "which conversation is open" state.
+ * One conversation: header (identity → contact panel, Call button, status,
+ * assignee, overflow) → tags row → interleaved timeline (newest-first,
+ * reverseLayout) → composer or gate banner. State-based detail screen —
+ * callers own the "which conversation is open" state.
+ *
+ * [onOpenConversation] navigates to ANOTHER conversation (the contact panel's
+ * prior-conversations rows); callers that own the open-thread state wire it
+ * as `{ openConversationId = it }`. Rows stay un-tappable until wired.
  */
 @Composable
 fun ThreadScreen(
@@ -98,6 +113,7 @@ fun ThreadScreen(
     conversationId: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenConversation: ((conversationId: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -139,6 +155,10 @@ fun ThreadScreen(
         if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
     }
 
+    // "Photos & files" replaces the thread in place (state-based navigation,
+    // like the thread itself) — back returns to the conversation.
+    var galleryOpen by remember(conversationId) { mutableStateOf(false) }
+
     Box(modifier.fillMaxSize()) {
         when (val load = controller.load) {
             is LoadState.Loading -> CenteredLoading()
@@ -163,25 +183,41 @@ fun ThreadScreen(
                 }
             }
 
-            is LoadState.Ready -> ThreadLoaded(
-                graph = graph,
-                controller = controller,
-                repo = repo,
-                companyId = companyId,
-                me = me,
-                onBack = onBack,
-                onOpenFile = { attachment ->
-                    scope.launch {
-                        try {
-                            val url = repo.attachmentUrl(companyId, attachment.id).url
-                            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-                        } catch (cause: Exception) {
-                            snackbar.showSnackbar(cause.userMessage())
-                        }
-                    }
-                },
-                onNotice = { scope.launch { snackbar.showSnackbar(it) } },
-            )
+            is LoadState.Ready ->
+                if (galleryOpen) {
+                    AttachmentsGalleryScreen(
+                        repo = repo,
+                        companyId = companyId,
+                        conversationId = conversationId,
+                        contactName = controller.conversation?.let { detail ->
+                            detail.contact.name ?: formatPhone(detail.contact.phone_e164)
+                        }.orEmpty(),
+                        onBack = { galleryOpen = false },
+                        onNotice = { scope.launch { snackbar.showSnackbar(it) } },
+                    )
+                } else {
+                    ThreadLoaded(
+                        graph = graph,
+                        controller = controller,
+                        repo = repo,
+                        companyId = companyId,
+                        me = me,
+                        onBack = onBack,
+                        onOpenFile = { attachment ->
+                            scope.launch {
+                                try {
+                                    val url = repo.attachmentUrl(companyId, attachment.id).url
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                                } catch (cause: Exception) {
+                                    snackbar.showSnackbar(cause.userMessage())
+                                }
+                            }
+                        },
+                        onNotice = { scope.launch { snackbar.showSnackbar(it) } },
+                        onOpenGallery = { galleryOpen = true },
+                        onOpenConversation = onOpenConversation,
+                    )
+                }
         }
         SnackbarHost(
             snackbar,
@@ -202,12 +238,58 @@ private fun ThreadLoaded(
     onBack: () -> Unit,
     onOpenFile: (Attachment) -> Unit,
     onNotice: (String) -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenConversation: ((conversationId: String) -> Unit)?,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val detail = controller.conversation ?: return
     val names = remember(controller.members) { memberNames(controller.members) }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
+
+    // Call button (#165): authorize + place through the softphone. The mic is
+    // preflighted BEFORE authorizing (a denial never reserves the line or
+    // bills); gate refusals arrive coded (usage_cap_reached,
+    // subscription_inactive, conflict "line on another call") with honest
+    // server copy — surfaced verbatim on the snackbar. Stays enabled for
+    // opted-out contacts: voice consent ≠ SMS consent.
+    val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }
+    var placingCall by remember(controller) { mutableStateOf(false) }
+    fun placeCall() {
+        if (placingCall) return
+        placingCall = true
+        // Idempotent registration — the thread may be the first calls surface
+        // this process touches.
+        softphone.start(companyId, me.display_name)
+        scope.launch {
+            try {
+                softphone.placeCall(
+                    displayName = contactName,
+                    conversationId = controller.conversationId,
+                )
+            } catch (cause: Exception) {
+                onNotice(cause.userMessage())
+            } finally {
+                placingCall = false
+            }
+        }
+    }
+
+    val micLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            placeCall()
+        } else {
+            onNotice(
+                "Loonext needs the microphone to place calls. " +
+                    "Allow it in Settings › Apps › Loonext › Permissions.",
+            )
+        }
+    }
+
+    var contactPanelOpen by remember(controller) { mutableStateOf(false) }
+    var tagSheetOpen by remember(controller) { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     val zone = remember { ZoneId.systemDefault() }
@@ -281,8 +363,24 @@ private fun ThreadLoaded(
             members = controller.members,
             meUserId = me.user_id,
             onBack = onBack,
+            calling = placingCall,
+            onCall = {
+                if (softphone.hasMicPermission()) {
+                    placeCall()
+                } else {
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            onOpenContactPanel = { contactPanelOpen = true },
+            onOpenGallery = onOpenGallery,
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        ThreadTagsRow(
+            tags = detail.tags,
+            onManage = { tagSheetOpen = true },
+            onRemove = { controller.detachTag(it) },
+        )
 
         if (controller.pinnedMessages.isNotEmpty()) {
             PinnedBanner(
@@ -455,6 +553,98 @@ private fun ThreadLoaded(
             onDismiss = { makeTaskFor = null },
         )
     }
+
+    if (contactPanelOpen) {
+        ContactPanelSheet(
+            controller = controller,
+            members = controller.members,
+            onOpenConversation = onOpenConversation?.let { open ->
+                { conversationId ->
+                    contactPanelOpen = false
+                    open(conversationId)
+                }
+            },
+            onDismiss = { contactPanelOpen = false },
+        )
+    }
+
+    if (tagSheetOpen) {
+        TagManageSheet(
+            repo = repo,
+            companyId = companyId,
+            attached = detail.tags,
+            onAttach = { controller.attachTag(it) },
+            onDetach = { controller.detachTag(it) },
+            onDismiss = { tagSheetOpen = false },
+        )
+    }
+}
+
+/**
+ * The header tags row (#165): attached chips (each with an inline remove) +
+ * the Tags affordance opening [TagManageSheet]. Renders nothing but the
+ * affordance while untagged — the row must never look like content.
+ */
+@Composable
+private fun ThreadTagsRow(
+    tags: List<com.loonext.android.core.model.Tag>,
+    onManage: () -> Unit,
+    onRemove: (com.loonext.android.core.model.Tag) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        tags.forEach { tag ->
+            Row(
+                Modifier
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(50),
+                    )
+                    .padding(start = 10.dp, top = 3.dp, bottom = 3.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    tag.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Remove tag ${tag.name}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(start = 2.dp)
+                        .size(16.dp)
+                        .clickable { onRemove(tag) },
+                )
+            }
+        }
+        Row(
+            Modifier
+                .clickable(onClick = onManage)
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Sell,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                if (tags.isEmpty()) "Add tag" else "Tags",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +659,10 @@ private fun ThreadHeader(
     members: List<Member>,
     meUserId: String,
     onBack: () -> Unit,
+    calling: Boolean,
+    onCall: () -> Unit,
+    onOpenContactPanel: () -> Unit,
+    onOpenGallery: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
     var statusMenuOpen by remember { mutableStateOf(false) }
@@ -486,24 +680,42 @@ private fun ThreadHeader(
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
-        InitialsAvatar(contactName, size = 34.dp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                contactName,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                if (controller.contact?.opted_out == true) "$phoneLabel · Opted out"
-                else phoneLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        // The identity block opens the contact panel sheet (#165).
+        Row(
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onOpenContactPanel),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            InitialsAvatar(contactName, size = 34.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    contactName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (controller.contact?.opted_out == true) "$phoneLabel · Opted out"
+                    else phoneLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        // Call (#165) — enabled even for opted-out contacts (voice ≠ SMS
+        // consent); the mic preflight and gate errors live in the caller.
+        IconButton(onClick = onCall, enabled = !calling) {
+            if (calling) {
+                LoadingIndicator(Modifier.size(20.dp))
+            } else {
+                Icon(Icons.Filled.Call, contentDescription = "Call $contactName")
+            }
         }
 
         // Status pill + menu (the single status control).
@@ -579,6 +791,13 @@ private fun ThreadHeader(
                     onClick = {
                         overflowOpen = false
                         controller.toggleConversationPin()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Photos & files") },
+                    onClick = {
+                        overflowOpen = false
+                        onOpenGallery()
                     },
                 )
                 DropdownMenuItem(

@@ -120,8 +120,10 @@ fun ContactsTab(
     val detailId = openContactId
     if (detailId != null) {
         ContactDetailScreen(
+            graph = graph,
             mutations = mutations,
             companyId = companyId,
+            callerIdName = resolvedMe?.display_name.orEmpty(),
             contactId = detailId,
             onBack = {
                 openContactId = null

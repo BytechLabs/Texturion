@@ -11,10 +11,13 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ConversationEvent
+import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageTaskLink
+import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -99,6 +102,16 @@ class ThreadController(
 
     /** Per-note generic file attachments, fetched lazily per bubble. */
     var noteFiles by mutableStateOf<Map<String, LoadState<List<Attachment>>>>(emptyMap())
+        private set
+
+    // --- Contact panel state (#165) — loaded lazily when the sheet opens. ---
+
+    /** Prior conversations with this contact (current thread excluded). */
+    var otherConversations by mutableStateOf<LoadState<List<ConversationListItem>>?>(null)
+        private set
+
+    /** The conversation's task checklist (T5.2). */
+    var conversationTasks by mutableStateOf<LoadState<List<Task>>?>(null)
         private set
 
     private var eventsCursor: String? = null
@@ -615,6 +628,118 @@ class ThreadController(
                 runCatching { refreshContact() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    // --- Tags (#165) --------------------------------------------------------
+
+    /**
+     * Attach by plan (an existing tag or create-on-attach by name), then
+     * refetch the detail — the tags row renders from server rows, never from
+     * an optimistic guess (the server may have matched an existing tag
+     * case-insensitively).
+     */
+    fun attachTag(plan: TagAttachPlan) {
+        scope.launch {
+            try {
+                when (plan) {
+                    is TagAttachPlan.Existing ->
+                        repo.attachTag(companyId, conversationId, plan.tag.id)
+
+                    is TagAttachPlan.CreateNew ->
+                        repo.attachTagByName(companyId, conversationId, plan.name)
+                }
+                runCatching { refreshConversationDetail() }
+                runCatching { refreshEvents() }
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    fun detachTag(tag: Tag) {
+        // Optimistic remove — a chip that lingers after the tap feels broken.
+        val before = conversation
+        conversation = before?.copy(tags = before.tags.filterNot { it.id == tag.id })
+        scope.launch {
+            try {
+                repo.detachTag(companyId, conversationId, tag.id)
+                runCatching { refreshEvents() }
+            } catch (cause: Exception) {
+                if ((cause as? ApiException)?.code == ApiErrorCode.NOT_FOUND) {
+                    // Already detached elsewhere — the optimistic state is right.
+                    runCatching { refreshConversationDetail() }
+                } else {
+                    conversation = before
+                    notify(cause.userMessage())
+                }
+            }
+        }
+    }
+
+    // --- Contact panel (#165) ----------------------------------------------
+
+    /** Load the sheet's secondary lists; refreshes on every open. */
+    fun loadContactPanel() {
+        val phone = conversation?.contact?.phone_e164
+        if (phone != null) {
+            otherConversations = LoadState.Loading
+            scope.launch {
+                otherConversations = try {
+                    val rows = repo.conversationsForPhone(companyId, phone)
+                        .data
+                        .filter { it.id != conversationId }
+                    LoadState.Ready(rows)
+                } catch (cause: Exception) {
+                    LoadState.Failed(cause.userMessage())
+                }
+            }
+        }
+        conversationTasks = LoadState.Loading
+        scope.launch {
+            conversationTasks = try {
+                LoadState.Ready(repo.conversationTasks(companyId, conversationId).data)
+            } catch (cause: Exception) {
+                LoadState.Failed(cause.userMessage())
+            }
+        }
+    }
+
+    /**
+     * One contact field write for the sheet's auto-save (the G6 800ms clock
+     * lives in the field composable). Refreshes the header/consent line on
+     * success; throws so the field shows its calm failure sentence.
+     */
+    suspend fun saveContactField(field: String, value: String?) {
+        val contactId = conversation?.contact_id ?: return
+        contact = repo.updateContactField(companyId, contactId, field, value)
+        runCatching { refreshConversationDetail() }
+    }
+
+    /**
+     * Checklist toggle — completion is ALWAYS the source message's done bit
+     * (PATCH /v1/messages/:id), never a task route. Optimistic with rollback.
+     */
+    fun toggleTaskDone(task: Task) {
+        val ready = conversationTasks as? LoadState.Ready ?: return
+        val turningOn = !task.done
+        fun swap(rows: List<Task>, value: Boolean) = rows.map {
+            if (it.id == task.id) it.copy(done = value, status = if (value) "done" else "open")
+            else it
+        }
+        conversationTasks = LoadState.Ready(swap(ready.value, turningOn))
+        scope.launch {
+            try {
+                repo.setDone(companyId, task.message_id, turningOn)
+                runCatching { refreshMessagesFirstPage() }
+                runCatching { refreshEvents() }
+            } catch (cause: Exception) {
+                val current = conversationTasks as? LoadState.Ready
+                if (current != null) {
+                    conversationTasks = LoadState.Ready(swap(current.value, task.done))
+                }
                 notify(cause.userMessage())
             }
         }

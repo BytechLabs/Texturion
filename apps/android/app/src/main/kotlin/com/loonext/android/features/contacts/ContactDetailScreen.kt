@@ -1,6 +1,9 @@
 package com.loonext.android.features.contacts
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -22,6 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,12 +42,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
@@ -53,7 +61,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Auto-save lifecycle for one field: idle → saving → saved / failed. */
-private enum class SaveState { Idle, Saving, Saved, Failed }
+internal enum class SaveState { Idle, Saving, Saved, Failed }
 
 /**
  * Contact detail, the native sibling of the web's /contacts/[id]: auto-saving
@@ -69,6 +77,7 @@ private enum class SaveState { Idle, Saving, Saved, Failed }
  */
 @Composable
 internal fun ContactDetailScreen(
+    graph: AppGraph,
     mutations: ContactMutations,
     companyId: String,
     contactId: String,
@@ -76,6 +85,7 @@ internal fun ContactDetailScreen(
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onComposeNew: ((contactId: String) -> Unit)?,
     modifier: Modifier = Modifier,
+    callerIdName: String = "",
 ) {
     BackHandler(onBack = onBack)
 
@@ -137,8 +147,10 @@ internal fun ContactDetailScreen(
                 }
 
             is LoadState.Ready -> ContactDetailBody(
+                graph = graph,
                 mutations = mutations,
                 companyId = companyId,
+                callerIdName = callerIdName,
                 contact = current.value,
                 members = members,
                 conversationId = conversationId,
@@ -153,8 +165,10 @@ internal fun ContactDetailScreen(
 
 @Composable
 private fun ContactDetailBody(
+    graph: AppGraph,
     mutations: ContactMutations,
     companyId: String,
+    callerIdName: String,
     contact: Contact,
     members: List<Member>,
     conversationId: String?,
@@ -165,11 +179,49 @@ private fun ContactDetailBody(
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
     var actionError by remember(contact.id) { mutableStateOf<String?>(null) }
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
     var confirmDelete by remember(contact.id) { mutableStateOf(false) }
     var working by remember(contact.id) { mutableStateOf(false) }
+
+    // Call (#165): authorize + place via the softphone (contact_id — no
+    // thread required). Mic preflight BEFORE authorizing; enabled for
+    // opted-out contacts (voice consent ≠ SMS consent); coded gate refusals
+    // (usage_cap_reached, subscription_inactive, conflict) surface their
+    // honest server copy in the existing error line.
+    val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }
+    var placingCall by remember(contact.id) { mutableStateOf(false) }
+    fun placeCall() {
+        if (placingCall) return
+        placingCall = true
+        actionError = null
+        softphone.start(companyId, callerIdName)
+        scope.launch {
+            try {
+                softphone.placeCall(
+                    displayName = contact.name?.ifBlank { null }
+                        ?: formatPhone(contact.phone_e164),
+                    contactId = contact.id,
+                )
+            } catch (cause: Exception) {
+                actionError = cause.userMessage()
+            } finally {
+                placingCall = false
+            }
+        }
+    }
+    val micLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            placeCall()
+        } else {
+            actionError = "Loonext needs the microphone to place calls. " +
+                "Allow it in Settings › Apps › Loonext › Permissions."
+        }
+    }
 
     fun memberName(userId: String?): String? =
         members.firstOrNull { it.user_id == userId }?.display_name?.ifBlank { null }
@@ -233,18 +285,40 @@ private fun ContactDetailBody(
             }
         }
 
-        // Contextual primary action (#82). Hidden until the shell wires the
-        // destinations — a button that goes nowhere would be a lie.
-        if (conversationId != null && onOpenConversation != null) {
-            Button(
-                onClick = { onOpenConversation(conversationId) },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Open conversation") }
-        } else if (conversationId == null && onComposeNew != null) {
-            Button(
-                onClick = { onComposeNew(contact.id) },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Message") }
+        // Contextual primary action (#82) beside Call (#165). The messaging
+        // destination hides until the shell wires it — a button that goes
+        // nowhere would be a lie; Call needs no shell wiring.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (conversationId != null && onOpenConversation != null) {
+                Button(
+                    onClick = { onOpenConversation(conversationId) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Open conversation") }
+            } else if (conversationId == null && onComposeNew != null) {
+                Button(
+                    onClick = { onComposeNew(contact.id) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Message") }
+            }
+            OutlinedButton(
+                onClick = {
+                    if (softphone.hasMicPermission()) {
+                        placeCall()
+                    } else {
+                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                enabled = !placingCall,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    Icons.Filled.Call,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (placingCall) "Calling…" else "Call")
+            }
         }
 
         if (actionError != null) {
@@ -465,9 +539,10 @@ private fun ManageRow(
  * clears — an explicit null on the wire) with a quiet status line the web
  * renders identically ('Saving…' / 'Saved' / a calm failure sentence). A new
  * keystroke during a pending save restarts the clock; the newest value wins.
+ * Internal: the thread contact panel (#165) reuses the exact same field.
  */
 @Composable
-private fun AutosaveField(
+internal fun AutosaveField(
     fieldKey: String,
     label: String,
     initial: String,

@@ -8,6 +8,7 @@ import com.loonext.android.core.model.Conversation
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.ConversationListItem
+import com.loonext.android.core.model.GalleryItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.OptOut
@@ -69,6 +70,7 @@ class MessagingRepository(private val api: ApiClient) {
         spam: Boolean? = null,
         unread: Boolean? = null,
         pinned: String? = null,
+        q: String? = null,
         cursor: String? = null,
         limit: Int = 25,
     ): Page<ConversationListItem> = api.get(
@@ -80,11 +82,22 @@ class MessagingRepository(private val api: ApiClient) {
             "is_spam" to spam?.toString(),
             "unread" to unread?.toString(),
             "pinned" to pinned,
+            "q" to q,
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),
         companyId = companyId,
     )
+
+    /**
+     * This contact's conversations, found the way the web contact panel does
+     * (G6): the list endpoint's `q` matches the phone exactly, which is unique
+     * per company — an honest "conversations with this number" query.
+     */
+    suspend fun conversationsForPhone(
+        companyId: String,
+        phoneE164: String,
+    ): Page<ConversationListItem> = conversations(companyId, q = phoneE164, limit = 25)
 
     // --- Thread reads -----------------------------------------------------
 
@@ -156,6 +169,32 @@ class MessagingRepository(private val api: ApiClient) {
         pinned: Boolean,
     ): Conversation =
         patchConversation(companyId, conversationId, buildJsonObject { put("pinned", pinned) })
+
+    // --- Tags (#165) --------------------------------------------------------
+
+    /** Attach an existing tag by id. Attaching an attached tag is a no-op. */
+    suspend fun attachTag(companyId: String, conversationId: String, tagId: String): Tag =
+        api.post(
+            "/v1/conversations/$conversationId/tags",
+            buildJsonObject { put("tag_id", tagId) },
+            companyId = companyId,
+        )
+
+    /**
+     * Create-on-attach (SPEC §7): the server reuses the company's tag with
+     * this name (case-insensitive) or creates it, then attaches.
+     */
+    suspend fun attachTagByName(companyId: String, conversationId: String, name: String): Tag =
+        api.post(
+            "/v1/conversations/$conversationId/tags",
+            buildJsonObject { put("name", name) },
+            companyId = companyId,
+        )
+
+    /** Detach. 404 = it wasn't attached (already removed elsewhere). */
+    suspend fun detachTag(companyId: String, conversationId: String, tagId: String) {
+        api.delete("/v1/conversations/$conversationId/tags/$tagId", companyId = companyId)
+    }
 
     // --- Sending -----------------------------------------------------------
 
@@ -282,4 +321,41 @@ class MessagingRepository(private val api: ApiClient) {
             query = mapOf("owner_type" to "note", "owner_id" to noteId),
             companyId = companyId,
         )
+
+    /**
+     * The conversation gallery (D21): MMS + note/task attachments merged,
+     * newest first, cursor-paged. Every item carries a freshly-minted
+     * short-lived signed URL — fetched per view, NEVER cached (each visit to
+     * the gallery refetches, which is the per-view mint).
+     */
+    suspend fun gallery(
+        companyId: String,
+        conversationId: String,
+        cursor: String? = null,
+        limit: Int = 50,
+    ): Page<GalleryItem> = api.get(
+        "/v1/conversations/$conversationId/attachments",
+        query = mapOf("cursor" to cursor, "limit" to limit.toString()),
+        companyId = companyId,
+    )
+
+    // --- Contact panel (#165) -----------------------------------------------
+
+    /** Patch ONE contact field; blank clears it (an explicit JSON null). */
+    suspend fun updateContactField(
+        companyId: String,
+        contactId: String,
+        field: String,
+        value: String?,
+    ): Contact = api.patch(
+        "/v1/contacts/$contactId",
+        buildJsonObject {
+            if (value == null) put(field, JsonNull) else put(field, value)
+        },
+        companyId = companyId,
+    )
+
+    /** The conversation checklist (T5.2): all live tasks, created_at ASC. */
+    suspend fun conversationTasks(companyId: String, conversationId: String): Page<Task> =
+        api.get("/v1/conversations/$conversationId/tasks", companyId = companyId)
 }

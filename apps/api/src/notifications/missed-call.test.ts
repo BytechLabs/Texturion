@@ -264,5 +264,32 @@ describe("notifyMissedCall — native device push (#151)", () => {
     expect(data.title).toBe("Missed call from Dana Smith");
     expect(data.body).toBe("We texted them so they can book by reply.");
     expect(data.url).toBe(`${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`);
+    // #165: the NATIVE payload carries the structural discriminator so the
+    // Android client routes it to its dedicated missed-calls channel.
+    expect(data.kind).toBe("missed_call");
+  });
+
+  it("keeps the Web Push payload kind-less (#165: discriminator is native-only)", async () => {
+    // The Web Push body is aes128gcm-encrypted on the wire, so assert at the
+    // seam both senders share: the FCM message is the web payload + kind and
+    // nothing else — proving `kind` was ADDED for native, not moved into the
+    // shared payload (which would change the service worker's input shape).
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld();
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      {
+        id: "40000000-aaaa-4000-8000-000000000001",
+        user_id: OWNER,
+        platform: "android",
+        token: "tok-a",
+      },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyMissedCall(fcmEnv(account), INPUT);
+
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(Object.keys(data).sort()).toEqual(["body", "kind", "title", "url"]);
   });
 });

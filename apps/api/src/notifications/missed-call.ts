@@ -256,9 +256,18 @@ export async function notifyMissedCall(
       }
     }
 
-    // NATIVE DEVICE PUSH (#151): same audience, same payload — one FCM send
-    // per registered device of every push-enabled recipient. Skipped with one
-    // log line until Firebase is provisioned (optional secret, deploys green).
+    // NATIVE DEVICE PUSH (#151/#165): same audience and copy as the Web Push
+    // payload, plus the `kind:'missed_call'` structural discriminator so the
+    // Android client routes it to the dedicated missed-calls channel
+    // (PushKind.MISSED_CALL). Web Push stays kind-less — the service worker
+    // renders unmarked pushes as ordinary notices and must not change shape.
+    // One FCM send per registered device of every push-enabled recipient;
+    // skipped with one log line until Firebase is provisioned (optional
+    // secret, deploys green).
+    const nativePayload = JSON.stringify({
+      kind: "missed_call",
+      ...(JSON.parse(payload) as Record<string, string>),
+    });
     if (!isFcmConfigured(env)) {
       console.log(
         "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
@@ -276,7 +285,7 @@ export async function notifyMissedCall(
       );
       for (const device of deviceTokens) {
         try {
-          const result = await sendFcm(env, device, payload);
+          const result = await sendFcm(env, device, nativePayload);
           if (result.gone) {
             // UNREGISTERED token: drop the row (the Web Push 404/410 mirror).
             const { error } = await db

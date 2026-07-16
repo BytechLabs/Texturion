@@ -95,9 +95,15 @@ fun InboxTab(
     me: Me,
     modifier: Modifier = Modifier,
     initialConversationId: String? = null,
+    onViewedConversationChanged: ((conversationId: String?) -> Unit)? = null,
 ) {
     var openConversationId by rememberSaveable(companyId) {
         mutableStateOf(initialConversationId)
+    }
+    // Report the open thread (null = back on the list) so the shell's
+    // inbound toast (#165) can suppress itself while its thread is on screen.
+    LaunchedEffect(openConversationId) {
+        onViewedConversationChanged?.invoke(openConversationId)
     }
     var composeOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var composeContactId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
@@ -111,6 +117,7 @@ fun InboxTab(
             conversationId = openId,
             onBack = { openConversationId = null },
             modifier = modifier,
+            onOpenConversation = { openConversationId = it },
         )
 
         composeOpen -> NewConversationScreen(
