@@ -49,13 +49,17 @@ import { absoluteUrl } from "@/lib/marketing/site";
 
 const OG_TITLE = "Somebody texted your business at 9:04 last night.";
 const OG_DESCRIPTION =
-  "Loonext gives your business one local number and one shared text inbox the whole crew answers from. $29 a month flat for the team, not per user.";
+  "Loonext gives your business a local number and a shared text inbox the whole crew answers from. $29 a month flat for the team, not per user.";
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Loonext: one number and one shared text inbox for the whole crew",
+    // SERP title: short enough to survive Google's ~60-char cut, category
+    // words buyers actually search, and no number-count claim (Pro carries
+    // two numbers and crews can buy more, so "one number" oversells the
+    // constraint). The share headline stays OG_TITLE below.
+    title: "Loonext: the shared text inbox for service crews",
     description:
-      "One local business number, one shared text inbox. The whole crew reads, replies, assigns, and closes from any phone. $29 a month flat for the team, not per user.",
+      "A local business number and a shared text inbox. The whole crew reads, replies, assigns, and closes from any phone. $29 a month flat for the team, not per user.",
     path: "/",
     absoluteTitle: true,
   }),

@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     template: "%s · Loonext",
   },
   description:
-    "One local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
+    "A local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
   // Favicons + PWA icons (G9). The SVG favicon is the runtime default; the
   // unread-title manager (lib/push/use-unread-title.ts) swaps its href to
   // /favicon-unread.svg when unread conversations exist. The .ico is the
