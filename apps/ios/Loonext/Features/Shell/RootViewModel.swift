@@ -36,12 +36,15 @@ final class RootViewModel {
         guard !started else { return }
         started = true
 
-        // A dead refresh token anywhere lands back on login.
+        // A dead refresh token anywhere lands back on login. Each closure
+        // boundary upgrades `weak self` (a captured var) to a strong `let`
+        // before the next @Sendable capture — Swift 6 forbids referencing the
+        // var from nested concurrent code (CI run 6).
         Task { [weak self] in
-            guard let graph = self?.graph else { return }
-            await graph.api.setSignedOutHandler {
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
+            guard let self else { return }
+            await self.graph.api.setSignedOutHandler { [weak self] in
+                guard let self else { return }
+                Task { @MainActor in
                     await self.graph.realtime.disconnect()
                     self.state = .signedOut
                 }
