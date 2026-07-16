@@ -1,10 +1,21 @@
+import Combine
 import Observation
 import SwiftUI
 
 /// Inbox: pinned section + segmented Open|Mine|All|Closed + filter chips
 /// (assignee/tag/unread/spam) + debounced global search (≥2 chars) + cursor
-/// infinite scroll + realtime re-sort. Tapping a row opens `ThreadView` in
-/// place (state-based detail — the Android InboxTab's twin).
+/// infinite scroll + realtime re-sort + row swipe actions + pull-to-refresh.
+///
+/// Structure: `NavigationSplitView` — sidebar is the conversation list,
+/// detail is the open `ThreadView` (or a calm empty state). On iPhone the
+/// split collapses to a stack (the list's selection binding drives the push);
+/// on iPad the two columns sit side by side. Compose keeps its own
+/// presentation (a full-screen cover). The Android InboxTab's twin.
+///
+/// AppRouter: consumes `openConversationId` commands (deep links, pushes, the
+/// contact panel's prior-conversation rows) and reports the on-screen thread
+/// via `viewedConversationId` so notification routing can suppress the toast
+/// for the thread the user is already reading.
 @MainActor
 struct InboxTab: View {
     let graph: AppGraph
@@ -18,7 +29,21 @@ struct InboxTab: View {
     @State private var appliedInitialId = false
 
     var body: some View {
-        Group {
+        NavigationSplitView {
+            InboxList(
+                graph: graph,
+                companyId: companyId,
+                me: me,
+                selection: $openConversationId,
+                onOpen: { openConversationId = $0 },
+                onTextContact: { contactId in
+                    composeContactId = contactId
+                    composeOpen = true
+                },
+                onCompose: { composeOpen = true }
+            )
+            .toolbar(.hidden, for: .navigationBar)
+        } detail: {
             if let openId = openConversationId {
                 ThreadView(
                     graph: graph,
@@ -27,41 +52,61 @@ struct InboxTab: View {
                     conversationId: openId,
                     onBack: { openConversationId = nil }
                 )
-            } else if composeOpen {
-                NewConversationView(
-                    graph: graph,
-                    companyId: companyId,
-                    me: me,
-                    prefillContactId: composeContactId,
-                    onCreated: { conversationId in
-                        composeOpen = false
-                        composeContactId = nil
-                        openConversationId = conversationId
-                    },
-                    onBack: {
-                        composeOpen = false
-                        composeContactId = nil
-                    }
-                )
             } else {
-                InboxList(
-                    graph: graph,
-                    companyId: companyId,
-                    me: me,
-                    onOpen: { openConversationId = $0 },
-                    onTextContact: { contactId in
-                        composeContactId = contactId
-                        composeOpen = true
-                    },
-                    onCompose: { composeOpen = true }
-                )
+                // iPad's resting detail column; never visible on iPhone.
+                Text("Select a conversation to read it here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .fullScreenCover(isPresented: $composeOpen) {
+            NewConversationView(
+                graph: graph,
+                companyId: companyId,
+                me: me,
+                prefillContactId: composeContactId,
+                onCreated: { conversationId in
+                    composeOpen = false
+                    composeContactId = nil
+                    openConversationId = conversationId
+                },
+                onBack: {
+                    composeOpen = false
+                    composeContactId = nil
+                }
+            )
         }
         .onAppear {
             if !appliedInitialId, let initialConversationId {
                 appliedInitialId = true
                 openConversationId = initialConversationId
             }
+            reportViewed(openConversationId)
+        }
+        .onDisappear {
+            // Tab switched away — nothing is "on screen" anymore.
+            reportViewed(nil)
+        }
+        // Command channel: another surface asked for this thread. Consume,
+        // open, clear (deferred — never republish inside the publish).
+        .onReceive(AppRouter.shared.$openConversationId) { commanded in
+            guard let commanded else { return }
+            composeOpen = false
+            composeContactId = nil
+            openConversationId = commanded
+            Task { @MainActor in
+                AppRouter.shared.openConversationId = nil
+            }
+        }
+        .onChange(of: openConversationId) { _, next in
+            reportViewed(next)
+        }
+    }
+
+    private func reportViewed(_ id: String?) {
+        Task { @MainActor in
+            AppRouter.shared.viewedConversationId = id
         }
     }
 }
@@ -101,6 +146,9 @@ private final class InboxController {
     private(set) var members: [Member] = []
     private(set) var allTags: [Tag] = []
 
+    /// One-shot toast for row-mutation failures (id makes repeats re-fire).
+    private(set) var notice: ThreadNotice?
+
     // Search (≥2 chars flips the pane to grouped global results).
     var query = ""
     private(set) var searchState: LoadState<SearchResult>?
@@ -111,6 +159,7 @@ private final class InboxController {
     @ObservationIgnored private var searchSeq = 0
     @ObservationIgnored private var realtimeTask: Task<Void, Never>?
     @ObservationIgnored private var supportLoaded = false
+    @ObservationIgnored private var noticeSeq: Int64 = 0
 
     init(graph: AppGraph, companyId: String, meUserId: String) {
         self.inboxApi = graph.inboxApi
@@ -266,6 +315,72 @@ private final class InboxController {
         reload(showLoading: false)
     }
 
+    /// Pull-to-refresh: the same first-page refetch as the reconnect path,
+    /// awaitable so `.refreshable` holds its spinner honestly. A failure with
+    /// data on screen keeps the data and toasts instead of blanking the list.
+    func refreshFirstPage() async {
+        loadSeq += 1
+        let seq = loadSeq
+        do {
+            let page = try await fetchPage(cursor: nil, pinned: "exclude")
+            let pinnedPage = try? await fetchPage(cursor: nil, pinned: "only")
+            guard seq == loadSeq else { return }
+            rows = page.data
+            cursor = page.next_cursor
+            pinnedRows = pinnedPage?.data ?? []
+            state = .ready(())
+        } catch {
+            guard seq == loadSeq else { return }
+            if case .ready = state {
+                notify(error.userMessage)
+            } else {
+                state = .failed(error.userMessage)
+            }
+        }
+    }
+
+    private func notify(_ text: String) {
+        noticeSeq += 1
+        notice = ThreadNotice(id: noticeSeq, text: text)
+    }
+
+    // MARK: Row swipe mutations — the EXACT calls the thread header makes.
+
+    /// Done/Reopen/Close: PATCH /v1/conversations/:id {status} (the thread
+    /// status menu's mutation), then a quiet first-page refetch re-sorts and
+    /// drops rows that left the active filter.
+    func setRowStatus(_ conversationId: String, status: String) {
+        Task {
+            do {
+                _ = try await repo.setStatus(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    status: status
+                )
+                await refreshFirstPage()
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    /// Assign: PATCH /v1/conversations/:id {assigned_user_id} (the thread
+    /// assignee picker's mutation; nil = unassign).
+    func assignRow(_ conversationId: String, userId: String?) {
+        Task {
+            do {
+                _ = try await repo.setAssignee(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    userId: userId
+                )
+                await refreshFirstPage()
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
     /// Clear the unread dot locally the moment a thread opens.
     func markLocallyRead(_ conversationId: String) {
         rows = rows.map { row in
@@ -346,6 +461,9 @@ private struct InboxList: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    /// The split view's selection — binding it to the sidebar lists is what
+    /// makes programmatic opens push the detail on iPhone (collapsed) too.
+    @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
     let onTextContact: @MainActor (String) -> Void
     let onCompose: @MainActor () -> Void
@@ -353,13 +471,36 @@ private struct InboxList: View {
     @State private var controller: InboxController?
     @State private var assigneeSheetOpen = false
     @State private var tagSheetOpen = false
+    @State private var assignFor: ConversationListItem?
+    @State private var visibleNotice: String?
+    @State private var noticeDismissTask: Task<Void, Never>?
 
     var body: some View {
-        Group {
-            if let controller {
-                listBody(controller)
-            } else {
-                CenteredLoading()
+        ZStack(alignment: .bottom) {
+            Group {
+                if let controller {
+                    listBody(controller)
+                } else {
+                    CenteredLoading()
+                }
+            }
+            if let visibleNotice {
+                Text(visibleNotice)
+                    .font(.footnote)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 12)
+                    .onTapGesture { self.visibleNotice = nil }
+            }
+        }
+        .onChange(of: controller?.notice?.id) { _, _ in
+            guard let notice = controller?.notice else { return }
+            visibleNotice = notice.text
+            noticeDismissTask?.cancel()
+            noticeDismissTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                if !Task.isCancelled { visibleNotice = nil }
             }
         }
         .task(id: companyId) {
@@ -408,6 +549,7 @@ private struct InboxList: View {
             if controller.searching {
                 SearchResultsPane(
                     controller: controller,
+                    selection: $selection,
                     onOpen: { id in
                         controller.markLocallyRead(id)
                         onOpen(id)
@@ -439,10 +581,15 @@ private struct InboxList: View {
                 case .failed(let message):
                     CenteredError(message: message) { controller.reload(showLoading: true) }
                 case .ready:
-                    ConversationListPane(controller: controller) { id in
-                        controller.markLocallyRead(id)
-                        onOpen(id)
-                    }
+                    ConversationListPane(
+                        controller: controller,
+                        selection: $selection,
+                        onOpen: { id in
+                            controller.markLocallyRead(id)
+                            onOpen(id)
+                        },
+                        onAssign: { assignFor = $0 }
+                    )
                 }
             }
         }
@@ -468,6 +615,26 @@ private struct InboxList: View {
             TagFilterSheet(tags: controller.allTags, selected: controller.tag) { tag in
                 tagSheetOpen = false
                 controller.setTagFilter(tag)
+            }
+        }
+        // The row swipe's Assign — the thread's picker, the thread's mutation.
+        .sheet(
+            isPresented: Binding(
+                get: { assignFor != nil },
+                set: { if !$0 { assignFor = nil } }
+            )
+        ) {
+            if let row = assignFor {
+                AssigneePickerSheet(
+                    members: controller.members,
+                    meUserId: me.user_id,
+                    selectedUserId: row.assigned_user_id
+                ) { userId in
+                    assignFor = nil
+                    if userId != row.assigned_user_id {
+                        controller.assignRow(row.id, userId: userId)
+                    }
+                }
             }
         }
     }
@@ -594,23 +761,32 @@ private struct FilterChip: View {
 @MainActor
 private struct ConversationListPane: View {
     let controller: InboxController
+    @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
+    let onAssign: @MainActor (ConversationListItem) -> Void
 
     var body: some View {
         let empty = controller.rows.isEmpty && controller.pinnedRows.isEmpty
         if empty {
-            Text(emptyLabel)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
+            // A List so pull-to-refresh works from the empty state too.
             List {
+                Text(emptyLabel)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 120)
+                    .listRowSeparator(.hidden)
+            }
+            .listStyle(.plain)
+            .refreshable { await controller.refreshFirstPage() }
+        } else {
+            List(selection: $selection) {
                 if !controller.pinnedRows.isEmpty {
                     Section {
                         ForEach(controller.pinnedRows, id: \.id) { row in
-                            ConversationRow(row: row) { onOpen(row.id) }
+                            rowCell(row)
                         }
                     } header: {
                         Label("Pinned", systemImage: "pin.fill")
@@ -621,7 +797,7 @@ private struct ConversationListPane: View {
                 }
                 Section {
                     ForEach(Array(controller.rows.enumerated()), id: \.element.id) { index, row in
-                        ConversationRow(row: row) { onOpen(row.id) }
+                        rowCell(row)
                             .onAppear {
                                 if index >= controller.rows.count - 5 {
                                     controller.loadMore()
@@ -646,7 +822,38 @@ private struct ConversationListPane: View {
                 }
             }
             .listStyle(.plain)
+            // The reconnect path's first-page refetch, on demand.
+            .refreshable { await controller.refreshFirstPage() }
         }
+    }
+
+    /// One row + its swipe actions. Done/Reopen IS the close/open status flip
+    /// (product vocabulary: "Done" == closed — the web removed the redundant
+    /// separate control); Assign opens the thread's assignee picker.
+    private func rowCell(_ row: ConversationListItem) -> some View {
+        let closed = row.status == ConversationStatus.closed
+        return ConversationRow(row: row) { onOpen(row.id) }
+            .tag(row.id)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    controller.setRowStatus(
+                        row.id,
+                        status: closed ? ConversationStatus.open : ConversationStatus.closed
+                    )
+                } label: {
+                    Label(
+                        closed ? "Reopen" : "Done",
+                        systemImage: closed ? "arrow.uturn.backward" : "checkmark"
+                    )
+                }
+                .tint(BrandColor.petrol)
+                Button {
+                    onAssign(row)
+                } label: {
+                    Label("Assign", systemImage: "person")
+                }
+                .tint(Color(.systemGray))
+            }
     }
 
     private var emptyLabel: String {
@@ -876,6 +1083,8 @@ private func stripHighlight(_ snippet: String) -> String {
 @MainActor
 private struct SearchResultsPane: View {
     let controller: InboxController
+    /// Bound so opening a hit pushes the collapsed split view's detail too.
+    @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
     let onTextContact: @MainActor (String) -> Void
 
@@ -900,7 +1109,7 @@ private struct SearchResultsPane: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List {
+            List(selection: $selection) {
                 if !result.conversations.isEmpty {
                     Section {
                         ForEach(result.conversations, id: \.matched_message_id) { hit in
@@ -1055,4 +1264,70 @@ private struct SearchResultsPane: View {
             content
         }
     }
+}
+
+// MARK: - Previews
+
+private func previewListItem(
+    id: String,
+    name: String?,
+    status: String,
+    unread: Bool,
+    snippet: String,
+    tags: [Tag] = []
+) -> ConversationListItem {
+    ConversationListItem(
+        id: id,
+        company_id: "co",
+        contact_id: "p-\(id)",
+        phone_number_id: "n1",
+        status: status,
+        is_spam: false,
+        assigned_user_id: nil,
+        pinned_at: nil,
+        pinned_by_user_id: nil,
+        last_message_at: "2026-07-15T12:00:00Z",
+        closed_at: nil,
+        created_at: "2026-07-14T12:00:00Z",
+        updated_at: "2026-07-15T12:00:00Z",
+        contact: ContactSummary(id: "p-\(id)", name: name, phone_e164: "+14155550134"),
+        tags: tags,
+        unread: unread,
+        last_message: ConversationSnippet(
+            id: "m-\(id)",
+            direction: "inbound",
+            body: snippet,
+            created_at: "2026-07-15T12:00:00Z",
+            has_attachments: false
+        )
+    )
+}
+
+#Preview("Inbox rows") {
+    List {
+        ConversationRow(
+            row: previewListItem(
+                id: "c1",
+                name: "Dana Whitcomb",
+                status: "open",
+                unread: true,
+                snippet: "Can you come by Tuesday morning to look at the fence?",
+                tags: [
+                    Tag(id: "t1", name: "Estimate", color: "#0F766E", created_at: nil, updated_at: nil),
+                ]
+            ),
+            onTap: {}
+        )
+        ConversationRow(
+            row: previewListItem(
+                id: "c2",
+                name: nil,
+                status: "closed",
+                unread: false,
+                snippet: "Thanks, payment sent."
+            ),
+            onTap: {}
+        )
+    }
+    .listStyle(.plain)
 }

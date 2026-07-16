@@ -14,6 +14,11 @@ private func fullDate(_ iso: String?) -> String? {
 /// add-on), honest status banners, in-app plan change, the add-on modules
 /// card, and hosted Stripe surfaces which ALWAYS open in the external browser
 /// (App Store rules — never a webview, never Apple IAP language).
+///
+/// `billing_writes_enabled` (#163) is the server's store-rules kill-switch:
+/// when false, every in-app billing WRITE (plan change, module toggles) is
+/// hidden and the card points at the external-browser Stripe portal instead —
+/// reads and the always-external portal/checkout links are untouched.
 @MainActor
 struct BillingSectionView: View {
     let scope: SettingsScope
@@ -25,7 +30,8 @@ struct BillingSectionView: View {
     var body: some View {
         StatusNotices(scope: scope, company: company, canManage: canManage)
         PlanCard(scope: scope, company: company, canManage: canManage, onRefreshCompany: onRefreshCompany)
-        if canManage && company.plan != nil && company.subscriptionActive {
+        if canManage && company.billing_writes_enabled
+            && company.plan != nil && company.subscriptionActive {
             ModulesCard(scope: scope)
         }
         if canManage {
@@ -211,11 +217,19 @@ private struct PlanCard: View {
                         .foregroundStyle(.secondary)
                 }
                 if canManage && company.subscriptionActive {
-                    Button(company.plan == "pro" ? "Switch to Starter" : "Upgrade to Pro") {
-                        changingPlan = true
+                    if company.billing_writes_enabled {
+                        Button(company.plan == "pro" ? "Switch to Starter" : "Upgrade to Pro") {
+                            changingPlan = true
+                        }
+                        .buttonStyle(.bordered)
+                        .padding(.top, 10)
+                    } else {
+                        // #163 kill-switch: the in-app plan change is hidden;
+                        // plan management rides the existing external-browser
+                        // Stripe portal path (store-rules posture).
+                        Spacer().frame(height: 10)
+                        PortalButton(scope: scope, label: "Manage your plan in the browser")
                     }
-                    .buttonStyle(.bordered)
-                    .padding(.top, 10)
                 }
             }
             .sheet(isPresented: $changingPlan) {

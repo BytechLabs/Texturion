@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// One conversation: header (status/assignee/overflow) → interleaved timeline
-/// (newest-first, flipped scroll so index 0 is the bottom) → composer or gate
-/// banner. State-based detail screen — callers own the "which conversation is
-/// open" state, mirroring the Android ThreadScreen.
+/// One conversation: header (identity → contact panel, Call, status,
+/// assignee, overflow) → tags row → interleaved timeline (newest-first,
+/// flipped scroll so index 0 is the bottom) → composer or gate banner.
+/// State-based detail screen — callers own the "which conversation is open"
+/// state, mirroring the Android ThreadScreen.
 @MainActor
 struct ThreadView: View {
     let graph: AppGraph
@@ -19,6 +20,7 @@ struct ThreadView: View {
         Group {
             if let controller, let composer {
                 ThreadBody(
+                    graph: graph,
                     controller: controller,
                     composer: composer,
                     me: me,
@@ -37,6 +39,10 @@ struct ThreadView: View {
                     uploader: NoteFileUploader(
                         sessionStore: graph.sessionStore,
                         meApi: graph.meApi
+                    ),
+                    contacts: ContactMutations(
+                        api: graph.api,
+                        multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore)
                     ),
                     companyId: companyId,
                     conversationId: conversationId,
@@ -63,6 +69,7 @@ struct ThreadView: View {
 /// The loaded thread — split out so the controller is non-optional inside.
 @MainActor
 private struct ThreadBody: View {
+    let graph: AppGraph
     @Bindable var controller: ThreadController
     let composer: ComposerState
     let me: Me
@@ -78,6 +85,10 @@ private struct ThreadBody: View {
     @State private var jumpToMessageId: String?
     @State private var visibleNotice: ThreadNotice?
     @State private var noticeDismissTask: Task<Void, Never>?
+    @State private var contactPanelOpen = false
+    @State private var tagSheetOpen = false
+    @State private var galleryOpen = false
+    @State private var placingCall = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -142,12 +153,22 @@ private struct ThreadBody: View {
                     contactName: contactName,
                     phoneLabel: formatPhone(detail.contact.phone_e164),
                     meUserId: me.user_id,
+                    calling: placingCall,
                     onBack: onBack,
+                    onOpenContactPanel: { contactPanelOpen = true },
+                    onCall: { startCall(detail: detail, contactName: contactName) },
                     onPickAssignee: { assigneeSheetOpen = true },
+                    onOpenGallery: { galleryOpen = true },
                     onConfirmOptOut: { confirmOptOut = true },
                     onConfirmRevoke: { confirmRevoke = true }
                 )
                 Divider()
+
+                ThreadTagsRow(
+                    tags: detail.tags,
+                    onManage: { tagSheetOpen = true },
+                    onRemove: { controller.detachTag($0) }
+                )
 
                 if !controller.pinnedMessages.isEmpty {
                     PinnedBanner(pinned: controller.pinnedMessages) { messageId in
@@ -175,6 +196,35 @@ private struct ThreadBody: View {
                         controller.setAssignee(userId)
                     }
                 }
+            }
+            .sheet(isPresented: $contactPanelOpen) {
+                ContactPanelSheet(
+                    controller: controller,
+                    members: controller.members,
+                    onOpenConversation: { conversationId in
+                        contactPanelOpen = false
+                        // The inbox tab consumes the command and swaps threads.
+                        AppRouter.shared.openConversationId = conversationId
+                    }
+                )
+            }
+            .sheet(isPresented: $tagSheetOpen) {
+                TagManageSheet(
+                    repo: controller.repo,
+                    companyId: detail.company_id,
+                    attached: detail.tags,
+                    onAttach: { controller.attachTag($0) },
+                    onDetach: { controller.detachTag($0) }
+                )
+            }
+            .fullScreenCover(isPresented: $galleryOpen) {
+                AttachmentsGalleryView(
+                    repo: controller.repo,
+                    companyId: detail.company_id,
+                    conversationId: controller.conversationId,
+                    contactName: contactName,
+                    onBack: { galleryOpen = false }
+                )
             }
             .alert("Opt this customer out?", isPresented: $confirmOptOut) {
                 Button("Cancel", role: .cancel) {}
@@ -383,6 +433,43 @@ private struct ThreadBody: View {
         }
     }
 
+    // MARK: - Calling
+
+    /// Call button: authorize + place through the softphone. The mic is
+    /// preflighted BEFORE authorizing (a denial never reserves the line or
+    /// bills); gate refusals arrive coded (usage_cap_reached,
+    /// subscription_inactive, conflict "line on another call") with honest
+    /// server copy — surfaced verbatim on the toast. Stays enabled for
+    /// opted-out contacts: voice consent ≠ SMS consent.
+    private func startCall(detail: ConversationDetail, contactName: String) {
+        guard !placingCall else { return }
+        let manager = CallsManager.get(graph: graph)
+        Task {
+            if !manager.hasMicPermission {
+                guard await manager.requestMicPermission() else {
+                    controller.notifyExternally(
+                        "Loonext needs the microphone to place calls. "
+                            + "Allow it in Settings › Loonext."
+                    )
+                    return
+                }
+            }
+            placingCall = true
+            // Idempotent registration — the thread may be the first calls
+            // surface this process touches.
+            manager.start(companyId: detail.company_id, callerIdName: me.display_name)
+            do {
+                try await manager.placeCall(
+                    displayName: contactName,
+                    conversationId: controller.conversationId
+                )
+            } catch {
+                controller.notifyExternally(error.userMessage)
+            }
+            placingCall = false
+        }
+    }
+
     // MARK: - Composer
 
     @ViewBuilder
@@ -428,8 +515,12 @@ private struct ThreadHeader: View {
     let contactName: String
     let phoneLabel: String
     let meUserId: String
+    let calling: Bool
     let onBack: @MainActor () -> Void
+    let onOpenContactPanel: @MainActor () -> Void
+    let onCall: @MainActor () -> Void
     let onPickAssignee: @MainActor () -> Void
+    let onOpenGallery: @MainActor () -> Void
     let onConfirmOptOut: @MainActor () -> Void
     let onConfirmRevoke: @MainActor () -> Void
 
@@ -442,22 +533,50 @@ private struct ThreadHeader: View {
             }
             .accessibilityLabel("Back")
 
-            InitialsAvatar(name: contactName, size: 34)
+            // The identity block opens the contact panel sheet.
+            Button(action: onOpenContactPanel) {
+                HStack(spacing: 8) {
+                    InitialsAvatar(name: contactName, size: 34)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(contactName)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(
-                    controller.contact?.opted_out == true
-                        ? "\(phoneLabel) · Opted out"
-                        : phoneLabel
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(contactName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Text(
+                            controller.contact?.opted_out == true
+                                ? "\(phoneLabel) · Opted out"
+                                : phoneLabel
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Contact details for \(contactName)")
+
+            // Call — enabled even for opted-out contacts (voice ≠ SMS
+            // consent); #106: outreach like texting, so note-level viewers
+            // get no dead control (the API would 403).
+            if detail.viewer_level == "text" {
+                Button(action: onCall) {
+                    if calling {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Image(systemName: "phone")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(BrandColor.petrol)
+                            .frame(width: 36, height: 36)
+                    }
+                }
+                .disabled(calling)
+                .accessibilityLabel("Call \(contactName)")
+            }
 
             // Status pill + menu (the single status control).
             Menu {
@@ -517,6 +636,19 @@ private struct ThreadHeader: View {
                     )
                 }
                 Button {
+                    onOpenGallery()
+                } label: {
+                    Label("Photos & files", systemImage: "photo.on.rectangle")
+                }
+                // The flipped timeline can't host a sane pull-to-refresh, so
+                // the manual refetch lives here (same first-page reload as the
+                // reconnect path).
+                Button {
+                    controller.refreshAfterReconnect()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                Button {
                     controller.setSpam(!detail.is_spam)
                 } label: {
                     Label(
@@ -571,9 +703,10 @@ private struct ThreadHeader: View {
     }
 }
 
-/// Active-member picker with an Unassigned entry.
+/// Active-member picker with an Unassigned entry. Shared with the inbox
+/// rows' Assign swipe action — the one picker for the one mutation.
 @MainActor
-private struct AssigneePickerSheet: View {
+struct AssigneePickerSheet: View {
     let members: [Member]
     let meUserId: String
     let selectedUserId: String?
@@ -709,5 +842,111 @@ private struct ToastView: View {
         .background(.regularMaterial, in: Capsule())
         .padding(.horizontal, 24)
         .onTapGesture { onDismiss() }
+    }
+}
+
+// MARK: - Previews
+
+private func previewMessage(
+    id: String,
+    direction: String,
+    body: String,
+    status: String?,
+    doneAt: String? = nil
+) -> Message {
+    Message(
+        id: id,
+        conversation_id: "c1",
+        direction: direction,
+        body: body,
+        status: status,
+        segments: 1,
+        encoding: "gsm7",
+        sent_by_user_id: direction == MessageDirection.inbound ? nil : "u1",
+        error_code: nil,
+        error_detail: nil,
+        telnyx_message_id: nil,
+        done_at: doneAt,
+        done_by_user_id: doneAt == nil ? nil : "u1",
+        pinned_at: nil,
+        pinned_by_user_id: nil,
+        created_at: "2026-07-15T15:04:00Z",
+        attachments: [],
+        has_task: false,
+        promoted_task: nil,
+        task_id: nil,
+        task: nil
+    )
+}
+
+#Preview("Thread timeline") {
+    let actions = MessageBubbleActions(
+        onToggleDone: {},
+        onTogglePin: {},
+        onRetry: {},
+        onMakeTask: {},
+        onCopied: {}
+    )
+    return ScrollView {
+        VStack(spacing: 0) {
+            PinnedBanner(
+                pinned: [
+                    previewMessage(
+                        id: "m0",
+                        direction: MessageDirection.inbound,
+                        body: "Gate code is 4482",
+                        status: MessageStatus.received
+                    ),
+                ],
+                onJump: { _ in }
+            )
+            DayDividerLine(label: "Today")
+            MessageBubble(
+                message: previewMessage(
+                    id: "m1",
+                    direction: MessageDirection.inbound,
+                    body: "Can you come by Tuesday morning?",
+                    status: MessageStatus.received
+                ),
+                authorName: nil,
+                doneByName: nil,
+                noteFilesState: nil,
+                onLoadNoteFiles: {},
+                onOpenFile: { _ in },
+                mintAttachmentUrl: { _ in "" },
+                actions: actions
+            )
+            MessageBubble(
+                message: previewMessage(
+                    id: "m2",
+                    direction: MessageDirection.outbound,
+                    body: "Tuesday at 9 works. See you then!",
+                    status: MessageStatus.delivered
+                ),
+                authorName: nil,
+                doneByName: nil,
+                noteFilesState: nil,
+                onLoadNoteFiles: {},
+                onOpenFile: { _ in },
+                mintAttachmentUrl: { _ in "" },
+                actions: actions
+            )
+            MessageBubble(
+                message: previewMessage(
+                    id: "m3",
+                    direction: MessageDirection.note,
+                    body: "Bring the long ladder — the gutter run is 30 ft.",
+                    status: nil
+                ),
+                authorName: "Dana Fields",
+                doneByName: nil,
+                noteFilesState: nil,
+                onLoadNoteFiles: {},
+                onOpenFile: { _ in },
+                mintAttachmentUrl: { _ in "" },
+                actions: actions
+            )
+            EventLine(text: "Dana Fields moved this to Waiting", timeIso: "2026-07-15T15:10:00Z")
+        }
     }
 }

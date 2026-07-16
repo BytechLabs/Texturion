@@ -1,17 +1,23 @@
 import SwiftUI
 
 /// /for-you — the default landing: Triage (owner/admin), Waiting on you,
-/// My tasks, Unread. Realtime events refetch the queue; every row deep-links
+/// My tasks, Unread, and Recent calls (D43: the mobile entry point into the
+/// Calls surface). Realtime events refetch the queue; every row deep-links
 /// into `ThreadView` in place (task rows open their conversation — task
 /// detail itself is the Tasks tab's surface, #160).
+///
+/// `onOpenCalls` is the shell's navigation to the full Calls surface — the
+/// "View all" affordance hides until the shell wires it.
 @MainActor
 struct ForYouTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    var onOpenCalls: (() -> Void)? = nil
 
     @State private var openConversationId: String?
     @State private var state: LoadState<ForYou> = .loading
+    @State private var recentCalls: LoadState<[Call]> = .loading
     @State private var refreshKey = 0
 
     var body: some View {
@@ -31,11 +37,17 @@ struct ForYouTab: View {
                 case .failed(let message):
                     CenteredError(message: message) { refreshKey += 1 }
                 case .ready(let forYou):
-                    ForYouList(forYou: forYou) { openConversationId = $0 }
+                    ForYouList(
+                        forYou: forYou,
+                        recentCalls: recentCalls,
+                        onOpenConversation: { openConversationId = $0 },
+                        onOpenCalls: onOpenCalls
+                    )
                 }
             }
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
         .task(id: companyId) {
             // Any conversation/task/call movement can change the queue —
             // refetch quietly.
@@ -63,11 +75,31 @@ struct ForYouTab: View {
             state = .failed(error.userMessage)
         }
     }
+
+    /// Recent calls (#161/D43): the 3 newest sessions from the calls list
+    /// endpoint (never invented /v1/home fields), refetched on the same
+    /// realtime ticks as the queue ('call.' is already in the filter above).
+    private func reloadRecentCalls() async {
+        do {
+            recentCalls = .ready(
+                try await CallsService(api: graph.api)
+                    .calls(companyId: companyId, limit: 3).data
+            )
+        } catch {
+            if case .ready = recentCalls {
+                // Keep stale rows over an error flash on a refetch hiccup.
+            } else {
+                recentCalls = .failed(error.userMessage)
+            }
+        }
+    }
 }
 
 private struct ForYouList: View {
     let forYou: ForYou
+    let recentCalls: LoadState<[Call]>
     let onOpenConversation: @MainActor (String) -> Void
+    let onOpenCalls: (() -> Void)?
 
     private var total: Int {
         forYou.waiting_on_you.count + forYou.my_tasks.count + forYou.unread.count +
@@ -155,8 +187,110 @@ private struct ForYouList: View {
                     SectionHeader("Unread")
                 }
             }
+
+            // Recent calls (#161/D43) — the mobile doorway into the Calls
+            // surface. Hidden entirely while loading or empty; an honest
+            // error line when the log couldn't load (Android twin parity).
+            switch recentCalls {
+            case .loading:
+                EmptyView()
+            case .failed:
+                Section {
+                    Text("Couldn't load recent calls.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
+                } header: {
+                    RecentCallsHeader(onOpenCalls: onOpenCalls)
+                }
+            case .ready(let calls):
+                if !calls.isEmpty {
+                    Section {
+                        ForEach(calls, id: \.id) { call in
+                            RecentCallRow(
+                                call: call,
+                                onTap: call.conversation_id.map { id in
+                                    { onOpenConversation(id) }
+                                }
+                            )
+                        }
+                    } header: {
+                        RecentCallsHeader(onOpenCalls: onOpenCalls)
+                    }
+                }
+            }
         }
         .listStyle(.plain)
+    }
+}
+
+/// "Recent calls" + the shell-wired "View all" doorway (hidden until wired).
+private struct RecentCallsHeader: View {
+    let onOpenCalls: (() -> Void)?
+
+    var body: some View {
+        HStack {
+            Text("Recent calls")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(nil)
+            Spacer()
+            if let onOpenCalls {
+                Button("View all", action: onOpenCalls)
+                    .font(.footnote)
+                    .textCase(nil)
+            }
+        }
+    }
+}
+
+/// One recent call: direction/outcome glyph, contact-or-number, relative
+/// time. Amber only for the actionable inbound miss (calm system); tappable
+/// into the conversation only when one exists.
+private struct RecentCallRow: View {
+    let call: Call
+    let onTap: (@MainActor () -> Void)?
+
+    private var name: String { callerDisplayName(call) }
+
+    private var directionIcon: String {
+        if call.direction == "outbound" { return "phone.arrow.up.right" }
+        if call.outcome == CallOutcome.missed { return "phone.arrow.down.left" }
+        return "phone.arrow.down.left.fill"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            InitialsAvatar(name: name)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Image(systemName: directionIcon)
+                        .font(.caption2)
+                        .foregroundStyle(
+                            isActionableMiss(call)
+                                ? BrandColor.overdueAmber
+                                : Color.secondary
+                        )
+                    Text(callOutcomeLabel(call))
+                        .font(.caption)
+                        .foregroundStyle(
+                            isActionableMiss(call)
+                                ? BrandColor.overdueAmber
+                                : Color.secondary
+                        )
+                }
+            }
+            Spacer()
+            Text(relativeTime(call.started_at))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
     }
 }
 
@@ -235,4 +369,74 @@ private struct TaskLineRow: View {
         if let dueAt { return "Due \(relativeTime(dueAt))" }
         return "Open task"
     }
+}
+
+// MARK: - Previews (inline mock data — nothing fetches)
+
+private func previewCall(
+    id: String,
+    outcome: String?,
+    direction: String,
+    contactName: String? = nil,
+    callerE164: String? = nil,
+    forwardSeconds: Int = 0,
+    startedAt: String = "2026-07-16T09:05:00Z"
+) -> Call {
+    Call(
+        id: id,
+        call_session_id: "sess-\(id)",
+        caller_e164: callerE164,
+        contact_id: nil,
+        contact_name: contactName,
+        caller_name: nil,
+        phone_number_id: nil,
+        conversation_id: "conv-\(id)",
+        outcome: outcome,
+        direction: direction,
+        forward_seconds: forwardSeconds,
+        screening_result: nil,
+        stir_attestation: nil,
+        voicemail_seconds: nil,
+        answered_by_user_id: nil,
+        started_at: startedAt
+    )
+}
+
+#Preview("Recent calls section") {
+    ForYouList(
+        forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
+        recentCalls: .ready([
+            previewCall(
+                id: "c1",
+                outcome: CallOutcome.missed,
+                direction: "inbound",
+                contactName: "Dana Whitcomb"
+            ),
+            previewCall(
+                id: "c2",
+                outcome: CallOutcome.answered,
+                direction: "inbound",
+                callerE164: "+14155550188",
+                forwardSeconds: 272
+            ),
+            previewCall(
+                id: "c3",
+                outcome: CallOutcome.answered,
+                direction: "outbound",
+                contactName: "Ari Benson",
+                forwardSeconds: 58
+            ),
+        ]),
+        onOpenConversation: { _ in },
+        onOpenCalls: {}
+    )
+}
+
+#Preview("Recent calls · load failure") {
+    ForYouList(
+        forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
+        recentCalls: .failed("Something went wrong."),
+        onOpenConversation: { _ in },
+        onOpenCalls: {}
+    )
 }

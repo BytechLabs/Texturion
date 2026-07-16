@@ -556,3 +556,39 @@ struct TemplatePickerSheet: View {
         }
     }
 }
+
+// MARK: - Previews
+
+#Preview("Composer") {
+    VStack {
+        Spacer()
+        ThreadComposerView(
+            state: ComposerState(draftKey: "preview", drafts: ComposerDrafts()),
+            noteOnly: false,
+            banner: nil,
+            contactName: "Dana Whitcomb",
+            businessName: "Loonext Fencing",
+            loadTemplates: { [] },
+            onSendText: { _, _ in },
+            onSaveNote: { _, _ in },
+            onNotice: { _ in }
+        )
+    }
+}
+
+#Preview("Composer — opted out") {
+    VStack {
+        Spacer()
+        ThreadComposerView(
+            state: ComposerState(draftKey: "preview-gated", drafts: ComposerDrafts()),
+            noteOnly: false,
+            banner: .optedOut,
+            contactName: "Dana Whitcomb",
+            businessName: "Loonext Fencing",
+            loadTemplates: { [] },
+            onSendText: { _, _ in },
+            onSaveNote: { _, _ in },
+            onNotice: { _ in }
+        )
+    }
+}

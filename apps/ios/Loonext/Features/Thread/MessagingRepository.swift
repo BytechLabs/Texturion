@@ -150,6 +150,59 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    // MARK: - Tags (#159 gap-close; Android twin MessagingData.kt)
+
+    /// Attach an existing tag by id. Attaching an attached tag is a no-op.
+    func attachTag(companyId: String, conversationId: String, tagId: String) async throws -> Tag {
+        try await api.post(
+            "/v1/conversations/\(conversationId)/tags",
+            body: JSONValue.object(["tag_id": .string(tagId)]),
+            companyId: companyId
+        )
+    }
+
+    /// Create-on-attach (SPEC §7): the server reuses the company's tag with
+    /// this name (case-insensitive) or creates it, then attaches.
+    func attachTagByName(companyId: String, conversationId: String, name: String) async throws -> Tag {
+        try await api.post(
+            "/v1/conversations/\(conversationId)/tags",
+            body: JSONValue.object(["name": .string(name)]),
+            companyId: companyId
+        )
+    }
+
+    /// Detach. 404 = it wasn't attached (already removed elsewhere).
+    func detachTag(companyId: String, conversationId: String, tagId: String) async throws {
+        try await api.delete(
+            "/v1/conversations/\(conversationId)/tags/\(tagId)",
+            companyId: companyId
+        )
+    }
+
+    // MARK: - Contact panel
+
+    /// This contact's conversations, found the way the web contact panel does
+    /// (G6): the list endpoint's `q` matches the phone exactly, which is unique
+    /// per company — an honest "conversations with this number" query.
+    func conversationsForPhone(
+        companyId: String,
+        phoneE164: String
+    ) async throws -> Page<ConversationListItem> {
+        try await api.get(
+            "/v1/conversations",
+            query: ["q": phoneE164, "limit": "25"],
+            companyId: companyId
+        )
+    }
+
+    /// The conversation checklist (T5.2): all live tasks, created_at ASC.
+    func conversationTasks(
+        companyId: String,
+        conversationId: String
+    ) async throws -> Page<TaskItem> {
+        try await api.get("/v1/conversations/\(conversationId)/tasks", companyId: companyId)
+    }
+
     // MARK: - Sending
 
     func send(
@@ -287,6 +340,23 @@ struct MessagingRepository: Sendable {
         try await api.get(
             "/v1/attachments",
             query: ["owner_type": "note", "owner_id": noteId],
+            companyId: companyId
+        )
+    }
+
+    /// The conversation gallery (D21): MMS + note/task attachments merged,
+    /// newest first, cursor-paged. Every item carries a freshly-minted
+    /// short-lived signed URL — fetched per view, NEVER cached (each visit to
+    /// the gallery refetches, which is the per-view mint).
+    func gallery(
+        companyId: String,
+        conversationId: String,
+        cursor: String? = nil,
+        limit: Int = 50
+    ) async throws -> Page<GalleryItem> {
+        try await api.get(
+            "/v1/conversations/\(conversationId)/attachments",
+            query: ["cursor": cursor, "limit": String(limit)],
             companyId: companyId
         )
     }

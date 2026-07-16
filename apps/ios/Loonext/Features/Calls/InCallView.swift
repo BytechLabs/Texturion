@@ -509,3 +509,79 @@ private struct AudioRoutePicker: UIViewRepresentable {
 
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }
+
+// MARK: - Previews (inline mock CallSnapshots — the live surface renders from
+// CallsManager state, which has no injection seam by design, so the previews
+// exercise the visual components with mock data)
+
+private func previewSnapshot(
+    id: String,
+    name: String,
+    number: String,
+    phase: CallPhase,
+    direction: CallDirection = .inbound,
+    muted: Bool = false,
+    activeSince: Date? = nil
+) -> CallSnapshot {
+    CallSnapshot(
+        id: id,
+        direction: direction,
+        peerName: name,
+        peerNumber: number,
+        phase: phase,
+        muted: muted,
+        sessionId: nil,
+        activeSince: activeSince
+    )
+}
+
+#Preview("In-call states") {
+    let manager = CallsManager.get(graph: AppGraph())
+    VStack(spacing: 24) {
+        VStack(spacing: 8) {
+            InitialsAvatar(name: "Dana Whitcomb", size: 72)
+            Text("Dana Whitcomb")
+                .font(.title.weight(.semibold))
+            Text("(415) 555-0134")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            CallPhaseLine(call: previewSnapshot(
+                id: "a",
+                name: "Dana Whitcomb",
+                number: "+14155550134",
+                phase: .active,
+                activeSince: Date().addingTimeInterval(-272)
+            ))
+        }
+        CallPhaseLine(call: previewSnapshot(
+            id: "b", name: "Ari", number: "+15559998888", phase: .ringing
+        ))
+        CallPhaseLine(call: previewSnapshot(
+            id: "c", name: "Ari", number: "+15559998888", phase: .held
+        ))
+        OtherCallRow(
+            call: previewSnapshot(
+                id: "d", name: "Ari Benson", number: "+15559998888", phase: .ringing
+            ),
+            manager: manager
+        )
+        OtherCallRow(
+            call: previewSnapshot(
+                id: "e", name: "Marta Reyes", number: "+15551230000", phase: .held
+            ),
+            manager: manager
+        )
+        HStack(spacing: 12) {
+            ControlToggle(on: true, systemImage: "mic.slash.fill", label: "Unmute") {}
+            ControlToggle(on: false, systemImage: "circle.grid.3x3.fill", label: "Keypad") {}
+            ControlToggle(on: false, systemImage: "pause.fill", label: "Hold") {}
+            ControlToggle(
+                on: false,
+                systemImage: "phone.arrow.right",
+                label: "Transfer",
+                enabled: false
+            ) {}
+        }
+    }
+    .padding()
+}

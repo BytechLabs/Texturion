@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 private let csvImportMaxBytes = 2 * 1024 * 1024
@@ -24,36 +25,60 @@ private struct ImportReport: Identifiable {
     let result: ImportResult
 }
 
-/// The exported CSV as a savable document (fileExporter). The server emits a
-/// UTF-8 BOM so Excel round-trips accents; re-attach it defensively in case a
-/// transport layer stripped it.
-private struct ContactsCsvDocument: FileDocument {
-    static let readableContentTypes: [UTType] = [.commaSeparatedText]
+/// The exported CSV bytes. The server emits a UTF-8 BOM so Excel round-trips
+/// accents; re-attach it defensively in case a transport layer stripped it.
+private func contactsCsvExportData(_ text: String) -> Data {
+    var data = Data([0xEF, 0xBB, 0xBF])
+    var body = text
+    if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
+    data.append(Data(body.utf8))
+    return data
+}
 
-    var text: String
+/// Stage the CSV as `contacts.csv` in a unique temp folder so the share sheet
+/// offers a well-named file (AirDrop, Messages, Mail, Save to Files).
+private func stageCsvForSharing(_ text: String) throws -> URL {
+    let folder = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let url = folder.appendingPathComponent("contacts.csv")
+    try contactsCsvExportData(text).write(to: url)
+    return url
+}
 
-    init(text: String) {
-        self.text = text
+/// One finished export, staged on disk for the share sheet.
+private struct ExportedCsv: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// The real system share sheet (UIActivityViewController) — AirDrop, Messages,
+/// Mail, Save to Files — where fileExporter could only save.
+private struct CsvShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    let onFinish: @MainActor (_ completed: Bool) -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+        let onFinish = onFinish
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            // UIKit calls this on the main thread.
+            MainActor.assumeIsolated { onFinish(completed) }
+        }
+        return controller
     }
 
-    init(configuration: ReadConfiguration) throws {
-        let data = configuration.file.regularFileContents ?? Data()
-        text = String(decoding: data, as: UTF8.self)
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        var data = Data([0xEF, 0xBB, 0xBF])
-        var body = text
-        if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
-        data.append(Data(body.utf8))
-        return FileWrapper(regularFileWithContents: data)
-    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 /// Contacts: debounced name/phone search over the cursor-paginated list,
 /// create-contact sheet (NANP-validated), row tap → `ContactDetailView`,
-/// CSV export (respecting the live search, saved where the user picks via
-/// fileExporter), and owner/admin CSV + vCard imports (fileImporter) with a
+/// CSV export (respecting the live search, handed to the system share sheet
+/// so it can be AirDropped/messaged/mailed or saved to Files), and
+/// owner/admin CSV + vCard imports (fileImporter) with a
 /// per-row skipped-rows report.
 ///
 /// `onOpenConversation`/`onComposeNew` are shell callbacks into #159's thread
@@ -84,8 +109,7 @@ struct ContactsTab: View {
 
     @State private var createOpen = false
     @State private var exporting = false
-    @State private var exportDocument: ContactsCsvDocument?
-    @State private var exportPresented = false
+    @State private var exportedCsv: ExportedCsv?
     @State private var importing = false
     @State private var pendingImport: ImportKind?
     @State private var importPresented = false
@@ -129,7 +153,10 @@ struct ContactsTab: View {
                     companyId: companyId,
                     contactId: route.id,
                     onOpenConversation: onOpenConversation,
-                    onComposeNew: onComposeNew
+                    onComposeNew: onComposeNew,
+                    // Caller-ID name for the detail's Call button, mirroring
+                    // the Android twin's resolvedMe?.display_name.orEmpty().
+                    callerIdName: (me ?? resolvedMe)?.display_name ?? ""
                 )
             }
         }
@@ -163,16 +190,15 @@ struct ContactsTab: View {
         .sheet(item: $importReport) { report in
             ImportReportSheet(report: report)
         }
-        .fileExporter(
-            isPresented: $exportPresented,
-            document: exportDocument,
-            contentType: .commaSeparatedText,
-            defaultFilename: "contacts"
-        ) { result in
-            if case .success = result {
-                notice = "Contacts exported."
+        .sheet(item: $exportedCsv) { export in
+            CsvShareSheet(url: export.url) { completed in
+                if completed {
+                    notice = "Contacts exported."
+                }
+                exportedCsv = nil
             }
-            exportDocument = nil
+            .presentationDetents([.medium, .large])
+            .ignoresSafeArea()
         }
         .fileImporter(
             isPresented: $importPresented,
@@ -347,9 +373,10 @@ struct ContactsTab: View {
         }
     }
 
-    /// Fetch the CSV (respecting the live search), then hand it to
-    /// fileExporter so it lands where the user chooses — the honest mobile
-    /// equivalent of the web download.
+    /// Fetch the CSV (respecting the live search), stage it as a temp file,
+    /// and hand it to the system share sheet so it can be AirDropped,
+    /// messaged, mailed, or saved to Files — the honest mobile equivalent of
+    /// the web download.
     private func exportCsv() {
         exporting = true
         notice = nil
@@ -359,8 +386,7 @@ struct ContactsTab: View {
                     companyId: companyId,
                     q: debouncedQ.isEmpty ? nil : debouncedQ
                 )
-                exportDocument = ContactsCsvDocument(text: csv)
-                exportPresented = true
+                exportedCsv = ExportedCsv(url: try stageCsvForSharing(csv))
             } catch {
                 notice = (error as? ApiError)?.message
                     ?? "The export didn't go through. Try again."
@@ -622,4 +648,69 @@ private struct ImportReportSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .presentationDetents([.medium, .large])
     }
+}
+
+// MARK: - Previews
+
+private func previewContact(
+    id: String,
+    phone: String,
+    name: String?,
+    optedOut: Bool = false,
+    lastActivityAt: String? = nil
+) -> Contact {
+    Contact(
+        id: id,
+        phone_e164: phone,
+        name: name,
+        address: nil,
+        notes: nil,
+        consent_source: nil,
+        consent_at: nil,
+        consent_attested_by: nil,
+        deleted_at: nil,
+        created_at: "2026-07-08T14:00:00Z",
+        updated_at: "2026-07-10T09:00:00Z",
+        opted_out: optedOut,
+        last_activity_at: lastActivityAt
+    )
+}
+
+#Preview("Contacts tab") {
+    ContactsTab(graph: AppGraph(), companyId: "preview-co")
+}
+
+#Preview("Contact rows") {
+    List {
+        ContactRow(
+            contact: previewContact(
+                id: "ct1",
+                phone: "+14165550134",
+                name: "Dana Whitcomb",
+                lastActivityAt: "2026-07-15T18:00:00Z"
+            )
+        )
+        ContactRow(
+            contact: previewContact(
+                id: "ct2",
+                phone: "+14155550188",
+                name: nil,
+                optedOut: true,
+                lastActivityAt: "2026-07-01T12:00:00Z"
+            )
+        )
+    }
+    .listStyle(.plain)
+}
+
+#Preview("New contact sheet") {
+    let graph = AppGraph()
+    CreateContactSheet(
+        mutations: ContactMutations(
+            api: graph.api,
+            multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore)
+        ),
+        companyId: "preview-co",
+        onCreated: { _ in }
+    )
 }

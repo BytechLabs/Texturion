@@ -21,7 +21,7 @@ private let coordinatorLog = Logger(subsystem: "com.loonext.ios", category: "pus
 /// tap routes to `.calls(sessionId:)` so the shell can open the calls surface
 /// (which then decides about POST /v1/calls/live/{id}/ring-me).
 ///
-/// Wiring (the integrator applies — see #162's report):
+/// Wiring (applied — LoonextApp / ShellView / RootViewModel):
 /// 1. `@UIApplicationDelegateAdaptor(PushAppDelegate.self)` on LoonextApp.
 /// 2. `PushCoordinator.shared.activate(api: graph.api)` once the graph exists.
 /// 3. On shell-ready:   `await PushCoordinator.shared.ensureRegistrar(api:).register()`
@@ -98,8 +98,11 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
                 }
                 return [.banner, .sound, .list]
             }
+            // Either viewed-thread seam suppresses the banner: PushHooks (the
+            // push stack's own) or the shared AppRouter report.
             if let conversation = conversationId(fromNormalizedUrl: push.url),
-               conversation == PushHooks.viewedConversationId {
+               conversation == PushHooks.viewedConversationId
+                   || conversation == AppRouter.shared.viewedConversationId {
                 return []
             }
             return [.banner, .sound, .list]

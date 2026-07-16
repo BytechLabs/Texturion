@@ -6,11 +6,14 @@ import UIKit
 /// Saving…/Saved status line), the consent card ('Texted you first' vs
 /// 'Consent recorded by {member}', the attester resolved against
 /// GET /v1/members), the opted-out banner with 'Mark opted in again' and its
-/// START caveat, opt-out and soft-delete behind confirm dialogs, and a
-/// contextual primary button — 'Open conversation' when a thread already
-/// exists (found via GET /v1/conversations?q=<phone>), otherwise 'Message'
-/// into compose prefill. Both destinations are shell callbacks; the button
-/// hides until the integrator wires them.
+/// START caveat, opt-out and soft-delete behind confirm dialogs, a Call
+/// button in the header (mic preflight → CallsManager.placeCall with the
+/// contact context; voice consent is separate from SMS consent, so it stays
+/// enabled for opted-out contacts), and a contextual primary button — 'Open
+/// conversation' when a thread already exists (found via
+/// GET /v1/conversations?q=<phone>), otherwise 'Message' into compose
+/// prefill. Both messaging destinations are shell callbacks; those buttons
+/// hide until the integrator wires them (Call needs no shell wiring).
 @MainActor
 struct ContactDetailView: View {
     let graph: AppGraph
@@ -18,6 +21,9 @@ struct ContactDetailView: View {
     let contactId: String
     let onOpenConversation: ((_ conversationId: String) -> Void)?
     let onComposeNew: ((_ contactId: String) -> Void)?
+    /// Caller-ID name for softphone registration — the list tab passes the
+    /// resolved member display name (the Android twin's callerIdName).
+    var callerIdName: String = ""
 
     private enum DetailState {
         case loading
@@ -33,6 +39,7 @@ struct ContactDetailView: View {
     @State private var confirmOptOut = false
     @State private var confirmDelete = false
     @State private var working = false
+    @State private var placingCall = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -157,7 +164,54 @@ struct ContactDetailView: View {
         }
     }
 
-    private func readyBody(_ contact: Contact) -> some View {
+    // MARK: - Call (#160/#165)
+
+    /// Mic first, then authorize — a denial never reserves the line or bills
+    /// a minute. Mirrors the Android ContactDetailScreen exactly: enabled for
+    /// opted-out contacts (voice consent is separate from SMS consent).
+    private func callWithMicPreflight(_ contact: Contact) {
+        let manager = CallsManager.get(graph: graph)
+        if manager.hasMicPermission {
+            placeCall(contact, manager: manager)
+            return
+        }
+        Task {
+            if await manager.requestMicPermission() {
+                placeCall(contact, manager: manager)
+            } else {
+                actionError = "Loonext needs the microphone to place calls. "
+                    + "Allow it in Settings › Loonext."
+            }
+        }
+    }
+
+    /// Authorize + place via the softphone (contact_id — no thread required).
+    /// Coded gate refusals (usage_cap_reached, subscription_inactive,
+    /// conflict) surface their honest server copy in the existing error line.
+    private func placeCall(_ contact: Contact, manager: CallsManager) {
+        guard !placingCall else { return }
+        placingCall = true
+        actionError = nil
+        manager.start(companyId: companyId, callerIdName: callerIdName)
+        Task {
+            defer { placingCall = false }
+            do {
+                try await manager.placeCall(
+                    displayName: (contact.name?.isBlank ?? true)
+                        ? formatPhone(contact.phone_e164)
+                        : (contact.name ?? ""),
+                    contactId: contact.id
+                )
+            } catch {
+                actionError = error.userMessage
+            }
+        }
+    }
+
+    // fileprivate (not private) so the #Preview below can render the ready
+    // state with inline mock data — the loaded view is otherwise unreachable
+    // without a live API.
+    fileprivate func readyBody(_ contact: Contact) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header(contact)
@@ -201,6 +255,23 @@ struct ContactDetailView: View {
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Copy number")
+                    // Call (#165) — deliberately NOT gated on opted_out:
+                    // voice consent is separate from SMS consent.
+                    Button {
+                        callWithMicPreflight(contact)
+                    } label: {
+                        if placingCall {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "phone")
+                                .font(.caption)
+                                .foregroundStyle(BrandColor.petrol)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(placingCall)
+                    .accessibilityLabel(placingCall ? "Calling" : "Call")
                     if contact.opted_out {
                         Text("Opted out")
                             .font(.caption.weight(.medium))
@@ -469,5 +540,55 @@ private struct AutosaveField: View {
         case .saved: "Saved"
         case .failed: "Couldn't save. Check your connection."
         }
+    }
+}
+
+// MARK: - Previews
+
+private func previewDetailContact(optedOut: Bool) -> Contact {
+    Contact(
+        id: "ct1",
+        phone_e164: "+14165550134",
+        name: "Dana Whitcomb",
+        address: "82 Birchmount Rd",
+        notes: "Gate code 4411. Dog is friendly.",
+        consent_source: ConsentSource.inboundSms,
+        consent_at: "2026-07-08T14:00:00Z",
+        consent_attested_by: nil,
+        deleted_at: nil,
+        created_at: "2026-07-08T14:00:00Z",
+        updated_at: "2026-07-10T09:00:00Z",
+        opted_out: optedOut,
+        last_activity_at: "2026-07-15T18:00:00Z"
+    )
+}
+
+#Preview("Contact detail — ready") {
+    NavigationStack {
+        ContactDetailView(
+            graph: AppGraph(),
+            companyId: "preview-co",
+            contactId: "ct1",
+            onOpenConversation: { _ in },
+            onComposeNew: { _ in }
+        )
+        .readyBody(previewDetailContact(optedOut: false))
+        .navigationTitle("Contact")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+#Preview("Contact detail — opted out") {
+    NavigationStack {
+        ContactDetailView(
+            graph: AppGraph(),
+            companyId: "preview-co",
+            contactId: "ct1",
+            onOpenConversation: nil,
+            onComposeNew: nil
+        )
+        .readyBody(previewDetailContact(optedOut: true))
+        .navigationTitle("Contact")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

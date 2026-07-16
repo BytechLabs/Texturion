@@ -186,3 +186,40 @@ struct DialerSheet: View {
         }
     }
 }
+
+// MARK: - Previews (inline mock numbers — nothing dials until Call is tapped)
+
+private func previewNumber(id: String, e164: String) -> PhoneNumberSummary {
+    PhoneNumberSummary(
+        id: id,
+        status: NumberStatus.active,
+        country: "US",
+        number_e164: e164,
+        requested_area_code: nil,
+        created_at: "2026-07-01T00:00:00Z",
+        source: nil,
+        voice_enabled: true,
+        suspended_at: nil,
+        released_at: nil,
+        failure_reason: nil,
+        provision_attempts: nil,
+        retrying: nil
+    )
+}
+
+#Preview("Dialer · two from-numbers") {
+    DialerSheet(
+        manager: CallsManager.get(graph: AppGraph()),
+        numbers: [
+            previewNumber(id: "num-1", e164: "+14155550111"),
+            previewNumber(id: "num-2", e164: "+14155550122"),
+        ]
+    )
+}
+
+#Preview("Dialer · single number") {
+    DialerSheet(
+        manager: CallsManager.get(graph: AppGraph()),
+        numbers: [previewNumber(id: "num-1", e164: "+14155550111")]
+    )
+}

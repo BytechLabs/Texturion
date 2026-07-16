@@ -290,7 +290,10 @@ struct TaskDetailView: View {
         .accessibilityLabel("Task actions")
     }
 
-    private func readyBody(_ detail: TaskDetail) -> some View {
+    // fileprivate (not private) so the #Preview below can render the ready
+    // state with inline mock data — the loaded view is otherwise unreachable
+    // without a live API.
+    fileprivate func readyBody(_ detail: TaskDetail) -> some View {
         VStack(spacing: 0) {
             if let actionError {
                 Text(actionError)
@@ -1038,5 +1041,90 @@ private struct NoteComposer: View {
             }
             posting = false
         }
+    }
+}
+
+// MARK: - Previews
+
+private let previewMe = Me(
+    user_id: "u1",
+    display_name: "Sam Carpenter",
+    memberships: [
+        Membership(
+            company_id: "co1",
+            name: "Carpenter Roofing",
+            role: MemberRole.owner,
+            subscription_status: SubscriptionStatus.active
+        ),
+    ],
+    company: nil
+)
+
+private let previewDetail = TaskDetail(
+    id: "t1",
+    company_id: "co1",
+    message_id: "m1",
+    conversation_id: "cv1",
+    title: "Send the quote for the deck repair",
+    description: "Cedar boards, two tiers. They want it before the long weekend.",
+    assigned_user_id: "u1",
+    due_at: "2099-07-20T15:00:00Z",
+    created_by_user_id: "u2",
+    created_at: "2026-07-14T12:00:00Z",
+    updated_at: "2026-07-15T09:00:00Z",
+    done: false,
+    status: "open",
+    assignee: TaskProfile(user_id: "u1", display_name: "Sam Carpenter"),
+    created_by: TaskProfile(user_id: "u2", display_name: "Alex Mason"),
+    source_message: TaskSourceMessage(
+        id: "m1",
+        body: "Can you send over the quote for the deck?",
+        done_at: nil,
+        done_by_user_id: nil,
+        created_at: "2026-07-14T11:58:00Z",
+        direction: "in"
+    ),
+    attachments: [],
+    activity: [
+        TaskActivityItem(
+            kind: "event",
+            id: "a1",
+            created_at: "2026-07-14T12:00:00Z",
+            type: "task_created",
+            payload: nil,
+            actor_user_id: "u2",
+            actor: TaskProfile(user_id: "u2", display_name: "Alex Mason"),
+            body: nil,
+            author_user_id: nil,
+            author: nil
+        ),
+        TaskActivityItem(
+            kind: "note",
+            id: "a2",
+            created_at: "2026-07-15T09:00:00Z",
+            type: nil,
+            payload: nil,
+            actor_user_id: nil,
+            actor: nil,
+            body: "Measured the yard — 14x20. Drafting the quote now.",
+            author_user_id: "u1",
+            author: TaskProfile(user_id: "u1", display_name: "Sam Carpenter")
+        ),
+    ],
+    viewer_level: "text"
+)
+
+#Preview("Task detail — ready") {
+    NavigationStack {
+        TaskDetailView(
+            graph: AppGraph(),
+            companyId: "co1",
+            me: previewMe,
+            taskId: "t1",
+            onOpenConversation: { _, _ in }
+        )
+        .readyBody(previewDetail)
+        .navigationTitle("Task")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

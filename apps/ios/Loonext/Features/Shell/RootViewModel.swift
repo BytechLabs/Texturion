@@ -92,7 +92,12 @@ final class RootViewModel {
 
     func signOut() {
         // The session-changes stream observes the clear and routes to login.
-        Task { await self.graph.authManager.signOut() }
+        Task {
+            // Best-effort device push-token delete BEFORE the session clears —
+            // the DELETE needs the bearer (#151); failure never blocks sign-out.
+            await PushCoordinator.shared.ensureRegistrar(api: graph.api).unregister()
+            await self.graph.authManager.signOut()
+        }
     }
 
     private func bootstrap() async {

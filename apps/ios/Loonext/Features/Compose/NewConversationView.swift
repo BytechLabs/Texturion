@@ -535,3 +535,36 @@ private struct NewConversationLoaded: View {
         }
     }
 }
+
+// MARK: - Previews
+
+#Preview("New conversation") {
+    NewConversationLoaded(
+        repo: MessagingRepository(
+            api: ApiClient(sessionStore: SessionStore(), auth: SupabaseAuth())
+        ),
+        companyId: "co",
+        numbers: [
+            PhoneNumberSummary(
+                id: "n1",
+                status: "active",
+                country: "CA",
+                number_e164: "+16475550188",
+                requested_area_code: "647",
+                created_at: "2026-07-01T12:00:00Z",
+                source: "provisioned",
+                voice_enabled: true,
+                suspended_at: nil,
+                released_at: nil,
+                failure_reason: nil,
+                provision_attempts: nil,
+                retrying: nil
+            ),
+        ],
+        businessName: "Loonext Fencing",
+        selectedContact: nil,
+        onContactChange: { _ in },
+        onCreated: { _ in },
+        onBack: {}
+    )
+}

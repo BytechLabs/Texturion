@@ -2,13 +2,19 @@ import SwiftUI
 import UIKit
 
 /// The 'You' sheet (#100): workspace tile + copyable numbers, workspace
-/// switcher (multi-membership only), theme, sign out. Calls/Settings entries
-/// land with their feature passes (#161/#163).
+/// switcher (multi-membership only), Calls / Notifications / Settings
+/// entries (Android AccountSheet parity), theme, sign out. The open-surface
+/// callbacks swap the shell's presented sheet in place, so they never call
+/// `dismiss()` themselves.
 @MainActor
 struct AccountSheet: View {
     @Bindable var prefs: AppPrefs
     let me: Me
     let companyId: String
+    let unreadNotifications: Int
+    let onOpenCalls: @MainActor () -> Void
+    let onOpenNotifications: @MainActor () -> Void
+    let onOpenSettings: @MainActor () -> Void
     let onSwitchWorkspace: @MainActor (String) -> Void
     let onSignOut: @MainActor () -> Void
 
@@ -88,6 +94,20 @@ struct AccountSheet: View {
                 }
             }
 
+            // Feature surfaces (#161 calls / D24 notifications / #163
+            // settings) — mirrors the Android sheet's Calls · Notifications
+            // (n new) · Settings links.
+            Section {
+                sheetLink("Calls", action: onOpenCalls)
+                sheetLink(
+                    unreadNotifications > 0
+                        ? "Notifications (\(unreadNotifications) new)"
+                        : "Notifications",
+                    action: onOpenNotifications
+                )
+                sheetLink("Settings", action: onOpenSettings)
+            }
+
             Section("Theme") {
                 Picker("Theme", selection: $prefs.theme) {
                     Text("System").tag(AppPrefs.Theme.system)
@@ -107,5 +127,13 @@ struct AccountSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func sheetLink(_ label: String, action: @escaping @MainActor () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }

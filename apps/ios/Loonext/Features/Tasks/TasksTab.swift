@@ -435,3 +435,78 @@ private struct TaskListRow: View {
         .padding(.vertical, 2)
     }
 }
+
+// MARK: - Previews
+
+private func previewTask(
+    id: String,
+    title: String,
+    done: Bool,
+    dueAt: String? = nil
+) -> TaskItem {
+    TaskItem(
+        id: id,
+        company_id: "co1",
+        message_id: "m-\(id)",
+        conversation_id: "cv1",
+        title: title,
+        description: "",
+        assigned_user_id: "u1",
+        due_at: dueAt,
+        created_by_user_id: "u1",
+        created_at: "2026-07-14T12:00:00Z",
+        updated_at: "2026-07-14T12:00:00Z",
+        done: done,
+        status: done ? "done" : "open",
+        contact: nil,
+        attachment_count: nil
+    )
+}
+
+#Preview("Tasks tab") {
+    TasksTab(
+        graph: AppGraph(),
+        companyId: "preview-co",
+        me: Me(
+            user_id: "u1",
+            display_name: "Sam Carpenter",
+            memberships: [
+                Membership(
+                    company_id: "preview-co",
+                    name: "Carpenter Roofing",
+                    role: MemberRole.owner,
+                    subscription_status: SubscriptionStatus.active
+                ),
+            ],
+            company: nil
+        )
+    )
+}
+
+#Preview("Task rows") {
+    List {
+        TaskListRow(
+            task: previewTask(
+                id: "t1",
+                title: "Send the quote for the deck repair",
+                done: false,
+                dueAt: "2099-07-20T15:00:00Z"
+            ),
+            onToggleDone: { _ in }
+        )
+        TaskListRow(
+            task: previewTask(
+                id: "t2",
+                title: "Order shingles for the Hendersons",
+                done: false,
+                dueAt: "2020-07-01T15:00:00Z" // past due → the amber Overdue line
+            ),
+            onToggleDone: { _ in }
+        )
+        TaskListRow(
+            task: previewTask(id: "t3", title: "Invoice the Hendersons", done: true),
+            onToggleDone: { _ in }
+        )
+    }
+    .listStyle(.plain)
+}

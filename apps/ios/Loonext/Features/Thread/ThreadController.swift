@@ -27,6 +27,9 @@ final class ThreadController {
 
     private let meApi: MeApi
     private let uploader: NoteFileUploader
+    /// The contact-field writes reuse the contacts feature's tested mutation
+    /// (explicit-null clears) rather than growing a duplicate here.
+    private let contacts: ContactMutations
     private let companyId: String
     private let meUserId: String
 
@@ -54,6 +57,14 @@ final class ThreadController {
     /// Per-note generic file attachments, fetched lazily per bubble.
     private(set) var noteFiles: [String: LoadState<[Attachment]>] = [:]
 
+    // MARK: Contact-panel state — loaded lazily when the sheet opens.
+
+    /// Prior conversations with this contact (current thread excluded).
+    private(set) var otherConversations: LoadState<[ConversationListItem]>?
+
+    /// The conversation's task checklist (T5.2).
+    private(set) var conversationTasks: LoadState<[TaskItem]>?
+
     @ObservationIgnored private var eventsCursor: String?
     @ObservationIgnored private var eventsExhausted = false
     @ObservationIgnored private var started = false
@@ -65,6 +76,7 @@ final class ThreadController {
         repo: MessagingRepository,
         meApi: MeApi,
         uploader: NoteFileUploader,
+        contacts: ContactMutations,
         companyId: String,
         conversationId: String,
         meUserId: String
@@ -72,6 +84,7 @@ final class ThreadController {
         self.repo = repo
         self.meApi = meApi
         self.uploader = uploader
+        self.contacts = contacts
         self.companyId = companyId
         self.conversationId = conversationId
         self.meUserId = meUserId
@@ -679,6 +692,135 @@ final class ThreadController {
         }
     }
 
+    // MARK: - Tags
+
+    /// Attach by plan (an existing tag or create-on-attach by name), then
+    /// refetch the detail — the tags row renders from server rows, never from
+    /// an optimistic guess (the server may have matched an existing tag
+    /// case-insensitively).
+    func attachTag(_ plan: TagAttachPlan) {
+        Task {
+            do {
+                switch plan {
+                case .existing(let tag):
+                    _ = try await repo.attachTag(
+                        companyId: companyId,
+                        conversationId: conversationId,
+                        tagId: tag.id
+                    )
+                case .createNew(let name):
+                    _ = try await repo.attachTagByName(
+                        companyId: companyId,
+                        conversationId: conversationId,
+                        name: name
+                    )
+                }
+                try? await refreshConversationDetail()
+                try? await refreshEvents()
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    func detachTag(_ tag: Tag) {
+        // Optimistic remove — a chip that lingers after the tap feels broken.
+        let before = conversation
+        conversation = before?.replacingTags((before?.tags ?? []).filter { $0.id != tag.id })
+        Task {
+            do {
+                try await repo.detachTag(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    tagId: tag.id
+                )
+                try? await refreshEvents()
+            } catch {
+                if (error as? ApiError)?.code == ApiErrorCode.notFound {
+                    // Already detached elsewhere — the optimistic state is right.
+                    try? await refreshConversationDetail()
+                } else {
+                    conversation = before
+                    notify(error.userMessage)
+                }
+            }
+        }
+    }
+
+    // MARK: - Contact panel
+
+    /// Load the sheet's secondary lists; refreshes on every open.
+    func loadContactPanel() {
+        if let phone = conversation?.contact.phone_e164 {
+            otherConversations = .loading
+            Task {
+                do {
+                    let rows = try await repo.conversationsForPhone(
+                        companyId: companyId,
+                        phoneE164: phone
+                    ).data.filter { $0.id != conversationId }
+                    otherConversations = .ready(rows)
+                } catch {
+                    otherConversations = .failed(error.userMessage)
+                }
+            }
+        }
+        conversationTasks = .loading
+        Task {
+            do {
+                conversationTasks = .ready(
+                    try await repo.conversationTasks(
+                        companyId: companyId,
+                        conversationId: conversationId
+                    ).data
+                )
+            } catch {
+                conversationTasks = .failed(error.userMessage)
+            }
+        }
+    }
+
+    /// One contact field write for the sheet's auto-save (the G6 800ms clock
+    /// lives in the field view). Refreshes the header/consent line on success;
+    /// throws so the field shows its calm failure sentence.
+    func saveContactField(_ field: String, _ value: String?) async throws {
+        guard let contactId = conversation?.contact_id else { return }
+        contact = try await contacts.updateField(
+            companyId: companyId,
+            contactId: contactId,
+            field: field,
+            value: value
+        )
+        try? await refreshConversationDetail()
+    }
+
+    /// Checklist toggle — completion is ALWAYS the source message's done bit
+    /// (PATCH /v1/messages/:id), never a task route. Optimistic with rollback.
+    func toggleTaskDone(_ task: TaskItem) {
+        guard case .ready(let rows)? = conversationTasks else { return }
+        let turningOn = !task.done
+        func swap(_ rows: [TaskItem], _ value: Bool) -> [TaskItem] {
+            rows.map { $0.id == task.id ? $0.replacingDone(value) : $0 }
+        }
+        conversationTasks = .ready(swap(rows, turningOn))
+        Task {
+            do {
+                _ = try await repo.setDone(
+                    companyId: companyId,
+                    messageId: task.message_id,
+                    done: turningOn
+                )
+                try? await refreshMessagesFirstPage()
+                try? await refreshEvents()
+            } catch {
+                if case .ready(let current)? = conversationTasks {
+                    conversationTasks = .ready(swap(current, task.done))
+                }
+                notify(error.userMessage)
+            }
+        }
+    }
+
     // MARK: - Note files + pinned jump
 
     func loadNoteFiles(_ noteId: String) {
@@ -723,6 +865,29 @@ final class ThreadController {
 // MARK: - Wire-model copy helpers (models are lets; rebuild via memberwise init)
 
 extension ConversationDetail {
+    /// The optimistic tag-detach local copy.
+    func replacingTags(_ tags: [Tag]) -> ConversationDetail {
+        ConversationDetail(
+            id: id,
+            company_id: company_id,
+            contact_id: contact_id,
+            phone_number_id: phone_number_id,
+            status: status,
+            is_spam: is_spam,
+            assigned_user_id: assigned_user_id,
+            pinned_at: pinned_at,
+            pinned_by_user_id: pinned_by_user_id,
+            last_message_at: last_message_at,
+            closed_at: closed_at,
+            created_at: created_at,
+            updated_at: updated_at,
+            contact: contact,
+            tags: tags,
+            messages: messages,
+            viewer_level: viewer_level
+        )
+    }
+
     /// Apply a PATCH response row onto the detail (the fields the row owns).
     func applying(_ row: Conversation) -> ConversationDetail {
         ConversationDetail(
@@ -774,7 +939,33 @@ extension Message {
             task: task
         )
     }
+}
 
+extension TaskItem {
+    /// The contact-panel checklist's optimistic done toggle (`done`/`status`
+    /// are DERIVED from the source message server-side; this is the local echo).
+    func replacingDone(_ done: Bool) -> TaskItem {
+        TaskItem(
+            id: id,
+            company_id: company_id,
+            message_id: message_id,
+            conversation_id: conversation_id,
+            title: title,
+            description: description,
+            assigned_user_id: assigned_user_id,
+            due_at: due_at,
+            created_by_user_id: created_by_user_id,
+            created_at: created_at,
+            updated_at: updated_at,
+            done: done,
+            status: done ? "done" : "open",
+            contact: contact,
+            attachment_count: attachment_count
+        )
+    }
+}
+
+extension Message {
     /// The "Make a task" local echo (has_task + the link chip).
     func replacingPromotedTask(_ link: MessageTaskLink) -> Message {
         Message(

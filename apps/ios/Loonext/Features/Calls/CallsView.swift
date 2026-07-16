@@ -462,3 +462,109 @@ private struct VoicemailPlayerRow: View {
         }
     }
 }
+
+// MARK: - Previews (inline mock data — nothing fetches until a row is tapped)
+
+private func previewCall(
+    id: String,
+    outcome: String?,
+    direction: String = "inbound",
+    contactName: String? = nil,
+    callerName: String? = nil,
+    callerE164: String? = nil,
+    forwardSeconds: Int = 0,
+    screening: String? = nil,
+    voicemailSeconds: Int? = nil,
+    startedAt: String = "2026-07-16T09:05:00Z"
+) -> Call {
+    Call(
+        id: id,
+        call_session_id: "sess-\(id)",
+        caller_e164: callerE164,
+        contact_id: nil,
+        contact_name: contactName,
+        caller_name: callerName,
+        phone_number_id: nil,
+        conversation_id: "conv-\(id)",
+        outcome: outcome,
+        direction: direction,
+        forward_seconds: forwardSeconds,
+        screening_result: screening,
+        stir_attestation: nil,
+        voicemail_seconds: voicemailSeconds,
+        answered_by_user_id: nil,
+        started_at: startedAt
+    )
+}
+
+#Preview("Call log rows") {
+    let service = CallsService(api: AppGraph().api)
+    List {
+        CallRow(
+            call: previewCall(
+                id: "c1",
+                outcome: CallOutcome.missed,
+                contactName: "Dana Whitcomb"
+            ),
+            service: service,
+            companyId: "company-1",
+            onOpen: nil
+        )
+        CallRow(
+            call: previewCall(
+                id: "c2",
+                outcome: CallOutcome.answered,
+                callerName: "ARI B",
+                callerE164: "+14155550188",
+                forwardSeconds: 272
+            ),
+            service: service,
+            companyId: "company-1",
+            onOpen: nil
+        )
+        CallRow(
+            call: previewCall(
+                id: "c3",
+                outcome: CallOutcome.answered,
+                direction: "outbound",
+                contactName: "Marta Reyes",
+                forwardSeconds: 58
+            ),
+            service: service,
+            companyId: "company-1",
+            onOpen: nil
+        )
+        CallRow(
+            call: previewCall(
+                id: "c4",
+                outcome: CallOutcome.voicemail,
+                callerE164: "+14155550134",
+                voicemailSeconds: 42
+            ),
+            service: service,
+            companyId: "company-1",
+            onOpen: nil
+        )
+        CallRow(
+            call: previewCall(
+                id: "c5",
+                outcome: CallOutcome.missed,
+                callerE164: "+18005550100",
+                screening: "spam_likely"
+            ),
+            service: service,
+            companyId: "company-1",
+            onOpen: nil
+        )
+    }
+    .listStyle(.plain)
+}
+
+#Preview("Status pill states") {
+    VStack(spacing: 12) {
+        SoftphoneStatusPill(status: .ready, onRetry: {})
+        SoftphoneStatusPill(status: .connecting, onRetry: {})
+        SoftphoneStatusPill(status: .disconnected, onRetry: {})
+    }
+    .padding()
+}

@@ -135,6 +135,10 @@ struct CompanyView: Codable, Sendable {
     let registration_fee_paid_at: String?
     let canceled_at: String?
     @Default<DefaultFalse> var cancel_at_period_end: Bool
+    /// #163 store-rules kill-switch: false = hide in-app billing WRITES (plan
+    /// change, module toggles) and route them to the external-browser Stripe
+    /// surfaces. Defaults TRUE so a lagging server never strips affordances.
+    @Default<DefaultTrue> var billing_writes_enabled: Bool
     /// weekday (mon..sun) -> window; missing/null weekday = closed all day.
     @Default<DefaultEmptyBusinessHours> var business_hours: [String: DayHours?]
     @Default<DefaultFalse> var away_enabled: Bool

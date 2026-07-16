@@ -1,10 +1,41 @@
 import SwiftUI
 
+/// Which cards a drop on a board column actually toggles — pure so the
+/// decision is unit-testable (TasksBoardLogicTests) without a drag session:
+///  - a dropped id moves only when it resolves to a card in the OPPOSITE
+///    column (dropping a card back on its own column is a no-op),
+///  - foreign payloads (arbitrary text dragged from another app on iPad)
+///    resolve to no task and are ignored,
+///  - duplicate ids in one drop toggle once, source order preserved.
+/// The caller runs the SAME derived-done `PATCH /v1/messages/{message_id}`
+/// the move arrow runs for every returned task — never a task write.
+func boardDropToggles(
+    droppedIds: [String],
+    targetDone: Bool,
+    todo: [TaskItem],
+    done: [TaskItem]
+) -> [TaskItem] {
+    let source = targetDone ? todo : done
+    let alreadyThere = Set((targetDone ? done : todo).map(\.id))
+    var seen = Set<String>()
+    var toggles: [TaskItem] = []
+    for id in droppedIds {
+        guard seen.insert(id).inserted, !alreadyThere.contains(id) else { continue }
+        if let task = source.first(where: { $0.id == id }) {
+            toggles.append(task)
+        }
+    }
+    return toggles
+}
+
 /// Board view: two horizontally-paged columns, "To do" (status=open) and
 /// "Done" (status=done), each with its own cursor pagination. Moving a card
-/// between columns is a deliberate tap on the card's move affordance (no
-/// fragile drag on touch) — the write is the same derived-done
-/// `PATCH /v1/messages/{message_id}` the list rows use.
+/// between columns works two ways, both running the same derived-done
+/// `PATCH /v1/messages/{message_id}` the list rows use:
+///  - drag the card onto the other column (hold the card, swipe the page
+///    with a second finger, drop), or
+///  - tap the card's move arrow — kept because a drag is invisible to
+///    VoiceOver and hard with limited dexterity.
 @MainActor
 struct TaskBoardView: View {
     let graph: AppGraph
@@ -48,26 +79,30 @@ struct TaskBoardView: View {
                 CenteredError(message: message) { localRefresh += 1 }
             case .ready:
                 TabView(selection: $page) {
-                    column(
+                    BoardColumn(
                         title: "To do",
                         tasks: todo,
                         emptyCopy: "Nothing to do here.",
                         hasMore: todoHasMore,
                         moveLabel: "Move to Done",
                         moveIcon: "arrow.right.circle",
+                        onOpenTask: onOpenTask,
                         onLoadMore: { loadMore(doneColumn: false) },
-                        onMove: { onToggleDone($0, true) }
+                        onMove: { onToggleDone($0, true) },
+                        onDropIds: { performDrop($0, targetDone: false) }
                     )
                     .tag(0)
-                    column(
+                    BoardColumn(
                         title: "Done",
                         tasks: done,
                         emptyCopy: "Nothing marked done yet.",
                         hasMore: doneHasMore,
                         moveLabel: "Move to To do",
                         moveIcon: "arrow.uturn.backward.circle",
+                        onOpenTask: onOpenTask,
                         onLoadMore: { loadMore(doneColumn: true) },
-                        onMove: { onToggleDone($0, false) }
+                        onMove: { onToggleDone($0, false) },
+                        onDropIds: { performDrop($0, targetDone: true) }
                     )
                     .tag(1)
                 }
@@ -78,51 +113,16 @@ struct TaskBoardView: View {
         .task(id: reloadToken) { await reload() }
     }
 
-    private func column(
-        title: String,
-        tasks: [TaskItem],
-        emptyCopy: String,
-        hasMore: Bool,
-        moveLabel: String,
-        moveIcon: String,
-        onLoadMore: @escaping @MainActor () -> Void,
-        onMove: @escaping @MainActor (TaskItem) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\(title) · \(tasks.count)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            if tasks.isEmpty {
-                Text(emptyCopy)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                Spacer()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(tasks, id: \.id) { task in
-                            BoardCard(
-                                task: task,
-                                moveLabel: moveLabel,
-                                moveIcon: moveIcon,
-                                onOpen: { onOpenTask(task.id) },
-                                onMove: { onMove(task) }
-                            )
-                        }
-                        if hasMore {
-                            Button("Load more", action: onLoadMore)
-                                .font(.subheadline)
-                                .padding(.vertical, 4)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 32)
-                }
-            }
+    /// Cards dropped on a column: resolve which tasks actually move (pure,
+    /// tested), then run the SAME derived-done mutation the move arrow runs.
+    private func performDrop(_ ids: [String], targetDone: Bool) -> Bool {
+        let toggles = boardDropToggles(
+            droppedIds: ids, targetDone: targetDone, todo: todo, done: done
+        )
+        for task in toggles {
+            onToggleDone(task, targetDone)
         }
+        return !toggles.isEmpty
     }
 
     /// Both columns rebuild on any filter change (a cursor never crosses
@@ -194,6 +194,71 @@ struct TaskBoardView: View {
     }
 }
 
+/// One board column — also the drop destination for cards dragged from the
+/// other column (a drop is the same derived-done PATCH as the move arrow).
+private struct BoardColumn: View {
+    let title: String
+    let tasks: [TaskItem]
+    let emptyCopy: String
+    let hasMore: Bool
+    let moveLabel: String
+    let moveIcon: String
+    let onOpenTask: @MainActor (String) -> Void
+    let onLoadMore: @MainActor () -> Void
+    let onMove: @MainActor (TaskItem) -> Void
+    /// Card ids dropped on this column; returns whether any card moved.
+    let onDropIds: @MainActor ([String]) -> Bool
+
+    @State private var dropTargeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(title) · \(tasks.count)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            if tasks.isEmpty {
+                Text(emptyCopy)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(tasks, id: \.id) { task in
+                            BoardCard(
+                                task: task,
+                                moveLabel: moveLabel,
+                                moveIcon: moveIcon,
+                                onOpen: { onOpenTask(task.id) },
+                                onMove: { onMove(task) }
+                            )
+                        }
+                        if hasMore {
+                            Button("Load more", action: onLoadMore)
+                                .font(.subheadline)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 32)
+                }
+            }
+        }
+        // The whole column (empty space included) accepts a dragged card, so
+        // dropping into an empty column works.
+        .contentShape(Rectangle())
+        .background(dropTargeted ? Color(.secondarySystemFill).opacity(0.6) : Color.clear)
+        .dropDestination(for: String.self) { ids, _ in
+            onDropIds(ids)
+        } isTargeted: { targeted in
+            dropTargeted = targeted
+        }
+    }
+}
+
 private struct BoardCard: View {
     let task: TaskItem
     let moveLabel: String
@@ -237,6 +302,10 @@ private struct BoardCard: View {
                 .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
         )
         .contentShape(Rectangle())
+        // The card IS the drag payload (its task id) — dropping it on the
+        // other column runs the same derived-done PATCH as the arrow, which
+        // stays for accessibility (a drag is invisible to VoiceOver).
+        .draggable(task.id)
         .onTapGesture(perform: onOpen)
     }
 
@@ -244,4 +313,83 @@ private struct BoardCard: View {
         guard task.due_at != nil else { return "" }
         return overdue ? "Overdue" : "Due \(formatDue(task.due_at))"
     }
+}
+
+// MARK: - Previews
+
+private func previewTask(
+    id: String,
+    title: String,
+    done: Bool,
+    dueAt: String? = nil
+) -> TaskItem {
+    TaskItem(
+        id: id,
+        company_id: "co1",
+        message_id: "m-\(id)",
+        conversation_id: "cv1",
+        title: title,
+        description: "",
+        assigned_user_id: nil,
+        due_at: dueAt,
+        created_by_user_id: "u1",
+        created_at: "2026-07-14T12:00:00Z",
+        updated_at: "2026-07-14T12:00:00Z",
+        done: done,
+        status: done ? "done" : "open",
+        contact: nil,
+        attachment_count: nil
+    )
+}
+
+#Preview("Board cards") {
+    VStack(spacing: 8) {
+        BoardCard(
+            task: previewTask(
+                id: "t1",
+                title: "Send the quote for the deck repair",
+                done: false,
+                dueAt: "2099-07-20T15:00:00Z"
+            ),
+            moveLabel: "Move to Done",
+            moveIcon: "arrow.right.circle",
+            onOpen: {},
+            onMove: {}
+        )
+        BoardCard(
+            task: previewTask(
+                id: "t2",
+                title: "Order shingles for the Hendersons",
+                done: false,
+                dueAt: "2020-07-01T15:00:00Z" // past due → the amber Overdue line
+            ),
+            moveLabel: "Move to Done",
+            moveIcon: "arrow.right.circle",
+            onOpen: {},
+            onMove: {}
+        )
+        BoardCard(
+            task: previewTask(id: "t3", title: "Invoice the Hendersons", done: true),
+            moveLabel: "Move to To do",
+            moveIcon: "arrow.uturn.backward.circle",
+            onOpen: {},
+            onMove: {}
+        )
+    }
+    .padding(16)
+}
+
+#Preview("Board") {
+    TaskBoardView(
+        graph: AppGraph(),
+        companyId: "preview-co",
+        tab: .mine,
+        assigneeChip: nil,
+        unassignedChip: false,
+        dueChip: nil,
+        q: "",
+        refreshKey: 0,
+        onOpenTask: { _ in },
+        onToggleDone: { _, _ in }
+    )
 }

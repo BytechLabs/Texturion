@@ -27,6 +27,25 @@ targets:
       # keeps the whole stack a no-op (mirrors Android's PushRegistrar).
       - package: Firebase
         product: FirebaseMessaging
+      - package: Firebase
+        product: FirebaseCore
+    entitlements:
+      path: Loonext/Loonext.entitlements
+      properties:
+        # Universal links: https://app.loonext.com/inbox/{id} + /calls open in
+        # the app instead of Safari (the Android app-links twin). Needs the
+        # apple-app-site-association file served by the web app.
+        com.apple.developer.associated-domains:
+          - applinks:app.loonext.com
+        # APNs delivery for the #151 alert pushes; archive export rewrites
+        # this to production.
+        aps-environment: development
+    entitlements:
+      path: Loonext/Loonext.entitlements
+      properties:
+        # Required for APNs registration (push stays a guarded no-op without
+        # GoogleService-Info.plist). Xcode flips to production at distribution.
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios

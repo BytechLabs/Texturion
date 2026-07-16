@@ -96,3 +96,40 @@ struct MemberPickerSheet: View {
         .onTapGesture(perform: onTap)
     }
 }
+
+// MARK: - Previews
+
+#Preview("Member picker") {
+    MemberPickerSheet(
+        members: [
+            Member(
+                id: "mb1",
+                user_id: "u1",
+                role: MemberRole.owner,
+                deactivated_at: nil,
+                created_at: "2026-06-01T12:00:00Z",
+                display_name: "Sam Carpenter"
+            ),
+            Member(
+                id: "mb2",
+                user_id: "u2",
+                role: MemberRole.member,
+                deactivated_at: nil,
+                created_at: "2026-06-02T12:00:00Z",
+                display_name: "Alex Mason"
+            ),
+            Member(
+                id: "mb3",
+                user_id: "u3",
+                role: MemberRole.member,
+                deactivated_at: "2026-07-01T12:00:00Z", // filtered out (deactivated)
+                created_at: "2026-06-03T12:00:00Z",
+                display_name: "Former Teammate"
+            ),
+        ],
+        meUserId: "u1",
+        selectedUserId: "u2",
+        showUnassigned: true,
+        onPick: { _ in }
+    )
+}
