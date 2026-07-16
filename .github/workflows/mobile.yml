@@ -37,13 +37,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # compileSdk 37 — newer than the image's preinstalled set, and the
-      # image's own sdkmanager is too old to see it (run 1). This action
-      # installs current cmdline-tools first, then the packages.
+      # compileSdk 37 — newer than the image's preinstalled set. NOTE the repo
+      # package id is the minor-versioned "android-37.0" (run 2: plain
+      # "android-37" does not exist); build-tools top out at 36.x, which AGP 9.3
+      # is happy with.
       - name: Install SDK 37
         uses: android-actions/setup-android@v3
         with:
-          packages: "platforms;android-37 build-tools;37.0.0 platform-tools"
+          packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
           log-accepted-android-sdk-licenses: false
 
       - name: Unit tests
