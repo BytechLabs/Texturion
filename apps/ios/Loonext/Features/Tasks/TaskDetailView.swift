@@ -865,7 +865,7 @@ private struct NoteCard: View {
 // MARK: - Composer
 
 /// One staged composer file (bytes read at post time, not at pick time).
-private struct StagedFile: Identifiable, Sendable {
+private struct TaskStagedFile: Identifiable, Sendable {
     let id = UUID()
     let url: URL
     let name: String
@@ -887,7 +887,7 @@ private struct NoteComposer: View {
     let onPosted: @MainActor () -> Void
 
     @State private var body_ = ""
-    @State private var staged: [StagedFile] = []
+    @State private var staged: [TaskStagedFile] = []
     @State private var posting = false
     @State private var error: String?
     @State private var pickerOpen = false
@@ -966,7 +966,7 @@ private struct NoteComposer: View {
     private func stage(_ urls: [URL]) {
         let room = noteFilesMax - staged.count
         var oversize = false
-        var next: [StagedFile] = []
+        var next: [TaskStagedFile] = []
         for url in urls.prefix(room) {
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
@@ -977,7 +977,7 @@ private struct NoteComposer: View {
                 continue
             }
             next.append(
-                StagedFile(
+                TaskStagedFile(
                     url: url,
                     name: url.lastPathComponent,
                     size: size,
