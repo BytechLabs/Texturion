@@ -1739,8 +1739,11 @@ auth, everything. Standing decisions:
 - **Calls native = same plumbing as web.** `POST /v1/webrtc/token` mints the
   same Telnyx credential login token for the native SDKs (Android 3.5.0 via
   JitPack, iOS 4.1.0 via SPM); `client_state` must hit the wire VERBATIM —
-  both native SDKs base64 what they're given, so the adaptation lives at the
-  SDK boundary (verified from Android SDK bytecode; unit-tested round-trip).
+  the adaptation lives at the SDK boundary and DIFFERS per platform: the
+  ANDROID SDK base64-encodes what it's given (verified from bytecode — pass
+  the decoded tag), while the iOS SDK passes clientState through unchanged
+  (traced TxClient→InviteMessage on 4.x — identity adapter). Both round-trips
+  unit-tested.
 - **Parallel-agent dev discipline.** The epic was built by exclusive-file-
   partition agents (one dir tree per agent, shared files integrator-only,
   compile serialized through one Gradle daemon) — the same rule as parallel

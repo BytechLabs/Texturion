@@ -77,6 +77,25 @@ final class TaskFiltersTests: XCTestCase {
         )
     }
 
+    func testCustomLimitRidesTheQueryUnchanged() {
+        let params = taskQueryParams(
+            TaskListFilters(status: TaskStatusFilter.open),
+            cursor: "opaque-token",
+            limit: 100
+        ).compactMapValues { $0 }
+        XCTAssertEqual(params["cursor"], "opaque-token")
+        XCTAssertEqual(params["limit"], "100")
+    }
+
+    func testConversationScopeSerializesAndSuppressesTheSentinel() {
+        // A conversation pin is itself an explicit param — the "all" sugar
+        // must not inject status=open on top of it.
+        XCTAssertEqual(
+            sent(TaskListFilters(assignedUserId: assigneeAll, conversationId: "conv-1")),
+            ["conversation_id": "conv-1", "limit": "25"]
+        )
+    }
+
     // MARK: orderingKey
 
     func testOrderingKeyGuardsTheDualCursor() {

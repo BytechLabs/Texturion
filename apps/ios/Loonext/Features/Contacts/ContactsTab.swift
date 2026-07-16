@@ -174,6 +174,14 @@ struct ContactsTab: View {
                 resolvedMe = try? await graph.meApi.me()
             }
         }
+        .task(id: notice) {
+            // The notice line is a transient snackbar equivalent — it clears
+            // itself; a new notice restarts the clock.
+            guard notice != nil else { return }
+            try? await Task.sleep(for: .seconds(5))
+            if Task.isCancelled { return }
+            notice = nil
+        }
         .onChange(of: openContact) { previous, next in
             // Edits/opt-outs/deletes made in the detail show on return.
             if previous != nil && next == nil {

@@ -1,20 +1,26 @@
 import Foundation
 
-/// NANP destination helpers — a Swift port of the essentials of
-/// packages/shared/src/nanp.ts (via the Android Nanp.kt twin; compiled from
-/// NANPA's NPA report, file date 07/01/2026).
+/// Compose-side NANP metadata — the country + primary-timezone table the
+/// new-conversation flow needs on top of the strict destination check that
+/// Features/Contacts/Nanp.swift already provides (`areaCodes` key set,
+/// `lookupAreaCode`, `isUsCaDestination`, `normalize`, `formatAsYouType`).
 ///
-/// The table keeps exactly what mobile needs per area code: the country and
-/// the primary IANA timezone (empty for non-geographic codes). Absence from
-/// the table IS the US/CA destination check — Caribbean NANP codes, NANP-wide
-/// service codes (toll-free, premium), and unassigned codes are deliberately
-/// missing, mirroring the server's SMS-pumping gate (SPEC §10).
+/// On Android these live in two separate packages
+/// (features.contacts.Nanp / features.compose.Nanp); in Swift's single app
+/// module that would be an invalid redeclaration, so compose EXTENDS the one
+/// `Nanp` namespace with the metadata-bearing helpers only. Compiled from
+/// packages/shared/src/nanp.ts (NANPA's NPA report, file date 07/01/2026).
+///
+/// The table keeps exactly what compose needs per area code: the country and
+/// the primary IANA timezone (empty for non-geographic codes). Its key set is
+/// identical to `Nanp.areaCodes` — absence from the table IS the US/CA
+/// destination check, mirroring the server's SMS-pumping gate (SPEC §10).
 struct NanpEntry: Equatable, Sendable {
     let country: String
     let timezone: String?
 }
 
-enum Nanp {
+extension Nanp {
     /// `code,country,timezone-or-empty` rows — generated from nanp.ts.
     /// Newlines are cosmetic; the parser splits on `;` and trims.
     private static let table = """
@@ -132,7 +138,8 @@ enum Nanp {
 986,US,America/Boise;989,US,America/Detroit
 """
 
-    static let areaCodes: [String: NanpEntry] = {
+    /// code → (country, primary timezone). Key set == `Nanp.areaCodes`.
+    static let areaCodeMetadata: [String: NanpEntry] = {
         var map: [String: NanpEntry] = [:]
         for row in table.split(separator: ";") {
             let parts = row.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -144,31 +151,23 @@ enum Nanp {
         return map
     }()
 
-    /// Strict E.164 US/CA shape: `+1NXXNXXXXXX` (N = 2-9), no tolerance.
-    static func lookupAreaCode(_ e164: String) -> NanpEntry? {
-        guard e164.count == 12, e164.hasPrefix("+1") else { return nil }
-        let digits = Array(e164.dropFirst(2))
-        guard digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
-        guard let npaFirst = digits[0].wholeNumberValue, (2 ... 9).contains(npaFirst) else { return nil }
-        guard let nxxFirst = digits[3].wholeNumberValue, (2 ... 9).contains(nxxFirst) else { return nil }
-        return areaCodes[String(digits[0 ... 2])]
-    }
-
-    /// True only for a strictly-parsed +1 number whose NPA is US/CA-assigned.
-    static func isUsCaDestination(_ e164: String) -> Bool {
-        lookupAreaCode(e164) != nil
+    /// Metadata for a strictly-parsed +1 E.164 number — routes through the
+    /// contacts-side `lookupAreaCode` so the two features can never disagree
+    /// on what parses.
+    private static func metadata(for e164: String) -> NanpEntry? {
+        lookupAreaCode(e164).flatMap { areaCodeMetadata[$0] }
     }
 
     /// "US" | "CA" | nil — drives the registration-pending banner.
     static func destinationCountry(_ e164: String) -> String? {
-        lookupAreaCode(e164)?.country
+        metadata(for: e164)?.country
     }
 
     /// Local wall-clock time (hour/minute) at the destination's primary
     /// timezone, or nil for non-geographic/unknown codes — "unknown local
     /// time" shows no hint.
     static func destinationLocalTime(_ e164: String, at date: Date = Date()) -> DateComponents? {
-        guard let zoneId = lookupAreaCode(e164)?.timezone,
+        guard let zoneId = metadata(for: e164)?.timezone,
               let zone = TimeZone(identifier: zoneId)
         else { return nil }
         var calendar = Calendar(identifier: .gregorian)
@@ -178,7 +177,7 @@ enum Nanp {
 
     /// "5:04 PM" at the destination, or nil when there is no zone to know.
     static func destinationLocalTimeLabel(_ e164: String, at date: Date = Date()) -> String? {
-        guard let zoneId = lookupAreaCode(e164)?.timezone,
+        guard let zoneId = metadata(for: e164)?.timezone,
               let zone = TimeZone(identifier: zoneId)
         else { return nil }
         let formatter = DateFormatter()
@@ -194,16 +193,6 @@ enum Nanp {
         let digits = input.filter { $0.isASCII && $0.isNumber }
         let national = digits.hasPrefix("1") ? String(digits.dropFirst()) : digits
         return String(national.prefix(10))
-    }
-
-    /// '(415) 555-0134' progressive as-you-type formatting of national digits.
-    static func formatAsYouType(_ digits: String) -> String {
-        if digits.isEmpty { return "" }
-        if digits.count <= 3 { return "(\(digits)" }
-        if digits.count <= 6 {
-            return "(\(digits.prefix(3))) \(digits.dropFirst(3))"
-        }
-        return "(\(digits.prefix(3))) \(digits.dropFirst(3).prefix(3))-\(digits.dropFirst(6))"
     }
 
     /// `+1XXXXXXXXXX` for a complete 10-digit national number, else nil.

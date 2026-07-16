@@ -2,8 +2,9 @@ import Foundation
 
 /// All /v1 settings/billing/numbers endpoints (#163). Request shapes verified
 /// against apps/api/src/routes/{companies,team,numbers,available-numbers,
-/// billing,usage,porting,text-enablement,registration,notifications}.ts and
-/// the Android twin's SettingsRepository.kt.
+/// billing,usage,porting,text-enablement,registration}.ts and the Android
+/// twin's SettingsRepository.kt. (Notification prefs live with #162's
+/// NotificationsFeedApi — the settings screen hosts that card.)
 ///
 /// Company PATCH bodies are hand-built `JSONValue` objects so an explicit
 /// `null` (clear this message) survives serialization — `JSONValue.null`
@@ -322,27 +323,6 @@ struct SettingsRepository: Sendable {
         try await api.post(
             "/v1/billing/checkout",
             body: JSONValue.object(["plan": .string(plan)]),
-            companyId: companyId
-        )
-    }
-
-    // MARK: - Notification prefs (per-user)
-
-    func notificationPrefs(_ companyId: String) async throws -> NotificationPrefs {
-        try await api.get("/v1/notification-prefs", companyId: companyId)
-    }
-
-    func updateNotificationPrefs(
-        _ companyId: String,
-        emailEnabled: Bool,
-        pushEnabled: Bool
-    ) async throws -> NotificationPrefs {
-        try await api.put(
-            "/v1/notification-prefs",
-            body: JSONValue.object([
-                "email_enabled": .bool(emailEnabled),
-                "push_enabled": .bool(pushEnabled),
-            ]),
             companyId: companyId
         )
     }

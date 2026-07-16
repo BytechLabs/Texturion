@@ -91,6 +91,19 @@ final class TasksFormatTests: XCTestCase {
         XCTAssertEqual(dueSentenceTime("garbage", now: now, calendar: utc), "")
     }
 
+    // MARK: formatDue zone behavior
+
+    func testDueDayIsJudgedInTheViewersZoneNotUtc() throws {
+        // 03:00Z on Jul 16 is still 23:00 on Jul 15 in Toronto — Today.
+        var torontoCalendar = Calendar(identifier: .gregorian)
+        torontoCalendar.timeZone = toronto
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-15T16:00:00Z"))
+        XCTAssertEqual(
+            formatDue("2026-07-16T03:00:00Z", now: now, calendar: torontoCalendar),
+            "Today"
+        )
+    }
+
     // MARK: taskEventSentence
 
     private func event(_ type: String, payload: JSONValue? = nil) -> TaskActivityItem {

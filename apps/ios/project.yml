@@ -37,14 +37,9 @@ targets:
         # apple-app-site-association file served by the web app.
         com.apple.developer.associated-domains:
           - applinks:app.loonext.com
-        # APNs delivery for the #151 alert pushes; archive export rewrites
-        # this to production.
-        aps-environment: development
-    entitlements:
-      path: Loonext/Loonext.entitlements
-      properties:
-        # Required for APNs registration (push stays a guarded no-op without
-        # GoogleService-Info.plist). Xcode flips to production at distribution.
+        # APNs delivery for the #151 alert pushes (push stays a guarded no-op
+        # without GoogleService-Info.plist); archive export rewrites this to
+        # production.
         aps-environment: development
     settings:
       base:
