@@ -5,7 +5,7 @@
  * estimator's phone.", the homeowner-change-request script (filed against
  * the job, assigned, confirmed in writing, with the request carrying the
  * app's D14 done state once written up), the v2 use cases (decisions in
- * writing, sub coordination on one number, photo documentation), and the
+ * writing, sub coordination on the business number, photo documentation), and the
  * "texting, not project management" Truth Strip pointing at the compare
  * pages. DECISIONS D14: the message itself is the task; there is NO jobs
  * feature and this page never implies one. Fully static; own metadata +
@@ -27,7 +27,7 @@ const PATH = "/for/contractors";
 export const metadata: Metadata = buildMetadata({
   title: "Texting app for contractors and builders",
   description:
-    "A shared text inbox for contractors: change orders priced and approved in writing, subs coordinated on one number, off your personal cell. Flat $29/mo.",
+    "A shared text inbox for contractors: change orders priced and approved in writing, subs coordinated on your business number, off your personal cell. Flat $29/mo.",
   path: PATH,
 });
 
@@ -38,7 +38,7 @@ const CONTENT: TradeContent = {
   dateline: "8:02 AM · CHANGE ORDER",
   h1: "The text inbox for contracting crews.",
   heroSub:
-    "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC, and the subs one business number and the crew one shared inbox, so every decision is on the record. $29 a month.",
+    "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC, and the subs a business number to text and the crew one shared inbox, so every decision is on the record. $29 a month.",
   heroTruth:
     "Job texts off your personal cell · Live in minutes · Month to month",
 
@@ -62,7 +62,7 @@ const CONTENT: TradeContent = {
       body: "“Walnut butcher block adds $840. Reply approved and I'll write it up.” The request, the price, and the yes all sit in the thread with names and times. When you invoice the change, the conversation is the record behind it.",
     },
     {
-      title: "Sub coordination on one number.",
+      title: "Sub coordination on the business number.",
       body: "The electrician's question gets assigned to whoever owns that trade, answered in the thread, and marked done. Nothing waits on you personally, and nothing gets answered twice.",
     },
     {

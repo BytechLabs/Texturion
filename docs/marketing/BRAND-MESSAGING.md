@@ -12,7 +12,7 @@ changes, update here and the source it came from.
 
 ## Tagline
 
-**Primary:** One number. One inbox. Your whole crew.
+**Primary:** Your number. One inbox. The whole crew.
 
 Alternates (same idea, different angle):
 
@@ -34,7 +34,7 @@ Trade-specific variants:
 
 ## Short intro (2 to 3 sentences)
 
-Loonext gives your small service business one local phone number and one shared
+Loonext gives your small service business a local phone number and a shared
 text inbox that your whole crew works from any phone. Every customer text
 becomes a conversation anyone can see, reply to, assign, and close, so the next
 9 PM message gets answered by whoever is free instead of dying on one person's
@@ -82,7 +82,7 @@ companies approve your business, usually within about a week, and Loonext tells
 you the honest timeline before you pay.
 
 It works on every phone with nothing to download: add it to your home screen,
-get push notifications, use it in dark mode. One number, one inbox, your whole
+get push notifications, use it in dark mode. Your number, one inbox, your whole
 crew, for one flat price.
 
 ## Long summary (about 1200 words)
@@ -105,7 +105,7 @@ employee leaves, the customer relationships can walk out with their phone.
 ### What Loonext is
 
 Loonext is a shared text inbox for small service businesses in the United States
-and Canada. You get one local business phone number, either a new one or the
+and Canada. You get a local business phone number, either a new one or the
 number you already advertise, ported in for free. Every text to that number
 lands in one inbox that your entire crew can open from any phone. It replaces
 running the business off one person's personal cell.
@@ -196,12 +196,12 @@ the fee and never waits.
 Loonext is the boring, honest, flat-priced option in a market full of per-seat
 pricing, sales calls, and hidden fees. It does not try to be a marketing suite.
 It takes the texts your customers already send and makes sure the right person on
-your crew sees them and answers them, from any phone, for one price. One number,
+your crew sees them and answers them, from any phone, for one price. Your number,
 one inbox, your whole crew.
 
 ## Feature list (scannable)
 
-- One local business number (new or ported in free)
+- A local business number (new or ported in free)
 - One shared inbox for the whole crew, on any phone
 - Per-conversation owner and status (new / open / waiting / closed)
 - Assign, reassign, tag, and note every conversation
@@ -229,9 +229,9 @@ whoever on the crew is free sees it in the shared inbox, replies to book a
 Thursday slot, and drops an internal note about the quote. *Benefit: the job is
 won that night instead of lost to the next business the customer calls.*
 
-**2. The crew that shares one number (no more personal cells).**
+**2. The crew that shares a business number (no more personal cells).**
 A three-person HVAC shop stops handing out personal numbers. Every customer texts
-one business number; the tech in the field, the person in the office, and the
+the business number; the tech in the field, the person in the office, and the
 owner all see the same thread and can pick up where anyone left off. *Benefit:
 the business stops living in one person's pocket, and customer relationships
 stay with the company when someone leaves.*
@@ -246,7 +246,7 @@ through the cracks.*
 ## Boilerplate (one paragraph, for press or partner listings)
 
 Loonext is a shared SMS inbox for small service businesses in the United States
-and Canada. It gives a business one local phone number and one shared text inbox
+and Canada. It gives a business a local phone number and a shared text inbox
 that the whole crew works from any phone, so every customer text becomes a
 conversation anyone can see, answer, assign, and close, instead of dying on one
 person's personal cell. Pricing is flat and per company rather than per seat,

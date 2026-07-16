@@ -23,7 +23,7 @@ const PATH = "/for/hvac";
 export const metadata: Metadata = buildMetadata({
   title: "Customer texting for HVAC companies",
   description:
-    "A shared text inbox for HVAC contractors: triage no-heat mornings from one number, follow up on install quotes, send maintenance reminders. Flat $29/mo.",
+    "A shared text inbox for HVAC contractors: triage no-heat mornings from one shared inbox, follow up on install quotes, send maintenance reminders. Flat $29/mo.",
   path: PATH,
 });
 
@@ -34,7 +34,7 @@ const CONTENT: TradeContent = {
   dateline: "6:48 AM · NO HEAT",
   h1: "The text inbox for HVAC crews.",
   heroSub:
-    "It's 6:48 in the morning, the house is cold, and the customer texted the only number they had. In a shared inbox, whoever's up answers, the right part rides the van, and the no-heat call is booked before the shop opens. One local number, $29 a month for the whole crew.",
+    "It's 6:48 in the morning, the house is cold, and the customer texted the only number they had. In a shared inbox, whoever's up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number, $29 a month for the whole crew.",
   heroTruth:
     "Works on the phones your techs already carry · Live in minutes · No busy-season contract",
 

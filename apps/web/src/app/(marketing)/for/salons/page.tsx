@@ -35,9 +35,9 @@ const CONTENT: TradeContent = {
   dateline: "11:20 AM · RUNNING LATE",
   h1: "The text inbox for your front desk, even if you don't have one.",
   heroSub:
-    "A running-late text only helps if somebody sees it before the chair sits empty. Loonext gives the whole floor one number, so confirmations, reschedules, and waitlist fills get handled by whoever's free, not whoever's phone it landed on. $29 a month for the whole salon.",
+    "A running-late text only helps if somebody sees it before the chair sits empty. Loonext gives the whole floor one shared inbox, so confirmations, reschedules, and waitlist fills get handled by whoever's free, not whoever's phone it landed on. $29 a month for the whole salon.",
   heroTruth:
-    "One number for the whole floor · Live in minutes · Month to month",
+    "One inbox for the whole floor · Live in minutes · Month to month",
 
   painH2:
     "The chair is empty and the “running late” text is on someone's personal phone.",
@@ -108,7 +108,7 @@ const CONTENT: TradeContent = {
   featuresH2: "Built for how a salon actually runs.",
   features: [
     {
-      title: "The whole floor, one number.",
+      title: "The whole floor, one inbox.",
       body: "The front desk and every stylist see the same conversations, so a confirmation or a waitlist fill doesn't depend on who's standing at the desk.",
     },
     {
@@ -145,7 +145,7 @@ const CONTENT: TradeContent = {
     },
     {
       q: "Every stylist has their own clients. Can they each see their own?",
-      a: "Assign each conversation to the right stylist and it has one clear owner, while the front desk still sees everything to help confirm and rebook. One number, one inbox, but never a free-for-all where two people answer the same client.",
+      a: "Assign each conversation to the right stylist and it has one clear owner, while the front desk still sees everything to help confirm and rebook. One inbox with one owner per conversation, never a free-for-all where two people answer the same client.",
     },
     {
       q: "Do confirmation texts eat up our included texting?",
@@ -164,7 +164,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Keep the chairs full.",
   finalSub:
-    "Confirm appointments, fill cancellations from the waitlist, and follow up after the big color, all from one number the whole floor shares. Live in minutes.",
+    "Confirm appointments, fill cancellations from the waitlist, and follow up after the big color, all from one inbox the whole floor shares. Live in minutes.",
 };
 
 export default function SalonsPage() {

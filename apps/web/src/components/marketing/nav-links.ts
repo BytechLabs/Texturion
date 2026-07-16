@@ -116,7 +116,7 @@ export const tradesMenu: NavMenu = {
     {
       label: "Contractors",
       href: LIVE_ROUTES.forContractors,
-      description: "Change orders and decisions, in writing, on one number.",
+      description: "Change orders and decisions, in writing, on the record.",
       icon: HardHat,
     },
   ],

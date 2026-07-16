@@ -33,7 +33,7 @@ const CONTENT: TradeContent = {
   dateline: "9:04 PM · BASEMENT DRAIN",
   h1: "The text inbox for plumbing crews.",
   heroSub:
-    "Customers text a photo of the leak. Whoever's free answers. The owner's personal cell goes back to being a personal cell. One local number, one shared inbox, $29 a month for the whole crew.",
+    "Customers text a photo of the leak. Whoever's free answers. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, $29 a month for the whole crew.",
   heroTruth:
     "Works on the phones your techs already carry · Live in minutes · Month to month",
 
@@ -105,7 +105,7 @@ const CONTENT: TradeContent = {
   featuresH2: "Built for how a plumbing crew actually works.",
   features: [
     {
-      title: "One number on the trucks.",
+      title: "Your number on the trucks.",
       body: "A local number that belongs to the business. Techs come and go; the number and every conversation stay.",
     },
     {

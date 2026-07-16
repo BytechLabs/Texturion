@@ -24,7 +24,7 @@ export function FinalCta() {
 
       <div className="relative mx-auto max-w-3xl text-center">
         <h2 className="fr-h2 text-white">
-          One number for the whole crew. No strings attached.
+          One inbox for the whole crew. No strings attached.
         </h2>
         <p className="fr-body mt-5 text-white/80">
           See the price, pay, and start texting today, with a full refund in

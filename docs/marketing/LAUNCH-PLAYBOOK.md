@@ -121,7 +121,7 @@ Launch platforms (one well-prepared shot each, maker audience, SEO value):
       (footer Law 1: no credits of any kind). Either pay the $19.99 Lite tier
       or skip. Do not add the badge.
 - [ ] **Tiny Startups** (tinystartups.com/launch): free; enforced 10-word
-      pitch: "One business number, one shared text inbox for service crews."
+      pitch: "Your business number, one shared text inbox for service crews."
 - [ ] **Peerlist Launchpad** (peerlist.io/launchpad): free; create a real
       founder profile first; launches start Mondays, week-long voting.
 - [ ] **Indie Hackers**: skip the bare product page; post a milestone/lessons
@@ -230,8 +230,8 @@ rules apply everywhere: no em-dashes, plain language, nothing invented.
 
 **Name:** Loonext
 **URL:** https://loonext.com
-**Tagline (40 chars):** One number. One inbox. Your whole crew.
-**10-word pitch:** One business number, one shared text inbox for service crews.
+**Tagline (40 chars):** Your number. One inbox. The whole crew.
+**10-word pitch:** Your business number, one shared text inbox for service crews.
 **Category:** SMS Marketing Software (the industry's synonym for business
 texting; request Small Business segment where offered)
 **Suggested topics/tags:** business texting, shared inbox, SMS, small business,
@@ -242,11 +242,11 @@ We help small service crews answer every customer text, from any phone,
 without living on one person's personal cell or paying per seat.
 
 **160-character description (meta/directory short):**
-One local number and one shared text inbox your whole crew works from any
-phone. Flat $29/mo for the team, compliance built in, US and Canada.
+A local business number and one shared text inbox your whole crew works from
+any phone. Flat $29/mo for the team, compliance built in, US and Canada.
 
 **60-word blurb (directory medium):**
-Loonext gives your small service business one local phone number and one
+Loonext gives your small service business a local phone number and one
 shared text inbox your whole crew works from any phone. Every customer text
 becomes a conversation anyone can see, reply to, assign, and close. Flat
 pricing for the whole team ($29/mo Starter), month to month, no sales call,
@@ -254,7 +254,7 @@ compliance handled, and Canadian businesses text the same day.
 
 **Boilerplate (press/partner listings):**
 Loonext is a shared SMS inbox for small service businesses in the United
-States and Canada. It gives a business one local phone number and one shared
+States and Canada. It gives a business a local phone number and a shared
 text inbox that the whole crew works from any phone, so every customer text
 becomes a conversation anyone can see, answer, assign, and close, instead of
 dying on one person's personal cell. Pricing is flat and per company rather
@@ -275,9 +275,9 @@ mode. Reuse the shots in every directory so the brand reads consistent.
 ### Product Hunt draft
 
 - **Name:** Loonext
-- **Tagline:** One number. One inbox. Your whole crew.
+- **Tagline:** Your number. One inbox. The whole crew.
 - **Description:** Loonext is a shared text inbox for small service crews
-  (plumbers, HVAC, cleaners, salons). One local business number, every
+  (plumbers, HVAC, cleaners, salons). A local business number, every
   customer text visible to the whole team from any phone. Flat $29/mo for the
   team, never per seat. Compliance (TCPA/CASL, STOP, consent) handled
   automatically. Canadian businesses text the same day.
@@ -285,7 +285,7 @@ mode. Reuse the shots in every directory so the brand reads consistent.
   Hey PH! Solo founder here. I built Loonext after watching small service
   businesses run entirely off one person's personal cell: the 9 PM "my water
   heater is leaking" text sits unseen on one phone, and the job goes to
-  whoever answers first. Loonext gives the business one local number and one
+  whoever answers first. Loonext gives the business a local number and one
   shared inbox the whole crew works from any phone. The parts I'm proudest
   of: flat per-company pricing (a 3-person crew pays $29/mo total, not per
   seat), honest US carrier-registration timelines shown before you pay
@@ -300,7 +300,7 @@ mode. Reuse the shots in every directory so the brand reads consistent.
 - **Title:** Show HN: Loonext, a shared SMS inbox for plumbing and HVAC crews
 - **First comment:** Solo founder, bootstrapped. Small service businesses run
   on text messages that land on one person's personal cell; Loonext gives the
-  business one local number and one shared inbox the whole crew answers from
+  business a local number and one shared inbox the whole crew answers from
   any phone. The interesting engineering was mostly telecom and compliance:
   A2P 10DLC registration filed automatically at signup with the honest 3 to 7
   business day approval wait shown before payment, instant STOP handling,
@@ -324,7 +324,7 @@ mode. Reuse the shots in every directory so the brand reads consistent.
 
 1. The 9 PM leak: a homeowner texts a photo of a flooding garage to a
    plumber's personal cell. The plumber is asleep. By morning the job belongs
-   to someone else. The fix isn't hustle, it's plumbing for texts: one
+   to someone else. The fix isn't hustle, it's plumbing for texts: your
    business number, one inbox the whole crew can see. (Then the build-in-public
    line: I'm building exactly that, solo.)
 2. Per-seat pricing punishes small crews for growing: add your third tech and
@@ -341,7 +341,7 @@ mode. Reuse the shots in every directory so the brand reads consistent.
 > The cheap options first: a second SIM works until you hire; Google Voice is
 > free but [honest current limitation relevant to the thread]. The real
 > problem is texts trapped on one phone once two people need to answer. What
-> to look for in a shared-number tool: one number the crew shares, everyone
+> to look for in a shared-number tool: a business number the crew shares, everyone
 > sees the thread, one owner per conversation, and flat pricing so adding a
 > helper doesn't raise the bill. Full disclosure: I built Loonext, which does
 > exactly this for $29/mo flat, so I'm biased; [honest fit/no-fit note for

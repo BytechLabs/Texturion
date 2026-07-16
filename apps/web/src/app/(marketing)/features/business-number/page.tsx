@@ -248,7 +248,7 @@ export default function BusinessNumberPage() {
           {
             label: "Texting for landscapers",
             href: "/for/landscapers",
-            hint: "Crews spread across sites, all reachable at one local number.",
+            hint: "Crews spread across sites, all reachable at the same local number.",
           },
           {
             label: "Loonext in Canada",
@@ -300,7 +300,7 @@ export default function BusinessNumberPage() {
 
       <FeatureCta
         heading="Get a number your customers can text."
-        sub="Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew one number to share. Live in minutes."
+        sub="Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew a business number they share. Live in minutes."
       />
     </>
   );

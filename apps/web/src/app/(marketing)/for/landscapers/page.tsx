@@ -33,9 +33,9 @@ const CONTENT: TradeContent = {
   dateline: "7:15 AM · GATE LOCKED",
   h1: "The text inbox for landscaping crews.",
   heroSub:
-    "The crew is at the gate, the gate is locked, and the code is in a text thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask in one shared inbox on one business number. $29 a month for the whole company.",
+    "The crew is at the gate, the gate is locked, and the code is in a text thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask in one shared inbox on your business number. $29 a month for the whole company.",
   heroTruth:
-    "One number for every property · Live in minutes · No busy-season lock-in",
+    "One inbox for every property · Live in minutes · No busy-season lock-in",
 
   painH2: "You can't answer the phone from the top of a mower.",
   painBody: [
@@ -159,7 +159,7 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  finalH2: "One number for every property you service.",
+  finalH2: "One inbox for every property you service.",
   finalSub:
     "Quote from a photo, dispatch the nearest crew, and keep every gate code in one shared inbox. Live in minutes.",
 };
