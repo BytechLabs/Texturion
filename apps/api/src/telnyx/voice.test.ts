@@ -6,6 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SUBSCRIPTION_STATUSES } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
@@ -168,10 +169,19 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     // #134/D42: the gate is the subscription, nothing else — calling is
     // included on every plan, so every live, non-deleted workspace binds.
     const query = companies.calls[0].url.searchParams;
-    expect(query.get("subscription_status")).toBe(
-      "in.(active,past_due,trialing)",
-    );
+    expect(query.get("subscription_status")).toBe("in.(active,past_due)");
     expect(query.get("deleted_at")).toBe("is.null");
+
+    // Regression (Sentry NODE-D): this filters the DB enum — Postgres rejects
+    // the whole query on any non-enum value ('trialing' is a RAW Stripe
+    // status; plans.ts launders it to 'active' before it ever hits the DB),
+    // which broke the */15 cron on every run. Pin the list to the enum.
+    const filtered = /^in\.\((.*)\)$/.exec(
+      query.get("subscription_status") ?? "",
+    )![1].split(",");
+    for (const status of filtered) {
+      expect(SUBSCRIPTION_STATUSES).toContain(status);
+    }
   });
 
   it("skips hosted rows (no telnyx id — voice stays on the owner's carrier)", async () => {

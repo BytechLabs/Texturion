@@ -356,6 +356,12 @@ export const handler = {
       try {
         await job(validated, now);
       } catch (cause) {
+        // Name the culprit in the run's own logs: the platform serializes
+        // only the AggregateError's top-level message (child errors vanish),
+        // which made "1 of 5 job(s) failed" undiagnosable from the dashboard.
+        const detail =
+          cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+        console.error(`cron job ${job.name} failed: ${detail}`);
         failures.push(cause);
       }
     }

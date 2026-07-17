@@ -266,10 +266,14 @@ export async function reconcileVoiceEnablement(
 
   // #134/D42: calling is included on every plan — every workspace with a
   // LIVE subscription gets its numbers voice-bound. Ids only; small set.
+  // NOTE: this filters the DB enum, not raw Stripe statuses — 'trialing'
+  // never reaches the DB (plans.ts maps it to 'active'), and Postgres
+  // rejects unknown enum values outright, which broke this cron every
+  // 15 minutes (Sentry NODE-D).
   const { data: companies, error: companiesError } = await db
     .from("companies")
     .select("id")
-    .in("subscription_status", ["active", "past_due", "trialing"])
+    .in("subscription_status", ["active", "past_due"])
     .is("deleted_at", null);
   if (companiesError) {
     throw new Error(`companies lookup failed: ${companiesError.message}`);
