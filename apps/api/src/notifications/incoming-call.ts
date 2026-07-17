@@ -38,6 +38,34 @@ interface DeviceTokenRow {
 /** How long a ringing-call push is worth delivering (≈ the ring window). */
 const CALL_PUSH_TTL_SECS = 30;
 
+/**
+ * #142's actual outage signal, rescoped: a prune is routine lifecycle
+ * (reinstall/rotation) and only LOGS — but a prune that leaves the member
+ * with ZERO push channels (no web subscription, no device token) means calls
+ * can no longer wake any of their devices, and THAT earns a Sentry event.
+ * Best-effort: an error here must never touch the live ring.
+ */
+async function warnIfUnreachable(
+  db: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  try {
+    const [subs, tokens] = await Promise.all([
+      db.from("push_subscriptions").select("id").eq("user_id", userId).limit(1),
+      db.from("device_push_tokens").select("id").eq("user_id", userId).limit(1),
+    ]);
+    if (subs.error || tokens.error) return;
+    if ((subs.data ?? []).length === 0 && (tokens.data ?? []).length === 0) {
+      Sentry.captureMessage(
+        `incoming-call push: member ${userId} now has NO push channels — ring-when-closed is dead for them until a device re-registers`,
+        "warning",
+      );
+    }
+  } catch {
+    // Counting is diagnostics — never let it interfere with the ring.
+  }
+}
+
 /** Host only — the full endpoint carries a per-device push token we must never
  *  log or send to Sentry. */
 function endpointHost(endpoint: string): string {
@@ -127,12 +155,13 @@ async function deliverIncomingCallPush(
         );
         if (result.gone) {
           await db.from("push_subscriptions").delete().eq("id", sub.id);
-          // #142: a prune is the documented push-to-wake outage lead (a
-          // subscription silently dropping 1→0 after a call) — make it visible.
-          Sentry.captureMessage(
+          // Expected lifecycle (browser reinstall/rotation) — a log line, NOT
+          // a Sentry event. #142's real signal is handled below: a prune that
+          // leaves the user with ZERO push channels escalates.
+          console.log(
             `incoming-call push: pruned dead subscription (${endpointHost(sub.endpoint)}, HTTP ${result.status})`,
-            "info",
           );
+          await warnIfUnreachable(db, sub.user_id);
         } else if (!result.ok) {
           // #142/#147: surface WHICH status came back (VAPID 403, malformed 400,
           // throttled 429, push-service 5xx) AND the service's own error text —
@@ -186,15 +215,15 @@ async function deliverIncomingCallPush(
           `call:${input.callSessionId}`,
         );
         if (result.gone) {
-          // UNREGISTERED token (app uninstalled / rotated): drop the row —
-          // and make the prune visible, exactly like the subscription prune
-          // (#142's push-to-wake outage lead). Platform + status only; the
-          // token itself is a per-device credential we never log.
+          // UNREGISTERED token (app uninstalled / rotated): expected
+          // lifecycle — drop the row with a log line, NOT a Sentry event.
+          // Platform + status only; the token itself is a per-device
+          // credential we never log. #142's real signal escalates below.
           await db.from("device_push_tokens").delete().eq("id", device.id);
-          Sentry.captureMessage(
+          console.log(
             `incoming-call push: pruned dead device token (${device.platform}, HTTP ${result.status})`,
-            "info",
           );
+          await warnIfUnreachable(db, device.user_id);
         } else if (!result.ok) {
           const detail = result.errorBody ? ` — ${result.errorBody}` : "";
           Sentry.captureMessage(
