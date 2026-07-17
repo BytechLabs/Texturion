@@ -8,6 +8,10 @@ plugins {
     // artifacts are push-enabled. The server-side service-account key is the
     // actual secret and never enters the repo.
     alias(libs.plugins.google.services)
+    // Fleet crash reporting (#169): crashes + recorded non-fatals upload to
+    // the Firebase console automatically. Free-unlimited; complements the
+    // on-device crash file + share sheet (#168), which also works offline.
+    alias(libs.plugins.crashlytics)
 }
 
 android {
@@ -95,6 +99,7 @@ dependencies {
     // Initialized manually from BuildConfig when the founder provisions
     // Firebase (no google-services plugin) — no-ops gracefully until then.
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.crashlytics)
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.ui.tooling.preview)
 

@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
@@ -123,6 +124,10 @@ private fun IncomingCallCard(
     ) { granted ->
         if (granted) manager.answer(call.id) else micNotice = true
     }
+    // #168A: an answer the SDK refused surfaces here — the ring continues and
+    // the user can retry or decline; the process never dies for it.
+    val snapshot by manager.state.collectAsStateWithLifecycle()
+    val errorLine = snapshot.error
 
     Surface(
         onClick = onExpand,
@@ -167,6 +172,15 @@ private fun IncomingCallCard(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Allow microphone access to answer this call.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            if (errorLine != null && !micNotice) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    errorLine,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )

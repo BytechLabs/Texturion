@@ -18,6 +18,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,6 +82,19 @@ fun CallsOverlay(
         modifier = modifier,
     )
 
+    // #168A/D: a softphone error with NO call presenting it (idle line) —
+    // e.g. "Couldn't answer — try again." after the ring already ended, or
+    // "A call was interrupted when the app closed unexpectedly." on the
+    // start after a mid-call crash. One calm dismissible line; in-call and
+    // ringing errors render on their own surfaces.
+    if (snapshot.error != null && snapshot.liveCalls.isEmpty()) {
+        SoftphoneNotice(
+            message = snapshot.error!!,
+            onDismiss = { manager.clearError() },
+            modifier = modifier,
+        )
+    }
+
     val inCallScreenShowing = expanded && snapshot.liveCalls.isNotEmpty()
 
     // The ringing banner — hidden while the full in-call screen is up (that
@@ -115,6 +129,35 @@ fun CallsOverlay(
                     onClose = { expanded = false },
                 )
             }
+        }
+    }
+}
+
+/** One calm dismissible error line above the tab bar (#168A/D). */
+@Composable
+private fun SoftphoneNotice(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Row(
+            Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
         }
     }
 }

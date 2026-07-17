@@ -72,12 +72,37 @@ class SoftphoneCore(
     private val connectMutex = Mutex()
     private var recoverJob: Job? = null
 
+    /**
+     * #168B: the freshest `kind:'call'` wake push (session + caller + when) —
+     * the only client-side clue tying a later INVITE to a server session,
+     * because the Android SDK's INVITE carries no client_state. Consumed by
+     * the stale-ring probe; refreshed on every wake push / ring-me.
+     */
+    private var pushHintSession: String? = null
+    private var pushHintCaller: String? = null
+    private var pushHintAtMs: Long? = null
+
+    /** Hook for a listener that must hear about swallowed failures (#168A). */
+    var onInternalFailure: ((String, Throwable) -> Unit)? = null
+
     var companyId: String? = null
         private set
     private var callerIdName: String = ""
 
     init {
-        scope.launch { sdk.events.collect { onSdkEvent(it) } }
+        scope.launch {
+            sdk.events.collect { event ->
+                // One malformed event must neither kill this collector nor
+                // the process (#168A) — swallow, report, keep listening.
+                try {
+                    onSdkEvent(event)
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (cause: Exception) {
+                    onInternalFailure?.invoke("sdk-event", cause)
+                }
+            }
+        }
     }
 
     /**
@@ -196,6 +221,7 @@ class SoftphoneCore(
             runCatching { event.call.end() }
             return
         }
+        val otherLiveCalls = _state.value.liveCalls.size
         val number = event.callerNumber.orEmpty()
         val name = event.callerName?.takeIf { it.isNotBlank() }
             ?: number.ifBlank { "Unknown caller" }
@@ -211,6 +237,86 @@ class SoftphoneCore(
         _state.update { CallStateMachine.incoming(it, snapshot) }
         watch(event.call)
         _events.tryEmit(CoreEvent.IncomingRinging(snapshot))
+        // #168B: fast path first (the ring is already presenting), THEN the
+        // concurrent freshness cross-check — cancels the ring only when the
+        // server says the session already resolved (late INVITE after
+        // voicemail/teammate answer on a frozen socket).
+        verifyRingFreshness(event.call, inviteCaller = number, otherLiveCalls = otherLiveCalls)
+    }
+
+    /**
+     * Best-effort stale-ring probe (#168B). Runs concurrently — never blocks
+     * or delays the ring — with a hard [StaleRingPolicy.PROBE_TIMEOUT_MS]
+     * budget; only a DEFINITE stale verdict ends the leg (silently: a
+     * RINGING→ENDED transition is a silent removal by the reducer, which
+     * also pulls down the banner, ringer, and CallStyle notification).
+     */
+    private fun verifyRingFreshness(
+        handle: SdkCallHandle,
+        inviteCaller: String?,
+        otherLiveCalls: Int,
+    ) {
+        val company = companyId ?: return
+        val hint = StaleRingPolicy.usableHint(
+            hintSession = pushHintSession,
+            hintAtMs = pushHintAtMs,
+            nowMs = now(),
+            otherLiveCalls = otherLiveCalls,
+            hintCaller = pushHintCaller,
+            inviteCaller = inviteCaller,
+        ) ?: return
+        scope.launch {
+            val probe = withTimeoutOrNull(StaleRingPolicy.PROBE_TIMEOUT_MS) {
+                probeFreshness(company, hint)
+            } ?: RingProbe.UNKNOWN
+            if (!StaleRingPolicy.isStale(probe)) return@launch
+            // Re-check: only kill a call that is STILL just ringing — the
+            // user may have answered while the probe was in flight.
+            val current = _state.value.calls.firstOrNull { it.id == handle.id }
+            if (current?.phase != CallPhase.RINGING) return@launch
+            // One hint cancels at most ONE ring — consume it so a lost/late
+            // push for the NEXT call can never inherit a stale verdict.
+            pushHintSession = null
+            pushHintCaller = null
+            pushHintAtMs = null
+            runCatching { handle.end() }
+            // Belt and braces: if the SDK's end never reports back, drop the
+            // ring from state ourselves — a stale ring must not out-ring the
+            // probe that proved it stale.
+            _state.update { CallStateMachine.sdkPhase(it, handle.id, CallPhase.ENDED, now()) }
+        }
+    }
+
+    /** Classify the hinted session. Ambiguity and trouble are both UNKNOWN. */
+    private suspend fun probeFreshness(company: String, session: String): RingProbe = try {
+        // 200 = outcome null AND answered_at set — someone owns the call.
+        api.liveFacts(company, session)
+        RingProbe.ANSWERED
+    } catch (cause: CancellationException) {
+        throw cause
+    } catch (cause: ApiException) {
+        when (cause.code) {
+            ApiErrorCode.NOT_FOUND -> RingProbe.GONE
+            // 'conflict' = still ringing OR already ended — the call-log row
+            // (outcome / answered_by) disambiguates.
+            ApiErrorCode.CONFLICT -> probeCallRow(company, session)
+            else -> RingProbe.UNKNOWN
+        }
+    } catch (_: Exception) {
+        RingProbe.UNKNOWN
+    }
+
+    private suspend fun probeCallRow(company: String, session: String): RingProbe = try {
+        val row = api.recentCalls(company).firstOrNull { it.call_session_id == session }
+        if (row == null) {
+            RingProbe.UNKNOWN
+        } else {
+            StaleRingPolicy.probeFromCallRow(row.outcome, row.answered_by_user_id)
+        }
+    } catch (cause: CancellationException) {
+        throw cause
+    } catch (_: Exception) {
+        RingProbe.UNKNOWN
     }
 
     private fun watch(handle: SdkCallHandle) {
@@ -361,6 +467,13 @@ class SoftphoneCore(
         if (call.phase != CallPhase.RINGING) return
         _state.value.activeId?.let { if (it != id) requestHold(it, hold = true) }
         runCatching { handle.accept(call.peerNumber.ifBlank { "unknown" }) }
+            .onFailure { cause ->
+                // #168A: an SDK refusal degrades to an in-app line, never
+                // process death. The call stays RINGING — the user can retry
+                // or decline; a leg the SDK already tore down ends itself.
+                reportUiError("Couldn't answer — try again.")
+                onInternalFailure?.invoke("answer", cause)
+            }
         // The caller may have hung up in the same instant — the ring's end
         // event clears the chip silently.
     }
@@ -439,12 +552,21 @@ class SoftphoneCore(
      * us) or not_found (the push aged out) is SILENT by contract; anything
      * else propagates so the caller can retry.
      */
-    suspend fun onIncomingCallPush(sessionId: String) {
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
         val company = requireCompany()
+        // #168B: remember which session is (supposedly) ringing us — the
+        // stale-ring probe correlates a later INVITE against this hint.
+        pushHintSession = sessionId
+        pushHintCaller = callerHint
+        pushHintAtMs = now()
         ensureConnected()
         awaitReady()
         try {
             api.ringMe(company, sessionId)
+            // A successful ring-me proves the session was STILL ringing just
+            // now — refresh the hint clock so the correlation window tracks
+            // the re-dial, not the original push.
+            pushHintAtMs = now()
         } catch (cause: ApiException) {
             if (cause.code != ApiErrorCode.CONFLICT && cause.code != ApiErrorCode.NOT_FOUND) {
                 throw cause

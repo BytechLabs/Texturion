@@ -12,8 +12,10 @@ import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.NotificationsRepository
 import com.loonext.android.core.data.SearchRepository
 import com.loonext.android.core.data.TasksRepository
+import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +28,22 @@ import java.util.concurrent.TimeUnit
  * root; a DI framework would be ceremony without payoff at this size.
  */
 class AppGraph(private val app: Application) {
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** Crash capture + call-in-flight marker (#168A/D) — see [LoonextApp]. */
+    val diagnostics: CrashDiagnostics = CrashDiagnostics.get(app)
+
+    /**
+     * #168A: without a CoroutineExceptionHandler, ONE uncaught exception in
+     * any child coroutine reaches the default handler and Android kills the
+     * process (SupervisorJob only isolates siblings — it does not swallow).
+     * The handler records the stack for the next-launch share sheet and the
+     * app lives on.
+     */
+    val appScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default +
+            CoroutineExceptionHandler { _, error ->
+                diagnostics.recordNonFatal("app", error)
+            },
+    )
 
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -83,6 +100,13 @@ class LoonextApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // FIRST (#168 part A): chain the default uncaught-exception handler so
+        // every crash — main thread, SDK worker, timer thread — appends its
+        // stack to filesDir/crash-reports/latest.txt (last 5 kept) BEFORE the
+        // platform handler runs (crash dialog/ANR semantics stay intact). The
+        // founder's device has no adb; this file + MainActivity's share
+        // prompt are the only forensics channel.
+        CrashDiagnostics.install(this, BuildConfig.VERSION_NAME)
         graph = AppGraph(this)
         com.loonext.android.push.ensureChannels(this)
     }

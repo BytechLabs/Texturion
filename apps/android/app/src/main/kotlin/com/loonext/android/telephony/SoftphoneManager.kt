@@ -17,12 +17,15 @@ import android.telecom.TelecomManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.loonext.android.core.diag.CrashDiagnostics
+import com.loonext.android.core.diag.PostCrashHonesty
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.push.CallWakeHandler
 import com.loonext.android.push.PushContent
 import com.loonext.android.push.PushHooks
 import com.loonext.android.push.postPushNotification
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -71,7 +74,20 @@ class SoftphoneManager private constructor(
         fun peek(): SoftphoneManager? = instance
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val diagnostics = CrashDiagnostics.get(appContext)
+
+    /**
+     * #168A: an uncaught failure in ANY child coroutine of this scope used to
+     * reach the default handler — Android kills the process for uncaught
+     * coroutine exceptions — taking a live call down with it. The handler
+     * records the stack (shareable next launch) and lets the process live.
+     */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main.immediate +
+            CoroutineExceptionHandler { _, error ->
+                diagnostics.recordNonFatal("softphone", error)
+            },
+    )
     private val sdk = TelnyxSdkClient(appContext, scope)
     private val core = SoftphoneCore(HttpCallsApi(api), sdk, scope)
     private val notifier = CallNotifier(appContext)
@@ -108,8 +124,32 @@ class SoftphoneManager private constructor(
     init {
         watchNetwork()
         watchForeground()
-        scope.launch { core.events.collect { onCoreEvent(it) } }
-        scope.launch { core.state.collect { syncPlatform(it) } }
+        core.onInternalFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) }
+        // #168A: per-emission guards — one bad snapshot must not kill the
+        // collector (all future syncs) or the process. Failures are recorded
+        // for the next-launch share sheet; the next emission syncs normally.
+        scope.launch {
+            core.events.collect { event ->
+                try {
+                    onCoreEvent(event)
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (cause: Exception) {
+                    diagnostics.recordNonFatal("core-event", cause)
+                }
+            }
+        }
+        scope.launch {
+            core.state.collect { snapshot ->
+                try {
+                    syncPlatform(snapshot)
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (cause: Exception) {
+                    diagnostics.recordNonFatal("sync-platform", cause)
+                }
+            }
+        }
         // Claim the calls-wake seam: incoming-call pushes (#156) route here
         // instead of the tray once the softphone exists in this process.
         PushHooks.callWakeHandler = CallWakeHandler { content -> onCallWakePush(content) }
@@ -127,15 +167,18 @@ class SoftphoneManager private constructor(
             postPushNotification(appContext, content)
             return
         }
+        // #168B: the push body is the raw caller E.164 when known — it rides
+        // along as the stale-ring probe's caller correlation.
+        val callerHint = StaleRingPolicy.callerHintFromPushBody(content.body)
         scope.launch {
             try {
-                core.onIncomingCallPush(session)
+                core.onIncomingCallPush(session, callerHint)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (_: Exception) {
                 delay(1_500)
                 try {
-                    core.onIncomingCallPush(session)
+                    core.onIncomingCallPush(session, callerHint)
                 } catch (cause: CancellationException) {
                     throw cause
                 } catch (_: Exception) {
@@ -147,6 +190,10 @@ class SoftphoneManager private constructor(
 
     // -------------------------------------------------------------- lifecycle
 
+    /** #168D: the interrupted-call line is claimed at most once per process. */
+    @Volatile
+    private var postCrashChecked = false
+
     /**
      * Register (or keep) the softphone for a company. Idempotent and silent
      * on failure — texting is never blocked by calling; the status pill and
@@ -154,7 +201,31 @@ class SoftphoneManager private constructor(
      */
     fun start(companyId: String, callerIdName: String = "") {
         registerPhoneAccount()
+        surfaceInterruptedCallOnce()
         core.start(companyId, callerIdName)
+    }
+
+    /**
+     * #168 part D: if the LAST crash happened while the 'call in flight'
+     * marker was up, the process died mid-call — say so, once, calmly. A
+     * marker without a newer crash (system kill, stale file) clears silently:
+     * we only claim what the crash log proves.
+     */
+    private fun surfaceInterruptedCallOnce() {
+        if (postCrashChecked) return
+        postCrashChecked = true
+        runCatching {
+            val markerSetAt = diagnostics.callMarker.setAtMs()
+            if (markerSetAt == null) return
+            val interrupted = PostCrashHonesty.callInterruptedByCrash(
+                markerSetAtMs = markerSetAt,
+                lastCrashAtMs = diagnostics.store.lastCrashAtMs(),
+            )
+            diagnostics.callMarker.clear()
+            if (interrupted) {
+                core.reportUiError("A call was interrupted when the app closed unexpectedly.")
+            }
+        }
     }
 
     /** Status-pill tap — force a re-registration now (refused mid-call). */
@@ -169,7 +240,8 @@ class SoftphoneManager private constructor(
      * conflict (already answered/ended) and not_found are swallowed by
      * contract; other failures propagate to the caller.
      */
-    suspend fun onIncomingCallPush(sessionId: String) = core.onIncomingCallPush(sessionId)
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) =
+        core.onIncomingCallPush(sessionId, callerHint)
 
     fun hasMicPermission(): Boolean =
         appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
@@ -198,7 +270,17 @@ class SoftphoneManager private constructor(
     )
 
     /** Answer a ringing call (any active call is held first). */
-    fun answer(id: String) = core.answer(id)
+    fun answer(id: String) {
+        // #168D: stamp the in-flight marker at the ANSWER moment — the crash
+        // this issue chases happened between accept and ACTIVE, before the
+        // state ever showed a live phase. syncPlatform clears it when the
+        // line clears (including an answer that never connected).
+        runCatching {
+            markedCallInFlight = true
+            diagnostics.callMarker.set()
+        }
+        core.answer(id)
+    }
 
     /** Decline a ringing call / hang up a live one. */
     fun hangup(id: String) = core.hangup(id)
@@ -235,7 +317,7 @@ class SoftphoneManager private constructor(
      *  re-check anyway and fall back to opening the app. */
     internal fun answerFromTelecom(callId: String) {
         if (hasMicPermission()) {
-            core.answer(callId)
+            answer(callId)
         } else {
             appContext.packageManager.getLaunchIntentForPackage(appContext.packageName)
                 ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -339,58 +421,110 @@ class SoftphoneManager private constructor(
 
     // ----------------------------------------------------- state -> platform
 
-    /** Drive every Android-side surface from the one state snapshot. */
+    /** Tracks whether THIS process stamped the call-in-flight marker (#168D)
+     *  — the idle emissions before start() must not clear a crashed
+     *  process's marker before it's been read. */
+    private var markedCallInFlight = false
+
+    /**
+     * Drive every Android-side surface from the one state snapshot.
+     *
+     * #168A: each surface is its own runCatching section — this method runs
+     * inside the state collector, where ANY throw used to kill the process
+     * mid-call (that is exactly how the founder's answer crash died: the
+     * ongoing-notification build threw the instant the call went ACTIVE).
+     * One broken surface must not stop the ringer, the notifications, or
+     * telecom from syncing.
+     */
     private fun syncPlatform(snapshot: SoftphoneSnapshot) {
         val byId = snapshot.calls.associateBy { it.id }
 
         // Telecom connection states follow call phases.
-        val goneConnections = connections.keys.filter { byId[it] == null }
-        for (callId in goneConnections) {
-            val connection = connections.remove(callId) ?: continue
-            reportedToTelecom.remove(callId)
-            connection.setDisconnected(DisconnectCause(DisconnectCause.MISSED))
-            connection.destroy()
-        }
-        for ((callId, connection) in connections) {
-            when (byId[callId]?.phase) {
-                CallPhase.RINGING -> connection.setRinging()
-                CallPhase.CONNECTING -> connection.setDialing()
-                CallPhase.ACTIVE -> connection.setActive()
-                CallPhase.HELD -> connection.setOnHold()
-                CallPhase.ENDED, null -> {
-                    connection.setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
+        runCatching {
+            val goneConnections = connections.keys.filter { byId[it] == null }
+            for (callId in goneConnections) {
+                val connection = connections.remove(callId) ?: continue
+                reportedToTelecom.remove(callId)
+                runCatching {
+                    connection.setDisconnected(DisconnectCause(DisconnectCause.MISSED))
                     connection.destroy()
                 }
-
-                else -> Unit
             }
-        }
-        connections.entries.removeAll { byId[it.key]?.phase == CallPhase.ENDED }
-        reportedToTelecom.removeAll { byId[it] == null || byId[it]?.phase == CallPhase.ENDED }
+            for ((callId, connection) in connections) {
+                runCatching {
+                    when (byId[callId]?.phase) {
+                        CallPhase.RINGING -> connection.setRinging()
+                        CallPhase.CONNECTING -> connection.setDialing()
+                        CallPhase.ACTIVE -> connection.setActive()
+                        CallPhase.HELD -> connection.setOnHold()
+                        CallPhase.ENDED, null -> {
+                            connection.setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
+                            connection.destroy()
+                        }
+
+                        else -> Unit
+                    }
+                }
+            }
+            connections.entries.removeAll { byId[it.key]?.phase == CallPhase.ENDED }
+            reportedToTelecom.removeAll {
+                byId[it] == null || byId[it]?.phase == CallPhase.ENDED
+            }
+        }.onFailure { diagnostics.recordNonFatal("sync-telecom", it) }
 
         // Ring surface (#167): the ringer follows the pure policy on every
         // emission — answer/decline/remote-end/timeout all stop it here — and
-        // notifications for calls that stopped ringing come down with it.
-        val ringingIds = snapshot.calls
-            .filter { it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND }
-            .map { it.id }
-            .toSet()
-        ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
-        ringingNotified.filter { it !in ringingIds }.forEach { gone ->
-            notifier.cancelIncoming(gone)
-            ringingNotified.remove(gone)
-        }
+        // notifications for calls that stopped ringing come down with it
+        // (that cancel is also the 'answered elsewhere' CallStyle teardown).
+        runCatching {
+            val ringingIds = snapshot.calls
+                .filter { it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND }
+                .map { it.id }
+                .toSet()
+            ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
+            ringingNotified.filter { it !in ringingIds }.forEach { gone ->
+                notifier.cancelIncoming(gone)
+                ringingNotified.remove(gone)
+            }
+        }.onFailure { diagnostics.recordNonFatal("sync-ring", it) }
 
         // Ongoing-call notification mirrors the active (or lone held) call.
-        val live = snapshot.liveCalls.filter { it.phase != CallPhase.RINGING }
-        val featured = snapshot.activeCall ?: live.firstOrNull()
-        if (featured != null) notifier.showOngoing(featured) else notifier.cancelOngoing()
+        runCatching {
+            val live = snapshot.liveCalls.filter { it.phase != CallPhase.RINGING }
+            val featured = snapshot.activeCall ?: live.firstOrNull()
+            if (featured != null) notifier.showOngoing(featured) else notifier.cancelOngoing()
+        }.onFailure { diagnostics.recordNonFatal("sync-notification", it) }
+
+        // #168D: the 'call in flight' marker — up while any answered/placed
+        // leg lives (ringing alone is not OUR call yet), down when the line
+        // clears. Only this process's own stamp is cleared here; a crashed
+        // process's marker survives until start() has read it.
+        runCatching {
+            val anyInFlight = snapshot.calls.any {
+                it.phase == CallPhase.CONNECTING ||
+                    it.phase == CallPhase.ACTIVE ||
+                    it.phase == CallPhase.HELD
+            }
+            // Clearing waits for a FULLY idle line (not merely "nothing live
+            // yet"): answer() stamps the marker while the phase is still
+            // RINGING, and an interim emission must not un-stamp it.
+            val lineIdle = snapshot.calls.none { it.phase != CallPhase.ENDED }
+            if (anyInFlight && !markedCallInFlight) {
+                markedCallInFlight = true
+                diagnostics.callMarker.set()
+            } else if (lineIdle && markedCallInFlight) {
+                markedCallInFlight = false
+                diagnostics.callMarker.clear()
+            }
+        }
 
         // Audio-focus fallback only matters while telecom isn't holding it.
-        val needsFocus = snapshot.calls.any {
-            it.phase == CallPhase.ACTIVE && !connections.containsKey(it.id)
-        }
-        if (needsFocus) acquireFocusFallback() else releaseFocusFallback()
+        runCatching {
+            val needsFocus = snapshot.calls.any {
+                it.phase == CallPhase.ACTIVE && !connections.containsKey(it.id)
+            }
+            if (needsFocus) acquireFocusFallback() else releaseFocusFallback()
+        }.onFailure { diagnostics.recordNonFatal("sync-focus", it) }
     }
 
     // ------------------------------------------------------- ring + focus

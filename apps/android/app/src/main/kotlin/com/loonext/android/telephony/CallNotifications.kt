@@ -61,6 +61,11 @@ internal class CallNotifier(private val context: Context) {
         val answer = actionIntent(ACTION_ANSWER, call.id, requestCode = code(call.id, 1))
         val decline = actionIntent(ACTION_DECLINE, call.id, requestCode = code(call.id, 2))
         val open = openCallsIntent(call, requestCode = code(call.id, 3))
+        // CallStyle is legal here ONLY because of the fullScreenIntent below:
+        // API 31+ Notification.Builder.build() THROWS IllegalArgumentException
+        // for a CallStyle notification that is neither a foreground service
+        // nor full-screen (#168A). Never remove the fullScreenIntent without
+        // dropping the style with it.
         val notification = NotificationCompat.Builder(context, ChannelIds.INCOMING_CALLS)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(call.peerName)
@@ -76,16 +81,51 @@ internal class CallNotifier(private val context: Context) {
             .setFullScreenIntent(open, true)
             .setContentIntent(open)
             .build()
-        NotificationManagerCompat.from(context)
-            .notify(INCOMING_TAG_PREFIX + call.id, INCOMING_ID, notification)
+        // A notification must NEVER kill the call path (#168A hardening) —
+        // and a ring must never be dropped silently: fall back to a plain
+        // high-priority notification if the styled build/post refuses.
+        runCatching {
+            NotificationManagerCompat.from(context)
+                .notify(INCOMING_TAG_PREFIX + call.id, INCOMING_ID, notification)
+        }.onFailure {
+            runCatching {
+                val plain = NotificationCompat.Builder(context, ChannelIds.INCOMING_CALLS)
+                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setContentTitle(call.peerName)
+                    .setContentText("Incoming call")
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setOngoing(true)
+                    .setContentIntent(open)
+                    .addAction(0, "Decline", decline)
+                    .addAction(0, "Answer", answer)
+                    .build()
+                NotificationManagerCompat.from(context)
+                    .notify(INCOMING_TAG_PREFIX + call.id, INCOMING_ID, plain)
+            }
+        }
     }
 
     fun cancelIncoming(callId: String) {
-        NotificationManagerCompat.from(context)
-            .cancel(INCOMING_TAG_PREFIX + callId, INCOMING_ID)
+        runCatching {
+            NotificationManagerCompat.from(context)
+                .cancel(INCOMING_TAG_PREFIX + callId, INCOMING_ID)
+        }
     }
 
-    /** The quiet persistent notification while any call is live. */
+    /**
+     * The quiet persistent notification while any call is live.
+     *
+     * #168A ROOT CAUSE lived here: this used CallStyle.forOngoingCall with no
+     * foreground service and no fullScreenIntent — on API 31+ the platform's
+     * Notification.Builder.build() throws IllegalArgumentException
+     * ("CallStyle notifications must either be for a foreground service or
+     * use a fullScreenIntent."). It ran inside the state-collect coroutine
+     * the instant an answered call went ACTIVE — after the Telnyx ANSWER was
+     * already on the wire — so the server leg connected while the app died.
+     * The fix: a plain notification with a hang-up action (no CallStyle, no
+     * platform preconditions); an ongoing surface must never full-screen.
+     */
     fun showOngoing(call: CallSnapshot) {
         if (!canPost()) return
         ensureChannels(context)
@@ -94,20 +134,23 @@ internal class CallNotifier(private val context: Context) {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(call.peerName)
             .setContentText(if (call.phase == CallPhase.HELD) "On hold" else "On a call")
-            .setStyle(NotificationCompat.CallStyle.forOngoingCall(person(call), hangup))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setContentIntent(openAppIntent(requestCode = 6))
+            .addAction(0, "Hang up", hangup)
         call.activeSinceMs?.let { since ->
             builder.setWhen(since).setUsesChronometer(true).setShowWhen(true)
         }
-        NotificationManagerCompat.from(context).notify(ONGOING_TAG, ONGOING_ID, builder.build())
+        runCatching {
+            NotificationManagerCompat.from(context)
+                .notify(ONGOING_TAG, ONGOING_ID, builder.build())
+        }
     }
 
     fun cancelOngoing() {
-        NotificationManagerCompat.from(context).cancel(ONGOING_TAG, ONGOING_ID)
+        runCatching { NotificationManagerCompat.from(context).cancel(ONGOING_TAG, ONGOING_ID) }
     }
 
     private fun person(call: CallSnapshot): Person = Person.Builder()
@@ -177,24 +220,28 @@ internal class CallNotifier(private val context: Context) {
  */
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val manager = SoftphoneManager.peek() ?: return
-        val callId = intent.getStringExtra(CallNotifier.EXTRA_CALL_ID) ?: return
-        when (intent.action) {
-            CallNotifier.ACTION_ANSWER -> {
-                val micGranted =
-                    context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
-                        PackageManager.PERMISSION_GRANTED
-                if (micGranted) {
-                    manager.answer(callId)
-                } else {
-                    context.packageManager.getLaunchIntentForPackage(context.packageName)
-                        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        ?.let { context.startActivity(it) }
+        // A throw out of a BroadcastReceiver kills the process (#168A
+        // hardening) — a broken shade action must degrade to a no-op.
+        runCatching {
+            val manager = SoftphoneManager.peek() ?: return
+            val callId = intent.getStringExtra(CallNotifier.EXTRA_CALL_ID) ?: return
+            when (intent.action) {
+                CallNotifier.ACTION_ANSWER -> {
+                    val micGranted =
+                        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                            PackageManager.PERMISSION_GRANTED
+                    if (micGranted) {
+                        manager.answer(callId)
+                    } else {
+                        context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            ?.let { context.startActivity(it) }
+                    }
                 }
-            }
 
-            CallNotifier.ACTION_DECLINE, CallNotifier.ACTION_HANGUP ->
-                manager.hangup(callId)
+                CallNotifier.ACTION_DECLINE, CallNotifier.ACTION_HANGUP ->
+                    manager.hangup(callId)
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.loonext.android.telephony
 
+import com.loonext.android.core.model.Call
+import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.WebRtcToken
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.Serializable
@@ -92,6 +94,15 @@ interface CallsApi {
 
     /** Push-to-wake part 2: re-ring THIS member for a still-ringing call. */
     suspend fun ringMe(companyId: String, sessionId: String): RingAck
+
+    /**
+     * Newest-first company call log (#168B): the stale-ring probe reads a
+     * session's row here when the liveFacts probe is ambiguous ('conflict'
+     * covers both still-ringing and already-ended; the row's outcome and
+     * answered_by disambiguate). One small page — a ringing call is always
+     * among the newest rows.
+     */
+    suspend fun recentCalls(companyId: String, limit: Int = 25): List<Call>
 }
 
 class HttpCallsApi(private val api: ApiClient) : CallsApi {
@@ -136,4 +147,13 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
 
     override suspend fun ringMe(companyId: String, sessionId: String): RingAck =
         api.post("/v1/calls/live/$sessionId/ring-me", companyId = companyId)
+
+    override suspend fun recentCalls(companyId: String, limit: Int): List<Call> {
+        val page: Page<Call> = api.get(
+            "/v1/calls",
+            query = mapOf("limit" to limit.toString()),
+            companyId = companyId,
+        )
+        return page.data
+    }
 }

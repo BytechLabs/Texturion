@@ -43,7 +43,11 @@ class TelnyxSdkClient(
         val next = TelnyxClient(appContext)
         client = next
         socketJob = scope.launch {
-            next.socketResponseFlow.collect { response -> onSocketResponse(next, response) }
+            next.socketResponseFlow.collect { response ->
+                // #168A: one malformed/unexpected message must not kill this
+                // collector (every future event) — or, uncaught, the process.
+                runCatching { onSocketResponse(next, response) }
+            }
         }
         next.connect(
             TxServerConfiguration(),

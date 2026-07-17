@@ -112,6 +112,9 @@ class MainActivity : ComponentActivity() {
             }
             LoonextTheme(darkTheme = darkTheme) {
                 Root(graph, deepLinks)
+                // #168A: no adb on the founder's device — if the last run
+                // crashed, offer the saved report once via the share sheet.
+                CrashReportPrompt(graph.diagnostics)
             }
         }
     }
@@ -122,6 +125,51 @@ class MainActivity : ComponentActivity() {
         intent.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
             ?.let(AuthCallbacks::deliver)
     }
+}
+
+/**
+ * #168 part A: the post-crash share prompt. When crash-reports/latest.txt
+ * holds a crash the user hasn't seen, a small dismissible dialog offers an
+ * ACTION_SEND chooser with the report text. Either choice marks the report
+ * surfaced — it never nags twice for the same crash.
+ */
+@Composable
+private fun CrashReportPrompt(diagnostics: com.loonext.android.core.diag.CrashDiagnostics) {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { diagnostics.store.unsurfacedReport() }.getOrNull()
+        }
+    }
+    val text = report ?: return
+    val dismiss = {
+        diagnostics.store.markSurfaced()
+        report = null
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("The app closed unexpectedly") },
+        text = {
+            Text(
+                "A crash report was saved on this device. " +
+                    "Sharing it helps us find and fix the problem.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                dismiss()
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Loonext Android crash report")
+                    .putExtra(Intent.EXTRA_TEXT, text)
+                runCatching {
+                    context.startActivity(Intent.createChooser(send, "Share crash report"))
+                }
+            }) { Text("Share crash report") }
+        },
+        dismissButton = { TextButton(onClick = dismiss) { Text("Dismiss") } },
+    )
 }
 
 /** ViewModel factory over the hand-rolled graph. */
@@ -212,7 +260,16 @@ private fun ReadyShell(
         PushHooks.callWakeHandler = com.loonext.android.push.CallWakeHandler { content ->
             content.callSessionId?.let { sessionId ->
                 graph.appScope.launch {
-                    runCatching { softphone.onIncomingCallPush(sessionId) }
+                    runCatching {
+                        softphone.onIncomingCallPush(
+                            sessionId,
+                            // #168B: the push body carries the raw caller
+                            // E.164 when known — the stale-ring probe's
+                            // caller correlation.
+                            com.loonext.android.telephony.StaleRingPolicy
+                                .callerHintFromPushBody(content.body),
+                        )
+                    }
                 }
             }
         }
