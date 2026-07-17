@@ -9,6 +9,13 @@ import kotlinx.serialization.Serializable
  * authorization, live-call ops. Wire models that core/model doesn't carry yet
  * live here (extension models per the mobile build rules — flagged for the
  * integrator to hoist into core/model when convenient).
+ *
+ * [CallsApi] is an interface for the same reason [SdkClient] is: it's the
+ * seam SoftphoneCoreTest fakes with plain suspend functions. A real
+ * HTTP-backed fake (MockWebServer) resumes the core's coroutines on OkHttp
+ * threads — outside the kotlinx-coroutines-test scheduler — which made the
+ * core's event ordering nondeterministic under CI load. Production always
+ * uses [HttpCallsApi]; behavior is byte-for-byte the old CallsApi class.
  */
 
 /** POST /v1/calls/browser response — client_state goes into newCall VERBATIM. */
@@ -53,10 +60,9 @@ data class RingAck(val ok: Boolean)
 @Serializable
 private data class TransferBody(val target_user_id: String)
 
-class CallsApi(private val api: ApiClient) {
+interface CallsApi {
     /** Mint the Telnyx login token — on start/recovery ONLY (rate-limited). */
-    suspend fun mintToken(companyId: String): WebRtcToken =
-        api.post("/v1/webrtc/token", companyId = companyId)
+    suspend fun mintToken(companyId: String): WebRtcToken
 
     /** Authorize an outbound call (all gates run server-side; no dial yet). */
     suspend fun authorizeBrowserCall(
@@ -65,6 +71,39 @@ class CallsApi(private val api: ApiClient) {
         contactId: String? = null,
         to: String? = null,
         phoneNumberId: String? = null,
+    ): BrowserCallAuth
+
+    /**
+     * Resolve an answered inbound RING leg to the customer call_session_id —
+     * REQUIRED before any live-call op on an inbound answer (the ring leg has
+     * its own session; acting on it addresses the wrong call).
+     */
+    suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution
+
+    suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts
+
+    suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets
+
+    suspend fun blindTransfer(
+        companyId: String,
+        sessionId: String,
+        targetUserId: String,
+    ): TransferAck
+
+    /** Push-to-wake part 2: re-ring THIS member for a still-ringing call. */
+    suspend fun ringMe(companyId: String, sessionId: String): RingAck
+}
+
+class HttpCallsApi(private val api: ApiClient) : CallsApi {
+    override suspend fun mintToken(companyId: String): WebRtcToken =
+        api.post("/v1/webrtc/token", companyId = companyId)
+
+    override suspend fun authorizeBrowserCall(
+        companyId: String,
+        conversationId: String?,
+        contactId: String?,
+        to: String?,
+        phoneNumberId: String?,
     ): BrowserCallAuth = api.post(
         "/v1/calls/browser",
         OutboundCallBody(
@@ -76,21 +115,16 @@ class CallsApi(private val api: ApiClient) {
         companyId = companyId,
     )
 
-    /**
-     * Resolve an answered inbound RING leg to the customer call_session_id —
-     * REQUIRED before any live-call op on an inbound answer (the ring leg has
-     * its own session; acting on it addresses the wrong call).
-     */
-    suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution =
+    override suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution =
         api.get("/v1/calls/live/by-leg/$legCcid", companyId = companyId)
 
-    suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts =
+    override suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts =
         api.get("/v1/calls/live/$sessionId", companyId = companyId)
 
-    suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
+    override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
         api.get("/v1/calls/live/$sessionId/targets", companyId = companyId)
 
-    suspend fun blindTransfer(
+    override suspend fun blindTransfer(
         companyId: String,
         sessionId: String,
         targetUserId: String,
@@ -100,7 +134,6 @@ class CallsApi(private val api: ApiClient) {
         companyId = companyId,
     )
 
-    /** Push-to-wake part 2: re-ring THIS member for a still-ringing call. */
-    suspend fun ringMe(companyId: String, sessionId: String): RingAck =
+    override suspend fun ringMe(companyId: String, sessionId: String): RingAck =
         api.post("/v1/calls/live/$sessionId/ring-me", companyId = companyId)
 }

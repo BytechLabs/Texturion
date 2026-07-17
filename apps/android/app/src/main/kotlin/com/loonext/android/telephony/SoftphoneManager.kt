@@ -73,7 +73,7 @@ class SoftphoneManager private constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val sdk = TelnyxSdkClient(appContext, scope)
-    private val core = SoftphoneCore(CallsApi(api), sdk, scope)
+    private val core = SoftphoneCore(HttpCallsApi(api), sdk, scope)
     private val notifier = CallNotifier(appContext)
 
     /** The one softphone state stream every surface renders from. */

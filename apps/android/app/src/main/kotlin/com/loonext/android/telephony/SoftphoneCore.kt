@@ -26,9 +26,9 @@ sealed interface CoreEvent {
 /**
  * The softphone's brain — registration lifecycle, the multi-call state, and
  * every live-call op — with the Telnyx SDK behind [SdkClient] and the server
- * behind [CallsApi], so the whole flow is unit-testable (MockWebServer + a
- * fake SDK). [SoftphoneManager] wraps this with the Android plumbing
- * (telecom, notifications, foreground service, watchdog triggers).
+ * behind [CallsApi], so the whole flow is unit-testable (a suspend-fake
+ * [CallsApi] + a fake SDK). [SoftphoneManager] wraps this with the Android
+ * plumbing (telecom, notifications, foreground service, watchdog triggers).
  *
  * Invariants (BINDING, from the calls domain contract):
  * - The login token is minted ON CONNECT ONLY — never per call (rate-limited).

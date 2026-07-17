@@ -1,9 +1,6 @@
 package com.loonext.android.telephony
 
-import com.loonext.android.core.auth.Session
-import com.loonext.android.core.auth.SessionSource
-import com.loonext.android.core.auth.SupabaseAuth
-import com.loonext.android.core.net.ApiClient
+import com.loonext.android.core.model.WebRtcToken
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import kotlinx.coroutines.CoroutineScope
@@ -15,15 +12,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import mockwebserver3.Dispatcher
-import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
-import mockwebserver3.RecordedRequest
-import okhttp3.OkHttpClient
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -34,15 +26,30 @@ import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * SoftphoneCore against a REAL ApiClient + MockWebServer (the house pattern —
- * core/net/ApiClientTest.kt) and a fake SDK: client_state passthrough, by-leg
- * resolution on inbound answer, ring-me conflict swallowing, mint-on-connect
- * (never per call), and the call-waiting invariants.
+ * SoftphoneCore against a suspend-fake [CallsApi] and a fake SDK.
+ *
+ * DETERMINISM (this class was flaky on CI — two different tests, two runs):
+ * the old harness used a real ApiClient + MockWebServer, so every api call
+ * resumed the core's coroutines on OkHttp threads — OUTSIDE the
+ * kotlinx-coroutines-test scheduler. With an Unconfined core scope that let
+ * OkHttp threads run core state transitions concurrently with the test
+ * thread (and let runTest fast-forward virtual time past delay-based
+ * retries/watchdogs while real IO was in flight). Now:
+ *  - [FakeCallsApi] answers inline in the caller's coroutine — ZERO foreign
+ *    threads (ApiClient's HTTP behavior stays covered by
+ *    core/net/ApiClientTest);
+ *  - the core's scope runs on a StandardTestDispatcher sharing runTest's
+ *    scheduler, so every `scope.launch` inside the core is queued and runs
+ *    only when the test pumps it (`runCurrent()`) or suspends into it;
+ *  - after every fire-and-forget action the test pumps, then asserts —
+ *    one thread, one ordered queue, no interleaving left to chance.
+ *
+ * Covered invariants: client_state passthrough, by-leg resolution on inbound
+ * answer, ring-me conflict swallowing, mint-on-connect (never per call), and
+ * the call-waiting invariants.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SoftphoneCoreTest {
-    private lateinit var server: MockWebServer
-
     // The exact base64 the server would mint: btoa('oc_customer|<to>|<nonce>').
     private val serverClientState: String = java.util.Base64.getEncoder().encodeToString(
         "oc_customer|+15552223333|nonce-1".toByteArray(Charsets.UTF_8),
@@ -57,74 +64,60 @@ class SoftphoneCoreTest {
         tokenMints.set(0)
         byLegHits.set(0)
         ringMeStatus = 200
-        server = MockWebServer().also { it.start() }
-        server.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse {
-                val path = request.url.encodedPath
-                return when {
-                    path == "/v1/webrtc/token" -> {
-                        tokenMints.incrementAndGet()
-                        MockResponse(
-                            body = """{"token":"telnyx-jwt","sip_username":"sip-u1","expires_in_hours":24}""",
-                        )
-                    }
+    }
 
-                    path == "/v1/calls/browser" -> MockResponse(
-                        body = """{"from":"+15550001111","to":"+15552223333",""" +
-                            """"client_state":"$serverClientState"}""",
-                    )
-
-                    path.startsWith("/v1/calls/live/by-leg/") -> {
-                        byLegHits.incrementAndGet()
-                        MockResponse(body = """{"call_session_id":"sess-real"}""")
-                    }
-
-                    path.endsWith("/ring-me") -> when (ringMeStatus) {
-                        200 -> MockResponse(body = """{"ok":true}""")
-                        409 -> MockResponse(
-                            code = 409,
-                            body = """{"error":{"code":"conflict","message":"That call isn't ringing anymore."}}""",
-                        )
-
-                        else -> MockResponse(
-                            code = 500,
-                            body = """{"error":{"code":"internal_error","message":"Something broke."}}""",
-                        )
-                    }
-
-                    else -> MockResponse(
-                        code = 404,
-                        body = """{"error":{"code":"not_found","message":"No route."}}""",
-                    )
-                }
-            }
+    /**
+     * Direct suspend-function fake of the [CallsApi] seam. Responses (and the
+     * decoded [ApiException]s for error statuses) match what the old
+     * MockWebServer harness served, but every call completes synchronously in
+     * the caller's coroutine — the test scheduler owns every hop.
+     */
+    private inner class FakeCallsApi : CallsApi {
+        override suspend fun mintToken(companyId: String): WebRtcToken {
+            tokenMints.incrementAndGet()
+            return WebRtcToken(token = "telnyx-jwt", sip_username = "sip-u1", expires_in_hours = 24)
         }
-    }
 
-    @After
-    fun tearDown() {
-        server.close()
-    }
-
-    private class FakeSessions : SessionSource {
-        private val flow = MutableStateFlow<Session?>(
-            Session(
-                accessToken = "token-1",
-                refreshToken = "refresh-1",
-                expiresAt = System.currentTimeMillis() / 1000 + 3600,
-                userId = "user-1",
-                email = "a@b.c",
-            ),
+        override suspend fun authorizeBrowserCall(
+            companyId: String,
+            conversationId: String?,
+            contactId: String?,
+            to: String?,
+            phoneNumberId: String?,
+        ): BrowserCallAuth = BrowserCallAuth(
+            from = "+15550001111",
+            to = "+15552223333",
+            client_state = serverClientState,
         )
-        override val session: Flow<Session?> = flow
-        override suspend fun current(): Session? = flow.value
-        override suspend fun save(session: Session) {
-            flow.value = session
+
+        override suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution {
+            byLegHits.incrementAndGet()
+            return LegResolution(call_session_id = "sess-real")
         }
 
-        override suspend fun clear() {
-            flow.value = null
-        }
+        override suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts =
+            throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
+
+        override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
+            throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
+
+        override suspend fun blindTransfer(
+            companyId: String,
+            sessionId: String,
+            targetUserId: String,
+        ): TransferAck = throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
+
+        override suspend fun ringMe(companyId: String, sessionId: String): RingAck =
+            when (ringMeStatus) {
+                200 -> RingAck(ok = true)
+                409 -> throw ApiException(
+                    ApiErrorCode.CONFLICT,
+                    "That call isn't ringing anymore.",
+                    409,
+                )
+
+                else -> throw ApiException(ApiErrorCode.INTERNAL_ERROR, "Something broke.", 500)
+            }
     }
 
     private class FakeHandle(
@@ -215,27 +208,17 @@ class SoftphoneCoreTest {
     )
 
     private fun TestScope.harness(): Harness {
-        val http = OkHttpClient()
-        val api = ApiClient(
-            http = http,
-            baseUrl = server.url("/").toString().trimEnd('/'),
-            sessionStore = FakeSessions(),
-            supabaseAuth = SupabaseAuth(
-                client = http,
-                supabaseUrl = "http://localhost:1",
-                publishableKey = "pk",
-            ),
-        )
-        // Unconfined so the core's internal collectors start eagerly; shares
-        // the test scheduler so delays use virtual time.
-        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        // The core's scope shares runTest's scheduler through a
+        // StandardTestDispatcher: every launch inside SoftphoneCore is queued
+        // on the (single-threaded, virtual-time) test scheduler and runs only
+        // under runCurrent()/first{} — never eagerly, never on another thread.
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val sdk = FakeSdk()
-        return Harness(SoftphoneCore(CallsApi(api), sdk, scope), sdk, scope)
+        return Harness(SoftphoneCore(FakeCallsApi(), sdk, scope), sdk, scope)
     }
 
-    /** Bare await — never a virtual-time timeout around REAL MockWebServer
-     *  IO (virtual time races ahead of real sockets); runTest's own wall-
-     *  clock timeout guards a hang. */
+    /** Total-predicate wait — suspending into first{} drives the scheduler
+     *  through start()'s mint→connect→Ready chain; nothing sampled early. */
     private suspend fun SoftphoneCore.awaitReady() {
         state.first { it.status == SoftphoneStatus.READY }
     }
@@ -249,6 +232,7 @@ class SoftphoneCoreTest {
         h.core.awaitReady()
 
         h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent() // start the new leg's phase watcher
 
         assertEquals(1, h.sdk.placed.size)
         val placed = h.sdk.placed.single()
@@ -269,8 +253,11 @@ class SoftphoneCoreTest {
         assertEquals(1, tokenMints.get())
 
         h.core.placeCall(displayName = "A", to = "+15552223333")
+        runCurrent()
         h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
         h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ENDED
+        runCurrent()
         h.core.placeCall(displayName = "B", to = "+15552223333")
 
         assertEquals("two calls, still one mint", 1, tokenMints.get())
@@ -285,8 +272,10 @@ class SoftphoneCoreTest {
         h.core.start("company-1")
         h.core.awaitReady()
         h.core.placeCall(displayName = "A", to = "+15552223333")
+        runCurrent()
 
         h.sdk.outboundHandles.single().phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
 
         val call = h.core.state.value.calls.single()
         assertEquals(CallPhase.ACTIVE, call.phase)
@@ -301,8 +290,11 @@ class SoftphoneCoreTest {
         h.core.start("company-1")
         h.core.awaitReady()
         h.core.placeCall(displayName = "A", to = "+15552223333")
+        runCurrent()
         h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
         h.core.placeCall(displayName = "B", to = "+15552223333")
+        runCurrent()
         try {
             h.core.placeCall(displayName = "C", to = "+15552223333")
             fail("expected conflict")
@@ -322,16 +314,18 @@ class SoftphoneCoreTest {
 
         val ringLeg = FakeHandle("in-1", callControlId = "ccid-ring-1")
         h.sdk.ring(ringLeg)
+        runCurrent() // deliver the invite through the events collector
         assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
         assertNull(h.core.state.value.calls.single().sessionId)
 
         h.core.answer("in-1")
         assertNotNull(ringLeg.accepted)
         ringLeg.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent() // phase watcher -> resolveSession -> by-leg -> sessionKnown
 
-        // singleOrNull: the predicate must be TOTAL — with the by-leg fetch on
-        // a real IO thread, runTest can observe interleavings where this
-        // snapshot isn't the settled one (CI flake, run 12).
+        // singleOrNull keeps the predicate TOTAL (a non-single emission is
+        // "not yet", never a throw) — the CI flake that motivated this
+        // harness was a single() here observing an in-between emission.
         val resolved = h.core.state.first { it.calls.singleOrNull()?.sessionId != null }
         assertEquals("sess-real", resolved.calls.single().sessionId)
         assertEquals(1, byLegHits.get())
@@ -345,8 +339,10 @@ class SoftphoneCoreTest {
         h.core.awaitReady()
         val ringLeg = FakeHandle("in-1")
         h.sdk.ring(ringLeg)
+        runCurrent()
         // Another member won the race — the SDK ends our ring leg.
         ringLeg.phaseFlow.value = CallPhase.ENDED
+        runCurrent()
         assertTrue(h.core.state.value.calls.isEmpty())
         h.scope.cancel()
     }
@@ -359,11 +355,14 @@ class SoftphoneCoreTest {
 
         val first = FakeHandle("in-1", callControlId = "ccid-1")
         h.sdk.ring(first, name = "First")
+        runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
 
         val second = FakeHandle("in-2", callControlId = "ccid-2")
         h.sdk.ring(second, name = "Second")
+        runCurrent()
         h.core.answer("in-2")
 
         assertEquals("the active first call got the SDK hold toggle", 1, first.holdToggles)
@@ -371,7 +370,9 @@ class SoftphoneCoreTest {
 
         // The SDK confirms: first held, second active — one active audio path.
         first.phaseFlow.value = CallPhase.HELD
+        runCurrent()
         second.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
         val state = h.core.state.value
         assertEquals("in-2", state.activeId)
         assertEquals(CallPhase.HELD, state.calls.first { it.id == "in-1" }.phase)
@@ -386,13 +387,17 @@ class SoftphoneCoreTest {
 
         val first = FakeHandle("in-1")
         h.sdk.ring(first, name = "First")
+        runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
         val second = FakeHandle("in-2")
         h.sdk.ring(second, name = "Second")
+        runCurrent()
 
         val third = FakeHandle("in-3")
         h.sdk.ring(third, name = "Third")
+        runCurrent()
 
         assertTrue("third call declined so the race resolves elsewhere", third.ended)
         assertEquals(2, h.core.state.value.calls.size)
@@ -407,13 +412,18 @@ class SoftphoneCoreTest {
 
         val first = FakeHandle("in-1")
         h.sdk.ring(first, name = "First")
+        runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
         val second = FakeHandle("in-2")
         h.sdk.ring(second, name = "Second")
+        runCurrent()
         h.core.answer("in-2")
         first.phaseFlow.value = CallPhase.HELD
+        runCurrent()
         second.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
 
         // Swap back to the first call.
         h.core.toggleHold("in-1")
