@@ -122,11 +122,14 @@ describe("vapidKeyToApplicationServerKey", () => {
 });
 
 describe("subscriptionToKeys", () => {
-  it("shapes PushSubscription.toJSON() into the POST body", () => {
+  it("shapes PushSubscription.toJSON() into the POST body with the caps declaration", () => {
     const { subscription } = fakeSubscription("https://push.example.net/x");
     expect(subscriptionToKeys(subscription)).toEqual({
       endpoint: "https://push.example.net/x",
       keys: { p256dh: "P256DH", auth: "AUTH" },
+      // #170 CALLS-V3 §9.2: every save declares this client understands the
+      // kind:'call_end' revocation push — the server's delivery gate.
+      caps: ["call_end"],
     });
   });
 
@@ -167,11 +170,15 @@ describe("init", () => {
     await machine.init();
     expect(machine.snapshot().phase).toBe("subscribed");
     // The reconcile re-POSTs the current browser subscription — so a
-    // server-side prune (incoming-call 410 cleanup) is repaired on next open.
+    // server-side prune (incoming-call 410 cleanup) is repaired on next open,
+    // and (#170 CALLS-V3 §9.2) a PRE-v3 row gains the 'call_end' cap on the
+    // first app open after this deploy — the reconcile upsert IS the upgrade
+    // path that turns on call_end delivery for existing subscribers.
     expect(env.saveSubscription).toHaveBeenCalledTimes(1);
     expect(env.saveSubscription).toHaveBeenCalledWith({
       endpoint: "https://push.example.net/rotated",
       keys: { p256dh: "P256DH", auth: "AUTH" },
+      caps: ["call_end"],
     });
   });
 
@@ -235,6 +242,7 @@ describe("subscribe", () => {
     expect(env.saveSubscription).toHaveBeenCalledWith({
       endpoint: "https://push.example.net/send/dev-1",
       keys: { p256dh: "P256DH", auth: "AUTH" },
+      caps: ["call_end"],
     });
     expect(phases).toContain("subscribing");
   });

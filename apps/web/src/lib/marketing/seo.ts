@@ -9,8 +9,15 @@ import { SITE_URL, absoluteUrl } from "./site";
  * served only "/"), so the shared card is wired here config-side instead —
  * a static 1200×630 snapshot of (marketing)/opengraph-image.tsx's render
  * (public/og/loonext-og-default.png; re-snapshot if that design changes).
- * Routes with their own opengraph-image.tsx (home, /pricing) still win:
- * file-based metadata takes priority over this config default.
+ *
+ * PRECEDENCE (production-verified 2026-07-15): a config-side images entry
+ * SHADOWS a same-segment file-convention opengraph-image.tsx — /pricing ships
+ * its own file route yet its meta tags carry this default because
+ * buildMetadata sets images. The home page gets its file-based card only
+ * because its openGraph override omits `images` entirely. So: a route that
+ * wants its own card must pass `image` below (blog posts do, pointing at the
+ * /og/blog/<slug> route) — shipping an opengraph-image.tsx next to a
+ * buildMetadata page does nothing.
  */
 const OG_DEFAULT_IMAGE = {
   url: absoluteUrl("/og/loonext-og-default.png"),
@@ -27,8 +34,10 @@ const OG_DEFAULT_IMAGE = {
  * - Descriptions are hand-written per page (no templating, §11.1).
  * - `alternates.canonical` is emitted for every page.
  * - OpenGraph + Twitter (summary_large_image) share the page title/description;
- *   og:image is the shared default card above unless the route ships its own
- *   opengraph-image.tsx.
+ *   og:image is the shared default card above unless the page passes `image`
+ *   (Twitter falls back to og:image, so one images list serves both).
+ * - `image` points the page at its own card (path is absolutized here) —
+ *   the only way to override the default; see the precedence note above.
  * - `article` marks a blog post: og:type article + article:published_time,
  *   matching the BlogPosting JSON-LD the post also renders.
  */
@@ -37,12 +46,14 @@ export function buildMetadata({
   description,
   path,
   absoluteTitle = false,
+  image,
   article,
 }: {
   title: string;
   description: string;
   path: string;
   absoluteTitle?: boolean;
+  image?: { path: string; width: number; height: number; alt: string };
   article?: { publishedTimeIso: string; modifiedTimeIso?: string };
 }): Metadata {
   const canonical = absoluteUrl(path);
@@ -55,7 +66,16 @@ export function buildMetadata({
       title,
       description,
       url: canonical,
-      images: [OG_DEFAULT_IMAGE],
+      images: [
+        image
+          ? {
+              url: absoluteUrl(image.path),
+              width: image.width,
+              height: image.height,
+              alt: image.alt,
+            }
+          : OG_DEFAULT_IMAGE,
+      ],
       ...(article
         ? {
             type: "article",

@@ -9,9 +9,10 @@
  *
  * Server contract (read from apps/api/src/routes/notifications.ts):
  *   GET    /v1/notification-prefs        → { …, vapid_public_key }
- *   POST   /v1/push-subscriptions        { endpoint, keys } → { id, … }
+ *   POST   /v1/push-subscriptions        { endpoint, keys, caps } → { id, … }
  *          (upsert on (user_id, endpoint) — re-posting is how we learn the
- *          row id at unsubscribe time without any client-side persistence)
+ *          row id at unsubscribe time without any client-side persistence;
+ *          `caps` is the #170 CALLS-V3 §9.2 capability declaration)
  *   DELETE /v1/push-subscriptions/:id
  */
 import { ApiError } from "@/lib/api/error";
@@ -55,9 +56,24 @@ export interface PushManagerLike {
   }): Promise<BrowserPushSubscription>;
 }
 
+/**
+ * Push capabilities this web client declares on EVERY push-subscription save
+ * (#170 CALLS-V3 §9.2): 'call_end' attests the deployed sw.js dismisses the
+ * `loonext:call:<session>` ring notification when the server revokes a ring.
+ * The server sends kind:'call_end' ONLY to subscription rows declaring the
+ * cap, so an un-updated browser (whose worker would render the kind as a
+ * stray generic notification, §8.5.4) never receives one. Ships in the same
+ * deploy as the sw.js handler; the on-load reconcile upsert (init) is what
+ * upgrades pre-existing rows. Keep in lockstep with PUSH_CAPS in
+ * public/sw.js.
+ */
+export const PUSH_SUBSCRIPTION_CAPS = ["call_end"];
+
 export interface SubscriptionKeys {
   endpoint: string;
   keys: { p256dh: string; auth: string };
+  /** Capability declaration — see {@link PUSH_SUBSCRIPTION_CAPS}. */
+  caps: string[];
 }
 
 export interface PushEnvironment {
@@ -96,7 +112,10 @@ export function vapidKeyToApplicationServerKey(
   return bytes;
 }
 
-/** Extract the API body from a browser subscription; throws when malformed. */
+/** Extract the API body from a browser subscription; throws when malformed.
+ *  Always carries the caps declaration — every save path (subscribe, the
+ *  on-load reconcile, the unsubscribe row-id upsert) goes through here, which
+ *  is exactly how existing rows learn 'call_end' after this deploy. */
 export function subscriptionToKeys(
   subscription: BrowserPushSubscription,
 ): SubscriptionKeys {
@@ -107,7 +126,11 @@ export function subscriptionToKeys(
   if (!endpoint || !p256dh || !auth) {
     throw new Error("Browser returned an incomplete push subscription.");
   }
-  return { endpoint, keys: { p256dh, auth } };
+  return {
+    endpoint,
+    keys: { p256dh, auth },
+    caps: [...PUSH_SUBSCRIPTION_CAPS],
+  };
 }
 
 /** ApiError messages are customer-facing (G10); DOM errors are not. */

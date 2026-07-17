@@ -104,14 +104,21 @@ export function useResolveLiveSession() {
  * D43 push-to-wake (#135): after opening the app from an incoming-call push,
  * ask the server to (re-)ring this member's now-awake browser for the still-live
  * call, so the ringing call surfaces and can be answered.
+ *
+ * #170 CALLS-V3 §8.5.2/§6: v3 clients ALWAYS send `no_local_leg: true` — the
+ * §10.1.3 rule makes calling ring-me at all the attestation "no live leg is
+ * presenting this session on this device", which is what licenses the server
+ * to dial a fresh leg. The ONE call site (CallsView's push-tap effect) guards
+ * that rule before firing. Response fields are additive (§8.3) and currently
+ * unread; the old "not ringing anymore" 409 is now a 200 `{rang:false}`.
  */
 export function useRingMe() {
   const companyId = useCompanyId();
   return useMutation({
     mutationFn: (sessionId: string) =>
-      apiFetch<{ ok: boolean }>(
+      apiFetch<{ ok: boolean; rang?: boolean; state?: string; reason?: string }>(
         `/v1/calls/live/${encodeURIComponent(sessionId)}/ring-me`,
-        { companyId, method: "POST", body: {} },
+        { companyId, method: "POST", body: { no_local_leg: true } },
       ),
   });
 }

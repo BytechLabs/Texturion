@@ -1,4 +1,5 @@
 import { Dateline } from "@/components/marketing/fr";
+import { BlogPlate } from "@/components/marketing/blog/blog-plate";
 import { FeatureCta } from "@/components/marketing/features/feature-page";
 import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
@@ -14,8 +15,11 @@ import {
 /**
  * ARTICLE template (#127): the quiet register, same 68ch single column as
  * LEGAL (DESIGN-DIRECTION v4 §6) because long-form reading wants the same
- * restraint. The one v4 flourish an article keeps is the ink Dateline chip
- * above the H1. No art, no hairline rules, separation is space alone.
+ * restraint. The header opens on the post's banner plate (deterministic art
+ * from the slug, lib/marketing/blog-art — the page's single waiting/answered
+ * mark pair) above the ink Dateline chip and the H1. Inline SVG geometry is
+ * not an LCP candidate, so the H1 stays the LCP; the plate box has a fixed
+ * aspect ratio, so CLS stays 0. No hairline rules; separation is space alone.
  *
  * Ends on the standard Frost CTA band: an article that earns a read earns
  * the pitch, and the CTA copy stays in the site-wide register.
@@ -55,7 +59,13 @@ export function ArticlePage({
         <article className="mx-auto w-full max-w-[68ch] px-6 md:px-8">
           <header>
             <Breadcrumbs crumbs={crumbs} className="mb-6" />
-            <Dateline>{post.dateline}</Dateline>
+            <BlogPlate
+              slug={post.slug}
+              dateline={post.dateline}
+              variant="banner"
+              className="aspect-[16/5] w-full rounded-[12px]"
+            />
+            <Dateline className="mt-8">{post.dateline}</Dateline>
             <h1 className="font-display mt-5 text-[2rem] font-extrabold leading-[1.1] tracking-[-0.01em] text-[color:var(--fr-ink)] sm:text-[2.5rem] text-balance">
               {post.title}
             </h1>

@@ -177,11 +177,29 @@ export function CallsView() {
   const pendingCall = useSearchParams().get("call");
   const rungRef = useRef<string | null>(null);
   const ready = softphone?.ready ?? false;
+  // #170 CALLS-V3 §10.1.3: ring-me only when this device holds no live leg
+  // that could belong to the session — the request's `no_local_leg: true` IS
+  // that attestation, so it must be true when we fire. A ringing inbound
+  // INVITE's customer session is unknowable until answered (the SDK reports
+  // the MEMBER leg's session; the customer session resolves via by-leg only
+  // after answer), so any un-ended inbound call that is still ringing — or one
+  // already resolved to THIS session — blocks the auto-ring: the INVITE path
+  // owns presentation. Inbound calls resolved to OTHER sessions (and outbound
+  // calls) don't block — ringing this member for a second call is call
+  // waiting, not a push-chase.
+  const presentingLeg =
+    softphone?.calls.some(
+      (c) =>
+        c.direction === "inbound" &&
+        c.phase !== "ended" &&
+        (c.phase === "ringing" || c.sessionId === pendingCall),
+    ) ?? false;
   useEffect(() => {
-    if (!pendingCall || !ready || rungRef.current === pendingCall) return;
+    if (!pendingCall || !ready || presentingLeg) return;
+    if (rungRef.current === pendingCall) return;
     rungRef.current = pendingCall;
     ringMe.mutate(pendingCall);
-  }, [pendingCall, ready, ringMe]);
+  }, [pendingCall, ready, presentingLeg, ringMe]);
   const rows = calls.data?.pages.flatMap((page) => page.data) ?? [];
 
   return (

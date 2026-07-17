@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
   ...(process.env.LOONEXT_DIST_DIR
     ? { distDir: process.env.LOONEXT_DIST_DIR }
     : {}),
+  // mdx MUST be listed here (the documented @next/mdx step). Beyond enabling
+  // .mdx route files, Next builds its layer-scoped vendored-React alias rule
+  // from this list (webpack-config.ts aliasCodeConditionTest): without "mdx",
+  // an RSC-layer content.mdx module resolves `react/jsx-dev-runtime` to the
+  // USERLAND client runtime while its `react` import resolves to the VENDORED
+  // react-server flavor, and `next dev` 500s every post page with
+  // "Cannot read properties of undefined (reading 'recentlyCreatedOwnerStacks')".
+  // Production was never affected (stable jsx runtime), but dev needs the pair
+  // matched. No .js/.jsx route files exist under src/app, so they stay unlisted.
+  pageExtensions: ["ts", "tsx", "md", "mdx"],
   // SPEC §3: next/image runs unoptimized on Cloudflare Workers (Cloudflare
   // Images is separately billed and the dashboard doesn't need it).
   images: {
@@ -105,18 +115,9 @@ const nextConfig: NextConfig = {
 // is webpack here, no turbopack), so there's no runtime MDX and the OpenNext/
 // Workers output is unchanged. rehype-slug gives every `##` heading a stable
 // id so in-article anchors keep working. The element→component styling map is
-// src/mdx-components.tsx (Next App Router convention).
-//
-// KNOWN `next dev` LIMITATION (production is unaffected): under `next dev`,
-// Next's SWC transforms the MDX-emitted JSX with the *development* jsx runtime
-// (`jsxDEV`), and React 19.2's `jsxDEV` reads an owner-stack internal
-// (`recentlyCreatedOwnerStacks`) that isn't initialized in the RSC server
-// dispatcher Next 15.5 wires, so an individual /blog/<slug> post 500s in the
-// dev server (the /blog index and the rest of the app render fine). `next build`
-// uses the stable `jsx` runtime and prerenders every post correctly, so the
-// deployed blog works. Preview posts via a production build or the deployed
-// site until the upstream Next/React combo ships the fix — no code change here
-// will be needed then.
+// src/mdx-components.tsx (Next App Router convention). The dev-server 500 the
+// blog used to hit was NOT an upstream limitation: it was the missing "mdx"
+// pageExtensions entry above.
 const withMDX = createMDX({
   options: {
     rehypePlugins: [rehypeSlug],

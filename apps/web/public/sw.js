@@ -1,12 +1,15 @@
 /*
  * Loonext service worker.
  *
- * Three jobs, nothing speculative:
+ * Four jobs, nothing speculative:
  *   1. push              -> show "contact name + snippet" notifications from
  *                           the server payload ({ title, body, url }).
- *   2. notificationclick -> focus an open Loonext tab on the deep-linked
+ *   2. push kind:call_end-> the ring-revocation push (#170 CALLS-V3 §9.2):
+ *                           close the ringing-call notification for the
+ *                           session — render nothing.
+ *   3. notificationclick -> focus an open Loonext tab on the deep-linked
  *                           thread, or open one.
- *   3. offline           -> precached app-shell fallback (offline.html) for
+ *   4. offline           -> precached app-shell fallback (offline.html) for
  *                           navigations that can't reach the network. No other
  *                           caching: the app is realtime, staleness is worse
  *                           than a spinner.
@@ -108,6 +111,40 @@ function callTag(url, origin) {
   }
 }
 
+/**
+ * kind:'call_end' (#170 CALLS-V3 §9.2/§10.3): the server revokes a ring on
+ * every exit from `ringing` (answered elsewhere / voicemail / missed). The
+ * payload carries the same `/calls?call=<session>` url as the ring push, so
+ * deriving the tag through the SAME normalize+callTag pipeline guarantees the
+ * revocation always names the exact notification the ring created.
+ *
+ * Returns the tag to dismiss, or null when the push is not a call_end.
+ * Delivery is capability-gated server-side — only subscriptions that declared
+ * caps:["call_end"] receive one — so this handler ships in the same deploy as
+ * the cap declaration (subscription-machine.ts) and no un-updated worker ever
+ * sees the kind (it would render a stray generic notification, §8.5.4).
+ */
+function callEndDismissTag(rawText, origin) {
+  if (typeof rawText !== "string" || rawText.length === 0) return null;
+  let payload = null;
+  try {
+    payload = JSON.parse(rawText);
+  } catch {
+    return null;
+  }
+  if (!payload || payload.kind !== "call_end") return null;
+  return callTag(normalizeNotificationUrl(payload.url, origin), origin);
+}
+
+/** Close every notification carrying the revoked call's tag. Best-effort:
+ *  zero matches (already tapped/timed out) is the routine case, not an error. */
+async function dismissCallNotifications(tag) {
+  const notifications = await self.registration.getNotifications({ tag });
+  for (const notification of notifications) {
+    notification.close();
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -144,6 +181,14 @@ self.addEventListener("push", (event) => {
     } catch {
       rawText = null;
     }
+  }
+  // A call_end is a REVOCATION, not an alert (#170 CALLS-V3 §10.3): close the
+  // session's ring notification and render nothing — showing anything here
+  // would recreate the stray-tray ghost the kind exists to kill.
+  const dismissTag = callEndDismissTag(rawText, self.location.origin);
+  if (dismissTag !== null) {
+    event.waitUntil(dismissCallNotifications(dismissTag));
+    return;
   }
   const { title, options } = formatPushNotification(
     rawText,
@@ -188,8 +233,18 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 /**
+ * Push capabilities THIS worker build implements (#170 CALLS-V3 §9.2).
+ * 'call_end' attests the push handler above dismisses the ring notification —
+ * the server sends kind:'call_end' only to subscription rows declaring it.
+ * Must stay in lockstep with PUSH_SUBSCRIPTION_CAPS in the page's
+ * subscription-machine.ts (same deploy unit).
+ */
+const PUSH_CAPS = ["call_end"];
+
+/**
  * Shape a browser PushSubscription.toJSON() into the /v1/push-subscriptions
- * body, or null when it is incomplete. Pure — asserted by the unit tests.
+ * body (incl. the caps declaration), or null when it is incomplete. Pure —
+ * asserted by the unit tests.
  */
 function subscriptionSaveBody(json) {
   if (!json || typeof json.endpoint !== "string") return null;
@@ -197,7 +252,11 @@ function subscriptionSaveBody(json) {
   if (typeof keys.p256dh !== "string" || typeof keys.auth !== "string") {
     return null;
   }
-  return { endpoint: json.endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } };
+  return {
+    endpoint: json.endpoint,
+    keys: { p256dh: keys.p256dh, auth: keys.auth },
+    caps: PUSH_CAPS.slice(),
+  };
 }
 
 /**
@@ -276,5 +335,6 @@ self.__loonextSw = {
   PRECACHE,
   normalizeNotificationUrl,
   formatPushNotification,
+  callEndDismissTag,
   subscriptionSaveBody,
 };

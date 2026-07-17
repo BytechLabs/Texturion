@@ -23,10 +23,24 @@ interface WindowClientStub {
   navigate?: ReturnType<typeof vi.fn>;
 }
 
-function loadServiceWorker(clients: WindowClientStub[] = []) {
+/** A displayed notification the harness can hand back from getNotifications. */
+interface NotificationStub {
+  tag: string;
+  close: ReturnType<typeof vi.fn>;
+}
+
+function loadServiceWorker(
+  clients: WindowClientStub[] = [],
+  notifications: NotificationStub[] = [],
+) {
   const listeners = new Map<string, (event: unknown) => void>();
   const showNotification = vi.fn(() => Promise.resolve());
   const openWindow = vi.fn(() => Promise.resolve(null));
+  const getNotifications = vi.fn((filter?: { tag?: string }) =>
+    Promise.resolve(
+      notifications.filter((n) => !filter?.tag || n.tag === filter.tag),
+    ),
+  );
   const pushSubscribe = vi.fn(() =>
     Promise.resolve({
       toJSON: () => ({
@@ -41,7 +55,11 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
       listeners.set(type, listener);
     },
     location: { origin: ORIGIN },
-    registration: { showNotification, pushManager: { subscribe: pushSubscribe } },
+    registration: {
+      showNotification,
+      getNotifications,
+      pushManager: { subscribe: pushSubscribe },
+    },
     clients: {
       matchAll: vi.fn(() => Promise.resolve(clients)),
       openWindow,
@@ -75,6 +93,7 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
   return {
     listeners,
     showNotification,
+    getNotifications,
     openWindow,
     pushSubscribe,
     formatPushNotification: exposed.formatPushNotification as (
@@ -85,9 +104,15 @@ function loadServiceWorker(clients: WindowClientStub[] = []) {
       rawUrl: unknown,
       origin: string,
     ) => string,
-    subscriptionSaveBody: exposed.subscriptionSaveBody as (
-      json: unknown,
-    ) => { endpoint: string; keys: { p256dh: string; auth: string } } | null,
+    callEndDismissTag: exposed.callEndDismissTag as (
+      rawText: string | null,
+      origin: string,
+    ) => string | null,
+    subscriptionSaveBody: exposed.subscriptionSaveBody as (json: unknown) => {
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+      caps: string[];
+    } | null,
   };
 }
 
@@ -262,6 +287,74 @@ describe("push event listener", () => {
   });
 });
 
+describe("kind:'call_end' revocation push (#170 CALLS-V3 §9.2/§10.3)", () => {
+  const callEndRaw = (url: string) =>
+    JSON.stringify({ kind: "call_end", url, reason: "answered" });
+
+  it("closes the session's ring notification by tag and renders NOTHING", async () => {
+    const ringing = { tag: "loonext:call:sess-A", close: vi.fn() };
+    const otherCall = { tag: "loonext:call:sess-B", close: vi.fn() };
+    const thread = { tag: "loonext:/inbox/t-1", close: vi.fn() };
+    const sw = loadServiceWorker([], [ringing, otherCall, thread]);
+
+    await dispatch(sw.listeners, "push", {
+      data: { text: () => callEndRaw("/calls?call=sess-A") },
+    });
+
+    // The revoked session's alert is gone; a CONCURRENT live call's alert and
+    // message notifications are untouched.
+    expect(ringing.close).toHaveBeenCalled();
+    expect(otherCall.close).not.toHaveBeenCalled();
+    expect(thread.close).not.toHaveBeenCalled();
+    // A revocation is not an alert — no notification of any kind is shown
+    // (rendering one would recreate the stray-tray ghost, §8.5.4).
+    expect(sw.showNotification).not.toHaveBeenCalled();
+    expect(sw.getNotifications).toHaveBeenCalledWith({
+      tag: "loonext:call:sess-A",
+    });
+  });
+
+  it("derives the tag through the SAME pipeline as the ring push, so they always match", () => {
+    const sw = loadServiceWorker();
+    const ring = sw.formatPushNotification(
+      JSON.stringify({ kind: "call", title: "Call", url: "/calls?call=sess-X" }),
+      ORIGIN,
+    );
+    expect(sw.callEndDismissTag(callEndRaw("/calls?call=sess-X"), ORIGIN)).toBe(
+      ring.options.tag,
+    );
+    // Session-less urls fall back to the SAME constant tag the ring used.
+    const fallbackRing = sw.formatPushNotification(
+      JSON.stringify({ kind: "call", title: "Call", url: "/calls" }),
+      ORIGIN,
+    );
+    expect(sw.callEndDismissTag(callEndRaw("/calls"), ORIGIN)).toBe(
+      fallbackRing.options.tag,
+    );
+  });
+
+  it("is a quiet no-op when the notification was already gone (tapped/timed out)", async () => {
+    const sw = loadServiceWorker([], []);
+    await dispatch(sw.listeners, "push", {
+      data: { text: () => callEndRaw("/calls?call=sess-A") },
+    });
+    expect(sw.showNotification).not.toHaveBeenCalled();
+  });
+
+  it("never treats other kinds (or garbage) as a revocation", () => {
+    const sw = loadServiceWorker();
+    for (const raw of [
+      JSON.stringify({ kind: "call", url: "/calls?call=sess-A" }),
+      JSON.stringify({ title: "Dana", body: "hi", url: "/conversations/t-1" }),
+      "not-json",
+      "",
+      null,
+    ]) {
+      expect(sw.callEndDismissTag(raw, ORIGIN)).toBeNull();
+    }
+  });
+});
+
 describe("notificationclick listener", () => {
   const clickEvent = (url: string) => ({
     notification: { close: vi.fn(), data: { url } },
@@ -411,13 +504,19 @@ describe("offline fallback wiring", () => {
 describe("subscriptionSaveBody", () => {
   const sw = loadServiceWorker();
 
-  it("shapes a complete subscription into the POST body", () => {
+  it("shapes a complete subscription into the POST body, declaring this build's caps", () => {
     expect(
       sw.subscriptionSaveBody({
         endpoint: "https://push.example.net/x",
         keys: { p256dh: "P", auth: "A" },
       }),
-    ).toEqual({ endpoint: "https://push.example.net/x", keys: { p256dh: "P", auth: "A" } });
+    ).toEqual({
+      endpoint: "https://push.example.net/x",
+      keys: { p256dh: "P", auth: "A" },
+      // #170 CALLS-V3 §9.2: this worker build handles kind:'call_end', so the
+      // body it shapes attests it.
+      caps: ["call_end"],
+    });
   });
 
   it("returns null for missing endpoint or keys", () => {

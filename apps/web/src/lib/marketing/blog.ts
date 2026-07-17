@@ -171,3 +171,22 @@ export function blogPost(slug: string): BlogPost {
   if (!post) throw new Error(`unregistered blog post: ${slug}`);
   return post;
 }
+
+/**
+ * The post's own OG card, rendered from its plate art + title by the
+ * app/og/blog/[slug] route. Feeds buildMetadata's `image` param — every post
+ * page passes this so no post ever falls back to the site-wide default card.
+ */
+export function blogPostOgImage(post: BlogPost): {
+  path: string;
+  width: number;
+  height: number;
+  alt: string;
+} {
+  return {
+    path: `/og/blog/${post.slug}`,
+    width: 1200,
+    height: 630,
+    alt: post.title,
+  };
+}
