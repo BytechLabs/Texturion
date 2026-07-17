@@ -127,6 +127,12 @@ class AuthManager(
         return pending
     }
 
+    /** Non-consuming read — the stranded-handoff guard peeks without racing
+     *  a redirect that may still be in flight. */
+    suspend fun peekPendingOAuth(): PendingOAuth? = prefs.pendingOAuth()
+
+    suspend fun clearPendingOAuth() = prefs.clearPendingOAuth()
+
     /** Preflighted authorize URL (throws the honest unprovisioned error). */
     suspend fun oauthAuthorizeUrl(
         provider: String,

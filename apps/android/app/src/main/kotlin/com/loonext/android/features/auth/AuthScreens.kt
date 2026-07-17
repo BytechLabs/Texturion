@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
@@ -139,6 +140,27 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
         )
     }
 
+    /**
+     * Resume-time stranded-handoff check: a pending browser handoff that is
+     * >10s old with no redirect delivered means the user is back without a
+     * result (cancel, or a redirect that stranded in the browser). The 2s
+     * grace lets an in-flight buffered redirect win the race (onNewIntent
+     * runs before onResume on singleTask, but delivery hops coroutines).
+     */
+    fun onAuthScreenResumed() {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(2_000)
+            if (_state.value.busy || _state.value.googleLaunchUrl != null) return@launch
+            val pending = authManager.peekPendingOAuth() ?: return@launch
+            if (System.currentTimeMillis() - pending.createdAtMillis > 10_000) {
+                authManager.clearPendingOAuth()
+                _state.value = _state.value.copy(
+                    error = "Google sign-in didn't finish. Try again.",
+                )
+            }
+        }
+    }
+
     /** The com.loonext.android://auth-callback redirect (via AuthCallbacks). */
     fun onOAuthRedirect(uri: Uri) {
         if (_state.value.busy) return
@@ -228,6 +250,14 @@ fun AuthFlow(viewModel: AuthViewModel) {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
         }.isSuccess
         viewModel.onGoogleLaunched(launched)
+    }
+
+    // Stranded-handoff guard: the user came back from the browser but no
+    // redirect arrived (canceled, or a misconfigured redirect stranded the
+    // browser on the website). Surface honest copy instead of silence.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onAuthScreenResumed()
+        onPauseOrDispose { }
     }
 
     if (state.awaitingCaptcha) {
