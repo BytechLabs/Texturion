@@ -3,6 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Generates the Firebase resources from google-services.json — the file
+    // is client config (the same bits ship inside every APK), committed so CI
+    // artifacts are push-enabled. The server-side service-account key is the
+    // actual secret and never enters the repo.
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -31,8 +36,9 @@ android {
     }
 
     buildTypes {
+        // No debug applicationIdSuffix: Firebase registers com.loonext.android,
+        // and google-services.json must match the built package name.
         debug {
-            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = true

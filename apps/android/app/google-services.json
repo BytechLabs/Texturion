@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "277806682826",
+    "project_id": "loonext-4125c",
+    "storage_bucket": "loonext-4125c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:277806682826:android:9f5774d943c8c7acd79a33",
+        "android_client_info": {
+          "package_name": "com.loonext.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDePm7m-6yS6GbKALK7M6YvSWhXOMu5wjE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

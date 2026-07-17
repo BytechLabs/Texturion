@@ -3,7 +3,6 @@ build/
 local.properties
 .kotlin/
 *.keystore
-google-services.json
 captures/
 .externalNativeBuild/
 .cxx/
