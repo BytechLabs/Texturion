@@ -26,9 +26,12 @@ import {
   resolveNumberAccess,
   type NumberAccessRule,
 } from "../auth/number-access";
+import { callsV3Active, callsV3LegacyMode } from "../calls/runtime";
+import type { CallSessionDO, SessionSnapshot } from "../calls/session-do";
+import type { CallState } from "../calls/transitions";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { getEnv, type Env } from "../env";
 import { errorResponse } from "../http/errors";
 import {
   buildConsultState,
@@ -46,6 +49,39 @@ import { parseJsonBody, unwrap } from "./core/http";
 const targetBodySchema = z.object({
   target_user_id: z.uuid(),
 });
+
+const ringMeBodySchema = z
+  .object({
+    // §6 v2 wire change: v3 clients ALWAYS send true (calling ring-me only
+    // when holding no live leg IS the attestation). Absent = pre-v3 client.
+    no_local_leg: z.boolean().optional(),
+  })
+  .optional();
+
+/** The CallSessionDO stub for a session, or null when the binding is absent. */
+function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
+  const namespace = env.CALL_SESSIONS;
+  if (!namespace) return null;
+  return namespace.get(
+    namespace.idFromName(sessionId),
+  ) as unknown as CallSessionDO;
+}
+
+/** §8.1 row-derivation fallback (DEGRADED truth — cannot represent
+ *  voicemail-in-progress; that is phase-1 defect 4). Used when the DO returns
+ *  null (purged/legacy) or in kill-switch mode. */
+function deriveStateFromRow(row: {
+  outcome: string | null;
+  answered_at: string | null;
+  direction: string | null;
+}): CallState | null {
+  if (row.outcome === "answered") return "ended_answered";
+  if (row.outcome === "voicemail") return "ended_voicemail";
+  if (row.outcome === "missed") return "ended_missed";
+  if (row.direction !== "inbound") return null; // outbound has no v3 state
+  if (row.answered_at) return "answered";
+  return "ringing";
+}
 
 export const liveCallsRoutes = new Hono<AppEnv>();
 
@@ -240,6 +276,99 @@ liveCallsRoutes.get(
 );
 
 /**
+ * GET /v1/calls/live/:sessionId/state (#170 §8.1) — the ONE state read,
+ * ALWAYS 200 for an authorized request (no client ever infers state from a 4xx
+ * again). Authorizes from the calls row (company + #106), then reads the DO
+ * snapshot; if the DO returns null (purged / legacy) OR the kill switch is
+ * flipped, state is DERIVED from the row (§8.1 — degraded but strictly better
+ * than 4xx inference). Kill-switch mode NEVER calls the DO (review X1: a DO
+ * holding pre-flip state would serve a stale snapshot forever).
+ */
+liveCallsRoutes.get(
+  "/calls/live/:sessionId/state",
+  requireRole("member"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const sessionId = c.req.param("sessionId");
+    const companyId = c.get("companyId");
+
+    interface StateRow {
+      call_session_id: string;
+      caller_e164: string | null;
+      caller_name: string | null;
+      conversation_id: string | null;
+      phone_number_id: string | null;
+      direction: string | null;
+      started_at: string;
+      answered_at: string | null;
+      answered_by_user_id: string | null;
+      outcome: string | null;
+      company_id: string;
+    }
+    const rows = unwrap<StateRow[]>(
+      await db
+        .from("calls")
+        .select(
+          "call_session_id,caller_e164,caller_name,conversation_id,phone_number_id,direction,started_at,answered_at,answered_by_user_id,outcome,company_id",
+        )
+        .eq("call_session_id", sessionId)
+        .limit(1),
+      "state read",
+    );
+    const row = rows[0];
+    if (!row || row.company_id !== companyId) {
+      return errorResponse(c, "not_found", "No such call.");
+    }
+    // #106: a number hidden from this member never enumerates (404, not 403).
+    if (row.phone_number_id) {
+      const access = await resolveNumberAccess(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+      });
+      if ((access.hiddenNumberIds ?? []).includes(row.phone_number_id)) {
+        return errorResponse(c, "not_found", "No such call.");
+      }
+    }
+
+    let state: CallState | null = null;
+    let yourLeg: { call_control_id: string; status: string } | null = null;
+
+    // Kill-switch mode bypasses the DO entirely (§8.1 / §12.4).
+    if (!callsV3LegacyMode(env)) {
+      const stub = callSessionStub(env, sessionId);
+      if (stub) {
+        const snap: SessionSnapshot | null = await stub.snapshot(sessionId);
+        if (snap) {
+          state = snap.state;
+          const mine = snap.legs.find((leg) => leg.user_id === c.get("userId"));
+          if (mine) {
+            yourLeg = { call_control_id: mine.call_control_id, status: mine.status };
+          }
+        }
+      }
+    }
+    if (state === null) state = deriveStateFromRow(row);
+
+    return c.json({
+      call_session_id: row.call_session_id,
+      state,
+      direction: row.direction,
+      started_at: row.started_at,
+      answered_at: row.answered_at,
+      answered_by_user_id: row.answered_by_user_id,
+      caller_e164: row.caller_e164,
+      caller_name: row.caller_name,
+      conversation_id: row.conversation_id,
+      phone_number_id: row.phone_number_id,
+      outcome: row.outcome,
+      your_leg: yourLeg,
+    });
+  },
+);
+
+/**
  * Who can take this call: active credentialed members with 'text' access to
  * the call's number, minus the caller. `busy` = they hold a live answered
  * call right now (line-model presence — dialing them anyway is allowed, the
@@ -339,6 +468,23 @@ liveCallsRoutes.post(
       );
     }
 
+    // #170 §7.4: register the intent on the DO BEFORE issuing any Telnyx
+    // command — T7's stand-down guard reads only this record, so the guard can
+    // never miss an in-flight transfer. The DO returns the machine state; abort
+    // (dial nothing) unless it is 'answered' (review R1-m3 — requireLiveCall
+    // can pass and T5/T8 land before this call).
+    const transferStub = callsV3Active(env) ? callSessionStub(env, sessionId) : null;
+    if (transferStub) {
+      const { state } = await transferStub.registerIntent({
+        sessionId,
+        kind: "transfer",
+        targetUserId: body.target_user_id,
+      });
+      if (state !== "answered") {
+        return errorResponse(c, "conflict", "The call just ended.");
+      }
+    }
+
     const issued = await issueTransfer(env, db, {
       companyId: c.get("companyId"),
       customerCcid: gate.call.customer_call_control_id as string,
@@ -355,6 +501,7 @@ liveCallsRoutes.post(
       },
     });
     if (!issued) {
+      if (transferStub) await transferStub.clearIntent();
       return errorResponse(c, "conflict", "The call just ended.");
     }
     return c.json({ status: "transferring" }, 202);
@@ -412,6 +559,21 @@ liveCallsRoutes.post(
       return errorResponse(c, "conflict", "Your softphone isn't registered.");
     }
 
+    // #170 §7.4: intent BEFORE any Telnyx command (the consult route dials BOTH
+    // legs; T7 must observe the intent already registered). Abort unless the
+    // machine is still 'answered'.
+    const consultStub = callsV3Active(env) ? callSessionStub(env, sessionId) : null;
+    if (consultStub) {
+      const { state } = await consultStub.registerIntent({
+        sessionId,
+        kind: "consult",
+        targetUserId: body.target_user_id,
+      });
+      if (state !== "answered") {
+        return errorResponse(c, "conflict", "The call just ended.");
+      }
+    }
+
     // Dial both browsers; per-leg try/catch so a half-failed consult tears
     // down cleanly rather than ringing one side forever.
     const dialed: { ccid: string; userId: string }[] = [];
@@ -457,6 +619,7 @@ liveCallsRoutes.post(
           /* already gone */
         }
       }
+      if (consultStub) await consultStub.clearIntent();
       return errorResponse(c, "conflict", "Couldn't start the consult.");
     }
 
@@ -569,6 +732,18 @@ liveCallsRoutes.post(
       }
     }
 
+    // #170 §7.4: the owner stamp goes through the DO too, so the stamp-before-
+    // steal ordering is enforced by object serialization (the DB update above
+    // stays for immediate row/legacy-reader correctness; the DO mirror is
+    // idempotent). Clearing the intent re-runs T7's stood-down recovery check.
+    if (callsV3Active(env)) {
+      const stub = callSessionStub(env, sessionId);
+      if (stub) {
+        await stub.setOwner({ sessionId, userId: targetLeg.user_id });
+        await stub.clearIntent();
+      }
+    }
+
     if (gate.call.conversation_id) {
       await insertJourneyEvent(db, {
         companyId: c.get("companyId"),
@@ -607,6 +782,11 @@ liveCallsRoutes.post(
         /* already gone */
       }
     }
+    // #170 §7.4: clear the consult intent (also re-runs T7's stood-down check).
+    if (callsV3Active(env)) {
+      const stub = callSessionStub(env, sessionId);
+      if (stub) await stub.clearIntent();
+    }
     return c.json({ status: "cancelled" });
   },
 );
@@ -629,31 +809,64 @@ liveCallsRoutes.post(
     const sessionId = c.req.param("sessionId");
     const companyId = c.get("companyId");
     const userId = c.get("userId");
+    const body = (await parseJsonBody(c, ringMeBodySchema)) ?? {};
+    const noLocalLeg = body.no_local_leg === true;
 
     const call = await liveCallBySession(db, sessionId);
     if (!call || call.company_id !== companyId) {
       return errorResponse(c, "not_found", "No such call.");
     }
-    // ring-me is INBOUND push-to-wake only. A still-ringing OUTBOUND call
-    // (outcome + answered_at both null, both ccids set) would otherwise pass
-    // every gate below — letting any text-level member fire a spurious billable
-    // dial onto a teammate's live outbound line and, on a race, bridge-steal it
-    // (#139). The ring engine never fans a member ring leg onto an outbound
-    // call, so there is nothing legitimate to re-ring here.
+    // ring-me is INBOUND push-to-wake only. A still-ringing OUTBOUND call would
+    // otherwise let any text-level member fire a spurious billable dial onto a
+    // teammate's live outbound line and, on a race, bridge-steal it (#139).
+    // This is a property of the REQUEST, not session state → 409 (§8.3).
     if (call.direction !== "inbound") {
       return errorResponse(c, "conflict", "This call can't be rung.");
     }
-    if (call.outcome !== null || call.answered_at) {
-      return errorResponse(c, "conflict", "This call isn't ringing anymore.");
+    if (!call.phone_number_id) {
+      return errorResponse(c, "conflict", "This call can't be rung.");
     }
-    // #168 (part B): "outcome null + answered_at null" is NOT enough — a call
-    // that fell to VOICEMAIL is already answered on the vmi tag with nothing
-    // stamped on the row until its hangup. The ring ledger tells the truth:
-    // legs were dialed and none is still 'ringing' (nor 'answered') → the
-    // ring window is over. Re-dialing here would ring a member for a call
-    // voicemail owns (the founder's stale-ring-after-voicemail evidence).
-    // Zero ledgered legs = the ring engine hasn't dialed yet (the wake push
-    // fans out in parallel with the dial loop) — allowed, as before.
+    // #106: a number hidden from this member 404s (never enumerates).
+    await assertNumberLevel(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      phoneNumberId: call.phone_number_id,
+      need: "text",
+    });
+
+    const target = await eligibleTarget(db, companyId, call.phone_number_id, userId);
+    if (!target) {
+      // Requester ineligibility is a REQUEST property → 409 (§8.3).
+      return errorResponse(c, "conflict", "Your device can't take calls yet.");
+    }
+
+    // v3: the DO owns sequencing/state. The #168 ledger 409 gate is GONE — the
+    // DO's state guard replaces it with a truthful 200 body (§6). ring-me NEVER
+    // cancels a leg; the DO decides rang/reason.
+    if (callsV3Active(env)) {
+      const stub = callSessionStub(env, sessionId);
+      if (stub) {
+        const result = await stub.ringMe({
+          sessionId,
+          userId,
+          sipUsername: target.sipUsername,
+          noLocalLeg,
+        });
+        return c.json({
+          ok: true,
+          rang: result.rang,
+          state: result.state,
+          ...(result.reason ? { reason: result.reason } : {}),
+        });
+      }
+    }
+
+    // Kill-switch / no-binding fallback: the legacy ring engine. Preserve the
+    // #168 ledger gate ONLY on this path (the DO is not in play).
+    if (call.outcome !== null || call.answered_at) {
+      return c.json({ ok: true, rang: false, state: "answered", reason: "not_ringing" });
+    }
     const legs = unwrap<{ state: string }[]>(
       await db
         .from("call_member_legs")
@@ -666,27 +879,10 @@ liveCallsRoutes.post(
       legs.length > 0 &&
       !legs.some((leg) => leg.state === "ringing" || leg.state === "answered")
     ) {
-      return errorResponse(c, "conflict", "This call isn't ringing anymore.");
+      return c.json({ ok: true, rang: false, state: "ringing", reason: "not_ringing" });
     }
-    if (!call.customer_call_control_id || !call.phone_number_id) {
+    if (!call.customer_call_control_id) {
       return errorResponse(c, "conflict", "This call can't be rung.");
-    }
-    await assertNumberLevel(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-      phoneNumberId: call.phone_number_id,
-      need: "text",
-    });
-
-    const target = await eligibleTarget(
-      db,
-      companyId,
-      call.phone_number_id,
-      userId,
-    );
-    if (!target) {
-      return errorResponse(c, "conflict", "Your device can't take calls yet.");
     }
     const numbers = unwrap<{ number_e164: string }[]>(
       await db
@@ -700,7 +896,6 @@ liveCallsRoutes.post(
     if (!businessNumber) {
       return errorResponse(c, "conflict", "This call can't be rung.");
     }
-
     await ringMemberBrowser(env, db, {
       callSessionId: sessionId,
       companyId,
@@ -710,6 +905,6 @@ liveCallsRoutes.post(
       businessNumberE164: businessNumber,
       inboundCcid: call.customer_call_control_id,
     });
-    return c.json({ ok: true });
+    return c.json({ ok: true, rang: true, state: "ringing" });
   },
 );

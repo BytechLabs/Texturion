@@ -19,6 +19,10 @@
  */
 import { Hono } from "hono";
 
+import {
+  dispatchInboundCallEvent,
+  shouldRouteToDO,
+} from "../calls/webhook-router";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -64,14 +68,63 @@ telnyxWebhookRoute.post("/", async (c) => {
   if (error) {
     throw new Error(`webhook_events insert failed: ${error.message}`);
   }
+  // Calls v3 (#170 §7.2): inbound-family call.* events are ADMITTED to the DO
+  // in the REQUEST PATH before the ACK — a lost event then rides Telnyx's own
+  // fast retry ladder instead of our ≥2-min sweeper (an admitted call.answered
+  // must never fall to the t+45 alarm).
+  const routeToDO = shouldRouteToDO(env, event as TelnyxEvent);
+
   if (!data || data.length === 0) {
+    // Duplicate POST. §7.2 companion rule: for an inbound-family event whose
+    // ledger row is still UNSTAMPED, RE-DISPATCH (DO dedup makes double
+    // admission a no-op) instead of pure-acking {duplicate:true} forever.
+    if (routeToDO) {
+      const { data: existing } = await db
+        .from("webhook_events")
+        .select("processed_at")
+        .eq("provider", "telnyx")
+        .eq("event_id", eventId)
+        .limit(1);
+      const processedAt = (existing?.[0] as { processed_at: string | null } | undefined)
+        ?.processed_at;
+      if (!processedAt) {
+        const stamp = await dispatchInboundCallEvent(env, event as TelnyxEvent);
+        if (stamp) await stampProcessed(db, eventId);
+        return c.json({ received: true, redispatched: true });
+      }
+    }
     return c.json({ received: true, duplicate: true });
   }
 
-  // 3. ACK fast; 4. PROCESS in the background.
+  if (routeToDO) {
+    // Await admission (the DO returns at the §4.1 step-1 persist; effects
+    // complete via the journal-resume alarm even under immediate eviction),
+    // then stamp + ACK. A no-row inbound hangup returns stamp=false so the
+    // sweeper can replay it (§7.5.1).
+    const stamp = await dispatchInboundCallEvent(env, event as TelnyxEvent);
+    if (stamp) await stampProcessed(db, eventId);
+    return c.json({ received: true });
+  }
+
+  // 3. ACK fast; 4. PROCESS in the background (non-call + outbound + legacy).
   c.executionCtx.waitUntil(processAndStamp(env, event, eventId));
   return c.json({ received: true });
 });
+
+/** Stamp processed_at for a DO-admitted inbound-family event (best-effort). */
+async function stampProcessed(
+  db: ReturnType<typeof getDb>,
+  eventId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("webhook_events")
+    .update({ processed_at: new Date().toISOString() })
+    .eq("provider", "telnyx")
+    .eq("event_id", eventId);
+  if (error) {
+    console.error(`webhook_events stamp failed (v3 admit): ${error.message}`);
+  }
+}
 
 /** Process + ledger bookkeeping (processed_at / attempts / last_error). */
 async function processAndStamp(

@@ -768,7 +768,7 @@ export function defaultGreeting(companyName: string): string {
 
 /** TTS input is owner-authored — bound it and strip control characters so a
  *  pathological greeting can never wedge the speak command. */
-function sanitizeGreeting(raw: string | null, companyName: string): string {
+export function sanitizeGreeting(raw: string | null, companyName: string): string {
   const text = (raw ?? "").replace(/[\p{Cc}\p{Cf}]/gu, " ").trim();
   return text ? text.slice(0, 500) : defaultGreeting(companyName);
 }

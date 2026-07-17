@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { companyContext } from "./auth/company";
+import { CallSessionDO as CallSessionDOImpl } from "./calls/session-do";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
@@ -380,3 +381,17 @@ export const handler = {
  * observability/sentry.ts.
  */
 export default Sentry.withSentry(sentryOptions, handler);
+
+/**
+ * Calls v3 (#170 §2.1): the CallSessionDO, re-exported as a NAMED export so
+ * wrangler resolves the DO class from `main` (it does NOT read the
+ * Sentry-wrapped default export). Instrumented with
+ * `instrumentDurableObjectWithSentry` so alarm()/RPC errors are captured — the
+ * Worker-level withSentry wraps only fetch/scheduled, so an uninstrumented DO
+ * would make every §2.2 mirror-failure alert and §13 cost-cap warning (and the
+ * high-value alarm() crash) a silent no-op.
+ */
+export const CallSessionDO = Sentry.instrumentDurableObjectWithSentry(
+  (env: Env) => sentryOptions(env),
+  CallSessionDOImpl,
+);

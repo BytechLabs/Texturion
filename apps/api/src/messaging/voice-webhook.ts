@@ -429,7 +429,7 @@ export async function handleCallEvent(
  * it beat the hangup's 'missed' in either arrival order), thread the call if
  * the miss-path hasn't already, and drop the voicemail timeline line.
  */
-async function handleVoicemailSaved(
+export async function handleVoicemailSaved(
   env: Env,
   db: SupabaseClient,
   payload: CallPayload,
@@ -1044,7 +1044,7 @@ async function handleOutboundAgentVerdict(
  * dedupe, per-call claim), so a thrown error safely replays the whole
  * handler through the webhook sweeper.
  */
-async function handleTerminalCallEvent(
+export async function handleTerminalCallEvent(
   env: Env,
   db: SupabaseClient,
   eventType: string,

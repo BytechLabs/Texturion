@@ -47,6 +47,14 @@ const tokenSchema = z.string().min(1).max(4096);
 const registerSchema = z.object({
   platform: z.enum(["android", "ios"]),
   token: tokenSchema,
+  /**
+   * Calls v3 (#170 §9.2): capabilities this client declares — e.g.
+   * ["call_end"] to opt into the revocation push. Delivery is caps-gated so no
+   * un-updated (pre-v3) token ever receives a call_end it would render as a
+   * stray notification (the fleet-ghost gate, review R2-B1). Absent = a pre-v3
+   * client → no caps.
+   */
+  caps: z.array(z.string().max(64)).max(16).optional(),
 });
 
 const removeSchema = z.object({
@@ -69,6 +77,7 @@ devicePushTokensRoutes.post("/device-push-tokens", async (c) => {
           platform: body.platform,
           token: body.token,
           last_seen_at: new Date().toISOString(),
+          ...(body.caps ? { caps: body.caps } : {}),
         },
         { onConflict: "user_id,token" },
       )

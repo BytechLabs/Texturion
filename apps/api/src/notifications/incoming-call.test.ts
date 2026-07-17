@@ -185,7 +185,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 
     await expect(
       notifyIncomingCall(env, getDb(env), { ...INPUT, userIds: [USER_A] }),
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ unreachableUserIds: expect.any(Array) });
 
     expect(deleteCalled).toBe(false);
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
@@ -210,7 +210,7 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
 
 // ---------------------------------------------------------------------------
 // #151 native device push: the call wake reaches registered Android/iOS
-// devices as an FCM HIGH-priority, 30s-TTL send with the same kind:'call'
+// devices as an FCM HIGH-priority, 45s-TTL send with the same kind:'call'
 // payload. Shapes are covered in fcm.test.ts; this asserts the wiring, the
 // prune, and that the token value never leaks into Sentry.
 // ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     expect(sb.find("GET", "/rest/v1/device_push_tokens")).toHaveLength(0);
   });
 
-  it("delivers the kind:'call' wake payload at HIGH priority with the 30s ring TTL", async () => {
+  it("delivers the kind:'call' wake payload at HIGH priority with the 45s ring TTL", async () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const world = nativeWorld([
@@ -268,7 +268,7 @@ describe("notifyIncomingCall — native device push (#151)", () => {
       android: { priority: string; ttl: string };
     };
     expect(message.token).toBe(DEVICE_TOKEN);
-    expect(message.android).toEqual({ priority: "HIGH", ttl: "30s" });
+    expect(message.android).toEqual({ priority: "HIGH", ttl: "45s" });
     expect(message.data.kind).toBe("call");
     expect(message.data.title).toBe("Incoming call");
     expect(message.data.url).toBe("/calls?call=sess-1");
@@ -328,7 +328,7 @@ describe("notifyIncomingCall — native device push (#151)", () => {
 
     await expect(
       notifyIncomingCall(env2, getDb(env2), { ...INPUT, userIds: [USER_A] }),
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ unreachableUserIds: expect.any(Array) });
 
     expect(world.deleted).toEqual([]);
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);

@@ -80,6 +80,12 @@ const subscriptionSchema = z.object({
     p256dh: z.string().min(1).max(256),
     auth: z.string().min(1).max(128),
   }),
+  /**
+   * Calls v3 (#170 §9.2): capabilities this subscription declares — e.g.
+   * ["call_end"]. Delivery of the call_end revocation push is caps-gated so no
+   * pre-update service worker ever renders a stray notification (§8.5.4).
+   */
+  caps: z.array(z.string().max(64)).max(16).optional(),
 });
 
 interface PrefsRow {
@@ -167,6 +173,7 @@ notificationsRoutes.post(
             p256dh: body.keys.p256dh,
             auth: body.keys.auth,
             user_agent: c.req.header("User-Agent") ?? null,
+            ...(body.caps ? { caps: body.caps } : {}),
           },
           { onConflict: "user_id,endpoint" },
         )

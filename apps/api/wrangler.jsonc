@@ -73,6 +73,16 @@
       }
     ]
   },
+  // Calls v3 (#170, docs/CALLS-V3.md §2.1): one CallSessionDO per inbound call
+  // session owns the ring/answer/voicemail state machine, serialized by an
+  // explicit per-object FIFO. SQLite-backed storage (Workers Paid — already
+  // provisioned). The class is resolved from src/index.ts's NAMED export
+  // (wrangler reads DO classes from `main`'s named exports, not the
+  // Sentry-wrapped default).
+  "durable_objects": {
+    "bindings": [{ "name": "CALL_SESSIONS", "class_name": "CallSessionDO" }]
+  },
+  "migrations": [{ "tag": "calls-v3-1", "new_sqlite_classes": ["CallSessionDO"] }],
   // Only non-secret plain-text configuration belongs in "vars". Every credential
   // this Worker needs (SPEC §10) is a Worker encrypted secret — `wrangler secret put`
   // in production, `.dev.vars` locally. See .dev.vars.example for the full list,

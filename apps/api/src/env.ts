@@ -15,6 +15,20 @@ const rateLimiterSchema = z.custom<RateLimiter>(
 );
 
 /**
+ * Calls v3 (#170, docs/CALLS-V3.md §2.1): the CallSessionDO namespace. Typed
+ * via the same z.custom pattern as rateLimiterSchema — the envSchema strips
+ * unknown keys, so a binding added to a TS type alone would be silently
+ * discarded. Declared .optional() because required would break every existing
+ * test env fixture / completeEnv; the webhook router and live-calls routes
+ * guard at runtime and fail loudly (Sentry) if it is absent in production.
+ */
+const callSessionsSchema = z.custom<DurableObjectNamespace>(
+  (value) =>
+    typeof (value as DurableObjectNamespace | null | undefined)?.idFromName ===
+    "function",
+);
+
+/**
  * Every binding the api Worker requires (SPEC §10). All of these are Worker
  * encrypted secrets in production (`wrangler secret put`) and `.dev.vars`
  * entries locally — see .dev.vars.example.
@@ -183,6 +197,21 @@ const envSchema = z.object({
    */
   TELNYX_API_BASE: z.url().optional(),
   STRIPE_API_BASE: z.url().optional(),
+  /**
+   * Calls v3 (#170) — the per-call session Durable Object namespace
+   * (wrangler.jsonc `CALL_SESSIONS` → class CallSessionDO). Optional so every
+   * existing test fixture boots without it; the v3 inbound path guards on its
+   * presence and fails loudly in production (§2.1).
+   */
+  CALL_SESSIONS: callSessionsSchema.optional(),
+  /**
+   * Calls v3 kill switch (#170 §12.4): "1"/"true" restores the legacy inbound
+   * handlers for emergencies — the webhook router routes inbound events to the
+   * legacy path and never calls the DO, /state serves row derivation, and the
+   * DO alarm no-ops (re-arming a coarse re-check). OPTIONAL: unset = the v3
+   * path is live (the default posture once the binding is present).
+   */
+  CALLS_V3_LEGACY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

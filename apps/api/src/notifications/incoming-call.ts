@@ -11,6 +11,14 @@
  * outcome and every prune is reported to Sentry (host + status only) so a
  * wake outage is diagnosable (#142). Members who disabled push in settings are
  * skipped, matching the missed-call / inbound-message paths (#146).
+ *
+ * Calls v3 (#170 §5.5/§7.3, owned contract change): returns a per-user
+ * delivery report so the CallSessionDO can prune provably-dead channels from
+ * the ring audience. `unreachableUserIds` = requested members who, after this
+ * fan-out, can no longer be woken: pref-disabled, or holding zero channels, or
+ * every channel came back HARD-dead (gone). A member with even one channel
+ * that merely soft-failed (transient) stays reachable — the ladder holds
+ * ringback for them (§5.5: only provably-dead channels prune).
  */
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -35,15 +43,46 @@ interface DeviceTokenRow {
   token: string;
 }
 
-/** How long a ringing-call push is worth delivering (≈ the ring window). */
-const CALL_PUSH_TTL_SECS = 30;
+/**
+ * How long a ringing-call push is worth delivering. Calls v3 (#170 §9.2): 45s,
+ * up from 30 — it must OUTLIVE the 45s ring window, never undercut it.
+ */
+const CALL_PUSH_TTL_SECS = 45;
+
+/**
+ * Calls v3 (#170 §5.5): the per-user delivery report the DO prunes on. A user
+ * is unreachable when every channel they hold is provably dead (or they hold
+ * none / are pref-disabled) — the ladder then reaches voicemail seconds after
+ * RING-START instead of holding 45s of ringback to a provably-empty room.
+ */
+export interface IncomingCallPushReport {
+  unreachableUserIds: string[];
+}
+
+/** Mutable per-user channel accounting for the report. */
+interface UserChannels {
+  total: number;
+  gone: number;
+  liveOrSoft: number;
+}
+
+function bump(
+  map: Map<string, UserChannels>,
+  userId: string,
+  field: "gone" | "liveOrSoft",
+): void {
+  const entry = map.get(userId) ?? { total: 0, gone: 0, liveOrSoft: 0 };
+  entry.total += 1;
+  entry[field] += 1;
+  map.set(userId, entry);
+}
 
 /**
  * #142's actual outage signal, rescoped: a prune is routine lifecycle
  * (reinstall/rotation) and only LOGS — but a prune that leaves the member
- * with ZERO push channels (no web subscription, no device token) means calls
- * can no longer wake any of their devices, and THAT earns a Sentry event.
- * Best-effort: an error here must never touch the live ring.
+ * with ZERO push channels means calls can no longer wake any of their devices,
+ * and THAT earns a Sentry event. Best-effort: an error here must never touch
+ * the live ring.
  */
 async function warnIfUnreachable(
   db: SupabaseClient,
@@ -85,14 +124,17 @@ export async function notifyIncomingCall(
     caller: string | null;
     callSessionId: string;
   },
-): Promise<void> {
+): Promise<IncomingCallPushReport> {
   // Best-effort contract (#140 awaits this in the ring path): a thrown DB/network
   // error here must NEVER break the live call. Swallow-but-report at the top so
-  // the caller can safely await without a try/catch of its own.
+  // the caller can safely await without a try/catch of its own. On an error we
+  // cannot prove any channel dead → report NO one unreachable (the DO holds the
+  // ladder to the alarm rather than pruning on a guess — §5.5).
   try {
-    await deliverIncomingCallPush(env, db, input);
+    return await deliverIncomingCallPush(env, db, input);
   } catch (cause) {
     Sentry.captureException(cause);
+    return { unreachableUserIds: [] };
   }
 }
 
@@ -105,8 +147,8 @@ async function deliverIncomingCallPush(
     caller: string | null;
     callSessionId: string;
   },
-): Promise<void> {
-  if (input.userIds.length === 0) return;
+): Promise<IncomingCallPushReport> {
+  if (input.userIds.length === 0) return { unreachableUserIds: [] };
 
   // #146: honor each member's push_enabled preference (default ON when there's
   // no prefs row), scoped to this company — mirroring notifyMissedCall.
@@ -115,7 +157,7 @@ async function deliverIncomingCallPush(
     .select("user_id,push_enabled")
     .eq("company_id", input.companyId)
     .in("user_id", input.userIds);
-  if (prefError) return; // best-effort — never throw into the ring path
+  if (prefError) return { unreachableUserIds: [] }; // best-effort — never throw
   const pushEnabled = new Map(
     (prefRows ?? []).map((row) => [
       (row as { user_id: string }).user_id,
@@ -125,13 +167,22 @@ async function deliverIncomingCallPush(
   const pushUserIds = input.userIds.filter(
     (userId) => pushEnabled.get(userId) ?? true,
   );
-  if (pushUserIds.length === 0) return;
+  // Pref-disabled members are unreachable by construction (the same filter the
+  // audience computation applies — §5.5 review R2-I1).
+  const prefSkipped = input.userIds.filter(
+    (userId) => !(pushEnabled.get(userId) ?? true),
+  );
+  if (pushUserIds.length === 0) {
+    return { unreachableUserIds: [...input.userIds] };
+  }
+
+  const channels = new Map<string, UserChannels>();
 
   const { data, error } = await db
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
     .in("user_id", pushUserIds);
-  if (error) return; // best-effort — never throw
+  if (error) return { unreachableUserIds: [] }; // best-effort — never throw
   const subscriptions = (data ?? []) as SubscriptionRow[];
 
   const payload = JSON.stringify({
@@ -155,6 +206,7 @@ async function deliverIncomingCallPush(
         );
         if (result.gone) {
           await db.from("push_subscriptions").delete().eq("id", sub.id);
+          bump(channels, sub.user_id, "gone");
           // Expected lifecycle (browser reinstall/rotation) — a log line, NOT
           // a Sentry event. #142's real signal is handled below: a prune that
           // leaves the user with ZERO push channels escalates.
@@ -163,6 +215,7 @@ async function deliverIncomingCallPush(
           );
           await warnIfUnreachable(db, sub.user_id);
         } else if (!result.ok) {
+          bump(channels, sub.user_id, "liveOrSoft"); // transient — still an avenue
           // #142/#147: surface WHICH status came back (VAPID 403, malformed 400,
           // throttled 429, push-service 5xx) AND the service's own error text —
           // the lead for diagnosing a silent wake outage. Best-effort, no throw.
@@ -171,25 +224,29 @@ async function deliverIncomingCallPush(
             `incoming-call push: delivery failed (${endpointHost(sub.endpoint)}, HTTP ${result.status})${detail}`,
             "warning",
           );
+        } else {
+          bump(channels, sub.user_id, "liveOrSoft");
         }
       } catch (cause) {
         // A network drop or local crypto failure — observable but never fatal
-        // to the live call. Push weather must never break a ring.
+        // to the live call. Push weather must never break a ring. A thrown send
+        // is transient, not proof-dead → counts as an avenue.
+        bump(channels, sub.user_id, "liveOrSoft");
         Sentry.captureException(cause);
       }
     }),
   );
 
   // NATIVE DEVICE PUSH (#151): the same wake payload to every registered
-  // Android/iOS device of the ring targets — FCM HIGH priority + the same 30s
-  // TTL, so a dozing phone actually wakes for the ring window. Same
-  // best-effort contract as the Web Push branch above. Skipped with one log
-  // line until Firebase is provisioned (optional secret, deploys green).
+  // Android/iOS device of the ring targets — FCM HIGH priority + the same TTL,
+  // so a dozing phone actually wakes for the ring window. Same best-effort
+  // contract as the Web Push branch above. Skipped with one log line until
+  // Firebase is provisioned (optional secret, deploys green).
   if (!isFcmConfigured(env)) {
     console.log(
       "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
     );
-    return;
+    return { unreachableUserIds: computeUnreachable(pushUserIds, prefSkipped, channels) };
   }
   const { data: tokenRows, error: tokenError } = await db
     .from("device_push_tokens")
@@ -198,7 +255,7 @@ async function deliverIncomingCallPush(
     // #30-style defensive bound: newest 50 across the audience.
     .order("created_at", { ascending: false })
     .limit(50);
-  if (tokenError) return; // best-effort — never throw into the ring path
+  if (tokenError) return { unreachableUserIds: [] }; // best-effort — never throw
   const deviceTokens = (tokenRows ?? []) as DeviceTokenRow[];
 
   await Promise.all(
@@ -220,22 +277,50 @@ async function deliverIncomingCallPush(
           // Platform + status only; the token itself is a per-device
           // credential we never log. #142's real signal escalates below.
           await db.from("device_push_tokens").delete().eq("id", device.id);
+          bump(channels, device.user_id, "gone");
           console.log(
             `incoming-call push: pruned dead device token (${device.platform}, HTTP ${result.status})`,
           );
           await warnIfUnreachable(db, device.user_id);
         } else if (!result.ok) {
+          bump(channels, device.user_id, "liveOrSoft");
           const detail = result.errorBody ? ` — ${result.errorBody}` : "";
           Sentry.captureMessage(
             `incoming-call push: native delivery failed (${device.platform}, HTTP ${result.status})${detail}`,
             "warning",
           );
+        } else {
+          bump(channels, device.user_id, "liveOrSoft");
         }
       } catch (cause) {
         // OAuth weather / network drop — observable but never fatal to the
-        // live call.
+        // live call. A thrown send is transient → counts as an avenue.
+        bump(channels, device.user_id, "liveOrSoft");
         Sentry.captureException(cause);
       }
     }),
   );
+
+  return { unreachableUserIds: computeUnreachable(pushUserIds, prefSkipped, channels) };
+}
+
+/**
+ * A member is unreachable when every channel they held is provably dead (or
+ * they held none), plus every pref-disabled member. A member with ≥1 channel
+ * that merely soft-failed stays reachable (only provably-dead channels prune —
+ * §5.5).
+ */
+function computeUnreachable(
+  pushUserIds: string[],
+  prefSkipped: string[],
+  channels: Map<string, UserChannels>,
+): string[] {
+  const unreachable = new Set(prefSkipped);
+  for (const userId of pushUserIds) {
+    const entry = channels.get(userId);
+    if (!entry || entry.total === 0 || entry.liveOrSoft === 0) {
+      unreachable.add(userId);
+    }
+  }
+  return [...unreachable];
 }

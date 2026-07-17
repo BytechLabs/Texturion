@@ -22,6 +22,20 @@ import { configDefaults, defineConfig } from "vitest/config";
 const telnyxDouble = (name: string) =>
   fileURLToPath(new URL(`./src/test/telnyx-doubles/${name}.ts`, import.meta.url));
 
+/**
+ * Calls v3 (#170 §15.2): `cloudflare:workers` is a Workers-runtime module node
+ * cannot resolve. src/index.ts re-exports CallSessionDO (extends DurableObject
+ * from it), and mount.test.ts imports ./index — so BOTH projects (the "telnyx"
+ * project has no alias block today and hosts mount.test.ts) must map it to the
+ * no-op double, or the whole suite dies on module resolution.
+ */
+const cloudflareWorkersDouble = {
+  find: /^cloudflare:workers$/,
+  replacement: fileURLToPath(
+    new URL("./src/test/cloudflare-workers-double.ts", import.meta.url),
+  ),
+};
+
 /** Suites that must resolve the REAL telnyx modules. */
 const REAL_TELNYX_TESTS = [
   "src/telnyx/**/*.test.ts",
@@ -38,6 +52,9 @@ export default defineConfig({
   test: {
     projects: [
       {
+        resolve: {
+          alias: [cloudflareWorkersDouble],
+        },
         test: {
           name: "telnyx",
           environment: "node",
@@ -53,6 +70,7 @@ export default defineConfig({
             // verify double implements the REAL Ed25519 contract algorithm so the
             // messaging webhook suites verify genuine signatures (D13).
             { find: /^.*\/telnyx\/verify$/, replacement: telnyxDouble("verify") },
+            cloudflareWorkersDouble,
           ],
         },
         test: {

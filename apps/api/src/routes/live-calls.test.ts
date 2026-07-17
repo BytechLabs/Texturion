@@ -528,7 +528,7 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
     expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(1);
   });
 
-  it("409s when the call has already been answered (not ringing anymore)", async () => {
+  it("ring-me v2 (#170 §8.3): an already-answered call is 200 {rang:false} not 409", async () => {
     const sb = liveWorld({}); // default call has answered_at set
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -539,10 +539,15 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       `/v1/calls/live/${SESSION}/ring-me`,
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
-    expect(res.status).toBe(409);
+    // §8.3: session-state cases move from 409 to a truthful 200 body (old
+    // clients swallow the body; the code shape degrades safely). No DO binding
+    // in this env → the legacy dial fallback owns the response.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; rang: boolean; reason?: string };
+    expect(body).toMatchObject({ ok: true, rang: false, reason: "not_ringing" });
   });
 
-  it("#168: 409s when the ring window is OVER (legs dialed, none still ringing — e.g. voicemail already answered) and fires NO dial", async () => {
+  it("#168 / #170 §8.3: ring window OVER → 200 {rang:false} and fires NO dial", async () => {
     // The calls row still reads outcome-null + answered_at-null while the vmi
     // leg records — the ledger is the truth: every ring leg is terminal.
     const sb = liveWorld({
@@ -562,7 +567,9 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       `/v1/calls/live/${SESSION}/ring-me`,
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; rang: boolean };
+    expect(body).toMatchObject({ ok: true, rang: false });
     // No stale re-ring onto a call voicemail owns: no dial, no ledger insert.
     expect(
       telnyx.calls.filter((c) => c.url.pathname === "/v2/calls"),
