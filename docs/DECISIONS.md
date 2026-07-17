@@ -1748,3 +1748,18 @@ auth, everything. Standing decisions:
   partition agents (one dir tree per agent, shared files integrator-only,
   compile serialized through one Gradle daemon) — the same rule as parallel
   sessions on this tree; it held twice (waves of 6), zero merge conflicts.
+
+## D45
+
+**D45 — Missed-call notifications are push-only: the email leg is retired
+(2026-07-17).** Founder, from live use: "email on every missed call and then to
+every member... it's overdoing it, not sure if even needed." He's right — a
+missed call already reaches the crew four ways (native FCM push, Web Push, the
+bell feed, For You) and the CALLER gets the missed-call text-back, so a Resend
+email to every email-enabled member per miss was pure noise and cost. The
+email channel now belongs to the §8 inbound-message pipeline only (those keep
+their opt-out footer + List-Unsubscribe semantics unchanged). The #106
+number-access audience gate is unchanged and now observed at the
+push-subscription lookup in tests. If a customer ever wants missed-call
+emails back, that's a per-TYPE notification-prefs feature to design
+deliberately — not a default.

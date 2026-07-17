@@ -1,9 +1,8 @@
 /**
- * Missed-call crew alert suite (email path). Mirrors the §8 inbound-message
- * pipeline: audience resolution and per-user prefs are shared primitives and
- * covered there, so this focuses on what missed-call.ts OWNS — the truthful
- * "we texted them" vs "call them back" copy, the recurring-alert opt-out
- * footer + List-Unsubscribe header, and HTML escaping of the contact name.
+ * Missed-call crew alert suite. Audience resolution and per-user prefs are
+ * shared §8 primitives covered in the inbound suite, so this focuses on what
+ * missed-call.ts OWNS: push-only delivery (D45 — NO email for missed calls),
+ * the #106 audience gate, and the truthful native/web push payloads.
  * Only global fetch is stubbed.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -76,74 +75,20 @@ const INPUT = {
   textStatus: "sent",
 } as const;
 
-describe("notifyMissedCall (email)", () => {
-  it("emails the crew and carries the opt-out footer + List-Unsubscribe header", async () => {
+describe("notifyMissedCall — push-only (D45)", () => {
+  it("sends NO email — the miss reaches the crew via push/bell/For You only", async () => {
     const world = buildWorld();
     stubFetch(...world.routes);
 
     await notifyMissedCall(env, INPUT);
 
-    expect(world.resend.calls).toHaveLength(1);
-    const email = world.resend.calls[0] as {
-      to: string[];
-      subject: string;
-      text: string;
-      html: string;
-      headers?: Record<string, string>;
-    };
-    expect(email.to).toEqual([`${OWNER}@team.example`]);
-    expect(email.subject).toBe("Missed call from Dana Smith");
-    expect(email.text).toContain(
-      "We sent them a text so they can book by reply.",
-    );
-    const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
-    expect(email.text).toContain(`Turn these alerts off: ${settingsUrl}`);
-    // The opt-out link is present (styled by the #88 branded layout).
-    expect(email.html).toContain(`href="${settingsUrl}"`);
-    expect(email.html).toContain("Turn these alerts off");
-    // The whole email is framed by the shared branded layout.
-    expect(email.html).toContain("max-width:560px");
-    expect(email.headers).toEqual({ "List-Unsubscribe": `<${settingsUrl}>` });
-  });
-
-  it("tells the crew to call back when the auto text did not go through", async () => {
-    const world = buildWorld();
-    stubFetch(...world.routes);
-
-    await notifyMissedCall(env, { ...INPUT, textStatus: "failed" });
-
-    const email = world.resend.calls[0] as { text: string };
-    expect(email.text).toContain(
-      "We tried to text them but the message didn't go through",
-    );
-    expect(email.text).not.toContain("We sent them a text");
-  });
-
-  it("never claims a text was tried when none was attempted (#132)", async () => {
-    const world = buildWorld();
-    stubFetch(...world.routes);
-
-    await notifyMissedCall(env, { ...INPUT, textStatus: "none" });
-
-    const email = world.resend.calls[0] as { text: string };
-    expect(email.text).toContain(
-      "They haven't been texted back — call them back when you can.",
-    );
-    expect(email.text).not.toContain("We sent them a text");
-    expect(email.text).not.toContain("We tried to text them");
-  });
-
-  it("escapes an injected contact name in the email HTML", async () => {
-    const world = buildWorld({ contactName: "Smith & Sons <Plumbing>" });
-    stubFetch(...world.routes);
-
-    await notifyMissedCall(env, INPUT);
-
-    const email = world.resend.calls[0] as { subject: string; html: string };
-    expect(email.html).toContain("Smith &amp; Sons &lt;Plumbing&gt;");
-    expect(email.html).not.toContain("<Plumbing>");
-    // The subject is a header value (not HTML), so it stays raw.
-    expect(email.subject).toBe("Missed call from Smith & Sons <Plumbing>");
+    // D45 (founder call 2026-07-17): a per-miss email to every email-enabled
+    // member was pure noise. The resend route stays stubbed to PROVE nothing
+    // reaches it, and member emails are not even resolved anymore.
+    expect(world.resend.calls).toHaveLength(0);
+    expect(
+      world.sb.calls.filter((call) => call.path.startsWith("/auth/v1/admin/users")),
+    ).toHaveLength(0);
   });
 });
 
@@ -183,9 +128,11 @@ describe("notifyMissedCall — #106 number access", () => {
 
     await notifyMissedCall(env, INPUT);
 
-    expect(world.resend.calls).toHaveLength(1);
-    const email = world.resend.calls[0] as { to: string[] };
-    expect(email.to).toEqual([`${OWNER}@team.example`]);
+    // Audience observed at the push-subscription lookup (D45: no email leg).
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
   });
 
   it("keeps a notes-only member (they can read the thread)", async () => {
@@ -205,9 +152,10 @@ describe("notifyMissedCall — #106 number access", () => {
 
     await notifyMissedCall(env, INPUT);
 
-    expect(world.resend.calls).toHaveLength(1);
-    const email = world.resend.calls[0] as { to: string[] };
-    expect(email.to).toEqual([`${MEMBER}@team.example`]);
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
   });
 
   it("sends nothing when every eligible member is denied", async () => {
@@ -221,6 +169,9 @@ describe("notifyMissedCall — #106 number access", () => {
     await notifyMissedCall(env, INPUT);
 
     expect(world.resend.calls).toHaveLength(0);
+    expect(
+      world.sb.calls.some((call) => call.path === "/rest/v1/push_subscriptions"),
+    ).toBe(false);
   });
 });
 

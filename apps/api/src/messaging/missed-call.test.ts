@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import {
   messageRow,
   restMatch,
@@ -352,12 +353,27 @@ describe("sendMissedCallText — text-back + alert", () => {
     ]);
     const prefs = stubRoute(
       restMatch(env, "GET", "notification_prefs"),
-      // Email on, push off — the email copy is the assertion target.
+      // Push on — D45: missed-call alerts are push-only, so the truthful
+      // FAILURE copy is asserted on the (plaintext) FCM payload.
       () => [
         {
           user_id: "99999999-9999-4999-8999-999999999999",
-          email_enabled: true,
-          push_enabled: false,
+          push_enabled: true,
+        },
+      ],
+    );
+    const webSubs = stubRoute(
+      restMatch(env, "GET", "push_subscriptions"),
+      () => [],
+    );
+    const deviceTokens = stubRoute(
+      restMatch(env, "GET", "device_push_tokens"),
+      () => [
+        {
+          id: "40000000-aaaa-4000-8000-000000000001",
+          user_id: "99999999-9999-4999-8999-999999999999",
+          platform: "android",
+          token: "tok-a",
         },
       ],
     );
@@ -372,26 +388,30 @@ describe("sendMissedCallText — text-back + alert", () => {
         { id: CONVERSATION_ID, assigned_user_id: null, contacts: { name: null, phone_e164: CALLER } },
       ],
     );
-    const authUser = stubRoute(
-      (url, request) =>
-        request.method === "GET" && url.pathname.startsWith("/auth/v1/admin/users/"),
-      () => ({ user: { id: "99999999-9999-4999-8999-999999999999", email: "crew@acme.example" } }),
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(
+      ...[company, ...gates, claim, telnyx, persist, conv, members, prefs, webSubs, deviceTokens]
+        .map((s) => s.route as FetchRoute),
+      ...service.routes,
     );
-    let emailBody: string | undefined;
-    const resend = stubRoute(
-      (url, request) =>
-        request.method === "POST" && url.href === "https://api.resend.com/emails",
-      (c) => {
-        emailBody = (c.body as { text?: string }).text;
-        return { id: "email-1" };
-      },
-    );
-    serve(company, ...gates, claim, telnyx, persist, conv, members, prefs, authUser, resend);
 
-    await run();
+    // Same env, FCM configured — the alert rides the native push leg (D45:
+    // no email exists to carry the failure copy anymore).
+    const alertEnv = fcmEnv(account);
+    await sendMissedCallText(alertEnv, getDb(alertEnv), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
 
-    expect(emailBody).toBeDefined();
-    expect(emailBody).toContain("didn't go through");
-    expect(emailBody).not.toContain("We sent them a text");
+    const data = service.sends[0]?.message.data as
+      | Record<string, string>
+      | undefined;
+    expect(data).toBeDefined();
+    expect(data!.body).toBe("Their text-back failed. Call them back.");
+    expect(data!.body).not.toContain("We texted them");
   });
 });

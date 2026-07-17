@@ -52,7 +52,6 @@ import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
-import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.shell.AccountSheet
@@ -347,21 +346,15 @@ private fun ReadyShell(
                 .padding(bottom = 96.dp),
         )
 
-        // Global inbound toast for conversations the user is NOT viewing (#165).
+        // Global inbound toast for conversations the user is NOT viewing
+        // (#165). ONE mount (two parallel sessions had each added one —
+        // double snackbar + double fetch): the viewedConversation predicate
+        // also suppresses threads opened INSIDE the tabs, and the 96.dp
+        // bottom padding clears the tab bar alongside the call chip.
         InboundMessageToastHost(
             graph = graph,
             companyId = companyId,
             viewedConversationId = { viewedConversation },
-            onView = { overlay = Overlay.Thread(it) },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
-
-        // Inbound texts landing outside the viewed thread surface as a
-        // one-line snackbar with a View action (#165).
-        InboundMessageToastHost(
-            graph = graph,
-            companyId = companyId,
-            viewedConversationId = { (overlay as? Overlay.Thread)?.conversationId },
             onView = { overlay = Overlay.Thread(it) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -378,6 +371,10 @@ private fun ReadyShell(
                         me = hydratedMe,
                         conversationId = active.conversationId,
                         onBack = { overlay = null },
+                        // Contact panel "Other conversations" hops stay
+                        // tappable when the thread was opened via overlay
+                        // (push tap / Calls / toast View).
+                        onOpenConversation = { overlay = Overlay.Thread(it) },
                     )
 
                     is Overlay.Compose -> NewConversationScreen(

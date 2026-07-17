@@ -4,9 +4,12 @@
  * whole crew learns a call came in and went unanswered — whether or not the
  * auto text-back is configured (`textSent` steers the copy).
  *
- * AUDIENCE + CHANNELS mirror the §8 inbound-message pipeline exactly (assignee
- * else all active members; per notification_prefs; one Resend email to each
- * email-enabled recipient + one Web Push per push-enabled subscription). It is
+ * AUDIENCE mirrors the §8 inbound-message pipeline (assignee else all active
+ * members; per notification_prefs), but CHANNELS are push-only — Web Push per
+ * push-enabled subscription + native FCM per device token. NO email (D45,
+ * founder call 2026-07-17): the same miss already reaches the crew via native
+ * push, web push, the bell feed, and For You, and the caller gets the auto
+ * text-back — a per-miss email to every member was pure noise. It is
  * intentionally a SEPARATE call from notifyInboundMessage (no inbound message
  * exists — a phone call is not a text), but shares its delivery primitives.
  *
@@ -22,8 +25,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
 import type { MemberRole } from "../context";
 import { getDb } from "../db";
-import { emailLayout, escapeHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { sendWebPush } from "./webpush";
@@ -51,7 +52,6 @@ interface ConversationView {
 
 interface PrefsRow {
   user_id: string;
-  email_enabled: boolean;
   push_enabled: boolean;
 }
 
@@ -144,15 +144,17 @@ export async function notifyMissedCall(
   const prefRows = unwrapRows<PrefsRow>(
     await db
       .from("notification_prefs")
-      .select("user_id,email_enabled,push_enabled")
+      .select("user_id,push_enabled")
       .eq("company_id", input.companyId)
       .in("user_id", audience),
     "notification prefs lookup",
   );
   const prefs = new Map(prefRows.map((row) => [row.user_id, row]));
-  const emailUsers = audience.filter(
-    (userId) => prefs.get(userId)?.email_enabled ?? true,
-  );
+  // Founder call 2026-07-17 (D45): NO email for missed calls — the same event
+  // already reaches the crew four ways (native push, web push, the bell feed,
+  // For You) and the caller gets the auto text-back; an email to every
+  // email-enabled member per miss was pure noise. Inbound-message emails are
+  // unchanged (§8).
   const pushUsers = audience.filter(
     (userId) => prefs.get(userId)?.push_enabled ?? true,
   );
@@ -163,56 +165,7 @@ export async function notifyMissedCall(
   // shape only exists inside the service worker's legacy-push normalizer).
   const link = `${env.APP_ORIGIN}/inbox/${input.conversationId}`;
 
-  // Truthful copy: only claim "we texted them" when Telnyx accepted the text,
-  // and only claim we TRIED when we actually did. No text (or a failed one)
-  // makes the miss MORE urgent — tell the crew to call back.
-  const sentLine =
-    input.textStatus === "sent"
-      ? "We sent them a text so they can book by reply."
-      : input.textStatus === "failed"
-        ? "We tried to text them but the message didn't go through. Call them back."
-        : "They haven't been texted back — call them back when you can.";
-
   const failures: unknown[] = [];
-
-  if (emailUsers.length > 0) {
-    try {
-      const to: string[] = [];
-      for (const userId of emailUsers) {
-        const { data, error } = await db.auth.admin.getUserById(userId);
-        if (error) {
-          throw new Error(
-            `auth admin lookup failed for member ${userId}: ${error.message}`,
-          );
-        }
-        if (data.user?.email) to.push(data.user.email);
-      }
-      if (to.length > 0) {
-        // Recurring notification email: opt-out path (settings footer +
-        // List-Unsubscribe header), mirroring the §8 inbound-message email.
-        const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
-        const text =
-          `${contactName} called and no one picked up.\n\n` +
-          `${sentLine}\n\n` +
-          `Open the conversation: ${link}\n\n` +
-          `Turn these alerts off: ${settingsUrl}\n`;
-        await sendEmail(env, {
-          to,
-          subject: `Missed call from ${contactName}`,
-          text,
-          html: emailLayout(
-            `<p><strong>${escapeHtml(contactName)}</strong> called and no one picked up.</p>` +
-              `<p>${escapeHtml(sentLine)}</p>` +
-              `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Open the conversation</a></p>` +
-              `<p style="font-size:14px;color:#7a828c;"><a href="${settingsUrl}" style="color:#7a828c;">Turn these alerts off</a></p>`,
-          ),
-          headers: { "List-Unsubscribe": `<${settingsUrl}>` },
-        });
-      }
-    } catch (cause) {
-      failures.push(cause);
-    }
-  }
 
   if (pushUsers.length > 0) {
     const subscriptions = unwrapRows<SubscriptionRow>(
