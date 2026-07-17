@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 /**
@@ -12,7 +14,26 @@ import { defineConfig } from "vitest/config";
  *
  * Run: `pnpm vitest run --config vitest.e2e.config.ts` (or `pnpm test:e2e`).
  */
+
+/**
+ * Calls v3 (#170 §15.2): the real Worker entry re-exports CallSessionDO, which
+ * extends DurableObject from `cloudflare:workers` — a Workers-runtime module
+ * node cannot resolve. This project loads the real app, so it needs the same
+ * no-op double the unit projects use. The DO itself is never exercised by the
+ * golden paths (checkout → provision → register → send, not inbound calls);
+ * the alias only has to make the module resolvable under node.
+ */
+const cloudflareWorkersDouble = {
+  find: /^cloudflare:workers$/,
+  replacement: fileURLToPath(
+    new URL("./src/test/cloudflare-workers-double.ts", import.meta.url),
+  ),
+};
+
 export default defineConfig({
+  resolve: {
+    alias: [cloudflareWorkersDouble],
+  },
   test: {
     name: "e2e",
     environment: "node",
