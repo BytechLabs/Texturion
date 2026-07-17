@@ -7,10 +7,15 @@ import java.net.URLDecoder
  * Pure push-payload logic (no Android imports — unit-tested on the JVM).
  *
  * The server push contract (apps/api/src/notifications — inbound.ts,
- * missed-call.ts, incoming-call.ts) is a data map of
- * `{title, body, url}` plus `kind: 'call'` for the 30s push-to-wake ring
- * (#135). Malformed payloads still render a calm generic notification — a
- * push is never silently dropped (web sw.js parity).
+ * missed-call.ts, incoming-call.ts) is a data map of `{title, body, url}`
+ * plus `kind: 'call'` for the push-to-wake ring (#135; the server ring
+ * window is 45s, calls-v3 §5) and `kind: 'call_end'` for the ring-revocation
+ * push (calls-v3 §9.2 — delivery is capability-gated on the `call_end` cap
+ * this client declares at token registration). Malformed payloads still
+ * render a calm generic notification — a push is never silently dropped
+ * (web sw.js parity). `call_end` is the ONE kind that never renders: it
+ * exists solely to cancel the `call:<session>` tray entry and dismiss the
+ * in-app ring surfaces.
  */
 
 /** The only origin push deep links may target (web sw.js does the same). */
@@ -28,6 +33,13 @@ const val FALLBACK_DEEP_LINK = "$APP_ORIGIN/inbox"
 object PushKind {
     const val CALL = "call"
     const val MISSED_CALL = "missed_call"
+
+    /**
+     * Ring revocation on every exit from `ringing` (calls-v3 §9.2). Android
+     * FCM sends are data-only with NO collapse key, so the ONLY dismissal
+     * mechanism is this client's explicit cancel-by-tag (`call:<session>`).
+     */
+    const val CALL_END = "call_end"
 }
 
 /** One parsed, display-ready push. */
@@ -45,6 +57,9 @@ data class PushContent(
 ) {
     val isCall: Boolean get() = kind == PushKind.CALL
 
+    /** A `call_end` revocation — cancel `call:<session>` and render NOTHING. */
+    val isCallEnd: Boolean get() = kind == PushKind.CALL_END
+
     /** `call` query param from the wake link (`/calls?call=<call_session_id>`). */
     val callSessionId: String? get() = queryParam(url, "call")
 }
@@ -61,7 +76,10 @@ fun parsePush(data: Map<String, String>): PushContent {
     val body = data["body"]?.trim().orEmpty()
     val tag = coalescingTag(kind, url)
 
-    if (kind == PushKind.CALL) {
+    if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
+        // call_end shares the call's channel and — critically — its
+        // `call:<session>` tag: the tag IS the revocation key (§9.2). It is
+        // never posted; the messaging service cancels by this tag instead.
         return PushContent(
             kind = kind,
             title = title ?: "Incoming call",
@@ -113,12 +131,13 @@ fun normalizeDeepLink(raw: String?): String {
 /**
  * Derive the notification coalescing tag from a NORMALIZED url:
  * - calls tag per call SESSION (#149: two concurrent calls ring as two
- *   notifications; repeats for one call replace each other)
+ *   notifications; repeats for one call replace each other; the matching
+ *   `call_end` revocation cancels by this exact tag, calls-v3 §9.2)
  * - thread pushes tag per conversation (repeat texts in one thread coalesce)
  * - anything else tags per deep link
  */
 fun coalescingTag(kind: String?, normalizedUrl: String): String {
-    if (kind == PushKind.CALL) {
+    if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
         val session = queryParam(normalizedUrl, "call")
         return if (session != null) "call:$session" else "call:$normalizedUrl"
     }

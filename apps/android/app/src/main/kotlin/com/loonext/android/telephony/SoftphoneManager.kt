@@ -20,6 +20,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.diag.PostCrashHonesty
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.push.CallEndHandler
 import com.loonext.android.push.CallWakeHandler
 import com.loonext.android.push.PushContent
 import com.loonext.android.push.PushHooks
@@ -152,7 +153,14 @@ class SoftphoneManager private constructor(
         }
         // Claim the calls-wake seam: incoming-call pushes (#156) route here
         // instead of the tray once the softphone exists in this process.
+        // This install is THE one wake handler (calls-v3 §10.2) — nothing
+        // else may overwrite it (MainActivity's overwrite is gone).
         PushHooks.callWakeHandler = CallWakeHandler { content -> onCallWakePush(content) }
+        // `kind:'call_end'` revocation (§9.2): the tray cancel-by-tag happens
+        // in the messaging service; the in-app surfaces come down here.
+        PushHooks.callEndHandler = CallEndHandler { content ->
+            content.callSessionId?.let { session -> core.onCallEndPush(session) }
+        }
     }
 
     /**
@@ -167,9 +175,9 @@ class SoftphoneManager private constructor(
             postPushNotification(appContext, content)
             return
         }
-        // #168B: the push body is the raw caller E.164 when known — it rides
-        // along as the stale-ring probe's caller correlation.
-        val callerHint = StaleRingPolicy.callerHintFromPushBody(content.body)
+        // The push body is the raw caller E.164 when known — it rides along
+        // as the presentation-reconcile caller correlation (§10.1).
+        val callerHint = CallWakePolicy.callerHintFromPushBody(content.body)
         scope.launch {
             try {
                 core.onIncomingCallPush(session, callerHint)
@@ -242,6 +250,15 @@ class SoftphoneManager private constructor(
      */
     suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) =
         core.onIncomingCallPush(sessionId, callerHint)
+
+    /**
+     * Realtime `call.updated` reconciliation (calls-v3 §9.1/§10.1): the
+     * shell forwards every call.updated broadcast here; a ringing-exit state
+     * dismisses this device's presentation for that session (silence only —
+     * the server sends the BYE).
+     */
+    fun onCallSessionUpdate(sessionId: String, state: String?) =
+        core.onCallSessionUpdate(sessionId, state)
 
     fun hasMicPermission(): Boolean =
         appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
@@ -339,7 +356,7 @@ class SoftphoneManager private constructor(
 
     internal fun showIncomingUi(callId: String) {
         val call = core.state.value.calls.firstOrNull { it.id == callId } ?: return
-        if (call.phase == CallPhase.RINGING && !appInForeground) {
+        if (call.phase == CallPhase.RINGING && !call.silenced && !appInForeground) {
             postIncomingNotification(call)
         }
         // Foreground: the in-app banner + ringer (state-driven) are the ring
@@ -476,9 +493,15 @@ class SoftphoneManager private constructor(
         // emission — answer/decline/remote-end/timeout all stop it here — and
         // notifications for calls that stopped ringing come down with it
         // (that cancel is also the 'answered elsewhere' CallStyle teardown).
+        // A SILENCED ring (calls-v3 §10.1.2: state said the session exited
+        // `ringing`) counts as not-ringing here — banner, ringer, and
+        // CallStyle all come down while the leg waits for the server BYE.
         runCatching {
             val ringingIds = snapshot.calls
-                .filter { it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND }
+                .filter {
+                    it.phase == CallPhase.RINGING &&
+                        it.direction == CallDirection.INBOUND && !it.silenced
+                }
                 .map { it.id }
                 .toSet()
             ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
@@ -603,7 +626,8 @@ class SoftphoneManager private constructor(
         if (appInForeground == foreground) return
         appInForeground = foreground
         val ringing = core.state.value.calls.filter {
-            it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND
+            it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND &&
+                !it.silenced
         }
         if (foreground) {
             ringingNotified.toList().forEach { notifier.cancelIncoming(it) }

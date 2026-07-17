@@ -12,6 +12,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
 import com.loonext.android.R
+import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +20,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 private const val TAG = "LoonextPush"
+
+/**
+ * The fixed notify() id every tray push shares — coalescing is keyed on the
+ * TAG, not the id (a call_end revocation cancels by `call:<session>`).
+ */
+const val PUSH_NOTIFICATION_ID = 0
 
 /**
  * FCM entry point. Only instantiated by the system when Firebase is actually
@@ -62,15 +69,52 @@ class LoonextMessagingService : FirebaseMessagingService() {
             }
         val content = parsePush(data)
 
+        // `kind:'call_end'` revocation (calls-v3 §9.2): Android FCM sends are
+        // data-only with NO collapse key, so the tray is never replaced by the
+        // OS — this explicit cancel-by-tag of the `call:<session>` entry is the
+        // ONLY dismissal mechanism. Bring the in-app ring surfaces down through
+        // the softphone (constructing it if a cold process must), then render
+        // NOTHING (a call_end is a revocation, never a notification).
+        if (content.isCallEnd) {
+            runCatching {
+                NotificationManagerCompat.from(this).cancel(content.tag, PUSH_NOTIFICATION_ID)
+            }
+            ensureCallWakePath()
+            PushHooks.callEndHandler?.onCallEnd(content)
+            return
+        }
+
         if (content.isCall) {
+            // Cold-process wake (§10.2): in an FCM-woken process with no UI,
+            // nobody built the softphone yet — build it now so the wake handler
+            // is installed and this ring reaches ring-me instead of the tray.
+            ensureCallWakePath()
             val handler = PushHooks.callWakeHandler
             if (handler != null) {
                 handler.onIncomingCallPush(content)
                 return
             }
-            // No softphone wired — never drop a ring silently.
+            // No softphone wired (no workspace known yet) — never drop a ring
+            // silently; fall through to the high-importance tray notification.
         }
         postPushNotification(this, content)
+    }
+
+    /**
+     * Ensure the process-wide softphone exists and is registering (calls-v3
+     * §10.2 cold-process wake path). Constructing [SoftphoneManager] from the
+     * APPLICATION context installs [PushHooks.callWakeHandler] /
+     * [PushHooks.callEndHandler] (its init is the ONE installer); starting it
+     * on the last-known workspace gives ring-me a company and a live SDK.
+     * Idempotent and best-effort — a no-op when the app is already running,
+     * silently skipped before any workspace has ever been registered.
+     */
+    private fun ensureCallWakePath() {
+        val graph = (applicationContext as? LoonextApp)?.graph ?: return
+        val softphone = SoftphoneManager.get(applicationContext, graph.api)
+        PushPrefs.companyId(applicationContext)?.let { company ->
+            runCatching { softphone.start(company) }
+        }
     }
 }
 
@@ -116,14 +160,15 @@ fun postPushNotification(context: Context, content: PushContent) {
         builder
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            // The server ring window is ~30s (TTL-30 push); a stale ringing
-            // notification would be a lie, so it removes itself.
-            .setTimeoutAfter(30_000)
+            // The server ring window is 45s (calls-v3 §5) and the wake push
+            // TTL is 45s to match (§9.2) — align the tray timeout so a real
+            // ring is never cut short; a stale one still removes itself.
+            .setTimeoutAfter(45_000)
     } else {
         builder
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
     }
 
-    NotificationManagerCompat.from(context).notify(content.tag, 0, builder.build())
+    NotificationManagerCompat.from(context).notify(content.tag, PUSH_NOTIFICATION_ID, builder.build())
 }

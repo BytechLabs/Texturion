@@ -30,15 +30,24 @@ sealed interface CoreEvent {
  * [CallsApi] + a fake SDK). [SoftphoneManager] wraps this with the Android
  * plumbing (telecom, notifications, foreground service, watchdog triggers).
  *
- * Invariants (BINDING, from the calls domain contract):
+ * Invariants (BINDING, from the calls domain contract + calls-v3 §10):
  * - The login token is minted ON CONNECT ONLY — never per call (rate-limited).
  *   Recovery reconnects mint fresh, which is also the auth-failure fix.
  * - client_state from POST /v1/calls/browser goes into newCall VERBATIM.
  * - An answered INBOUND call's SDK leg is the RING leg — the customer
  *   call_session_id resolves via GET /v1/calls/live/by-leg/{ccid} before any
  *   live-call op can run.
- * - Max 2 concurrent calls; answering the second holds the first; a third
- *   inbound declines immediately so the answer race resolves elsewhere.
+ * - Max 2 concurrent PRESENTED calls; answering the second holds the first;
+ *   inbound INVITEs beyond the ceiling are held SILENT (never declined — see
+ *   the next rule) and promote when a slot frees.
+ * - The client NEVER hangs up a leg except on explicit user action
+ *   (decline/hangup). No staleness probe, no ceiling decline, no
+ *   reconciliation kill: the server cancels every stale leg on every exit
+ *   from `ringing`, and a decline on a forked INVITE is not provably scoped
+ *   to this device (§10.1.4 — it would kill the ring on the member's other
+ *   devices). Dismissal is SILENCE-only ([CallStateMachine.presentationSilenced]).
+ * - ring-me only when holding no live leg, always with `no_local_leg:true`
+ *   (§10.1.3 — the call is the attestation).
  * - Recovery never rebuilds the client while any call is live (#138).
  */
 class SoftphoneCore(
@@ -69,14 +78,34 @@ class SoftphoneCore(
     /** Handles whose by-leg resolution is running or done (resolve once). */
     private val resolvingLegs = mutableSetOf<String>()
 
+    /**
+     * §10.1.4 held INVITEs — legs this device received but does NOT present
+     * (a duplicate fork of a session already presented here, or an INVITE
+     * beyond the two-call ceiling). No UI, no ringtone, no signaling; the
+     * server (or the leg's own 45s timeout) reaps them, and a qualifying
+     * presented-leg death promotes one to presentation.
+     */
+    private data class HeldInvite(
+        val handle: SdkCallHandle,
+        val callerName: String,
+        val callerNumber: String,
+        val reason: HoldReason,
+    )
+
+    private enum class HoldReason { DUPLICATE, CAPACITY }
+
+    private val heldInvites = LinkedHashMap<String, HeldInvite>()
+    private val heldWatchJobs = mutableMapOf<String, Job>()
+
     private val connectMutex = Mutex()
     private var recoverJob: Job? = null
 
     /**
-     * #168B: the freshest `kind:'call'` wake push (session + caller + when) —
-     * the only client-side clue tying a later INVITE to a server session,
-     * because the Android SDK's INVITE carries no client_state. Consumed by
-     * the stale-ring probe; refreshed on every wake push / ring-me.
+     * The freshest `kind:'call'` wake push (session + caller + when) — the
+     * only client-side clue tying a later INVITE to a server session, because
+     * the Android SDK's INVITE carries no client_state. Consumed by the
+     * §10.1 presentation-reconcile (silence-only) paths; refreshed on every
+     * wake push / ring-me.
      */
     private var pushHintSession: String? = null
     private var pushHintCaller: String? = null
@@ -214,50 +243,150 @@ class SoftphoneCore(
     }
 
     private fun onIncoming(event: SdkEvent.Incoming) {
-        if (_state.value.calls.any { it.id == event.call.id }) return
-        // Beyond the two-call ceiling: decline immediately so the answer race
-        // resolves elsewhere without waiting out the ring timeout.
-        if (_state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS) {
-            runCatching { event.call.end() }
-            return
-        }
-        val otherLiveCalls = _state.value.liveCalls.size
+        val id = event.call.id
+        if (_state.value.calls.any { it.id == id } || heldInvites.containsKey(id)) return
         val number = event.callerNumber.orEmpty()
         val name = event.callerName?.takeIf { it.isNotBlank() }
             ?: number.ifBlank { "Unknown caller" }
+        // §10.1.4 one presentation per session per device: the shared Telnyx
+        // credential forks every leg's INVITE to all of a member's devices,
+        // so a second INVITE for a session this device already presents (same
+        // caller — the only session proxy an INVITE carries) is held SILENT.
+        val inboundCallers = _state.value.calls
+            .filter { it.phase != CallPhase.ENDED && it.direction == CallDirection.INBOUND }
+            .map { it.peerNumber } + heldInvites.values.map { it.callerNumber }
+        val duplicate = CallWakePolicy.holdInviteSilent(inboundCallers, number)
+        // Beyond the two-call ceiling the extra INVITE is ALSO held, never
+        // declined: the client never hangs up a leg outside user action
+        // (§10.1.2), and a decline on a forked leg would kill the ring on the
+        // member's other devices too. The server reaps unanswered legs; a
+        // freed slot promotes it so the answer race still resolves.
+        val overCeiling =
+            _state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS
+        if (duplicate || overCeiling) {
+            holdInvite(event.call, name, number, if (duplicate) HoldReason.DUPLICATE else HoldReason.CAPACITY)
+            return
+        }
+        presentIncoming(event.call, name, number)
+    }
+
+    private fun presentIncoming(handle: SdkCallHandle, name: String, number: String) {
+        val otherLiveCalls = _state.value.liveCalls.size
         val snapshot = CallSnapshot(
-            id = event.call.id,
+            id = handle.id,
             direction = CallDirection.INBOUND,
             peerName = name,
             peerNumber = number,
             phase = CallPhase.RINGING,
         )
-        handles[event.call.id] = event.call
-        sdkPhases[event.call.id] = CallPhase.RINGING
+        handles[handle.id] = handle
+        sdkPhases[handle.id] = CallPhase.RINGING
         _state.update { CallStateMachine.incoming(it, snapshot) }
-        watch(event.call)
+        watch(handle)
         _events.tryEmit(CoreEvent.IncomingRinging(snapshot))
-        // #168B: fast path first (the ring is already presenting), THEN the
-        // concurrent freshness cross-check — cancels the ring only when the
-        // server says the session already resolved (late INVITE after
-        // voicemail/teammate answer on a frozen socket).
-        verifyRingFreshness(event.call, inviteCaller = number, otherLiveCalls = otherLiveCalls)
+        // §10.1.1 present-from-state: fast path first (the ring is already
+        // presenting), THEN the concurrent /state reconcile — a ringing-exit
+        // verdict SILENCES the presentation (banner/ringer/notification down)
+        // while the leg waits for the server BYE. Never a client hangup.
+        reconcilePresentation(inviteCaller = number, otherLiveCalls = otherLiveCalls)
+    }
+
+    /** Track a held INVITE (§10.1.4) until it dies or gets promoted. */
+    private fun holdInvite(
+        handle: SdkCallHandle,
+        name: String,
+        number: String,
+        reason: HoldReason,
+    ) {
+        val id = handle.id
+        heldInvites[id] = HeldInvite(handle, name, number, reason)
+        heldWatchJobs[id] = scope.launch {
+            handle.phases.collect { phase ->
+                if (phase == CallPhase.ENDED) releaseHeld(id)
+            }
+        }
+    }
+
+    /** Forget a held INVITE (its BYE arrived, or its session died). */
+    private fun releaseHeld(id: String) {
+        heldInvites.remove(id)
+        heldWatchJobs.remove(id)?.cancel()
     }
 
     /**
-     * Best-effort stale-ring probe (#168B). Runs concurrently — never blocks
-     * or delays the ring — with a hard [StaleRingPolicy.PROBE_TIMEOUT_MS]
-     * budget; only a DEFINITE stale verdict ends the leg (silently: a
-     * RINGING→ENDED transition is a silent removal by the reducer, which
-     * also pulls down the banner, ringer, and CallStyle notification).
+     * A presented call ENDED — promote a held INVITE if one qualifies
+     * (§10.1.4): a duplicate fork promotes only when its presented sibling
+     * died still-RINGING and `/state` (when the session is knowable via the
+     * push hint) still says `ringing`; a capacity-held ring promotes whenever
+     * a slot frees. On doubt (state unreadable / session unknowable) the
+     * INVITE promotes — suppressing an unverifiable real ring is worse than
+     * briefly presenting a leg the server is about to BYE.
      */
-    private fun verifyRingFreshness(
-        handle: SdkCallHandle,
-        inviteCaller: String?,
-        otherLiveCalls: Int,
-    ) {
+    private fun maybePromoteHeld(endedRinging: CallSnapshot?) {
+        if (heldInvites.isEmpty()) return
+        val snapshot = _state.value
+        if (snapshot.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS) return
+        val duplicateId = endedRinging?.let { ended ->
+            heldInvites.entries.firstOrNull { (_, held) ->
+                held.reason == HoldReason.DUPLICATE &&
+                    CallWakePolicy.sameCaller(held.callerNumber, ended.peerNumber)
+            }?.key
+        }
+        val candidateId = duplicateId
+            ?: heldInvites.entries.firstOrNull { it.value.reason == HoldReason.CAPACITY }?.key
+            ?: return
+        val held = heldInvites.getValue(candidateId)
+        val verifySession = if (held.reason == HoldReason.DUPLICATE) {
+            CallWakePolicy.reconcileSession(
+                hintSession = pushHintSession,
+                hintAtMs = pushHintAtMs,
+                nowMs = now(),
+                otherLiveCalls = snapshot.liveCalls.size,
+                hintCaller = pushHintCaller,
+                inviteCaller = held.callerNumber,
+            )
+        } else {
+            null
+        }
+        val company = companyId
+        if (verifySession == null || company == null) {
+            promoteHeld(candidateId)
+            return
+        }
+        scope.launch {
+            val live = runCatching { api.sessionState(company, verifySession) }.getOrNull()
+            if (live != null && CallWakePolicy.isRingingExit(live.state)) {
+                // The session is over — the fork must not ring a dead call.
+                // Release (stop tracking) only; the server BYE ends the leg.
+                releaseHeld(candidateId)
+            } else if (heldInvites.containsKey(candidateId)) {
+                promoteHeld(candidateId)
+            }
+        }
+    }
+
+    private fun promoteHeld(id: String) {
+        val held = heldInvites.remove(id) ?: return
+        heldWatchJobs.remove(id)?.cancel()
+        if (_state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS) {
+            // A slot filled while we deliberated — hold again.
+            holdInvite(held.handle, held.callerName, held.callerNumber, HoldReason.CAPACITY)
+            return
+        }
+        presentIncoming(held.handle, held.callerName, held.callerNumber)
+    }
+
+    /**
+     * §10.1.1 reconcile: correlate the fresh INVITE to a session via the wake
+     * hint (conservative guards in [CallWakePolicy.reconcileSession]) and ask
+     * `/state`. Runs concurrently — never blocks or delays the ring — and a
+     * ringing-exit verdict only SILENCES presentation. Only a 200 dismisses:
+     * a 404/network failure leaves the ring alone (the server BYE is the
+     * backstop for a genuinely dead session).
+     */
+    private fun reconcilePresentation(inviteCaller: String?, otherLiveCalls: Int) {
         val company = companyId ?: return
-        val hint = StaleRingPolicy.usableHint(
+        val session = CallWakePolicy.reconcileSession(
             hintSession = pushHintSession,
             hintAtMs = pushHintAtMs,
             nowMs = now(),
@@ -266,57 +395,68 @@ class SoftphoneCore(
             inviteCaller = inviteCaller,
         ) ?: return
         scope.launch {
-            val probe = withTimeoutOrNull(StaleRingPolicy.PROBE_TIMEOUT_MS) {
-                probeFreshness(company, hint)
-            } ?: RingProbe.UNKNOWN
-            if (!StaleRingPolicy.isStale(probe)) return@launch
-            // Re-check: only kill a call that is STILL just ringing — the
-            // user may have answered while the probe was in flight.
-            val current = _state.value.calls.firstOrNull { it.id == handle.id }
-            if (current?.phase != CallPhase.RINGING) return@launch
-            // One hint cancels at most ONE ring — consume it so a lost/late
-            // push for the NEXT call can never inherit a stale verdict.
+            val live = try {
+                api.sessionState(company, session)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (CallWakePolicy.isRingingExit(live.state)) applyRingingExit(session)
+        }
+    }
+
+    /**
+     * Realtime `call.updated` (calls-v3 §9.1): the payload now carries
+     * `state` (+ `answered_by_user_id`) — any ringing-exit state dismisses
+     * this device's presentation for the session. Silence only; the server
+     * cancels the leg.
+     */
+    fun onCallSessionUpdate(sessionId: String, state: String?) {
+        if (sessionId.isBlank()) return
+        if (!CallWakePolicy.isRingingExit(state)) return
+        applyRingingExit(sessionId)
+    }
+
+    /**
+     * `kind:'call_end'` revocation push (calls-v3 §9.2): the tray entry is
+     * cancelled by tag in the messaging service; here the in-app surfaces
+     * (banner, ringer, CallStyle notification) come down via the silenced
+     * flag, and correlated held INVITEs stop being promotable. No telecom or
+     * SDK interaction of any kind.
+     */
+    fun onCallEndPush(sessionId: String) {
+        if (sessionId.isBlank()) return
+        applyRingingExit(sessionId)
+    }
+
+    private fun applyRingingExit(sessionId: String) {
+        // Held INVITEs correlated to the dead session must never promote
+        // into it (the leg's own BYE still tears them down).
+        if (pushHintSession == sessionId) {
+            heldInvites.filterValues { held ->
+                !CallWakePolicy.callerMismatch(pushHintCaller, held.callerNumber)
+            }.keys.toList().forEach { releaseHeld(it) }
+        }
+        val ids = CallWakePolicy.dismissalsForRingingExit(
+            calls = _state.value.calls,
+            sessionId = sessionId,
+            hintSession = pushHintSession,
+            hintAtMs = pushHintAtMs,
+            nowMs = now(),
+            hintCaller = pushHintCaller,
+        )
+        if (ids.isEmpty()) return
+        ids.forEach { id ->
+            _state.update { CallStateMachine.presentationSilenced(it, id) }
+        }
+        if (pushHintSession == sessionId) {
+            // One hint dismisses at most one ring — the NEXT call must not
+            // inherit a stale correlation.
             pushHintSession = null
             pushHintCaller = null
             pushHintAtMs = null
-            runCatching { handle.end() }
-            // Belt and braces: if the SDK's end never reports back, drop the
-            // ring from state ourselves — a stale ring must not out-ring the
-            // probe that proved it stale.
-            _state.update { CallStateMachine.sdkPhase(it, handle.id, CallPhase.ENDED, now()) }
         }
-    }
-
-    /** Classify the hinted session. Ambiguity and trouble are both UNKNOWN. */
-    private suspend fun probeFreshness(company: String, session: String): RingProbe = try {
-        // 200 = outcome null AND answered_at set — someone owns the call.
-        api.liveFacts(company, session)
-        RingProbe.ANSWERED
-    } catch (cause: CancellationException) {
-        throw cause
-    } catch (cause: ApiException) {
-        when (cause.code) {
-            ApiErrorCode.NOT_FOUND -> RingProbe.GONE
-            // 'conflict' = still ringing OR already ended — the call-log row
-            // (outcome / answered_by) disambiguates.
-            ApiErrorCode.CONFLICT -> probeCallRow(company, session)
-            else -> RingProbe.UNKNOWN
-        }
-    } catch (_: Exception) {
-        RingProbe.UNKNOWN
-    }
-
-    private suspend fun probeCallRow(company: String, session: String): RingProbe = try {
-        val row = api.recentCalls(company).firstOrNull { it.call_session_id == session }
-        if (row == null) {
-            RingProbe.UNKNOWN
-        } else {
-            StaleRingPolicy.probeFromCallRow(row.outcome, row.answered_by_user_id)
-        }
-    } catch (cause: CancellationException) {
-        throw cause
-    } catch (_: Exception) {
-        RingProbe.UNKNOWN
     }
 
     private fun watch(handle: SdkCallHandle) {
@@ -362,6 +502,14 @@ class SoftphoneCore(
                 scheduleRecover()
             }
             watchJobs.remove(id)?.cancel()
+            // §10.1.4 promotion: a presented ring that died un-answered may
+            // hand presentation to a held duplicate fork (if the session
+            // still rings); any freed slot promotes a capacity-held INVITE.
+            maybePromoteHeld(
+                endedRinging = prev.takeIf {
+                    it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND
+                },
+            )
         }
     }
 
@@ -546,31 +694,64 @@ class SoftphoneCore(
         api.blindTransfer(requireCompany(), sessionId, targetUserId)
 
     /**
-     * Push-to-wake part 2 (#156 calls this): ensure the softphone is
-     * registered, then ask the server to re-ring THIS member for the
-     * still-ringing call. A conflict (already answered/ended — someone beat
-     * us) or not_found (the push aged out) is SILENT by contract; anything
-     * else propagates so the caller can retry.
+     * A `kind:'call'` wake (push or notification tap) — the calls-v3 §10.2
+     * sequence:
+     *  1. Any live local leg — presented or held — means the INVITE path owns
+     *     presentation: the push is IGNORED (this rule holds at any push
+     *     latency, so a slow Doze push can never flap a live banner).
+     *  2. Otherwise register, read the always-200 `/state`, and only a
+     *     still-`ringing` session gets ring-me — with `no_local_leg:true`,
+     *     the §6 attestation (calling ring-me with no live leg IS the claim
+     *     "nothing presents on this device").
+     *  3. A `rang:false, recent_leg` ack with no INVITE inside ~4s licenses
+     *     exactly one retry (it passes the debounce if the ring_me leg died).
+     *
+     * A 404 on either call (the push aged out / hidden number) is SILENT by
+     * contract, as is ring-me's request-property 409; real failures propagate
+     * so the caller (SoftphoneManager) can retry and tray-fall-back.
      */
     suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
         val company = requireCompany()
-        // #168B: remember which session is (supposedly) ringing us — the
-        // stale-ring probe correlates a later INVITE against this hint.
+        // Remember which session is (supposedly) ringing us — presentation
+        // reconciliation correlates a later INVITE against this hint.
         pushHintSession = sessionId
         pushHintCaller = callerHint
         pushHintAtMs = now()
+        if (_state.value.liveCalls.isNotEmpty() || heldInvites.isNotEmpty()) return
         ensureConnected()
         awaitReady()
-        try {
-            api.ringMe(company, sessionId)
-            // A successful ring-me proves the session was STILL ringing just
-            // now — refresh the hint clock so the correlation window tracks
+        val live = try {
+            api.sessionState(company, sessionId)
+        } catch (cause: ApiException) {
+            if (cause.code == ApiErrorCode.NOT_FOUND) return
+            throw cause
+        }
+        if (live.state != CallWakePolicy.STATE_RINGING) return
+        val ack = requestRingMe(company, sessionId) ?: return
+        if (ack.rang != false) {
+            // rang:true (or a pre-v3 server's bare `ok`) — an INVITE is
+            // coming; refresh the hint clock so the correlation window tracks
             // the re-dial, not the original push.
             pushHintAtMs = now()
-        } catch (cause: ApiException) {
-            if (cause.code != ApiErrorCode.CONFLICT && cause.code != ApiErrorCode.NOT_FOUND) {
-                throw cause
-            }
+            return
+        }
+        if (ack.reason != CallWakePolicy.REASON_RECENT_LEG) return
+        // §10.2: one retry after ~4s, only if no INVITE landed meanwhile.
+        delay(CallWakePolicy.RING_ME_RETRY_MS)
+        if (_state.value.liveCalls.isNotEmpty() || heldInvites.isNotEmpty()) return
+        val retry = requestRingMe(company, sessionId) ?: return
+        if (retry.rang != false) pushHintAtMs = now()
+    }
+
+    /** ring-me with the §6 attestation; 409/404 (request-property refusals,
+     *  §8.3) are silent by contract — anything else propagates. */
+    private suspend fun requestRingMe(company: String, sessionId: String): RingAck? = try {
+        api.ringMe(company, sessionId, noLocalLeg = true)
+    } catch (cause: ApiException) {
+        if (cause.code == ApiErrorCode.CONFLICT || cause.code == ApiErrorCode.NOT_FOUND) {
+            null
+        } else {
+            throw cause
         }
     }
 

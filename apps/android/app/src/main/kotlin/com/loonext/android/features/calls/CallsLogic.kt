@@ -113,11 +113,13 @@ fun dialableE164(raw: String): String? {
  * inbound qualifies — answered/connecting/held/ended states belong to the
  * chip and the in-call screen; outbound calls never ring here. With two
  * ringing inbounds (call waiting on a quiet line) the earliest wins — its
- * end promotes the next one.
+ * end promotes the next one. A SILENCED ring (calls-v3 §10.1.2: the server
+ * said the session exited `ringing`; the leg awaits its BYE) never banners.
  */
 fun bannerRingingCall(snapshot: SoftphoneSnapshot): CallSnapshot? =
     snapshot.calls.firstOrNull {
-        it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND
+        it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND &&
+            !it.silenced
     }
 
 /**

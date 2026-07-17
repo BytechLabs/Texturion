@@ -41,6 +41,14 @@ data class CallSnapshot(
     val sessionId: String? = null,
     /** Epoch ms this call first went active — the live timer's anchor. */
     val activeSinceMs: Long? = null,
+    /**
+     * Presentation dismissed (calls-v3 §10.1.2): a state read / `call.updated`
+     * / `call_end` push said this ringing session exited `ringing`, so the
+     * banner, ringer, and CallStyle surface come down while the leg awaits the
+     * server BYE. The client NEVER ends the leg itself — this flag is the
+     * whole dismissal mechanism.
+     */
+    val silenced: Boolean = false,
 )
 
 data class SoftphoneSnapshot(
@@ -99,6 +107,19 @@ object CallStateMachine {
 
     fun muted(state: SoftphoneSnapshot, id: String, muted: Boolean): SoftphoneSnapshot =
         update(state, id) { it.copy(muted = muted) }
+
+    /**
+     * Stop presenting a ringing call whose session exited `ringing` server-
+     * side (calls-v3 §10.1.2) — the reducer only flags it; the surfaces
+     * (banner/ringer/notification) read the flag. Only a RINGING call can be
+     * silenced: any other phase means the user already engaged, and the
+     * dismissal races are the server's to resolve. The leg itself is
+     * untouched — the server's BYE removes it through the normal ENDED path.
+     */
+    fun presentationSilenced(state: SoftphoneSnapshot, id: String): SoftphoneSnapshot =
+        update(state, id) {
+            if (it.phase == CallPhase.RINGING) it.copy(silenced = true) else it
+        }
 
     /** Dismiss an ended call's chip. */
     fun dismissed(state: SoftphoneSnapshot, id: String): SoftphoneSnapshot = state.copy(
@@ -160,6 +181,9 @@ object CallStateMachine {
                     call.id == id -> call.copy(
                         phase = CallPhase.ACTIVE,
                         activeSinceMs = call.activeSinceMs ?: nowMs,
+                        // A call that went live is engaged, not dismissed — a
+                        // stale silence flag must not follow it into the call.
+                        silenced = false,
                     )
 
                     call.phase == CallPhase.ACTIVE -> call.copy(phase = CallPhase.HELD)

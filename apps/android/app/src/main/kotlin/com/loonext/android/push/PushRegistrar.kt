@@ -21,6 +21,15 @@ private const val TAG = "LoonextPush"
 data class DeviceTokenBody(
     val platform: String,
     val token: String,
+    /**
+     * Push capabilities this client understands (calls-v3 §8.5). Declaring
+     * `call_end` opts this token into the ring-revocation push: the call
+     * session DO sends `kind:'call_end'` ONLY to caps-declaring rows, so a
+     * pre-v3 build — which would render the data-only revocation as a stray
+     * tray notification (§9.2) — never receives one. A server that predates
+     * the caps column simply ignores the field (unknown keys are stripped).
+     */
+    val caps: List<String> = listOf(PushKind.CALL_END),
 )
 
 /**

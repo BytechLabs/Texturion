@@ -15,13 +15,31 @@ fun interface CallWakeHandler {
 }
 
 /**
- * Process-wide wiring point the integrator sets at app start
- * (`PushHooks.callWakeHandler = softphoneManager::onIncomingCallPush`).
- * While null (softphone not built/wired yet), call pushes fall back to a
- * high-importance ringing notification with the `/calls?call=…` deep link —
- * never silently dropped.
+ * The ring-revocation seam (calls-v3 §9.2). A `kind:'call_end'` push exits
+ * every ringing surface for a session on every ringing-exit (answered /
+ * voicemail / missed). The tray `call:<session>` entry is cancelled by tag in
+ * [LoonextMessagingService] (data-only FCM carries no collapse key, so the
+ * client-side cancel is the ONLY dismissal mechanism); this handler brings the
+ * IN-APP surfaces (banner, ringer, CallStyle notification) down. It NEVER
+ * touches telecom or the SDK leg — the server sends the BYE.
+ */
+fun interface CallEndHandler {
+    fun onCallEnd(content: PushContent)
+}
+
+/**
+ * Process-wide wiring points the softphone claims at construction
+ * ([com.loonext.android.telephony.SoftphoneManager]'s init installs BOTH —
+ * calls-v3 §10.2's single-handler rule: nothing else overwrites them).
+ * While [callWakeHandler] is null (softphone not built/wired yet), call pushes
+ * fall back to a high-importance ringing notification with the `/calls?call=…`
+ * deep link — never silently dropped. A null [callEndHandler] just means the
+ * in-app dismissal is skipped; the tray cancel-by-tag runs regardless.
  */
 object PushHooks {
     @Volatile
     var callWakeHandler: CallWakeHandler? = null
+
+    @Volatile
+    var callEndHandler: CallEndHandler? = null
 }

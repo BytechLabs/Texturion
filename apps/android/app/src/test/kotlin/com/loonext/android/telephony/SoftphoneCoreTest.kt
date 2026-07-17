@@ -1,6 +1,5 @@
 package com.loonext.android.telephony
 
-import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.WebRtcToken
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
@@ -47,8 +46,13 @@ import java.util.concurrent.atomic.AtomicInteger
  *    one thread, one ordered queue, no interleaving left to chance.
  *
  * Covered invariants: client_state passthrough, by-leg resolution on inbound
- * answer, ring-me conflict swallowing, mint-on-connect (never per call), and
- * the call-waiting invariants.
+ * answer, mint-on-connect (never per call), the call-waiting invariants, and
+ * the calls-v3 §10 client protocol — ring-me eligibility (push while a leg is
+ * live never rings; the §6 `no_local_leg` attestation; the recent_leg retry),
+ * presentation dismissal on a ringing-exit (`call.updated` / `call_end` push,
+ * SILENCE only — never a client hangup), and §10.1.4 one-presentation-per-
+ * device (duplicate/over-ceiling INVITEs held silent, promoted when a slot
+ * frees).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SoftphoneCoreTest {
@@ -59,30 +63,33 @@ class SoftphoneCoreTest {
 
     private val tokenMints = AtomicInteger(0)
     private val byLegHits = AtomicInteger(0)
-    private var ringMeStatus = 200
 
-    /** What liveFacts answers for the stale-ring probe (#168B). */
-    private var liveFactsBehavior: () -> LiveCallFacts = {
-        throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
+    /** What the always-200 `/state` read (§8.1) answers per session. */
+    private var sessionStateBehavior: (String) -> LiveSessionState = { session ->
+        LiveSessionState(call_session_id = session, state = CallWakePolicy.STATE_RINGING)
     }
 
-    /** What the calls-log probe sees. */
-    private var recentCallRows: List<Call> = emptyList()
+    /** The ring-me ack to return (§8.3), plus a record of every request's
+     *  `no_local_leg` value — the §6 attestation, always `true` from v3. */
+    private var ringMeBehavior: () -> RingAck =
+        { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
+    private val ringMeNoLocalLeg = mutableListOf<Boolean>()
 
     @Before
     fun setUp() {
         tokenMints.set(0)
         byLegHits.set(0)
-        ringMeStatus = 200
-        liveFactsBehavior = { throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404) }
-        recentCallRows = emptyList()
+        sessionStateBehavior = { session ->
+            LiveSessionState(call_session_id = session, state = CallWakePolicy.STATE_RINGING)
+        }
+        ringMeBehavior = { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
+        ringMeNoLocalLeg.clear()
     }
 
     /**
-     * Direct suspend-function fake of the [CallsApi] seam. Responses (and the
-     * decoded [ApiException]s for error statuses) match what the old
-     * MockWebServer harness served, but every call completes synchronously in
-     * the caller's coroutine — the test scheduler owns every hop.
+     * Direct suspend-function fake of the [CallsApi] seam. Every call completes
+     * synchronously in the caller's coroutine — the test scheduler owns every
+     * hop (ApiClient's HTTP behavior stays covered by core/net/ApiClientTest).
      */
     private inner class FakeCallsApi : CallsApi {
         override suspend fun mintToken(companyId: String): WebRtcToken {
@@ -108,7 +115,10 @@ class SoftphoneCoreTest {
         }
 
         override suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts =
-            liveFactsBehavior()
+            throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
+
+        override suspend fun sessionState(companyId: String, sessionId: String): LiveSessionState =
+            sessionStateBehavior(sessionId)
 
         override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
             throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
@@ -119,20 +129,14 @@ class SoftphoneCoreTest {
             targetUserId: String,
         ): TransferAck = throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
 
-        override suspend fun ringMe(companyId: String, sessionId: String): RingAck =
-            when (ringMeStatus) {
-                200 -> RingAck(ok = true)
-                409 -> throw ApiException(
-                    ApiErrorCode.CONFLICT,
-                    "That call isn't ringing anymore.",
-                    409,
-                )
-
-                else -> throw ApiException(ApiErrorCode.INTERNAL_ERROR, "Something broke.", 500)
-            }
-
-        override suspend fun recentCalls(companyId: String, limit: Int): List<Call> =
-            recentCallRows
+        override suspend fun ringMe(
+            companyId: String,
+            sessionId: String,
+            noLocalLeg: Boolean,
+        ): RingAck {
+            ringMeNoLocalLeg += noLocalLeg
+            return ringMeBehavior()
+        }
     }
 
     private class FakeHandle(
@@ -373,14 +377,14 @@ class SoftphoneCoreTest {
         h.core.awaitReady()
 
         val first = FakeHandle("in-1", callControlId = "ccid-1")
-        h.sdk.ring(first, name = "First")
+        h.sdk.ring(first, name = "First", number = "+15551110001")
         runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
         runCurrent()
 
         val second = FakeHandle("in-2", callControlId = "ccid-2")
-        h.sdk.ring(second, name = "Second")
+        h.sdk.ring(second, name = "Second", number = "+15551110002")
         runCurrent()
         h.core.answer("in-2")
 
@@ -399,27 +403,32 @@ class SoftphoneCoreTest {
     }
 
     @Test
-    fun `a third concurrent inbound is declined immediately`() = runTest {
+    fun `a third concurrent inbound is held SILENT, never declined`() = runTest {
+        // calls-v3 §10.1.4/§10.1.2: the client NEVER hangs up a leg outside
+        // user action. A ring beyond the two-call ceiling is HELD silent (no
+        // UI, no signaling), never declined — a decline on a forked leg would
+        // kill the ring on the member's other devices. The server reaps it.
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
 
         val first = FakeHandle("in-1")
-        h.sdk.ring(first, name = "First")
+        h.sdk.ring(first, name = "First", number = "+15551110001")
         runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
         runCurrent()
         val second = FakeHandle("in-2")
-        h.sdk.ring(second, name = "Second")
+        h.sdk.ring(second, name = "Second", number = "+15551110002")
         runCurrent()
 
         val third = FakeHandle("in-3")
-        h.sdk.ring(third, name = "Third")
+        h.sdk.ring(third, name = "Third", number = "+15551110003")
         runCurrent()
 
-        assertTrue("third call declined so the race resolves elsewhere", third.ended)
-        assertEquals(2, h.core.state.value.calls.size)
+        assertFalse("the over-ceiling ring is held, never ended by the client", third.ended)
+        assertEquals("only the two presented calls are in state", 2, h.core.state.value.calls.size)
+        assertTrue(h.core.state.value.calls.none { it.id == "in-3" })
         h.scope.cancel()
     }
 
@@ -430,13 +439,13 @@ class SoftphoneCoreTest {
         h.core.awaitReady()
 
         val first = FakeHandle("in-1")
-        h.sdk.ring(first, name = "First")
+        h.sdk.ring(first, name = "First", number = "+15551110001")
         runCurrent()
         h.core.answer("in-1")
         first.phaseFlow.value = CallPhase.ACTIVE
         runCurrent()
         val second = FakeHandle("in-2")
-        h.sdk.ring(second, name = "Second")
+        h.sdk.ring(second, name = "Second", number = "+15551110002")
         runCurrent()
         h.core.answer("in-2")
         first.phaseFlow.value = CallPhase.HELD
@@ -451,32 +460,82 @@ class SoftphoneCoreTest {
         h.scope.cancel()
     }
 
-    // -------------------------------------------------------------- ring-me
+    // ----------------------------------------------------- ring-me (§10.2)
 
     @Test
-    fun `ring-me swallows conflict - the call was already resolved`() = runTest {
-        ringMeStatus = 409
+    fun `a wake push while a leg is already presenting never calls ring-me`() = runTest {
+        // Scenario 1 (§14): the INVITE path owns presentation — a push (any
+        // latency) while a live leg exists is IGNORED, never a ring-me.
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
-        // Must not throw.
-        h.core.onIncomingCallPush("sess-stale")
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg)
+        runCurrent()
+
+        h.core.onIncomingCallPush("sess-live", callerHint = "+15557778888")
+
+        assertTrue("no ring-me while a leg presents", ringMeNoLocalLeg.isEmpty())
+        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
         h.scope.cancel()
     }
 
     @Test
-    fun `ring-me succeeds silently on 200`() = runTest {
-        ringMeStatus = 200
+    fun `a wake push with no live leg reads state then ring-me with no_local_leg true`() = runTest {
+        // Scenario 2/3 (§14): no live leg → read /state → still ringing →
+        // ring-me with the §6 attestation (no_local_leg:true) on the FIRST call.
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
+
         h.core.onIncomingCallPush("sess-live")
+
+        assertEquals("exactly one ring-me, asserted", listOf(true), ringMeNoLocalLeg)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a wake push whose session already exited ringing does not ring-me`() = runTest {
+        // §8.1: /state is the truth — a session that already answered/voicemailed
+        // gets no ring-me (the 4xx-inference era is over).
+        sessionStateBehavior = { LiveSessionState(call_session_id = it, state = "answered") }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        h.core.onIncomingCallPush("sess-done")
+
+        assertTrue(ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a not_found from state or ring-me is swallowed by contract`() = runTest {
+        sessionStateBehavior = { throw ApiException(ApiErrorCode.NOT_FOUND, "Aged out.", 404) }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // Must not throw — a 404 (push aged out / hidden number) is silent.
+        h.core.onIncomingCallPush("sess-gone")
+        assertTrue(ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `ring-me request-property 409 is swallowed`() = runTest {
+        ringMeBehavior = { throw ApiException(ApiErrorCode.CONFLICT, "Can't take calls.", 409) }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // The 409 is a REQUEST property (§8.3), not session state — swallowed.
+        h.core.onIncomingCallPush("sess-live")
+        assertEquals(listOf(true), ringMeNoLocalLeg)
         h.scope.cancel()
     }
 
     @Test
     fun `ring-me propagates real failures so the caller can retry`() = runTest {
-        ringMeStatus = 500
+        ringMeBehavior = { throw ApiException(ApiErrorCode.INTERNAL_ERROR, "Broke.", 500) }
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
@@ -490,7 +549,35 @@ class SoftphoneCoreTest {
     }
 
     @Test
-    fun `ring-me reuses a live registration - no re-connect, no re-mint`() = runTest {
+    fun `a recent_leg ack triggers exactly one retry after the debounce`() = runTest {
+        // §10.2: rang:false/recent_leg with no INVITE inside the debounce window
+        // licenses ONE retry (it passes the server debounce if the leg died).
+        ringMeBehavior = {
+            RingAck(ok = true, rang = false, state = "ringing", reason = CallWakePolicy.REASON_RECENT_LEG)
+        }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        h.core.onIncomingCallPush("sess-live")
+
+        assertEquals("one retry, both asserted", listOf(true, true), ringMeNoLocalLeg)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a non-retryable rang-false reason does not retry`() = runTest {
+        ringMeBehavior = { RingAck(ok = true, rang = false, state = "ringing", reason = "live_leg") }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-live")
+        assertEquals("no retry for a non-recent_leg reason", listOf(true), ringMeNoLocalLeg)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a wake push reuses a live registration - no re-connect, no re-mint`() = runTest {
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
@@ -498,6 +585,118 @@ class SoftphoneCoreTest {
         h.core.onIncomingCallPush("sess-live")
         assertEquals(1, h.sdk.connects)
         assertEquals(1, tokenMints.get())
+        h.scope.cancel()
+    }
+
+    // ----------------------------------------- presentation dismissal (§10.1)
+
+    @Test
+    fun `a call_updated ringing-exit SILENCES the presented ring, never ends the leg`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // The wake push named the session + caller (the reconcile correlation).
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+
+        val leg = FakeHandle("in-late")
+        h.sdk.ring(leg) // caller +15557778888 matches the hint
+        runCurrent()
+        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
+
+        // Realtime says the session answered elsewhere — silence, don't end.
+        h.core.onCallSessionUpdate("sess-x", "answered")
+
+        assertFalse("the client NEVER ends the leg — the server sends the BYE", leg.ended)
+        val call = h.core.state.value.calls.single()
+        assertTrue("presentation is silenced", call.silenced)
+        assertEquals(CallPhase.RINGING, call.phase)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a call_end push SILENCES the presented ring, never ends the leg`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+
+        val leg = FakeHandle("in-late")
+        h.sdk.ring(leg)
+        runCurrent()
+
+        h.core.onCallEndPush("sess-x")
+
+        assertFalse(leg.ended)
+        assertTrue(h.core.state.value.calls.single().silenced)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a still-ringing call_updated leaves the presentation alone`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg)
+        runCurrent()
+
+        // state=ringing is NOT a ringing-exit — nothing is silenced.
+        h.core.onCallSessionUpdate("sess-x", "ringing")
+
+        assertFalse(leg.ended)
+        assertFalse(h.core.state.value.calls.single().silenced)
+        h.scope.cancel()
+    }
+
+    // -------------------------------------------- one-per-device (§10.1.4)
+
+    @Test
+    fun `a duplicate INVITE for a caller already presenting is held silent`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val first = FakeHandle("in-1")
+        h.sdk.ring(first, name = "Dana", number = "+15557778888")
+        runCurrent()
+        // The shared credential forks the same session's INVITE to this device
+        // again (same caller — the only session proxy an INVITE carries).
+        val fork = FakeHandle("in-1-fork")
+        h.sdk.ring(fork, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        assertFalse("a forked duplicate is held, never ended", fork.ended)
+        assertEquals("only the first INVITE presents", 1, h.core.state.value.calls.size)
+        assertEquals("in-1", h.core.state.value.calls.single().id)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a held duplicate promotes when the presented sibling dies still ringing`() = runTest {
+        // No push hint → the promotion can't verify the session, so it promotes
+        // rather than suppress an unverifiable real ring (§10.1.4 doubt rule).
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val first = FakeHandle("in-1")
+        h.sdk.ring(first, name = "Dana", number = "+15557778888")
+        runCurrent()
+        val fork = FakeHandle("in-1-fork")
+        h.sdk.ring(fork, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        // The presented leg dies un-answered (its socket dropped); the forked
+        // leg is still alive and must take over presentation.
+        first.phaseFlow.value = CallPhase.ENDED
+        runCurrent()
+
+        val presented = h.core.state.value.calls.singleOrNull()
+        assertNotNull("the fork promotes to presentation", presented)
+        assertEquals("in-1-fork", presented!!.id)
+        assertEquals(CallPhase.RINGING, presented.phase)
+        assertFalse(fork.ended)
         h.scope.cancel()
     }
 
@@ -522,171 +721,6 @@ class SoftphoneCoreTest {
         assertEquals("Couldn't answer — try again.", state.error)
         assertEquals("the ring survives the failed answer", CallPhase.RINGING, state.calls.single().phase)
         assertEquals("answer", reportedTag)
-        h.scope.cancel()
-    }
-
-    // --------------------------------------------------- stale rings (#168B)
-
-    private fun callRow(
-        session: String,
-        outcome: String? = null,
-        answeredBy: String? = null,
-    ): Call = Call(
-        id = "row-$session",
-        call_session_id = session,
-        direction = "inbound",
-        outcome = outcome,
-        answered_by_user_id = answeredBy,
-        started_at = "2026-07-17T00:00:00Z",
-    )
-
-    @Test
-    fun `a late INVITE for an already-answered session ends silently and never rings on`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        // The wake push named the session (ring-me succeeded back then).
-        h.core.onIncomingCallPush("sess-stale", callerHint = "+15557778888")
-        // By INVITE time someone owns the call — liveFacts answers 200.
-        liveFactsBehavior = { LiveCallFacts(conversation_id = null, caller_e164 = null) }
-
-        val lateLeg = FakeHandle("in-late")
-        h.sdk.ring(lateLeg) // caller +15557778888 matches the hint
-        runCurrent() // present + concurrent probe + stale cancel
-
-        assertTrue("the stale leg is ended", lateLeg.ended)
-        assertTrue("no ring remains", h.core.state.value.calls.isEmpty())
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `a finished session (outcome written) also cancels the late ring`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.onIncomingCallPush("sess-vm")
-        // liveFacts is 'conflict' for BOTH ringing and ended — the call-log
-        // row's outcome disambiguates.
-        liveFactsBehavior = {
-            throw ApiException(ApiErrorCode.CONFLICT, "This call isn't live.", 409)
-        }
-        recentCallRows = listOf(callRow("sess-vm", outcome = "voicemail"))
-
-        val lateLeg = FakeHandle("in-late")
-        h.sdk.ring(lateLeg)
-        runCurrent()
-
-        assertTrue(lateLeg.ended)
-        assertTrue(h.core.state.value.calls.isEmpty())
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `a genuinely still-ringing session keeps ringing through the probe`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.onIncomingCallPush("sess-live")
-        liveFactsBehavior = {
-            throw ApiException(ApiErrorCode.CONFLICT, "This call isn't live.", 409)
-        }
-        recentCallRows = listOf(callRow("sess-live")) // outcome null, unanswered
-
-        val leg = FakeHandle("in-1")
-        h.sdk.ring(leg)
-        runCurrent()
-
-        assertFalse(leg.ended)
-        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `no push hint means no probe - the ring is untouchable`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        // liveFacts would scream ANSWERED — but nothing correlates the INVITE
-        // to any session, so the probe must not run at all.
-        liveFactsBehavior = { LiveCallFacts(conversation_id = null, caller_e164 = null) }
-
-        val leg = FakeHandle("in-1")
-        h.sdk.ring(leg)
-        runCurrent()
-
-        assertFalse(leg.ended)
-        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `caller mismatch between hint and INVITE disables the stale kill`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.onIncomingCallPush("sess-other", callerHint = "+14155550100")
-        liveFactsBehavior = { LiveCallFacts(conversation_id = null, caller_e164 = null) }
-
-        val leg = FakeHandle("in-1")
-        h.sdk.ring(leg) // caller +15557778888 ≠ the hint's +14155550100
-        runCurrent()
-
-        assertFalse("a different caller is a different call — never killed", leg.ended)
-        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `call waiting - a live call disables the probe for the second ring`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-
-        // Answer the first call (its session could BE the hint's session).
-        h.core.onIncomingCallPush("sess-first")
-        // While the first call genuinely rings, the probe must see "ringing".
-        liveFactsBehavior = {
-            throw ApiException(ApiErrorCode.CONFLICT, "This call isn't live.", 409)
-        }
-        recentCallRows = listOf(callRow("sess-first"))
-        val first = FakeHandle("in-1", callControlId = "ccid-1")
-        h.sdk.ring(first, name = "First")
-        runCurrent()
-        h.core.answer("in-1")
-        first.phaseFlow.value = CallPhase.ACTIVE
-        runCurrent()
-
-        // liveFacts(hint) would say ANSWERED (it IS answered — by me).
-        liveFactsBehavior = { LiveCallFacts(conversation_id = null, caller_e164 = null) }
-
-        val second = FakeHandle("in-2")
-        h.sdk.ring(second, name = "Second")
-        runCurrent()
-
-        assertFalse("the second ring must survive", second.ended)
-        assertEquals(
-            CallPhase.RINGING,
-            h.core.state.value.calls.first { it.id == "in-2" }.phase,
-        )
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `a probe timeout rings normally - the fast path is never held hostage`() = runTest {
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.onIncomingCallPush("sess-slow")
-        // The probe hangs past its budget; withTimeoutOrNull must resolve to
-        // UNKNOWN and leave the ring alone.
-        liveFactsBehavior = { throw ApiException(ApiErrorCode.INTERNAL_ERROR, "Slow.", 500) }
-
-        val leg = FakeHandle("in-1")
-        h.sdk.ring(leg)
-        runCurrent()
-
-        assertFalse(leg.ended)
-        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
         h.scope.cancel()
     }
 }

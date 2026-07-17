@@ -62,18 +62,28 @@ import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.thread.ThreadScreen
-import com.loonext.android.push.PushHooks
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.theme.LoonextTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /** A navigation request parsed from a notification tap / app-link intent. */
 sealed interface DeepLink {
     data class Thread(val conversationId: String) : DeepLink
-    data object Calls : DeepLink
+
+    /**
+     * The calls surface. [sessionId] rides the `?call=<session>` query
+     * param (calls-v3 §10.2/§10.3): a notification tap that carries a session
+     * runs the SAME wake sequence a `kind:'call'` push would — register,
+     * read `/state`, ring-me — so the tray-fallback / cold-process tap lands
+     * in ring-me instead of an empty calls list (the pre-v3 build DROPPED the
+     * param, §17.7; that was scenario 2's dead end).
+     */
+    data class Calls(val sessionId: String? = null) : DeepLink
 }
 
 /** Notification-tap URLs: https://app.loonext.com/inbox/{id} or /calls?call=… */
@@ -83,7 +93,9 @@ private fun parseDeepLink(uri: Uri?): DeepLink? {
         segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
             DeepLink.Thread(segments[1])
 
-        segments.firstOrNull() == "calls" -> DeepLink.Calls
+        segments.firstOrNull() == "calls" ->
+            DeepLink.Calls(uri.getQueryParameter("call")?.takeIf { it.isNotBlank() })
+
         else -> null
     }
 }
@@ -251,27 +263,19 @@ private fun ReadyShell(
     val viewedConversation = (overlay as? Overlay.Thread)?.conversationId
         ?: tabViewedConversation
 
+    // The process-wide softphone. get() also INSTALLS the call-wake +
+    // call-end push handlers (calls-v3 §10.2: SoftphoneManager's init is the
+    // ONE installer — MainActivity's old overwrite, which referenced the
+    // deleted StaleRing probe, is gone). The cold-process wake path lives in
+    // LoonextMessagingService for FCM-woken processes with no UI.
+    val softphone = remember(context) {
+        SoftphoneManager.get(context.applicationContext, graph.api)
+    }
+
     // Session-scoped device wiring: push registration (no-op without Firebase
-    // config) + softphone ring-registration + the call-push wake hook.
-    LaunchedEffect(companyId) {
+    // config) + softphone ring-registration.
+    LaunchedEffect(companyId, hydratedMe.display_name) {
         runCatching { graph.pushRegistrar.register(companyId) }
-        val softphone = SoftphoneManager.get(context.applicationContext, graph.api)
-        PushHooks.callWakeHandler = com.loonext.android.push.CallWakeHandler { content ->
-            content.callSessionId?.let { sessionId ->
-                graph.appScope.launch {
-                    runCatching {
-                        softphone.onIncomingCallPush(
-                            sessionId,
-                            // #168B: the push body carries the raw caller
-                            // E.164 when known — the stale-ring probe's
-                            // caller correlation.
-                            com.loonext.android.telephony.StaleRingPolicy
-                                .callerHintFromPushBody(content.body),
-                        )
-                    }
-                }
-            }
-        }
         runCatching {
             softphone.start(companyId, callerIdName = hydratedMe.display_name)
         }
@@ -282,7 +286,18 @@ private fun ReadyShell(
         deepLinks.collect { link ->
             when (link) {
                 is DeepLink.Thread -> overlay = Overlay.Thread(link.conversationId)
-                DeepLink.Calls -> overlay = Overlay.Calls
+                is DeepLink.Calls -> {
+                    overlay = Overlay.Calls
+                    // §10.2/§10.3: a tap that carries the session runs the
+                    // wake sequence (register → /state → ring-me), same as a
+                    // `kind:'call'` push — the tray-fallback / cold-start join.
+                    link.sessionId?.let { session ->
+                        graph.appScope.launch {
+                            runCatching { softphone.onIncomingCallPush(session) }
+                        }
+                    }
+                }
+
                 null -> Unit
             }
             if (link != null) deepLinks.value = null
@@ -313,7 +328,19 @@ private fun ReadyShell(
         )
     }
     LaunchedEffect(companyId) {
-        graph.realtime.events.collect { countsKey++ }
+        graph.realtime.events.collect { event ->
+            countsKey++
+            // §9.1/§10.1: the `call.updated` broadcast now carries {state,
+            // answered_by_user_id} — forward a ringing-exit state to the
+            // softphone so a presenting device stops presenting (silence only;
+            // the server sends the BYE). ID-only payload, no PII.
+            if (event.event == "call.updated") {
+                val session = (event.payload["call_session_id"] as? JsonPrimitive)
+                    ?.contentOrNull
+                val callState = (event.payload["state"] as? JsonPrimitive)?.contentOrNull
+                if (session != null) softphone.onCallSessionUpdate(session, callState)
+            }
+        }
     }
 
     Box(Modifier.fillMaxSize()) {

@@ -1,7 +1,5 @@
 package com.loonext.android.telephony
 
-import com.loonext.android.core.model.Call
-import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.WebRtcToken
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.Serializable
@@ -40,11 +38,45 @@ data class OutboundCallBody(
 @Serializable
 data class LegResolution(val call_session_id: String)
 
-/** GET /v1/calls/live/:sessionId — the call bar facts (notes deep-link). */
+/**
+ * GET /v1/calls/live/:sessionId — the LEGACY live read (calls-v3 §8.2,
+ * semantics frozen). Only ever called post-answer (the call bar's notes
+ * deep-link); ringing-phase reads use [LiveSessionState] instead.
+ */
 @Serializable
 data class LiveCallFacts(
     val conversation_id: String? = null,
     val caller_e164: String? = null,
+)
+
+/**
+ * GET /v1/calls/live/:sessionId/state — calls-v3 §8.1, the ONE state read.
+ * Always 200 for a visible session, in any state, live or ended — state is
+ * never encoded in an error code again. `state` uses the §3 vocabulary
+ * (`ringing`/`answered`/`voicemail_*`/`ended_*`); treat null defensively
+ * (state is never assumed total).
+ */
+@Serializable
+data class LiveSessionState(
+    val call_session_id: String,
+    val state: String? = null,
+    val direction: String? = null,
+    val started_at: String? = null,
+    val answered_at: String? = null,
+    val answered_by_user_id: String? = null,
+    val caller_e164: String? = null,
+    val caller_name: String? = null,
+    val conversation_id: String? = null,
+    val phone_number_id: String? = null,
+    val outcome: String? = null,
+    val your_leg: SessionLeg? = null,
+)
+
+/** The caller's own leg from the DO snapshot (null when none / purged). */
+@Serializable
+data class SessionLeg(
+    val call_control_id: String? = null,
+    val status: String? = null,
 )
 
 @Serializable
@@ -56,8 +88,25 @@ data class TransferTargets(val targets: List<TransferTarget> = emptyList())
 @Serializable
 data class TransferAck(val status: String)
 
+/**
+ * ring-me v2 response (calls-v3 §8.3): always 200 for an authorized request.
+ * `ok` is retained so pre-v3 decoders never break; `rang:true` = a fresh leg
+ * was dialed (an INVITE is coming); `rang:false` + `reason` says why not
+ * (`not_ringing` / `live_leg` / `recent_leg` / `dial_failed`).
+ */
 @Serializable
-data class RingAck(val ok: Boolean)
+data class RingAck(
+    val ok: Boolean = true,
+    val rang: Boolean? = null,
+    val state: String? = null,
+    val reason: String? = null,
+)
+
+/** ring-me v2 request body (§6): v3 clients ALWAYS send `true` — by client
+ *  rule §10.1.3 they only call ring-me when holding no live leg, so the call
+ *  itself is the attestation "nothing presents on THIS DEVICE". */
+@Serializable
+private data class RingMeBody(val no_local_leg: Boolean)
 
 @Serializable
 private data class TransferBody(val target_user_id: String)
@@ -84,6 +133,13 @@ interface CallsApi {
 
     suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts
 
+    /**
+     * The calls-v3 always-200 state read (§8.1) — polled at most on push
+     * receipt, on INVITE, and on reconnect; steady-state updates arrive via
+     * the `call.updated` realtime broadcast.
+     */
+    suspend fun sessionState(companyId: String, sessionId: String): LiveSessionState
+
     suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets
 
     suspend fun blindTransfer(
@@ -92,17 +148,16 @@ interface CallsApi {
         targetUserId: String,
     ): TransferAck
 
-    /** Push-to-wake part 2: re-ring THIS member for a still-ringing call. */
-    suspend fun ringMe(companyId: String, sessionId: String): RingAck
-
     /**
-     * Newest-first company call log (#168B): the stale-ring probe reads a
-     * session's row here when the liveFacts probe is ambiguous ('conflict'
-     * covers both still-ringing and already-ended; the row's outcome and
-     * answered_by disambiguate). One small page — a ringing call is always
-     * among the newest rows.
+     * ring-me v2 (§8.3): ask the server to dial a fresh leg for THIS member.
+     * [noLocalLeg] is the §6 attestation — always true from this client
+     * (§10.1.3: ring-me is only called when no live leg exists locally).
      */
-    suspend fun recentCalls(companyId: String, limit: Int = 25): List<Call>
+    suspend fun ringMe(
+        companyId: String,
+        sessionId: String,
+        noLocalLeg: Boolean = true,
+    ): RingAck
 }
 
 class HttpCallsApi(private val api: ApiClient) : CallsApi {
@@ -132,6 +187,9 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
     override suspend fun liveFacts(companyId: String, sessionId: String): LiveCallFacts =
         api.get("/v1/calls/live/$sessionId", companyId = companyId)
 
+    override suspend fun sessionState(companyId: String, sessionId: String): LiveSessionState =
+        api.get("/v1/calls/live/$sessionId/state", companyId = companyId)
+
     override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
         api.get("/v1/calls/live/$sessionId/targets", companyId = companyId)
 
@@ -145,15 +203,13 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
         companyId = companyId,
     )
 
-    override suspend fun ringMe(companyId: String, sessionId: String): RingAck =
-        api.post("/v1/calls/live/$sessionId/ring-me", companyId = companyId)
-
-    override suspend fun recentCalls(companyId: String, limit: Int): List<Call> {
-        val page: Page<Call> = api.get(
-            "/v1/calls",
-            query = mapOf("limit" to limit.toString()),
-            companyId = companyId,
-        )
-        return page.data
-    }
+    override suspend fun ringMe(
+        companyId: String,
+        sessionId: String,
+        noLocalLeg: Boolean,
+    ): RingAck = api.post(
+        "/v1/calls/live/$sessionId/ring-me",
+        RingMeBody(no_local_leg = noLocalLeg),
+        companyId = companyId,
+    )
 }

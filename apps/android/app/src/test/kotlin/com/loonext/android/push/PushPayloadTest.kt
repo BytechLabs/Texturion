@@ -1,6 +1,7 @@
 package com.loonext.android.push
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,6 +42,32 @@ class PushPayloadTest {
         assertEquals("call:sess-abc-123", content.tag)
         assertEquals("sess-abc-123", content.callSessionId)
         assertEquals("https://app.loonext.com/calls?call=sess-abc-123", content.url)
+    }
+
+    @Test
+    fun `call_end shares the call's session tag and channel but is a revocation`() {
+        val content = parsePush(
+            mapOf(
+                "kind" to "call_end",
+                "url" to "/calls?call=sess-abc-123",
+            ),
+        )
+
+        // calls-v3 §9.2: the tag IS the revocation key — a call_end cancels
+        // the `call:<session>` tray entry by matching this exact tag.
+        assertTrue(content.isCallEnd)
+        assertFalse(content.isCall)
+        assertEquals("call:sess-abc-123", content.tag)
+        assertEquals(ChannelIds.INCOMING_CALLS, content.channelId)
+        assertEquals("sess-abc-123", content.callSessionId)
+    }
+
+    @Test
+    fun `a call and its call_end resolve to the exact same coalescing tag`() {
+        val ring = parsePush(mapOf("kind" to "call", "url" to "/calls?call=sess-9"))
+        val end = parsePush(mapOf("kind" to "call_end", "url" to "/calls?call=sess-9"))
+
+        assertEquals(ring.tag, end.tag)
     }
 
     @Test
