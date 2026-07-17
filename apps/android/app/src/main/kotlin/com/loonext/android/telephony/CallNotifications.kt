@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
+import androidx.core.net.toUri
+import com.loonext.android.MainActivity
 import com.loonext.android.R
 import com.loonext.android.push.ChannelIds
 import com.loonext.android.push.ensureChannels
@@ -20,6 +22,12 @@ import com.loonext.android.ui.common.formatPhone
  * notification with a full-screen intent (the lock-screen ring), and a quiet
  * ongoing one while a call is live. Channels come from push/Channels.kt so
  * the wake push (#156) and the live SDK ring share one user-facing switch.
+ *
+ * #167: the incoming notification is posted ONLY while the app is not in the
+ * foreground ([SoftphoneManager] gates it) — in-app, the animated banner +
+ * [Ringer] are the presentation. Its content/full-screen intents carry the
+ * calls deep link (`https://app.loonext.com/calls?call={session}`) so a tap
+ * or a locked-screen ring lands on the calls surface, same as a push tap.
  */
 internal class CallNotifier(private val context: Context) {
     companion object {
@@ -48,8 +56,11 @@ internal class CallNotifier(private val context: Context) {
         if (!canPost()) return
         ensureChannels(context)
         val person = person(call)
-        val answer = actionIntent(ACTION_ANSWER, call.id, requestCode = 1)
-        val decline = actionIntent(ACTION_DECLINE, call.id, requestCode = 2)
+        // Request codes are derived per call — two concurrently ringing calls
+        // must not overwrite each other's answer/decline PendingIntents.
+        val answer = actionIntent(ACTION_ANSWER, call.id, requestCode = code(call.id, 1))
+        val decline = actionIntent(ACTION_DECLINE, call.id, requestCode = code(call.id, 2))
+        val open = openCallsIntent(call, requestCode = code(call.id, 3))
         val notification = NotificationCompat.Builder(context, ChannelIds.INCOMING_CALLS)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(call.peerName)
@@ -62,8 +73,8 @@ internal class CallNotifier(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setFullScreenIntent(openAppIntent(requestCode = 3), true)
-            .setContentIntent(openAppIntent(requestCode = 4))
+            .setFullScreenIntent(open, true)
+            .setContentIntent(open)
             .build()
         NotificationManagerCompat.from(context)
             .notify(INCOMING_TAG_PREFIX + call.id, INCOMING_ID, notification)
@@ -127,6 +138,28 @@ internal class CallNotifier(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    /**
+     * Open the app on the calls surface via the existing deep-link contract
+     * (MainActivity parses `/calls?call=…` from notification taps). Used for
+     * both the tap intent and the full-screen (locked-device) ring intent.
+     * A still-ringing inbound leg may not know its customer session yet — the
+     * SDK call id rides along instead; the parser only routes on the path.
+     */
+    private fun openCallsIntent(call: CallSnapshot, requestCode: Int): PendingIntent {
+        val uri = "https://app.loonext.com/calls?call=${call.sessionId ?: call.id}".toUri()
+        val intent = Intent(Intent.ACTION_VIEW, uri, context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /** Stable per-call request code so PendingIntents never collide. */
+    private fun code(callId: String, slot: Int): Int = callId.hashCode() * 31 + slot
 
     init {
         // Channels are cheap and idempotent; make sure they exist before the

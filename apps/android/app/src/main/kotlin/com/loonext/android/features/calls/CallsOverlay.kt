@@ -1,8 +1,5 @@
 package com.loonext.android.features.calls
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -15,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,10 +42,12 @@ import kotlinx.coroutines.delay
 
 /**
  * The app-wide calls layer the integrator overlays ABOVE the tab bar (one
- * line in the shell): the persistent call chip (live duration / incoming
- * answer-decline / held count) and the full-screen [InCallScreen] it expands
- * into. Mounting this is also what registers the softphone on app open, so
- * the member is ring-eligible even before ever visiting the Calls tab.
+ * line in the shell): the top-pinned [IncomingCallBanner] while an inbound
+ * call rings (#167 — its Popup floats over every surface), the persistent
+ * call chip (live duration / held count), and the full-screen [InCallScreen]
+ * both expand into. Mounting this is also what registers the softphone on
+ * app open, so the member is ring-eligible even before ever visiting the
+ * Calls tab — and what fires the one-shot POST_NOTIFICATIONS prompt.
  */
 @Composable
 fun CallsOverlay(
@@ -64,6 +62,8 @@ fun CallsOverlay(
     val repo = remember(graph) { CallsRepository(graph.api) }
     val snapshot by manager.state.collectAsStateWithLifecycle()
     var expanded by remember { mutableStateOf(false) }
+
+    EnsureNotificationPermission()
 
     LaunchedEffect(companyId, me.display_name) {
         manager.start(companyId, me.display_name)
@@ -81,7 +81,18 @@ fun CallsOverlay(
         modifier = modifier,
     )
 
-    if (expanded && snapshot.liveCalls.isNotEmpty()) {
+    val inCallScreenShowing = expanded && snapshot.liveCalls.isNotEmpty()
+
+    // The ringing banner — hidden while the full in-call screen is up (that
+    // surface presents the ringing call itself, answer button included).
+    IncomingCallBanner(
+        call = if (inCallScreenShowing) null else bannerRingingCall(snapshot),
+        manager = manager,
+        company = me.company,
+        onExpand = { expanded = true },
+    )
+
+    if (inCallScreenShowing) {
         Dialog(
             onDismissRequest = { expanded = false },
             properties = DialogProperties(
@@ -110,9 +121,9 @@ fun CallsOverlay(
 
 /**
  * The persistent chip above the tab bar. Nothing renders while the line is
- * idle. Ringing (no active call) shows Answer/Decline inline; a live call
- * shows identity + ticking duration + hang up; an ended call flashes
- * "Call ended" briefly, then dismisses itself.
+ * idle — and nothing while a call only RINGS (the top banner owns ringing
+ * presentation, #167). A live call shows identity + ticking duration + hang
+ * up; an ended call flashes "Call ended" briefly, then dismisses itself.
  */
 @Composable
 fun CallChip(
@@ -133,12 +144,7 @@ fun CallChip(
     val featured = snapshot.activeCall
         ?: snapshot.liveCalls.firstOrNull { it.phase != CallPhase.RINGING }
     val endedChip = if (featured == null && ringing == null) ended.lastOrNull() else null
-    val call = featured ?: ringing ?: endedChip ?: return
-
-    val isRingingChip = featured == null && ringing != null
-    val micLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) manager.answer(call.id) }
+    val call = featured ?: endedChip ?: return
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -180,41 +186,16 @@ fun CallChip(
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(Modifier.weight(1f))
-            when {
-                isRingingChip -> {
-                    IconButton(onClick = { manager.hangup(call.id) }) {
-                        Icon(
-                            Icons.Filled.CallEnd,
-                            contentDescription = "Decline",
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    IconButton(onClick = {
-                        if (manager.hasMicPermission()) {
-                            manager.answer(call.id)
-                        } else {
-                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    }) {
-                        Icon(
-                            Icons.Filled.Call,
-                            contentDescription = "Answer",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-
-                call.phase == CallPhase.ENDED -> IconButton(
-                    onClick = { manager.dismiss(call.id) },
-                ) {
+            if (call.phase == CallPhase.ENDED) {
+                IconButton(onClick = { manager.dismiss(call.id) }) {
                     Icon(
                         Icons.Filled.CallEnd,
                         contentDescription = "Dismiss",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-
-                else -> IconButton(onClick = { manager.hangup(call.id) }) {
+            } else {
+                IconButton(onClick = { manager.hangup(call.id) }) {
                     Icon(
                         Icons.Filled.CallEnd,
                         contentDescription = "Hang up",

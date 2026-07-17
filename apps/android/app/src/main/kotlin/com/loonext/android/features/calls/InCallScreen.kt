@@ -240,24 +240,79 @@ fun InCallScreen(
         }
 
         Spacer(Modifier.height(24.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
+        if (featured != null && featured.phase == CallPhase.RINGING &&
+            featured.direction == CallDirection.INBOUND
         ) {
-            TextButton(onClick = onClose) { Text("Hide") }
-            FilledIconButton(
-                onClick = { featured?.let { manager.hangup(it.id) } },
-                enabled = featured != null,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
-                modifier = Modifier.size(64.dp),
-            ) {
-                Icon(Icons.Filled.CallEnd, contentDescription = "Hang up")
+            // Expanded while still ringing (the banner's tap-to-expand path,
+            // #167): full answer/decline controls, mic preflight on answer —
+            // a refusal keeps ringing with an inline notice, never a decline.
+            var micNotice by remember(featured.id) { mutableStateOf(false) }
+            val answerLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                if (granted) manager.answer(featured.id) else micNotice = true
             }
-            Spacer(Modifier.width(64.dp))
+            if (micNotice) {
+                Text(
+                    "Allow microphone access to answer this call.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledIconButton(
+                    onClick = { manager.hangup(featured.id) },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    modifier = Modifier.size(64.dp),
+                ) {
+                    Icon(Icons.Filled.CallEnd, contentDescription = "Decline")
+                }
+                FilledIconButton(
+                    onClick = {
+                        if (manager.hasMicPermission()) {
+                            manager.answer(featured.id)
+                        } else {
+                            answerLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                    modifier = Modifier.size(64.dp),
+                ) {
+                    Icon(Icons.Filled.Call, contentDescription = "Answer")
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose) { Text("Hide") }
+                FilledIconButton(
+                    onClick = { featured?.let { manager.hangup(it.id) } },
+                    enabled = featured != null,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    modifier = Modifier.size(64.dp),
+                ) {
+                    Icon(Icons.Filled.CallEnd, contentDescription = "Hang up")
+                }
+                Spacer(Modifier.width(64.dp))
+            }
         }
         Spacer(Modifier.height(16.dp))
     }

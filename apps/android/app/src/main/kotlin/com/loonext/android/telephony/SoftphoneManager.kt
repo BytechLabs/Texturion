@@ -7,8 +7,6 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.Ringtone
-import android.media.RingtoneManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Bundle
@@ -40,7 +38,10 @@ import kotlinx.coroutines.launch
  *
  * - Telnyx SDK binding ([TelnyxSdkClient])
  * - self-managed telecom (ring/hold/audio-focus interop with cellular calls)
- * - the incoming-call ring surface (CallStyle notification + ringtone/vibra)
+ * - the incoming-call ring surface (#167): the [Ringer] (looped ringtone +
+ *   vibration, ringer-mode aware) runs whenever the process is alive and an
+ *   inbound call rings; the CallStyle notification posts ONLY while the app
+ *   is NOT foreground (foreground presentation is the in-app banner)
  * - the ongoing-call notification
  * - recovery watchdog triggers: network regained + app foregrounded (the
  *   debounce, the never-during-a-live-call rule, and the fresh-mint-on-auth-
@@ -95,7 +96,12 @@ class SoftphoneManager private constructor(
     /** Incoming notifications currently showing, keyed by call id. */
     private val ringingNotified = mutableSetOf<String>()
 
-    private var ringtone: Ringtone? = null
+    private val ringer = Ringer(appContext)
+
+    /** ProcessLifecycleOwner-tracked; gates the incoming notification (#167). */
+    @Volatile
+    private var appInForeground = false
+
     private var focusRequest: AudioFocusRequest? = null
     private var phoneAccountRegistered = false
 
@@ -251,17 +257,14 @@ class SoftphoneManager private constructor(
 
     internal fun showIncomingUi(callId: String) {
         val call = core.state.value.calls.firstOrNull { it.id == callId } ?: return
-        if (call.phase == CallPhase.RINGING) {
-            notifier.showIncoming(call)
-            ringingNotified.add(callId)
-            startRingtone()
+        if (call.phase == CallPhase.RINGING && !appInForeground) {
+            postIncomingNotification(call)
         }
+        // Foreground: the in-app banner + ringer (state-driven) are the ring
+        // surface — telecom's re-ask needs no notification on top of them.
     }
 
-    internal fun silenceRing() {
-        runCatching { ringtone?.stop() }
-        ringtone = null
-    }
+    internal fun silenceRing() = ringer.silence()
 
     internal fun mirrorTelecomRoute(route: AudioRoute) = core.setAudioRoute(route)
 
@@ -271,15 +274,20 @@ class SoftphoneManager private constructor(
         when (event) {
             is CoreEvent.IncomingRinging -> {
                 reportIncomingToTelecom(event.call)
-                // The ring surface goes up regardless of telecom's verdict —
-                // onShowIncomingCallUi will re-post idempotently if it comes.
-                notifier.showIncoming(event.call)
-                ringingNotified.add(event.call.id)
-                startRingtone()
+                // Foreground = the animated in-app banner + ringer own the
+                // presentation (#167); backgrounded-but-alive = the CallStyle
+                // notification (heads-up unlocked, full screen locked). The
+                // ringer itself is state-driven in syncPlatform.
+                if (!appInForeground) postIncomingNotification(event.call)
             }
 
             is CoreEvent.OutgoingPlaced -> reportOutgoingToTelecom(event.call)
         }
+    }
+
+    private fun postIncomingNotification(call: CallSnapshot) {
+        notifier.showIncoming(call)
+        ringingNotified.add(call.id)
     }
 
     private fun phoneAccountHandle() = PhoneAccountHandle(
@@ -360,12 +368,14 @@ class SoftphoneManager private constructor(
         connections.entries.removeAll { byId[it.key]?.phase == CallPhase.ENDED }
         reportedToTelecom.removeAll { byId[it] == null || byId[it]?.phase == CallPhase.ENDED }
 
-        // Ring surface: sound + per-call notification while anything rings.
+        // Ring surface (#167): the ringer follows the pure policy on every
+        // emission — answer/decline/remote-end/timeout all stop it here — and
+        // notifications for calls that stopped ringing come down with it.
         val ringingIds = snapshot.calls
-            .filter { it.phase == CallPhase.RINGING }
+            .filter { it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND }
             .map { it.id }
             .toSet()
-        if (ringingIds.isEmpty()) silenceRing()
+        ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
         ringingNotified.filter { it !in ringingIds }.forEach { gone ->
             notifier.cancelIncoming(gone)
             ringingNotified.remove(gone)
@@ -385,23 +395,11 @@ class SoftphoneManager private constructor(
 
     // ------------------------------------------------------- ring + focus
 
-    private fun startRingtone() {
-        if (ringtone != null) return
-        val audio = audioManager ?: return
-        // Respect the ringer switch: silent/vibrate devices don't blare — the
-        // channel's vibration pattern and the notification still surface it.
-        if (audio.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE) ?: return
-        ringtone = runCatching {
-            RingtoneManager.getRingtone(appContext, uri)?.apply {
-                audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-                isLooping = true
-                play()
-            }
-        }.getOrNull()
+    /** Silent/vibrate/normal — the [RingerPolicy] input. No manager = ring. */
+    private fun currentRingMode(): RingMode = when (audioManager?.ringerMode) {
+        AudioManager.RINGER_MODE_SILENT -> RingMode.SILENT
+        AudioManager.RINGER_MODE_VIBRATE -> RingMode.VIBRATE
+        else -> RingMode.NORMAL
     }
 
     private fun acquireFocusFallback() {
@@ -447,9 +445,37 @@ class SoftphoneManager private constructor(
         scope.launch {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_START) core.scheduleRecover()
+                    when (event) {
+                        Lifecycle.Event.ON_START -> {
+                            onForegroundChanged(foreground = true)
+                            core.scheduleRecover()
+                        }
+
+                        Lifecycle.Event.ON_STOP -> onForegroundChanged(foreground = false)
+                        else -> Unit
+                    }
                 },
             )
+        }
+    }
+
+    /**
+     * Presentation handoff on the foreground boundary (#167): coming forward
+     * mid-ring, the banner takes over and any ring notifications come down;
+     * going background mid-ring, the CallStyle notification goes up so the
+     * ring survives recents/screen-off while the process is alive.
+     */
+    private fun onForegroundChanged(foreground: Boolean) {
+        if (appInForeground == foreground) return
+        appInForeground = foreground
+        val ringing = core.state.value.calls.filter {
+            it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND
+        }
+        if (foreground) {
+            ringingNotified.toList().forEach { notifier.cancelIncoming(it) }
+            ringingNotified.clear()
+        } else {
+            ringing.forEach { postIncomingNotification(it) }
         }
     }
 }
