@@ -329,7 +329,10 @@ class SoftphoneCoreTest {
         assertNotNull(ringLeg.accepted)
         ringLeg.phaseFlow.value = CallPhase.ACTIVE
 
-        val resolved = h.core.state.first { it.calls.single().sessionId != null }
+        // singleOrNull: the predicate must be TOTAL — with the by-leg fetch on
+        // a real IO thread, runTest can observe interleavings where this
+        // snapshot isn't the settled one (CI flake, run 12).
+        val resolved = h.core.state.first { it.calls.singleOrNull()?.sessionId != null }
         assertEquals("sess-real", resolved.calls.single().sessionId)
         assertEquals(1, byLegHits.get())
         h.scope.cancel()
