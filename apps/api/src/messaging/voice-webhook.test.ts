@@ -912,8 +912,17 @@ describe("handleCallEvent — D43 member ring races", () => {
     );
   });
 
-  it("the LAST failed leg starts voicemail on the inbound leg", async () => {
+  /** #168: the answered→failed death claim on a member-leg hangup. Losing
+   *  (still-'ringing') legs match zero rows — the empty array here. */
+  function deathClaimStub(claimedUserId?: string): Stub {
+    return stubRoute(restMatch(env, "PATCH", "call_member_legs"), () =>
+      Response.json(claimedUserId ? [{ user_id: claimedUserId }] : []),
+    );
+  }
+
+  it("the LAST failed leg starts voicemail on the inbound leg AND sweeps any leg still ringing (#168 B)", async () => {
     const action = telnyxV2Actions();
+    const claim = deathClaimStub(); // a loser leg — the death claim matches 0
     const failed = stubRoute(rpcMatch(env, "api_ring_leg_failed"), () => true);
     const sessionRead = stubRoute(
       restMatch(env, "GET", "calls"),
@@ -931,7 +940,19 @@ describe("handleCallEvent — D43 member ring races", () => {
       ),
       () => [{ name: "Ace Plumbing", voicemail_greeting: null }],
     );
-    serve(failed, sessionRead, companyRead, action);
+    // #168: a leg still 'ringing' when voicemail answers (a ring-me re-ring
+    // that landed after the last-leg decision, or a dial-race leg) — its
+    // INVITE would otherwise stay deliverable and present a STALE ring.
+    const ringingSweep = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "call_member_legs",
+        (url) => url.searchParams.get("state") === "eq.ringing",
+      ),
+      () => [{ call_control_id: "stale-ring-leg" }],
+    );
+    serve(claim, failed, sessionRead, companyRead, ringingSweep, action);
 
     await handleCallEvent(env, memberEvent("call.hangup"));
 
@@ -943,12 +964,138 @@ describe("handleCallEvent — D43 member ring races", () => {
     );
     expect(answer).toBeDefined();
     expect(speak).toBeDefined();
+    // The stale leg is CANCELed the moment voicemail owns the call.
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === "/v2/calls/stale-ring-leg/actions/hangup",
+      ),
+    ).toBe(true);
   });
 
-  it("a NON-last failed leg does nothing further", async () => {
+  it("a NON-last failed leg does nothing further (and a REPLAYED winner death — claim matches 0 — never re-tears-down)", async () => {
     const action = telnyxV2Actions();
+    const claim = deathClaimStub(); // matches 0: loser leg / replayed death
     const failed = stubRoute(rpcMatch(env, "api_ring_leg_failed"), () => false);
-    serve(failed, action);
+    serve(claim, failed, action);
+
+    await handleCallEvent(env, memberEvent("call.hangup"));
+
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("#168 (founder sequence): the WINNER answers, then their leg DIES — the bridged customer leg is hung up, never voicemail, never dead air", async () => {
+    const action = telnyxV2Actions();
+    const answerClaim = stubRoute(
+      rpcMatch(env, "api_claim_ring_answer"),
+      () => "won",
+    );
+    const stamp = callsLinkStub();
+    // One calls read serves both the answer-time threading and the death
+    // handler's stranded check: still live, owned by the dying member.
+    const callRow = stubRoute(restMatch(env, "GET", "calls"), () => [
+      {
+        id: "call-row-1",
+        company_id: COMPANY_ID,
+        phone_number_id: NUMBER_ID,
+        caller_e164: CALLER,
+        outcome: null,
+        answered_by_user_id: USER_A,
+        customer_call_control_id: CC_ID,
+      },
+    ]);
+    // The death claim WINS the answered→failed transition (exactly-once).
+    const deathClaim = stubRoute(
+      restMatch(env, "PATCH", "call_member_legs"),
+      () => Response.json([{ user_id: USER_A }]),
+    );
+    serve(answerClaim, deathClaim, stamp, callRow, action);
+
+    // 1) The member's browser answers: inbound leg answered (bri) + bridged.
+    await handleCallEvent(env, memberEvent("call.answered"));
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${CC_ID}/actions/answer`,
+      ),
+    ).toBe(true);
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${MEMBER_LEG}/actions/bridge`,
+      ),
+    ).toBe(true);
+
+    // 2) The app crashes — the member leg hangs up immediately.
+    await handleCallEvent(env, memberEvent("call.hangup"));
+
+    // The claim transitioned THIS answered ring leg (replay-safe filters).
+    const claimCall = deathClaim.calls[0];
+    expect(claimCall).toBeDefined();
+    expect(claimCall.body).toMatchObject({ state: "failed" });
+    expect(claimCall.url.searchParams.get("state")).toBe("eq.answered");
+    expect(claimCall.url.searchParams.get("kind")).toBe("eq.ring");
+    expect(claimCall.url.searchParams.get("call_control_id")).toBe(
+      `eq.${MEMBER_LEG}`,
+    );
+    // The CUSTOMER leg is hung up — no dead air. (Its own in_browser hangup
+    // then resolves outcome 'answered' + bri talk time via the terminal path.)
+    expect(
+      action.calls.some(
+        (c) => c.url.pathname === `/v2/calls/${CC_ID}/actions/hangup`,
+      ),
+    ).toBe(true);
+    // Never voicemail mid-conversation: no speak, and the last-leg RPC is
+    // never consulted (it is deliberately unstubbed — a call would throw).
+    expect(
+      action.calls.some((c) => c.url.pathname.endsWith("/speak")),
+    ).toBe(false);
+  });
+
+  it("#168: the winner's leg death does NOT touch the customer when the call MOVED ON (live transfer intent)", async () => {
+    const action = telnyxV2Actions();
+    const deathClaim = stubRoute(
+      restMatch(env, "PATCH", "call_member_legs"),
+      () => Response.json([{ user_id: USER_A }]),
+    );
+    const callRow = stubRoute(restMatch(env, "GET", "calls"), () => [
+      {
+        outcome: null,
+        answered_by_user_id: USER_A,
+        customer_call_control_id: CC_ID,
+      },
+    ]);
+    // A blind transfer is in flight: the ledgered intent is still live — the
+    // transfer flow (snap-back / voicemail-at-hop-cap) owns recovery.
+    const transferIntent = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "call_member_legs",
+        (url) => url.searchParams.get("kind") === "eq.transfer",
+      ),
+      () => [{ call_control_id: `transfer:${USER_A}:0` }],
+    );
+    serve(deathClaim, callRow, transferIntent, action);
+
+    await handleCallEvent(env, memberEvent("call.hangup"));
+
+    expect(action.calls).toHaveLength(0);
+  });
+
+  it("#168: the winner's leg death does NOT touch the customer once a teammate owns the call (consult hand-off stamped)", async () => {
+    const action = telnyxV2Actions();
+    const deathClaim = stubRoute(
+      restMatch(env, "PATCH", "call_member_legs"),
+      () => Response.json([{ user_id: USER_A }]),
+    );
+    // consult/complete stamped the TARGET before the bridge-steal — the
+    // dying sender's leg must stand down.
+    const callRow = stubRoute(restMatch(env, "GET", "calls"), () => [
+      {
+        outcome: null,
+        answered_by_user_id: "99999999-0000-4000-8000-000000000099",
+        customer_call_control_id: CC_ID,
+      },
+    ]);
+    serve(deathClaim, callRow, action);
 
     await handleCallEvent(env, memberEvent("call.hangup"));
 

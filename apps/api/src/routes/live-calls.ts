@@ -23,6 +23,7 @@ import { requireRole } from "../auth/company";
 import {
   assertNumberLevel,
   levelFromRules,
+  resolveNumberAccess,
   type NumberAccessRule,
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
@@ -129,6 +130,67 @@ async function eligibleTarget(
         );
   return level === "text" ? { sipUsername } : null;
 }
+
+/** How far back a live (outcome-null) call can plausibly reach — mirrors the
+ *  webhook's LINE_BUSY_WINDOW: an older outcome-null row is a crashed
+ *  session, not a live call, and must not resurface in recovery UI. */
+const LIVE_CALL_WINDOW_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * GET /v1/calls/live/mine (#168 part D) — the caller's OWN currently-live
+ * call sessions: answered by them (answered_by_user_id — inbound answers and
+ * completed transfers both stamp it), not yet ended (outcome null), inside
+ * the live window. This is the post-crash recovery listing: an app that died
+ * mid-call relaunches, asks "was I on a call?", and gets the facts it needs
+ * to surface the disconnection honestly (session id, peer, when it started).
+ * Registered BEFORE the :sessionId routes so 'mine' never parses as a
+ * session id. #106: a number hidden from the member never enumerates, even
+ * for a call they answered before access changed.
+ */
+liveCallsRoutes.get("/calls/live/mine", requireRole("member"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+  interface MineRow {
+    call_session_id: string;
+    caller_e164: string | null;
+    caller_name: string | null;
+    contact_id: string | null;
+    conversation_id: string | null;
+    phone_number_id: string | null;
+    direction: string | null;
+    started_at: string;
+    answered_at: string | null;
+  }
+  const rows = unwrap<MineRow[]>(
+    await db
+      .from("calls")
+      .select(
+        "call_session_id,caller_e164,caller_name,contact_id,conversation_id,phone_number_id,direction,started_at,answered_at",
+      )
+      .eq("company_id", companyId)
+      .eq("answered_by_user_id", c.get("userId"))
+      .is("outcome", null)
+      .not("answered_at", "is", null)
+      .gte(
+        "created_at",
+        new Date(Date.now() - LIVE_CALL_WINDOW_MS).toISOString(),
+      )
+      .order("answered_at", { ascending: false })
+      .limit(10),
+    "live calls",
+  );
+  const access = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
+  const hidden = new Set(access.hiddenNumberIds ?? []);
+  return c.json({
+    calls: rows.filter(
+      (row) => row.phone_number_id === null || !hidden.has(row.phone_number_id),
+    ),
+  });
+});
 
 /**
  * D43 resolver: an INBOUND call is answered on a member RING leg whose Telnyx
@@ -453,11 +515,33 @@ liveCallsRoutes.post(
       );
     }
 
-    await telnyxRequest(env, {
-      method: "POST",
-      path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
-      body: { call_control_id: gate.call.customer_call_control_id },
-    });
+    // #168 ORDERING: stamp the NEW owner BEFORE the bridge-steal. The steal
+    // unbridges the sender's answered ring leg, whose hangup handler
+    // (handleAnsweredMemberLegDeath) tears down "stranded" customers still
+    // owned by the dying leg's user — stamping first makes that handler see
+    // the hand-off and stand down, closing the race where a completed consult
+    // transfer was killed as a stranded call. A failed bridge restores the
+    // sender (best-effort) before rethrowing.
+    const { error: ownerError } = await db
+      .from("calls")
+      .update({ answered_by_user_id: targetLeg.user_id })
+      .eq("call_session_id", sessionId);
+    if (ownerError) {
+      throw new Error(`transfer stamp failed: ${ownerError.message}`);
+    }
+    try {
+      await telnyxRequest(env, {
+        method: "POST",
+        path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
+        body: { call_control_id: gate.call.customer_call_control_id },
+      });
+    } catch (cause) {
+      await db
+        .from("calls")
+        .update({ answered_by_user_id: c.get("userId") })
+        .eq("call_session_id", sessionId);
+      throw cause;
+    }
 
     // CRITICAL ORDERING: remove the consult ledger rows BEFORE hanging up the
     // sender leg. The sender-hangup fires call.hangup (still brc-tagged) →
@@ -485,11 +569,6 @@ liveCallsRoutes.post(
       }
     }
 
-    const { error } = await db
-      .from("calls")
-      .update({ answered_by_user_id: targetLeg.user_id })
-      .eq("call_session_id", sessionId);
-    if (error) throw new Error(`transfer stamp failed: ${error.message}`);
     if (gate.call.conversation_id) {
       await insertJourneyEvent(db, {
         companyId: c.get("companyId"),
@@ -565,6 +644,28 @@ liveCallsRoutes.post(
       return errorResponse(c, "conflict", "This call can't be rung.");
     }
     if (call.outcome !== null || call.answered_at) {
+      return errorResponse(c, "conflict", "This call isn't ringing anymore.");
+    }
+    // #168 (part B): "outcome null + answered_at null" is NOT enough — a call
+    // that fell to VOICEMAIL is already answered on the vmi tag with nothing
+    // stamped on the row until its hangup. The ring ledger tells the truth:
+    // legs were dialed and none is still 'ringing' (nor 'answered') → the
+    // ring window is over. Re-dialing here would ring a member for a call
+    // voicemail owns (the founder's stale-ring-after-voicemail evidence).
+    // Zero ledgered legs = the ring engine hasn't dialed yet (the wake push
+    // fans out in parallel with the dial loop) — allowed, as before.
+    const legs = unwrap<{ state: string }[]>(
+      await db
+        .from("call_member_legs")
+        .select("state")
+        .eq("call_session_id", sessionId)
+        .eq("kind", "ring"),
+      "ring ledger read",
+    );
+    if (
+      legs.length > 0 &&
+      !legs.some((leg) => leg.state === "ringing" || leg.state === "answered")
+    ) {
       return errorResponse(c, "conflict", "This call isn't ringing anymore.");
     }
     if (!call.customer_call_control_id || !call.phone_number_id) {

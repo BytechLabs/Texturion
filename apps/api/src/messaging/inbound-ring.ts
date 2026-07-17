@@ -211,8 +211,9 @@ export async function ringMembersOrVoicemail(
     input.phoneNumberId,
   );
   if (targets.length === 0) {
-    await startVoicemail(env, {
+    await startVoicemail(env, db, {
       callControlId: input.callControlId,
+      callSessionId: input.callSessionId,
       caller: input.callerE164,
       companyName: input.companyName,
       greeting: input.voicemailGreeting,
@@ -286,8 +287,9 @@ export async function ringMembersOrVoicemail(
   await notifyDone;
 
   if (dialed.length === 0) {
-    await startVoicemail(env, {
+    await startVoicemail(env, db, {
       callControlId: input.callControlId,
+      callSessionId: input.callSessionId,
       caller: input.callerE164,
       companyName: input.companyName,
       greeting: input.voicemailGreeting,
@@ -598,10 +600,20 @@ export async function handleMemberRingAnswered(
 }
 
 /**
- * A member ring leg ended without winning (timeout, decline, offline
- * browser, or dismissed by the winner). When it was the LAST live leg and
- * nobody answered, the caller gets voicemail — exactly once, the RPC
- * serializes concurrent failures.
+ * A member ring leg ended. Two very different meanings (#168):
+ *
+ *   The WINNER's leg dying MID-CALL (the app crashed / the socket dropped
+ *   after it answered) — api_ring_leg_failed is a no-op for an 'answered'
+ *   leg (it neither transitions it nor counts it out), so before D43's #168
+ *   fix this hangup was silently dropped and the bridged CUSTOMER sat in
+ *   dead air until the 2h runaway sweep (founder-verified on a real device).
+ *   Now: claim the answered→failed transition exactly once and end the
+ *   stranded customer leg ({@link handleAnsweredMemberLegDeath}).
+ *
+ *   A LOSER leg failing (timeout, decline, offline browser, or dismissed by
+ *   the winner): when it was the LAST live leg and nobody answered, the
+ *   caller gets voicemail — exactly once, the RPC serializes concurrent
+ *   failures.
  */
 export async function handleMemberRingHangup(
   env: Env,
@@ -609,6 +621,9 @@ export async function handleMemberRingHangup(
   memberCcid: string,
   state: MemberRingState,
 ): Promise<void> {
+  const died = await handleAnsweredMemberLegDeath(env, db, memberCcid, state);
+  if (died) return; // the winner's death owns the outcome — never voicemail
+
   const { data: last, error } = await db.rpc("api_ring_leg_failed", {
     p_call_session_id: state.sessionId,
     p_call_control_id: memberCcid,
@@ -620,12 +635,99 @@ export async function handleMemberRingHangup(
 
   const company = await companyForSession(db, state.sessionId);
   if (!company) return;
-  await startVoicemail(env, {
+  await startVoicemail(env, db, {
     callControlId: state.inboundCcid,
+    callSessionId: state.sessionId,
     caller: state.caller,
     companyName: company.name,
     greeting: company.voicemailGreeting,
   });
+}
+
+/**
+ * #168 (issue part C): the WINNING member leg got call.hangup while the call
+ * was still live — the member's app died mid-conversation (or between answer
+ * and bridge completion, the founder's crash-on-accept case). Telnyx does
+ * NOT reliably tear the bridged customer leg down in that window, so the
+ * SERVER must: the customer must never sit in dead air.
+ *
+ * Exactly-once via the guarded ledger transition answered→failed (a webhook
+ * REPLAY matches zero rows and no-ops). Before hanging the customer up,
+ * verify the call didn't legitimately MOVE ON without this leg:
+ *   - outcome already set → the call ended normally, nothing to do;
+ *   - answered_by_user_id is someone else → a transfer/consult completed
+ *     (the consult-complete route stamps the new owner BEFORE the
+ *     bridge-steal precisely so this check wins the race);
+ *   - a live kind='transfer' intent exists → the blind-transfer flow owns
+ *     recovery (its own missed-path snaps back or diverts to voicemail).
+ * Otherwise hang up the customer leg (4xx on an already-dead leg is
+ * swallowed). Its own in_browser hangup then resolves the calls row through
+ * the normal terminal path — outcome 'answered' with the bri-anchored talk
+ * time, exactly like a member hanging up on purpose. Voicemail is
+ * deliberately NOT offered mid-conversation (D43 transfer-recovery rule:
+ * an answered call ends cleanly; a caller who wants to leave a message
+ * redials).
+ *
+ * Returns true when this hangup was the winner's (claimed), whether or not
+ * a teardown was needed — the caller must then skip the last-leg voicemail
+ * logic entirely.
+ */
+export async function handleAnsweredMemberLegDeath(
+  env: Env,
+  db: SupabaseClient,
+  memberCcid: string,
+  state: MemberRingState,
+): Promise<boolean> {
+  const { data: claimed, error: claimError } = await db
+    .from("call_member_legs")
+    .update({ state: "failed" })
+    .eq("call_session_id", state.sessionId)
+    .eq("call_control_id", memberCcid)
+    .eq("kind", "ring")
+    .eq("state", "answered")
+    .select("user_id");
+  if (claimError) {
+    throw new Error(`answered-leg death claim failed: ${claimError.message}`);
+  }
+  if ((claimed ?? []).length === 0) return false; // loser leg, or a replay
+
+  const { data: rows, error: callError } = await db
+    .from("calls")
+    .select("outcome,answered_by_user_id,customer_call_control_id")
+    .eq("call_session_id", state.sessionId)
+    .limit(1);
+  if (callError) {
+    throw new Error(`death calls read failed: ${callError.message}`);
+  }
+  const call = rows?.[0] as
+    | {
+        outcome: string | null;
+        answered_by_user_id: string | null;
+        customer_call_control_id: string | null;
+      }
+    | undefined;
+  // Already resolved, or the call moved to a teammate — not stranded.
+  if (!call || call.outcome !== null) return true;
+  if (call.answered_by_user_id !== state.userId) return true;
+
+  const { data: transfers, error: transferError } = await db
+    .from("call_member_legs")
+    .select("call_control_id")
+    .eq("call_session_id", state.sessionId)
+    .eq("kind", "transfer")
+    .in("state", ["ringing", "answered"])
+    .limit(1);
+  if (transferError) {
+    throw new Error(`death transfer read failed: ${transferError.message}`);
+  }
+  if ((transfers ?? []).length > 0) return true; // transfer flow owns recovery
+
+  await telnyxOnLiveLeg(
+    env,
+    `/v2/calls/${call.customer_call_control_id ?? state.inboundCcid}/actions/hangup`,
+    {},
+  );
+  return true;
 }
 
 async function companyForSession(
@@ -675,11 +777,22 @@ function sanitizeGreeting(raw: string | null, companyName: string): string {
  * Put the inbound leg into voicemail: answer (routine-failure = the caller
  * already hung up; the missed path owns it), then speak the greeting. The
  * speak's `vmi` tag routes call.speak.ended → record_start.
+ *
+ * #168 (issue part B): the moment voicemail ANSWERS the caller, the ring
+ * window is over — any member leg still 'ringing' (a leg dialed in the same
+ * race window, or a push-to-wake re-ring that landed after the last-leg
+ * decision) must be CANCELed, or its INVITE stays deliverable and a waking
+ * device presents a stale ring for a call voicemail already owns. The sweep
+ * runs AFTER the speak (a sweep fault must never leave an answered caller in
+ * silence) and is best-effort: an un-swept leg still self-heals at the 45s
+ * ring timeout, so a transient read/hangup failure only logs.
  */
 export async function startVoicemail(
   env: Env,
+  db: SupabaseClient,
   input: {
     callControlId: string;
+    callSessionId: string;
     caller: string | null;
     companyName: string;
     greeting: string | null;
@@ -698,6 +811,14 @@ export async function startVoicemail(
     language: "en-US",
     client_state: state,
   });
+  try {
+    await cancelRingingMemberLegs(env, db, input.callSessionId);
+  } catch (cause) {
+    console.error(
+      `voicemail ring sweep failed for ${input.callSessionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
 }
 
 /** End an ALREADY-answered leg cleanly (transfer-recovery terminus). Hanging

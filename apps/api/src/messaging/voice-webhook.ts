@@ -911,8 +911,9 @@ async function handleInboundInitiated(
   }
 
   if (lineBusy) {
-    await startVoicemail(env, {
+    await startVoicemail(env, db, {
       callControlId,
+      callSessionId: sessionId,
       caller: callerE164,
       companyName: company.name,
       greeting: company.voicemail_greeting,
@@ -927,8 +928,9 @@ async function handleInboundInitiated(
     company.call_screening === "divert" &&
     screeningFlagged(payload.call_screening_result)
   ) {
-    await startVoicemail(env, {
+    await startVoicemail(env, db, {
       callControlId,
+      callSessionId: sessionId,
       caller: callerE164,
       companyName: company.name,
       greeting: company.voicemail_greeting,

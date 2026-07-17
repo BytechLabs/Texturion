@@ -336,6 +336,145 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
     );
     expect(res.status).toBe(409);
   });
+
+  it("complete (#168 ordering): stamps the new owner BEFORE the bridge-steal, and RESTORES the sender when the bridge fails", async () => {
+    const sb = liveWorld({
+      consultLegs: [
+        { call_control_id: "brc-target", user_id: TARGET_ID, state: "answered" },
+        {
+          call_control_id: "brc-sender",
+          user_id: auth.subject,
+          state: "answered",
+        },
+      ],
+    });
+    // The bridge-steal FAILS (the customer leg just died).
+    const bridge = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/bridge$/.test(url.pathname),
+      () => Response.json({ errors: [{ title: "call gone" }] }, { status: 422 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, bridge.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/consult/complete`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(500);
+
+    // The pre-bridge stamp happened (so the sender's ring-leg death handler
+    // sees the hand-off and never tears the stolen customer down)…
+    const stamps = sb
+      .find("PATCH", "/rest/v1/calls")
+      .map((c) => (c.body as Record<string, unknown>).answered_by_user_id);
+    expect(stamps[0]).toBe(TARGET_ID);
+    // …and the failed bridge restored the sender as owner.
+    expect(stamps[1]).toBe(auth.subject);
+    // The failure aborted the choreography: ledger rows kept, no sender hangup.
+    expect(sb.find("DELETE", "/rest/v1/call_member_legs")).toHaveLength(0);
+  });
+});
+
+describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => {
+  const LIVE_ROW = {
+    call_session_id: SESSION,
+    caller_e164: "+16135551000",
+    caller_name: "ACME CUSTOMER",
+    contact_id: null,
+    conversation_id: "cccccccc-0000-4000-8000-000000000003",
+    phone_number_id: NUMBER_ID,
+    direction: "inbound",
+    started_at: "2026-07-16T00:00:00Z",
+    answered_at: "2026-07-16T00:00:07Z",
+  };
+
+  /** Minimal world: membership + the mine read (+ #106 rules for members). */
+  function mineWorld(opts: {
+    role?: string;
+    rows?: Record<string, unknown>[];
+    accessRules?: unknown[];
+  }): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, opts.role ?? "owner"),
+    );
+    sb.on("GET", "/rest/v1/calls", () => opts.rows ?? []);
+    sb.on("GET", "/rest/v1/number_access", () => opts.accessRules ?? []);
+    return sb;
+  }
+
+  it("returns the member's live answered sessions with the recovery facts, scoped in SQL to mine + live", async () => {
+    const sb = mineWorld({ rows: [LIVE_ROW] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/live/mine", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { calls: Record<string, unknown>[] };
+    expect(body.calls).toHaveLength(1);
+    expect(body.calls[0]).toMatchObject({
+      call_session_id: SESSION,
+      caller_e164: "+16135551000",
+      caller_name: "ACME CUSTOMER",
+      conversation_id: "cccccccc-0000-4000-8000-000000000003",
+      phone_number_id: NUMBER_ID,
+      direction: "inbound",
+      started_at: "2026-07-16T00:00:00Z",
+      answered_at: "2026-07-16T00:00:07Z",
+    });
+
+    // The liveness contract is enforced IN the query: my answered, un-ended
+    // calls only, company-scoped, inside the stale-call window.
+    const read = sb.find("GET", "/rest/v1/calls")[0];
+    expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(read.url.searchParams.get("answered_by_user_id")).toBe(
+      `eq.${auth.subject}`,
+    );
+    expect(read.url.searchParams.get("outcome")).toBe("is.null");
+    expect(read.url.searchParams.get("answered_at")).toBe("not.is.null");
+    expect(read.url.searchParams.get("created_at")).toMatch(/^gte\./);
+  });
+
+  it("#106: a call on a number HIDDEN from the member never enumerates", async () => {
+    const sb = mineWorld({
+      role: "member",
+      rows: [LIVE_ROW],
+      // The number is ruled for someone else — this member resolves 'none'.
+      accessRules: [
+        {
+          phone_number_id: NUMBER_ID,
+          principal_kind: "user",
+          principal: TARGET_ID,
+          level: "text",
+        },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/live/mine", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+  });
+
+  it("returns an empty list when no call is live (the relaunch found nothing to recover)", async () => {
+    const sb = mineWorld({});
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/live/mine", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+  });
 });
 
 describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel)", () => {
@@ -360,15 +499,18 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
     );
     expect(res.status).toBe(200);
 
-    // #137: the pre-dial cancel MUST be scoped to the requesting member — it
-    // filters on user_id, so waking one member never silences the rest of the
-    // crew's still-ringing browsers.
-    const cancelReads = sb.find("GET", "/rest/v1/call_member_legs");
-    expect(cancelReads).toHaveLength(1);
-    expect(cancelReads[0].url.searchParams.get("user_id")).toBe(
+    // Two ledger reads: the #168 ring-window gate (all ring-kind legs), then
+    // the #137 pre-dial cancel — which MUST be scoped to the requesting
+    // member (filters on user_id), so waking one member never silences the
+    // rest of the crew's still-ringing browsers.
+    const legReads = sb.find("GET", "/rest/v1/call_member_legs");
+    expect(legReads).toHaveLength(2);
+    expect(legReads[0].url.searchParams.get("kind")).toBe("eq.ring");
+    expect(legReads[0].url.searchParams.get("user_id")).toBeNull();
+    expect(legReads[1].url.searchParams.get("user_id")).toBe(
       `eq.${auth.subject}`,
     );
-    expect(cancelReads[0].url.searchParams.get("state")).toBe("eq.ringing");
+    expect(legReads[1].url.searchParams.get("state")).toBe("eq.ringing");
 
     // Exactly the requester's own stale leg is hung up — not a team-wide sweep.
     const hangups = telnyx.calls.filter((c) =>
@@ -398,6 +540,34 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
     expect(res.status).toBe(409);
+  });
+
+  it("#168: 409s when the ring window is OVER (legs dialed, none still ringing — e.g. voicemail already answered) and fires NO dial", async () => {
+    // The calls row still reads outcome-null + answered_at-null while the vmi
+    // leg records — the ledger is the truth: every ring leg is terminal.
+    const sb = liveWorld({
+      call: { answered_at: null, outcome: null },
+      consultLegs: [
+        { call_control_id: "leg-a", user_id: TARGET_ID, state: "failed" },
+        { call_control_id: "leg-b", user_id: MEMBER_ID, state: "failed" },
+      ],
+    });
+    const telnyx = telnyxDialAndActions();
+    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/ring-me`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(409);
+    // No stale re-ring onto a call voicemail owns: no dial, no ledger insert.
+    expect(
+      telnyx.calls.filter((c) => c.url.pathname === "/v2/calls"),
+    ).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(0);
   });
 
   it("409s a still-ringing OUTBOUND call and fires NO dial (#139 direction gate)", async () => {
