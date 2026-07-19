@@ -12,8 +12,6 @@ import com.google.firebase.messaging.RemoteMessage
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
 import com.loonext.android.R
-import com.loonext.android.telephony.CallNotifier
-import com.loonext.android.telephony.CallWakePolicy
 import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,45 +76,27 @@ class LoonextMessagingService : FirebaseMessagingService() {
         // the softphone (constructing it if a cold process must), then render
         // NOTHING (a call_end is a revocation, never a notification).
         if (content.isCallEnd) {
+            // §9.2: a `call_end` is a revocation, never a notification. Cancel
+            // the generic tray entry by tag (data-only FCM carries no collapse
+            // key, so this client-side cancel is the ONLY dismissal). The
+            // within-5s OS-call notification is torn down by the registry when
+            // it disconnects the OS call (SoftphoneManager's call_end handler).
             runCatching {
                 NotificationManagerCompat.from(this).cancel(content.tag, PUSH_NOTIFICATION_ID)
             }
-            // #171: also cancel the CallStyle incoming-ring notification (its
-            // own notify id) posted by the push-immediate present or the
-            // INVITE-driven ring — same `call:<session>` tag, different id.
-            content.callSessionId?.let { CallNotifier.cancelIncomingForSession(this, it) }
             ensureCallWakePath()
             PushHooks.callEndHandler?.onCallEnd(content)
             return
         }
 
         if (content.isCall) {
-            // Cold-process wake (§10.2): in an FCM-woken process with no UI,
+            // Cold-process wake (§10.2/§5): in an FCM-woken process with no UI,
             // nobody built the softphone yet — build it now so the wake handler
-            // is installed and this ring reaches ring-me instead of the tray.
+            // is installed. The handler (SoftphoneManager.onCallWakePush)
+            // registers the OS incoming call with Jetpack Telecom IMMEDIATELY
+            // (locked included, pre-INVITE — the OS owns the ring surface now,
+            // §4/§6) and then rings-me so the Telnyx leg binds by header (§3.2).
             ensureCallWakePath()
-            val session = content.callSessionId
-            val manager = SoftphoneManager.peek()
-            val foreground = manager?.isAppForeground() == true
-            // #171 bug 2 — present the ring IMMEDIATELY from the push, BEFORE
-            // the WebRTC INVITE binds (the WhatsApp model): the CallStyle
-            // full-screen notification launches IncomingCallActivity over the
-            // keyguard and rings on the channel; the softphone wakes + the real
-            // INVITE binds behind it. A FOREGROUND process instead lets the
-            // wake → ring-me → INVITE → in-app banner path own presentation
-            // (one presentation per session per device, §10.1.4).
-            if (session != null && !foreground) {
-                runCatching {
-                    val callerNumber =
-                        CallWakePolicy.callerHintFromPushBody(content.body).orEmpty()
-                    CallNotifier(applicationContext).showIncomingFromPush(
-                        session = session,
-                        callerName = content.title,
-                        callerNumber = callerNumber,
-                        companyId = PushPrefs.companyId(applicationContext),
-                    )
-                }
-            }
             val handler = PushHooks.callWakeHandler
             if (handler != null) {
                 handler.onIncomingCallPush(content)

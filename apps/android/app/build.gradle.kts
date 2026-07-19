@@ -81,6 +81,9 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
+    // Jetpack Telecom (#171): CallsManager.addCall + CallControlScope — the OS
+    // owns presentation + audio for every registered call.
+    implementation(libs.androidx.core.telecom)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

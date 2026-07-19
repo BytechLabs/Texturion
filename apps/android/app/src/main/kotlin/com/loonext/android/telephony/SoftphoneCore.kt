@@ -17,9 +17,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Discrete moments the Android layer (telecom + notifications) reacts to. */
+/** Discrete moments the Android layer (Jetpack Telecom) reacts to. */
 sealed interface CoreEvent {
-    data class IncomingRinging(val call: CallSnapshot) : CoreEvent
+    /**
+     * An inbound INVITE bound (#171). [call].sessionId carries the
+     * authoritative server session when the `X-Loonext-Session` header was
+     * present (§3.2 — the deterministic correlation); [legId] is the by-leg
+     * fallback key for a header-less leg. [TelecomCallRegistry] keys the OS
+     * call on the session (idempotent with the FCM-push trigger).
+     */
+    data class IncomingRinging(val call: CallSnapshot, val legId: String? = null) : CoreEvent
     data class OutgoingPlaced(val call: CallSnapshot) : CoreEvent
 }
 
@@ -64,16 +71,6 @@ class SoftphoneCore(
     private val _events = MutableSharedFlow<CoreEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<CoreEvent> = _events
 
-    /**
-     * Sessions that just exited `ringing` (#171): emitted on every ringing-exit
-     * the core learns — a `/state` read, a `call.updated` broadcast, or a
-     * `call_end` push. The full-screen [com.loonext.android.features.calls.IncomingCallActivity]
-     * collects this to finish itself even in the pre-INVITE window, where there
-     * is no local leg to carry a `silenced` flag. Signal only — never a leg kill.
-     */
-    private val _ringingExitSessions = MutableSharedFlow<String>(extraBufferCapacity = 16)
-    val ringingExitSessions: SharedFlow<String> = _ringingExitSessions
-
     private val handles = mutableMapOf<String, SdkCallHandle>()
     private val watchJobs = mutableMapOf<String, Job>()
 
@@ -100,6 +97,8 @@ class SoftphoneCore(
         val callerName: String,
         val callerNumber: String,
         val reason: HoldReason,
+        val headerSession: String? = null,
+        val legId: String? = null,
     )
 
     private enum class HoldReason { DUPLICATE, CAPACITY }
@@ -258,14 +257,33 @@ class SoftphoneCore(
         val number = event.callerNumber.orEmpty()
         val name = event.callerName?.takeIf { it.isNotBlank() }
             ?: number.ifBlank { "Unknown caller" }
+        // §3.2 DETERMINISTIC correlation — the `X-Loonext-Session` header IS the
+        // authoritative server session (never a caller/time guess). When present
+        // the customer session is known at ring time; the OS call keys on it.
+        val correlation = TelecomCallReducer.correlateInvite(event.customHeaders, event.legId)
+        val headerSession =
+            (correlation as? TelecomCallReducer.Correlation.Header)?.session
+        val legId = event.legId
         // §10.1.4 one presentation per session per device: the shared Telnyx
         // credential forks every leg's INVITE to all of a member's devices,
-        // so a second INVITE for a session this device already presents (same
-        // caller — the only session proxy an INVITE carries) is held SILENT.
+        // so a second INVITE for a session this device already presents is held
+        // SILENT. BLOCKING-2a: two INVITEs can share ONE call_session_id (an
+        // anonymous caller + a ring-me re-dial), so a caller-NUMBER match is not
+        // enough — dedup on the deterministic header SESSION first (the OS call
+        // is keyed on S; a second presented leg for S would let a reaped sibling
+        // tear the shared OS call down). Fall back to the caller-number proxy for
+        // header-absent legs.
+        val presentedSessions = (
+            _state.value.calls
+                .filter { it.phase != CallPhase.ENDED && it.direction == CallDirection.INBOUND }
+                .mapNotNull { it.sessionId } +
+                heldInvites.values.mapNotNull { it.headerSession }
+            ).toSet()
+        val sessionDuplicate = headerSession != null && headerSession in presentedSessions
         val inboundCallers = _state.value.calls
             .filter { it.phase != CallPhase.ENDED && it.direction == CallDirection.INBOUND }
             .map { it.peerNumber } + heldInvites.values.map { it.callerNumber }
-        val duplicate = CallWakePolicy.holdInviteSilent(inboundCallers, number)
+        val duplicate = sessionDuplicate || CallWakePolicy.holdInviteSilent(inboundCallers, number)
         // Beyond the two-call ceiling the extra INVITE is ALSO held, never
         // declined: the client never hangs up a leg outside user action
         // (§10.1.2), and a decline on a forked leg would kill the ring on the
@@ -274,13 +292,23 @@ class SoftphoneCore(
         val overCeiling =
             _state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS
         if (duplicate || overCeiling) {
-            holdInvite(event.call, name, number, if (duplicate) HoldReason.DUPLICATE else HoldReason.CAPACITY)
+            holdInvite(
+                event.call, name, number,
+                if (duplicate) HoldReason.DUPLICATE else HoldReason.CAPACITY,
+                headerSession, legId,
+            )
             return
         }
-        presentIncoming(event.call, name, number)
+        presentIncoming(event.call, name, number, headerSession, legId)
     }
 
-    private fun presentIncoming(handle: SdkCallHandle, name: String, number: String) {
+    private fun presentIncoming(
+        handle: SdkCallHandle,
+        name: String,
+        number: String,
+        headerSession: String?,
+        legId: String?,
+    ) {
         val otherLiveCalls = _state.value.liveCalls.size
         val snapshot = CallSnapshot(
             id = handle.id,
@@ -288,12 +316,15 @@ class SoftphoneCore(
             peerName = name,
             peerNumber = number,
             phase = CallPhase.RINGING,
+            // §3.2: header-known customer session at ring time (else resolved
+            // by-leg post-answer, as before, when the header was absent).
+            sessionId = headerSession,
         )
         handles[handle.id] = handle
         sdkPhases[handle.id] = CallPhase.RINGING
         _state.update { CallStateMachine.incoming(it, snapshot) }
         watch(handle)
-        _events.tryEmit(CoreEvent.IncomingRinging(snapshot))
+        _events.tryEmit(CoreEvent.IncomingRinging(snapshot, legId))
         // §10.1.1 present-from-state: fast path first (the ring is already
         // presenting), THEN the concurrent /state reconcile — a ringing-exit
         // verdict SILENCES the presentation (banner/ringer/notification down)
@@ -307,9 +338,11 @@ class SoftphoneCore(
         name: String,
         number: String,
         reason: HoldReason,
+        headerSession: String? = null,
+        legId: String? = null,
     ) {
         val id = handle.id
-        heldInvites[id] = HeldInvite(handle, name, number, reason)
+        heldInvites[id] = HeldInvite(handle, name, number, reason, headerSession, legId)
         heldWatchJobs[id] = scope.launch {
             handle.phases.collect { phase ->
                 if (phase == CallPhase.ENDED) releaseHeld(id)
@@ -380,10 +413,15 @@ class SoftphoneCore(
         heldWatchJobs.remove(id)?.cancel()
         if (_state.value.liveCalls.size >= CallStateMachine.MAX_CONCURRENT_CALLS) {
             // A slot filled while we deliberated — hold again.
-            holdInvite(held.handle, held.callerName, held.callerNumber, HoldReason.CAPACITY)
+            holdInvite(
+                held.handle, held.callerName, held.callerNumber, HoldReason.CAPACITY,
+                held.headerSession, held.legId,
+            )
             return
         }
-        presentIncoming(held.handle, held.callerName, held.callerNumber)
+        presentIncoming(
+            held.handle, held.callerName, held.callerNumber, held.headerSession, held.legId,
+        )
     }
 
     /**
@@ -441,9 +479,6 @@ class SoftphoneCore(
     }
 
     private fun applyRingingExit(sessionId: String) {
-        // #171: tell the full-screen activity to finish even in the pre-INVITE
-        // window (no local leg exists yet to carry the silenced flag).
-        _ringingExitSessions.tryEmit(sessionId)
         // Held INVITEs correlated to the dead session must never promote
         // into it (the leg's own BYE still tears them down).
         if (pushHintSession == sessionId) {
@@ -676,8 +711,43 @@ class SoftphoneCore(
         postDeclineMine()
         // Local teardown of the presented ring (explicit user action).
         val id = callId
-            ?: IncomingCallPresentation.matchLocalRing(_state.value.calls, pushHintCaller)
+            ?: CallWakePolicy.matchLocalRing(_state.value.calls, pushHintCaller)
         id?.let { hangup(it) }
+    }
+
+    /**
+     * The member-scoped decline-mine server signal ONLY — no local SDK
+     * teardown (the OS/Telecom callback that triggers this already owns leg
+     * teardown via the bridge, §3.3). Used by [TelecomCallRegistry] on an OS
+     * reject / bind-deadline so the answer race resolves on a teammate's phone
+     * without double-hanging the leg.
+     */
+    fun declineMineSignal() = postDeclineMine()
+
+    /**
+     * Per-session decline signal ONLY (IMPORTANT-4) — no local SDK teardown (the
+     * OS/Telecom callback that triggers this owns leg teardown via the bridge).
+     * Used by [TelecomCallRegistry] when MORE THAN ONE ring is presented, so
+     * rejecting one does not decline the others (member-scoped decline-mine
+     * would drop this device from every ringing session).
+     */
+    fun declineSessionSignal(session: String) = postDecline(session)
+
+    /**
+     * §3.2 by-leg fallback: resolve a header-less inbound leg to its customer
+     * session server-side (`GET /v1/calls/live/by-leg/:legId`). Null on any
+     * failure within the caller's deadline → the leg is uncorrelatable →
+     * honest teardown (never a caller guess).
+     */
+    suspend fun resolveSessionByLeg(legId: String): String? {
+        val company = companyId ?: return null
+        return try {
+            api.resolveByLeg(company, legId).call_session_id
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** POST the member-scoped decline-mine (#171 R1). Best-effort like every
@@ -709,42 +779,6 @@ class SoftphoneCore(
                 onInternalFailure?.invoke("decline", cause)
             }
         }
-    }
-
-    /**
-     * The always-200 `/state` read (§8.1) for a session, or null on any
-     * failure — the full-screen activity's one-shot check for a session that
-     * resolved before it launched (a late push).
-     */
-    suspend fun sessionStateOrNull(sessionId: String): LiveSessionState? {
-        val company = companyId ?: return null
-        return try {
-            api.sessionState(company, sessionId)
-        } catch (cause: CancellationException) {
-            throw cause
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /** The freshest wake-push caller hint (the activity's caller correlation). */
-    fun pushHintCaller(): String? = pushHintCaller
-
-    /**
-     * The server session a ringing [call] belongs to, for tagging its
-     * notification / decline (#171): the leg's own resolved session if known
-     * (post-answer), else the correlated wake-push session while it is fresh
-     * and the caller doesn't contradict it. Null = untaggable (a pure
-     * foreground INVITE with no wake hint) — the notification falls back to a
-     * per-leg tag and decline to a local teardown.
-     */
-    fun sessionHintFor(call: CallSnapshot): String? {
-        call.sessionId?.takeIf { it.isNotBlank() }?.let { return it }
-        val session = pushHintSession ?: return null
-        val at = pushHintAtMs ?: return null
-        if (now() - at > CallWakePolicy.HINT_WINDOW_MS || now() < at) return null
-        if (CallWakePolicy.callerMismatch(pushHintCaller, call.peerNumber)) return null
-        return session
     }
 
     /** Hold/unhold flip — unholding another call swaps the active audio. */

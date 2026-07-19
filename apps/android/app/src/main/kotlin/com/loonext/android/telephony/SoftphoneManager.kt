@@ -1,19 +1,8 @@
 package com.loonext.android.telephony
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
-import android.net.ConnectivityManager
-import android.net.Network
-import android.os.Bundle
-import android.telecom.DisconnectCause
-import android.telecom.PhoneAccount
-import android.telecom.PhoneAccountHandle
-import android.telecom.TelecomManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -34,26 +23,28 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Collections
 
 /**
- * The Android softphone (#155): [SoftphoneCore] (registration, multi-call
- * state, live-call ops — pure and unit-tested) wrapped with the platform
- * plumbing that can't run on the JVM:
+ * The Android softphone (#155/#171): [SoftphoneCore] (registration, multi-call
+ * leg state, live-call ops — pure and unit-tested) BRIDGED to two engines it
+ * does not own — **Android Telecom** ([TelecomCallRegistry]: presentation +
+ * audio ownership) and **Telnyx WebRTC** ([TelnyxSdkClient]: media).
  *
- * - Telnyx SDK binding ([TelnyxSdkClient])
- * - self-managed telecom (ring/hold/audio-focus interop with cellular calls)
- * - the incoming-call ring surface (#167): the [Ringer] (looped ringtone +
- *   vibration, ringer-mode aware) runs whenever the process is alive and an
- *   inbound call rings; the CallStyle notification posts ONLY while the app
- *   is NOT foreground (foreground presentation is the in-app banner)
- * - the ongoing-call notification
- * - recovery watchdog triggers: network regained + app foregrounded (the
- *   debounce, the never-during-a-live-call rule, and the fresh-mint-on-auth-
- *   failure behavior all live in the core)
- * - audio-focus fallback for devices/situations where telecom refuses us
+ * This class stopped being a presenter (docs/CALLS-CLIENT-V2.md §8). The OS
+ * owns the ringing session, the audio mode, the mic FGS, and the route; this
+ * bridge only connects/disconnects the Telnyx leg from the OS callbacks and
+ * mirrors leg-state changes back to the OS call. Deleted with the rewrite (§6):
+ * the self-managed `ConnectionService`, the `Ringer`, the incoming `CallStyle`
+ * ring, the in-app banner, and ALL hand-rolled `AudioManager` focus/mode code
+ * (§4.3 — we write ZERO audio-mode/focus code; Telecom owns the FGS/mode and
+ * Telnyx sets `MODE_IN_COMMUNICATION`+focus internally on `acceptCall`).
  *
- * Created lazily via [get] — one instance per process, alive for the process
- * lifetime (the phone must ring on whatever company was last started).
+ * Crash-safe at every telephony boundary (#168A): a supervised scope with a
+ * `CoroutineExceptionHandler`, per-emission guards, and `runCatching` around
+ * every platform touch. The #168 crash-diagnostics hardening + #168D
+ * call-in-flight marker are kept.
  */
 class SoftphoneManager private constructor(
     private val appContext: Context,
@@ -70,18 +61,18 @@ class SoftphoneManager private constructor(
                     .also { instance = it }
             }
 
-        /** The instance if the app already built one — telecom callbacks and
-         *  notification actions use this (never create from a callback). */
+        /** The instance if the app already built one (never create from a
+         *  callback that must not block startup). */
         fun peek(): SoftphoneManager? = instance
     }
 
     private val diagnostics = CrashDiagnostics.get(appContext)
 
     /**
-     * #168A: an uncaught failure in ANY child coroutine of this scope used to
-     * reach the default handler — Android kills the process for uncaught
-     * coroutine exceptions — taking a live call down with it. The handler
-     * records the stack (shareable next launch) and lets the process live.
+     * #168A: an uncaught failure in ANY child coroutine used to reach the
+     * default handler — Android kills the process for uncaught coroutine
+     * exceptions — taking a live call down with it. The handler records the
+     * stack (shareable next launch) and lets the process live.
      */
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
@@ -100,44 +91,26 @@ class SoftphoneManager private constructor(
     val events: SharedFlow<CoreEvent> = core.events
 
     /**
-     * Sessions that just exited `ringing` (#171) — the full-screen
-     * [com.loonext.android.features.calls.IncomingCallActivity] collects this to
-     * finish itself in the pre-INVITE window (no local leg carries `silenced`).
+     * The single owner of every OS-visible call (§3). Its [TelecomCallRegistry.Bridge]
+     * performs the Telnyx-media ops on this bridge's leg state.
      */
-    val ringingExitSessions: SharedFlow<String> = core.ringingExitSessions
+    private val registry = TelecomCallRegistry(
+        context = appContext,
+        scope = scope,
+        bridge = TelecomBridge(),
+        onFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) },
+    )
 
-    private val telecomManager: TelecomManager? =
-        appContext.getSystemService(TelecomManager::class.java)
-    private val audioManager: AudioManager? =
-        appContext.getSystemService(AudioManager::class.java)
-
-    /** callId -> live telecom connection (absent when telecom refused us). */
-    private val connections = mutableMapOf<String, LoonextConnection>()
-
-    /** Calls already reported to telecom (attach may lag the report). */
-    private val reportedToTelecom = mutableSetOf<String>()
-
-    /** Incoming notifications currently showing: callId -> the session tag used
-     *  at post time (null = per-leg tag), so the cancel targets the same
-     *  (tag, id) the post created. */
-    private val ringingNotified = mutableMapOf<String, String?>()
-
-    private val ringer = Ringer(appContext)
-
-    /** ProcessLifecycleOwner-tracked; gates the incoming notification (#167). */
-    @Volatile
-    private var appInForeground = false
-
-    private var focusRequest: AudioFocusRequest? = null
-    private var phoneAccountRegistered = false
+    /** Call ids the USER (or an OS reject) tore down — so a leg→scope mirror
+     *  reports a LOCAL vs REMOTE disconnect honestly (§7 table). */
+    private val userHungUp: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
     init {
         watchNetwork()
         watchForeground()
         core.onInternalFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) }
         // #168A: per-emission guards — one bad snapshot must not kill the
-        // collector (all future syncs) or the process. Failures are recorded
-        // for the next-launch share sheet; the next emission syncs normally.
+        // collector (all future syncs) or the process.
         scope.launch {
             core.events.collect { event ->
                 try {
@@ -160,23 +133,81 @@ class SoftphoneManager private constructor(
                 }
             }
         }
-        // Claim the calls-wake seam: incoming-call pushes (#156) route here
-        // instead of the tray once the softphone exists in this process.
-        // This install is THE one wake handler (calls-v3 §10.2) — nothing
-        // else may overwrite it (MainActivity's overwrite is gone).
+        // Claim the calls-wake seam (calls-v3 §10.2) — this install is THE one
+        // wake handler; nothing else overwrites it.
         PushHooks.callWakeHandler = CallWakeHandler { content -> onCallWakePush(content) }
-        // `kind:'call_end'` revocation (§9.2): the tray cancel-by-tag happens
-        // in the messaging service; the in-app surfaces come down here.
+        // §9.2 `call_end` revocation: disconnect the OS call for the session
+        // (the server-resolved teardown, capability-gated on the `call_end`
+        // cap this client already registers) and bring the in-app leg down.
         PushHooks.callEndHandler = CallEndHandler { content ->
-            content.callSessionId?.let { session -> core.onCallEndPush(session) }
+            content.callSessionId?.let { session ->
+                runCatching { registry.disconnect(session) }
+                core.onCallEndPush(session)
+            }
         }
     }
 
+    // ------------------------------------------------------- the Telnyx bridge
+
     /**
-     * A `kind:'call'` push while the app process is alive: ensure the SDK is
-     * registered, then ring-me. One retry on a real failure; if the wake
-     * still can't happen, fall back to the tray notification — a ring is
-     * never dropped silently.
+     * The Telnyx-media side of the two engines (§8). Telecom owns presentation
+     * + audio; these ops act on [SoftphoneCore]'s leg for a session. Every one
+     * is best-effort and must never throw back into a Telecom callback.
+     */
+    private inner class TelecomBridge : TelecomCallRegistry.Bridge {
+        override fun acceptLeg(session: String) {
+            legFor(session)?.let { answer(it.id) }
+        }
+
+        override fun endLeg(session: String) {
+            legFor(session)?.let { hangup(it.id) }
+        }
+
+        override fun holdLeg(session: String, hold: Boolean) {
+            val call = legFor(session) ?: return
+            val isHeld = call.phase == CallPhase.HELD
+            if (hold != isHeld) core.toggleHold(call.id)
+        }
+
+        /** Member-scoped server signal ONLY — the OS callback that triggered
+         *  this already owns the leg teardown (§3.3). */
+        override fun declineMine() = core.declineMineSignal()
+
+        /** Per-session decline (IMPORTANT-4) — drop this device from ONLY the
+         *  rejected session, so a reject with another ring live doesn't decline
+         *  both. The OS callback already owns the leg teardown. */
+        override fun declineSession(session: String) = core.declineSessionSignal(session)
+
+        /** Follower route mirror (§4.2/§4.3) — Telnyx follows Telecom's endpoint. */
+        override fun mirrorRouteToTelnyx(route: AudioRoute) = core.setAudioRoute(route)
+
+        override fun onCallRegistered(session: String, callerName: String, callerNumber: String) {
+            notifier.showConnecting(session, callerName)
+        }
+
+        override fun onCallUnregistered(session: String) {
+            notifier.cancelConnecting(session)
+        }
+
+        private fun legFor(session: String): CallSnapshot? {
+            // Match on the customer session (the steady-state key) OR the leg's
+            // own id — a header-absent OS call is keyed on the leg id, since its
+            // session only resolves post-answer (IMPORTANT-2).
+            val calls = core.state.value.calls.filter {
+                it.direction == CallDirection.INBOUND && it.phase != CallPhase.ENDED &&
+                    (it.sessionId == session || it.id == session)
+            }
+            return calls.firstOrNull { it.phase == CallPhase.RINGING } ?: calls.firstOrNull()
+        }
+    }
+
+    // ------------------------------------------------------ wake path (§5/§10.2)
+
+    /**
+     * A `kind:'call'` push. §5 wake path: register the OS incoming call NOW
+     * (locked included) so the system shows its incoming UI pre-INVITE, THEN
+     * ring-me so the Telnyx leg binds to the already-registered call by header.
+     * One retry on a real failure; a ring is never dropped silently.
      */
     private fun onCallWakePush(content: PushContent) {
         val session = content.callSessionId
@@ -184,9 +215,10 @@ class SoftphoneManager private constructor(
             postPushNotification(appContext, content)
             return
         }
-        // The push body is the raw caller E.164 when known — it rides along
-        // as the presentation-reconcile caller correlation (§10.1).
         val callerHint = CallWakePolicy.callerHintFromPushBody(content.body)
+        // §5: OS shows the incoming UI from the push, pre-INVITE (idempotent
+        // with the INVITE trigger — one Telecom call per session).
+        runCatching { registry.ensureIncomingCall(session, content.title, callerHint.orEmpty()) }
         scope.launch {
             try {
                 core.onIncomingCallPush(session, callerHint)
@@ -212,28 +244,25 @@ class SoftphoneManager private constructor(
     private var postCrashChecked = false
 
     /**
-     * Register (or keep) the softphone for a company. Idempotent and silent
-     * on failure — texting is never blocked by calling; the status pill and
-     * the watchdog retry. Also registers the telecom phone account.
+     * Register (or keep) the softphone for a company. Idempotent and silent on
+     * failure. Also registers the self-managed PhoneAccount with Telecom (via
+     * [TelecomCallRegistry.registerOnce]) — no manual `registerPhoneAccount`.
      */
     fun start(companyId: String, callerIdName: String = "") {
-        registerPhoneAccount()
+        runCatching { registry.registerOnce() }
         surfaceInterruptedCallOnce()
         core.start(companyId, callerIdName)
     }
 
     /**
-     * #168 part D: if the LAST crash happened while the 'call in flight'
-     * marker was up, the process died mid-call — say so, once, calmly. A
-     * marker without a newer crash (system kill, stale file) clears silently:
-     * we only claim what the crash log proves.
+     * #168 part D: if the LAST crash happened while the 'call in flight' marker
+     * was up, the process died mid-call — say so, once, calmly.
      */
     private fun surfaceInterruptedCallOnce() {
         if (postCrashChecked) return
         postCrashChecked = true
         runCatching {
-            val markerSetAt = diagnostics.callMarker.setAtMs()
-            if (markerSetAt == null) return
+            val markerSetAt = diagnostics.callMarker.setAtMs() ?: return
             val interrupted = PostCrashHonesty.callInterruptedByCrash(
                 markerSetAtMs = markerSetAt,
                 lastCrashAtMs = diagnostics.store.lastCrashAtMs(),
@@ -245,42 +274,39 @@ class SoftphoneManager private constructor(
         }
     }
 
-    /** Status-pill tap — force a re-registration now (refused mid-call). */
     fun retryNow() = core.retryNow()
 
     fun clearError() = core.clearError()
 
     /**
-     * Push-to-wake part 2 — #156's FCM handler calls this with the
-     * call_session_id parsed from the push (`/calls?call=<session>`): ensure
-     * the SDK is registered, then POST /v1/calls/live/{session}/ring-me.
-     * conflict (already answered/ended) and not_found are swallowed by
-     * contract; other failures propagate to the caller.
+     * Push-to-wake / notification-tap wake (calls-v3 §10.2). Also registers the
+     * OS incoming call so a tray-fallback / cold-start tap lands the OS UI, not
+     * an empty calls list. conflict/not_found are swallowed by contract.
      */
-    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) =
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
+        runCatching { registry.ensureIncomingCall(sessionId, "Incoming call", callerHint.orEmpty()) }
         core.onIncomingCallPush(sessionId, callerHint)
+    }
 
     /**
-     * Realtime `call.updated` reconciliation (calls-v3 §9.1/§10.1): the
-     * shell forwards every call.updated broadcast here; a ringing-exit state
-     * dismisses this device's presentation for that session (silence only —
-     * the server sends the BYE).
+     * Realtime `call.updated` reconciliation (calls-v3 §9.1/§10.1): a
+     * ringing-exit state tears down this device's OS call for the session
+     * (the server also sends the BYE / `call_end`).
      */
-    fun onCallSessionUpdate(sessionId: String, state: String?) =
+    fun onCallSessionUpdate(sessionId: String, state: String?) {
+        if (CallWakePolicy.isRingingExit(state)) runCatching { registry.disconnect(sessionId) }
         core.onCallSessionUpdate(sessionId, state)
+    }
 
     fun hasMicPermission(): Boolean =
         appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
+    /** The company the softphone last registered. */
+    fun currentCompanyId(): String? = core.companyId
+
     // -------------------------------------------------------------------- ops
 
-    /**
-     * Authorize + place an outbound call (exactly one of conversation /
-     * contact / raw number). Callers MUST preflight the mic permission —
-     * [hasMicPermission] — before invoking (a denial never reserves the
-     * line). Gate refusals surface as ApiException by code.
-     */
     suspend fun placeCall(
         displayName: String,
         conversationId: String? = null,
@@ -298,9 +324,7 @@ class SoftphoneManager private constructor(
     /** Answer a ringing call (any active call is held first). */
     fun answer(id: String) {
         // #168D: stamp the in-flight marker at the ANSWER moment — the crash
-        // this issue chases happened between accept and ACTIVE, before the
-        // state ever showed a live phase. syncPlatform clears it when the
-        // line clears (including an answer that never connected).
+        // this issue chases happened between accept and ACTIVE.
         runCatching {
             markedCallInFlight = true
             diagnostics.callMarker.set()
@@ -309,35 +333,17 @@ class SoftphoneManager private constructor(
     }
 
     /** Decline a ringing call / hang up a live one. */
-    fun hangup(id: String) = core.hangup(id)
+    fun hangup(id: String) {
+        userHungUp.add(id)
+        core.hangup(id)
+    }
 
-    /**
-     * Universal user Decline (#171 R1) — every user-facing Decline (banner,
-     * notification action, [com.loonext.android.features.calls.IncomingCallActivity],
-     * in-call second-ring) routes here, NOT to a bare [hangup]. Always POSTs
-     * `decline-mine` (member-scoped, no session needed — fixes the foreground
-     * live-socket ring the old per-session path silently dropped), fires the
-     * narrow per-session decline too when [sessionHint] is known, and tears
-     * down the local ring leg ([callId], else the sole correlated ring).
-     */
-    fun declineCurrent(callId: String? = null, sessionHint: String? = null) =
+    /** Universal user Decline (#171 R1) — member-scoped decline-mine + optional
+     *  per-session + local teardown, routed through the core. */
+    fun declineCurrent(callId: String? = null, sessionHint: String? = null) {
+        callId?.let { userHungUp.add(it) }
         core.declineCurrent(callId, sessionHint)
-
-    /** The always-200 `/state` read for a session, or null on any failure —
-     *  the activity's one-shot check for a session that resolved before it
-     *  launched (a late push). */
-    suspend fun sessionStateOrNull(sessionId: String) = core.sessionStateOrNull(sessionId)
-
-    /** The freshest wake-push caller hint — the activity's ring correlation. */
-    fun pushHintCaller(): String? = core.pushHintCaller()
-
-    /** ProcessLifecycle-tracked foreground flag (#171): a foreground process
-     *  presents the in-app banner, never the full-screen activity/notification. */
-    fun isAppForeground(): Boolean = appInForeground
-
-    /** The company the softphone last registered — the decline endpoint scope
-     *  the notification's dead-process fallback carries in its intent. */
-    fun currentCompanyId(): String? = core.companyId
+    }
 
     fun toggleHold(id: String) = core.toggleHold(id)
 
@@ -347,7 +353,9 @@ class SoftphoneManager private constructor(
 
     fun dismiss(id: String) = core.dismiss(id)
 
-    fun setAudioRoute(route: AudioRoute) = core.setAudioRoute(route)
+    /** §4.2: the user's route choice flows through Telecom (authoritative
+     *  router); Telnyx follows. We never lead the route from the SDK. */
+    fun setAudioRoute(route: AudioRoute) = registry.requestRoute(route)
 
     suspend fun liveFacts(sessionId: String): LiveCallFacts = core.liveFacts(sessionId)
 
@@ -357,225 +365,122 @@ class SoftphoneManager private constructor(
     suspend fun blindTransfer(sessionId: String, targetUserId: String): TransferAck =
         core.blindTransfer(sessionId, targetUserId)
 
-    // -------------------------------------------------- telecom entry points
-
-    internal fun attachConnection(callId: String, connection: LoonextConnection) {
-        connections[callId] = connection
-        // Apply the current phase immediately — the call may have progressed
-        // (or vanished) while telecom was binding the service.
-        syncPlatform(core.state.value)
-    }
-
-    /** Bluetooth/wearable answer — telecom verified the user intent; the mic
-     *  permission was granted when the app first placed/answered a call, but
-     *  re-check anyway and fall back to opening the app. */
-    internal fun answerFromTelecom(callId: String) {
-        if (hasMicPermission()) {
-            answer(callId)
-        } else {
-            appContext.packageManager.getLaunchIntentForPackage(appContext.packageName)
-                ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                ?.let { appContext.startActivity(it) }
-        }
-    }
-
-    internal fun holdFromTelecom(callId: String, hold: Boolean) {
-        val call = core.state.value.calls.firstOrNull { it.id == callId } ?: return
-        val eligible =
-            if (hold) call.phase == CallPhase.ACTIVE else call.phase == CallPhase.HELD
-        if (eligible) core.toggleHold(callId)
-    }
-
-    internal fun telecomRefusedOutgoing(callId: String) {
-        core.hangup(callId)
-        core.reportUiError("That call couldn't start — another app is on a call.")
-    }
-
-    internal fun showIncomingUi(callId: String) {
-        val call = core.state.value.calls.firstOrNull { it.id == callId } ?: return
-        if (call.phase == CallPhase.RINGING && !call.silenced && !appInForeground) {
-            postIncomingNotification(call)
-        }
-        // Foreground: the in-app banner + ringer (state-driven) are the ring
-        // surface — telecom's re-ask needs no notification on top of them.
-    }
-
-    internal fun silenceRing() = ringer.silence()
-
-    internal fun mirrorTelecomRoute(route: AudioRoute) = core.setAudioRoute(route)
-
     // ----------------------------------------------------------- core events
 
     private fun onCoreEvent(event: CoreEvent) {
         when (event) {
-            is CoreEvent.IncomingRinging -> {
-                reportIncomingToTelecom(event.call)
-                // Foreground = the animated in-app banner + ringer own the
-                // presentation (#167); backgrounded-but-alive = the CallStyle
-                // notification (heads-up unlocked, full screen locked). The
-                // ringer itself is state-driven in syncPlatform.
-                if (!appInForeground) postIncomingNotification(event.call)
+            is CoreEvent.IncomingRinging -> onIncomingRinging(event)
+            is CoreEvent.OutgoingPlaced -> {
+                // §7: outbound registers with Telecom too (same audio ownership).
+                registry.ensureOutgoingCall(
+                    event.call.id, event.call.peerName, event.call.peerNumber,
+                )
             }
-
-            is CoreEvent.OutgoingPlaced -> reportOutgoingToTelecom(event.call)
         }
     }
 
-    private fun postIncomingNotification(call: CallSnapshot) {
-        val session = core.sessionHintFor(call)
-        notifier.showIncoming(call, companyId = core.companyId, sessionId = session)
-        ringingNotified[call.id] = session
-    }
-
-    private fun phoneAccountHandle() = PhoneAccountHandle(
-        ComponentName(appContext, LoonextConnectionService::class.java),
-        TelecomBridge.PHONE_ACCOUNT_ID,
-    )
-
-    private fun registerPhoneAccount() {
-        if (phoneAccountRegistered) return
-        val telecom = telecomManager ?: return
-        val account = PhoneAccount.builder(phoneAccountHandle(), "Loonext")
-            .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
-            .build()
-        phoneAccountRegistered = runCatching { telecom.registerPhoneAccount(account) }.isSuccess
-    }
-
-    private fun reportIncomingToTelecom(call: CallSnapshot) {
-        val telecom = telecomManager ?: return
-        if (!phoneAccountRegistered) registerPhoneAccount()
-        if (!reportedToTelecom.add(call.id)) return
-        val extras = Bundle().apply {
-            putString(TelecomBridge.EXTRA_CALL_ID, call.id)
-            putParcelable(
-                TelecomManager.EXTRA_INCOMING_CALL_ADDRESS,
-                TelecomBridge.telUri(call.peerNumber),
-            )
+    /**
+     * An inbound INVITE bound. §3.2: when the `X-Loonext-Session` header set the
+     * session, the OS call keys on it (idempotent with the FCM push) and the leg
+     * binds by MATCHING the header — never the caller. Header absent → by-leg
+     * fallback within [TelecomCallReducer.LEG_RESOLVE_DEADLINE_MS] → honest
+     * teardown (never a mystery call, never a caller guess).
+     */
+    private fun onIncomingRinging(event: CoreEvent.IncomingRinging) {
+        val call = event.call
+        val session = call.sessionId
+        if (session != null) {
+            registry.ensureIncomingCall(session, call.peerName, call.peerNumber)
+            registry.onLegBound(session, call.id)
+            return
         }
-        runCatching { telecom.addNewIncomingCall(phoneAccountHandle(), extras) }
-            .onFailure {
-                reportedToTelecom.remove(call.id)
-                acquireFocusFallback()
+        // §3.2 header ABSENT. The header is the shipped steady state (the server
+        // stamps X-Loonext-Session on every ring dial), so this is a legacy/edge
+        // path — but a legitimate inbound call must NEVER be dropped (IMPORTANT-2).
+        // The by-leg resolve is BEST-EFFORT: the SDK exposes no call_control_id
+        // pre-answer, so GET /by-leg 404s until the customer session resolves
+        // AFTER answer (getTelnyxCallControlId works post-accept, via the core's
+        // resolveSession). Present regardless; never hang up a real call here.
+        val legId = event.legId
+        scope.launch {
+            val resolved = legId?.let {
+                withTimeoutOrNull(TelecomCallReducer.LEG_RESOLVE_DEADLINE_MS) {
+                    core.resolveSessionByLeg(it)
+                }
             }
-    }
-
-    private fun reportOutgoingToTelecom(call: CallSnapshot) {
-        val telecom = telecomManager ?: return acquireFocusFallback()
-        if (!phoneAccountRegistered) registerPhoneAccount()
-        if (!reportedToTelecom.add(call.id)) return
-        val extras = TelecomBridge.outgoingExtras(call.id).apply {
-            putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, phoneAccountHandle())
-        }
-        runCatching {
-            telecom.placeCall(TelecomBridge.telUri(call.peerNumber), extras)
-        }.onFailure {
-            reportedToTelecom.remove(call.id)
-            acquireFocusFallback()
+            if (resolved != null) {
+                registry.ensureIncomingCall(resolved, call.peerName, call.peerNumber)
+                registry.onLegBound(resolved, call.id)
+            } else {
+                // Present the OS call keyed on the leg's own id — never a hangup.
+                // The customer session (for server-side ops) is filled in by the
+                // core's post-answer resolveSession; the leg's own BYE and the
+                // §5 ring-window backstop cover teardown.
+                diagnostics.recordNonFatal(
+                    "incoming-header-absent",
+                    IllegalStateException(
+                        "inbound leg presented without a correlated session (header absent, by-leg unresolved) — best-effort",
+                    ),
+                )
+                registry.ensureIncomingCall(call.id, call.peerName, call.peerNumber)
+                registry.onLegBound(call.id, call.id)
+            }
         }
     }
 
     // ----------------------------------------------------- state -> platform
 
-    /** Tracks whether THIS process stamped the call-in-flight marker (#168D)
-     *  — the idle emissions before start() must not clear a crashed
-     *  process's marker before it's been read. */
+    /** #168D marker ownership (see [syncPlatform]). */
     private var markedCallInFlight = false
 
     /**
-     * Drive every Android-side surface from the one state snapshot.
-     *
-     * #168A: each surface is its own runCatching section — this method runs
-     * inside the state collector, where ANY throw used to kill the process
-     * mid-call (that is exactly how the founder's answer crash died: the
-     * ongoing-notification build threw the instant the call went ACTIVE).
-     * One broken surface must not stop the ringer, the notifications, or
-     * telecom from syncing.
+     * Drive the OS-facing surfaces from the one leg-state snapshot. Telecom now
+     * owns presentation; this method shrank to (1) the App→OS leg→scope mirror
+     * (§7/§8), (2) the ongoing-call notification mirror, and (3) the #168D
+     * call-in-flight marker. Everything the old `syncPlatform` did — telecom
+     * report, ringer, notification ring, audio focus — is now the OS's job.
      */
     private fun syncPlatform(snapshot: SoftphoneSnapshot) {
         val byId = snapshot.calls.associateBy { it.id }
 
-        // Telecom connection states follow call phases.
+        // App→OS: the OS call follows the media (§7/§8 leg→scope table).
         runCatching {
-            val goneConnections = connections.keys.filter { byId[it] == null }
-            for (callId in goneConnections) {
-                val connection = connections.remove(callId) ?: continue
-                reportedToTelecom.remove(callId)
-                runCatching {
-                    connection.setDisconnected(DisconnectCause(DisconnectCause.MISSED))
-                    connection.destroy()
-                }
-            }
-            for ((callId, connection) in connections) {
-                runCatching {
-                    when (byId[callId]?.phase) {
-                        CallPhase.RINGING -> connection.setRinging()
-                        CallPhase.CONNECTING -> connection.setDialing()
-                        CallPhase.ACTIVE -> connection.setActive()
-                        CallPhase.HELD -> connection.setOnHold()
-                        CallPhase.ENDED, null -> {
-                            connection.setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
-                            connection.destroy()
-                        }
+            for (call in snapshot.calls) {
+                val legState = legStateFor(call)
+                when (call.direction) {
+                    CallDirection.INBOUND ->
+                        // Key on the customer session when known, else the leg's
+                        // own id (header-absent, IMPORTANT-2). legId is always the
+                        // leg id, so the registry finds the entry by key OR by the
+                        // owning leg even after the session resolves post-answer.
+                        registry.driveInbound(call.sessionId ?: call.id, call.id, legState)
 
-                        else -> Unit
-                    }
+                    CallDirection.OUTBOUND -> registry.driveOutbound(call.id, legState)
                 }
             }
-            connections.entries.removeAll { byId[it.key]?.phase == CallPhase.ENDED }
-            reportedToTelecom.removeAll {
-                byId[it] == null || byId[it]?.phase == CallPhase.ENDED
-            }
-        }.onFailure { diagnostics.recordNonFatal("sync-telecom", it) }
-
-        // Ring surface (#167): the ringer follows the pure policy on every
-        // emission — answer/decline/remote-end/timeout all stop it here — and
-        // notifications for calls that stopped ringing come down with it
-        // (that cancel is also the 'answered elsewhere' CallStyle teardown).
-        // A SILENCED ring (calls-v3 §10.1.2: state said the session exited
-        // `ringing`) counts as not-ringing here — banner, ringer, and
-        // CallStyle all come down while the leg waits for the server BYE.
-        runCatching {
-            val ringingIds = snapshot.calls
-                .filter {
-                    it.phase == CallPhase.RINGING &&
-                        it.direction == CallDirection.INBOUND && !it.silenced
-                }
-                .map { it.id }
-                .toSet()
-            // #171 R2: ONE audio owner. Foreground = the in-app Ringer rings
-            // (per ring mode); backgrounded/locked = force STOP — the CallStyle
-            // notification's INCOMING_CALLS channel owns the ringtone+vibration
-            // on that path (verified posted below / on the foreground boundary),
-            // so the ring is never both and never silent.
-            ringer.sync(
-                RingerPolicy.command(currentRingMode(), ringingIds.size, appInForeground),
-            )
-            ringingNotified.keys.filter { it !in ringingIds }.toList().forEach { gone ->
-                notifier.cancelIncoming(gone, ringingNotified[gone])
-                ringingNotified.remove(gone)
-            }
-        }.onFailure { diagnostics.recordNonFatal("sync-ring", it) }
+        }.onFailure { diagnostics.recordNonFatal("sync-scope", it) }
 
         // Ongoing-call notification mirrors the active (or lone held) call.
         runCatching {
             val live = snapshot.liveCalls.filter { it.phase != CallPhase.RINGING }
             val featured = snapshot.activeCall ?: live.firstOrNull()
-            if (featured != null) notifier.showOngoing(featured) else notifier.cancelOngoing()
+            if (featured != null) {
+                notifier.showOngoing(featured)
+                // The within-5s ring-phase notification hands off to the ongoing one.
+                featured.sessionId?.let { notifier.cancelConnecting(it) }
+            } else {
+                notifier.cancelOngoing()
+            }
         }.onFailure { diagnostics.recordNonFatal("sync-notification", it) }
 
-        // #168D: the 'call in flight' marker — up while any answered/placed
-        // leg lives (ringing alone is not OUR call yet), down when the line
-        // clears. Only this process's own stamp is cleared here; a crashed
-        // process's marker survives until start() has read it.
+        // #168D: the 'call in flight' marker — up while any answered/placed leg
+        // lives, down when the line clears (only this process's own stamp).
         runCatching {
             val anyInFlight = snapshot.calls.any {
                 it.phase == CallPhase.CONNECTING ||
                     it.phase == CallPhase.ACTIVE ||
                     it.phase == CallPhase.HELD
             }
-            // Clearing waits for a FULLY idle line (not merely "nothing live
-            // yet"): answer() stamps the marker while the phase is still
-            // RINGING, and an interim emission must not un-stamp it.
             val lineIdle = snapshot.calls.none { it.phase != CallPhase.ENDED }
             if (anyInFlight && !markedCallInFlight) {
                 markedCallInFlight = true
@@ -586,55 +491,31 @@ class SoftphoneManager private constructor(
             }
         }
 
-        // Audio-focus fallback only matters while telecom isn't holding it.
-        runCatching {
-            val needsFocus = snapshot.calls.any {
-                it.phase == CallPhase.ACTIVE && !connections.containsKey(it.id)
-            }
-            if (needsFocus) acquireFocusFallback() else releaseFocusFallback()
-        }.onFailure { diagnostics.recordNonFatal("sync-focus", it) }
+        // Reap teardown-tracking for calls that are gone.
+        userHungUp.retainAll { byId.containsKey(it) }
     }
 
-    // ------------------------------------------------------- ring + focus
-
-    /** Silent/vibrate/normal — the [RingerPolicy] input. No manager = ring. */
-    private fun currentRingMode(): RingMode = when (audioManager?.ringerMode) {
-        AudioManager.RINGER_MODE_SILENT -> RingMode.SILENT
-        AudioManager.RINGER_MODE_VIBRATE -> RingMode.VIBRATE
-        else -> RingMode.NORMAL
-    }
-
-    private fun acquireFocusFallback() {
-        if (focusRequest != null) return
-        val audio = audioManager ?: return
-        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build(),
-            )
-            .build()
-        if (audio.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            focusRequest = request
-        }
-    }
-
-    private fun releaseFocusFallback() {
-        val request = focusRequest ?: return
-        focusRequest = null
-        audioManager?.abandonAudioFocusRequest(request)
+    /** Map a leg's [CallPhase] to the richer [TelecomCallReducer.LegState] the
+     *  §7 mirror table consumes (LOCAL vs REMOTE hangup from who tore down). */
+    private fun legStateFor(call: CallSnapshot): TelecomCallReducer.LegState = when (call.phase) {
+        CallPhase.CONNECTING -> TelecomCallReducer.LegState.DIALING
+        CallPhase.RINGING -> TelecomCallReducer.LegState.RINGING
+        CallPhase.ACTIVE -> TelecomCallReducer.LegState.ACTIVE
+        CallPhase.HELD -> TelecomCallReducer.LegState.HELD
+        CallPhase.ENDED ->
+            if (call.id in userHungUp) TelecomCallReducer.LegState.DONE_LOCAL
+            else TelecomCallReducer.LegState.DONE_REMOTE
     }
 
     // -------------------------------------------------- watchdog triggers
 
     private fun watchNetwork() {
         val connectivity =
-            appContext.getSystemService(ConnectivityManager::class.java) ?: return
+            appContext.getSystemService(android.net.ConnectivityManager::class.java) ?: return
         runCatching {
             connectivity.registerDefaultNetworkCallback(
-                object : ConnectivityManager.NetworkCallback() {
-                    override fun onAvailable(network: Network) {
+                object : android.net.ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: android.net.Network) {
                         core.scheduleRecover()
                     }
                 },
@@ -643,55 +524,12 @@ class SoftphoneManager private constructor(
     }
 
     private fun watchForeground() {
-        // Main-thread requirement for lifecycle observers.
         scope.launch {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
                 LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_START -> {
-                            onForegroundChanged(foreground = true)
-                            core.scheduleRecover()
-                        }
-
-                        Lifecycle.Event.ON_STOP -> onForegroundChanged(foreground = false)
-                        else -> Unit
-                    }
+                    if (event == Lifecycle.Event.ON_START) core.scheduleRecover()
                 },
             )
         }
-    }
-
-    /**
-     * Presentation handoff on the foreground boundary (#167): coming forward
-     * mid-ring, the banner takes over and any ring notifications come down;
-     * going background mid-ring, the CallStyle notification goes up so the
-     * ring survives recents/screen-off while the process is alive.
-     */
-    private fun onForegroundChanged(foreground: Boolean) {
-        if (appInForeground == foreground) return
-        appInForeground = foreground
-        val ringing = core.state.value.calls.filter {
-            it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND &&
-                !it.silenced
-        }
-        if (foreground) {
-            ringingNotified.toList().forEach { (id, session) ->
-                notifier.cancelIncoming(id, session)
-            }
-            ringingNotified.clear()
-        } else {
-            ringing.forEach { postIncomingNotification(it) }
-        }
-        // #171 R2: the foreground boundary flips the audio owner — re-evaluate
-        // the Ringer NOW. A background transition mid-ring must silence the
-        // in-app Ringer even if no further softphone state emission arrives
-        // (the notification just posted above carries the audio); a foreground
-        // transition must start it as the notifications come down. Without this
-        // the two owners could briefly overlap until the next state emission.
-        runCatching {
-            ringer.sync(
-                RingerPolicy.command(currentRingMode(), ringing.size, appInForeground),
-            )
-        }.onFailure { diagnostics.recordNonFatal("sync-ring", it) }
     }
 }

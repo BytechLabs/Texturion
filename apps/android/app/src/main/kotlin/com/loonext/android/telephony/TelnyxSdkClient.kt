@@ -123,11 +123,27 @@ class TelnyxSdkClient(
             SocketMethod.INVITE.methodName -> {
                 val invite = body.result as? InviteResponse ?: return
                 val call = source.getActiveCalls()[invite.callId] ?: return
+                // §3.2 DETERMINISTIC correlation: the server stamps
+                // `X-Loonext-Session` on every member ring dial, and the SDK
+                // surfaces it here as first-class custom headers ({name,value},
+                // verified against telnyx-webrtc-android v3.5.0). Hand the raw
+                // list up; [TelecomCallReducer.correlateInvite] reads the header
+                // — NEVER a caller/time guess. legId is the by-leg fallback key
+                // for an older server that hasn't shipped the header yet.
+                val headers = runCatching {
+                    invite.customHeaders?.mapNotNull { header ->
+                        val name = header.name ?: return@mapNotNull null
+                        name to (header.value ?: "")
+                    }.orEmpty()
+                }.getOrDefault(emptyList())
+                val legId = runCatching { call.getTelnyxSessionId()?.toString() }.getOrNull()
                 _events.tryEmit(
                     SdkEvent.Incoming(
                         call = TelnyxCallHandle(source, call),
                         callerName = invite.callerIdName,
                         callerNumber = invite.callerIdNumber,
+                        customHeaders = headers,
+                        legId = legId,
                     ),
                 )
             }

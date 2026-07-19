@@ -42,13 +42,13 @@ import com.loonext.android.telephony.SoftphoneSnapshot
 import kotlinx.coroutines.delay
 
 /**
- * The app-wide calls layer the integrator overlays ABOVE the tab bar (one
- * line in the shell): the top-pinned [IncomingCallBanner] while an inbound
- * call rings (#167 — its Popup floats over every surface), the persistent
- * call chip (live duration / held count), and the full-screen [InCallScreen]
- * both expand into. Mounting this is also what registers the softphone on
- * app open, so the member is ring-eligible even before ever visiting the
- * Calls tab — and what fires the one-shot POST_NOTIFICATIONS prompt.
+ * The app-wide calls layer the integrator overlays ABOVE the tab bar (one line
+ * in the shell): the persistent call chip (live duration / held count) and the
+ * full-screen [InCallScreen] it expands into. The incoming RING is owned by
+ * Android Telecom now (#171/§6) — there is no in-app ring surface here.
+ * Mounting this is also what registers the softphone on app open, so the member
+ * is ring-eligible even before ever visiting the Calls tab — and what fires the
+ * one-shot POST_NOTIFICATIONS prompt.
  */
 @Composable
 fun CallsOverlay(
@@ -97,14 +97,11 @@ fun CallsOverlay(
 
     val inCallScreenShowing = expanded && snapshot.liveCalls.isNotEmpty()
 
-    // The ringing banner — hidden while the full in-call screen is up (that
-    // surface presents the ringing call itself, answer button included).
-    IncomingCallBanner(
-        call = if (inCallScreenShowing) null else bannerRingingCall(snapshot),
-        manager = manager,
-        company = me.company,
-        onExpand = { expanded = true },
-    )
+    // #171 (§6.1): the in-app IncomingCallBanner is DELETED — Android Telecom
+    // presents the incoming ring on EVERY surface (foreground, background,
+    // locked, Bluetooth), so an in-app ring surface would only re-introduce the
+    // two-owner double-ring this rearchitecture exists to delete. The post-answer
+    // in-call screen (below) stays.
 
     if (inCallScreenShowing) {
         Dialog(

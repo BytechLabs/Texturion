@@ -63,6 +63,15 @@ export const BROWSER_INBOUND_STATE = "bri";
  *  `vmi|<caller-or-empty>`. */
 export const VOICEMAIL_INBOUND_STATE = "vmi";
 
+/** Custom SIP header (CALLS-CLIENT-V2 §3.2) stamped on EVERY member ring dial
+ *  (initial fan-out AND ring-me re-dial), value = `call_session_id`. The
+ *  Android client reads it off the inbound verto INVITE to correlate the media
+ *  leg to its authoritative server session DETERMINISTICALLY — never by a
+ *  caller/time heuristic. Telnyx WebRTC only passes custom headers whose name
+ *  starts with `X-`, so this prefix is MANDATORY. Additive + backward-compatible:
+ *  an older server that omits it degrades to the client's by-leg fallback. */
+export const LOONEXT_SESSION_HEADER = "X-Loonext-Session";
+
 /** Ring window for member browser legs. Long enough (#135 push-to-wake) that a
  *  mobile member has time to be pushed, tap, open the app, and answer — while
  *  the caller keeps hearing ringback. */
@@ -269,6 +278,13 @@ export async function ringMembersOrVoicemail(
             caller: input.callerE164,
             inboundCcid: input.callControlId,
           }),
+          // CALLS-CLIENT-V2 §3.2: stamp the session id as a custom SIP header
+          // (name MUST start with X-) so the Android client correlates the
+          // inbound INVITE to its server session deterministically. Same S as
+          // the client_state above.
+          custom_headers: [
+            { name: LOONEXT_SESSION_HEADER, value: input.callSessionId },
+          ],
         },
       })) as { data?: { call_control_id?: string } };
       const ccid = response.data?.call_control_id;
@@ -371,6 +387,12 @@ export async function ringMemberBrowser(
         caller: input.caller,
         inboundCcid: input.inboundCcid,
       }),
+      // CALLS-CLIENT-V2 §3.2: same session-correlation header as the initial
+      // fan-out (X- prefix mandatory), value = the same S built into the
+      // client_state above.
+      custom_headers: [
+        { name: LOONEXT_SESSION_HEADER, value: input.callSessionId },
+      ],
     },
   })) as { data?: { call_control_id?: string } };
   const ccid = response.data?.call_control_id;

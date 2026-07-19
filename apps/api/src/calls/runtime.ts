@@ -19,6 +19,7 @@ import {
   buildMemberRingState,
   buildVoicemailState,
   defaultGreeting,
+  LOONEXT_SESSION_HEADER,
   RING_TIMEOUT_SECS,
   sanitizeGreeting,
   screeningFlagged,
@@ -79,6 +80,11 @@ export interface SessionRuntime {
       sipTarget: string;
       fromE164: string;
       clientState: string;
+      /** CALLS-CLIENT-V2 §3.2: the call_session_id, stamped as the
+       *  X-Loonext-Session custom SIP header so the Android client correlates
+       *  the inbound INVITE to its server session deterministically. Same S the
+       *  clientState above is built from. */
+      sessionId: string;
     }): Promise<DialResult>;
     /** T2 step 2: answer the inbound leg (bri anchor). "ok" covers both a
      *  fresh 2xx and the replay case (4xx but the GET says alive/answered). */
@@ -272,6 +278,12 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               // §7.7's ambiguous-dial orphans — must not be raised (§5).
               timeout_secs: RING_TIMEOUT_SECS,
               client_state: input.clientState,
+              // CALLS-CLIENT-V2 §3.2: session-correlation header on the DO
+              // (T1d/T4) dial path — present whether or not CALLS_V3_LEGACY is
+              // set. Name MUST start with X-; value = the same S as clientState.
+              custom_headers: [
+                { name: LOONEXT_SESSION_HEADER, value: input.sessionId },
+              ],
             },
           })) as { data?: { call_control_id?: string } };
           const ccid = response.data?.call_control_id;

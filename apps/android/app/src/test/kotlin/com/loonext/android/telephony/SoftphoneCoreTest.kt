@@ -237,8 +237,16 @@ class SoftphoneCoreTest {
 
         override fun setAudioRoute(route: AudioRoute) = Unit
 
-        fun ring(handle: FakeHandle, name: String? = "Dana", number: String? = "+15557778888") {
-            _events.tryEmit(SdkEvent.Incoming(handle, name, number))
+        fun ring(
+            handle: FakeHandle,
+            name: String? = "Dana",
+            number: String? = "+15557778888",
+            headerSession: String? = null,
+        ) {
+            val headers = headerSession?.let {
+                listOf(TelecomCallReducer.HEADER_NAME to it)
+            }.orEmpty()
+            _events.tryEmit(SdkEvent.Incoming(handle, name, number, customHeaders = headers))
         }
     }
 
@@ -763,6 +771,31 @@ class SoftphoneCoreTest {
 
         assertFalse("a forked duplicate is held, never ended", fork.ended)
         assertEquals("only the first INVITE presents", 1, h.core.state.value.calls.size)
+        assertEquals("in-1", h.core.state.value.calls.single().id)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a second INVITE carrying the SAME header session is held silent (BLOCKING-2a)`() = runTest {
+        // Two INVITEs can share ONE call_session_id (an anonymous caller + a
+        // ring-me re-dial) with DIFFERENT caller numbers — the caller-number
+        // proxy would MISS the duplicate and present a second leg for S. The OS
+        // call is keyed on S, so a second presented leg would let a reaped
+        // sibling tear the shared OS call down. Dedup on the header session.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val first = FakeHandle("in-1")
+        h.sdk.ring(first, name = "Dana", number = "+15557778888", headerSession = "S-shared")
+        runCurrent()
+        // Forked re-dial for the SAME session but a DIFFERENT caller number.
+        val fork = FakeHandle("in-1-fork")
+        h.sdk.ring(fork, name = "Ring Me", number = "+15550000000", headerSession = "S-shared")
+        runCurrent()
+
+        assertFalse("the same-session fork is held, never ended", fork.ended)
+        assertEquals("only the first INVITE for S presents", 1, h.core.state.value.calls.size)
         assertEquals("in-1", h.core.state.value.calls.single().id)
         h.scope.cancel()
     }

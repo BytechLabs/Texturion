@@ -84,6 +84,23 @@ object CallWakePolicy {
     }
 
     /**
+     * The local ring leg a member-scoped Decline tears down (#171). During ring
+     * a leg carries no resolved session (unless the `X-Loonext-Session` header
+     * set it), so the sole proxy is the caller: the ONE ringing inbound whose
+     * caller doesn't contradict the push hint. Any ambiguity (two rings, a
+     * caller mismatch) → null (decline-mine still reaches the server; the local
+     * teardown is skipped). Moved here from the deleted `IncomingCallPresentation`.
+     */
+    fun matchLocalRing(calls: List<CallSnapshot>, hintCaller: String?): String? {
+        val rings = calls.filter {
+            it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND && !it.silenced
+        }
+        val lone = rings.singleOrNull() ?: return null
+        if (callerMismatch(hintCaller, lone.peerNumber)) return null
+        return lone.id
+    }
+
+    /**
      * §10.1.4 — should a fresh inbound INVITE be held silent because this
      * device already presents (or has active/held) a call from the same
      * caller? Caller identity is the only session proxy an INVITE offers;

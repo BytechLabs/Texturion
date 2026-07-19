@@ -8,10 +8,12 @@
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- #171 (§9.1): the call FGS Jetpack Telecom runs is of type `phoneCall`;
+         that FGS is what grants mic capture over the keyguard / backgrounded. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- REMOVED (§9.2): USE_FULL_SCREEN_INTENT (the OS posts its own ring),
+         FOREGROUND_SERVICE_MICROPHONE (the calling FGS is `phoneCall`, not
+         `microphone`), and VIBRATE (the OS owns ring vibration). -->
     <!-- Notifications (#156): Android 13+ runtime permission. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -44,24 +46,9 @@
             </intent-filter>
         </activity>
 
-        <!-- #171 bugs 3+4: the dedicated full-screen incoming-call surface, the
-             fullScreenIntent target of the CallStyle ring (NEVER MainActivity's
-             tab shell). showWhenLocked + turnScreenOn render answer/decline over
-             the keyguard; the code additionally calls setShowWhenLocked/
-             setTurnScreenOn (API 27+) and requestDismissKeyguard on answer.
-             excludeFromRecents + its own empty taskAffinity keep the lock-screen
-             ring out of the app's back stack; singleInstance so a push-immediate
-             launch and a later notification tap reuse the one presentation.
-             Not exported — only our notification PendingIntents launch it. -->
-        <activity
-            android:name=".features.calls.IncomingCallActivity"
-            android:exported="false"
-            android:launchMode="singleInstance"
-            android:taskAffinity=""
-            android:excludeFromRecents="true"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:theme="@style/Theme.Loonext" />
+        <!-- #171 (§6): the dedicated full-screen IncomingCallActivity is DELETED
+             — Android Telecom renders the over-keyguard incoming UI. No app
+             Activity presents the ring. -->
 
         <!-- FCM entry point (#156): message + token-refresh delivery. -->
         <service
@@ -72,18 +59,10 @@
             </intent-filter>
         </service>
 
-        <!-- Self-managed telecom integration (#155). exported=true gated by the
-             BIND_TELECOM_CONNECTION_SERVICE permission is the framework contract. -->
-        <service
-            android:name=".telephony.LoonextConnectionService"
-            android:exported="true"
-            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
-            <intent-filter>
-                <action android:name="android.telecom.ConnectionService" />
-            </intent-filter>
-        </service>
-        <receiver
-            android:name=".telephony.CallActionReceiver"
-            android:exported="false" />
+        <!-- #171 (§6): the self-managed LoonextConnectionService and the
+             CallActionReceiver are DELETED — Jetpack Telecom registers and binds
+             the ConnectionService itself (on API 34+) and owns the incoming
+             answer/decline actions. CallsManager.registerAppWithTelecom is what
+             registers the self-managed PhoneAccount now. -->
     </application>
 </manifest>

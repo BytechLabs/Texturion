@@ -2,12 +2,6 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
-import com.loonext.android.core.model.CompanyView
-import com.loonext.android.core.model.NumberStatus
-import com.loonext.android.telephony.CallDirection
-import com.loonext.android.telephony.CallPhase
-import com.loonext.android.telephony.CallSnapshot
-import com.loonext.android.telephony.SoftphoneSnapshot
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -105,35 +99,6 @@ fun dialableE164(raw: String): String? {
         digits.length == 11 && digits.first() == '1' -> "+$digits"
         else -> null
     }
-}
-
-/**
- * The banner presentation reducer (#167): the ONE inbound call the top-pinned
- * incoming banner presents, or null for no banner. Only a live RINGING
- * inbound qualifies — answered/connecting/held/ended states belong to the
- * chip and the in-call screen; outbound calls never ring here. With two
- * ringing inbounds (call waiting on a quiet line) the earliest wins — its
- * end promotes the next one. A SILENCED ring (calls-v3 §10.1.2: the server
- * said the session exited `ringing`; the leg awaits its BYE) never banners.
- */
-fun bannerRingingCall(snapshot: SoftphoneSnapshot): CallSnapshot? =
-    snapshot.calls.firstOrNull {
-        it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND &&
-            !it.silenced
-    }
-
-/**
- * "to (555) 123-4567" — which workspace number the caller dialed, shown on
- * the banner. The ring invite doesn't carry the dialed number, so this is
- * only claimed when it's unambiguous: exactly one active number on the
- * workspace (the overwhelmingly common shape). Multi-number workspaces get
- * null — never a guess.
- */
-fun calledNumberLine(company: CompanyView?): String? {
-    val active = company?.numbers.orEmpty()
-        .filter { it.status == NumberStatus.ACTIVE && !it.number_e164.isNullOrBlank() }
-    val only = active.singleOrNull()?.number_e164 ?: return null
-    return "to ${formatPhone(only)}"
 }
 
 /** "(415) 555-01…" progressive format while typing (NANP-shaped input). */

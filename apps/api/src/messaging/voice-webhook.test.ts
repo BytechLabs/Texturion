@@ -467,6 +467,13 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     // brm|<session>|<user>|<caller>|<inbound ccid> — the answer/failure
     // races and the bridge recover everything from the tag alone.
     expect(state).toBe(`brm|${SESSION}|${USER_A}|${CALLER}|${CC_ID}`);
+    // CALLS-CLIENT-V2 §3.2: the SAME session id rides as a custom SIP header
+    // (X- prefix mandatory) so the Android client correlates the inbound INVITE
+    // to its server session deterministically.
+    expect(
+      (dial.calls[0].body as { custom_headers: { name: string; value: string }[] })
+        .custom_headers,
+    ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
     // The caller keeps hearing real carrier ringback: no answer while ringing.
     expect(
       action.calls.filter((c) => c.url.pathname.endsWith("/answer")),

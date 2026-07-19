@@ -22,11 +22,22 @@ sealed interface SdkEvent {
     /** A socket/auth error — often a dead token; recovery re-mints. */
     data class Error(val message: String?) : SdkEvent
 
-    /** A new inbound invite (the ring engine or a transfer dialed us). */
+    /**
+     * A new inbound invite (the ring engine or a transfer dialed us).
+     *
+     * [customHeaders] are the INVITE's custom SIP headers ({name,value}). The
+     * server stamps `X-Loonext-Session` on every member ring dial (§3.2), so
+     * this is the DETERMINISTIC correlation to the authoritative server session
+     * — read via [TelecomCallReducer.correlateInvite], never a caller/time
+     * heuristic. [legId] is the leg's own Telnyx id, the by-leg fallback key
+     * when the header is somehow absent (older server / stripped header).
+     */
     data class Incoming(
         val call: SdkCallHandle,
         val callerName: String?,
         val callerNumber: String?,
+        val customHeaders: List<Pair<String, String>> = emptyList(),
+        val legId: String? = null,
     ) : SdkEvent
 }
 

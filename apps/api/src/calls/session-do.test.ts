@@ -67,7 +67,7 @@ interface FakeConfig {
 function makeRuntime(config: FakeConfig = {}) {
   let dialN = 0;
   const calls = {
-    dials: [] as { sipTarget: string; ccid: string | null }[],
+    dials: [] as { sipTarget: string; sessionId: string; ccid: string | null }[],
     hangups: [] as string[],
     answersInbound: [] as string[],
     answersVm: [] as string[],
@@ -88,7 +88,7 @@ function makeRuntime(config: FakeConfig = {}) {
     telnyx: {
       async dial(input) {
         const result = config.dialResult ? config.dialResult() : { ccid: `cc${calls.dials.length}` };
-        calls.dials.push({ sipTarget: input.sipTarget, ccid: "ccid" in result ? result.ccid : null });
+        calls.dials.push({ sipTarget: input.sipTarget, sessionId: input.sessionId, ccid: "ccid" in result ? result.ccid : null });
         return result;
       },
       async answerInbound(ccid) {
@@ -269,6 +269,10 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
     const stamp = await instance.onTelnyxEvent(initiatedEvent("e1"));
     expect(stamp).toBe(true);
     expect(calls.dials).toHaveLength(1);
+    // CALLS-CLIENT-V2 §3.2: the DO (T1d/T4) dial receives the call_session_id so
+    // runtime.ts stamps it as the X-Loonext-Session custom SIP header — present
+    // whether or not CALLS_V3_LEGACY is set.
+    expect(calls.dials[0].sessionId).toBe(SESSION);
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("ringing");
     expect(store.getAlarmAt()).not.toBeNull();
