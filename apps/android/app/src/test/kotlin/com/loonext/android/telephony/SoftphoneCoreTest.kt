@@ -153,7 +153,7 @@ class SoftphoneCoreTest {
 
         override suspend fun declineMine(companyId: String): DeclineMineAck {
             declineMineCalls.incrementAndGet()
-            return DeclineMineAck(declined = true, sessions = declinedSessions.toList())
+            return DeclineMineAck(declined = true)
         }
     }
 

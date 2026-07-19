@@ -131,13 +131,17 @@ data class DeclineAck(
  * FOREGROUND live-socket ring — where the SDK exposes neither a session nor a
  * ccid pre-answer, so client-side per-session resolution returns null — still
  * reaches the caller instead of holding ringback for the full 45s window.
- * Member identity comes from the Bearer token; no body. `sessions` echoes the
- * sessions the member was dropped from (empty = nothing was ringing them).
+ * Member identity comes from the Bearer token; no body.
+ *
+ * We deliberately model ONLY `declined` — decline is fire-and-forget + a local
+ * SDK teardown, so the client never reads the per-session detail. The server's
+ * `sessions: [{session_id, state}]` is left unparsed (ignoreUnknownKeys), so
+ * the response shape can never crash the client again (it did once: a
+ * List<String> model met the object array — CallsApi.kt #171 R1 hotfix).
  */
 @Serializable
 data class DeclineMineAck(
     val declined: Boolean = true,
-    val sessions: List<String> = emptyList(),
 )
 
 @Serializable
