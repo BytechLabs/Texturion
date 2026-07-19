@@ -99,6 +99,13 @@ class SoftphoneManager private constructor(
     /** Discrete ring/place moments (the overlay uses state; kept for parity). */
     val events: SharedFlow<CoreEvent> = core.events
 
+    /**
+     * Sessions that just exited `ringing` (#171) — the full-screen
+     * [com.loonext.android.features.calls.IncomingCallActivity] collects this to
+     * finish itself in the pre-INVITE window (no local leg carries `silenced`).
+     */
+    val ringingExitSessions: SharedFlow<String> = core.ringingExitSessions
+
     private val telecomManager: TelecomManager? =
         appContext.getSystemService(TelecomManager::class.java)
     private val audioManager: AudioManager? =
@@ -110,8 +117,10 @@ class SoftphoneManager private constructor(
     /** Calls already reported to telecom (attach may lag the report). */
     private val reportedToTelecom = mutableSetOf<String>()
 
-    /** Incoming notifications currently showing, keyed by call id. */
-    private val ringingNotified = mutableSetOf<String>()
+    /** Incoming notifications currently showing: callId -> the session tag used
+     *  at post time (null = per-leg tag), so the cancel targets the same
+     *  (tag, id) the post created. */
+    private val ringingNotified = mutableMapOf<String, String?>()
 
     private val ringer = Ringer(appContext)
 
@@ -302,6 +311,39 @@ class SoftphoneManager private constructor(
     /** Decline a ringing call / hang up a live one. */
     fun hangup(id: String) = core.hangup(id)
 
+    /**
+     * User Decline (#171 bug 1) — routes to the server decline endpoint (drops
+     * this member's device from the avenue set so the caller's ring ends) AND
+     * tears down the local SDK leg. Every user-facing Decline (banner,
+     * notification action, [com.loonext.android.features.calls.IncomingCallActivity])
+     * comes here, NOT to a bare [hangup].
+     */
+    fun decline(id: String, sessionHint: String? = null) = core.decline(id, sessionHint)
+
+    /**
+     * Decline a session with no local leg yet (#171) — the pre-INVITE push
+     * ring (the full-screen activity / notification before the WebRTC leg
+     * binds). POSTs the server decline; reaps a correlated local leg if one
+     * has since presented.
+     */
+    fun declineSession(sessionId: String) = core.declineSession(sessionId)
+
+    /** The always-200 `/state` read for a session, or null on any failure —
+     *  the activity's one-shot check for a session that resolved before it
+     *  launched (a late push). */
+    suspend fun sessionStateOrNull(sessionId: String) = core.sessionStateOrNull(sessionId)
+
+    /** The freshest wake-push caller hint — the activity's ring correlation. */
+    fun pushHintCaller(): String? = core.pushHintCaller()
+
+    /** ProcessLifecycle-tracked foreground flag (#171): a foreground process
+     *  presents the in-app banner, never the full-screen activity/notification. */
+    fun isAppForeground(): Boolean = appInForeground
+
+    /** The company the softphone last registered — the decline endpoint scope
+     *  the notification's dead-process fallback carries in its intent. */
+    fun currentCompanyId(): String? = core.companyId
+
     fun toggleHold(id: String) = core.toggleHold(id)
 
     fun setMuted(id: String, muted: Boolean) = core.setMuted(id, muted)
@@ -385,8 +427,9 @@ class SoftphoneManager private constructor(
     }
 
     private fun postIncomingNotification(call: CallSnapshot) {
-        notifier.showIncoming(call)
-        ringingNotified.add(call.id)
+        val session = core.sessionHintFor(call)
+        notifier.showIncoming(call, companyId = core.companyId, sessionId = session)
+        ringingNotified[call.id] = session
     }
 
     private fun phoneAccountHandle() = PhoneAccountHandle(
@@ -505,8 +548,8 @@ class SoftphoneManager private constructor(
                 .map { it.id }
                 .toSet()
             ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
-            ringingNotified.filter { it !in ringingIds }.forEach { gone ->
-                notifier.cancelIncoming(gone)
+            ringingNotified.keys.filter { it !in ringingIds }.toList().forEach { gone ->
+                notifier.cancelIncoming(gone, ringingNotified[gone])
                 ringingNotified.remove(gone)
             }
         }.onFailure { diagnostics.recordNonFatal("sync-ring", it) }
@@ -630,7 +673,9 @@ class SoftphoneManager private constructor(
                 !it.silenced
         }
         if (foreground) {
-            ringingNotified.toList().forEach { notifier.cancelIncoming(it) }
+            ringingNotified.toList().forEach { (id, session) ->
+                notifier.cancelIncoming(id, session)
+            }
             ringingNotified.clear()
         } else {
             ringing.forEach { postIncomingNotification(it) }

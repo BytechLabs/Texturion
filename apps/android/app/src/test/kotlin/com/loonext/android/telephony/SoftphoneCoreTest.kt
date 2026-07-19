@@ -75,6 +75,9 @@ class SoftphoneCoreTest {
         { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
     private val ringMeNoLocalLeg = mutableListOf<Boolean>()
 
+    /** Every session a [SoftphoneCore.decline]/[declineSession] POSTed (#171). */
+    private val declinedSessions = mutableListOf<String>()
+
     @Before
     fun setUp() {
         tokenMints.set(0)
@@ -84,6 +87,7 @@ class SoftphoneCoreTest {
         }
         ringMeBehavior = { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
         ringMeNoLocalLeg.clear()
+        declinedSessions.clear()
     }
 
     /**
@@ -136,6 +140,11 @@ class SoftphoneCoreTest {
         ): RingAck {
             ringMeNoLocalLeg += noLocalLeg
             return ringMeBehavior()
+        }
+
+        override suspend fun decline(companyId: String, sessionId: String): DeclineAck {
+            declinedSessions += sessionId
+            return DeclineAck(declined = true, state = "voicemail_greeting")
         }
     }
 
@@ -646,6 +655,84 @@ class SoftphoneCoreTest {
 
         assertFalse(leg.ended)
         assertFalse(h.core.state.value.calls.single().silenced)
+        h.scope.cancel()
+    }
+
+    // ----------------------------------------------------- decline (#171)
+
+    @Test
+    fun `decline of a presented ring POSTs the server decline AND ends the leg`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // The wake push named the session + caller — the decline correlation.
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        h.core.decline("in-1")
+        runCurrent()
+
+        assertEquals(
+            "decline reached the server for the correlated session",
+            listOf("sess-x"),
+            declinedSessions.toList(),
+        )
+        assertTrue("decline is explicit user action — it DOES end the local leg", leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `decline with an explicit session hint overrides the push correlation`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-hint", callerHint = "+15557778888")
+
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        h.core.decline("in-1", sessionHint = "sess-explicit")
+        runCurrent()
+
+        assertEquals(listOf("sess-explicit"), declinedSessions.toList())
+        assertTrue(leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `declineSession with no local leg still POSTs the server decline`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        // The pre-INVITE push ring: no WebRTC leg exists yet.
+        h.core.declineSession("sess-pre-invite")
+        runCurrent()
+
+        assertEquals(listOf("sess-pre-invite"), declinedSessions.toList())
+        assertTrue("no local leg to end", h.core.state.value.calls.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `decline with no resolvable session still ends the leg locally`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        // A pure foreground INVITE with no wake hint — no session to decline.
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        h.core.decline("in-1")
+        runCurrent()
+
+        assertTrue("no server-addressable session", declinedSessions.isEmpty())
+        assertTrue("the local leg is still torn down (transient signal)", leg.ended)
         h.scope.cancel()
     }
 

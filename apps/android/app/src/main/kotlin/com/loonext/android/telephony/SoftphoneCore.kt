@@ -64,6 +64,16 @@ class SoftphoneCore(
     private val _events = MutableSharedFlow<CoreEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<CoreEvent> = _events
 
+    /**
+     * Sessions that just exited `ringing` (#171): emitted on every ringing-exit
+     * the core learns — a `/state` read, a `call.updated` broadcast, or a
+     * `call_end` push. The full-screen [com.loonext.android.features.calls.IncomingCallActivity]
+     * collects this to finish itself even in the pre-INVITE window, where there
+     * is no local leg to carry a `silenced` flag. Signal only — never a leg kill.
+     */
+    private val _ringingExitSessions = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val ringingExitSessions: SharedFlow<String> = _ringingExitSessions
+
     private val handles = mutableMapOf<String, SdkCallHandle>()
     private val watchJobs = mutableMapOf<String, Job>()
 
@@ -431,6 +441,9 @@ class SoftphoneCore(
     }
 
     private fun applyRingingExit(sessionId: String) {
+        // #171: tell the full-screen activity to finish even in the pre-INVITE
+        // window (no local leg exists yet to carry the silenced flag).
+        _ringingExitSessions.tryEmit(sessionId)
         // Held INVITEs correlated to the dead session must never promote
         // into it (the leg's own BYE still tears them down).
         if (pushHintSession == sessionId) {
@@ -635,6 +648,106 @@ class SoftphoneCore(
             return
         }
         runCatching { handle.end() }
+    }
+
+    /**
+     * User Decline (#171 bug 1) — a FIRST-CLASS server signal, not a leg
+     * hangup. Resolve the session this leg belongs to (the launching surface's
+     * explicit hint wins; else the leg's own resolved session; else the
+     * correlated wake-push hint) and POST the server decline so the DO drops
+     * this member's device from the avenue set — otherwise the v3 ladder holds
+     * the caller ringing for the full 45s window. THEN tear the local leg down
+     * through [hangup] (the single, lint-pinned SDK teardown path). A decline
+     * with no resolvable session degrades to a local hangup alone (the leg
+     * death still reaches the server as a transient signal).
+     */
+    fun decline(id: String, sessionHint: String? = null) {
+        val call = _state.value.calls.firstOrNull { it.id == id }
+        val session = IncomingCallPresentation.resolveDeclineSession(
+            explicitSession = sessionHint,
+            call = call,
+            hintSession = pushHintSession,
+            hintCaller = pushHintCaller,
+            hintAtMs = pushHintAtMs,
+            nowMs = now(),
+        )
+        postDecline(session)
+        hangup(id)
+    }
+
+    /**
+     * Decline a session with NO local leg (#171) — the pre-INVITE push ring
+     * (the full-screen activity / notification before the WebRTC leg binds).
+     * POST the server decline; if a local leg happens to be presenting the
+     * session already, tear it down too (via [hangup], the one teardown path).
+     */
+    fun declineSession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        postDecline(sessionId)
+        val local = _state.value.calls.firstOrNull {
+            it.phase != CallPhase.ENDED && it.direction == CallDirection.INBOUND &&
+                it.sessionId == sessionId
+        } ?: matchedRingForHint(sessionId)
+        local?.let { hangup(it.id) }
+    }
+
+    /** A ringing inbound leg correlated to [sessionId] via the wake hint. */
+    private fun matchedRingForHint(sessionId: String): CallSnapshot? {
+        if (pushHintSession != sessionId) return null
+        val matchId = IncomingCallPresentation.matchLocalRing(_state.value.calls, pushHintCaller)
+        return matchId?.let { id -> _state.value.calls.firstOrNull { it.id == id } }
+    }
+
+    private fun postDecline(session: String?) {
+        val company = companyId ?: return
+        if (session.isNullOrBlank()) return
+        scope.launch {
+            try {
+                api.decline(company, session)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                // Best-effort like every telephony signal — the leg teardown
+                // and the server's own ladder are the backstops.
+                onInternalFailure?.invoke("decline", cause)
+            }
+        }
+    }
+
+    /**
+     * The always-200 `/state` read (§8.1) for a session, or null on any
+     * failure — the full-screen activity's one-shot check for a session that
+     * resolved before it launched (a late push).
+     */
+    suspend fun sessionStateOrNull(sessionId: String): LiveSessionState? {
+        val company = companyId ?: return null
+        return try {
+            api.sessionState(company, sessionId)
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** The freshest wake-push caller hint (the activity's caller correlation). */
+    fun pushHintCaller(): String? = pushHintCaller
+
+    /**
+     * The server session a ringing [call] belongs to, for tagging its
+     * notification / decline (#171): the leg's own resolved session if known
+     * (post-answer), else the correlated wake-push session while it is fresh
+     * and the caller doesn't contradict it. Null = untaggable (a pure
+     * foreground INVITE with no wake hint) — the notification falls back to a
+     * per-leg tag and decline to a local teardown.
+     */
+    fun sessionHintFor(call: CallSnapshot): String? {
+        call.sessionId?.takeIf { it.isNotBlank() }?.let { return it }
+        val session = pushHintSession ?: return null
+        val at = pushHintAtMs ?: return null
+        if (now() - at > CallWakePolicy.HINT_WINDOW_MS || now() < at) return null
+        if (CallWakePolicy.callerMismatch(pushHintCaller, call.peerNumber)) return null
+        return session
     }
 
     /** Hold/unhold flip — unholding another call swaps the active audio. */

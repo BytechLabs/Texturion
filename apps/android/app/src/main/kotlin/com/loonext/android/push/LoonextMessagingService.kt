@@ -12,6 +12,8 @@ import com.google.firebase.messaging.RemoteMessage
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
 import com.loonext.android.R
+import com.loonext.android.telephony.CallNotifier
+import com.loonext.android.telephony.CallWakePolicy
 import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +81,10 @@ class LoonextMessagingService : FirebaseMessagingService() {
             runCatching {
                 NotificationManagerCompat.from(this).cancel(content.tag, PUSH_NOTIFICATION_ID)
             }
+            // #171: also cancel the CallStyle incoming-ring notification (its
+            // own notify id) posted by the push-immediate present or the
+            // INVITE-driven ring — same `call:<session>` tag, different id.
+            content.callSessionId?.let { CallNotifier.cancelIncomingForSession(this, it) }
             ensureCallWakePath()
             PushHooks.callEndHandler?.onCallEnd(content)
             return
@@ -89,6 +95,28 @@ class LoonextMessagingService : FirebaseMessagingService() {
             // nobody built the softphone yet — build it now so the wake handler
             // is installed and this ring reaches ring-me instead of the tray.
             ensureCallWakePath()
+            val session = content.callSessionId
+            val manager = SoftphoneManager.peek()
+            val foreground = manager?.isAppForeground() == true
+            // #171 bug 2 — present the ring IMMEDIATELY from the push, BEFORE
+            // the WebRTC INVITE binds (the WhatsApp model): the CallStyle
+            // full-screen notification launches IncomingCallActivity over the
+            // keyguard and rings on the channel; the softphone wakes + the real
+            // INVITE binds behind it. A FOREGROUND process instead lets the
+            // wake → ring-me → INVITE → in-app banner path own presentation
+            // (one presentation per session per device, §10.1.4).
+            if (session != null && !foreground) {
+                runCatching {
+                    val callerNumber =
+                        CallWakePolicy.callerHintFromPushBody(content.body).orEmpty()
+                    CallNotifier(applicationContext).showIncomingFromPush(
+                        session = session,
+                        callerName = content.title,
+                        callerNumber = callerNumber,
+                        companyId = PushPrefs.companyId(applicationContext),
+                    )
+                }
+            }
             val handler = PushHooks.callWakeHandler
             if (handler != null) {
                 handler.onIncomingCallPush(content)

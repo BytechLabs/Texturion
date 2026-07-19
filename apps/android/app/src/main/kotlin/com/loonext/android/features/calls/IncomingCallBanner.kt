@@ -189,7 +189,10 @@ private fun IncomingCallCard(
             Spacer(Modifier.height(14.dp))
             Row {
                 OutlinedButton(
-                    onClick = { manager.hangup(call.id) },
+                    // #171 bug 1: Decline is a first-class server signal
+                    // (drops this member's device from the avenue set so the
+                    // caller's ring ends), not a bare leg hangup.
+                    onClick = { manager.decline(call.id) },
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),

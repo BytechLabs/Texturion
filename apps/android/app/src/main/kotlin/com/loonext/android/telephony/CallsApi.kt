@@ -108,6 +108,21 @@ data class RingAck(
 @Serializable
 private data class RingMeBody(val no_local_leg: Boolean)
 
+/**
+ * POST /v1/calls/live/:session/decline response (#171 bug 1). Decline is a
+ * FIRST-CLASS server signal — the CallSessionDO records this member DECLINED,
+ * removes their device from the avenue/audience set, cancels their ring legs,
+ * and re-runs the T3 exhaustion ladder (single member left → voicemail now;
+ * multi-member → the caller keeps ringing the others). Idempotent: a decline
+ * for an already-resolved session is a 200 no-op. `declined` echoes the record;
+ * `state` is the resulting §3 session state.
+ */
+@Serializable
+data class DeclineAck(
+    val declined: Boolean = true,
+    val state: String? = null,
+)
+
 @Serializable
 private data class TransferBody(val target_user_id: String)
 
@@ -158,6 +173,16 @@ interface CallsApi {
         sessionId: String,
         noLocalLeg: Boolean = true,
     ): RingAck
+
+    /**
+     * Decline the ringing call for THIS member (#171 bug 1) — the server-side
+     * sibling of ring-me. A plain leg hangup only tears down the SDK leg; the
+     * v3 avenue ladder still counts this member's push-capable device as an
+     * open avenue and holds ringback to the 45s window. This tells the DO the
+     * member REJECTED the call, so the caller's ring ends (or moves on to the
+     * other members). Member identity comes from the Bearer token; no body.
+     */
+    suspend fun decline(companyId: String, sessionId: String): DeclineAck
 }
 
 class HttpCallsApi(private val api: ApiClient) : CallsApi {
@@ -212,4 +237,7 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
         RingMeBody(no_local_leg = noLocalLeg),
         companyId = companyId,
     )
+
+    override suspend fun decline(companyId: String, sessionId: String): DeclineAck =
+        api.post("/v1/calls/live/$sessionId/decline", companyId = companyId)
 }
