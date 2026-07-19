@@ -11,9 +11,12 @@
     <!-- #171 (§9.1): the call FGS Jetpack Telecom runs is of type `phoneCall`;
          that FGS is what grants mic capture over the keyguard / backgrounded. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <!-- REMOVED (§9.2): USE_FULL_SCREEN_INTENT (the OS posts its own ring),
-         FOREGROUND_SERVICE_MICROPHONE (the calling FGS is `phoneCall`, not
-         `microphone`), and VIBRATE (the OS owns ring vibration). -->
+    <!-- CORRECTION (§6, device-verified): androidx.core.telecom registers a
+         SELF-MANAGED call and Android draws NO system incoming UI for one — so the
+         app posts its own CallStyle ring with a full-screen intent (the earlier
+         "the OS posts its own ring" premise was wrong; calls never rang). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Notifications (#156): Android 13+ runtime permission. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -46,9 +49,21 @@
             </intent-filter>
         </activity>
 
-        <!-- #171 (§6): the dedicated full-screen IncomingCallActivity is DELETED
-             — Android Telecom renders the over-keyguard incoming UI. No app
-             Activity presents the ring. -->
+        <!-- #171 (§6, RESTORED): the full-screen over-keyguard incoming target for
+             the CallStyle ring's fullScreenIntent. Telecom (self-managed) shows no
+             OS incoming UI, so the app owns the ring surface. showWhenLocked +
+             turnScreenOn present it over the lock screen; excludeFromRecents +
+             noHistory keep it out of the task history. -->
+        <activity
+            android:name=".features.calls.IncomingCallActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
         <!-- FCM entry point (#156): message + token-refresh delivery. -->
         <service
@@ -59,10 +74,10 @@
             </intent-filter>
         </service>
 
-        <!-- #171 (§6): the self-managed LoonextConnectionService and the
-             CallActionReceiver are DELETED — Jetpack Telecom registers and binds
-             the ConnectionService itself (on API 34+) and owns the incoming
-             answer/decline actions. CallsManager.registerAppWithTelecom is what
-             registers the self-managed PhoneAccount now. -->
+        <!-- #171 (§6, RESTORED): Answer/Decline on the CallStyle ring broadcast
+             here; the receiver drives the Telecom call via SoftphoneManager. -->
+        <receiver
+            android:name=".telephony.CallActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

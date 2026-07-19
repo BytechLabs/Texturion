@@ -80,6 +80,12 @@ class TelecomCallRegistry(
          *  priority — and thus the `phoneCall` mic FGS (§3.1/I4). */
         fun onCallRegistered(session: String, callerName: String, callerNumber: String)
         fun onCallUnregistered(session: String)
+
+        /** Post the incoming RING (self-managed → the OS shows no incoming UI, so
+         *  the app must; a `CallStyle` notification + full-screen intent whose
+         *  Answer/Decline drive this registry). Cancel when answered or ended. */
+        fun showIncomingCall(session: String, callerName: String, callerNumber: String)
+        fun cancelIncomingCall(session: String)
     }
 
     private val callsManager = CallsManager(context.applicationContext)
@@ -215,6 +221,11 @@ class TelecomCallRegistry(
         if (!TelecomCallReducer.shouldAddCall(entries.keys, session)) return
         val entry = CallEntry(session, CallAttributesCompat.DIRECTION_INCOMING)
         if (entries.putIfAbsent(session, entry) != null) return // lost the race
+        // SELF-MANAGED reality: Telecom draws no incoming UI, so WE ring. Posted
+        // once per fresh registration (a duplicate push/INVITE returned above, so
+        // it never re-rings). Answer/Decline on it drive [answerFromNotification]/
+        // [declineFromNotification].
+        runCatching { bridge.showIncomingCall(session, callerName, callerNumber) }
         launchAddCall(entry, callerName, callerNumber, address = callerNumber)
         armRingWindow(entry)
     }
@@ -423,6 +434,34 @@ class TelecomCallRegistry(
         disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE))
     }
 
+    /**
+     * Answer the incoming call for [session] from the app's OWN ring surface (the
+     * `CallStyle` notification / [IncomingCallActivity]) — self-managed calls have
+     * no OS answer surface, so this is how the user answers. Drives exactly the
+     * path the framework `onAnswer` would: the OS answer transition + accept the
+     * Telnyx leg (mic FGS engaged). Idempotent — a duplicate tap is harmless.
+     */
+    fun answerFromNotification(session: String) {
+        val entry = entries[session] ?: return
+        runCatching { bridge.cancelIncomingCall(session) }
+        onTelecomAnswer(entry, CallAttributesCompat.CALL_TYPE_AUDIO_CALL)
+    }
+
+    /**
+     * Decline the incoming call for [session] from the app's own ring — end the
+     * Telnyx leg, tell the server (session-scoped when another ring is live, else
+     * member-scoped), release the session's held forks so none re-rings, and tear
+     * the OS call down. Mirrors a user reject.
+     */
+    fun declineFromNotification(session: String) {
+        val entry = entries[session] ?: return
+        runCatching { bridge.cancelIncomingCall(session) }
+        runCatching { bridge.endLeg(session) }
+        declineForTeardown(entry)
+        runCatching { bridge.releaseHeldSession(session) }
+        disconnectEntry(entry, DisconnectCause(DisconnectCause.LOCAL))
+    }
+
     // ------------------------------------------------------------- internals
 
     private fun launchAddCall(
@@ -474,7 +513,11 @@ class TelecomCallRegistry(
                         )
                     }
                     // §3.1/I4: keep foreground priority (and the mic FGS) within 5s.
-                    runCatching { bridge.onCallRegistered(entry.key, callerName, callerNumber) }
+                    // Inbound already posted its own RING in ensureIncomingCall;
+                    // only an OUTBOUND dial shows the plain "Connecting…" here.
+                    if (entry.direction == CallAttributesCompat.DIRECTION_OUTGOING) {
+                        runCatching { bridge.onCallRegistered(entry.key, callerName, callerNumber) }
+                    }
                     // Follower routing (§4.2/§4.3): mirror the OS endpoint into
                     // Telnyx — never lead, never touch setCommunicationDevice.
                     observeEndpoints(this)
@@ -516,6 +559,8 @@ class TelecomCallRegistry(
     private fun onTelecomAnswer(entry: CallEntry, callType: Int) {
         entry.callType = callType
         entry.answerRequested = true
+        // Answered → the ring is over (any surface: our notification, BT, Auto).
+        runCatching { bridge.cancelIncomingCall(entry.key.removePrefix("out:")) }
         runActions(entry, TelecomCallReducer.onAnswer(entry.legBound))
     }
 
@@ -847,7 +892,9 @@ class TelecomCallRegistry(
         // it, or the fresh ring loses the within-5s foreground-priority
         // notification that sustains the phoneCall mic FGS.
         if (entries.remove(entry.key, entry)) {
-            runCatching { bridge.onCallUnregistered(entry.key.removePrefix("out:")) }
+            val session = entry.key.removePrefix("out:")
+            runCatching { bridge.cancelIncomingCall(session) }
+            runCatching { bridge.onCallUnregistered(session) }
         }
     }
 

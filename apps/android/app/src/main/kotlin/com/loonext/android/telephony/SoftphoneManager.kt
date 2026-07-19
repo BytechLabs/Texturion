@@ -205,6 +205,14 @@ class SoftphoneManager private constructor(
             notifier.cancelConnecting(session)
         }
 
+        override fun showIncomingCall(session: String, callerName: String, callerNumber: String) {
+            notifier.showIncoming(session, callerName, callerNumber)
+        }
+
+        override fun cancelIncomingCall(session: String) {
+            notifier.cancelIncoming(session)
+        }
+
         private fun legFor(session: String): CallSnapshot? {
             // Match on the customer session (the steady-state key) OR the leg's
             // own id — a header-absent OS call is keyed on the leg id, since its
@@ -336,6 +344,23 @@ class SoftphoneManager private constructor(
         to = to,
         phoneNumberId = phoneNumberId,
     )
+
+    /** Answer the incoming call for [session] from the app's own ring surface
+     *  (the `CallStyle` notification / [IncomingCallActivity]) — self-managed
+     *  Telecom has no OS answer surface, so this is how the user answers. Drives
+     *  the Telecom registry's answer (OS answer + accept the Telnyx leg). */
+    fun answerIncoming(session: String) {
+        runCatching {
+            markedCallInFlight = true
+            diagnostics.callMarker.set()
+        }
+        runCatching { registry.answerFromNotification(session) }
+    }
+
+    /** Decline the incoming call for [session] from the app's own ring. */
+    fun declineIncoming(session: String) {
+        runCatching { registry.declineFromNotification(session) }
+    }
 
     /** Answer a ringing call (any active call is held first). */
     fun answer(id: String) {
