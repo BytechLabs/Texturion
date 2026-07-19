@@ -105,6 +105,21 @@ class SoftphoneManager private constructor(
      *  reports a LOCAL vs REMOTE disconnect honestly (§7 table). */
     private val userHungUp: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
+    // syncPlatform's per-collector state. DECLARED BEFORE `init {}` on purpose: the
+    // state collector launched in init runs syncPlatform SYNCHRONOUSLY on the first
+    // StateFlow emission (immediate dispatch during construction), so any field it
+    // reads must already be initialized. A ref-typed field declared AFTER init reads
+    // as null there (a primitive reads as its default) — that null crashed
+    // `liveInbound.keys + liveLegSessions` on the first inbound call (device-caught).
+
+    /** #168D marker ownership (see [syncPlatform]). */
+    private var markedCallInFlight = false
+
+    /** Registry keys we pushed a live-leg set to last pass — so a session whose
+     *  LAST leg just vanished (empty this pass) still gets a final setLiveLegs(∅),
+     *  which is what ends the OS call. Confined to the single `core.state` collector. */
+    private var liveLegSessions: Set<String> = emptySet()
+
     init {
         watchNetwork()
         watchForeground()
@@ -430,15 +445,6 @@ class SoftphoneManager private constructor(
     }
 
     // ----------------------------------------------------- state -> platform
-
-    /** #168D marker ownership (see [syncPlatform]). */
-    private var markedCallInFlight = false
-
-    /** Registry keys we pushed a live-leg set to last pass — so a session whose
-     *  LAST leg just vanished (empty this pass) still gets a final setLiveLegs(∅),
-     *  which is what ends the OS call. Confined to the single `core.state`
-     *  collector, like [markedCallInFlight]. */
-    private var liveLegSessions: Set<String> = emptySet()
 
     /**
      * Drive the OS-facing surfaces from the one leg-state snapshot. Telecom now
