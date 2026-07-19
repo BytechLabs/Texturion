@@ -40,4 +40,48 @@ class RingerPolicyTest {
     fun `a defensive negative count is a stop`() {
         assertEquals(RingerCommand.STOP, RingerPolicy.decide(RingMode.NORMAL, -1))
     }
+
+    // ----------------------------------------- R2 foreground audio-owner gate
+
+    @Test
+    fun `foreground rings per the ring mode`() {
+        assertEquals(
+            RingerCommand.RING_AND_VIBRATE,
+            RingerPolicy.command(RingMode.NORMAL, 1, appInForeground = true),
+        )
+        assertEquals(
+            RingerCommand.VIBRATE_ONLY,
+            RingerPolicy.command(RingMode.VIBRATE, 1, appInForeground = true),
+        )
+        assertEquals(
+            RingerCommand.STOP,
+            RingerPolicy.command(RingMode.SILENT, 1, appInForeground = true),
+        )
+    }
+
+    @Test
+    fun `backgrounded the in-app ringer stays silent so only the channel rings`() {
+        // #171 R2 double-ring fix: not foreground -> STOP, whatever the ring
+        // mode or count; the INCOMING_CALLS notification channel owns the audio.
+        assertEquals(
+            RingerCommand.STOP,
+            RingerPolicy.command(RingMode.NORMAL, 1, appInForeground = false),
+        )
+        assertEquals(
+            RingerCommand.STOP,
+            RingerPolicy.command(RingMode.VIBRATE, 1, appInForeground = false),
+        )
+        assertEquals(
+            RingerCommand.STOP,
+            RingerPolicy.command(RingMode.NORMAL, 2, appInForeground = false),
+        )
+    }
+
+    @Test
+    fun `no ringing calls is a stop even in the foreground`() {
+        assertEquals(
+            RingerCommand.STOP,
+            RingerPolicy.command(RingMode.NORMAL, 0, appInForeground = true),
+        )
+    }
 }

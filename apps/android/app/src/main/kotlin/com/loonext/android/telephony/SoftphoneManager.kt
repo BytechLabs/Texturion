@@ -312,21 +312,16 @@ class SoftphoneManager private constructor(
     fun hangup(id: String) = core.hangup(id)
 
     /**
-     * User Decline (#171 bug 1) — routes to the server decline endpoint (drops
-     * this member's device from the avenue set so the caller's ring ends) AND
-     * tears down the local SDK leg. Every user-facing Decline (banner,
-     * notification action, [com.loonext.android.features.calls.IncomingCallActivity])
-     * comes here, NOT to a bare [hangup].
+     * Universal user Decline (#171 R1) — every user-facing Decline (banner,
+     * notification action, [com.loonext.android.features.calls.IncomingCallActivity],
+     * in-call second-ring) routes here, NOT to a bare [hangup]. Always POSTs
+     * `decline-mine` (member-scoped, no session needed — fixes the foreground
+     * live-socket ring the old per-session path silently dropped), fires the
+     * narrow per-session decline too when [sessionHint] is known, and tears
+     * down the local ring leg ([callId], else the sole correlated ring).
      */
-    fun decline(id: String, sessionHint: String? = null) = core.decline(id, sessionHint)
-
-    /**
-     * Decline a session with no local leg yet (#171) — the pre-INVITE push
-     * ring (the full-screen activity / notification before the WebRTC leg
-     * binds). POSTs the server decline; reaps a correlated local leg if one
-     * has since presented.
-     */
-    fun declineSession(sessionId: String) = core.declineSession(sessionId)
+    fun declineCurrent(callId: String? = null, sessionHint: String? = null) =
+        core.declineCurrent(callId, sessionHint)
 
     /** The always-200 `/state` read for a session, or null on any failure —
      *  the activity's one-shot check for a session that resolved before it
@@ -547,7 +542,14 @@ class SoftphoneManager private constructor(
                 }
                 .map { it.id }
                 .toSet()
-            ringer.sync(RingerPolicy.decide(currentRingMode(), ringingIds.size))
+            // #171 R2: ONE audio owner. Foreground = the in-app Ringer rings
+            // (per ring mode); backgrounded/locked = force STOP — the CallStyle
+            // notification's INCOMING_CALLS channel owns the ringtone+vibration
+            // on that path (verified posted below / on the foreground boundary),
+            // so the ring is never both and never silent.
+            ringer.sync(
+                RingerPolicy.command(currentRingMode(), ringingIds.size, appInForeground),
+            )
             ringingNotified.keys.filter { it !in ringingIds }.toList().forEach { gone ->
                 notifier.cancelIncoming(gone, ringingNotified[gone])
                 ringingNotified.remove(gone)
@@ -680,5 +682,16 @@ class SoftphoneManager private constructor(
         } else {
             ringing.forEach { postIncomingNotification(it) }
         }
+        // #171 R2: the foreground boundary flips the audio owner — re-evaluate
+        // the Ringer NOW. A background transition mid-ring must silence the
+        // in-app Ringer even if no further softphone state emission arrives
+        // (the notification just posted above carries the audio); a foreground
+        // transition must start it as the notifications come down. Without this
+        // the two owners could briefly overlap until the next state emission.
+        runCatching {
+            ringer.sync(
+                RingerPolicy.command(currentRingMode(), ringing.size, appInForeground),
+            )
+        }.onFailure { diagnostics.recordNonFatal("sync-ring", it) }
     }
 }

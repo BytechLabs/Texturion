@@ -123,6 +123,23 @@ data class DeclineAck(
     val state: String? = null,
 )
 
+/**
+ * POST /v1/calls/live/decline-mine response (#171 R1). The MEMBER-scoped
+ * decline — the universal fallback that needs NO session in the request. The
+ * server runs the existing DO.decline(session, me) for EVERY session currently
+ * ringing this member (idempotent no-op where the member isn't a target), so a
+ * FOREGROUND live-socket ring — where the SDK exposes neither a session nor a
+ * ccid pre-answer, so client-side per-session resolution returns null — still
+ * reaches the caller instead of holding ringback for the full 45s window.
+ * Member identity comes from the Bearer token; no body. `sessions` echoes the
+ * sessions the member was dropped from (empty = nothing was ringing them).
+ */
+@Serializable
+data class DeclineMineAck(
+    val declined: Boolean = true,
+    val sessions: List<String> = emptyList(),
+)
+
 @Serializable
 private data class TransferBody(val target_user_id: String)
 
@@ -183,6 +200,15 @@ interface CallsApi {
      * other members). Member identity comes from the Bearer token; no body.
      */
     suspend fun decline(companyId: String, sessionId: String): DeclineAck
+
+    /**
+     * Universal member-scoped decline (#171 R1) — the fallback every user-facing
+     * Decline fires, needing NO session. Where the per-session [decline] can't
+     * resolve a session (a foreground live-socket ring exposes none pre-answer),
+     * this still drops THIS member's device from every ringing session's avenue
+     * set so the caller's ring ends. Member identity is the Bearer token; no body.
+     */
+    suspend fun declineMine(companyId: String): DeclineMineAck
 }
 
 class HttpCallsApi(private val api: ApiClient) : CallsApi {
@@ -240,4 +266,7 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
 
     override suspend fun decline(companyId: String, sessionId: String): DeclineAck =
         api.post("/v1/calls/live/$sessionId/decline", companyId = companyId)
+
+    override suspend fun declineMine(companyId: String): DeclineMineAck =
+        api.post("/v1/calls/live/decline-mine", companyId = companyId)
 }

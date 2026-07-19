@@ -35,6 +35,24 @@ object RingerPolicy {
         mode == RingMode.VIBRATE -> RingerCommand.VIBRATE_ONLY
         else -> RingerCommand.RING_AND_VIBRATE
     }
+
+    /**
+     * #171 R2 — ONE audio owner. The in-app [Ringer] rings ONLY while the app
+     * is in the FOREGROUND (the in-app banner is the ring surface). When the
+     * process is backgrounded or the device is locked, the CallStyle
+     * notification's `INCOMING_CALLS` channel owns the ringtone + vibration
+     * (push/Channels.kt is IMPORTANCE_HIGH with a ringtone + vibration
+     * pattern), so the in-app Ringer MUST stay silent — otherwise both fire and
+     * the caller is announced by two overlapping ringtones (the double-ring the
+     * founder heard). This gate wraps [decide]: not foreground → STOP, whatever
+     * the ring mode or ring count. Foreground → the ring-mode policy as before.
+     */
+    fun command(
+        mode: RingMode,
+        ringingInboundCount: Int,
+        appInForeground: Boolean,
+    ): RingerCommand =
+        if (!appInForeground) RingerCommand.STOP else decide(mode, ringingInboundCount)
 }
 
 /**

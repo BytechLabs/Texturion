@@ -401,7 +401,10 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                 )
             }
             if (call.phase == CallPhase.RINGING) {
-                TextButton(onClick = { manager.hangup(call.id) }) { Text("Decline") }
+                // #171 R1: an in-call second-ring Decline is the universal
+                // server signal too (decline-mine + local teardown), not a bare
+                // leg hangup that leaves the caller ringing.
+                TextButton(onClick = { manager.declineCurrent(call.id) }) { Text("Decline") }
                 Spacer(Modifier.width(4.dp))
                 FilledTonalButton(onClick = {
                     if (manager.hasMicPermission()) {

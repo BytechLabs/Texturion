@@ -651,64 +651,61 @@ class SoftphoneCore(
     }
 
     /**
-     * User Decline (#171 bug 1) — a FIRST-CLASS server signal, not a leg
-     * hangup. Resolve the session this leg belongs to (the launching surface's
-     * explicit hint wins; else the leg's own resolved session; else the
-     * correlated wake-push hint) and POST the server decline so the DO drops
-     * this member's device from the avenue set — otherwise the v3 ladder holds
-     * the caller ringing for the full 45s window. THEN tear the local leg down
-     * through [hangup] (the single, lint-pinned SDK teardown path). A decline
-     * with no resolvable session degrades to a local hangup alone (the leg
-     * death still reaches the server as a transient signal).
+     * Universal user Decline (#171 R1) — the member-scoped server signal EVERY
+     * user-facing Decline routes through (banner, full-screen activity,
+     * notification shade, in-call second-ring). It ALWAYS POSTs
+     * `decline-mine` — no session in the request — so the server drops THIS
+     * member's device from the avenue set of every currently-ringing session.
+     * That is the fix for the FOREGROUND live-socket ring: the Android SDK
+     * exposes neither a session nor a ccid pre-answer, so the old per-session
+     * path resolved null and silently dropped the decline, leaving the caller
+     * ringing for the full window. decline-mine needs no resolution, so that
+     * silent drop cannot recur.
+     *
+     * When the launching surface already KNOWS the session (a notification /
+     * activity carrying the push `?call=<session>`), that session ALSO gets the
+     * narrow per-session [postDecline] as a free fast path (both are idempotent
+     * 200 no-ops server-side). Then the local ring leg — the given [callId],
+     * else the sole wake-correlated ring — is torn down through [hangup], the
+     * single lint-pinned SDK teardown path.
      */
-    fun decline(id: String, sessionHint: String? = null) {
-        val call = _state.value.calls.firstOrNull { it.id == id }
-        val session = IncomingCallPresentation.resolveDeclineSession(
-            explicitSession = sessionHint,
-            call = call,
-            hintSession = pushHintSession,
-            hintCaller = pushHintCaller,
-            hintAtMs = pushHintAtMs,
-            nowMs = now(),
-        )
-        postDecline(session)
-        hangup(id)
+    fun declineCurrent(callId: String? = null, sessionHint: String? = null) {
+        // Fast path: a session the surface already knows (free — no resolution).
+        sessionHint?.takeIf { it.isNotBlank() }?.let { postDecline(it) }
+        // Universal fallback — ALWAYS fires, even with no session at all.
+        postDeclineMine()
+        // Local teardown of the presented ring (explicit user action).
+        val id = callId
+            ?: IncomingCallPresentation.matchLocalRing(_state.value.calls, pushHintCaller)
+        id?.let { hangup(it) }
     }
 
-    /**
-     * Decline a session with NO local leg (#171) — the pre-INVITE push ring
-     * (the full-screen activity / notification before the WebRTC leg binds).
-     * POST the server decline; if a local leg happens to be presenting the
-     * session already, tear it down too (via [hangup], the one teardown path).
-     */
-    fun declineSession(sessionId: String) {
-        if (sessionId.isBlank()) return
-        postDecline(sessionId)
-        val local = _state.value.calls.firstOrNull {
-            it.phase != CallPhase.ENDED && it.direction == CallDirection.INBOUND &&
-                it.sessionId == sessionId
-        } ?: matchedRingForHint(sessionId)
-        local?.let { hangup(it.id) }
-    }
-
-    /** A ringing inbound leg correlated to [sessionId] via the wake hint. */
-    private fun matchedRingForHint(sessionId: String): CallSnapshot? {
-        if (pushHintSession != sessionId) return null
-        val matchId = IncomingCallPresentation.matchLocalRing(_state.value.calls, pushHintCaller)
-        return matchId?.let { id -> _state.value.calls.firstOrNull { it.id == id } }
-    }
-
-    private fun postDecline(session: String?) {
+    /** POST the member-scoped decline-mine (#171 R1). Best-effort like every
+     *  telephony signal — the leg teardown and the server ladder are backstops. */
+    private fun postDeclineMine() {
         val company = companyId ?: return
-        if (session.isNullOrBlank()) return
+        scope.launch {
+            try {
+                api.declineMine(company)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                onInternalFailure?.invoke("decline-mine", cause)
+            }
+        }
+    }
+
+    /** POST the narrow per-session decline (the free fast path when the session
+     *  is already known). Best-effort; decline-mine is the universal backstop. */
+    private fun postDecline(session: String) {
+        val company = companyId ?: return
+        if (session.isBlank()) return
         scope.launch {
             try {
                 api.decline(company, session)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {
-                // Best-effort like every telephony signal — the leg teardown
-                // and the server's own ladder are the backstops.
                 onInternalFailure?.invoke("decline", cause)
             }
         }

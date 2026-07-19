@@ -28,6 +28,16 @@ object IncomingCallPresentation {
      *  a slow INVITE, then the activity gives up rather than ring forever. */
     const val PRESENT_TIMEOUT_MS = 46_000L
 
+    /**
+     * #171 R3: once the user COMMITS to Answer over the keyguard, the intent is
+     * held across the WebRTC leg binding ([answerPhase]). If no leg binds within
+     * this bounded window we surface an honest 'couldn't connect' rather than
+     * leaving a dead 'Answer' button. Shorter than the full ring window: a
+     * commit whose registration/INVITE can't land a leg in ~20s won't, and the
+     * user deserves the truth sooner than 45s of silence.
+     */
+    const val ANSWER_BIND_TIMEOUT_MS = 20_000L
+
     /** What the full-screen activity should do given the current state. */
     enum class Presentation {
         /** Keep showing the answer/decline surface. */
@@ -119,6 +129,41 @@ object IncomingCallPresentation {
         return hintSession
     }
 
+    /** The answer-queue phase the full-screen activity renders (#171 R3). */
+    enum class AnswerPhase {
+        /** No answer committed — the Answer/Decline surface. */
+        IDLE,
+
+        /** Answer committed; the leg is binding (or already bound, handing off
+         *  to the in-call UI) — show 'Connecting…', never a dead button. */
+        CONNECTING,
+
+        /** Answer committed but no leg bound within [ANSWER_BIND_TIMEOUT_MS] —
+         *  surface an honest failure the user can dismiss. */
+        FAILED,
+    }
+
+    /**
+     * Answer-queue reducer (#171 R3). Once [answerCommitted] (the user tapped
+     * Answer with the mic granted, or a shade auto-answer routed here), the
+     * intent survives the leg arriving: while committed the activity shows
+     * 'Connecting…'. A leg that HAS bound ([legBound]) is always CONNECTING —
+     * the present-vs-finish [reduce] then hands off the instant it goes ACTIVE,
+     * so a late [bindTimedOut] can never override a real connection. Only a
+     * commit with NO bound leg past the window resolves to FAILED (the honest
+     * 'couldn't connect' state), never a silently dead Answer button.
+     */
+    fun answerPhase(
+        answerCommitted: Boolean,
+        legBound: Boolean,
+        bindTimedOut: Boolean,
+    ): AnswerPhase = when {
+        !answerCommitted -> AnswerPhase.IDLE
+        legBound -> AnswerPhase.CONNECTING
+        bindTimedOut -> AnswerPhase.FAILED
+        else -> AnswerPhase.CONNECTING
+    }
+
     /** A notification-shade call action. */
     enum class Action { ANSWER, DECLINE }
 
@@ -132,8 +177,8 @@ object IncomingCallPresentation {
          *  the tab shell. */
         ANSWER_VIA_ACTIVITY,
 
-        /** Manager alive → route through [SoftphoneManager.decline] (server
-         *  decline + local leg teardown). */
+        /** Manager alive → route through [SoftphoneManager.declineCurrent]
+         *  (member-scoped decline-mine + optional per-session + local teardown). */
         DECLINE_VIA_MANAGER,
 
         /** Manager dead → a short-lived path POSTs the server decline from the

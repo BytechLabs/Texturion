@@ -75,8 +75,11 @@ class SoftphoneCoreTest {
         { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
     private val ringMeNoLocalLeg = mutableListOf<Boolean>()
 
-    /** Every session a [SoftphoneCore.decline]/[declineSession] POSTed (#171). */
+    /** Every session the per-session fast-path decline POSTed (#171 R1). */
     private val declinedSessions = mutableListOf<String>()
+
+    /** How many times the universal member-scoped decline-mine POSTed (#171 R1). */
+    private val declineMineCalls = AtomicInteger(0)
 
     @Before
     fun setUp() {
@@ -88,6 +91,7 @@ class SoftphoneCoreTest {
         ringMeBehavior = { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
         ringMeNoLocalLeg.clear()
         declinedSessions.clear()
+        declineMineCalls.set(0)
     }
 
     /**
@@ -145,6 +149,11 @@ class SoftphoneCoreTest {
         override suspend fun decline(companyId: String, sessionId: String): DeclineAck {
             declinedSessions += sessionId
             return DeclineAck(declined = true, state = "voicemail_greeting")
+        }
+
+        override suspend fun declineMine(companyId: String): DeclineMineAck {
+            declineMineCalls.incrementAndGet()
+            return DeclineMineAck(declined = true, sessions = declinedSessions.toList())
         }
     }
 
@@ -658,81 +667,80 @@ class SoftphoneCoreTest {
         h.scope.cancel()
     }
 
-    // ----------------------------------------------------- decline (#171)
+    // ----------------------------------------------------- decline (#171 R1)
 
     @Test
-    fun `decline of a presented ring POSTs the server decline AND ends the leg`() = runTest {
+    fun `declineCurrent always POSTs decline-mine and ends the local leg`() = runTest {
+        // The FOREGROUND live-socket ring: no wake push, so no session is
+        // knowable client-side — the exact case the old per-session decline
+        // resolved null and silently dropped. decline-mine needs no session.
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
-        // The wake push named the session + caller — the decline correlation.
-        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
-
         val leg = FakeHandle("in-1")
         h.sdk.ring(leg, name = "Dana", number = "+15557778888")
         runCurrent()
 
-        h.core.decline("in-1")
+        h.core.declineCurrent("in-1")
         runCurrent()
 
-        assertEquals(
-            "decline reached the server for the correlated session",
-            listOf("sess-x"),
-            declinedSessions.toList(),
-        )
-        assertTrue("decline is explicit user action — it DOES end the local leg", leg.ended)
+        assertEquals("decline-mine always fires — no session resolution", 1, declineMineCalls.get())
+        assertTrue("no per-session decline without a known session", declinedSessions.isEmpty())
+        assertTrue("decline is explicit user action — it ends the local leg", leg.ended)
         h.scope.cancel()
     }
 
     @Test
-    fun `decline with an explicit session hint overrides the push correlation`() = runTest {
+    fun `declineCurrent with a known session ALSO fires the per-session fast path`() = runTest {
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
-        h.core.onIncomingCallPush("sess-hint", callerHint = "+15557778888")
-
         val leg = FakeHandle("in-1")
         h.sdk.ring(leg, name = "Dana", number = "+15557778888")
         runCurrent()
 
-        h.core.decline("in-1", sessionHint = "sess-explicit")
+        h.core.declineCurrent("in-1", sessionHint = "sess-known")
         runCurrent()
 
-        assertEquals(listOf("sess-explicit"), declinedSessions.toList())
+        assertEquals("the free per-session fast path fired", listOf("sess-known"), declinedSessions.toList())
+        assertEquals("the universal decline-mine still fires", 1, declineMineCalls.get())
         assertTrue(leg.ended)
         h.scope.cancel()
     }
 
     @Test
-    fun `declineSession with no local leg still POSTs the server decline`() = runTest {
+    fun `declineCurrent with no local leg still POSTs decline-mine`() = runTest {
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
 
-        // The pre-INVITE push ring: no WebRTC leg exists yet.
-        h.core.declineSession("sess-pre-invite")
+        // The pre-INVITE push ring: no WebRTC leg exists yet, session known.
+        h.core.declineCurrent(callId = null, sessionHint = "sess-pre-invite")
         runCurrent()
 
         assertEquals(listOf("sess-pre-invite"), declinedSessions.toList())
+        assertEquals(1, declineMineCalls.get())
         assertTrue("no local leg to end", h.core.state.value.calls.isEmpty())
         h.scope.cancel()
     }
 
     @Test
-    fun `decline with no resolvable session still ends the leg locally`() = runTest {
+    fun `declineCurrent with a null callId tears down the sole correlated ring`() = runTest {
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
-        // A pure foreground INVITE with no wake hint — no session to decline.
-        val leg = FakeHandle("in-1")
+        // A wake push correlates the sole ring by caller; a null callId falls
+        // back to it for teardown (the activity's pre-INVITE decline path).
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+        val leg = FakeHandle("in-late")
         h.sdk.ring(leg, name = "Dana", number = "+15557778888")
         runCurrent()
 
-        h.core.decline("in-1")
+        h.core.declineCurrent()
         runCurrent()
 
-        assertTrue("no server-addressable session", declinedSessions.isEmpty())
-        assertTrue("the local leg is still torn down (transient signal)", leg.ended)
+        assertEquals("decline-mine fires with no callId and no session hint", 1, declineMineCalls.get())
+        assertTrue("the sole correlated ring is torn down", leg.ended)
         h.scope.cancel()
     }
 

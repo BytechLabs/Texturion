@@ -218,6 +218,48 @@ class IncomingCallPresentationTest {
         assertNull(session)
     }
 
+    // --------------------------------------------------------- answerPhase (R3)
+
+    @Test
+    fun `no answer committed is idle`() {
+        assertEquals(
+            IncomingCallPresentation.AnswerPhase.IDLE,
+            IncomingCallPresentation.answerPhase(
+                answerCommitted = false, legBound = false, bindTimedOut = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `committed and waiting for the leg is connecting`() {
+        assertEquals(
+            IncomingCallPresentation.AnswerPhase.CONNECTING,
+            IncomingCallPresentation.answerPhase(
+                answerCommitted = true, legBound = false, bindTimedOut = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `committed with a bound leg is connecting - a late timeout cannot override it`() {
+        assertEquals(
+            IncomingCallPresentation.AnswerPhase.CONNECTING,
+            IncomingCallPresentation.answerPhase(
+                answerCommitted = true, legBound = true, bindTimedOut = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `committed with no bound leg past the window is an honest failure`() {
+        assertEquals(
+            IncomingCallPresentation.AnswerPhase.FAILED,
+            IncomingCallPresentation.answerPhase(
+                answerCommitted = true, legBound = false, bindTimedOut = true,
+            ),
+        )
+    }
+
     // ---------------------------------------------------- routeNotificationAction
 
     @Test

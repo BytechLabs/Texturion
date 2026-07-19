@@ -324,8 +324,9 @@ internal class CallNotifier(private val context: Context) {
  *    ungranted or the softphone isn't built yet, open [IncomingCallActivity]
  *    (which wakes the softphone, runs the runtime preflight, and answers) —
  *    never the tab shell.
- *  - Decline / Hangup: route through [SoftphoneManager.decline] (server
- *    decline + local leg teardown). When the app process is dead
+ *  - Decline / Hangup: route through [SoftphoneManager.declineCurrent]
+ *    (member-scoped decline-mine + optional per-session + local teardown).
+ *    When the app process is dead
  *    ([SoftphoneManager.peek] is null) a Decline STILL reaches the server via
  *    a short-lived coroutine reading the session + company from the intent —
  *    a decline is never silently dropped.
@@ -369,7 +370,7 @@ class CallActionReceiver : BroadcastReceiver() {
 
                 CallNotifier.ACTION_DECLINE -> {
                     if (manager != null) {
-                        manager.decline(callId, sessionHint = session)
+                        manager.declineCurrent(callId, sessionHint = session)
                     } else {
                         declineFromDeadProcess(context, session, company)
                     }
@@ -400,24 +401,30 @@ class CallActionReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Decline with the app process dead (#171): the softphone singleton was
+     * Decline with the app process dead (#171 R1): the softphone singleton was
      * never built, so there is no core to route through. POST the server
      * decline directly from the graph's [com.loonext.android.core.net.ApiClient]
      * (built in Application.onCreate, carrying the persisted session) on a
-     * short-lived coroutine kept alive by goAsync(). Best-effort; the leg is
-     * the server's to reap. NEVER a silent drop.
+     * short-lived coroutine kept alive by goAsync(). Fires the universal
+     * member-scoped `decline-mine` — which needs NO session, so a dead-process
+     * decline reaches the server even for a ring the push couldn't tag — and,
+     * when the shade DID carry the session, the narrow per-session decline too.
+     * Company comes from the intent, else [PushPrefs]. Best-effort; NEVER a
+     * silent drop.
      */
     private fun declineFromDeadProcess(context: Context, session: String?, company: String?) {
-        val sessionId = session?.takeIf { it.isNotBlank() } ?: return
         val app = context.applicationContext as? LoonextApp ?: return
         val graph = app.graph
         val companyId = company?.takeIf { it.isNotBlank() }
             ?: PushPrefs.companyId(context)
             ?: return
+        val sessionId = session?.takeIf { it.isNotBlank() }
         val pending = goAsync()
         graph.appScope.launch {
             try {
-                HttpCallsApi(graph.api).decline(companyId, sessionId)
+                val api = HttpCallsApi(graph.api)
+                sessionId?.let { runCatching { api.decline(companyId, it) } }
+                api.declineMine(companyId)
             } catch (_: Exception) {
                 // Best-effort — the server's own avenue ladder is the backstop.
             } finally {

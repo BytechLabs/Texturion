@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -219,7 +220,13 @@ private fun IncomingCallScreen(
     // one-shot /state read) — the pre-INVITE finish signal (no local leg yet).
     var sessionExited by remember { mutableStateOf(false) }
     var timedOut by remember { mutableStateOf(false) }
+    // `pendingAnswer` fires answer() the moment a leg binds; `answerCommitted`
+    // is the durable intent (#171 R3) that survives across the leg arriving and
+    // drives the Connecting…/couldn't-connect surface. Committing sets both;
+    // firing answer() clears only `pendingAnswer`.
     var pendingAnswer by remember { mutableStateOf(autoAnswer) }
+    var answerCommitted by remember { mutableStateOf(autoAnswer) }
+    var answerBindTimedOut by remember { mutableStateOf(false) }
     var micNotice by remember { mutableStateOf(false) }
 
     // Correlate the ring to a local INVITE leg once it binds (during ring a leg
@@ -234,7 +241,13 @@ private fun IncomingCallScreen(
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) pendingAnswer = true else micNotice = true
+        if (granted) {
+            activity?.dismissKeyguard()
+            pendingAnswer = true
+            answerCommitted = true
+        } else {
+            micNotice = true
+        }
     }
 
     // A late push may name a session that already resolved — one-shot /state
@@ -261,7 +274,9 @@ private fun IncomingCallScreen(
     }
 
     // Auto-answer the moment the leg binds (Answer tapped pre-INVITE, or the
-    // shade Answer routed here for the mic preflight).
+    // shade Answer routed here for the mic preflight). #171 R3: the intent
+    // (`answerCommitted`) persists across the leg arriving; only the one-shot
+    // `pendingAnswer` trigger clears once answer() fires.
     LaunchedEffect(matchedCallId, pendingAnswer) {
         if (pendingAnswer && matchedCallId != null) {
             activity?.dismissKeyguard()
@@ -269,6 +284,22 @@ private fun IncomingCallScreen(
             pendingAnswer = false
         }
     }
+
+    // #171 R3: a committed answer that never binds a leg within the bounded
+    // window surfaces an honest failure — not a dead Answer button, not 45s of
+    // silence. The clock starts when the user commits; a bound leg makes the
+    // timeout moot (answerPhase stays CONNECTING and reduce() hands off).
+    LaunchedEffect(answerCommitted) {
+        if (!answerCommitted) return@LaunchedEffect
+        kotlinx.coroutines.delay(IncomingCallPresentation.ANSWER_BIND_TIMEOUT_MS)
+        answerBindTimedOut = true
+    }
+
+    val answerPhase = IncomingCallPresentation.answerPhase(
+        answerCommitted = answerCommitted,
+        legBound = matchedCallId != null,
+        bindTimedOut = answerBindTimedOut,
+    )
 
     val presentation = IncomingCallPresentation.reduce(
         calls = snapshot.calls,
@@ -292,32 +323,54 @@ private fun IncomingCallScreen(
     val number = (matchedCall?.peerNumber ?: pushCallerNumber)
         .takeIf { it.isNotBlank() && formatPhone(it) != displayName }
 
-    IncomingCallContent(
-        displayName = displayName,
-        subtitle = number?.let { formatPhone(it) },
-        micNotice = micNotice,
-        error = snapshot.error,
-        onAnswer = {
-            micNotice = false
-            if (manager.hasMicPermission()) {
-                activity?.dismissKeyguard()
-                pendingAnswer = true
-            } else {
-                micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
-        },
-        onDecline = {
-            // Server decline (#171 bug 1) — from the local leg if it bound,
-            // else session-only (pre-INVITE). Either finishes us via the exit.
-            if (matchedCallId != null) {
-                manager.decline(matchedCallId, sessionHint = session)
-            } else if (session != null) {
-                manager.declineSession(session)
-            }
-            session?.let { CallNotifierBridge.cancelIncoming(activity, it) }
-            onFinished()
-        },
-    )
+    // #171 R1: the universal member-scoped decline (works pre-INVITE with no
+    // knowable session; also tears down a bound leg). Same routing whether the
+    // decline comes from the answer surface or the couldn't-connect surface.
+    val declineAndFinish: () -> Unit = {
+        manager.declineCurrent(matchedCallId, sessionHint = session)
+        session?.let { CallNotifierBridge.cancelIncoming(activity, it) }
+        onFinished()
+    }
+
+    when (answerPhase) {
+        // #171 R3: honest failure instead of a dead Answer button — the commit
+        // never bound a leg in the window. The user dismisses (server reaps the
+        // orphan leg); they are not left staring at a stuck spinner.
+        IncomingCallPresentation.AnswerPhase.FAILED -> ConnectFailedContent(
+            displayName = displayName,
+            onDismiss = {
+                session?.let { CallNotifierBridge.cancelIncoming(activity, it) }
+                onFinished()
+            },
+        )
+
+        // #171 R3: Answer committed, leg binding (or bound and handing off) —
+        // 'Connecting…' with the caller identity and a way to bail.
+        IncomingCallPresentation.AnswerPhase.CONNECTING -> ConnectingContent(
+            displayName = displayName,
+            subtitle = number?.let { formatPhone(it) },
+            error = snapshot.error,
+            onDecline = declineAndFinish,
+        )
+
+        IncomingCallPresentation.AnswerPhase.IDLE -> IncomingCallContent(
+            displayName = displayName,
+            subtitle = number?.let { formatPhone(it) },
+            micNotice = micNotice,
+            error = snapshot.error,
+            onAnswer = {
+                micNotice = false
+                if (manager.hasMicPermission()) {
+                    activity?.dismissKeyguard()
+                    pendingAnswer = true
+                    answerCommitted = true
+                } else {
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            onDecline = declineAndFinish,
+        )
+    }
 }
 
 @Composable
@@ -410,6 +463,132 @@ private fun IncomingCallContent(
                     icon = Icons.Filled.Call,
                     onClick = onAnswer,
                 )
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #171 R3: the 'Connecting…' surface shown after the user commits to Answer,
+ * while the WebRTC leg binds (a leg that has bound is already handing off to
+ * the in-call UI). It replaces the two-button row with a spinner and a status
+ * line so the Answer tap is never a dead button; Decline stays available so the
+ * user can bail if the connection stalls.
+ */
+@Composable
+private fun ConnectingContent(
+    displayName: String,
+    subtitle: String?,
+    error: String?,
+    onDecline: () -> Unit,
+) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .padding(horizontal = 28.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(48.dp))
+            Text(
+                "Connecting…",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(28.dp))
+            CircularProgressIndicator(Modifier.size(56.dp))
+            Spacer(Modifier.height(28.dp))
+            Text(
+                displayName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (subtitle != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (error != null) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            CallActionButton(
+                label = "Decline",
+                container = MaterialTheme.colorScheme.error,
+                content = Color.White,
+                icon = Icons.Filled.CallEnd,
+                onClick = onDecline,
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #171 R3: the honest 'couldn't connect' surface — shown when a committed
+ * Answer never bound a leg within [IncomingCallPresentation.ANSWER_BIND_TIMEOUT_MS]
+ * (registration/INVITE never landed over the keyguard). Never a dead spinner:
+ * the user gets the truth and a Dismiss; the server reaps the orphan leg.
+ */
+@Composable
+private fun ConnectFailedContent(
+    displayName: String,
+    onDismiss: () -> Unit,
+) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .padding(horizontal = 28.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(48.dp))
+            Text(
+                "Couldn't connect the call",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.height(28.dp))
+            Text(
+                displayName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "The call didn't connect in time. It may have gone to voicemail or another teammate.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text("Dismiss")
             }
             Spacer(Modifier.height(24.dp))
         }
