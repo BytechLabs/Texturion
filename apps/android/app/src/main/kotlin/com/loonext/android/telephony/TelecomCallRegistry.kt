@@ -184,14 +184,14 @@ class TelecomCallRegistry(
     fun ensureIncomingCall(session: String, callerName: String, callerNumber: String) {
         if (session.isBlank()) return
         registerOnce()
-        // A prior leg for this session may have TERMINATED the OS call without the
-        // entry being cleaned up yet (cleanup only runs in addCall's `finally`,
-        // after the async OS-disconnect round-trip). A fresh presentation for the
-        // SAME session — a promoted duplicate fork or a ring-me re-dial (§10.1.4 /
-        // BLOCKING-2a) — must NOT be swallowed by that dying entry, or the user
-        // misses a live inbound ring. Evict the dead entry so a new OS call is
-        // registered for the new leg (HIGH re-review finding).
-        entries[session]?.let { if (it.terminated) entries.remove(session, it) }
+        // NOTE: do NOT evict a terminated-but-uncleaned entry here to let a
+        // same-session re-presentation through. That was tried and reverted: a
+        // user REJECT terminates the entry, then SoftphoneCore's synchronous
+        // maybePromoteHeld→presentIncoming re-enters this method for the promoted
+        // duplicate fork — so the eviction re-rang a call the user had just
+        // declined (and answering it would accept media on a session whose
+        // decline was already sent). The promoted-fork missed-ring is real but
+        // needs the leg-gone signal (see the note on onLegBound below), not this.
         if (!TelecomCallReducer.shouldAddCall(entries.keys, session)) return
         val entry = CallEntry(session, CallAttributesCompat.DIRECTION_INCOMING)
         if (entries.putIfAbsent(session, entry) != null) return // lost the race
@@ -205,6 +205,25 @@ class TelecomCallRegistry(
      * before the leg arrived), accept now and clear the bind deadline. [legId]
      * claims ownership of the OS call for this leg (BLOCKING-2b) so a reaped
      * sibling leg sharing the session can never disconnect it.
+     *
+     * KNOWN GAP — a RINGING leg's death is INVISIBLE to this registry. Verified:
+     * [CallStateMachine.sdkPhase] REMOVES a RINGING call from `state.calls` when it
+     * ENDs (only a non-ringing call is retained with `phase = ENDED`), so
+     * SoftphoneManager.syncPlatform — which iterates the snapshot — never issues a
+     * terminal `driveInbound` for it. Two consequences, both needing the same fix:
+     *  1. [CallEntry.owningLegId] can stay pinned to a leg that already died while
+     *     ringing. If a promoted duplicate fork then answers, `legMayDrive` gates
+     *     the real leg's terminal drive off and the OS call is never disconnected
+     *     (device stuck in-call, mic FGS held) — only the server `call_end` push
+     *     recovers it.
+     *  2. The ring-window backstop is cancelled on bind below, so a leg that binds
+     *     and then dies ringing leaves the OS call ringing with no CLIENT-side
+     *     timer — breaking §5's "no external dependency on call_end" guarantee.
+     * The fix is a leg-gone signal (diff the previous snapshot's ids in
+     * syncPlatform and synthesise a terminal drive for ids that vanished), NOT an
+     * eviction in ensureIncomingCall and NOT a re-home keyed on terminal drives —
+     * both were tried and reverted (the eviction re-rang a just-declined call; the
+     * re-home's trigger can never fire for exactly this reason).
      */
     fun onLegBound(session: String, legId: String? = null) {
         val entry = entries[session] ?: return
@@ -721,8 +740,15 @@ class TelecomCallRegistry(
     private fun cleanup(entry: CallEntry) {
         entry.deadlineJob?.cancel()
         entry.ringWindowJob?.cancel()
-        entries.remove(entry.key, entry)
-        runCatching { bridge.onCallUnregistered(entry.key.removePrefix("out:")) }
+        // Entry-scoped, not session-scoped: the value-guarded remove tells us
+        // whether THIS entry is still the one mapped for its key. If a successor
+        // entry has taken the key, its ring owns the connecting notification (they
+        // share the session tag) — a superseded entry's teardown must never cancel
+        // it, or the fresh ring loses the within-5s foreground-priority
+        // notification that sustains the phoneCall mic FGS.
+        if (entries.remove(entry.key, entry)) {
+            runCatching { bridge.onCallUnregistered(entry.key.removePrefix("out:")) }
+        }
     }
 
     /** A non-Success [CallControlResult] surfaced as a Throwable for [onFailure]
