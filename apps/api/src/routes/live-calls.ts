@@ -229,6 +229,88 @@ liveCallsRoutes.get("/calls/live/mine", requireRole("member"), async (c) => {
 });
 
 /**
+ * POST /v1/calls/live/decline-mine (#171 R1) — the ONE decline the client ever
+ * calls. A foreground live-socket ring exposes NO session id to the SDK
+ * (getTelnyxCallControlId is outbound-only), so the client can't name the
+ * session it's declining; it just says "decline whatever is ringing ME". The
+ * server finds the company's currently-ringing sessions (the DO mirrors machine
+ * state → calls.state, so `state='ringing'` is the queryable truth — typically
+ * 0-1 rows) and routes the EXISTING idempotent DO.decline(session, me) into
+ * each. The DO no-ops (declined:false) for any session where this member isn't
+ * a ring target, so "decline mine" only ever affects sessions actually ringing
+ * this member — that per-session target check is also the #106 boundary (a
+ * member can only decline a session they were genuinely rung for).
+ *
+ * Registered BEFORE the :sessionId routes so 'decline-mine' never parses as a
+ * session id. ALWAYS 200 (never a 409 for state). Kill-switch / no-DO env →
+ * {declined:false, sessions:[]} (legacy relies on the client SDK hangup).
+ * Crash-safe fan-out: a per-session DO throw is logged and skipped, never
+ * sinking the batch or the 200 (the DO journals its own state internally).
+ */
+liveCallsRoutes.post(
+  "/calls/live/decline-mine",
+  requireRole("member"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+
+    // Kill-switch / no-binding: decline is a v3-only signal (no avenue ladder
+    // without the DO). Empty 200 — the legacy client owns its own SDK hangup.
+    if (!callsV3Active(env)) {
+      return c.json({ declined: false, sessions: [] });
+    }
+
+    const db = getDb(env);
+    // The company's currently-ringing sessions. The DO mirror keeps
+    // calls.state authoritative; bound to the newest 25 (there is realistically
+    // never more than one ringing session, but the query stays bounded).
+    const rows = unwrap<{ call_session_id: string }[]>(
+      await db
+        .from("calls")
+        .select("call_session_id")
+        .eq("company_id", companyId)
+        .eq("state", "ringing")
+        .is("outcome", null)
+        .order("created_at", { ascending: false })
+        .limit(25),
+      "ringing sessions",
+    );
+
+    // Route the existing DO.decline into each; collect ONLY the sessions this
+    // member was genuinely a target of (declined:true). We never enumerate the
+    // company's other ringing sessions in the body — the per-session no-op both
+    // enforces #106 and keeps those sessions out of the response.
+    const sessions: { session_id: string; state: string }[] = [];
+    for (const row of rows) {
+      const stub = callSessionStub(env, row.call_session_id);
+      if (!stub) continue;
+      try {
+        const result = await stub.decline({
+          sessionId: row.call_session_id,
+          userId,
+        });
+        if (result.declined) {
+          sessions.push({
+            session_id: row.call_session_id,
+            state: result.state,
+          });
+        }
+      } catch (cause) {
+        // A DO RPC failure on ONE session must not sink the batch or the 200.
+        // The DO journals its own in-flight state; here we log and move on.
+        console.error(
+          `decline-mine: DO.decline failed (session ${row.call_session_id}):`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      }
+    }
+
+    return c.json({ declined: sessions.length > 0, sessions });
+  },
+);
+
+/**
  * D43 resolver: an INBOUND call is answered on a member RING leg whose Telnyx
  * session id differs from the customer inbound leg's session (the ring engine
  * Dials without link_to). The customer session — which every live-call op and

@@ -22,6 +22,7 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import type { Env } from "../env";
 import { liveCallsRoutes } from "./live-calls";
 
 const env = completeEnv();
@@ -656,5 +657,236 @@ describe("POST /v1/calls/live/:id/decline (#171)", () => {
     const sb = liveWorld({ call: { answered_at: null, outcome: null, direction: "outbound" } });
     const res = await post(sb);
     expect(res.status).toBe(409);
+  });
+});
+
+describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
+  interface DeclineReply {
+    declined: boolean;
+    state: string;
+    reason?: string;
+  }
+
+  /** A CALL_SESSIONS namespace whose per-session decline is scripted. Records
+   *  every {sessionId,userId} the route routes into a DO.decline. */
+  function fakeSessions(
+    perSession: Record<string, DeclineReply>,
+    routed: { sessionId: string; userId: string }[],
+  ): Env["CALL_SESSIONS"] {
+    return {
+      idFromName: (name: string) => name,
+      get: (id: string) => ({
+        decline: async (input: { sessionId: string; userId: string }) => {
+          routed.push({ sessionId: input.sessionId, userId: input.userId });
+          return (
+            perSession[input.sessionId] ?? {
+              declined: false,
+              state: "ended_missed",
+              reason: "not_ringing",
+            }
+          );
+        },
+      }),
+    } as unknown as Env["CALL_SESSIONS"];
+  }
+
+  /** Membership (for requireRole) + the company ringing-sessions read. */
+  function world(rows: { call_session_id: string }[]): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/calls", () => rows);
+    return sb;
+  }
+
+  async function post(env2: Env, sb: SupabaseStub) {
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, env2, await auth.token(), "/v1/calls/live/decline-mine", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: {},
+    });
+  }
+
+  it("declines the one session ringing me (solo → the DO resolves to voicemail)", async () => {
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions(
+        { [SESSION]: { declined: true, state: "voicemail_greeting" } },
+        routed,
+      ),
+    };
+    const sb = world([{ call_session_id: SESSION }]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      declined: boolean;
+      sessions: { session_id: string; state: string }[];
+    };
+    expect(body.declined).toBe(true);
+    expect(body.sessions).toEqual([
+      { session_id: SESSION, state: "voicemail_greeting" },
+    ]);
+    // Routed into the DO for THIS member (auth.subject), not MEMBER_ID.
+    expect(routed).toEqual([{ sessionId: SESSION, userId: auth.subject }]);
+
+    // The queryable truth: company-scoped, state='ringing', outcome null.
+    const read = sb.find("GET", "/rest/v1/calls")[0];
+    expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(read.url.searchParams.get("state")).toBe("eq.ringing");
+    expect(read.url.searchParams.get("outcome")).toBe("is.null");
+  });
+
+  it("a ringing session NOT targeting me → declined:false, not listed, no leak of the other session", async () => {
+    // Two company sessions ring at once; only OTHER targets me — the DO no-ops
+    // (declined:false) for the session I'm not a target of, and the route never
+    // enumerates it in the body (#106 / #171 no-leak).
+    const OTHER = "sess-not-mine";
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions(
+        {
+          [OTHER]: { declined: false, state: "ringing", reason: "not_ringing" },
+        },
+        routed,
+      ),
+    };
+    const sb = world([{ call_session_id: OTHER }]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      declined: boolean;
+      sessions: unknown[];
+    };
+    expect(body).toEqual({ declined: false, sessions: [] });
+    // It DID route the no-op decline (the DO is the authority on membership)…
+    expect(routed).toEqual([{ sessionId: OTHER, userId: auth.subject }]);
+  });
+
+  it("lists ONLY the session I was a target of when several company sessions ring", async () => {
+    const MINE = "sess-mine";
+    const THEIRS = "sess-theirs";
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions(
+        {
+          [MINE]: { declined: true, state: "voicemail_greeting" },
+          [THEIRS]: { declined: false, state: "ringing", reason: "not_ringing" },
+        },
+        routed,
+      ),
+    };
+    const sb = world([
+      { call_session_id: MINE },
+      { call_session_id: THEIRS },
+    ]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      declined: boolean;
+      sessions: { session_id: string }[];
+    };
+    expect(body.declined).toBe(true);
+    expect(body.sessions).toEqual([
+      { session_id: MINE, state: "voicemail_greeting" },
+    ]);
+  });
+
+  it("no ringing sessions → 200 {declined:false, sessions:[]} and no DO call", async () => {
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions({}, routed),
+    };
+    const sb = world([]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    expect(routed).toHaveLength(0);
+  });
+
+  it("idempotent repeat: a second decline of the same session is a 200 no-op body", async () => {
+    // The DO is idempotent — after the first decline the session is resolved, so
+    // the repeat returns declined:false.
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions(
+        { [SESSION]: { declined: false, state: "ended_voicemail", reason: "not_ringing" } },
+        routed,
+      ),
+    };
+    const sb = world([{ call_session_id: SESSION }]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+  });
+
+  it("a per-session DO throw is swallowed: still 200, batch survives", async () => {
+    const GOOD = "sess-good";
+    const BAD = "sess-bad";
+    const routed: { sessionId: string; userId: string }[] = [];
+    const namespace = {
+      idFromName: (name: string) => name,
+      get: (id: string) => ({
+        decline: async (input: { sessionId: string; userId: string }) => {
+          routed.push({ sessionId: input.sessionId, userId: input.userId });
+          if (input.sessionId === BAD) throw new Error("DO RPC exploded");
+          return { declined: true, state: "voicemail_greeting" };
+        },
+      }),
+    } as unknown as Env["CALL_SESSIONS"];
+    const doEnv: Env = { ...env, CALL_SESSIONS: namespace };
+    // BAD is newest (ordered desc), then GOOD — the throw on BAD must not stop GOOD.
+    const sb = world([{ call_session_id: BAD }, { call_session_id: GOOD }]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      declined: boolean;
+      sessions: { session_id: string }[];
+    };
+    expect(body.declined).toBe(true);
+    expect(body.sessions).toEqual([
+      { session_id: GOOD, state: "voicemail_greeting" },
+    ]);
+    expect(routed).toHaveLength(2); // both attempted
+  });
+
+  it("kill-switch (CALLS_V3_LEGACY) → 200 {declined:false, sessions:[]}, no ringing query, no DO", async () => {
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALLS_V3_LEGACY: "1",
+      CALL_SESSIONS: fakeSessions({ [SESSION]: { declined: true, state: "x" } }, routed),
+    };
+    const sb = world([{ call_session_id: SESSION }]);
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    // Kill-switch short-circuits BEFORE any DB read or DO call.
+    expect(sb.find("GET", "/rest/v1/calls")).toHaveLength(0);
+    expect(routed).toHaveLength(0);
+  });
+
+  it("no-DO env (no binding) → 200 empty (legacy owns the SDK hangup)", async () => {
+    const sb = world([{ call_session_id: SESSION }]);
+    // `env` has no CALL_SESSIONS binding.
+    const res = await post(env, sb);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    expect(sb.find("GET", "/rest/v1/calls")).toHaveLength(0);
   });
 });
