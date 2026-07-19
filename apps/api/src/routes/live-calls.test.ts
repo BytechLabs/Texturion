@@ -675,7 +675,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
   ): Env["CALL_SESSIONS"] {
     return {
       idFromName: (name: string) => name,
-      get: (id: string) => ({
+      get: (_id: string) => ({
         decline: async (input: { sessionId: string; userId: string }) => {
           routed.push({ sessionId: input.sessionId, userId: input.userId });
           return (
@@ -839,7 +839,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const routed: { sessionId: string; userId: string }[] = [];
     const namespace = {
       idFromName: (name: string) => name,
-      get: (id: string) => ({
+      get: (_id: string) => ({
         decline: async (input: { sessionId: string; userId: string }) => {
           routed.push({ sessionId: input.sessionId, userId: input.userId });
           if (input.sessionId === BAD) throw new Error("DO RPC exploded");
