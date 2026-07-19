@@ -106,6 +106,24 @@ class SoftphoneCore(
     private val heldInvites = LinkedHashMap<String, HeldInvite>()
     private val heldWatchJobs = mutableMapOf<String, Job>()
 
+    /** §10.1.4: held legs grouped by header session, for [SoftphoneSnapshot]. Held
+     *  legs are invisible in `calls` by design, so this is how the Telecom registry
+     *  learns a session still has an un-presented sibling leg — published on the
+     *  snapshot (level-triggered), never via a fragile one-shot edge callback. */
+    private fun heldLegsBySession(): Map<String, Set<String>> {
+        val out = LinkedHashMap<String, MutableSet<String>>()
+        for ((id, held) in heldInvites) {
+            val session = held.headerSession ?: continue
+            out.getOrPut(session) { LinkedHashSet() }.add(id)
+        }
+        return out
+    }
+
+    /** Re-publish the held-leg map onto the snapshot (no other state change). */
+    private fun publishHeldLegs() {
+        _state.update { it.copy(heldLegsBySession = heldLegsBySession()) }
+    }
+
     private val connectMutex = Mutex()
     private var recoverJob: Job? = null
 
@@ -343,6 +361,10 @@ class SoftphoneCore(
     ) {
         val id = handle.id
         heldInvites[id] = HeldInvite(handle, name, number, reason, headerSession, legId)
+        // Publish this held leg so the registry counts it as a live leg of the
+        // session even though it is never presented — the presented leg's death
+        // then re-homes the OS call here instead of tearing it down.
+        publishHeldLegs()
         heldWatchJobs[id] = scope.launch {
             handle.phases.collect { phase ->
                 if (phase == CallPhase.ENDED) releaseHeld(id)
@@ -350,10 +372,31 @@ class SoftphoneCore(
         }
     }
 
-    /** Forget a held INVITE (its BYE arrived, or its session died). */
+    /**
+     * The user DECLINED [session] (§ Telecom reject) — STOP TRACKING every
+     * silently-held fork of that session so [maybePromoteHeld] cannot promote one
+     * into a fresh ring after the decline. Mirrors [applyRingingExit]: release
+     * (untrack) only, never a client-side leg reject — the decline already dropped
+     * this member server-side, and the leg's own BYE tears it down. A local reject
+     * of a forked leg risks cancelling the ring on the member's other devices.
+     */
+    fun releaseHeldForSession(session: String) {
+        heldInvites.entries
+            .filter { it.value.headerSession == session }
+            .map { it.key }
+            .forEach { releaseHeld(it) }
+    }
+
+    /** Forget a held INVITE (its BYE arrived, or its session died). Re-publishing
+     *  drops it from the snapshot's held map, so the registry's authoritative
+     *  live-leg set for the session shrinks — if it was the leg an OS call had
+     *  re-homed to, the registry ends that call rather than ringing forever.
+     *  [promoteHeld] removes the entry itself (a promoted leg is still live — the
+     *  snapshot's `calls` takes over reporting it) and re-publishes too. */
     private fun releaseHeld(id: String) {
         heldInvites.remove(id)
         heldWatchJobs.remove(id)?.cancel()
+        publishHeldLegs()
     }
 
     /**
@@ -372,7 +415,15 @@ class SoftphoneCore(
         val duplicateId = endedRinging?.let { ended ->
             heldInvites.entries.firstOrNull { (_, held) ->
                 held.reason == HoldReason.DUPLICATE &&
-                    CallWakePolicy.sameCaller(held.callerNumber, ended.peerNumber)
+                    // Match on the DETERMINISTIC header session first (BLOCKING-2a):
+                    // an anonymous caller's two forks both have a BLANK number, so
+                    // the caller-number proxy never matches them — yet the header
+                    // session identifies them exactly. Fall back to the number proxy
+                    // only for header-absent legs.
+                    (
+                        (held.headerSession != null && held.headerSession == ended.sessionId) ||
+                            CallWakePolicy.sameCaller(held.callerNumber, ended.peerNumber)
+                        )
             }?.key
         }
         val candidateId = duplicateId
@@ -419,9 +470,21 @@ class SoftphoneCore(
             )
             return
         }
+        // ORDERING INVARIANT (keep): the dying presented leg's removal was emitted
+        // to `state` by onSdkPhase BEFORE this promotion runs, and presentIncoming's
+        // IncomingRinging event is emitted AFTER. On the single Main.immediate FIFO
+        // loop the state collector (SoftphoneManager.syncPlatform → setLiveLegs
+        // re-home) therefore runs before the event collector (onIncomingRinging →
+        // onLegBound → accept). That is what lets a promoted fork re-accept cleanly
+        // after an answer-glare (accepted-but-never-active owner) without dead air.
+        // Do NOT reorder promotion ahead of the dead leg's state removal.
         presentIncoming(
             held.handle, held.callerName, held.callerNumber, held.headerSession, held.legId,
         )
+        // Drop it from the held map only AFTER it is in `calls`, so the session's
+        // authoritative live-leg set (presented ∪ held) never transiently empties
+        // and tears the re-homed OS call down a beat before the promotion lands.
+        publishHeldLegs()
     }
 
     /**

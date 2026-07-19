@@ -58,6 +58,15 @@ data class SoftphoneSnapshot(
     val calls: List<CallSnapshot> = emptyList(),
     /** The call whose audio is flowing (at most one). */
     val activeId: String? = null,
+    /**
+     * Legs this device HOLDS silently (§10.1.4 duplicate fork / over-ceiling),
+     * grouped by their header session — they are deliberately NOT in [calls] (no
+     * UI, no ringtone), but they ARE real live legs of a session whose OS call the
+     * Telecom registry owns. Published here so the registry can be told the
+     * AUTHORITATIVE live-leg set of each session on every emission (level-triggered),
+     * instead of via fragile edge signals. Only [SoftphoneCore] writes it.
+     */
+    val heldLegsBySession: Map<String, Set<String>> = emptyMap(),
 ) {
     val activeCall: CallSnapshot? get() = calls.firstOrNull { it.id == activeId }
 

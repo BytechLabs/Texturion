@@ -226,6 +226,11 @@ class TelecomCallReducerTest {
         assertTrue(!TelecomCallReducer.shouldAnswerOnCatchUp(answerRequested = false, answered = false))
     }
 
+    // NOTE: the multi-leg session live-set logic (owner re-home + last-leg
+    // teardown) lives in TelecomCallRegistry.setLiveLegs — it operates on the
+    // per-entry lock and the CallEntry flags, so it is exercised on-device, not
+    // here. The pure reducer no longer owns a re-home verdict.
+
     @Test
     fun `bind deadline with no accept and not terminated tears down — no dead air`() {
         assertTrue(TelecomCallReducer.deadlineDisconnects(accepted = false, terminated = false))

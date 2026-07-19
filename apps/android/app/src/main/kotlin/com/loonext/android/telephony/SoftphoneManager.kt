@@ -155,9 +155,8 @@ class SoftphoneManager private constructor(
      * is best-effort and must never throw back into a Telecom callback.
      */
     private inner class TelecomBridge : TelecomCallRegistry.Bridge {
-        override fun acceptLeg(session: String) {
-            legFor(session)?.let { answer(it.id) }
-        }
+        override fun acceptLeg(session: String): Boolean =
+            legFor(session)?.let { answer(it.id); true } ?: false
 
         override fun endLeg(session: String) {
             legFor(session)?.let { hangup(it.id) }
@@ -172,6 +171,8 @@ class SoftphoneManager private constructor(
         /** Member-scoped server signal ONLY — the OS callback that triggered
          *  this already owns the leg teardown (§3.3). */
         override fun declineMine() = core.declineMineSignal()
+
+        override fun releaseHeldSession(session: String) = core.releaseHeldForSession(session)
 
         /** Per-session decline (IMPORTANT-4) — drop this device from ONLY the
          *  rejected session, so a reject with another ring live doesn't decline
@@ -433,6 +434,12 @@ class SoftphoneManager private constructor(
     /** #168D marker ownership (see [syncPlatform]). */
     private var markedCallInFlight = false
 
+    /** Registry keys we pushed a live-leg set to last pass — so a session whose
+     *  LAST leg just vanished (empty this pass) still gets a final setLiveLegs(∅),
+     *  which is what ends the OS call. Confined to the single `core.state`
+     *  collector, like [markedCallInFlight]. */
+    private var liveLegSessions: Set<String> = emptySet()
+
     /**
      * Drive the OS-facing surfaces from the one leg-state snapshot. Telecom now
      * owns presentation; this method shrank to (1) the App→OS leg→scope mirror
@@ -443,22 +450,39 @@ class SoftphoneManager private constructor(
     private fun syncPlatform(snapshot: SoftphoneSnapshot) {
         val byId = snapshot.calls.associateBy { it.id }
 
-        // App→OS: the OS call follows the media (§7/§8 leg→scope table).
+        // App→OS. Two things per pass, both level-triggered off this one snapshot:
+        //  1. Tell the registry the AUTHORITATIVE live-leg set of every inbound
+        //     session — presented legs ∪ silently-held legs. A RINGING leg's death
+        //     is invisible in `calls` (CallStateMachine drops it) and held legs are
+        //     never in `calls`, so this recomputed-every-pass set is how the
+        //     registry learns a session's last leg is gone (end the OS call) or its
+        //     owner died with a sibling still live (re-home) — see setLiveLegs.
+        //  2. Drive each present leg's own state (the §7/§8 leg→scope mirror).
+        val liveInbound = LinkedHashMap<String, MutableSet<String>>()
+        for (call in snapshot.calls) {
+            if (call.direction != CallDirection.INBOUND || call.phase == CallPhase.ENDED) continue
+            liveInbound.getOrPut(call.sessionId ?: call.id) { LinkedHashSet() }.add(call.id)
+        }
+        for ((session, held) in snapshot.heldLegsBySession) {
+            liveInbound.getOrPut(session) { LinkedHashSet() }.addAll(held)
+        }
         runCatching {
+            // Every session with legs now, plus every one that had legs last pass
+            // (so a now-empty session gets its final setLiveLegs(∅) → teardown).
+            for (session in liveInbound.keys + liveLegSessions) {
+                registry.setLiveLegs(session, liveInbound[session] ?: emptySet())
+            }
             for (call in snapshot.calls) {
                 val legState = legStateFor(call)
                 when (call.direction) {
                     CallDirection.INBOUND ->
-                        // Key on the customer session when known, else the leg's
-                        // own id (header-absent, IMPORTANT-2). legId is always the
-                        // leg id, so the registry finds the entry by key OR by the
-                        // owning leg even after the session resolves post-answer.
                         registry.driveInbound(call.sessionId ?: call.id, call.id, legState)
 
                     CallDirection.OUTBOUND -> registry.driveOutbound(call.id, legState)
                 }
             }
         }.onFailure { diagnostics.recordNonFatal("sync-scope", it) }
+        liveLegSessions = liveInbound.keys.toSet()
 
         // Ongoing-call notification mirrors the active (or lone held) call.
         runCatching {

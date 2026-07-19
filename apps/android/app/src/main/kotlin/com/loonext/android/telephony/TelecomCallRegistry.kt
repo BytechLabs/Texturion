@@ -44,8 +44,12 @@ class TelecomCallRegistry(
      * never throw back into a Telecom callback.
      */
     interface Bridge {
-        /** Accept the ring leg bound to [session] (§3.3 — the media connect). */
-        fun acceptLeg(session: String)
+        /** Accept the ring leg bound to [session] (§3.3 — the media connect).
+         *  Returns false when NO leg could be resolved for the session — the call
+         *  re-homed to a still-held duplicate that has not been promoted into the
+         *  media state yet, so there is nothing to answer. The caller then re-arms
+         *  the bind deadline instead of committing a media-less accept. */
+        fun acceptLeg(session: String): Boolean
 
         /** End the Telnyx leg for [session] (OS disconnect / bind-deadline). */
         fun endLeg(session: String)
@@ -62,6 +66,11 @@ class TelecomCallRegistry(
          *  Used when more than one ring is presented, so rejecting one does not
          *  decline the others (which member-scoped `declineMine` would). */
         fun declineSession(session: String)
+
+        /** Drop any silently-HELD duplicate/capacity fork of [session] the core is
+         *  tracking, so a leg the user just DECLINED can never be promoted into a
+         *  fresh ring before the server's BYE reaps it (HIGH re-review). Best-effort. */
+        fun releaseHeldSession(session: String)
 
         /** Follower route mirror (§4.2/§4.3): Telecom picked [route]; tell Telnyx
          *  (never the leader — the user's route control is the OS in-call UI). */
@@ -124,6 +133,17 @@ class TelecomCallRegistry(
 
         /** The Telnyx leg has been accepted (media connected). */
         @Volatile var accepted = false
+
+        /**
+         * The owning leg actually reached ACTIVE — media is genuinely flowing. This
+         * is stronger than [accepted]: `answer()` can be issued (accepted=true) onto
+         * a RINGING leg that the caller BYE'd in the same instant (answer glare), so
+         * the leg dies without ever going ACTIVE. [setLiveLegs] must protect only a
+         * truly-active call; an accepted-but-never-active leg that vanishes has to be
+         * re-homed / torn down like any other (else the OS call strands "connected"
+         * on dead media — HIGH re-review finding).
+         */
+        @Volatile var mediaActive = false
 
         /**
          * A disconnect requested while [scope] was still null (the addCall block
@@ -206,24 +226,16 @@ class TelecomCallRegistry(
      * claims ownership of the OS call for this leg (BLOCKING-2b) so a reaped
      * sibling leg sharing the session can never disconnect it.
      *
-     * KNOWN GAP — a RINGING leg's death is INVISIBLE to this registry. Verified:
-     * [CallStateMachine.sdkPhase] REMOVES a RINGING call from `state.calls` when it
-     * ENDs (only a non-ringing call is retained with `phase = ENDED`), so
-     * SoftphoneManager.syncPlatform — which iterates the snapshot — never issues a
-     * terminal `driveInbound` for it. Two consequences, both needing the same fix:
-     *  1. [CallEntry.owningLegId] can stay pinned to a leg that already died while
-     *     ringing. If a promoted duplicate fork then answers, `legMayDrive` gates
-     *     the real leg's terminal drive off and the OS call is never disconnected
-     *     (device stuck in-call, mic FGS held) — only the server `call_end` push
-     *     recovers it.
-     *  2. The ring-window backstop is cancelled on bind below, so a leg that binds
-     *     and then dies ringing leaves the OS call ringing with no CLIENT-side
-     *     timer — breaking §5's "no external dependency on call_end" guarantee.
-     * The fix is a leg-gone signal (diff the previous snapshot's ids in
-     * syncPlatform and synthesise a terminal drive for ids that vanished), NOT an
-     * eviction in ensureIncomingCall and NOT a re-home keyed on terminal drives —
-     * both were tried and reverted (the eviction re-rang a just-declined call; the
-     * re-home's trigger can never fire for exactly this reason).
+     * OWNERSHIP CAN CHANGE HANDS. A RINGING leg's death is invisible in the
+     * snapshot ([CallStateMachine] drops a RINGING call when it ENDs) and held
+     * duplicate legs are never in the snapshot at all — so the death of the leg
+     * that OWNS a session's OS call, while a sibling is still live, reaches the
+     * registry only through [setLiveLegs] (the authoritative presented∪held set,
+     * recomputed every snapshot). [setLiveLegs] clears [owningLegId] on such a
+     * re-home; the surviving or promoted leg then claims it HERE. DO NOT re-try the
+     * reverted approaches (an ensureIncomingCall eviction re-rings a just-declined
+     * call; a re-home keyed on per-leg terminal drives never fires — the death is
+     * invisible; a per-leg edge callback drops/severs under buffering and promotion).
      */
     fun onLegBound(session: String, legId: String? = null) {
         val entry = entries[session] ?: return
@@ -250,10 +262,57 @@ class TelecomCallRegistry(
             return
         }
         entry.legBound = true
+        // Claim ownership if unowned — including after a re-home cleared it
+        // ([setLiveLegs] sets owningLegId=null when the previous owner dies with a
+        // sibling still live, so a promoted/surviving leg takes over here).
         if (entry.owningLegId == null) entry.owningLegId = legId
         entry.ringWindowJob?.cancel() // a leg bound — no ghost ring to backstop
         val actions = TelecomCallReducer.onLegBound(entry.answerRequested, entry.accepted, entry.terminated)
         runActions(entry, actions)
+    }
+
+    /**
+     * §10.1.4: the AUTHORITATIVE set of legs currently live for [session] —
+     * presented ∪ silently-held — recomputed from the snapshot and pushed on every
+     * emission (level-triggered), because a RINGING leg's death is invisible to the
+     * snapshot's `calls` (CallStateMachine drops it) and held legs are never in
+     * `calls` at all. This ONE signal replaces the fragile per-leg edge callbacks
+     * that earlier rounds kept getting wrong (a dropped hold-time signal when the
+     * entry did not exist yet; a severed signal when promotion cancelled the
+     * watcher; a stale accumulation under conflated emissions). From the always-
+     * current set it derives, pre-accept only:
+     *  - EMPTY and a leg had bound → the whole session is gone; end the OS call
+     *    (the lone-ring ghost fix — no dependency on the server `call_end` push).
+     *  - non-empty but the OWNER is no longer in it → the owner died while a sibling
+     *    lives (a duplicate fork / ring-me re-dial); clear ownership so the survivor
+     *    or the promoted leg claims it via onLegBound, and DON'T tear down.
+     * An accepted or already-terminated call is never touched (its lifetime is the
+     * media's, driven through the normal leg-state path).
+     */
+    fun setLiveLegs(session: String, legIds: Set<String>) {
+        val entry = entries[session] ?: return
+        val teardown = synchronized(entry) {
+            when {
+                entry.terminated -> false
+                // Protect ONLY a truly-active call. An accepted-but-never-ACTIVE
+                // leg (answer glare — answered as the caller BYE'd) is not real
+                // media, so it is subject to re-home / teardown below like any
+                // ringing leg (HIGH re-review finding).
+                entry.accepted && entry.mediaActive -> false
+                legIds.isEmpty() -> entry.legBound // all legs gone → end iff one had bound
+                entry.owningLegId != null && entry.owningLegId !in legIds -> {
+                    // Owner died with a sibling still live → re-home. Clear a stale
+                    // glare-accept so the promoted/surviving leg re-accepts for real
+                    // via onLegBound (the durable answerRequested carries the answer).
+                    entry.owningLegId = null
+                    entry.accepted = false
+                    entry.lastAction = null
+                    false
+                }
+                else -> false
+            }
+        }
+        if (teardown) disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE))
     }
 
     // -------------------------------------------------------- outbound (§7)
@@ -304,7 +363,13 @@ class TelecomCallRegistry(
         if (entry.terminated) return
         // BLOCKING-2b: a SIBLING leg (different id) sharing this session must
         // never drive — least of all tear down — the entry the owning leg holds.
+        // (Owner death / re-home is handled level-triggered by [setLiveLegs], not
+        // here — a RINGING leg's death never reaches drive() at all.)
         if (!TelecomCallReducer.legMayDrive(entry.owningLegId, legId)) return
+        // The owning leg reached ACTIVE → media is genuinely flowing; setLiveLegs
+        // may now protect this call as a real connection (vs an answer-glare accept
+        // onto a leg that died before going active).
+        if (legState == TelecomCallReducer.LegState.ACTIVE) entry.mediaActive = true
         if (entry.owningLegId == null && legState == TelecomCallReducer.LegState.ACTIVE) {
             entry.owningLegId = legId
         }
@@ -474,7 +539,21 @@ class TelecomCallRegistry(
         // Not yet accepted → resolve the answer race elsewhere. Session-scoped when
         // another ring is live (IMPORTANT-4) so rejecting ONE presented ring never
         // declines them all — same scoping the automatic teardowns use.
-        if (!wasAccepted) declineForTeardown(entry)
+        if (!wasAccepted) {
+            declineForTeardown(entry)
+            // A USER decline (LOCAL/REJECTED cause) means the user rejected the whole
+            // SESSION — release its silently-held duplicate forks so the core cannot
+            // promote one into a fresh ring before the server's BYE lands (HIGH
+            // re-review). NOT on a REMOTE hangup: there, a sibling fork of a session
+            // that is still ringing legitimately promotes. Worst case if the cause
+            // is misread is a dropped fork the server re-rings via ring-me — far
+            // better than re-ringing a call the user just declined.
+            if (entry.direction == CallAttributesCompat.DIRECTION_INCOMING &&
+                (cause.code == DisconnectCause.LOCAL || cause.code == DisconnectCause.REJECTED)
+            ) {
+                runCatching { bridge.releaseHeldSession(entry.key) }
+            }
+        }
     }
 
     private fun onTelecomResume(entry: CallEntry) {
@@ -510,9 +589,30 @@ class TelecomCallRegistry(
                         }
                     }
                     if (doAccept) {
-                        entry.deadlineJob?.cancel()
-                        entry.ringWindowJob?.cancel()
-                        runCatching { bridge.acceptLeg(session) }
+                        // Only disarm the backstops once the bridge actually bound a
+                        // leg. If the call had re-homed to a still-held duplicate,
+                        // legFor(session) resolves nothing and acceptLeg returns
+                        // false — committing accepted here would answer the OS call
+                        // into permanent dead air with every timer already cancelled
+                        // (BLOCKING re-review). Revert the accept and arm the bind
+                        // deadline: the durable answerRequested makes the promoted
+                        // leg's onLegBound perform the real accept, or the deadline
+                        // tears the call down honestly within the budget.
+                        val bound = runCatching { bridge.acceptLeg(session) }.getOrDefault(false)
+                        if (bound) {
+                            entry.deadlineJob?.cancel()
+                            entry.ringWindowJob?.cancel()
+                        } else {
+                            val rearm = synchronized(entry) {
+                                if (!entry.terminated) {
+                                    entry.accepted = false
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            if (rearm) armBindDeadline(entry)
+                        }
                     }
                 }
             }
