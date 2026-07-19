@@ -908,3 +908,74 @@ liveCallsRoutes.post(
     return c.json({ ok: true, rang: true, state: "ringing" });
   },
 );
+
+/**
+ * POST /v1/calls/live/:sessionId/decline (#171) — a member explicitly DECLINES
+ * an inbound ring. This is a first-class SERVER signal, NOT a leg hangup: the
+ * DO removes the member from the avenue/audience set, cancels their ring legs,
+ * and re-runs the T3 exhaustion ladder — single-member decline → voicemail
+ * immediately (the decliner's still-push-capable device no longer holds the
+ * ring open); multi-member → the caller keeps ringing the others.
+ *
+ * Gated like ring-me: Bearer + member, company-scoped, inbound-only, #106
+ * 'text' access to the number. It does NOT require a telephony credential
+ * (unlike ring-me, which is about to DIAL the requester) — a push-only member
+ * who was woken must be able to decline and drop themselves from the audience.
+ *
+ * Idempotent + ALWAYS 200 (never a 409 for state): a decline for an
+ * already-resolved/ended session is a `{declined:false, reason}` no-op body.
+ */
+liveCallsRoutes.post(
+  "/calls/live/:sessionId/decline",
+  requireRole("member"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const sessionId = c.req.param("sessionId");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+
+    const call = await liveCallBySession(db, sessionId);
+    if (!call || call.company_id !== companyId) {
+      return errorResponse(c, "not_found", "No such call.");
+    }
+    // Decline is INBOUND-only (mirrors ring-me's #139 gate): only an inbound
+    // ring is presented to a member to decline. A property of the REQUEST → 409.
+    if (call.direction !== "inbound") {
+      return errorResponse(c, "conflict", "This call can't be declined.");
+    }
+    if (!call.phone_number_id) {
+      return errorResponse(c, "conflict", "This call can't be declined.");
+    }
+    // #106: a number hidden from this member 404s (never enumerates).
+    await assertNumberLevel(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      phoneNumberId: call.phone_number_id,
+      need: "text",
+    });
+
+    // v3: the DO owns the decline signal + the avenue ladder. Always-200 body.
+    if (callsV3Active(env)) {
+      const stub = callSessionStub(env, sessionId);
+      if (stub) {
+        const result = await stub.decline({ sessionId, userId });
+        return c.json({
+          declined: result.declined,
+          state: result.state,
+          ...(result.reason ? { reason: result.reason } : {}),
+        });
+      }
+    }
+
+    // Kill-switch / no-binding fallback: decline is a v3-only signal (there is
+    // no avenue ladder without the DO). Honestly 200 no-op — the legacy client
+    // relies on its own SDK hangup, unchanged.
+    return c.json({
+      declined: false,
+      state: deriveStateFromRow(call) ?? "ended_missed",
+      reason: "not_ringing",
+    });
+  },
+);

@@ -12,9 +12,12 @@
  * Every §4 row lives here. The three properties the tests pin forever:
  *   - T17 TOTALITY: an inbound-leg hangup — bri, vmi, or UNTAGGED — reaches a
  *     terminal state from EVERY non-terminal state (§15.1).
- *   - VM-ENTRY only under T1a, T1d zero-avenue, T10-alarm, or T3-exhaustion
- *     with zero live legs ∧ zero push-capable members (the founder invariant).
- *   - ring-me NEVER emits a hangup/cancel effect (§6, review R2-B2).
+ *   - VM-ENTRY only under T1a, T1d zero-avenue, T10-alarm, T3-exhaustion with
+ *     zero live legs ∧ zero push-capable members, OR a DECLINE that exhausts
+ *     the avenue set (#171 — an explicit rejection removes the decliner from
+ *     BOTH the live-leg set and the push audience, then re-runs the ladder).
+ *   - ring-me NEVER emits a hangup/cancel effect (§6, review R2-B2), and never
+ *     re-rings a member who explicitly declined this session (#171).
  */
 
 /** §5: the one real ring window. The DO alarm at this deadline is the ONLY
@@ -164,6 +167,11 @@ export interface SessionMachine {
   /** §7.5.4: legacy-cutover machine — scopes §7.7 ledger-less minting. */
   adopted: boolean;
   pushCapableUserIds: string[];
+  /** #171: members who explicitly DECLINED this session. A decliner is removed
+   *  from the avenue set for good — the ladder never re-counts their push
+   *  device, and ring-me refuses to re-dial them (explicit rejection ≠ a
+   *  transient leg death that a wake could recover). */
+  declinedUserIds: string[];
   ringDeadlineMs: number | null;
   telnyxCommandCount: number;
   legs: LegRecord[];
@@ -225,6 +233,10 @@ export type SessionEvent =
   | { type: "set-owner"; userId: string }
   | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string }
   | { type: "clear-intent" }
+  /** #171: a member explicitly declined the ring (POST .../decline). First-class
+   *  server signal — NOT a leg hangup: cancels the decliner's ring legs, drops
+   *  them from the avenue/audience set, and re-runs the T3 exhaustion ladder. */
+  | { type: "decline"; userId: string }
   | { type: "alarm-ring" }
   | { type: "alarm-janitor" }
   | { type: "alarm-intent-expiry" }
@@ -264,6 +276,7 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "set-owner",
   "register-intent",
   "clear-intent",
+  "decline",
   "alarm-ring",
   "alarm-janitor",
   "alarm-intent-expiry",
@@ -331,17 +344,32 @@ export type Effect =
 export interface RingMeReply {
   rang: boolean;
   state: CallState;
-  reason?: "not_ringing" | "live_leg" | "recent_leg" | "dial_failed";
+  reason?:
+    | "not_ringing"
+    | "live_leg"
+    | "recent_leg"
+    | "dial_failed"
+    /** #171: the requester already declined this session — never re-rung. */
+    | "declined";
   /** Set when rang=true: the pending leg key whose dial decides the final
    *  reply (the shell downgrades to dial_failed if the dial never lands). */
   pendingKey?: string;
 }
 
+/** #171: the POST .../decline RPC reply. `declined:true` for a live (ringing)
+ *  session the member was removed from; `declined:false` (idempotent no-op) for
+ *  an already-resolved/ended session — never a 409 for state (§8-style). */
+export interface DeclineReply {
+  declined: boolean;
+  state: CallState;
+  reason?: "not_ringing";
+}
+
 export interface ReduceResult {
   machine: SessionMachine | null;
   effects: Effect[];
-  /** ring-me / register-intent replies (RPC surface). */
-  reply?: RingMeReply | { state: CallState };
+  /** ring-me / register-intent / decline replies (RPC surface). */
+  reply?: RingMeReply | DeclineReply | { state: CallState };
 }
 
 function liveLegs(machine: SessionMachine): LegRecord[] {
@@ -352,6 +380,7 @@ function cloneMachine(machine: SessionMachine): SessionMachine {
   return {
     ...machine,
     pushCapableUserIds: [...machine.pushCapableUserIds],
+    declinedUserIds: [...machine.declinedUserIds],
     legs: machine.legs.map((leg) => ({ ...leg })),
     intent: machine.intent ? { ...machine.intent } : null,
     answerIntent: machine.answerIntent ? { ...machine.answerIntent } : null,
@@ -556,6 +585,10 @@ export function reduce(
       return { machine: next, effects };
     }
 
+    // ---- #171: DECLINE (first-class avenue removal, re-run the ladder) -----
+    case "decline":
+      return reduceDecline(next, event, effects);
+
     // ---- T10: the ONLY clock-based voicemail trigger ----------------------
     case "alarm-ring": {
       if (next.state !== "ringing") return { machine: next, effects };
@@ -726,6 +759,7 @@ function reduceInitiated(
     ownerLegDeadDuringIntent: null,
     adopted: false,
     pushCapableUserIds: [...context.pushAudience],
+    declinedUserIds: [],
     ringDeadlineMs: null,
     telnyxCommandCount: 0,
     legs: [],
@@ -1170,6 +1204,17 @@ function reduceRingMe(
     };
   }
 
+  // #171: a member who explicitly declined is NEVER re-rung within the session
+  // — a stale push or a late wake must not re-dial a decliner (their rejection
+  // already removed them from the avenue set; re-ringing would resurrect it).
+  if (next.declinedUserIds.includes(event.userId)) {
+    return {
+      machine: next,
+      effects,
+      reply: { rang: false, state: next.state, reason: "declined" },
+    };
+  }
+
   const memberLive = next.legs.filter(
     (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.includes(leg.status),
   );
@@ -1236,4 +1281,67 @@ function reduceRingMe(
     effects,
     reply: { rang: true, state: "ringing", pendingKey },
   };
+}
+
+/**
+ * #171 DECLINE — an explicit member rejection, first-class in the machine.
+ *
+ * A member who declines is STILL push-capable, so leaving them in the avenue
+ * set would hold ringback to the 45s window even though they've said no. This
+ * transition removes them from BOTH avenue sources — cancels their ring legs
+ * AND drops them from `pushCapableUserIds` — records the rejection so no re-dial
+ * or wake ever re-rings them (`declinedUserIds`, read by ring-me and the
+ * §5.5 settle), then re-runs the T3 exhaustion ladder over the REMAINING
+ * avenues: single-member decline (no one else) → VM-ENTRY now; multi-member →
+ * the caller keeps ringing the others (no state change beyond the removal).
+ *
+ * Licensed (§15.1 totality) in every state: non-`ringing` is an idempotent
+ * `declined:false` no-op (never a 409 for state) — the session already
+ * resolved. `declined:true` carries the POST-ladder state so the client learns
+ * whether their decline sent the caller to voicemail.
+ */
+function reduceDecline(
+  next: SessionMachine,
+  event: Extract<SessionEvent, { type: "decline" }>,
+  effects: Effect[],
+): ReduceResult {
+  if (next.state !== "ringing") {
+    return {
+      machine: next,
+      effects,
+      reply: { declined: false, state: next.state, reason: "not_ringing" },
+    };
+  }
+
+  // Record the explicit rejection (idempotent — a repeated decline is a no-op).
+  if (!next.declinedUserIds.includes(event.userId)) {
+    next.declinedUserIds.push(event.userId);
+  }
+
+  // Cancel this member's live ring legs. Mark them `dead`, NOT `canceling`: a
+  // `canceling` leg still counts as live for the avenue ladder (§5), but an
+  // explicit decline must drop the leg as an avenue immediately — the whole bug
+  // is that a decliner's device kept holding the ring open.
+  for (const leg of next.legs) {
+    if (leg.userId !== event.userId) continue;
+    if (!LIVE_LEG_STATUSES.includes(leg.status)) continue;
+    if (leg.ccid) {
+      effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: false });
+    }
+    leg.status = "dead";
+  }
+
+  // Drop the decliner from the push avenue set (explicit rejection ≠ a
+  // transient leg death — never re-count them; §5.5's settle also only ever
+  // filters this set, so a decliner never re-enters it).
+  next.pushCapableUserIds = next.pushCapableUserIds.filter(
+    (userId) => userId !== event.userId,
+  );
+
+  // Re-run the T3 exhaustion ladder over the avenues that survive the decline:
+  // (live legs of non-decliners) ∪ (push-capable non-decliners). No avenue →
+  // VM-ENTRY; any remaining → stay `ringing` (keep ringing the others).
+  runAvenueLadder(next, effects);
+
+  return { machine: next, effects, reply: { declined: true, state: next.state } };
 }

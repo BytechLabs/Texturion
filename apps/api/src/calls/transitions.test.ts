@@ -370,6 +370,166 @@ describe("T4 — ring-me v2 (§6)", () => {
   });
 });
 
+// ---- #171 DECLINE ----------------------------------------------------------
+
+describe("#171 — decline (first-class avenue removal)", () => {
+  /** A ringing machine with two credentialed + push-capable members, both legs
+   *  resolved to ccids (leg-u1, leg-u2). */
+  function twoMemberRinging(): SessionMachine {
+    const key = keyGen();
+    let machine = reduce(
+      null,
+      {
+        type: "initiated",
+        context: initCtx({
+          dialTargets: [
+            { userId: "u1", sipUsername: "sip1" },
+            { userId: "u2", sipUsername: "sip2" },
+          ],
+          pushAudience: ["u1", "u2"],
+        }),
+      },
+      1_000,
+      key,
+    ).machine as SessionMachine;
+    for (const leg of [...machine.legs]) {
+      machine = reduce(
+        machine,
+        { type: "dial-outcome", pendingKey: leg.key, ccid: `leg-${leg.userId}`, failure: null },
+        1_100,
+        key,
+      ).machine as SessionMachine;
+    }
+    return machine;
+  }
+
+  it("single-member decline → cancels the leg, drops the avenue, VM-ENTRY", () => {
+    const machine = ringingMachine(); // solo u1: one leg + push [u1]
+    const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
+    // The decliner's ring leg is hung up...
+    const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<
+      Effect,
+      { kind: "telnyx-hangup" }
+    >[];
+    expect(hangups.map((h) => h.ccid)).toContain("leg-u1");
+    // ...they're removed from the push avenue, and with no avenue left the
+    // ladder resolves to voicemail immediately (the whole #171 bug).
+    expect(r.machine?.pushCapableUserIds).toEqual([]);
+    expect(r.machine?.declinedUserIds).toEqual(["u1"]);
+    expect(r.machine?.state).toBe("voicemail_greeting");
+    expect(has(r.effects, "telnyx-answer-vm")).toBe(true);
+    expect(r.reply).toEqual({ declined: true, state: "voicemail_greeting" });
+  });
+
+  it("multi-member decline → others keep ringing, NO voicemail", () => {
+    const machine = twoMemberRinging();
+    const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
+    // u1's leg is canceled + they leave the audience...
+    expect(
+      (r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<Effect, { kind: "telnyx-hangup" }>[]).map(
+        (h) => h.ccid,
+      ),
+    ).toContain("leg-u1");
+    expect(r.machine?.declinedUserIds).toEqual(["u1"]);
+    expect(r.machine?.pushCapableUserIds).toEqual(["u2"]);
+    // ...but u2's leg is still live → the caller keeps ringing, NO voicemail.
+    expect(r.machine?.state).toBe("ringing");
+    expect(has(r.effects, "telnyx-answer-vm")).toBe(false);
+    expect(r.reply).toEqual({ declined: true, state: "ringing" });
+    // u2's leg is untouched.
+    const u2 = r.machine?.legs.find((l) => l.ccid === "leg-u2");
+    expect(u2?.status).toBe("ringing");
+  });
+
+  it("push-only solo decline (no live leg) → VM-ENTRY, no stray hangup", () => {
+    // Zero-registration: no credential leg, only a push avenue for u1.
+    const machine = ringingMachine({ dialTargets: [], pushAudience: ["u1"] });
+    // ringingMachine tried to resolve a u1 leg but there is none — legs empty.
+    expect(machine.legs).toHaveLength(0);
+    const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
+    expect(has(r.effects, "telnyx-hangup")).toBe(false); // nothing live to cancel
+    expect(r.machine?.state).toBe("voicemail_greeting");
+    expect(r.reply).toEqual({ declined: true, state: "voicemail_greeting" });
+  });
+
+  it("decline of an already-ANSWERED session → idempotent no-op (never a 409)", () => {
+    const machine = ringingMachine();
+    machine.state = "answered";
+    machine.answeredByUserId = "u1";
+    const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
+    expect(r.effects).toHaveLength(0);
+    expect(r.reply).toEqual({ declined: false, state: "answered", reason: "not_ringing" });
+    expect(r.machine?.state).toBe("answered");
+  });
+
+  it("decline of an ENDED session → idempotent no-op", () => {
+    const machine = ringingMachine();
+    machine.state = "ended_missed";
+    const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
+    expect(r.reply).toEqual({ declined: false, state: "ended_missed", reason: "not_ringing" });
+  });
+
+  it("a repeated decline is idempotent (no second hangup, still resolved)", () => {
+    const machine = twoMemberRinging();
+    const once = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY).machine as SessionMachine;
+    const twice = reduce(once, { type: "decline", userId: "u1" }, 2_100, KEY);
+    expect(twice.machine?.declinedUserIds).toEqual(["u1"]); // not doubled
+    expect(has(twice.effects, "telnyx-hangup")).toBe(false); // leg already dead
+    expect(twice.reply).toEqual({ declined: true, state: "ringing" });
+  });
+
+  it("both members decline → the second decline exhausts the ladder → voicemail", () => {
+    let machine = twoMemberRinging();
+    machine = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY).machine as SessionMachine;
+    expect(machine.state).toBe("ringing"); // u2 still holds it
+    const r = reduce(machine, { type: "decline", userId: "u2" }, 2_100, KEY);
+    expect(r.machine?.state).toBe("voicemail_greeting");
+    expect(r.machine?.declinedUserIds).toEqual(["u1", "u2"]);
+    expect(has(r.effects, "telnyx-answer-vm")).toBe(true);
+  });
+
+  it("§15.1 totality: decline is licensed in EVERY state (no throw; terminal stays terminal)", () => {
+    for (const state of CALL_STATES) {
+      const machine = ringingMachine();
+      machine.state = state;
+      const r = reduce(machine, { type: "decline", userId: "u1" }, 5_000, KEY);
+      const reply = r.reply as { declined: boolean; state: CallState };
+      expect(typeof reply.declined).toBe("boolean");
+      if (state !== "ringing") {
+        // Non-ringing is an idempotent no-op; a terminal never resurrects.
+        expect(reply.declined).toBe(false);
+        expect(r.machine?.state).toBe(state);
+      }
+    }
+  });
+
+  it("PROPERTY: a declined member's device is never counted as an avenue again", () => {
+    const machine = twoMemberRinging();
+    const declined = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY).machine as SessionMachine;
+
+    // (1) ring-me for the decliner is refused — no re-dial, no hangup.
+    const rm = reduce(declined, { type: "ring-me", userId: "u1", sipUsername: "sip1", noLocalLeg: true }, 2_200, KEY);
+    expect(rm.reply).toMatchObject({ rang: false, reason: "declined" });
+    expect(has(rm.effects, "telnyx-dial")).toBe(false);
+    expect(has(rm.effects, "telnyx-hangup")).toBe(false);
+
+    // (2) a fan-out settle can never re-add the decliner (it only ever filters
+    // pushCapableUserIds) — and after u2's leg dies, the ONLY remaining avenue
+    // is u2's push; u1's decline must not hold the ring open.
+    const u2Dead = reduce(
+      declined,
+      { type: "member-leg-hangup", ccid: "leg-u2", userId: "u2", destination: null },
+      2_300,
+      KEY,
+    ).machine as SessionMachine;
+    expect(u2Dead.state).toBe("ringing"); // u2 push avenue still holds it
+    const settle = reduce(u2Dead, { type: "push-fanout-settled", unreachableUserIds: ["u2"] }, 2_400, KEY);
+    // u2 gone too → zero avenues → voicemail. u1 was never counted.
+    expect(settle.machine?.pushCapableUserIds).toEqual([]);
+    expect(settle.machine?.state).toBe("voicemail_greeting");
+  });
+});
+
 // ---- T7 owner death + intent ----------------------------------------------
 
 describe("T7 — owner death / intent stand-down", () => {

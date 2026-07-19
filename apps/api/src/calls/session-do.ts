@@ -33,6 +33,7 @@ import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./r
 import {
   type AlarmKind,
   type CallState,
+  type DeclineReply,
   type Effect,
   JANITOR_MS,
   JOURNAL_RESUME_MS,
@@ -211,6 +212,52 @@ export class CallSessionDO extends DurableObject<Env> {
     });
   }
 
+  /**
+   * #171 POST /v1/calls/live/:session/decline — a member explicitly declines
+   * the ring. Routes into the reducer's DECLINE transition: cancel this
+   * member's ring legs, drop them from the avenue/audience set, re-run the T3
+   * ladder (single-member → voicemail; multi → others keep ringing). Always
+   * resolves — `declined:true` for a live (ringing) session, `declined:false`
+   * (idempotent no-op) for an already-resolved/ended one. Never a state-based
+   * error: the route always returns 200 with this body.
+   */
+  async decline(input: {
+    sessionId: string;
+    userId: string;
+  }): Promise<DeclineReply> {
+    return this.enqueue(async () => {
+      await this.rememberSessionId(input.sessionId);
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      if (!machine) {
+        // Empty DO: adopt from the row (a purged/ended session reconstructs as
+        // its terminal state → the reducer no-ops declined:false).
+        const adopted = await this.adoptFromRow();
+        if (!adopted) {
+          return {
+            declined: false,
+            state: "ended_missed" as CallState,
+            reason: "not_ringing",
+          };
+        }
+      }
+      const reply = await this.admitAndDrain(
+        { type: "decline", userId: input.userId },
+        null,
+      );
+      const r = reply as DeclineReply | undefined;
+      if (!r) {
+        const m = await this.load();
+        return {
+          declined: false,
+          state: (m?.state ?? "ended_missed") as CallState,
+          reason: "not_ringing",
+        };
+      }
+      return { declined: r.declined, state: r.state, reason: r.reason };
+    });
+  }
+
   async snapshot(sessionId?: string): Promise<SessionSnapshot | null> {
     return this.enqueue(async () => {
       if (sessionId) await this.rememberSessionId(sessionId);
@@ -365,7 +412,7 @@ export class CallSessionDO extends DurableObject<Env> {
   private async admitAndDrain(
     event: SessionEvent,
     eventId: string | null,
-  ): Promise<RingMeReply | { state: CallState } | undefined> {
+  ): Promise<RingMeReply | DeclineReply | { state: CallState } | undefined> {
     if (eventId && (await this.isSeen(eventId))) {
       // Seen-marked with no unfinished journal → true duplicate no-op.
       return undefined;
@@ -390,8 +437,8 @@ export class CallSessionDO extends DurableObject<Env> {
 
   private async drain(
     journal: Journal,
-  ): Promise<RingMeReply | { state: CallState } | undefined> {
-    let headReply: RingMeReply | { state: CallState } | undefined;
+  ): Promise<RingMeReply | DeclineReply | { state: CallState } | undefined> {
+    let headReply: RingMeReply | DeclineReply | { state: CallState } | undefined;
     let first = true;
     while (journal.head) {
       const head = journal.head;
@@ -866,6 +913,7 @@ export class CallSessionDO extends DurableObject<Env> {
       ownerLegDeadDuringIntent: null,
       adopted: true, // §7.5.4: scopes §7.7 ledger-less minting to cutover
       pushCapableUserIds: [],
+      declinedUserIds: [],
       ringDeadlineMs: state === "ringing" ? row.startedAtMs + RING_WINDOW_SECS * 1_000 : null,
       telnyxCommandCount: 0,
       legs: row.ledgerLegs.map((leg) => ({

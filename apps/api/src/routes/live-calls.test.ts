@@ -615,3 +615,46 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /v1/calls/live/:id/decline (#171)", () => {
+  async function post(sb: SupabaseStub) {
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/decline`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+  }
+
+  it("a still-ringing call → 200 {declined:false} in the no-binding env (v3-only signal)", async () => {
+    // No CALL_SESSIONS binding in the test env → the fallback owns the reply.
+    const sb = liveWorld({ call: { answered_at: null, outcome: null } });
+    const res = await post(sb);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { declined: boolean; state: string; reason?: string };
+    expect(body).toMatchObject({ declined: false, reason: "not_ringing" });
+    expect(body.state).toBe("ringing");
+  });
+
+  it("never a 409 for state: declining an already-ENDED call is a 200 no-op body", async () => {
+    const sb = liveWorld({ call: { answered_at: null, outcome: "missed" } });
+    const res = await post(sb);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { declined: boolean; state: string };
+    expect(body).toMatchObject({ declined: false, state: "ended_missed" });
+  });
+
+  it("404s a session from another company (scoped read finds nothing)", async () => {
+    const sb = liveWorld({ call: null });
+    const res = await post(sb);
+    expect(res.status).toBe(404);
+  });
+
+  it("409s an OUTBOUND call (decline is inbound-only, mirrors #139)", async () => {
+    const sb = liveWorld({ call: { answered_at: null, outcome: null, direction: "outbound" } });
+    const res = await post(sb);
+    expect(res.status).toBe(409);
+  });
+});

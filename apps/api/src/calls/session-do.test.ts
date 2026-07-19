@@ -370,6 +370,70 @@ describe("CallSessionDO — forgery gate (§7.7, review R2-B3)", () => {
   });
 });
 
+describe("CallSessionDO — decline (#171)", () => {
+  it("solo decline → cancels the leg, drops the avenue, answers voicemail; always-200 declined:true", async () => {
+    const { instance, calls } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent(initiatedEvent("e1")); // dials cc0 for u1
+    const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
+    expect(reply).toEqual({ declined: true, state: "voicemail_greeting" });
+    expect(calls.hangups).toContain("cc0"); // decliner's ring leg hung up
+    expect(calls.answersVm).toHaveLength(1); // no avenue left → voicemail
+    const snap = await snapshot(instance);
+    expect(snap?.state).toBe("voicemail_greeting");
+  });
+
+  it("multi-member decline → others keep ringing, NO voicemail", async () => {
+    const { instance, calls } = makeDO({
+      initiated: ctx({
+        dialTargets: [
+          { userId: "u1", sipUsername: "s1" },
+          { userId: "u2", sipUsername: "s2" },
+        ],
+        pushAudience: ["u1", "u2"],
+      }),
+    });
+    await instance.onTelnyxEvent(initiatedEvent("e1")); // cc0=u1, cc1=u2
+    const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
+    expect(reply).toEqual({ declined: true, state: "ringing" });
+    expect(calls.hangups).toContain("cc0"); // u1's leg canceled
+    expect(calls.answersVm).toHaveLength(0); // caller still ringing u2
+    const snap = await snapshot(instance);
+    expect(snap?.state).toBe("ringing");
+  });
+
+  it("decline of an already-answered session → idempotent 200 {declined:false}", async () => {
+    const { instance } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // → answered
+    const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
+    expect(reply).toEqual({ declined: false, state: "answered", reason: "not_ringing" });
+  });
+
+  it("decline against an empty DO with no row → {declined:false} (never throws)", async () => {
+    const { instance } = makeDO({ adoptionRow: null });
+    const reply = await instance.decline({ sessionId: SESSION, userId: "u1" });
+    expect(reply).toEqual({ declined: false, state: "ended_missed", reason: "not_ringing" });
+  });
+
+  it("a declined member is never re-rung by a later ring-me within the session", async () => {
+    const { instance, calls } = makeDO({
+      initiated: ctx({
+        dialTargets: [
+          { userId: "u1", sipUsername: "s1" },
+          { userId: "u2", sipUsername: "s2" },
+        ],
+        pushAudience: ["u1", "u2"],
+      }),
+    });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.decline({ sessionId: SESSION, userId: "u1" });
+    const dialsBefore = calls.dials.length;
+    const rm = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: true });
+    expect(rm).toMatchObject({ rang: false, reason: "declined" });
+    expect(calls.dials.length).toBe(dialsBefore); // no re-dial for the decliner
+  });
+});
+
 describe("CallSessionDO — kill switch (§12.4)", () => {
   it("alarm() no-ops under the flag but RE-ARMS a coarse re-check (no immortal storage)", async () => {
     const { instance, store, calls } = makeDO({ initiated: ctx(), killSwitch: true });
