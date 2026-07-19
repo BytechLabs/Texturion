@@ -139,18 +139,6 @@ class TelecomCallRegistry(
         @Volatile var legBound = false
 
         /**
-         * Every leg the state stream currently reports as LIVE for this session,
-         * in arrival order. The OS call is per-SESSION but two INVITEs can share one
-         * `call_session_id` (a duplicate fork / ring-me re-dial, BLOCKING-2a). When
-         * the OWNING leg dies while a sibling is still live, the call RE-HOMES to the
-         * survivor instead of tearing down — otherwise SoftphoneCore promotes the held
-         * duplicate and the user is left with a live ring and no answerable OS call
-         * (HIGH re-review finding). Self-maintaining from drive(); only touched under
-         * the per-entry lock.
-         */
-        val liveLegs = LinkedHashSet<String>()
-
-        /**
          * The leg that OWNS this OS call (BLOCKING-2b). Two INVITEs can share one
          * `call_session_id` (anonymous caller + ring-me re-dial); the OS call is
          * keyed on S, so a reaped SIBLING leg's terminal state must NEVER tear
@@ -243,9 +231,6 @@ class TelecomCallRegistry(
             return
         }
         entry.legBound = true
-        // Track this leg as live for the session so that if the CURRENT owner dies
-        // first, the call re-homes here instead of tearing down (see [liveLegs]).
-        if (legId != null) synchronized(entry) { entry.liveLegs.add(legId) }
         if (entry.owningLegId == null) entry.owningLegId = legId
         entry.ringWindowJob?.cancel() // a leg bound — no ghost ring to backstop
         val actions = TelecomCallReducer.onLegBound(entry.answerRequested, entry.accepted, entry.terminated)
@@ -298,17 +283,6 @@ class TelecomCallRegistry(
         // is already ending. The teardown that SETS terminated still runs (the
         // flag is false until disconnectEntry flips it); only later drives no-op.
         if (entry.terminated) return
-        // Maintain the session's live-leg set BEFORE the owning-leg gate: a SIBLING
-        // leg never drives the call, but its liveness still matters — it may be the
-        // survivor a later owner-death re-homes to (or must NOT re-home to, if it
-        // died first). Self-maintaining from the one state stream.
-        synchronized(entry) {
-            if (TelecomCallReducer.isTerminal(legState)) {
-                entry.liveLegs.remove(legId)
-            } else {
-                entry.liveLegs.add(legId)
-            }
-        }
         // BLOCKING-2b: a SIBLING leg (different id) sharing this session must
         // never drive — least of all tear down — the entry the owning leg holds.
         if (!TelecomCallReducer.legMayDrive(entry.owningLegId, legId)) return
@@ -322,45 +296,16 @@ class TelecomCallRegistry(
             TelecomCallReducer.ScopeAction.SET_ACTIVE -> scopeOp(entry) { setActive() }
             TelecomCallReducer.ScopeAction.SET_INACTIVE -> scopeOp(entry) { setInactive() }
             TelecomCallReducer.ScopeAction.DISCONNECT_LOCAL ->
-                endOrRehome(entry, legId, DisconnectCause(DisconnectCause.LOCAL))
+                disconnectEntry(entry, DisconnectCause(DisconnectCause.LOCAL))
 
             TelecomCallReducer.ScopeAction.DISCONNECT_REMOTE ->
-                endOrRehome(entry, legId, DisconnectCause(DisconnectCause.REMOTE))
+                disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE))
 
             TelecomCallReducer.ScopeAction.DISCONNECT_ERROR ->
-                endOrRehome(entry, legId, DisconnectCause(DisconnectCause.ERROR))
+                disconnectEntry(entry, DisconnectCause(DisconnectCause.ERROR))
 
             TelecomCallReducer.ScopeAction.NONE -> Unit
         }
-    }
-
-    /**
-     * A leg reached a terminal state. Normally that ends the session's OS call —
-     * but the OS call is per-SESSION and two INVITEs can share one
-     * `call_session_id` (a duplicate fork / ring-me re-dial, BLOCKING-2a). If the
-     * leg that died OWNED the call while a SIBLING for the same session is still
-     * live, and nothing has been accepted yet, RE-HOME the OS call to the survivor
-     * instead of tearing it down: SoftphoneCore promotes the held duplicate, so
-     * tearing down here would leave the user with a live ring and no answerable
-     * call — a missed inbound call (HIGH re-review finding).
-     *
-     * Re-homing is PRE-ACCEPT only. Once media is accepted, the owning leg dying IS
-     * the call ending (a real hangup) and must tear down. Any pending answer carries
-     * over: the survivor's onLegBound sees the durable `answerRequested` and accepts.
-     */
-    private fun endOrRehome(entry: CallEntry, legId: String, cause: DisconnectCause) {
-        val rehomed = synchronized(entry) {
-            val survivor = entry.liveLegs.firstOrNull()
-            if (!entry.accepted && !entry.terminated && legId == entry.owningLegId && survivor != null) {
-                entry.owningLegId = survivor
-                // Fresh slate: the survivor drives the OS call from here.
-                entry.lastAction = null
-                true
-            } else {
-                false
-            }
-        }
-        if (!rehomed) disconnectEntry(entry, cause)
     }
 
     /**
