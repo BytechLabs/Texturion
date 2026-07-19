@@ -227,6 +227,20 @@ class TelecomCallReducerTest {
     }
 
     @Test
+    fun `only ended leg states are terminal — a live sibling can still inherit the OS call`() {
+        // Drives the per-session live-leg set: a leg in a terminal state is dropped
+        // (never re-homed to), a live one is retained as a possible survivor when the
+        // OWNING leg dies (duplicate fork / ring-me re-dial — HIGH re-review).
+        assertTrue(TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.DONE_LOCAL))
+        assertTrue(TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.DONE_REMOTE))
+        assertTrue(TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.ERROR))
+        assertTrue(!TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.RINGING))
+        assertTrue(!TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.DIALING))
+        assertTrue(!TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.ACTIVE))
+        assertTrue(!TelecomCallReducer.isTerminal(TelecomCallReducer.LegState.HELD))
+    }
+
+    @Test
     fun `bind deadline with no accept and not terminated tears down — no dead air`() {
         assertTrue(TelecomCallReducer.deadlineDisconnects(accepted = false, terminated = false))
     }

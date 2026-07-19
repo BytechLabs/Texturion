@@ -257,6 +257,19 @@ object TelecomCallReducer {
      */
     enum class LegState { DIALING, RINGING, ACTIVE, HELD, DONE_LOCAL, DONE_REMOTE, ERROR }
 
+    /**
+     * Whether a leg state means the leg is GONE — no longer a candidate to own the
+     * session's OS call. Used to maintain the per-session live-leg set: two INVITEs
+     * can share one `call_session_id` (a duplicate fork / ring-me re-dial), and when
+     * the OWNING leg dies while a sibling is still live the OS call must re-home to
+     * the survivor rather than tear down (else the user is left with a live ring and
+     * no answerable call — HIGH re-review finding).
+     */
+    fun isTerminal(state: LegState): Boolean = when (state) {
+        LegState.DONE_LOCAL, LegState.DONE_REMOTE, LegState.ERROR -> true
+        LegState.DIALING, LegState.RINGING, LegState.ACTIVE, LegState.HELD -> false
+    }
+
     /** The `CallControlScope` op the OS call must follow the media with. */
     enum class ScopeAction { NONE, SET_ACTIVE, SET_INACTIVE, DISCONNECT_LOCAL, DISCONNECT_REMOTE, DISCONNECT_ERROR }
 
