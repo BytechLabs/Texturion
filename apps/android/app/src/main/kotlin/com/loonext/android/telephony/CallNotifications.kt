@@ -40,14 +40,26 @@ internal class CallNotifier(private val context: Context) {
 
         const val ACTION_ANSWER = "com.loonext.android.telephony.action.ANSWER"
         const val ACTION_DECLINE = "com.loonext.android.telephony.action.DECLINE"
+        /** Sent whenever a session's ring is cancelled so the full-screen
+         *  [IncomingCallActivity] finishes on ANY teardown (remote hangup, ring
+         *  window, call_end, teammate answered) — not only a button tap. */
+        const val ACTION_INCOMING_GONE = "com.loonext.android.telephony.action.INCOMING_GONE"
         const val EXTRA_SESSION = "session"
         const val EXTRA_CALLER_NAME = "caller_name"
         const val EXTRA_CALLER_NUMBER = "caller_number"
 
-        /** Cancel the incoming ring for [session] from anywhere (receiver, etc.). */
+        /** Cancel the incoming ring for [session] from anywhere, and tell the
+         *  full-screen activity to finish (same teardown drives both). */
         fun cancelIncomingForSession(context: Context, session: String) {
             runCatching {
                 NotificationManagerCompat.from(context).cancel("call:$session", INCOMING_ID)
+            }
+            runCatching {
+                context.sendBroadcast(
+                    Intent(ACTION_INCOMING_GONE)
+                        .setPackage(context.packageName)
+                        .putExtra(EXTRA_SESSION, session),
+                )
             }
         }
     }
@@ -227,19 +239,13 @@ class CallActionReceiver : BroadcastReceiver() {
             val session = intent.getStringExtra(CallNotifier.EXTRA_SESSION) ?: return
             when (intent.action) {
                 CallNotifier.ACTION_ANSWER -> {
-                    // Answer over the keyguard: bring up the in-call surface AND
-                    // drive the Telecom answer. The activity requests keyguard
-                    // dismissal; the answer connects media.
-                    runCatching {
-                        context.startActivity(
-                            IncomingCallActivity.intent(
-                                context,
-                                session,
-                                intent.getStringExtra(CallNotifier.EXTRA_CALLER_NAME).orEmpty(),
-                                intent.getStringExtra(CallNotifier.EXTRA_CALLER_NUMBER).orEmpty(),
-                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
+                    // Answer directly. Do NOT launch IncomingCallActivity here: that
+                    // is the RING surface, and re-showing it over an answered call
+                    // strands the user on a Decline that hangs up the live call
+                    // (HIGH re-review). Telecom + the phoneCall FGS grant the mic
+                    // over the keyguard; the locked-answer keyguard dismissal is the
+                    // full-screen activity's OWN Answer button. The ongoing-call
+                    // notification takes over once media connects.
                     softphone(context)?.answerIncoming(session)
                 }
 

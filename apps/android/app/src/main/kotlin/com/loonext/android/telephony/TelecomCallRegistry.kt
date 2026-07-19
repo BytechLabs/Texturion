@@ -453,13 +453,14 @@ class TelecomCallRegistry(
      * member-scoped), release the session's held forks so none re-rings, and tear
      * the OS call down. Mirrors a user reject.
      */
-    fun declineFromNotification(session: String) {
-        val entry = entries[session] ?: return
+    fun declineFromNotification(session: String): Boolean {
+        val entry = entries[session] ?: return false
         runCatching { bridge.cancelIncomingCall(session) }
         runCatching { bridge.endLeg(session) }
         declineForTeardown(entry)
         runCatching { bridge.releaseHeldSession(session) }
         disconnectEntry(entry, DisconnectCause(DisconnectCause.LOCAL))
+        return true
     }
 
     // ------------------------------------------------------------- internals
@@ -479,6 +480,12 @@ class TelecomCallRegistry(
                 callCapabilities = CallAttributesCompat.SUPPORTS_SET_INACTIVE,
             )
         }.getOrElse {
+            // addCall never launches, so its finally→cleanup (the only teardown
+            // that cancels the ring) never runs — cancel the already-posted ring
+            // + the ring-window timer here, or an IMPORTANCE_HIGH ring for a call
+            // that will never present is stranded (LOW re-review).
+            entry.ringWindowJob?.cancel()
+            runCatching { bridge.cancelIncomingCall(entry.key.removePrefix("out:")) }
             entries.remove(entry.key, entry)
             onFailure("telecom-attrs", it)
             return

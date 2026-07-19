@@ -2,8 +2,10 @@ package com.loonext.android.features.calls
 
 import android.app.Activity
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +57,16 @@ class IncomingCallActivity : Activity() {
 
     private val session: String? get() = intent.getStringExtra(EXTRA_SESSION)
 
+    /** Finishes this full-screen ring when its session's ring is cancelled by ANY
+     *  path (remote hangup, ring-window timeout, call_end, a teammate answering) —
+     *  the [CallNotifier] cancel broadcasts [CallNotifier.ACTION_INCOMING_GONE].
+     *  Without this, a dead-call ring screen would linger over the lock screen. */
+    private val goneReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getStringExtra(CallNotifier.EXTRA_SESSION) == session) finish()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverKeyguard()
@@ -65,6 +77,22 @@ class IncomingCallActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         setContentView(buildView())
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(CallNotifier.ACTION_INCOMING_GONE)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(goneReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(goneReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        runCatching { unregisterReceiver(goneReceiver) }
     }
 
     private fun showOverKeyguard() {

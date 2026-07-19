@@ -357,9 +357,13 @@ class SoftphoneManager private constructor(
         runCatching { registry.answerFromNotification(session) }
     }
 
-    /** Decline the incoming call for [session] from the app's own ring. */
+    /** Decline the incoming call for [session] from the app's own ring. A Decline
+     *  must NEVER be a local-only no-op: if the registry has no entry (a cold /
+     *  killed process where the SDK never bound this ring), route a member-scoped
+     *  fire-and-forget server decline so the caller stops ringing. */
     fun declineIncoming(session: String) {
-        runCatching { registry.declineFromNotification(session) }
+        val handled = runCatching { registry.declineFromNotification(session) }.getOrDefault(false)
+        if (!handled) runCatching { core.declineCurrent(sessionHint = session) }
     }
 
     /** Answer a ringing call (any active call is held first). */
