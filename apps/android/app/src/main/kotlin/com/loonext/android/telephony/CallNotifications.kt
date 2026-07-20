@@ -1,6 +1,7 @@
 package com.loonext.android.telephony
 
 import android.Manifest
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -59,6 +60,28 @@ internal class CallNotifier(private val context: Context) {
             CallActivity.intent(context, session = null),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+
+        /**
+         * Reap ring / "Connecting…" rows left behind by a PREVIOUS process. Both are
+         * `setOngoing(true)` with no auto-cancel, and every cancel path needs this
+         * process alive — so a process killed mid-ring (Doze / low memory on a
+         * push-woken process is the ordinary case) leaves a permanent,
+         * non-dismissible "Incoming call" the user cannot get rid of, whose Decline
+         * would fire a member-scoped decline-mine and could kill a DIFFERENT ring
+         * arriving at that moment. At process start nothing is registered yet, so any
+         * such row is by definition a ghost.
+         */
+        fun sweepStale(context: Context) {
+            runCatching {
+                val manager = context.getSystemService(NotificationManager::class.java) ?: return
+                manager.activeNotifications.forEach { posted ->
+                    if (posted.id == INCOMING_ID || posted.id == CONNECTING_ID) {
+                        val tag = posted.tag
+                        if (tag != null) manager.cancel(tag, posted.id) else manager.cancel(posted.id)
+                    }
+                }
+            }
+        }
 
         /** Cancel the incoming ring for [session] from anywhere, and tell the
          *  full-screen activity to finish (same teardown drives both). */
@@ -123,6 +146,9 @@ internal class CallNotifier(private val context: Context) {
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, decline, answer))
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)
+            // Second guard: if this process dies mid-ring, no cancel path survives —
+            // let the OS reap the row when the server ring window is over.
+            .setTimeoutAfter(TelecomCallReducer.RING_WINDOW_MS)
         runCatching {
             NotificationManagerCompat.from(context)
                 .notify("call:$session", INCOMING_ID, builder.build())

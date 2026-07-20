@@ -450,7 +450,7 @@ class TelecomCallRegistry(
      * releasing the call foreground service, or an empty pre-INVITE snapshot would
      * stop the service mid-ring and take the microphone with it.
      */
-    fun hasActiveCalls(): Boolean = entries.isNotEmpty()
+    fun hasActiveCalls(): Boolean = entries.values.any { !it.terminated }
 
     /** §9.2 `call_end` revocation / server-resolved teardown: disconnect the OS
      *  call for [session]. Unknown session → no-op. */

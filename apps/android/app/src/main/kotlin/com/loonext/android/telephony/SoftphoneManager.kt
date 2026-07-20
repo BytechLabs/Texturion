@@ -121,6 +121,9 @@ class SoftphoneManager private constructor(
     private var liveLegSessions: Set<String> = emptySet()
 
     init {
+        // Reap ring/"Connecting…" rows a PREVIOUS process died holding. Nothing is
+        // registered yet, so any that exist are ghosts their owner could not cancel.
+        runCatching { CallNotifier.sweepStale(appContext) }
         watchNetwork()
         watchForeground()
         core.onInternalFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) }
@@ -354,23 +357,35 @@ class SoftphoneManager private constructor(
             markedCallInFlight = true
             diagnostics.callMarker.set()
         }
-        // Re-assert the call foreground service now that we're answering. If it
-        // started at RING time before RECORD_AUDIO was granted it is running
+        val handled = runCatching { registry.answerFromNotification(session) }.getOrDefault(false)
+        // No registry entry (cold process, or the OS call already cleaned up):
+        // never let Answer be a no-op — accept the core's ringing leg for this
+        // session directly, matching how the bridge resolves a leg.
+        val leg = if (handled) {
+            null
+        } else {
+            core.state.value.calls.firstOrNull {
+                it.direction == CallDirection.INBOUND && it.phase == CallPhase.RINGING &&
+                    (it.sessionId == session || it.id == session)
+            }
+        }
+        if (!handled && leg == null) {
+            // Nothing to answer — a STALE ring (its process died, the notification
+            // outlived it). Starting the foreground service here would hold the
+            // process, the mic and an "Ongoing call" row forever with no call and
+            // nothing left to stop it. Reap the ghost instead.
+            runCatching { markedCallInFlight = false; diagnostics.callMarker.clear() }
+            runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
+            runCatching { CallForegroundService.stop(appContext) }
+            return
+        }
+        // Re-assert the call foreground service now that we're really answering. If
+        // it started at RING time before RECORD_AUDIO was granted it is running
         // phoneCall-only, which does not carry the background mic-capture right;
         // restarting re-evaluates the type and upgrades it to include microphone
         // (idempotent — same notification id, no user-visible change).
         runCatching { CallForegroundService.start(appContext, "Ongoing call") }
-        val handled = runCatching { registry.answerFromNotification(session) }.getOrDefault(false)
-        if (!handled) {
-            // No registry entry (cold process, or the OS call already cleaned up):
-            // never let Answer be a no-op — accept the core's ringing leg for this
-            // session directly, matching how the bridge resolves a leg.
-            val leg = core.state.value.calls.firstOrNull {
-                it.direction == CallDirection.INBOUND && it.phase == CallPhase.RINGING &&
-                    (it.sessionId == session || it.id == session)
-            }
-            leg?.let { runCatching { core.answer(it.id) } }
-        }
+        leg?.let { runCatching { core.answer(it.id) } }
     }
 
     /**
@@ -567,7 +582,11 @@ class SoftphoneManager private constructor(
                     text = if (featured.phase == CallPhase.HELD) "On hold" else "Call in progress",
                     sinceMs = featured.activeSinceMs,
                 )
-                // The within-5s ring-phase notification hands off to the ongoing one.
+                // The "Connecting…" row hands off to the ongoing one. Cancel by the
+                // LEG ID, which is what it was posted under — an outbound call has no
+                // sessionId until it goes ACTIVE (and it never equals the leg id), so
+                // cancelling by session left a second call row up for the whole call.
+                notifier.cancelConnecting(featured.id)
                 featured.sessionId?.let { notifier.cancelConnecting(it) }
             } else if (
                 snapshot.calls.none { it.phase != CallPhase.ENDED } &&
