@@ -79,23 +79,38 @@ class CallForegroundService : Service() {
             return START_NOT_STICKY
         }
         val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "Ongoing call" }
-        runCatching {
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                buildNotification(title),
-                if (Build.VERSION.SDK_INT >= 30) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                } else {
-                    0
-                },
-            )
+        val notification = buildNotification(title)
+        // We were started with startForegroundService, so we MUST reach a successful
+        // startForeground or the system kills the app ("did not then call
+        // Service.startForeground"). Declaring the `microphone` type REQUIRES
+        // RECORD_AUDIO to already be granted — and this service starts at RING time,
+        // before the mic preflight — so a device that hasn't granted mic yet would
+        // throw. Degrade instead of dying: microphone → phoneCall → none.
+        val attempts = buildList {
+            if (Build.VERSION.SDK_INT >= 30) {
+                if (micGranted()) {
+                    add(
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                    )
+                }
+                add(ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+            }
+            add(0)
         }
+        val started = attempts.any { type ->
+            runCatching { ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type) }
+                .isSuccess
+        }
+        if (!started) stopSelf()
         // START_STICKY would resurrect us with a null intent after a kill; the call
         // is gone by then, so don't.
         return START_NOT_STICKY
     }
+
+    private fun micGranted(): Boolean =
+        checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
 
     /**
      * Task swiped away. Deliberately does NOT stop the service: a live call must

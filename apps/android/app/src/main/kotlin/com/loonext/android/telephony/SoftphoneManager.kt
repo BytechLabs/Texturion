@@ -354,6 +354,12 @@ class SoftphoneManager private constructor(
             markedCallInFlight = true
             diagnostics.callMarker.set()
         }
+        // Re-assert the call foreground service now that we're answering. If it
+        // started at RING time before RECORD_AUDIO was granted it is running
+        // phoneCall-only, which does not carry the background mic-capture right;
+        // restarting re-evaluates the type and upgrades it to include microphone
+        // (idempotent — same notification id, no user-visible change).
+        runCatching { CallForegroundService.start(appContext, "Ongoing call") }
         runCatching { registry.answerFromNotification(session) }
     }
 
