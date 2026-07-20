@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -154,32 +155,42 @@ private fun CallSurface(
     val context = androidx.compose.ui.platform.LocalContext.current
     val snapshot by manager.state.collectAsStateWithLifecycle()
     var answering by remember { mutableStateOf(false) }
+    var everSeen by remember { mutableStateOf(false) }
 
     val ringing = snapshot.calls.firstOrNull {
         it.phase == CallPhase.RINGING && (session == null || it.sessionId == session || it.id == session)
     }
     val live = snapshot.liveCalls.firstOrNull { it.phase != CallPhase.RINGING }
 
+    // The session we ACT on. The extra can be absent (the ongoing/foreground
+    // notification opens this screen with none), in which case Answer/Decline
+    // would have been silent no-ops — resolve from the call actually on screen.
+    val target = session ?: ringing?.sessionId ?: ringing?.id
+
     fun answerNow() {
         answering = true
         onDismissKeyguard()
-        session?.let { manager.answerIncoming(it) }
-        runCatching { session?.let { CallNotifier.cancelIncomingForSession(context, it) } }
+        target?.let { manager.answerIncoming(it) }
+        runCatching { target?.let { CallNotifier.cancelIncomingForSession(context, it) } }
+    }
+
+    fun declineNow() {
+        target?.let { manager.declineIncoming(it) }
+        runCatching { target?.let { CallNotifier.cancelIncomingForSession(context, it) } }
+        onClose()
     }
 
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) {
-            answerNow()
-        } else {
-            // No mic = the caller would hear silence. Decline honestly instead.
-            session?.let { manager.declineIncoming(it) }
-            onClose()
-        }
+        if (granted) answerNow() else declineNow() // no mic = silence for the caller
     }
 
     fun answerWithMic() {
+        // Dismiss the keyguard FIRST: the system permission dialog is not
+        // showWhenLocked, so on a locked device requesting it behind the keyguard
+        // shows nothing and the answer stalls silently.
+        onDismissKeyguard()
         val granted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) answerNow() else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -190,48 +201,92 @@ private fun CallSurface(
         if (answerOnOpen && !answering) answerWithMic()
     }
 
-    // Nothing left to show → close (covers remote hangup, ring-out, another
-    // device answering, and an answer that never connected). The grace lets the
-    // answer transition settle so we don't close mid-answer; it is NOT gated on
-    // `answering`, or a failed answer would strand this screen forever.
+    // A push-woken ring reaches this screen BEFORE the leg binds, so the snapshot
+    // is empty for a while. Only treat "no call" as teardown once we have actually
+    // seen one, or the screen would close ~immediately on every push ring/answer.
     LaunchedEffect(ringing, live) {
-        if (ringing == null && live == null) {
+        if (ringing != null || live != null) everSeen = true
+    }
+
+    LaunchedEffect(everSeen, ringing, live) {
+        if (everSeen && ringing == null && live == null) {
             kotlinx.coroutines.delay(700)
-            val stillNothing = manager.state.value.calls.none { it.phase != CallPhase.ENDED }
-            if (stillNothing) onClose()
+            if (manager.state.value.calls.none { it.phase != CallPhase.ENDED }) onClose()
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        when {
-            live != null || answering -> {
-                val companyId = manager.currentCompanyId()
-                if (companyId != null) {
-                    InCallScreen(
-                        manager = manager,
-                        repo = repo,
-                        companyId = companyId,
-                        openConversation = { onClose() },
-                        onClose = onClose,
-                    )
-                } else {
-                    CallStatus(title = callerName.ifBlank { callerNumber }, status = "Connecting…")
+    // Nothing ever materialised (leg never bound, ring window elapsed) — don't
+    // strand a dead screen over the keyguard forever.
+    LaunchedEffect(everSeen) {
+        if (!everSeen) {
+            kotlinx.coroutines.delay(50_000)
+            if (!everSeen && manager.state.value.calls.none { it.phase != CallPhase.ENDED }) onClose()
+        }
+    }
+
+    // Deterministic teardown: the ring was cancelled for this session by ANY path.
+    // Only closes when it did not turn into a live call (cancel also fires on answer).
+    DisposableEffect(target) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                val gone = i.getStringExtra(CallNotifier.EXTRA_SESSION)
+                if ((target == null || gone == target) && !answering &&
+                    manager.state.value.liveCalls.none { it.phase != CallPhase.RINGING }
+                ) {
+                    onClose()
                 }
             }
+        }
+        val filter = android.content.IntentFilter(CallNotifier.ACTION_INCOMING_GONE)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                context.registerReceiver(receiver, filter)
+            }
+        }
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
 
-            ringing != null -> RingingSurface(
-                title = ringing.peerName.ifBlank { callerName.ifBlank { callerNumber } },
-                subtitle = ringing.peerNumber.ifBlank { callerNumber },
-                onAnswer = { answerWithMic() },
-                onDecline = {
-                    session?.let { manager.declineIncoming(it) }
+    val companyId = manager.currentCompanyId()
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        when {
+            // Only hand over to InCallScreen once a live call EXISTS — it closes
+            // itself when liveCalls is empty, which would kill this screen mid-answer.
+            live != null && companyId != null -> InCallScreen(
+                manager = manager,
+                repo = repo,
+                companyId = companyId,
+                openConversation = { /* notes deep-link belongs to the shell */ },
+                onClose = onClose,
+            )
+
+            // Answered (or live but no companyId yet): a status surface that always
+            // offers a way OUT, so a cold answer is never a controls-free dead end.
+            live != null || answering -> CallStatus(
+                title = (live?.peerName ?: callerName).ifBlank { callerNumber },
+                status = if (live != null) "Connected" else "Connecting…",
+                actionLabel = "Hang up",
+                onAction = {
+                    val id = live?.id
+                    if (id != null) manager.hangup(id) else target?.let { manager.declineIncoming(it) }
                     onClose()
                 },
+            )
+
+            ringing != null || target != null -> RingingSurface(
+                title = (ringing?.peerName ?: callerName).ifBlank { callerNumber },
+                subtitle = (ringing?.peerNumber ?: callerNumber),
+                onAnswer = { answerWithMic() },
+                onDecline = { declineNow() },
             )
 
             else -> CallStatus(
                 title = callerName.ifBlank { callerNumber },
                 status = "Connecting…",
+                actionLabel = null,
+                onAction = {},
             )
         }
     }
@@ -301,7 +356,12 @@ private fun RingingSurface(
 }
 
 @Composable
-private fun CallStatus(title: String, status: String) {
+private fun CallStatus(
+    title: String,
+    status: String,
+    actionLabel: String? = null,
+    onAction: () -> Unit = {},
+) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -315,6 +375,18 @@ private fun CallStatus(title: String, status: String) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (actionLabel != null) {
+                Spacer(Modifier.height(32.dp))
+                Button(
+                    onClick = onAction,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+                    modifier = Modifier.height(56.dp),
+                ) { Text(actionLabel, style = MaterialTheme.typography.titleMedium) }
+            }
         }
     }
 }

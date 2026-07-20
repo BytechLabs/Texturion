@@ -250,7 +250,7 @@ fun InCallScreen(
             val answerLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
             ) { granted ->
-                if (granted) manager.answer(featured.id) else micNotice = true
+                if (granted) manager.answerRinging(featured) else micNotice = true
             }
             if (micNotice) {
                 Text(
@@ -279,7 +279,7 @@ fun InCallScreen(
                 FilledIconButton(
                     onClick = {
                         if (manager.hasMicPermission()) {
-                            manager.answer(featured.id)
+                            manager.answerRinging(featured)
                         } else {
                             answerLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -375,7 +375,7 @@ private fun CallPhaseLine(call: CallSnapshot) {
 private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) manager.answer(call.id) }
+    ) { granted -> if (granted) manager.answerRinging(call) }
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -408,7 +408,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                 Spacer(Modifier.width(4.dp))
                 FilledTonalButton(onClick = {
                     if (manager.hasMicPermission()) {
-                        manager.answer(call.id)
+                        manager.answerRinging(call)
                     } else {
                         micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }

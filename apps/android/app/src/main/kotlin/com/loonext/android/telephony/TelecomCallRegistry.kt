@@ -451,10 +451,11 @@ class TelecomCallRegistry(
      * path the framework `onAnswer` would: the OS answer transition + accept the
      * Telnyx leg (mic FGS engaged). Idempotent — a duplicate tap is harmless.
      */
-    fun answerFromNotification(session: String) {
-        val entry = entries[session] ?: return
+    fun answerFromNotification(session: String): Boolean {
+        val entry = entries[session] ?: return false
         runCatching { bridge.cancelIncomingCall(session) }
         onTelecomAnswer(entry, CallAttributesCompat.CALL_TYPE_AUDIO_CALL)
+        return true
     }
 
     /**
@@ -497,6 +498,9 @@ class TelecomCallRegistry(
             entry.ringWindowJob?.cancel()
             runCatching { bridge.cancelIncomingCall(entry.key.removePrefix("out:")) }
             entries.remove(entry.key, entry)
+            // cleanup() never runs on this path, so release the process/mic hold
+            // here or the FGS notification is pinned forever.
+            if (entries.isEmpty()) CallForegroundService.stop(appContext)
             onFailure("telecom-attrs", it)
             return
         }
@@ -533,7 +537,14 @@ class TelecomCallRegistry(
                     // Inbound already posted its own RING in ensureIncomingCall;
                     // only an OUTBOUND dial shows the plain "Connecting…" here.
                     if (entry.direction == CallAttributesCompat.DIRECTION_OUTGOING) {
-                        runCatching { bridge.onCallRegistered(entry.key, callerName, callerNumber) }
+                        // De-prefixed: cleanup cancels with removePrefix("out:"), so
+                        // posting under the RAW key left every outbound "Connecting…"
+                        // notification stranded (and stacking, one per call).
+                        runCatching {
+                            bridge.onCallRegistered(
+                                entry.key.removePrefix("out:"), callerName, callerNumber,
+                            )
+                        }
                     }
                     // Follower routing (§4.2/§4.3): mirror the OS endpoint into
                     // Telnyx — never lead, never touch setCommunicationDevice.

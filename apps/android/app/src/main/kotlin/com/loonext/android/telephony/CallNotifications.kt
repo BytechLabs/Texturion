@@ -33,8 +33,11 @@ import com.loonext.android.push.ensureChannels
  */
 internal class CallNotifier(private val context: Context) {
     companion object {
-        private const val ONGOING_ID = 2102
-        private const val ONGOING_TAG = "loonext.call.ongoing"
+        /** The ONE ongoing-call notification. [CallForegroundService] posts it to
+         *  become a foreground service and [showOngoing] UPDATES the same id with
+         *  the rich content — same id + no tag, so they are one notification
+         *  instead of two competing rows. */
+        const val ONGOING_ID = 2102
         private const val CONNECTING_ID = 2103
         private const val INCOMING_ID = 2104
 
@@ -222,12 +225,12 @@ internal class CallNotifier(private val context: Context) {
         }
         runCatching {
             NotificationManagerCompat.from(context)
-                .notify(ONGOING_TAG, ONGOING_ID, builder.build())
+                .notify(ONGOING_ID, builder.build())
         }
     }
 
     fun cancelOngoing() {
-        runCatching { NotificationManagerCompat.from(context).cancel(ONGOING_TAG, ONGOING_ID) }
+        runCatching { NotificationManagerCompat.from(context).cancel(ONGOING_ID) }
     }
 
     private fun openAppIntent(requestCode: Int): PendingIntent {

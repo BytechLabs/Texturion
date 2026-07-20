@@ -41,7 +41,10 @@ import com.loonext.android.push.ensureChannels
 class CallForegroundService : Service() {
 
     companion object {
-        private const val NOTIFICATION_ID = 2105
+        /** The SAME id CallNotifier.showOngoing uses: this service posts the row to
+         *  go foreground and showOngoing then updates it with peer/duration/hold —
+         *  one ongoing call notification, not two competing ones. */
+        private const val NOTIFICATION_ID = CallNotifier.ONGOING_ID
         private const val ACTION_START = "com.loonext.android.telephony.fgs.START"
         private const val ACTION_STOP = "com.loonext.android.telephony.fgs.STOP"
         private const val EXTRA_TITLE = "title"

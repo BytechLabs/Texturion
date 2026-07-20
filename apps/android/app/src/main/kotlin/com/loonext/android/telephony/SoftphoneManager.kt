@@ -360,7 +360,31 @@ class SoftphoneManager private constructor(
         // restarting re-evaluates the type and upgrades it to include microphone
         // (idempotent — same notification id, no user-visible change).
         runCatching { CallForegroundService.start(appContext, "Ongoing call") }
-        runCatching { registry.answerFromNotification(session) }
+        val handled = runCatching { registry.answerFromNotification(session) }.getOrDefault(false)
+        if (!handled) {
+            // No registry entry (cold process, or the OS call already cleaned up):
+            // never let Answer be a no-op — accept the core's ringing leg for this
+            // session directly, matching how the bridge resolves a leg.
+            val leg = core.state.value.calls.firstOrNull {
+                it.direction == CallDirection.INBOUND && it.phase == CallPhase.RINGING &&
+                    (it.sessionId == session || it.id == session)
+            }
+            leg?.let { runCatching { core.answer(it.id) } }
+        }
+    }
+
+    /**
+     * Answer a RINGING leg from an IN-APP surface. An inbound ring must go through
+     * the registry (OS answer transition + accept + cancel the ring notification):
+     * calling [answer] straight into the core left the `CallStyle` ring posted for
+     * the whole call, and its Decline could later hang up the live call.
+     */
+    fun answerRinging(call: CallSnapshot) {
+        if (call.direction == CallDirection.INBOUND) {
+            answerIncoming(call.sessionId ?: call.id)
+        } else {
+            answer(call.id)
+        }
     }
 
     /** Decline the incoming call for [session] from the app's own ring. A Decline
@@ -380,6 +404,9 @@ class SoftphoneManager private constructor(
             markedCallInFlight = true
             diagnostics.callMarker.set()
         }
+        // Every accept path must re-assert the FGS: one started at ring time (before
+        // RECORD_AUDIO existed) is phoneCall-only and carries no background mic right.
+        runCatching { CallForegroundService.start(appContext, "Ongoing call") }
         core.answer(id)
     }
 
