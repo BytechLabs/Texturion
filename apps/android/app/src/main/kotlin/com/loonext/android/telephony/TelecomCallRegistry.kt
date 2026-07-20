@@ -232,7 +232,13 @@ class TelecomCallRegistry(
         // calls startForeground in InCallServiceCompat, the dialer path), so
         // without this an answer from the notification/lock screen has no mic
         // ("the caller can't hear me") and swiping the app away kills the call.
-        CallForegroundService.start(appContext, callerName.ifBlank { "Incoming call" })
+        CallForegroundService.start(
+            appContext,
+            title = callerName.ifBlank { callerNumber.ifBlank { "Incoming call" } },
+            // Honest during the ring — syncPlatform switches it to "Call in
+            // progress" the moment media connects.
+            text = "Incoming call",
+        )
         launchAddCall(entry, callerName, callerNumber, address = callerNumber)
         armRingWindow(entry)
     }

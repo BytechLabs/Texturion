@@ -29,15 +29,15 @@ import com.loonext.android.push.ensureChannels
  *    precondition: a `CallStyle` notification must be a foreground service OR
  *    carry a full-screen intent).
  *  - [showConnecting]: a plain silent notification for an OUTBOUND dial.
- *  - [showOngoing]: the quiet persistent notification while a call is live.
+ *
+ * The ONGOING-call notification is deliberately NOT here — it belongs to
+ * [CallForegroundService], which owns it for exactly as long as the service runs.
+ * A foreground service's notification cannot be removed with
+ * `NotificationManager.cancel()`, so an app-posted twin sharing its id left an
+ * "ongoing call" row stranded after hang-up.
  */
 internal class CallNotifier(private val context: Context) {
     companion object {
-        /** The ONE ongoing-call notification. [CallForegroundService] posts it to
-         *  become a foreground service and [showOngoing] UPDATES the same id with
-         *  the rich content — same id + no tag, so they are one notification
-         *  instead of two competing rows. */
-        const val ONGOING_ID = 2102
         private const val CONNECTING_ID = 2103
         private const val INCOMING_ID = 2104
 
@@ -194,43 +194,6 @@ internal class CallNotifier(private val context: Context) {
         runCatching {
             NotificationManagerCompat.from(context).cancel("call:$session", CONNECTING_ID)
         }
-    }
-
-    /**
-     * The quiet persistent notification while any call is live.
-     *
-     * #168A ROOT CAUSE lived in the old ongoing surface: it used
-     * `CallStyle.forOngoingCall` with no foreground service and no
-     * fullScreenIntent — API 31+ `Notification.Builder.build()` throws
-     * `IllegalArgumentException` for that combination. This is a plain
-     * notification with a hang-up action — no `CallStyle`, no platform
-     * preconditions; an ongoing surface must never full-screen.
-     */
-    fun showOngoing(call: CallSnapshot) {
-        if (!canPost()) return
-        ensureChannels(context)
-        val builder = NotificationCompat.Builder(context, ChannelIds.MISSED_CALLS)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(call.peerName)
-            .setContentText(if (call.phase == CallPhase.HELD) "On hold" else "On a call")
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            // Tap → the call UI, not the tab shell (the founder had to hunt for
-            // the call after answering from a notification).
-            .setContentIntent(openCallScreenIntent(context))
-        call.activeSinceMs?.let { since ->
-            builder.setWhen(since).setUsesChronometer(true).setShowWhen(true)
-        }
-        runCatching {
-            NotificationManagerCompat.from(context)
-                .notify(ONGOING_ID, builder.build())
-        }
-    }
-
-    fun cancelOngoing() {
-        runCatching { NotificationManagerCompat.from(context).cancel(ONGOING_ID) }
     }
 
     private fun openAppIntent(requestCode: Int): PendingIntent {

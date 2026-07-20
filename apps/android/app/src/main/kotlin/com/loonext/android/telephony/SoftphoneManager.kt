@@ -552,16 +552,28 @@ class SoftphoneManager private constructor(
         }.onFailure { diagnostics.recordNonFatal("sync-scope", it) }
         liveLegSessions = liveInbound.keys.toSet()
 
-        // Ongoing-call notification mirrors the active (or lone held) call.
+        // The ongoing-call surface is the FOREGROUND SERVICE's notification — there
+        // is exactly one, and it lives and dies with the service. We only update its
+        // content here; we never post a second row (an app-posted notification
+        // sharing the service's id could not be cancelled while the service ran,
+        // which is what left an "ongoing call" stuck after hanging up).
         runCatching {
             val live = snapshot.liveCalls.filter { it.phase != CallPhase.RINGING }
             val featured = snapshot.activeCall ?: live.firstOrNull()
             if (featured != null) {
-                notifier.showOngoing(featured)
+                CallForegroundService.start(
+                    appContext,
+                    title = featured.peerName.ifBlank { featured.peerNumber },
+                    text = if (featured.phase == CallPhase.HELD) "On hold" else "Call in progress",
+                    sinceMs = featured.activeSinceMs,
+                )
                 // The within-5s ring-phase notification hands off to the ongoing one.
                 featured.sessionId?.let { notifier.cancelConnecting(it) }
-            } else {
-                notifier.cancelOngoing()
+            } else if (snapshot.calls.none { it.phase != CallPhase.ENDED }) {
+                // No call of any kind is live — release the service (and with it the
+                // notification) here too, not only from the registry's cleanup, so a
+                // hang-up can never strand an "ongoing call" row.
+                CallForegroundService.stop(appContext)
             }
         }.onFailure { diagnostics.recordNonFatal("sync-notification", it) }
 
