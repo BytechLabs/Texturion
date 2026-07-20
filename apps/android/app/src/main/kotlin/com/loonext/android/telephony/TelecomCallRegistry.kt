@@ -88,7 +88,8 @@ class TelecomCallRegistry(
         fun cancelIncomingCall(session: String)
     }
 
-    private val callsManager = CallsManager(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val callsManager = CallsManager(appContext)
 
     @Volatile
     private var registered = false
@@ -226,6 +227,12 @@ class TelecomCallRegistry(
         // it never re-rings). Answer/Decline on it drive [answerFromNotification]/
         // [declineFromNotification].
         runCatching { bridge.showIncomingCall(session, callerName, callerNumber) }
+        // Hold the process AND the mic from the moment the call exists. Jetpack
+        // Telecom does NOT run a foreground service (verified: core-telecom only
+        // calls startForeground in InCallServiceCompat, the dialer path), so
+        // without this an answer from the notification/lock screen has no mic
+        // ("the caller can't hear me") and swiping the app away kills the call.
+        CallForegroundService.start(appContext, callerName.ifBlank { "Incoming call" })
         launchAddCall(entry, callerName, callerNumber, address = callerNumber)
         armRingWindow(entry)
     }
@@ -340,6 +347,9 @@ class TelecomCallRegistry(
         if (!TelecomCallReducer.shouldAddCall(entries.keys, key)) return
         val entry = CallEntry(key, CallAttributesCompat.DIRECTION_OUTGOING)
         if (entries.putIfAbsent(key, entry) != null) return
+        // Same reason as inbound: our own FGS is what grants the mic in the
+        // background and keeps the process alive if the app is swiped away.
+        CallForegroundService.start(appContext, calleeName.ifBlank { "Call" })
         launchAddCall(entry, calleeName, calleeNumber, address = calleeNumber)
     }
 
@@ -436,7 +446,7 @@ class TelecomCallRegistry(
 
     /**
      * Answer the incoming call for [session] from the app's OWN ring surface (the
-     * `CallStyle` notification / [IncomingCallActivity]) — self-managed calls have
+     * `CallStyle` notification / [CallActivity]) — self-managed calls have
      * no OS answer surface, so this is how the user answers. Drives exactly the
      * path the framework `onAnswer` would: the OS answer transition + accept the
      * Telnyx leg (mic FGS engaged). Idempotent — a duplicate tap is harmless.
@@ -903,6 +913,9 @@ class TelecomCallRegistry(
             runCatching { bridge.cancelIncomingCall(session) }
             runCatching { bridge.onCallUnregistered(session) }
         }
+        // Release the process/mic hold once the LAST call is gone (never while
+        // another call is still live).
+        if (entries.isEmpty()) CallForegroundService.stop(appContext)
     }
 
     /** A non-Success [CallControlResult] surfaced as a Throwable for [onFailure]

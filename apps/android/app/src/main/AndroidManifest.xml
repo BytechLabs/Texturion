@@ -11,6 +11,13 @@
     <!-- #171 (§9.1): the call FGS Jetpack Telecom runs is of type `phoneCall`;
          that FGS is what grants mic capture over the keyguard / backgrounded. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- CORRECTION (device-verified): core-telecom does NOT start a foreground
+         service (startForeground appears only in InCallServiceCompat, the dialer
+         path), so the app runs its own. Without it Android 12+ blocks background
+         mic capture — answering from a notification/lock screen left the caller
+         hearing nothing — and nothing kept the process alive when the app was
+         swiped away, killing live calls. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- CORRECTION (§6, device-verified): androidx.core.telecom registers a
          SELF-MANAGED call and Android draws NO system incoming UI for one — so the
          app posts its own CallStyle ring with a full-screen intent (the earlier
@@ -54,16 +61,30 @@
              OS incoming UI, so the app owns the ring surface. showWhenLocked +
              turnScreenOn present it over the lock screen; excludeFromRecents +
              noHistory keep it out of the task history. -->
+        <!-- THE single call surface: ringing AND in-call, over the keyguard. It is
+             the target for the ring's fullScreenIntent, the ring's ANSWER action
+             (so answering always opens the UI and can prompt for the mic), and a
+             tap on the ongoing-call notification. -->
         <activity
-            android:name=".features.calls.IncomingCallActivity"
+            android:name=".features.calls.CallActivity"
             android:exported="false"
             android:launchMode="singleTask"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@style/Theme.Loonext.Starting" />
+
+        <!-- Holds the process + microphone for the life of a call. stopWithTask
+             ="false" is what keeps a live call alive when the app is swiped out
+             of recents (previously the call died while the caller still heard
+             "connected"). -->
+        <service
+            android:name=".telephony.CallForegroundService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="phoneCall|microphone" />
 
         <!-- FCM entry point (#156): message + token-refresh delivery. -->
         <service

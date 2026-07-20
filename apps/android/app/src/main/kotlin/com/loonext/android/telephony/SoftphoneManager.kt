@@ -346,7 +346,7 @@ class SoftphoneManager private constructor(
     )
 
     /** Answer the incoming call for [session] from the app's own ring surface
-     *  (the `CallStyle` notification / [IncomingCallActivity]) — self-managed
+     *  (the `CallStyle` notification / [CallActivity]) — self-managed
      *  Telecom has no OS answer surface, so this is how the user answers. Drives
      *  the Telecom registry's answer (OS answer + accept the Telnyx leg). */
     fun answerIncoming(session: String) {
