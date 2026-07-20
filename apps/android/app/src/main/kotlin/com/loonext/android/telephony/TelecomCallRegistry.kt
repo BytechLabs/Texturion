@@ -443,6 +443,15 @@ class TelecomCallRegistry(
         }
     }
 
+    /**
+     * Is ANY call registered? True from the moment a ring is registered — including
+     * a push-woken ring whose Telnyx leg has not bound yet, so it is NOT visible in
+     * the core's snapshot. The notification mirror must consult this before
+     * releasing the call foreground service, or an empty pre-INVITE snapshot would
+     * stop the service mid-ring and take the microphone with it.
+     */
+    fun hasActiveCalls(): Boolean = entries.isNotEmpty()
+
     /** §9.2 `call_end` revocation / server-resolved teardown: disconnect the OS
      *  call for [session]. Unknown session → no-op. */
     fun disconnect(session: String) {

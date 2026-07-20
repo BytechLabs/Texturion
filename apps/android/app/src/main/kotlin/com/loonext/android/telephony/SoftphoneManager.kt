@@ -569,10 +569,19 @@ class SoftphoneManager private constructor(
                 )
                 // The within-5s ring-phase notification hands off to the ongoing one.
                 featured.sessionId?.let { notifier.cancelConnecting(it) }
-            } else if (snapshot.calls.none { it.phase != CallPhase.ENDED }) {
+            } else if (
+                snapshot.calls.none { it.phase != CallPhase.ENDED } &&
+                !registry.hasActiveCalls()
+            ) {
                 // No call of any kind is live — release the service (and with it the
                 // notification) here too, not only from the registry's cleanup, so a
                 // hang-up can never strand an "ongoing call" row.
+                //
+                // The registry check is LOAD-BEARING: a push-woken ring registers the
+                // call before its Telnyx leg binds, so `snapshot.calls` is briefly
+                // EMPTY while the phone is ringing — and an empty list satisfies
+                // `none {}`. Without this we would stop the service mid-ring and lose
+                // the microphone for the answer.
                 CallForegroundService.stop(appContext)
             }
         }.onFailure { diagnostics.recordNonFatal("sync-notification", it) }
