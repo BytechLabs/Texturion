@@ -34,7 +34,12 @@ describe("blogArt", () => {
     expect(seen.size).toBe(BLOG_POSTS.length);
   });
 
-  it("generates sane geometry for every registry post and variant", () => {
+  // Sweeps EVERY post x variant and re-derives full curl-noise geometry: ~1.8s on
+  // an idle machine against vitest's 5s default. Under CI (all workspaces building
+  // and testing at once) that overran the default and failed intermittently — the
+  // art itself is deterministic (FNV-1a + seeded mulberry32, no Date/Math.random),
+  // so it was never a logic flake. Give the sweep room instead of thinning it.
+  it("generates sane geometry for every registry post and variant", { timeout: 30_000 }, () => {
     for (const post of BLOG_POSTS) {
       for (const variant of VARIANTS) {
         const spec = blogArt(post.slug, post.dateline, variant);

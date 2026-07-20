@@ -7,6 +7,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
@@ -244,16 +246,31 @@ internal class CallNotifier(private val context: Context) {
  * server via the app-graph fallback. A throw out of a BroadcastReceiver kills
  * the process (#168A), so every path is `runCatching`-guarded.
  */
+private const val DECLINE_GRACE_MS = 4_000L
+
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // goAsync: the server decline is a fire-and-forget POST on the softphone's
+        // scope, so without holding the broadcast the system may reap a
+        // push-woken/cached process the instant onReceive returns — dropping the
+        // decline and leaving the caller ringing to voicemail. The result is
+        // finished on a short timeout, and every path is guarded because a throw
+        // out of a BroadcastReceiver kills the process (#168A).
+        val pending = runCatching { goAsync() }.getOrNull()
         runCatching {
-            val session = intent.getStringExtra(CallNotifier.EXTRA_SESSION) ?: return
-            when (intent.action) {
-                CallNotifier.ACTION_DECLINE -> {
-                    softphone(context)?.declineIncoming(session)
-                    CallNotifier.cancelIncomingForSession(context, session)
-                }
+            val session = intent.getStringExtra(CallNotifier.EXTRA_SESSION)
+            if (session != null && intent.action == CallNotifier.ACTION_DECLINE) {
+                softphone(context)?.declineIncoming(session)
+                CallNotifier.cancelIncomingForSession(context, session)
             }
+        }
+        if (pending != null) {
+            // A few seconds is plenty for the POST to leave; never block longer —
+            // an unfinished PendingResult is an ANR.
+            Handler(Looper.getMainLooper()).postDelayed(
+                { runCatching { pending.finish() } },
+                DECLINE_GRACE_MS,
+            )
         }
     }
 

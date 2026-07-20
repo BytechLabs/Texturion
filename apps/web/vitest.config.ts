@@ -15,5 +15,14 @@ export default defineConfig({
   oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
+    // Auto-undo per-test global state. Without these, any test that spies
+    // (vi.spyOn), stubs a global (vi.stubGlobal) or an env var (vi.stubEnv)
+    // leaks into whatever file runs next — which made unrelated suites fail
+    // depending only on execution order (a red CI that passed locally, and
+    // vice versa). Restoring centrally fixes the whole class rather than
+    // chasing whichever test happens to surface it.
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
   },
 });
