@@ -133,6 +133,7 @@ fun ContactsTab(
     val role = resolvedMe?.memberships?.firstOrNull { it.company_id == companyId }?.role
     val canImport = MemberRole.atLeast(role, MemberRole.ADMIN)
 
+    val contactsStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val detailId = openContactId
     if (detailId != null) {
         ContactDetailScreen(
@@ -150,6 +151,9 @@ fun ContactsTab(
             modifier = modifier,
         )
     } else {
+        // Same state-parking as tasks/inbox: the list's saveable state must
+        // survive the detail branch replacing it.
+        contactsStateHolder.SaveableStateProvider("contacts-list") {
         ContactListScreen(
             graph = graph,
             mutations = mutations,
@@ -160,6 +164,7 @@ fun ContactsTab(
             onOpenContact = { openContactId = it },
             modifier = modifier,
         )
+        }
     }
 }
 
@@ -713,14 +718,15 @@ private fun ListFooter(
  * re-adding an existing number just lands on the same row.
  */
 @Composable
-private fun CreateContactSheet(
+internal fun CreateContactSheet(
     mutations: ContactMutations,
     companyId: String,
     onCreated: (Contact) -> Unit,
     onDismiss: () -> Unit,
+    prefillPhone: String = "",
 ) {
     val scope = rememberCoroutineScope()
-    var phone by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf(prefillPhone) }
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }

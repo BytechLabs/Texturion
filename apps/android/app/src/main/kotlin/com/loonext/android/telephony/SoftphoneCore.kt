@@ -127,6 +127,9 @@ class SoftphoneCore(
     private val connectMutex = Mutex()
     private var recoverJob: Job? = null
 
+    /** Consecutive [SdkEvent.Error]s since the last READY (see the Error branch). */
+    private var consecutiveSdkErrors = 0
+
     /**
      * The freshest `kind:'call'` wake push (session + caller + when) — the
      * only client-side clue tying a later INVITE to a server session, because
@@ -245,7 +248,10 @@ class SoftphoneCore(
 
     private fun onSdkEvent(event: SdkEvent) {
         when (event) {
-            is SdkEvent.Ready -> _state.update { CallStateMachine.ready(it) }
+            is SdkEvent.Ready -> {
+                consecutiveSdkErrors = 0
+                _state.update { CallStateMachine.ready(it) }
+            }
 
             is SdkEvent.Disconnected -> {
                 _state.update { CallStateMachine.disconnected(it) }
@@ -256,11 +262,24 @@ class SoftphoneCore(
                 // Often an auth/token failure — the SDK's own reconnect can't
                 // fix a dead token; a fresh mint + registration can. Deferred
                 // automatically while a call is live.
+                //
+                // QUIET BY DEFAULT: single socket errors are routine mobile
+                // churn that [scheduleRecover] heals in seconds — surfacing
+                // each one produced a phantom "Calling is temporarily
+                // unavailable" popup while simply browsing. The user-visible
+                // message is reserved for a PERSISTENT outage (3+ consecutive
+                // failures without a READY in between) or an error while a
+                // call is actually live.
+                consecutiveSdkErrors++
+                val worthTelling =
+                    _state.value.liveCalls.isNotEmpty() || consecutiveSdkErrors >= 3
                 _state.update {
-                    CallStateMachine.error(
-                        CallStateMachine.disconnected(it),
-                        "Calling is temporarily unavailable.",
-                    )
+                    val down = CallStateMachine.disconnected(it)
+                    if (worthTelling) {
+                        CallStateMachine.error(down, "Calling is temporarily unavailable.")
+                    } else {
+                        down
+                    }
                 }
                 scheduleRecover()
             }

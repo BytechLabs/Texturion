@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -64,8 +69,23 @@ fun DialerSheet(
     numbers: List<PhoneNumberSummary>,
     onDismiss: () -> Unit,
     initialDigits: String = "",
+    /** Resolve typed digits to a saved contact's name (null = no match). */
+    lookupContact: (suspend (digits: String) -> String?)? = null,
+    /** Offer "Add contact" for an unmatched dialable number. */
+    onAddContact: ((e164: String) -> Unit)? = null,
 ) {
     var digits by remember { mutableStateOf(initialDigits.take(15)) }
+    var matchedName by remember { mutableStateOf<String?>(null) }
+    if (lookupContact != null) {
+        LaunchedEffect(digits) {
+            if (digits.length < 4) {
+                matchedName = null
+                return@LaunchedEffect
+            }
+            kotlinx.coroutines.delay(250) // debounce keypad taps
+            matchedName = runCatching { lookupContact(digits) }.getOrNull()
+        }
+    }
     var fromId by remember { mutableStateOf(numbers.firstOrNull()?.id) }
     var calling by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -112,6 +132,7 @@ fun DialerSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(
@@ -164,8 +185,38 @@ fun DialerSheet(
                 maxLines = 1,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 14.dp),
+                    .padding(top = 14.dp, bottom = 4.dp),
             )
+
+            // Live contact correlation: the matched name while dialing, or an
+            // Add-contact affordance once the number is dialable and unknown.
+            val addTarget = if (matchedName == null && onAddContact != null) dialable else null
+            Box(Modifier.height(26.dp), contentAlignment = Alignment.Center) {
+                when {
+                    matchedName != null -> Text(
+                        matchedName!!,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                    )
+
+                    addTarget != null -> Text(
+                        "Add contact",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onAddContact!!.invoke(addTarget) }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+            }
 
             KEYPAD_ROWS.forEach { row ->
                 Row(

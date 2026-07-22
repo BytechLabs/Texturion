@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -174,11 +175,13 @@ fun AccountSheet(
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
                         modifier = Modifier.weight(1f),
                     )
+                    // Segmented track per the design grammar: inset track, INK
+                    // pill for the selected segment (paper-on-inset was nearly
+                    // invisible), equal-size segments.
                     Row(
                         Modifier
-                            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                             .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         listOf("system" to "System", "light" to "Light", "dark" to "Dark")
                             .forEach { (value, label) ->
@@ -187,31 +190,26 @@ fun AccountSheet(
                                     onClick = { scope.launch { graph.prefs.setTheme(value) } },
                                     shape = CircleShape,
                                     color = if (selected) {
-                                        MaterialTheme.colorScheme.surface
+                                        MaterialTheme.colorScheme.primary
                                     } else {
                                         Color.Transparent
                                     },
-                                    shadowElevation = if (selected) 1.dp else 0.dp,
                                 ) {
                                     Text(
                                         label,
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = if (selected) {
-                                                FontWeight.SemiBold
-                                            } else {
-                                                FontWeight.Medium
-                                            },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
                                         ),
                                         color = if (selected) {
-                                            MaterialTheme.colorScheme.onSurface
+                                            MaterialTheme.colorScheme.onPrimary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
-                                        modifier = Modifier.padding(
-                                            horizontal = 12.dp,
-                                            vertical = 6.dp,
-                                        ),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier
+                                            .widthIn(min = 58.dp)
+                                            .padding(horizontal = 10.dp, vertical = 7.dp),
                                     )
                                 }
                             }
@@ -266,7 +264,7 @@ fun AccountSheet(
                 SheetRow(
                     icon = Icons.AutoMirrored.Outlined.Logout,
                     label = "Sign out",
-                    muted = true,
+                    destructive = true,
                     trailing = {},
                     onClick = {
                         onSignOut()
@@ -381,6 +379,7 @@ private fun SheetRow(
     onClick: () -> Unit,
     muted: Boolean = false,
     dot: Boolean = false,
+    destructive: Boolean = false,
     trailing: @Composable () -> Unit = { Chevron() },
 ) {
     Row(
@@ -403,7 +402,11 @@ private fun SheetRow(
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (destructive) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -424,7 +427,9 @@ private fun SheetRow(
         Text(
             label,
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
-            color = if (muted) {
+            color = if (destructive) {
+                MaterialTheme.colorScheme.error
+            } else if (muted) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             } else {
                 MaterialTheme.colorScheme.onSurface

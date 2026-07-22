@@ -58,6 +58,10 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.features.contacts.ContactMutations
+import com.loonext.android.features.contacts.CreateContactSheet
+import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.CenteredError
@@ -114,6 +118,8 @@ fun CallsScreen(
     var refreshKey by remember { mutableStateOf(0) }
     var dialerOpen by rememberSaveable { mutableStateOf(false) }
     var dialerPrefill by rememberSaveable { mutableStateOf("") }
+    var addContactPrefill by rememberSaveable { mutableStateOf<String?>(null) }
+    val contactsRepo = remember(graph) { com.loonext.android.core.data.ContactsRepository(graph.api) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(companyId, filter, refreshKey) {
@@ -338,6 +344,32 @@ fun CallsScreen(
             },
             onDismiss = { dialerOpen = false },
             initialDigits = dialerPrefill,
+            lookupContact = { typed ->
+                // Correlate typed digits with saved contacts (name shows live
+                // in the dialer). Server q matches name+phone; double-check the
+                // digits actually appear in the hit's number.
+                runCatching {
+                    contactsRepo.contacts(companyId, q = typed, limit = 5).data
+                        .firstOrNull { c ->
+                            c.phone_e164.filter(Char::isDigit).contains(typed.filter(Char::isDigit))
+                        }
+                        ?.let { it.name?.takeIf(String::isNotBlank) ?: formatPhone(it.phone_e164) }
+                }.getOrNull()
+            },
+            onAddContact = { e164 ->
+                dialerOpen = false
+                addContactPrefill = e164
+            },
+        )
+    }
+
+    addContactPrefill?.let { prefill ->
+        CreateContactSheet(
+            mutations = remember(graph) { ContactMutations(graph.api, BuildConfig.API_URL) },
+            companyId = companyId,
+            onCreated = { addContactPrefill = null },
+            onDismiss = { addContactPrefill = null },
+            prefillPhone = prefill,
         )
     }
 }

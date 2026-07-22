@@ -327,13 +327,28 @@ private fun ThreadLoaded(
             }
     }
 
-    // Stick to bottom when a new row lands while the user is already there.
-    LaunchedEffect(controller.newestMessageId, controller.pendingSends.size) {
-        if (listState.firstVisibleItemIndex <= 1) listState.scrollToItem(0)
+    var showNewPill by remember { mutableStateOf(false) }
+
+    // Your OWN sends always jump to the bottom — you want to see what you
+    // just sent regardless of where you'd scrolled.
+    LaunchedEffect(controller.pendingSends.size) {
+        if (controller.pendingSends.isNotEmpty()) listState.animateScrollToItem(0)
+    }
+
+    // Any OTHER new row (teammate message, note, task line): stick to bottom
+    // when already there, otherwise surface the "New message" pill instead of
+    // silently growing the list below the fold (founder: needs a subtle
+    // scroll-to-bottom action when something arrives while scrolled up).
+    LaunchedEffect(controller.newestMessageId) {
+        if (controller.newestMessageId == null) return@LaunchedEffect
+        if (listState.firstVisibleItemIndex <= 1) {
+            listState.scrollToItem(0)
+        } else {
+            showNewPill = true
+        }
     }
 
     // "New message ↓" pill when an inbound lands while scrolled up.
-    var showNewPill by remember { mutableStateOf(false) }
     LaunchedEffect(controller.newInboundTick) {
         if (controller.newInboundTick == 0) return@LaunchedEffect
         if (listState.firstVisibleItemIndex > 2) showNewPill = true

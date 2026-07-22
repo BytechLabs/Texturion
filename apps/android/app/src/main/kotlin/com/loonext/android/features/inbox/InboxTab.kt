@@ -133,6 +133,10 @@ fun InboxTab(
     var composeOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var composeContactId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
 
+    // Parks the list subtree's saveable state (filters, search, scroll) while a
+    // thread/compose branch replaces it - without this, coming back reset the
+    // whole inbox (same class as the tasks board reset).
+    val inboxStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val openId = openConversationId
     when {
         openId != null -> ThreadScreen(
@@ -162,21 +166,23 @@ fun InboxTab(
             modifier = modifier,
         )
 
-        else -> InboxList(
-            graph = graph,
-            companyId = companyId,
-            me = me,
-            onOpen = { openConversationId = it },
-            onCompose = {
-                composeContactId = null
-                composeOpen = true
-            },
-            onTextContact = { contactId ->
-                composeContactId = contactId
-                composeOpen = true
-            },
-            modifier = modifier,
-        )
+        else -> inboxStateHolder.SaveableStateProvider("inbox-list") {
+            InboxList(
+                graph = graph,
+                companyId = companyId,
+                me = me,
+                onOpen = { openConversationId = it },
+                onCompose = {
+                    composeContactId = null
+                    composeOpen = true
+                },
+                onTextContact = { contactId ->
+                    composeContactId = contactId
+                    composeOpen = true
+                },
+                modifier = modifier,
+            )
+        }
     }
 }
 
