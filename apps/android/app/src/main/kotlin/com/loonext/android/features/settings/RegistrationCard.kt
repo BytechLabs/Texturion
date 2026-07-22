@@ -156,7 +156,7 @@ private fun RegistrationRow(label: String, detail: RegistrationDetail?) {
                         " · submitted ${relativeTime(it)} ago"
                     } ?: "")
 
-                else -> "Draft — finish the wizard in the web app"
+                else -> "Draft · finish the wizard in the web app"
             }
             Text(
                 line,
@@ -214,7 +214,7 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
                 coroutines.launch {
                     try {
                         scope.repo.verifyRegistrationOtp(scope.companyId, code)
-                        scope.showMessage("Verified — the registry review continues.")
+                        scope.showMessage("Verified. The registry review continues.")
                         onChanged()
                     } catch (cause: Exception) {
                         error = cause.userMessage()

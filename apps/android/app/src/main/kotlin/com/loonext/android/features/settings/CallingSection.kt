@@ -253,12 +253,12 @@ private val SCREENING_CHOICES = listOf(
     ScreeningChoice(
         CallScreening.OFF,
         "Off",
-        "Every call rings the team, no carrier verdict shown.",
+        "",
     ),
     ScreeningChoice(
         CallScreening.FLAG,
         "Label suspicious calls",
-        "The carrier's verdict shows on the call — “Spam likely” — but every " +
+        "The carrier's verdict shows on the call as “Spam likely”, but every " +
             "call still rings the team.",
     ),
     ScreeningChoice(
@@ -325,11 +325,13 @@ private fun ScreeningCard(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(choice.label, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        choice.detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (choice.detail.isNotEmpty()) {
+                        Text(
+                            choice.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -383,7 +385,7 @@ private fun CallerIdCard(
                 supportingText = {
                     Text(
                         if (cnamInvalid) "1 to 15 letters, digits, or spaces."
-                        else "Shown on US caller ID when you call customers — letters, " +
+                        else "Shown on US caller ID when you call customers. Letters, " +
                             "digits, and spaces, 15 characters max. Carriers take 1–3 " +
                             "days to pick up a change, and Canadian display names are set " +
                             "by the receiving carrier, so this mainly helps your US calls.",

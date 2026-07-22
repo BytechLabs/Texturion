@@ -61,7 +61,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.ui.common.userMessage
-import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -487,8 +486,8 @@ private fun InkPillButton(
         onClick = onClick,
         enabled = enabled,
         shape = CircleShape,
-        color = BrandColor.Ink,
-        contentColor = BrandColor.Paper,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
         modifier = modifier
             .fillMaxWidth()
             .alpha(if (enabled) 1f else 0.55f),
@@ -508,13 +507,13 @@ private fun InkPillButton(
             Box(
                 Modifier
                     .size(42.dp)
-                    .background(BrandColor.Lime, CircleShape),
+                    .background(MaterialTheme.colorScheme.tertiary, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.AutoMirrored.Outlined.ArrowForward,
                     contentDescription = null,
-                    tint = BrandColor.Ink,
+                    tint = MaterialTheme.colorScheme.onTertiary,
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -534,13 +533,13 @@ private fun SuccessBanner(text: String) {
             Box(
                 Modifier
                     .size(22.dp)
-                    .background(BrandColor.Lime, CircleShape),
+                    .background(MaterialTheme.colorScheme.tertiary, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Outlined.Check,
                     contentDescription = null,
-                    tint = BrandColor.Ink,
+                    tint = MaterialTheme.colorScheme.onTertiary,
                     modifier = Modifier.size(12.dp),
                 )
             }
@@ -599,7 +598,7 @@ private fun LoginForm(
     Spacer(Modifier.height(18.dp))
     Headline(
         title = "Your number. One inbox.\nThe whole crew.",
-        body = "Texts, calls, and the jobs that come from them — together in one inbox.",
+        body = "Texts, calls, and the jobs that come from them, together in one inbox.",
     )
     Spacer(Modifier.height(26.dp))
     SsoBlock(busy = busy, onGoogle = onGoogle)

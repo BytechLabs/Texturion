@@ -22,8 +22,8 @@ fun NotificationsSection(scope: SettingsScope) {
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     )
     Text(
-        "Billing, usage, and registration emails always go to owners and admins — " +
-            "they can't be turned off.",
+        "Billing, usage, and registration emails always go to owners and admins. " +
+            "They can't be turned off.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),

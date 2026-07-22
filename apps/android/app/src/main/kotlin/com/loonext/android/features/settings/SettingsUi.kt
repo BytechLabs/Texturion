@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -25,7 +26,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
 import com.loonext.android.ui.theme.BrandColor
@@ -133,7 +133,13 @@ fun StatusPill(label: String, tone: PillTone, modifier: Modifier = Modifier) {
             MaterialTheme.colorScheme.primaryContainer to
                 MaterialTheme.colorScheme.onPrimaryContainer
 
-        PillTone.Warn -> BrandColor.AmberBg to Color(0xFF92400E)
+        PillTone.Warn ->
+            if (isSystemInDarkTheme()) {
+                BrandColor.DarkAmberBg to BrandColor.DarkAmber
+            } else {
+                BrandColor.AmberBg to BrandColor.Amber
+            }
+
         PillTone.Bad ->
             MaterialTheme.colorScheme.error.copy(alpha = 0.1f) to
                 MaterialTheme.colorScheme.error

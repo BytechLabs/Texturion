@@ -114,7 +114,7 @@ private fun TextEnableCard(
 
                 else ->
                     "The carrier reviews text-enablement over a few business days. " +
-                        "Texting goes live only when the review completes — we'll " +
+                        "Texting goes live only when the review completes. We'll " +
                         "keep this card honest in the meantime."
             },
             style = MaterialTheme.typography.bodySmall,
@@ -162,7 +162,7 @@ private fun TextEnableCard(
     if (cancelling) {
         ConfirmDialog(
             title = "Cancel text-enablement?",
-            body = "Nothing changes with your current carrier — the number keeps " +
+            body = "Nothing changes with your current carrier. The number keeps " +
                 "working exactly as it does today. You can start again any time.",
             confirmLabel = "Cancel order",
             destructive = true,

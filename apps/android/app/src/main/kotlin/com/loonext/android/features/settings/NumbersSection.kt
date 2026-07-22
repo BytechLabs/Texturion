@@ -134,7 +134,7 @@ fun NumbersSection(
             if (cards.isEmpty() && company.plan == null) {
                 SettingsCard(title = "Your number") {
                     Text(
-                        "No number yet — it's created automatically when your " +
+                        "No number yet. It's created automatically when your " +
                             "subscription starts.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -352,7 +352,7 @@ private fun ReleaseNumberDialog(
         title = "Release $display?",
         body = "This gives the number up for good. Customers who text it won't reach " +
             "you, and you can't get the same number back. It doesn't change your plan " +
-            "or what you pay — a number is included, so you can set up a new one here " +
+            "or what you pay. A number is included, so you can set up a new one here " +
             "afterward. Type the number to confirm.",
         confirmLabel = "Release number",
         destructive = true,
@@ -473,7 +473,7 @@ private fun NumberAccessDialog(
                             Spacer(Modifier.height(8.dp))
                             if (members.isEmpty()) {
                                 Text(
-                                    "No active members to pick — everyone else on the " +
+                                    "No active members to pick. Everyone else on the " +
                                         "team is an owner or admin.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -685,10 +685,10 @@ private fun AddNumberCard(
         title = "Add a number",
         description = if (nextIsExtra) {
             "An extra number is $extraPrice, billed today. Your message allowance is " +
-                "shared — an extra number doesn't add messages."
+                "shared, so an extra number doesn't add messages."
         } else {
-            "Choose the number your customers will text. It's included in your plan — " +
-                "no extra cost."
+            "Choose the number your customers will text. It's included in your plan " +
+                "at no extra cost."
         },
     ) {
         OutlinedButton(onClick = {
@@ -779,7 +779,7 @@ private fun RemediateNumberFlow(
                             requestedAreaCode = choice.code,
                         )
                     }
-                    scope.showMessage("Setup restarted — you won't be charged again.")
+                    scope.showMessage("Setup restarted. You won't be charged again.")
                     onDone()
                 } catch (cause: Exception) {
                     error = cause.userMessage()

@@ -30,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -480,39 +479,6 @@ private fun TaskList(
                                         }
                                     },
                                 ) { Text(if (loadingMore) "Loading…" else "Load more") }
-                            }
-                        }
-                    }
-                    item(key = "hint") {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 14.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            ) {
-                                Row(
-                                    Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                ) {
-                                    Box(
-                                        Modifier
-                                            .size(6.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.tertiary,
-                                                CircleShape,
-                                            ),
-                                    )
-                                    Text(
-                                        "Every task links back to its message",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
                             }
                         }
                     }

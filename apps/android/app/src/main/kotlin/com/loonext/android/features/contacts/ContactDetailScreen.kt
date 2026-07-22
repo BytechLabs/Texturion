@@ -543,7 +543,7 @@ private fun ContactDetailBody(
             }
             FooterAction(
                 label = "Delete contact",
-                caption = "Texting history stays — they reappear if they text you again",
+                caption = "Texting history stays. They reappear if they text you again",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 enabled = !working,
                 onClick = { confirmDelete = true },

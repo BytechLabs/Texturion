@@ -250,7 +250,7 @@ private fun PickerResults(
     Column {
         if (bestEffort) {
             Text(
-                "Showing nearby numbers — the exact area code is out of stock.",
+                "Showing nearby numbers. The exact area code is out of stock.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 6.dp),

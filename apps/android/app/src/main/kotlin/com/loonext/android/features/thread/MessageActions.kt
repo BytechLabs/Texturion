@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -364,22 +363,7 @@ fun MakeTaskSheet(
                 }
             }
 
-            val assigneeName = assigneeId?.let { id ->
-                members.firstOrNull { it.user_id == id }?.display_name?.ifBlank { null }
-            }
-            Text(
-                if (assigneeName != null) {
-                    "$assigneeName gets notified · the thread shows the task line"
-                } else {
-                    "The thread shows the task line"
-                },
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.outline,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 22.dp),
-            )
+            Spacer(Modifier.height(22.dp))
         }
     }
 

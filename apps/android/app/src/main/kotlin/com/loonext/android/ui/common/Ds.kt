@@ -1,6 +1,7 @@
 package com.loonext.android.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -124,10 +125,11 @@ fun RowDivider(modifier: Modifier = Modifier) {
 
 /** The coral attention dot — unread marks, live badges. Never an error. */
 @Composable
-fun AttentionDot(modifier: Modifier = Modifier, size: Dp = 8.dp, dark: Boolean = false) {
+fun AttentionDot(modifier: Modifier = Modifier, size: Dp = 8.dp) {
+    val c = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
     Box(
         modifier
             .size(size)
-            .background(if (dark) BrandColor.DarkCoral else BrandColor.Coral, CircleShape),
+            .background(c, CircleShape),
     )
 }

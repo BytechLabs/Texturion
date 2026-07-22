@@ -75,7 +75,7 @@ private fun NameCard(
 
     SettingsCard(
         title = "Workspace name",
-        description = "The name your customers know you by — used on your carrier " +
+        description = "The name your customers know you by, used on your carrier " +
             "registration and available as {business_name} in your texts.",
     ) {
         if (canEdit) {

@@ -388,7 +388,7 @@ private fun NewConversationLoaded(
 
                             rawDigits.length == 10 && rawE164 != null &&
                                 contactMatches.isEmpty() ->
-                                "No match in contacts — this starts a new conversation."
+                                "No match in contacts. This starts a new conversation."
 
                             rawDigits.length == 10 && rawE164 != null ->
                                 "Will text ${formatPhone(rawE164)}"
@@ -436,7 +436,7 @@ private fun NewConversationLoaded(
                     if (inQuietHours) {
                         QuietHoursNotice(
                             text = "It's ${localTime.format(localTimeFormat)} for this " +
-                                "customer — we'll ask before sending this late.",
+                                "customer. We'll ask before sending this late.",
                         )
                     } else {
                         Text(

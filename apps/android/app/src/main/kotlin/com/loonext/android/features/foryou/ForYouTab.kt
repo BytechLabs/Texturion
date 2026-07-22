@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -207,7 +207,7 @@ private fun NotificationsHost(
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
-    Column(modifier.fillMaxSize().statusBarsPadding()) {
+    Column(modifier.fillMaxSize()) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -247,7 +247,7 @@ private fun ForYouList(
         triageCount
 
     LazyColumn(
-        modifier = modifier.fillMaxWidth().statusBarsPadding(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp),
     ) {
         item(key = "header") {
@@ -441,7 +441,10 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
                     fontWeight = FontWeight.Bold,
                 ),
                 color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.clickable(onClick = onOpenCalls).padding(4.dp),
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(onClick = onOpenCalls)
+                    .padding(4.dp),
             )
         }
     }
@@ -487,7 +490,7 @@ private fun PersonRow(
                 if (chipLabel != null) {
                     DsChip(chipLabel)
                 } else if (unread) {
-                    AttentionDot(size = 7.dp, dark = isDarkTheme())
+                    AttentionDot(size = 7.dp)
                 }
             }
             Text(
@@ -660,7 +663,6 @@ private fun CircleIconButton(
                 AttentionDot(
                     Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 9.dp),
                     size = 8.dp,
-                    dark = isDarkTheme(),
                 )
             }
         }

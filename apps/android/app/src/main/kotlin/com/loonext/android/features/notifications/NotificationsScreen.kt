@@ -315,7 +315,7 @@ fun NotificationsScreen(
                             color = MaterialTheme.colorScheme.surfaceContainer,
                         ) {
                             Text(
-                                "Push and email mirror these — Settings › Notifications",
+                                "Push and email mirror these · Settings › Notifications",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),

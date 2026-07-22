@@ -865,7 +865,7 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                 ) {
                     result.errors.take(IMPORT_ERRORS_SHOWN).forEach { rowError ->
                         Text(
-                            "${report.kind.rowWord} ${rowError.row} — ${rowError.reason}",
+                            "${report.kind.rowWord} ${rowError.row} · ${rowError.reason}",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(vertical = 2.dp),
                         )

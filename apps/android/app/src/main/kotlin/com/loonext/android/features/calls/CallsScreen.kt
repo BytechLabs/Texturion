@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -208,24 +209,26 @@ fun CallsScreen(
                                 item(key = "card-$label") {
                                     PaperCard(Modifier.fillMaxWidth()) {
                                         calls.forEachIndexed { index, call ->
-                                            CallRow(
-                                                call = call,
-                                                repo = repo,
-                                                companyId = companyId,
-                                                onOpen = call.conversation_id?.let { id ->
-                                                    { openConversation(id) }
-                                                },
-                                                onDialBack = call.caller_e164
-                                                    ?.takeIf { it.isNotBlank() }
-                                                    ?.let { number ->
-                                                        {
-                                                            dialerPrefill =
-                                                                number.filter { it.isDigit() }
-                                                            dialerOpen = true
-                                                        }
+                                            key(call.id) {
+                                                CallRow(
+                                                    call = call,
+                                                    repo = repo,
+                                                    companyId = companyId,
+                                                    onOpen = call.conversation_id?.let { id ->
+                                                        { openConversation(id) }
                                                     },
-                                            )
-                                            if (index < calls.lastIndex) RowDivider()
+                                                    onDialBack = call.caller_e164
+                                                        ?.takeIf { it.isNotBlank() }
+                                                        ?.let { number ->
+                                                            {
+                                                                dialerPrefill =
+                                                                    number.filter { it.isDigit() }
+                                                                dialerOpen = true
+                                                            }
+                                                        },
+                                                )
+                                                if (index < calls.lastIndex) RowDivider()
+                                            }
                                         }
                                     }
                                 }
@@ -555,13 +558,13 @@ private fun VoicemailPlayerRow(
     sessionId: String,
     seconds: Int,
 ) {
-    var player by remember { mutableStateOf<MediaPlayer?>(null) }
-    var preparing by remember { mutableStateOf(false) }
-    var playing by remember { mutableStateOf(false) }
-    var positionMs by remember { mutableStateOf(0) }
-    var durationMs by remember { mutableStateOf(seconds * 1000) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var scrubbing by remember { mutableStateOf(false) }
+    var player by remember(sessionId) { mutableStateOf<MediaPlayer?>(null) }
+    var preparing by remember(sessionId) { mutableStateOf(false) }
+    var playing by remember(sessionId) { mutableStateOf(false) }
+    var positionMs by remember(sessionId) { mutableStateOf(0) }
+    var durationMs by remember(sessionId) { mutableStateOf(seconds * 1000) }
+    var error by remember(sessionId) { mutableStateOf<String?>(null) }
+    var scrubbing by remember(sessionId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     DisposableEffect(sessionId) {

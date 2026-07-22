@@ -66,6 +66,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -75,12 +76,12 @@ enum class ComposerMode { Text, Note }
 
 /** Loonext amber — notes/overdue accent, tuned per theme for contrast. */
 object NoteAmber {
-    val LightBg = Color(0xFFFEF3C7)
-    val LightInk = Color(0xFF92400E)
-    val LightLine = Color(0xFFFDE68A)
-    val DarkBg = Color(0xFF3B2A0A)
-    val DarkInk = Color(0xFFFCD34D)
-    val DarkLine = Color(0xFF6B4E16)
+    val LightBg = BrandColor.Cream
+    val LightInk = BrandColor.Amber
+    val LightLine = BrandColor.InsetDeep
+    val DarkBg = BrandColor.DarkRaised
+    val DarkInk = BrandColor.DarkAmber
+    val DarkLine = BrandColor.DarkOutline
 
     @Composable
     fun bg(): Color = if (isSystemInDarkTheme()) DarkBg else LightBg

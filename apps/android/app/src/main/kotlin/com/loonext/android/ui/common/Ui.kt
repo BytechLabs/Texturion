@@ -14,9 +14,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.core.net.ApiException
 import java.time.Duration
 import java.time.Instant
@@ -60,7 +62,7 @@ fun CenteredError(message: String, onRetry: () -> Unit, modifier: Modifier = Mod
     }
 }
 
-/** Flat single-tone avatar: petrol-tint fill, petrol-deep initials (G11). */
+/** Flat single-tone avatar: avatar-tint fill, SemiBold initials (G11). */
 @Composable
 fun InitialsAvatar(name: String?, size: Dp = 40.dp, modifier: Modifier = Modifier) {
     val initials = initialsOf(name)
@@ -68,15 +70,18 @@ fun InitialsAvatar(name: String?, size: Dp = 40.dp, modifier: Modifier = Modifie
         modifier = modifier
             .size(size)
             .background(
-                MaterialTheme.colorScheme.primaryContainer,
+                MaterialTheme.colorScheme.secondaryContainer,
                 RoundedCornerShape(percent = 50),
             ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             initials,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = (size.value / 3).sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }
 }

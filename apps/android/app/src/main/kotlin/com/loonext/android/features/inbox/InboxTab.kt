@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,7 +34,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
@@ -45,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -494,7 +494,6 @@ private fun InboxList(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .padding(horizontal = 18.dp),
             ) {
                 Spacer(Modifier.height(8.dp))
@@ -538,28 +537,6 @@ private fun InboxList(
                             },
                         )
                     }
-                }
-            }
-
-            // The 54dp ink compose FAB — the shell's 96dp inset already floats
-            // this clear of the pill nav.
-            Surface(
-                onClick = onCompose,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shadowElevation = 10.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 18.dp)
-                    .size(54.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Outlined.Edit,
-                        contentDescription = "New conversation",
-                        modifier = Modifier.size(20.dp),
-                    )
                 }
             }
         }
@@ -1003,6 +980,7 @@ private fun FiltersSheet(
                     ),
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clip(CircleShape)
                         .clickable { controller.resetFilters() }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -1252,11 +1230,11 @@ private fun SearchSurface(
     var scope by rememberSaveable { mutableStateOf(SearchScope.All) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    BackHandler(onBack = onCancel)
 
     Column(
         Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .padding(horizontal = 18.dp),
     ) {
         Spacer(Modifier.height(8.dp))

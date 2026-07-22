@@ -449,7 +449,7 @@ fun SignedAttachmentImage(
 
     when {
         failed -> Text(
-            "Photo unavailable — tap to retry",
+            "Photo unavailable · tap to retry",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier.clickable {

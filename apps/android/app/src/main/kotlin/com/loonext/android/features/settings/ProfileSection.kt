@@ -184,7 +184,7 @@ private fun ChangeEmailBlock(scope: SettingsScope, authClient: SettingsAuthClien
                         editing = false
                         newEmail = ""
                         scope.showMessage(
-                            "Check both inboxes — confirmation links went to your old " +
+                            "Check both inboxes. Confirmation links went to your old " +
                                 "and new address. Nothing changes until you confirm.",
                         )
                     } catch (cause: Exception) {

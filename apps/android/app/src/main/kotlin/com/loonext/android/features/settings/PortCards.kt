@@ -119,8 +119,8 @@ private fun PortFormFields(
     }
 
     Text(
-        "Enter these exactly as they appear on your current carrier's bill — " +
-            "mismatches are the top cause of rejections.",
+        "Enter these exactly as they appear on your current carrier's bill. " +
+            "Mismatches are the top cause of rejections.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -175,7 +175,7 @@ fun PortsBlock(
         SettingsCard(
             title = "Bring your existing number",
             description = "Transfer a number you already own. It keeps working with " +
-                "your current carrier until the switch completes — usually a few " +
+                "your current carrier until the switch completes, usually a few " +
                 "business days. Transfers are free.",
         ) {
             OutlinedButton(onClick = { starting = true }) { Text("Start a transfer") }
@@ -230,7 +230,7 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
             Text(
                 "Your current carrier rejected the transfer" +
                     (port.rejection_reason?.let { ": $it" } ?: ".") +
-                    " Fix the details and resubmit — nothing is lost.",
+                    " Fix the details and resubmit. Nothing is lost.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp),
             )
@@ -500,7 +500,7 @@ private fun StartPortDialog(
                     if (!verdict.messaging_capable) {
                         Text(
                             "Heads up: this number may not support texting after the " +
-                                "transfer — calls will still work.",
+                                "transfer. Calls will still work.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
@@ -627,8 +627,8 @@ private fun FixPortDialog(
                     )
                 }
                 Text(
-                    "The account number and PIN are never shown back for security — " +
-                        "re-enter them.",
+                    "The account number and PIN are never shown back for security. " +
+                        "Re-enter them.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp),

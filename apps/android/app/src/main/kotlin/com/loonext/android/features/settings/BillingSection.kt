@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -153,17 +154,20 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
         else -> null
     } ?: return
 
+    val dark = isSystemInDarkTheme()
+    val amberBg = if (dark) BrandColor.DarkAmberBg else BrandColor.AmberBg
+    val amberInk = if (dark) BrandColor.DarkAmber else BrandColor.Amber
     Column(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .background(BrandColor.AmberBg, RoundedCornerShape(12.dp))
+            .background(amberBg, RoundedCornerShape(12.dp))
             .padding(14.dp),
     ) {
         Text(
             notice.first,
             style = MaterialTheme.typography.bodyMedium,
-            color = BrandColor.Muted900,
+            color = amberInk,
         )
         if (canManage) {
             Spacer(Modifier.height(8.dp))
@@ -246,7 +250,7 @@ private fun PlanCard(
         Spacer(Modifier.height(8.dp))
         listOf(
             "Texting for your crew, bound by fair use",
-            "Calling included on every plan — it's never an add-on",
+            "Calling included on every plan, never an add-on",
             "Extra texts bill under fair use, up to a cap you control",
             "${facts.seats} team members",
             "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",

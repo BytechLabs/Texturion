@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -128,7 +129,14 @@ class CallActivity : ComponentActivity() {
             .getOrNull() ?: run { finish(); return }
 
         setContent {
-            LoonextTheme {
+            val themePref by graph.prefs.theme
+                .collectAsStateWithLifecycle(initialValue = "system")
+            val darkTheme = when (themePref) {
+                "light" -> false
+                "dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+            LoonextTheme(darkTheme = darkTheme) {
                 CallSurface(
                     manager = manager,
                     repo = remember { CallsRepository(graph.api) },

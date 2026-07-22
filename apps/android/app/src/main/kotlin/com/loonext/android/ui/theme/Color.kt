@@ -90,6 +90,10 @@ object BrandColor {
     val Amber = Color(0xFF9A6B15)
     val AmberBg = Color(0xFFF4E8CD)
 
+    /** Dark-theme amber companions (warm dark well, mirrors the LimeChip pair). */
+    val DarkAmber = Color(0xFFE0B25C)
+    val DarkAmberBg = Color(0xFF3A2F16)
+
     /** Legacy alias still referenced by settings; equals Muted300. */
     val Stone400 = Muted300
 }

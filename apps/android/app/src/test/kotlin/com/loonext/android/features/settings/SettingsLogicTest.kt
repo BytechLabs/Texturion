@@ -344,7 +344,7 @@ class SettingsLogicTest {
         val stalled = number(NumberStatus.PROVISION_FAILED, "timeout", attempts = 5)
         assertTrue(needsNumberChoice(stalled))
         assertEquals(
-            "Setup is taking longer than expected. Choose a number to finish — you " +
+            "Setup is taking longer than expected. Choose a number to finish. You " +
                 "won't be charged again.",
             failedNumberCopy(stalled),
         )

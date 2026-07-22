@@ -246,8 +246,8 @@ fun failedNumberCopy(number: PhoneNumberSummary): String = when {
         "We're still setting up your number. This is taking a little longer than usual."
 
     number.failure_reason == "timeout" ->
-        "Setup is taking longer than expected. Choose a number to finish — " +
-            "you won't be charged again."
+        "Setup is taking longer than expected. Choose a number to finish. " +
+            "You won't be charged again."
 
     number.failure_reason == "no_inventory" && number.requested_area_code != null ->
         "Area code ${number.requested_area_code} is out of new numbers right now. " +

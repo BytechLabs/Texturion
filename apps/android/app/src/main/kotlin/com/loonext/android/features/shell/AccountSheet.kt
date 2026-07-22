@@ -54,7 +54,6 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
-import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
 
 /**
@@ -93,8 +92,8 @@ fun AccountSheet(
             // --- Ink identity tile: workspace + who you are + numbers -----
             Surface(
                 shape = MaterialTheme.shapes.large,
-                color = BrandColor.Ink,
-                contentColor = BrandColor.Paper,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 val activeNumbers = company?.numbers
@@ -106,7 +105,7 @@ fun AccountSheet(
                             Modifier
                                 .size(44.dp)
                                 .background(
-                                    BrandColor.Paper.copy(alpha = 0.14f),
+                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
                                     RoundedCornerShape(14.dp),
                                 ),
                             contentAlignment = Alignment.Center,
@@ -131,7 +130,7 @@ fun AccountSheet(
                                 Text(
                                     "${me.display_name} · ${it.role.replaceFirstChar(Char::uppercase)}",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = BrandColor.Paper.copy(alpha = 0.55f),
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(top = 1.dp),
@@ -350,8 +349,8 @@ private fun NumberChip(numberE164: String, onCopy: (String) -> Unit) {
     Surface(
         onClick = { onCopy(numberE164) },
         shape = CircleShape,
-        color = BrandColor.Paper.copy(alpha = 0.1f),
-        contentColor = BrandColor.Paper,
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+        contentColor = MaterialTheme.colorScheme.onPrimary,
     ) {
         Row(
             Modifier.padding(horizontal = 11.dp, vertical = 7.dp),

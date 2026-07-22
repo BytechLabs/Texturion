@@ -72,7 +72,6 @@ import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.userMessage
-import com.loonext.android.ui.theme.BrandColor
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.launch
@@ -278,8 +277,8 @@ private fun IdentityCard(
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = BrandColor.Ink,
-        contentColor = BrandColor.Paper,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -289,7 +288,10 @@ private fun IdentityCard(
             Box(
                 Modifier
                     .size(46.dp)
-                    .background(BrandColor.Paper.copy(alpha = 0.14f), CircleShape),
+                    .background(
+                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                        CircleShape,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -314,7 +316,7 @@ private fun IdentityCard(
                         company.name,
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                    color = BrandColor.Paper.copy(alpha = 0.55f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
@@ -328,8 +330,8 @@ private fun IdentityCard(
                 Surface(
                     onClick = { onCopyNumber(number) },
                     shape = CircleShape,
-                    color = BrandColor.Paper.copy(alpha = 0.1f),
-                    contentColor = BrandColor.Paper,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 7.dp),

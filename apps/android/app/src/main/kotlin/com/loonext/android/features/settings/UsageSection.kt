@@ -223,7 +223,7 @@ private fun Meter(ratio: Double, warning: Boolean, modifier: Modifier = Modifier
 private fun ProjectionCard(usage: Usage) {
     SettingsCard(title = "Heads up") {
         Text(
-            "You're on track to go past what your plan covers — about " +
+            "You're on track to go past what your plan covers, about " +
                 "${formatCents(usage.overage_projection.projected_overage_cents)} in " +
                 "overage by the end of this period at the current pace. Extra messages " +
                 "bill at the overage rate until sending pauses at your cap.",
@@ -287,8 +287,8 @@ private fun StorageCard(usage: Usage) {
     val total = usage.storage.attachments_bytes + usage.storage.mms_bytes
     SettingsCard(title = "Storage") {
         Text(
-            "Photos and attachments use ${formatBytes(total)}. Storage is free — " +
-                "it never adds to your bill.",
+            "Photos and attachments use ${formatBytes(total)}. Storage is free " +
+                "and never adds to your bill.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
