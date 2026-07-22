@@ -8,21 +8,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.automirrored.outlined.Backspace
+import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,35 +29,43 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
 
+/** Digit → phone letters, straight from the spec keypad (03). */
 private val KEYPAD_ROWS = listOf(
-    listOf("1", "2", "3"),
-    listOf("4", "5", "6"),
-    listOf("7", "8", "9"),
-    listOf("*", "0", "#"),
+    listOf("1" to "", "2" to "ABC", "3" to "DEF"),
+    listOf("4" to "GHI", "5" to "JKL", "6" to "MNO"),
+    listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"),
+    listOf("*" to "", "0" to "+", "#" to ""),
 )
 
 /**
- * The dialer — call ANY US/CA number. From-number chips appear only when the
- * company owns several active numbers (a single-number company lets the
- * server imply it). The mic permission is preflighted BEFORE authorizing, so
- * a denial never reserves the line or bills a minute.
+ * The dialer (spec 03) — call ANY US/CA number: Bricolage number readout,
+ * borderless paper key circles, lime call disc. From-number pills appear only
+ * when the company owns several active numbers (a single-number company lets
+ * the server imply it). The mic permission is preflighted BEFORE authorizing,
+ * so a denial never reserves the line or bills a minute.
  */
 @Composable
 fun DialerSheet(
     manager: SoftphoneManager,
     numbers: List<PhoneNumberSummary>,
     onDismiss: () -> Unit,
+    initialDigits: String = "",
 ) {
-    var digits by remember { mutableStateOf("") }
+    var digits by remember { mutableStateOf(initialDigits.take(15)) }
     var fromId by remember { mutableStateOf(numbers.firstOrNull()?.id) }
     var calling by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -104,58 +110,74 @@ fun DialerSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
+                .padding(horizontal = 26.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                if (digits.isEmpty()) "Enter a number" else formatAsYouDial(digits),
-                style = MaterialTheme.typography.headlineSmall,
-                color = if (digits.isEmpty()) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-            )
-
             if (numbers.size > 1) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(
+                        8.dp,
+                        Alignment.CenterHorizontally,
+                    ),
                 ) {
                     numbers.forEach { number ->
-                        FilterChip(
+                        FromNumberPill(
+                            label = "From ${formatPhone(number.number_e164)}",
                             selected = fromId == number.id,
                             onClick = { fromId = number.id },
-                            label = { Text("From ${formatPhone(number.number_e164)}") },
                         )
                     }
                 }
+            } else {
+                numbers.firstOrNull()?.let { number ->
+                    LineStatusRow(
+                        text = "Line ready · ${formatPhone(number.number_e164)}",
+                        dot = BrandColor.LimeBright,
+                        textColor = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
             }
+
+            Text(
+                if (digits.isEmpty()) "Enter a number" else formatAsYouDial(digits),
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 31.sp,
+                    letterSpacing = 0.01.em,
+                ),
+                color = if (digits.isEmpty()) {
+                    MaterialTheme.colorScheme.outline
+                } else {
+                    MaterialTheme.colorScheme.onBackground
+                },
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp),
+            )
 
             KEYPAD_ROWS.forEach { row ->
                 Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    Modifier.padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(26.dp),
                 ) {
-                    row.forEach { key ->
-                        TextButton(
+                    row.forEach { (key, letters) ->
+                        KeypadKey(
+                            digit = key,
+                            letters = letters,
                             onClick = { if (digits.length < 15) digits += key },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(60.dp),
-                        ) {
-                            Text(key, style = MaterialTheme.typography.headlineSmall)
-                        }
+                        )
                     }
                 }
             }
@@ -163,11 +185,12 @@ fun DialerSheet(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 16.dp),
+                    .padding(top = 6.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f)) {}
-                FilledIconButton(
+                // The lime call disc (spec 03) — disabled until dialable.
+                Surface(
                     onClick = {
                         if (manager.hasMicPermission()) {
                             placeCall()
@@ -176,12 +199,23 @@ fun DialerSheet(
                         }
                     },
                     enabled = dialable != null && !calling,
-                    modifier = Modifier.size(64.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                    modifier = Modifier
+                        .size(68.dp)
+                        .alpha(if (dialable != null && !calling) 1f else 0.45f),
                 ) {
-                    if (calling) {
-                        LoadingIndicator(Modifier.size(24.dp))
-                    } else {
-                        Icon(Icons.Filled.Call, contentDescription = "Call")
+                    Box(contentAlignment = Alignment.Center) {
+                        if (calling) {
+                            LoadingIndicator(Modifier.size(24.dp))
+                        } else {
+                            Icon(
+                                Icons.Outlined.Call,
+                                contentDescription = "Call",
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
                     }
                 }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -190,8 +224,9 @@ fun DialerSheet(
                         enabled = digits.isNotEmpty(),
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.Backspace,
+                            Icons.AutoMirrored.Outlined.Backspace,
                             contentDescription = "Delete last digit",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -200,12 +235,38 @@ fun DialerSheet(
             error?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 16.dp),
                 )
             }
         }
+    }
+}
+
+/** Caller-ID picker pill: ink when selected, inset otherwise. */
+@Composable
+private fun FromNumberPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    ) {
+        Text(
+            label,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+        )
     }
 }

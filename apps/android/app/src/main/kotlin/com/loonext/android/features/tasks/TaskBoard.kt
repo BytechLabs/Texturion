@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,12 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,13 +30,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 
@@ -116,8 +121,8 @@ internal fun TaskBoard(
         is LoadState.Ready -> Row(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             BoardColumn(
                 title = "To do",
@@ -126,7 +131,7 @@ internal fun TaskBoard(
                 emptyCopy = "Nothing to do here.",
                 hasMore = todoHasMore,
                 moveLabel = "Move to Done",
-                moveIcon = { Icons.AutoMirrored.Filled.ArrowForward },
+                moveIcon = { Icons.AutoMirrored.Outlined.ArrowForward },
                 onLoadMore = {
                     val loader = todoLoader ?: return@BoardColumn
                     scope.launch {
@@ -147,7 +152,7 @@ internal fun TaskBoard(
                 emptyCopy = "Nothing marked done yet.",
                 hasMore = doneHasMore,
                 moveLabel = "Move to To do",
-                moveIcon = { Icons.AutoMirrored.Filled.Undo },
+                moveIcon = { Icons.AutoMirrored.Outlined.Undo },
                 onLoadMore = {
                     val loader = doneLoader ?: return@BoardColumn
                     scope.launch {
@@ -180,23 +185,23 @@ private fun BoardColumn(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        Text(
-            "$title · $count",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        SectionHeader(
+            title,
+            Modifier.padding(top = 4.dp, bottom = 2.dp),
+            count = count,
         )
         if (tasks.isEmpty()) {
             Text(
                 emptyCopy,
-                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(8.dp),
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
             )
         } else {
             LazyColumn(
                 Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 items(tasks, key = { it.id }) { task ->
                     BoardCard(
@@ -227,21 +232,27 @@ private fun BoardCard(
     onOpen: () -> Unit,
     onMove: () -> Unit,
 ) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onOpen)
-                .padding(start = 12.dp, top = 10.dp, end = 4.dp, bottom = 4.dp),
+                .padding(start = 12.dp, top = 10.dp, end = 4.dp, bottom = 4.dp)
+                .alpha(if (task.done) 0.62f else 1f),
         ) {
             Text(
                 task.title,
-                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 18.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 textDecoration = if (task.done) TextDecoration.LineThrough else null,
-                color = if (task.done) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Row(
                 Modifier.fillMaxWidth(),
@@ -254,8 +265,10 @@ private fun BoardCard(
                         overdue -> "Overdue"
                         else -> "Due ${formatDue(task.due_at)}"
                     },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (overdue) MaterialTheme.colorScheme.tertiary
+                    fontSize = 11.5.sp,
+                    fontWeight = if (overdue) FontWeight.SemiBold else FontWeight.Normal,
+                    // Overdue = olive emphasis, never a red scare.
+                    color = if (overdue) MaterialTheme.colorScheme.secondary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )

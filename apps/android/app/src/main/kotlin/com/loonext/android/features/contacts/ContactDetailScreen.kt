@@ -4,7 +4,10 @@ import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,20 +18,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.QuestionMark
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,21 +48,32 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
-import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,13 +84,13 @@ internal enum class SaveState { Idle, Saving, Saved, Failed }
 /**
  * Contact detail, the native sibling of the web's /contacts/[id]: auto-saving
  * Name/Address/Notes (800ms after the last keystroke, with a quiet
- * Saving…/Saved status line), the consent card ('Texted you first' vs
+ * Saving…/Saved status line), the consent strip ('Texted you first' vs
  * 'Consent recorded by {member}', the attester resolved against
  * GET /v1/members), the opted-out banner with 'Mark opted in again' and its
  * START caveat, opt-out and soft-delete behind confirm dialogs, and a
- * contextual primary button — 'Open conversation' when a thread already
- * exists (found via GET /v1/conversations?q=<phone>), otherwise 'Message'
- * into compose prefill. Both destinations are shell callbacks; the button
+ * contextual primary pill — 'Open conversation' when a thread already
+ * exists (found via GET /v1/conversations?q=<phone>), otherwise 'Text'
+ * into compose prefill. Both destinations are shell callbacks; the pill
  * hides until the integrator wires them.
  */
 @Composable
@@ -91,7 +109,7 @@ internal fun ContactDetailScreen(
 
     var state by remember(contactId) { mutableStateOf<LoadState<Contact>>(LoadState.Loading) }
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
-    var conversationId by remember(contactId) { mutableStateOf<String?>(null) }
+    var conversation by remember(contactId) { mutableStateOf<ConversationListItem?>(null) }
     var refreshKey by remember(contactId) { mutableIntStateOf(0) }
 
     LaunchedEffect(contactId, refreshKey) {
@@ -105,31 +123,39 @@ internal fun ContactDetailScreen(
     LaunchedEffect(companyId) {
         runCatching { mutations.members(companyId) }.onSuccess { members = it.data }
     }
-    // #82: the primary button is contextual — find this contact's existing
+    // #82: the primary pill is contextual — find this contact's existing
     // thread once the phone is known. A lookup failure just leaves the
     // compose fallback, which reuses the same thread on send anyway.
     val phone = (state as? LoadState.Ready)?.value?.phone_e164
     LaunchedEffect(phone) {
         if (phone == null) return@LaunchedEffect
         runCatching { mutations.findConversation(companyId, phone) }
-            .onSuccess { conversationId = it?.id }
+            .onSuccess { conversation = it }
     }
 
     Column(modifier.fillMaxSize()) {
+        // Paper-circle back button · centered muted crumb · balancing spacer.
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to contacts")
-            }
+            PaperCircleButton(
+                onClick = onBack,
+                contentDescription = "Back to contacts",
+            )
             Text(
                 "Contact",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
+            Spacer(Modifier.size(44.dp))
         }
 
         when (val current = state) {
@@ -153,7 +179,7 @@ internal fun ContactDetailScreen(
                 callerIdName = callerIdName,
                 contact = current.value,
                 members = members,
-                conversationId = conversationId,
+                conversation = conversation,
                 onChanged = { refreshKey++ },
                 onDeleted = onBack,
                 onOpenConversation = onOpenConversation,
@@ -171,7 +197,7 @@ private fun ContactDetailBody(
     callerIdName: String,
     contact: Contact,
     members: List<Member>,
-    conversationId: String?,
+    conversation: ConversationListItem?,
     onChanged: () -> Unit,
     onDeleted: () -> Unit,
     onOpenConversation: ((String) -> Unit)?,
@@ -240,101 +266,131 @@ private fun ContactDetailBody(
         }
     }
 
+    val displayName = contact.name?.ifBlank { null } ?: formatPhone(contact.phone_e164)
+
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            InitialsAvatar(contact.name ?: formatPhone(contact.phone_e164), size = 48.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
+        // Identity header: 78dp tinted squircle, Bricolage name, muted phone.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(78.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(26.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    contact.name?.ifBlank { null } ?: formatPhone(contact.phone_e164),
-                    style = MaterialTheme.typography.titleLarge,
+                    initialsOf(displayName),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        formatPhone(contact.phone_e164),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            }
+            Text(
+                displayName,
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    formatPhone(contact.phone_e164),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                IconButton(
+                    onClick = { clipboard.setText(AnnotatedString(contact.phone_e164)) },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = "Copy number",
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    IconButton(
-                        onClick = {
-                            clipboard.setText(AnnotatedString(contact.phone_e164))
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.ContentCopy,
-                            contentDescription = "Copy number",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (contact.opted_out) {
-                        Text(
-                            "Opted out",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
                 }
             }
-        }
-
-        // Contextual primary action (#82) beside Call (#165). The messaging
-        // destination hides until the shell wires it — a button that goes
-        // nowhere would be a lie; Call needs no shell wiring.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (conversationId != null && onOpenConversation != null) {
-                Button(
-                    onClick = { onOpenConversation(conversationId) },
-                    modifier = Modifier.weight(1f),
-                ) { Text("Open conversation") }
-            } else if (conversationId == null && onComposeNew != null) {
-                Button(
-                    onClick = { onComposeNew(contact.id) },
-                    modifier = Modifier.weight(1f),
-                ) { Text("Message") }
-            }
-            OutlinedButton(
-                onClick = {
-                    if (softphone.hasMicPermission()) {
-                        placeCall()
-                    } else {
-                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                enabled = !placingCall,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(
-                    Icons.Filled.Call,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+            if (contact.opted_out) {
+                DsChip(
+                    "Opted out",
+                    container = MaterialTheme.colorScheme.errorContainer,
+                    content = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
-                Spacer(Modifier.width(6.dp))
-                Text(if (placingCall) "Calling…" else "Call")
+            }
+
+            // Contextual primary pill (#82) beside Call (#165). The messaging
+            // destination hides until the shell wires it — a pill that goes
+            // nowhere would be a lie; Call needs no shell wiring.
+            Row(
+                Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (conversation != null && onOpenConversation != null) {
+                    ActionPill(
+                        label = "Open conversation",
+                        icon = Icons.AutoMirrored.Outlined.Chat,
+                        container = MaterialTheme.colorScheme.primary,
+                        content = MaterialTheme.colorScheme.onPrimary,
+                        onClick = { onOpenConversation(conversation.id) },
+                    )
+                } else if (conversation == null && onComposeNew != null) {
+                    ActionPill(
+                        label = "Text",
+                        icon = Icons.AutoMirrored.Outlined.Chat,
+                        container = MaterialTheme.colorScheme.primary,
+                        content = MaterialTheme.colorScheme.onPrimary,
+                        onClick = { onComposeNew(contact.id) },
+                    )
+                }
+                ActionPill(
+                    label = if (placingCall) "Calling…" else "Call",
+                    icon = Icons.Outlined.Call,
+                    container = MaterialTheme.colorScheme.surface,
+                    content = MaterialTheme.colorScheme.onSurface,
+                    enabled = !placingCall,
+                    onClick = {
+                        if (softphone.hasMicPermission()) {
+                            placeCall()
+                        } else {
+                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                )
             }
         }
 
         if (actionError != null) {
             Text(
                 actionError.orEmpty(),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 
         if (contact.opted_out) {
-            OutlinedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
+            PaperCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
                     Text(
                         "This customer opted out of texting. Sends to them are blocked.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
                     )
                     TextButton(
                         enabled = !working,
@@ -356,8 +412,20 @@ private fun ContactDetailBody(
             }
         }
 
-        SectionCard("Details") {
-            AutosaveField(
+        // Consent strip: lime check when consent is on file, muted otherwise.
+        ConsentStrip(
+            hasConsent = contact.consent_source != null,
+            text = consentLine(
+                consentSource = contact.consent_source,
+                consentAt = contact.consent_at,
+                consentAttestedBy = contact.consent_attested_by,
+                memberName = ::memberName,
+            ),
+        )
+
+        // Info card: label-left auto-saving rows (Name / Address / Notes).
+        PaperCard(Modifier.fillMaxWidth()) {
+            AutosaveRow(
                 fieldKey = "${contact.id}:name",
                 label = "Name",
                 initial = contact.name.orEmpty(),
@@ -368,7 +436,8 @@ private fun ContactDetailBody(
                     mutations.updateField(companyId, contact.id, "name", value)
                 },
             )
-            AutosaveField(
+            RowDivider()
+            AutosaveRow(
                 fieldKey = "${contact.id}:address",
                 label = "Address",
                 initial = contact.address.orEmpty(),
@@ -379,51 +448,103 @@ private fun ContactDetailBody(
                     mutations.updateField(companyId, contact.id, "address", value)
                 },
             )
-            AutosaveField(
+            RowDivider()
+            AutosaveRow(
                 fieldKey = "${contact.id}:notes",
                 label = "Notes",
                 initial = contact.notes.orEmpty(),
                 maxLength = CONTACT_NOTES_MAX,
                 placeholder = "Gate code, dog's name, preferred arrival window…",
                 singleLine = false,
+                idleCaption = "Saves automatically · visible to the crew",
                 save = { value ->
                     mutations.updateField(companyId, contact.id, "notes", value)
                 },
             )
         }
 
-        SectionCard("Consent") {
-            Text(
-                consentLine(
-                    consentSource = contact.consent_source,
-                    consentAt = contact.consent_at,
-                    consentAttestedBy = contact.consent_attested_by,
-                    memberName = ::memberName,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (contact.consent_source == null) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
+        // The contact's live thread, when one exists and the shell wired it.
+        val conversationRow = conversation
+        if (conversationRow != null && onOpenConversation != null) {
+            Column {
+                SectionHeader("Conversations")
+                PaperCard(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenConversation(conversationRow.id) }
+                            .padding(horizontal = 15.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                conversationRow.last_message?.body
+                                    ?.replace('\n', ' ')?.trim()?.ifEmpty { null }
+                                    ?: "Conversation",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Row(
+                                Modifier.padding(top = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                DsChip(
+                                    conversationRow.status
+                                        .replaceFirstChar { it.uppercase() },
+                                    container =
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    content =
+                                    MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                                Text(
+                                    "Updated " +
+                                        relativeTime(conversationRow.last_message_at),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            }
         }
 
         // §3.3: routine, reversible actions stay quiet — the confirm dialogs
         // carry the weight, not red scare-styling on the triggers.
-        SectionCard("Manage this contact") {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             if (!contact.opted_out) {
-                ManageRow(
-                    text = "Stop all texting to this customer.",
-                    actionLabel = "Opt out this contact",
+                FooterAction(
+                    label = "Opt out this contact",
+                    caption = "Blocks all texting to this number",
+                    color = MaterialTheme.colorScheme.error,
                     enabled = !working,
                     onClick = { confirmOptOut = true },
                 )
+                Spacer(Modifier.height(10.dp))
             }
-            ManageRow(
-                text = "Hide this contact from your list. Texting history stays, " +
-                    "and they reappear if they text you again.",
-                actionLabel = "Delete contact",
+            FooterAction(
+                label = "Delete contact",
+                caption = "Texting history stays — they reappear if they text you again",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 enabled = !working,
                 onClick = { confirmDelete = true },
             )
@@ -491,46 +612,250 @@ private fun ContactDetailBody(
     }
 }
 
+/** 44dp paper circle with a 17dp stroke back arrow. */
 @Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        OutlinedCard(Modifier.fillMaxWidth()) {
-            Column(
-                Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) { content() }
+private fun PaperCircleButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = modifier.size(44.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(17.dp),
+            )
         }
     }
 }
 
+/** Identity-header action pill: 14dp icon + 12sp SemiBold label. */
 @Composable
-private fun ManageRow(
-    text: String,
-    actionLabel: String,
+private fun ActionPill(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+    ) {
+        Row(
+            Modifier.padding(horizontal = 17.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+        }
+    }
+}
+
+/** Paper strip with a 22dp lime-check (or muted question) consent mark. */
+@Composable
+private fun ConsentStrip(hasConsent: Boolean, text: String) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .background(
+                        if (hasConsent) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (hasConsent) Icons.Outlined.Check else Icons.Outlined.QuestionMark,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = if (hasConsent) {
+                        MaterialTheme.colorScheme.onTertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 17.sp,
+                ),
+                color = if (hasConsent) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
+}
+
+/** Quiet centered footer trigger: 12sp colored label over a 10sp caption. */
+@Composable
+private fun FooterAction(
+    label: String,
+    caption: String,
+    color: androidx.compose.ui.graphics.Color,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        // Quiet trigger (§3.3) — the confirm dialog carries the weight.
-        TextButton(
-            enabled = enabled,
-            onClick = onClick,
-            colors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
             ),
-        ) { Text(actionLabel) }
+            color = color,
+            modifier = Modifier
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+        Text(
+            caption,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * One label-left auto-saving row inside the info card (spec 07): 56dp muted
+ * 11sp label, borderless 13sp field, and a reserved 10sp status/caption line
+ * ('Saving…' / 'Saved' / a calm failure sentence — or [idleCaption] at rest).
+ * Same 800ms-debounce semantics as [AutosaveField].
+ */
+@Composable
+private fun AutosaveRow(
+    fieldKey: String,
+    label: String,
+    initial: String,
+    maxLength: Int,
+    placeholder: String,
+    singleLine: Boolean,
+    save: suspend (String?) -> Unit,
+    idleCaption: String? = null,
+) {
+    var value by remember(fieldKey) { mutableStateOf(initial) }
+    var lastSaved by remember(fieldKey) { mutableStateOf(initial) }
+    var state by remember(fieldKey) { mutableStateOf(SaveState.Idle) }
+
+    LaunchedEffect(value) {
+        val trimmed = value.trim()
+        if (trimmed == lastSaved.trim()) return@LaunchedEffect
+        delay(800)
+        state = SaveState.Saving
+        try {
+            save(trimmed.ifEmpty { null })
+            lastSaved = value
+            state = SaveState.Saved
+        } catch (_: Exception) {
+            state = SaveState.Failed
+        }
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 15.dp, vertical = 11.dp),
+        verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .width(56.dp)
+                .padding(top = if (singleLine) 0.dp else 2.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            val textStyle = if (singleLine) {
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else {
+                MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 19.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Box {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        style = textStyle.copy(fontWeight = FontWeight.Normal),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                            .copy(alpha = 0.62f),
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = { value = it.take(maxLength) },
+                    singleLine = singleLine,
+                    maxLines = if (singleLine) 1 else 6,
+                    textStyle = textStyle,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Text(
+                when (state) {
+                    SaveState.Idle -> idleCaption.orEmpty()
+                    SaveState.Saving -> "Saving…"
+                    SaveState.Saved -> "Saved"
+                    SaveState.Failed -> "Couldn't save. Check your connection."
+                },
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = if (state == SaveState.Failed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                },
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .height(14.dp),
+            )
+        }
     }
 }
 

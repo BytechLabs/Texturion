@@ -21,8 +21,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.CallEnd
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,8 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.LoonextApp
 import com.loonext.android.telephony.CallNotifier
@@ -250,7 +253,7 @@ private fun CallSurface(
     }
 
     val companyId = manager.currentCompanyId()
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+    Surface(modifier = Modifier.fillMaxSize(), color = callScreenColor()) {
         when {
             // Only hand over to InCallScreen once a live call EXISTS — it closes
             // itself when liveCalls is empty, which would kill this screen mid-answer.
@@ -292,6 +295,7 @@ private fun CallSurface(
     }
 }
 
+/** The ring screen (spec 04): halo avatar, Bricolage name, brick/lime discs. */
 @Composable
 private fun RingingSurface(
     title: String,
@@ -299,58 +303,70 @@ private fun RingingSurface(
     onAnswer: () -> Unit,
     onDecline: () -> Unit,
 ) {
+    val display = title.ifBlank { "Unknown caller" }
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 72.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
         ) {
             Text(
-                text = "Incoming call",
-                style = MaterialTheme.typography.titleMedium,
+                "Incoming call",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = title.ifBlank { "Unknown caller" },
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            if (subtitle.isNotBlank() && subtitle != title) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
+        Spacer(Modifier.height(24.dp))
+        CallerAvatar(display, size = 112.dp)
+        Text(
+            display,
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 27.sp),
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 14.dp),
+        )
+        if (subtitle.isNotBlank() && subtitle != title) {
+            Text(
+                subtitle,
+                fontSize = 12.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 5.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 48.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 26.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
+            RingActionCircle(
+                icon = Icons.Outlined.CallEnd,
+                label = "Decline",
+                container = MaterialTheme.colorScheme.error,
+                content = MaterialTheme.colorScheme.onError,
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                labelWeight = FontWeight.SemiBold,
+                size = 72.dp,
                 onClick = onDecline,
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ),
-                modifier = Modifier.height(64.dp),
-            ) { Text("Decline", style = MaterialTheme.typography.titleMedium) }
-            Button(
+            )
+            RingActionCircle(
+                icon = Icons.Outlined.Call,
+                label = "Answer",
+                container = MaterialTheme.colorScheme.tertiary,
+                content = MaterialTheme.colorScheme.onTertiary,
+                labelColor = MaterialTheme.colorScheme.onBackground,
+                labelWeight = FontWeight.Bold,
+                size = 72.dp,
                 onClick = onAnswer,
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                modifier = Modifier.height(64.dp),
-            ) { Text("Answer", style = MaterialTheme.typography.titleMedium) }
+            )
         }
     }
 }
@@ -362,30 +378,34 @@ private fun CallStatus(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
 ) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 22.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CallerAvatar(title.ifBlank { "Call" }, size = 96.dp)
             Text(
                 text = title.ifBlank { "Call" },
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
             )
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = status,
-                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
             )
             if (actionLabel != null) {
                 Spacer(Modifier.height(32.dp))
-                Button(
+                EndCallPill(
                     onClick = onAction,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    ),
-                    modifier = Modifier.height(56.dp),
-                ) { Text(actionLabel, style = MaterialTheme.typography.titleMedium) }
+                    label = actionLabel,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

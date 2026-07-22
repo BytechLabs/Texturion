@@ -6,12 +6,16 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,28 +24,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,11 +65,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
@@ -76,10 +95,14 @@ import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
-import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,6 +113,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 private const val NOTE_FILE_MAX_BYTES = 25L * 1024 * 1024
 private const val NOTE_FILES_MAX = 10
@@ -98,10 +122,11 @@ private const val NOTE_FILES_MAX = 10
 private data class StagedFile(val uri: Uri, val name: String, val size: Long, val mime: String)
 
 /**
- * Task detail: inline-editable title/description (blur save), assignee and
- * offset-ISO due pickers, derived done circle (message PATCH), quoted source
- * message, the D28 derived read-only attachments union (per-item signed
- * URLs), the merged activity+discussion timeline, and a pinned note composer
+ * Task detail (spec 23): paper-circle top bar, big done ring + 21sp title
+ * (inline blur-save edit), status chip + created line, the Assignee/Due paper
+ * rows, the lime-barred source-message quote, the D28 derived read-only
+ * attachments union (per-item signed URLs), the merged activity+discussion
+ * timeline (dashed internal-note cards), and the pinned pill note composer
  * (notes are the only door for task files). viewer_level 'none' shows the
  * task identity plus an access notice — nothing conversation-derived.
  */
@@ -168,12 +193,12 @@ internal fun TaskDetailScreen(
 
     when (val current = state) {
         is LoadState.Loading -> Column(modifier.fillMaxSize()) {
-            DetailTopBar(onBack = onBack, menu = {})
+            DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
             CenteredLoading()
         }
 
         is LoadState.Failed -> Column(modifier.fillMaxSize()) {
-            DetailTopBar(onBack = onBack, menu = {})
+            DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
             if (current.code == ApiErrorCode.NOT_FOUND) {
                 // Deleted (or never visible) — retrying would just 404 again.
                 Text(
@@ -206,6 +231,7 @@ internal fun TaskDetailScreen(
     }
 }
 
+/** Paper-circle back button · centered "Task" label · the actions circle. */
 @Composable
 private fun DetailTopBar(
     onBack: () -> Unit,
@@ -214,15 +240,20 @@ private fun DetailTopBar(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(start = 18.dp, end = 18.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to tasks")
-        }
+        PaperCircleButton(
+            icon = Icons.AutoMirrored.Outlined.ArrowBack,
+            contentDescription = "Back to tasks",
+            onClick = onBack,
+        )
         Text(
             "Task",
-            style = MaterialTheme.typography.titleMedium,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f),
         )
         menu()
@@ -247,7 +278,6 @@ private fun TaskDetailBody(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val noAccess = detail.viewer_level == "none"
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -319,9 +349,11 @@ private fun TaskDetailBody(
     Column(modifier.fillMaxSize()) {
         DetailTopBar(onBack = onBack) {
             Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Task actions")
-                }
+                PaperCircleButton(
+                    icon = Icons.Outlined.MoreHoriz,
+                    contentDescription = "Task actions",
+                    onClick = { menuOpen = true },
+                )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     if (!noAccess) {
                         DropdownMenuItem(
@@ -358,7 +390,7 @@ private fun TaskDetailBody(
                 actionError,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
             )
         }
 
@@ -371,16 +403,27 @@ private fun TaskDetailBody(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(start = 14.dp, end = 18.dp, top = 8.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
                     if (!noAccess) {
-                        DoneCircle(done = detail.done, onToggle = { toggleDone() })
+                        DoneCircle(
+                            done = detail.done,
+                            onToggle = { toggleDone() },
+                            ring = 30.dp,
+                            checkSize = 16.dp,
+                            ringWidth = 2.dp,
+                            touch = 44.dp,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
                     }
                     if (noAccess) {
                         Text(
                             detail.title,
-                            style = MaterialTheme.typography.titleLarge,
+                            fontSize = 21.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 26.sp,
+                            letterSpacing = (-0.01).em,
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(horizontal = 8.dp, vertical = 12.dp),
@@ -395,7 +438,12 @@ private fun TaskDetailBody(
                             placeholder = "Task title",
                             singleLine = true,
                             allowEmpty = false,
-                            textStyle = MaterialTheme.typography.titleLarge,
+                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 26.sp,
+                                letterSpacing = (-0.01).em,
+                            ),
                             onSave = { value ->
                                 try {
                                     applyTask(mutations.rename(companyId, detail.id, value))
@@ -410,102 +458,134 @@ private fun TaskDetailBody(
                 }
             }
 
-            item(key = "meta") {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val assigneeLabel = detail.assignee?.display_name?.ifBlank { null }
-                        ?: memberName(detail.assigned_user_id)
-                        ?: if (detail.assigned_user_id == null) "Unassigned" else "Teammate"
-                    AssistChip(
-                        onClick = { if (!noAccess) pickerOpen = true },
-                        label = {
-                            Text(
-                                if (detail.assigned_user_id != null &&
-                                    detail.assigned_user_id == me.user_id
-                                ) {
-                                    "You"
-                                } else {
-                                    assigneeLabel
-                                },
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
-                    val overdue = !detail.done && detail.due_at != null &&
-                        parseInstant(detail.due_at)?.isBefore(Instant.now()) == true
-                    AssistChip(
-                        onClick = { if (!noAccess) datePickerOpen = true },
-                        label = {
-                            Text(
-                                when {
-                                    detail.due_at == null -> "No due date"
-                                    overdue -> "Overdue · ${formatDue(detail.due_at)}"
-                                    else -> "Due ${formatDue(detail.due_at)}"
-                                },
-                                color = if (overdue) MaterialTheme.colorScheme.tertiary
-                                else androidx.compose.ui.graphics.Color.Unspecified,
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Filled.Event,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
-                    if (detail.due_at != null && !noAccess) {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    onActionError(null)
-                                    try {
-                                        applyTask(mutations.setDue(companyId, detail.id, null))
-                                    } catch (cause: Exception) {
-                                        onActionError(cause.userMessage())
-                                    }
-                                }
-                            },
-                            modifier = Modifier.size(28.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "Clear due date",
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
+            item(key = "status-line") {
                 val creator = detail.created_by?.display_name?.ifBlank { null }
                     ?: memberName(detail.created_by_user_id)
-                Text(
-                    listOfNotNull(
-                        creator?.let { "Created by $it" },
-                        relativeTime(detail.created_at),
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
+                Row(
+                    Modifier.padding(start = 18.dp, end = 18.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    DsChip(if (detail.done) "Done" else "To do")
+                    Text(
+                        listOfNotNull(
+                            "Created ${relativeTime(detail.created_at)}",
+                            creator?.let { "by $it" },
+                        ).joinToString(" "),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    )
+                }
+            }
+
+            item(key = "meta") {
+                val overdue = !detail.done && detail.due_at != null &&
+                    parseInstant(detail.due_at)?.isBefore(Instant.now()) == true
+                PaperCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                ) {
+                    // Assignee row.
+                    MetaRow(
+                        label = "Assignee",
+                        onClick = if (noAccess) null else {
+                            { pickerOpen = true }
+                        },
+                    ) {
+                        val assigneeLabel = detail.assignee?.display_name?.ifBlank { null }
+                            ?: memberName(detail.assigned_user_id)
+                            ?: if (detail.assigned_user_id == null) "Unassigned"
+                            else "Teammate"
+                        if (detail.assigned_user_id != null) {
+                            TaskAvatar(assigneeLabel, size = 24.dp)
+                            Spacer(Modifier.width(7.dp))
+                        }
+                        Text(
+                            if (detail.assigned_user_id != null &&
+                                detail.assigned_user_id == me.user_id
+                            ) {
+                                "You"
+                            } else {
+                                assigneeLabel
+                            },
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (detail.assigned_user_id == null) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    RowDivider()
+                    // Due row.
+                    MetaRow(
+                        label = "Due",
+                        onClick = if (noAccess) null else {
+                            { datePickerOpen = true }
+                        },
+                        trailing = if (detail.due_at != null && !noAccess) {
+                            {
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            onActionError(null)
+                                            try {
+                                                applyTask(
+                                                    mutations.setDue(
+                                                        companyId,
+                                                        detail.id,
+                                                        null,
+                                                    ),
+                                                )
+                                            } catch (cause: Exception) {
+                                                onActionError(cause.userMessage())
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Close,
+                                        contentDescription = "Clear due date",
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            }
+                        } else null,
+                    ) {
+                        Text(
+                            when {
+                                detail.due_at == null -> "No due date"
+                                overdue -> "Overdue · ${dueRowLabel(detail.due_at)}"
+                                else -> dueRowLabel(detail.due_at)
+                            },
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            // Overdue = olive emphasis, never a red scare.
+                            color = when {
+                                detail.due_at == null ->
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+
+                                overdue -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
 
             if (noAccess) {
                 item(key = "no-access") {
-                    OutlinedCard(
+                    PaperCard(
                         Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(18.dp),
                     ) {
                         Text(
                             "This task is linked to a number you don't have access to. " +
@@ -513,7 +593,7 @@ private fun TaskDetailBody(
                                 "discussion. Ask an owner or admin for access.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(15.dp),
                         )
                     }
                 }
@@ -521,38 +601,22 @@ private fun TaskDetailBody(
                 item(key = "source") {
                     val source = detail.source_message
                     if (source != null) {
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            SectionLabel("From this message")
-                            OutlinedCard(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(
-                                        source.body.ifBlank { "A photo" },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                    if (onOpenConversation != null) {
-                                        Text(
-                                            "View in conversation",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .padding(top = 8.dp)
-                                                .clickable {
-                                                    onOpenConversation(
-                                                        detail.conversation_id,
-                                                        detail.message_id,
-                                                    )
-                                                },
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        SourceMessageCard(
+                            body = source.body.ifBlank { "A photo" },
+                            createdAt = source.created_at,
+                            onOpenConversation = onOpenConversation?.let { open ->
+                                { open(detail.conversation_id, detail.message_id) }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                        )
                     }
                 }
 
                 item(key = "description") {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        SectionLabel("Notes on this task")
+                    Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
+                        SectionHeader("Details")
                         InlineEditField(
                             key = detail.id + detail.updated_at + ":description",
                             initial = detail.description,
@@ -560,7 +624,10 @@ private fun TaskDetailBody(
                             placeholder = "Add details teammates should know",
                             singleLine = false,
                             allowEmpty = true,
-                            textStyle = MaterialTheme.typography.bodyMedium,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                            ),
                             onSave = { value ->
                                 try {
                                     applyTask(
@@ -578,8 +645,8 @@ private fun TaskDetailBody(
 
                 if (detail.attachments.isNotEmpty()) {
                     item(key = "attachments") {
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            SectionLabel("Files")
+                        Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
+                            SectionHeader("Files", count = detail.attachments.size)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(
                                     detail.attachments.size,
@@ -598,12 +665,12 @@ private fun TaskDetailBody(
                 }
 
                 item(key = "activity-label") {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        SectionLabel("Activity")
+                    Column(Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)) {
+                        SectionHeader("Activity")
                         if (detail.activity.isEmpty()) {
                             Text(
                                 "No activity yet. Post a note below to start a discussion.",
-                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = 12.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -627,15 +694,25 @@ private fun TaskDetailBody(
                             memberName = ::memberName,
                         )
                         if (sentence != null) {
-                            Text(
-                                "$sentence · ${relativeTime(item.created_at)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    horizontal = 20.dp,
-                                    vertical = 4.dp,
-                                ),
-                            )
+                            Row(
+                                Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(6.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.outline,
+                                            CircleShape,
+                                        ),
+                                )
+                                Text(
+                                    "$sentence · ${relativeTime(item.created_at)}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
@@ -645,7 +722,6 @@ private fun TaskDetailBody(
         }
 
         if (!noAccess) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             NoteComposer(
                 graph = graph,
                 mutations = mutations,
@@ -769,21 +845,120 @@ private fun TaskDetailBody(
     }
 }
 
+/** "Tomorrow · 9:00 AM" — the due row value (spec 23). */
+private fun dueRowLabel(dueAt: String): String {
+    val day = formatDue(dueAt)
+    val time = parseInstant(dueAt)
+        ?.atZone(ZoneId.systemDefault())
+        ?.format(DateTimeFormatter.ofPattern("h:mm a"))
+    return if (day.isEmpty() || time == null) day else "$day · $time"
+}
+
+/**
+ * One paper-card meta row (spec 23): 64dp micro label, content, an optional
+ * trailing affordance, and a chevron when the row is tappable.
+ */
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = 6.dp),
-    )
+private fun MetaRow(
+    label: String,
+    onClick: (() -> Unit)?,
+    trailing: (@Composable () -> Unit)? = null,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 15.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(64.dp),
+        )
+        content()
+        Spacer(Modifier.weight(1f))
+        trailing?.invoke()
+        if (onClick != null) {
+            Icon(
+                Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
+/** The lime-barred source-message quote card (spec 22/23 grammar). */
+@Composable
+private fun SourceMessageCard(
+    body: String,
+    createdAt: String,
+    onOpenConversation: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = modifier,
+    ) {
+        Row(
+            Modifier
+                .padding(horizontal = 15.dp, vertical = 12.dp)
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(BrandColor.LimeBright, CircleShape),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "“$body”",
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Source message · ${relativeTime(createdAt)}",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (onOpenConversation != null) {
+                        Text(
+                            "Open conversation →",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.clickable(onClick = onOpenConversation),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
  * Blur-save inline editor: saving happens when focus leaves the field with a
  * changed value; an empty value snaps back when [allowEmpty] is false. The
  * save callback returns an error sentence (null = saved) so failures keep the
- * user's text and show a calm line under the field.
+ * user's text and show a calm line under the field. Styled flat — plain text
+ * until focused, when a hairline outline appears.
  */
 @Composable
 private fun InlineEditField(
@@ -810,8 +985,21 @@ private fun InlineEditField(
                 error = null
             },
             textStyle = textStyle,
-            placeholder = { Text(placeholder) },
+            placeholder = {
+                Text(
+                    placeholder,
+                    style = textStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            },
             singleLine = singleLine,
+            shape = MaterialTheme.shapes.medium,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedBorderColor = MaterialTheme.colorScheme.outline,
+                unfocusedBorderColor = Color.Transparent,
+            ),
             keyboardOptions = KeyboardOptions.Default,
             modifier = Modifier
                 .fillMaxWidth()
@@ -906,7 +1094,9 @@ private fun AttachmentCell(
             }
         }
     } else {
-        OutlinedCard(
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .width(180.dp)
                 .clickable {
@@ -935,7 +1125,8 @@ private fun AttachmentCell(
                 Column {
                     Text(
                         item.file_name ?: "File",
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -957,49 +1148,70 @@ internal fun formatBytes(bytes: Long?): String = when {
     else -> "$bytes B"
 }
 
-/** A task-linked discussion note: amber card with author + time + body. */
+/**
+ * A task-linked internal note (spec 23): dashed inset card, lock mark,
+ * tracked-uppercase author + micro-timestamp, quiet body.
+ */
 @Composable
 private fun NoteCard(author: String, body: String, createdAt: String) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        modifier = Modifier
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+    Column(
+        Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 18.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .drawBehind {
+                drawRoundRect(
+                    color = borderColor,
+                    style = Stroke(
+                        width = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 7f)),
+                    ),
+                    cornerRadius = CornerRadius(16.dp.toPx()),
+                )
+            }
+            .padding(horizontal = 13.dp, vertical = 10.dp),
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                InitialsAvatar(author, size = 24.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    author,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    relativeTime(createdAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
-            }
-            if (body.isNotBlank()) {
-                Text(
-                    body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            TaskAvatar(author, size = 18.dp, fontSize = 7.5.sp)
+            Icon(
+                Icons.Outlined.Lock,
+                contentDescription = "Internal note",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(11.dp),
+            )
+            Text(
+                "${author.uppercase()} · ${relativeTime(createdAt).uppercase()}",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.08.em,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (body.isNotBlank()) {
+            Text(
+                body,
+                fontSize = 12.5.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 3.dp),
+            )
         }
     }
 }
 
 /**
- * The pinned note composer (TASKS-V2 D-D): posts an internal note with
- * task_id, then uploads staged files against the note (owner_type='note' —
- * the only door for task files, D28). Partial upload failure keeps an honest
- * line pointing at the note in the thread.
+ * The pinned note composer (TASKS-V2 D-D), restyled as the spec-23 pill:
+ * attach affordance, quiet placeholder, 38dp ink send circle. Posts an
+ * internal note with task_id, then uploads staged files against the note
+ * (owner_type='note' — the only door for task files, D28). Partial upload
+ * failure keeps an honest line pointing at the note in the thread.
  */
 @Composable
 private fun NoteComposer(
@@ -1037,10 +1249,13 @@ private fun NoteComposer(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
     ) {
         if (staged.isNotEmpty()) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(bottom = 4.dp),
+            ) {
                 items(staged.size, key = { staged[it].uri.toString() }) { index ->
                     val file = staged[index]
                     AssistChip(
@@ -1050,7 +1265,7 @@ private fun NoteComposer(
                         },
                         trailingIcon = {
                             Icon(
-                                Icons.Filled.Close,
+                                Icons.Outlined.Close,
                                 contentDescription = "Remove ${file.name}",
                                 modifier = Modifier.size(14.dp),
                             )
@@ -1067,81 +1282,121 @@ private fun NoteComposer(
                 modifier = Modifier.padding(vertical = 2.dp),
             )
         }
-        Row(verticalAlignment = Alignment.Bottom) {
-            IconButton(
-                enabled = !posting && staged.size < NOTE_FILES_MAX,
-                onClick = { filePicker.launch(arrayOf("*/*")) },
+        Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.padding(start = 4.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
-                Icon(Icons.Filled.AttachFile, contentDescription = "Attach files")
-            }
-            OutlinedTextField(
-                value = body,
-                onValueChange = {
-                    body = it.take(NOTE_BODY_MAX)
-                    error = null
-                },
-                placeholder = { Text("Add a note for your team") },
-                modifier = Modifier.weight(1f),
-                maxLines = 4,
-            )
-            IconButton(
-                enabled = !posting && (body.isNotBlank() || staged.isNotEmpty()),
-                onClick = {
-                    posting = true
-                    error = null
-                    scope.launch {
-                        try {
-                            val note = mutations.postNote(
-                                companyId,
-                                conversationId,
-                                body.trim(),
-                                taskId,
-                            )
-                            var failures = 0
-                            for (file in staged) {
-                                val bytes = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        context.contentResolver.openInputStream(file.uri)
-                                            ?.use { it.readBytes() }
-                                    }.getOrNull()
-                                }
-                                if (bytes == null) {
-                                    failures++
-                                    continue
-                                }
-                                try {
-                                    multipart.uploadNoteFile(
-                                        companyId = companyId,
-                                        noteId = note.id,
-                                        fileName = file.name,
-                                        contentType = file.mime,
-                                        bytes = bytes,
-                                    )
-                                } catch (_: Exception) {
-                                    failures++
-                                }
+                IconButton(
+                    enabled = !posting && staged.size < NOTE_FILES_MAX,
+                    onClick = { filePicker.launch(arrayOf("*/*")) },
+                ) {
+                    Icon(
+                        Icons.Outlined.AttachFile,
+                        contentDescription = "Attach files",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                BasicTextField(
+                    value = body,
+                    onValueChange = {
+                        body = it.take(NOTE_BODY_MAX)
+                        error = null
+                    },
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    maxLines = 4,
+                    decorationBox = { inner ->
+                        Box {
+                            if (body.isEmpty()) {
+                                Text(
+                                    "Add a note for the crew…",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        .copy(alpha = 0.7f),
+                                )
                             }
-                            body = ""
-                            staged = emptyList()
-                            error = if (failures > 0) {
-                                "The note posted, but $failures " +
-                                    (if (failures == 1) "file" else "files") +
-                                    " didn't upload. Retry from the note in the thread."
-                            } else null
-                            onPosted()
-                        } catch (cause: Exception) {
-                            error = cause.userMessage()
-                        } finally {
-                            posting = false
+                            inner()
                         }
-                    }
-                },
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Post note",
-                    tint = MaterialTheme.colorScheme.primary,
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
                 )
+                IconButton(
+                    enabled = !posting && (body.isNotBlank() || staged.isNotEmpty()),
+                    onClick = {
+                        posting = true
+                        error = null
+                        scope.launch {
+                            try {
+                                val note = mutations.postNote(
+                                    companyId,
+                                    conversationId,
+                                    body.trim(),
+                                    taskId,
+                                )
+                                var failures = 0
+                                for (file in staged) {
+                                    val bytes = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            context.contentResolver.openInputStream(file.uri)
+                                                ?.use { it.readBytes() }
+                                        }.getOrNull()
+                                    }
+                                    if (bytes == null) {
+                                        failures++
+                                        continue
+                                    }
+                                    try {
+                                        multipart.uploadNoteFile(
+                                            companyId = companyId,
+                                            noteId = note.id,
+                                            fileName = file.name,
+                                            contentType = file.mime,
+                                            bytes = bytes,
+                                        )
+                                    } catch (_: Exception) {
+                                        failures++
+                                    }
+                                }
+                                body = ""
+                                staged = emptyList()
+                                error = if (failures > 0) {
+                                    "The note posted, but $failures " +
+                                        (if (failures == 1) "file" else "files") +
+                                        " didn't upload. Retry from the note in the thread."
+                                } else null
+                                onPosted()
+                            } catch (cause: Exception) {
+                                error = cause.userMessage()
+                            } finally {
+                                posting = false
+                            }
+                        }
+                    },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                    modifier = Modifier.size(38.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.ArrowUpward,
+                        contentDescription = "Post note",
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
         }
     }

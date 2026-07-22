@@ -11,8 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,8 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.Member
-import com.loonext.android.ui.common.InitialsAvatar
 
 /**
  * cmdk-style member picker: a bottom sheet with a search field over the
@@ -54,11 +55,12 @@ fun MemberPickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search teammates") },
+                placeholder = { Text("Search teammates") },
                 singleLine = true,
+                shape = CircleShape,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 18.dp, vertical = 8.dp),
             )
             LazyColumn(Modifier.fillMaxWidth()) {
                 if (showUnassigned && query.isBlank()) {
@@ -111,7 +113,7 @@ private fun PickerRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (avatarName != null) {
-            InitialsAvatar(avatarName, size = 32.dp)
+            TaskAvatar(avatarName, size = 32.dp, fontSize = 11.sp)
         } else {
             Box(Modifier.width(32.dp))
         }
@@ -123,9 +125,9 @@ private fun PickerRow(
         )
         if (selected) {
             Icon(
-                Icons.Filled.Check,
+                Icons.Outlined.Check,
                 contentDescription = "Selected",
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.secondary,
             )
         }
     }

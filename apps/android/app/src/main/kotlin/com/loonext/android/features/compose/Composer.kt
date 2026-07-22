@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -39,7 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,11 +55,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.loonext.android.core.model.Template
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -583,7 +589,11 @@ fun FileChipsRow(
     }
 }
 
-/** Saved-replies picker: search over GET /v1/templates, tap to insert. */
+/**
+ * Saved-replies picker (spec 09): radius-30 canvas sheet, Bricolage header,
+ * paper search pill, template rows in a PaperCard with Insert pills.
+ * Search over GET /v1/templates, tap anywhere on a row to insert.
+ */
 @Composable
 fun TemplatePickerSheet(
     loadTemplates: suspend () -> List<Template>,
@@ -602,12 +612,19 @@ fun TemplatePickerSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        ) {
             Text(
-                "Saved replies",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                "Templates",
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
+                color = MaterialTheme.colorScheme.onBackground,
             )
             when (val current = state) {
                 is LoadState.Loading -> Box(
@@ -633,7 +650,7 @@ fun TemplatePickerSheet(
                     Text(
                         "Try again",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier
                             .padding(top = 8.dp)
                             .clickable { retryKey++ },
@@ -646,63 +663,171 @@ fun TemplatePickerSheet(
                             "No saved replies yet. Create them on the web under Settings.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(vertical = 16.dp),
                         )
                     } else {
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            label = { Text("Search saved replies") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        TemplateSearchPill(
+                            query = query,
+                            onQueryChange = { query = it },
+                            modifier = Modifier.padding(top = 14.dp, bottom = 14.dp),
                         )
                         val matches = current.value.filter {
                             query.isBlank() ||
                                 it.name.contains(query.trim(), ignoreCase = true) ||
                                 it.body.contains(query.trim(), ignoreCase = true)
                         }
-                        LazyColumn(Modifier.fillMaxWidth()) {
-                            items(matches, key = { it.id }) { template ->
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onPick(template.body) }
-                                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                                ) {
-                                    Text(
-                                        template.name,
-                                        style = MaterialTheme.typography.titleSmall,
-                                    )
-                                    Text(
-                                        template.body,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                                androidx.compose.material3.HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                )
-                            }
-                            if (matches.isEmpty()) {
-                                item {
-                                    Text(
-                                        "Nothing matches.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(16.dp),
+                        SectionHeader("Saved replies", count = matches.size)
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
+                        ) {
+                            LazyColumn(Modifier.fillMaxWidth()) {
+                                itemsIndexed(
+                                    matches,
+                                    key = { _, template -> template.id },
+                                ) { index, template ->
+                                    if (index > 0) RowDivider()
+                                    TemplateRow(
+                                        template = template,
+                                        onPick = { onPick(template.body) },
                                     )
                                 }
+                                if (matches.isEmpty()) {
+                                    item {
+                                        Text(
+                                            "Nothing matches.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(16.dp),
+                                        )
+                                    }
+                                }
                             }
-                            item { Spacer(Modifier.height(24.dp)) }
                         }
+                        Text(
+                            "Type / in the composer to open these inline · " +
+                                "shared with the crew",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                .copy(alpha = 0.75f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/** Paper search pill with a muted stroke search glyph. */
+@Composable
+private fun TemplateSearchPill(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.5.dp, MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(9.dp))
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box {
+                        if (query.isEmpty()) {
+                            Text(
+                                "Search templates…",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .copy(alpha = 0.7f),
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** One saved reply: bold title, two-line muted preview, Insert pill. */
+@Composable
+private fun TemplateRow(
+    template: Template,
+    onPick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPick)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                template.name,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Text(
+                template.body,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Spacer(Modifier.width(11.dp))
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Text(
+                "Insert",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+            )
         }
     }
 }

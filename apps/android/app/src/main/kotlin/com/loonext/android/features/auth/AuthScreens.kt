@@ -2,7 +2,10 @@ package com.loonext.android.features.auth
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,15 +14,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,10 +43,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -40,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -227,7 +249,8 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
 private enum class AuthScreen { Login, SignUp, Forgot }
 
 /**
- * The signed-out surface: login / signup / forgot-password, one calm column.
+ * The signed-out surface: login / signup / forgot-password, one calm column
+ * in the paper-&-olive front-door grammar (screens 10–12).
  * Session appearance is observed upstream (Root) — success needs no callback.
  */
 @Composable
@@ -268,13 +291,11 @@ fun AuthFlow(viewModel: AuthViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
             .imePadding()
-            .padding(horizontal = 28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 24.dp)
+            .padding(top = 18.dp, bottom = 24.dp),
     ) {
-        Wordmark()
-        Spacer(Modifier.height(32.dp))
         when (screen) {
             AuthScreen.Login -> LoginForm(
                 busy = state.busy,
@@ -305,20 +326,58 @@ fun AuthFlow(viewModel: AuthViewModel) {
     }
 }
 
-/** Text wordmark: 'Loonext' with the 'ext' half in petrol (no logo glyph). */
+/** Text wordmark: 'Loonext' with the 'ext' half in olive (no logo glyph). */
 @Composable
 private fun Wordmark() {
     Row {
-        Text(
-            "Loon",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+        val style = MaterialTheme.typography.titleLarge.copy(
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.02).em,
         )
+        Text("Loon", style = style, color = MaterialTheme.colorScheme.onBackground)
+        Text("ext", style = style, color = MaterialTheme.colorScheme.secondary)
+    }
+}
+
+/** The Bricolage front-door headline + one muted supporting line. */
+@Composable
+private fun Headline(title: String, body: String?) {
+    Text(
+        title,
+        style = MaterialTheme.typography.headlineMedium.copy(
+            fontSize = 28.sp,
+            lineHeight = 34.sp,
+        ),
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+    if (body != null) {
         Text(
-            "ext",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
+            body,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 19.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
         )
+    }
+}
+
+/** 44dp paper circle back button (auth sub-screens). */
+@Composable
+private fun BackCircle(contentDescription: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = Modifier.size(44.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(17.dp),
+            )
+        }
     }
 }
 
@@ -328,16 +387,199 @@ private fun SsoBlock(busy: Boolean, onGoogle: () -> Unit) {
     GoogleSignInButton(busy = busy, onClick = onGoogle)
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
     ) {
-        HorizontalDivider(Modifier.weight(1f))
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         Text(
             "or",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(horizontal = 10.dp),
         )
-        HorizontalDivider(Modifier.weight(1f))
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** Paper-pill input: tracked uppercase micro-label over a rounded-16 field. */
+@Composable
+private fun AuthField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    isPassword: Boolean = false,
+    helper: String? = null,
+) {
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth()) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.1.em,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
+        )
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceContainerHigh),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                    keyboardOptions = keyboardOptions,
+                    visualTransformation = if (isPassword && !showPassword) {
+                        PasswordVisualTransformation()
+                    } else {
+                        VisualTransformation.None
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                if (isPassword) {
+                    Icon(
+                        if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (showPassword) "Hide password" else "Show password",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable { showPassword = !showPassword },
+                    )
+                }
+            }
+        }
+        if (helper != null) {
+            Text(
+                helper,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(start = 4.dp, top = 5.dp),
+            )
+        }
+    }
+}
+
+/** Ink pill primary button with the lime arrow puck. */
+@Composable
+private fun InkPillButton(
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = BrandColor.Ink,
+        contentColor = BrandColor.Paper,
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.55f),
+    ) {
+        Row(
+            Modifier.padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .background(BrandColor.Lime, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowForward,
+                    contentDescription = null,
+                    tint = BrandColor.Ink,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Lime-check inset banner ("Link sent to …"). */
+@Composable
+private fun SuccessBanner(text: String) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .background(BrandColor.Lime, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = BrandColor.Ink,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.75.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+    }
+}
+
+/** Bottom footer link: muted lead-in + bold ink action. */
+@Composable
+private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+    ) {
+        Text(
+            "$prefix ",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            action,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 
@@ -353,36 +595,51 @@ private fun LoginForm(
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
+    Wordmark()
+    Spacer(Modifier.height(18.dp))
+    Headline(
+        title = "Your number. One inbox.\nThe whole crew.",
+        body = "Texts, calls, and the jobs that come from them — together in one inbox.",
+    )
+    Spacer(Modifier.height(26.dp))
     SsoBlock(busy = busy, onGoogle = onGoogle)
-    OutlinedTextField(
+    AuthField(
+        label = "Work email",
         value = email,
         onValueChange = { email = it },
-        label = { Text("Email") },
-        singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
+    AuthField(
+        label = "Password",
         value = password,
         onValueChange = { password = it },
-        label = { Text("Password") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth(),
+        isPassword = true,
     )
     ErrorLine(error)
-    Spacer(Modifier.height(16.dp))
-    Button(
-        onClick = { onSubmit(email, password) },
+    Spacer(Modifier.height(14.dp))
+    InkPillButton(
+        text = if (busy) "Signing in…" else "Sign in",
         enabled = !busy && email.isNotBlank() && password.isNotBlank(),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(if (busy) "Signing in…" else "Sign in")
-    }
-    TextButton(onClick = onForgot) { Text("Forgot password?") }
-    TextButton(onClick = onSignUp) { Text("New to Loonext? Create an account") }
+        onClick = { onSubmit(email, password) },
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "Forgot password?",
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+        ),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onForgot)
+            .padding(vertical = 8.dp),
+    )
+    Spacer(Modifier.height(18.dp))
+    FooterLink("New to Loonext?", "Create your account", onClick = onSignUp)
 }
 
 @Composable
@@ -394,55 +651,65 @@ private fun SignUpForm(
     onGoogle: () -> Unit,
     onLogin: () -> Unit,
 ) {
+    BackCircle(contentDescription = "Back to sign in", onClick = onLogin)
+    Spacer(Modifier.height(26.dp))
+
     if (confirmationSent) {
-        Text(
-            "Check your email to confirm your account, then sign in.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        TextButton(onClick = onLogin) { Text("Back to sign in") }
+        Headline(title = "Check your email", body = null)
+        Spacer(Modifier.height(16.dp))
+        SuccessBanner("Confirm your account from the email we just sent, then sign in.")
+        Spacer(Modifier.height(18.dp))
+        FooterLink("Done confirming?", "Back to sign in", onClick = onLogin)
         return
     }
     var name by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
+    Headline(
+        title = "Create your account",
+        body = "Your business number in minutes.",
+    )
+    Spacer(Modifier.height(24.dp))
     SsoBlock(busy = busy, onGoogle = onGoogle)
-    OutlinedTextField(
+    AuthField(
+        label = "Your name",
         value = name,
         onValueChange = { name = it },
-        label = { Text("Your name") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
+    AuthField(
+        label = "Work email",
         value = email,
         onValueChange = { email = it },
-        label = { Text("Email") },
-        singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
+    AuthField(
+        label = "Password",
         value = password,
         onValueChange = { password = it },
-        label = { Text("Password (8+ characters)") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth(),
+        isPassword = true,
+        helper = "At least 8 characters.",
     )
     ErrorLine(error)
-    Spacer(Modifier.height(16.dp))
-    Button(
-        onClick = { onSubmit(name, email, password) },
+    Spacer(Modifier.height(14.dp))
+    InkPillButton(
+        text = if (busy) "Creating account…" else "Create account",
         enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 8,
+        onClick = { onSubmit(name, email, password) },
+    )
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "By continuing you agree to the Terms and the Acceptable Use Policy.",
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 16.5.sp),
+        color = MaterialTheme.colorScheme.outline,
+        textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(if (busy) "Creating account…" else "Create account")
-    }
-    TextButton(onClick = onLogin) { Text("Already have an account? Sign in") }
+    )
+    Spacer(Modifier.height(14.dp))
+    FooterLink("Already have an account?", "Sign in", onClick = onLogin)
 }
 
 @Composable
@@ -453,39 +720,46 @@ private fun ForgotForm(
     onSubmit: (String) -> Unit,
     onLogin: () -> Unit,
 ) {
-    if (resetSent) {
-        Text(
-            "If that email has an account, a reset link is on its way.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        TextButton(onClick = onLogin) { Text("Back to sign in") }
-        return
-    }
     var email by rememberSaveable { mutableStateOf("") }
-    OutlinedTextField(
+
+    BackCircle(contentDescription = "Back to sign in", onClick = onLogin)
+    Spacer(Modifier.height(26.dp))
+    Headline(
+        title = "Reset your password",
+        body = "We'll email you a reset link. It works for an hour.",
+    )
+    Spacer(Modifier.height(24.dp))
+    AuthField(
+        label = "Work email",
         value = email,
         onValueChange = { email = it },
-        label = { Text("Email") },
-        singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        modifier = Modifier.fillMaxWidth(),
     )
     ErrorLine(error)
-    Spacer(Modifier.height(16.dp))
-    Button(
-        onClick = { onSubmit(email) },
+    Spacer(Modifier.height(14.dp))
+    InkPillButton(
+        text = if (busy) "Sending…" else "Send reset link",
         enabled = !busy && email.isNotBlank(),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(if (busy) "Sending…" else "Send reset link")
+        onClick = { onSubmit(email) },
+    )
+    if (resetSent) {
+        Spacer(Modifier.height(12.dp))
+        SuccessBanner(
+            if (email.isBlank()) {
+                "If that email has an account, a reset link is on its way. Didn't get it? Check spam."
+            } else {
+                "Link sent to $email (if it has an account). Didn't get it? Check spam."
+            },
+        )
     }
-    TextButton(onClick = onLogin) { Text("Back to sign in") }
+    Spacer(Modifier.height(18.dp))
+    FooterLink("Remembered it?", "Back to sign in", onClick = onLogin)
 }
 
 @Composable
 private fun ErrorLine(error: String?) {
     if (error != null) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             error,
             style = MaterialTheme.typography.bodySmall,

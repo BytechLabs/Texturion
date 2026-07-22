@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,25 +14,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Message
-import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Dialpad
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PhoneForwarded
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.Message
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.CallEnd
+import androidx.compose.material.icons.outlined.Dialpad
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MicOff
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PhoneForwarded
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -49,8 +46,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.core.model.Member
 import com.loonext.android.telephony.AudioRoute
@@ -59,14 +63,18 @@ import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The live-call surface: identity + duration, hold/mute/route/DTMF, blind
- * transfer with honest busy flags, add-note (opens the conversation), and
+ * The live-call surface (specs 26/32): identity halo + Bricolage name + big
+ * timer, the paper-circle control grid (mute/keypad/hold · transfer/note/
+ * speaker), the call-note card, blind transfer with honest busy flags, and
  * call-waiting (answer the 2nd holds the 1st; the core auto-declines a 3rd).
  * Rendered by [CallsOverlay] in a full-screen dialog above the shell.
  */
@@ -109,46 +117,69 @@ fun InCallScreen(
     Column(
         modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(24.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Surface(
+                onClick = onClose,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shadowElevation = 1.dp,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = "Hide",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+        }
 
         if (featured != null) {
-            InitialsAvatar(featured.peerName, size = 72.dp)
-            Spacer(Modifier.height(16.dp))
+            CallerAvatar(
+                featured.peerName,
+                size = 96.dp,
+                badge = featured.phase != CallPhase.RINGING,
+            )
             Text(
                 featured.peerName,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
+                color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
             )
             if (featured.peerNumber.isNotBlank() &&
                 formatPhone(featured.peerNumber) != featured.peerName
             ) {
                 Text(
                     formatPhone(featured.peerNumber),
-                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 12.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            Spacer(Modifier.height(4.dp))
             CallPhaseLine(featured)
         }
 
-        Spacer(Modifier.height(12.dp))
         snapshot.error?.let {
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
             )
         }
 
         // Other calls: held lines to swap back to, or a ringing 2nd call.
         val others = live.filter { it.id != featured?.id }
         if (others.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
             others.forEach { other ->
                 OtherCallRow(other, manager)
                 Spacer(Modifier.height(8.dp))
@@ -158,88 +189,103 @@ fun InCallScreen(
         Spacer(Modifier.weight(1f))
 
         if (featured != null && featured.phase != CallPhase.RINGING) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledIconToggleButton(
-                    checked = featured.muted,
-                    onCheckedChange = { manager.setMuted(featured.id, it) },
-                ) {
-                    Icon(
-                        if (featured.muted) Icons.Filled.MicOff else Icons.Filled.Mic,
-                        contentDescription = if (featured.muted) "Unmute" else "Mute",
-                    )
-                }
-                FilledTonalIconButton(
-                    onClick = { dtmfOpen = true },
+            if (conversationId != null) {
+                CallNoteCard(
+                    onClick = { conversationId?.let(openConversation) },
+                    modifier = Modifier.padding(bottom = 16.dp),
+                )
+            }
+            Row(Modifier.fillMaxWidth()) {
+                ControlCircle(
+                    icon = if (featured.muted) Icons.Outlined.MicOff else Icons.Outlined.Mic,
+                    label = if (featured.muted) "Unmute" else "Mute",
+                    contentDescription = if (featured.muted) "Unmute" else "Mute",
+                    active = featured.muted,
+                    onClick = { manager.setMuted(featured.id, !featured.muted) },
+                    modifier = Modifier.weight(1f),
+                )
+                ControlCircle(
+                    icon = Icons.Outlined.Dialpad,
+                    label = "Keypad",
+                    contentDescription = "Keypad",
                     enabled = featured.phase == CallPhase.ACTIVE,
-                ) {
-                    Icon(Icons.Filled.Dialpad, contentDescription = "Keypad")
-                }
-                FilledIconToggleButton(
-                    checked = speakerOn,
-                    onCheckedChange = { on ->
+                    onClick = { dtmfOpen = true },
+                    modifier = Modifier.weight(1f),
+                )
+                ControlCircle(
+                    icon = if (featured.phase == CallPhase.HELD) {
+                        Icons.Outlined.PlayArrow
+                    } else {
+                        Icons.Outlined.Pause
+                    },
+                    label = if (featured.phase == CallPhase.HELD) "Resume" else "Hold",
+                    contentDescription = if (featured.phase == CallPhase.HELD) {
+                        "Resume"
+                    } else {
+                        "Hold"
+                    },
+                    active = featured.phase == CallPhase.HELD,
+                    onClick = { manager.toggleHold(featured.id) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth()) {
+                ControlCircle(
+                    icon = Icons.Outlined.PhoneForwarded,
+                    label = "Transfer",
+                    contentDescription = "Transfer",
+                    // Transfer needs the CUSTOMER session — resolved via
+                    // by-leg for inbound answers; disabled until it lands.
+                    enabled = featured.sessionId != null &&
+                        featured.phase == CallPhase.ACTIVE,
+                    onClick = { transferOpen = true },
+                    modifier = Modifier.weight(1f),
+                )
+                ControlCircle(
+                    icon = Icons.AutoMirrored.Outlined.Message,
+                    label = "Note",
+                    contentDescription = "Add a note in the conversation",
+                    active = true,
+                    enabled = conversationId != null,
+                    onClick = { conversationId?.let(openConversation) },
+                    modifier = Modifier.weight(1f),
+                )
+                ControlCircle(
+                    icon = Icons.Outlined.VolumeUp,
+                    label = "Speaker",
+                    contentDescription = "Speaker",
+                    active = speakerOn,
+                    onClick = {
+                        val on = !speakerOn
                         speakerOn = on
                         if (on) bluetoothOn = false
                         manager.setAudioRoute(
                             if (on) AudioRoute.SPEAKER else AudioRoute.EARPIECE,
                         )
                     },
-                ) {
-                    Icon(Icons.Filled.VolumeUp, contentDescription = "Speaker")
-                }
-                FilledIconToggleButton(
-                    checked = bluetoothOn,
-                    onCheckedChange = { on ->
-                        bluetoothOn = on
-                        if (on) speakerOn = false
-                        manager.setAudioRoute(
-                            if (on) AudioRoute.BLUETOOTH else AudioRoute.EARPIECE,
-                        )
-                    },
-                ) {
-                    Icon(Icons.Filled.Bluetooth, contentDescription = "Bluetooth")
-                }
+                    modifier = Modifier.weight(1f),
+                )
             }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledIconToggleButton(
-                    checked = featured.phase == CallPhase.HELD,
-                    onCheckedChange = { manager.toggleHold(featured.id) },
-                ) {
-                    Icon(
-                        if (featured.phase == CallPhase.HELD) {
-                            Icons.Filled.PlayArrow
-                        } else {
-                            Icons.Filled.Pause
-                        },
-                        contentDescription = if (featured.phase == CallPhase.HELD) {
-                            "Resume"
-                        } else {
-                            "Hold"
-                        },
+            Spacer(Modifier.height(10.dp))
+            ControlCircle(
+                icon = Icons.Outlined.Bluetooth,
+                label = "Bluetooth",
+                contentDescription = "Bluetooth",
+                active = bluetoothOn,
+                size = 44.dp,
+                onClick = {
+                    val on = !bluetoothOn
+                    bluetoothOn = on
+                    if (on) speakerOn = false
+                    manager.setAudioRoute(
+                        if (on) AudioRoute.BLUETOOTH else AudioRoute.EARPIECE,
                     )
-                }
-                FilledTonalIconButton(
-                    onClick = { transferOpen = true },
-                    // Transfer needs the CUSTOMER session — resolved via
-                    // by-leg for inbound answers; disabled until it lands.
-                    enabled = featured.sessionId != null &&
-                        featured.phase == CallPhase.ACTIVE,
-                ) {
-                    Icon(Icons.Filled.PhoneForwarded, contentDescription = "Transfer")
-                }
-                FilledTonalIconButton(
-                    onClick = { conversationId?.let(openConversation) },
-                    enabled = conversationId != null,
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Message,
-                        contentDescription = "Add a note in the conversation",
-                    )
-                }
-            }
+                },
+            )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(18.dp))
         if (featured != null && featured.phase == CallPhase.RINGING &&
             featured.direction == CallDirection.INBOUND
         ) {
@@ -262,21 +308,30 @@ fun InCallScreen(
                 Spacer(Modifier.height(8.dp))
             }
             Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 26.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilledIconButton(
+                RingActionCircle(
+                    icon = Icons.Outlined.CallEnd,
+                    label = "Decline",
+                    container = MaterialTheme.colorScheme.error,
+                    content = MaterialTheme.colorScheme.onError,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    labelWeight = FontWeight.SemiBold,
+                    size = 64.dp,
                     onClick = { manager.hangup(featured.id) },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                    modifier = Modifier.size(64.dp),
-                ) {
-                    Icon(Icons.Filled.CallEnd, contentDescription = "Decline")
-                }
-                FilledIconButton(
+                )
+                RingActionCircle(
+                    icon = Icons.Outlined.Call,
+                    label = "Answer",
+                    container = MaterialTheme.colorScheme.tertiary,
+                    content = MaterialTheme.colorScheme.onTertiary,
+                    labelColor = MaterialTheme.colorScheme.onBackground,
+                    labelWeight = FontWeight.Bold,
+                    size = 64.dp,
                     onClick = {
                         if (manager.hasMicPermission()) {
                             manager.answerRinging(featured)
@@ -284,37 +339,16 @@ fun InCallScreen(
                             answerLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                    modifier = Modifier.size(64.dp),
-                ) {
-                    Icon(Icons.Filled.Call, contentDescription = "Answer")
-                }
+                )
             }
         } else {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onClose) { Text("Hide") }
-                FilledIconButton(
-                    onClick = { featured?.let { manager.hangup(it.id) } },
-                    enabled = featured != null,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                    modifier = Modifier.size(64.dp),
-                ) {
-                    Icon(Icons.Filled.CallEnd, contentDescription = "Hang up")
-                }
-                Spacer(Modifier.width(64.dp))
-            }
+            EndCallPill(
+                onClick = { featured?.let { manager.hangup(it.id) } },
+                enabled = featured != null,
+                label = "End call",
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        Spacer(Modifier.height(16.dp))
     }
 
     if (dtmfOpen && featured != null) {
@@ -334,38 +368,118 @@ fun InCallScreen(
     }
 }
 
-/** "Ringing…" / "Connecting…" / live timer / "On hold" / "Call ended". */
+/** A ring-screen action: 64-72dp colored disc + tiny label (spec 04). */
+@Composable
+internal fun RingActionCircle(
+    icon: ImageVector,
+    label: String,
+    container: Color,
+    content: Color,
+    labelColor: Color,
+    labelWeight: FontWeight,
+    size: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Surface(
+            onClick = onClick,
+            shape = CircleShape,
+            color = container,
+            contentColor = content,
+            modifier = Modifier.size(size),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
+            }
+        }
+        Text(label, fontSize = 11.sp, fontWeight = labelWeight, color = labelColor)
+    }
+}
+
+/** "Call note · saves to the thread" — tap opens the conversation (spec 26). */
+@Composable
+private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Message,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(12.dp),
+                )
+                Text(
+                    "CALL NOTE · SAVES TO THE THREAD",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.08.em,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            Text(
+                "Add a note in the conversation…",
+                fontSize = 13.5.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+/** "Ringing…" / "Connecting…" / the big live timer / "On hold" / "Call ended". */
 @Composable
 private fun CallPhaseLine(call: CallSnapshot) {
+    if (call.phase == CallPhase.ACTIVE) {
+        val anchor = call.activeSinceMs
+        if (anchor != null) {
+            val now by produceState(System.currentTimeMillis(), call.id) {
+                while (true) {
+                    value = System.currentTimeMillis()
+                    delay(1_000)
+                }
+            }
+            Text(
+                formatTimer(now - anchor),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = (-0.01).em,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        return
+    }
     val text = when (call.phase) {
         CallPhase.RINGING -> "Incoming call"
         CallPhase.CONNECTING -> "Calling…"
         CallPhase.HELD -> "On hold"
         CallPhase.ENDED -> "Call ended"
-        CallPhase.ACTIVE -> {
-            val anchor = call.activeSinceMs
-            if (anchor == null) {
-                ""
-            } else {
-                val now by produceState(System.currentTimeMillis(), call.id) {
-                    while (true) {
-                        value = System.currentTimeMillis()
-                        delay(1_000)
-                    }
-                }
-                formatTimer(now - anchor)
-            }
-        }
+        else -> ""
     }
     if (text.isNotEmpty()) {
         Text(
             text,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (call.phase == CallPhase.ACTIVE) {
-                MaterialTheme.colorScheme.primary
+            fontSize = 15.sp,
+            fontWeight = if (call.phase == CallPhase.HELD) {
+                FontWeight.SemiBold
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                FontWeight.Normal
             },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 10.dp),
         )
     }
 }
@@ -379,7 +493,8 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
 
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
     ) {
         Row(
             Modifier
@@ -388,7 +503,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(call.peerName, style = MaterialTheme.typography.titleSmall)
+                Text(call.peerName, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     when (call.phase) {
                         CallPhase.RINGING -> "Incoming call"
@@ -396,34 +511,62 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                         CallPhase.CONNECTING -> "Calling…"
                         else -> ""
                     },
-                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
             if (call.phase == CallPhase.RINGING) {
                 // #171 R1: an in-call second-ring Decline is the universal
                 // server signal too (decline-mine + local teardown), not a bare
                 // leg hangup that leaves the caller ringing.
-                TextButton(onClick = { manager.declineCurrent(call.id) }) { Text("Decline") }
-                Spacer(Modifier.width(4.dp))
-                FilledTonalButton(onClick = {
-                    if (manager.hasMicPermission()) {
-                        manager.answerRinging(call)
-                    } else {
-                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                }) {
-                    Icon(
-                        Icons.Filled.Call,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                TextButton(onClick = { manager.declineCurrent(call.id) }) {
+                    Text(
+                        "Decline",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Answer")
+                }
+                Spacer(Modifier.width(4.dp))
+                Surface(
+                    onClick = {
+                        if (manager.hasMicPermission()) {
+                            manager.answerRinging(call)
+                        } else {
+                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Call,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Answer", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             } else if (call.phase == CallPhase.HELD) {
-                FilledTonalButton(onClick = { manager.toggleHold(call.id) }) {
-                    Text("Swap")
+                Surface(
+                    onClick = { manager.toggleHold(call.id) },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Text(
+                        "Swap",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+                    )
                 }
             }
         }
@@ -434,7 +577,16 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
 @Composable
 private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
     var sent by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val rows = listOf(
+        listOf("1" to "", "2" to "ABC", "3" to "DEF"),
+        listOf("4" to "GHI", "5" to "JKL", "6" to "MNO"),
+        listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"),
+        listOf("*" to "", "0" to "+", "#" to ""),
+    )
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -443,36 +595,30 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
         ) {
             Text(
                 sent.ifEmpty { "Keypad" },
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 26.sp),
                 color = if (sent.isEmpty()) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                    MaterialTheme.colorScheme.outline
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    MaterialTheme.colorScheme.onBackground
                 },
+                maxLines = 1,
                 modifier = Modifier.padding(vertical = 12.dp),
             )
-            listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("*", "0", "#"),
-            ).forEach { row ->
+            rows.forEach { row ->
                 Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    Modifier.padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
-                    row.forEach { key ->
-                        TextButton(
+                    row.forEach { (key, letters) ->
+                        KeypadKey(
+                            digit = key,
+                            letters = letters,
+                            size = 64.dp,
                             onClick = {
                                 sent += key
                                 onDigit(key)
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                        ) {
-                            Text(key, style = MaterialTheme.typography.headlineSmall)
-                        }
+                        )
                     }
                 }
             }
@@ -482,9 +628,10 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
 }
 
 /**
- * Blind-transfer picker: eligible teammates with honest busy flags. Names
- * come from GET /v1/members (targets are id-only). Decline/timeout recovery
- * is server-side — the customer snaps back to us, never stranded.
+ * Blind-transfer picker (spec 05): eligible teammates with presence dots and
+ * honest busy flags. Names come from GET /v1/members (targets are id-only).
+ * Decline/timeout recovery is server-side — the customer snaps back to us,
+ * never stranded.
  */
 @Composable
 private fun TransferSheet(
@@ -523,10 +670,17 @@ private fun TransferSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-            Text("Transfer to", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Text(
+                "Transfer this call",
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(12.dp))
             when {
                 loading -> Row(
                     Modifier
@@ -558,49 +712,91 @@ private fun TransferSheet(
                     modifier = Modifier.padding(vertical = 24.dp),
                 )
 
-                else -> Column {
-                    rows.forEach { row ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            InitialsAvatar(row.name, size = 36.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(row.name, style = MaterialTheme.typography.bodyLarge)
-                                if (row.busy) {
-                                    Text(
-                                        "On a call",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            FilledTonalButton(
-                                enabled = !row.busy && !transferring,
-                                onClick = {
-                                    transferring = true
-                                    error = null
-                                    scope.launch {
-                                        try {
-                                            manager.blindTransfer(sessionId, row.userId)
-                                            onDismiss()
-                                        } catch (cause: Exception) {
-                                            error = cause.userMessage()
-                                        } finally {
-                                            transferring = false
-                                        }
+                else -> PaperCard(Modifier.fillMaxWidth()) {
+                    rows.forEachIndexed { index, row ->
+                        TransferTargetRow(
+                            row = row,
+                            enabled = !row.busy && !transferring,
+                            onTransfer = {
+                                transferring = true
+                                error = null
+                                scope.launch {
+                                    try {
+                                        manager.blindTransfer(sessionId, row.userId)
+                                        onDismiss()
+                                    } catch (cause: Exception) {
+                                        error = cause.userMessage()
+                                    } finally {
+                                        transferring = false
                                     }
-                                },
-                            ) { Text("Transfer") }
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                }
+                            },
+                        )
+                        if (index < rows.lastIndex) RowDivider()
                     }
                 }
             }
+            Text(
+                "If they decline, the call snaps back to you.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
+            )
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/** One crew row: avatar, presence dot (lime free / muted busy), Transfer pill. */
+@Composable
+private fun TransferTargetRow(
+    row: TransferRow,
+    enabled: Boolean,
+    onTransfer: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .alpha(if (row.busy) 0.55f else 1f)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        InitialsAvatar(row.name, size = 40.dp)
+        Column(Modifier.weight(1f)) {
+            Text(row.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+            LineStatusRow(
+                text = if (row.busy) "On a call" else "Available",
+                dot = if (row.busy) {
+                    MaterialTheme.colorScheme.outline
+                } else {
+                    BrandColor.LimeBright
+                },
+                textColor = if (row.busy) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.secondary
+                },
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Surface(
+            onClick = onTransfer,
+            enabled = enabled,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.alpha(if (enabled) 1f else 0.5f),
+        ) {
+            Text(
+                "Transfer",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+            )
         }
     }
 }

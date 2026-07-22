@@ -1,37 +1,36 @@
 package com.loonext.android.features.tasks
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material.icons.filled.ViewKanban
-import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,7 +44,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -53,15 +59,20 @@ import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.ScreenTitle
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * /tasks — segmented Open | Mine | All | Done with the route's exact
- * default-filter semantics, assignee/unassigned/due chips, debounced title
- * search, real cursor pagination per ordering, and a List ⇄ Board toggle.
- * Done toggles ALWAYS write `PATCH /v1/messages/{message_id}` (derived done).
+ * /tasks — the "paper & olive" tasks surface (spec 24 / dark 31): ScreenTitle,
+ * List ⇄ Board view pills, the filter pill rail (Open | Mine | All | Done +
+ * assignee/unassigned/due), debounced title search behind the paper search
+ * circle, and rows grouped into paper cards by status. All of the route's
+ * exact default-filter semantics, cursor pagination per ordering, and the
+ * derived-done invariant (`PATCH /v1/messages/{message_id}`) are unchanged.
  * Row tap opens [TaskDetailScreen] in place.
  *
  * [onOpenConversation] deep-links a task's source thread — the shell wires it
@@ -117,6 +128,7 @@ private fun TaskListScreen(
     var unassignedChip by rememberSaveable(companyId) { mutableStateOf(false) }
     var dueChipName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var search by rememberSaveable(companyId) { mutableStateOf("") }
+    var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var pickerOpen by remember { mutableStateOf(false) }
@@ -166,99 +178,146 @@ private fun TaskListScreen(
         }
     }
 
+    fun memberName(userId: String?): String? = when {
+        userId == null -> null
+        userId == me.user_id -> me.display_name.ifBlank { "You" }
+        else -> members.firstOrNull { it.user_id == userId }
+            ?.display_name?.ifBlank { null }
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            val tabs = if (board) listOf(TasksTabKind.Mine, TasksTabKind.All)
-            else TasksTabKind.entries.toList()
+            // ScreenTitle row with the paper search circle (spec 24).
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 8.dp, top = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(start = 18.dp, end = 18.dp, top = 8.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
-                SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
-                    tabs.forEachIndexed { index, item ->
-                        SegmentedButton(
-                            selected = tab == item,
-                            onClick = { tab = item },
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = tabs.size,
-                            ),
-                        ) { Text(item.label) }
-                    }
-                }
-                IconButton(onClick = { board = !board }) {
-                    Icon(
-                        if (board) Icons.Filled.ViewAgenda else Icons.Filled.ViewKanban,
-                        contentDescription = if (board) "List view" else "Board view",
-                    )
-                }
+                ScreenTitle("Tasks", Modifier.weight(1f))
+                PaperCircleButton(
+                    icon = Icons.Outlined.Search,
+                    contentDescription = if (searchOpen) "Hide search" else "Search task titles",
+                    onClick = { searchOpen = !searchOpen },
+                )
             }
 
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it.take(TASK_SEARCH_MAX) },
-                label = { Text("Search task titles") },
-                singleLine = true,
-                trailingIcon = {
-                    if (search.isNotEmpty()) {
-                        IconButton(onClick = { search = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-            )
+            Spacer(Modifier.height(14.dp))
 
+            // View pills: ink active, paper idle. (Calendar/Map views from the
+            // canvas have no data layer yet — List and Board are the two real
+            // views.)
+            Row(
+                Modifier.padding(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                ViewPill("List", selected = !board, onClick = { board = false })
+                ViewPill("Board", selected = board, onClick = { board = true })
+            }
+
+            if (searchOpen || search.isNotEmpty()) {
+                OutlinedTextField(
+                    value = search,
+                    onValueChange = { search = it.take(TASK_SEARCH_MAX) },
+                    placeholder = {
+                        Text(
+                            "Search task titles",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedBorderColor = MaterialTheme.colorScheme.outline,
+                        unfocusedBorderColor = Color.Transparent,
+                    ),
+                    trailingIcon = {
+                        if (search.isNotEmpty()) {
+                            IconButton(onClick = { search = "" }) {
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = "Clear search",
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 12.dp),
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // The filter pill rail: status tabs + assignee/unassigned/due.
             Row(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text(
+                    "Filter",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+                val tabs = if (board) listOf(TasksTabKind.Mine, TasksTabKind.All)
+                else TasksTabKind.entries.toList()
+                tabs.forEach { item ->
+                    FilterPill(
+                        text = item.label,
+                        selected = tab == item,
+                        onClick = { tab = item },
+                    )
+                }
                 val assigneeName = assigneeChip?.let { id ->
                     if (id == me.user_id) "You"
                     else members.firstOrNull { it.user_id == id }
                         ?.display_name?.ifBlank { null } ?: "Teammate"
                 }
-                FilterChip(
+                FilterPill(
+                    text = assigneeName ?: "Assignee",
                     selected = assigneeChip != null,
                     onClick = { pickerOpen = true },
-                    label = { Text(assigneeName ?: "Assignee") },
-                    trailingIcon = if (assigneeChip != null) {
+                    trailing = if (assigneeChip != null) {
                         {
                             Icon(
-                                Icons.Filled.Close,
+                                Icons.Outlined.Close,
                                 contentDescription = "Clear assignee filter",
                                 modifier = Modifier
-                                    .size(16.dp)
+                                    .size(12.dp)
                                     .clickable { assigneeChip = null },
                             )
                         }
                     } else null,
                 )
-                FilterChip(
+                FilterPill(
+                    text = "Unassigned",
                     selected = unassignedChip,
                     onClick = {
                         unassignedChip = !unassignedChip
                         if (unassignedChip) assigneeChip = null
                     },
-                    label = { Text("Unassigned") },
                 )
                 DueChip.entries.forEach { chip ->
-                    FilterChip(
+                    FilterPill(
+                        text = chip.label,
                         selected = dueChip == chip,
                         onClick = {
                             dueChipName = if (dueChip == chip) null else chip.name
                         },
-                        label = { Text(chip.label) },
                     )
                 }
             }
+
+            Spacer(Modifier.height(10.dp))
 
             val filtersActive = assigneeChip != null || unassignedChip ||
                 dueChip != null || debouncedQ.isNotEmpty()
@@ -287,6 +346,7 @@ private fun TaskListScreen(
                     q = debouncedQ,
                     refreshKey = refreshKey,
                     filtersActive = filtersActive,
+                    memberName = ::memberName,
                     onRetry = { refreshKey++ },
                     onOpenTask = onOpenTask,
                     onToggleDone = onToggleDone,
@@ -323,6 +383,7 @@ private fun TaskList(
     q: String?,
     refreshKey: Int,
     filtersActive: Boolean,
+    memberName: (String?) -> String?,
     onRetry: () -> Unit,
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
@@ -372,14 +433,28 @@ private fun TaskList(
                     )
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(rows, key = { it.id }) { task ->
-                        TaskListRow(
-                            task = task,
-                            onClick = { onOpenTask(task.id) },
-                            onToggleDone = { done -> onToggleDone(task, done) },
-                        )
-                    }
+                // Rows arrive open-first (the loader drains the open arm
+                // before done), so the status partition preserves order.
+                val openRows = rows.filter { !it.done }
+                val doneRows = rows.filter { it.done }
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    taskSection(
+                        label = "To do",
+                        tasks = openRows,
+                        memberName = memberName,
+                        onOpenTask = onOpenTask,
+                        onToggleDone = onToggleDone,
+                    )
+                    taskSection(
+                        label = "Done",
+                        tasks = doneRows,
+                        memberName = memberName,
+                        onOpenTask = onOpenTask,
+                        onToggleDone = onToggleDone,
+                    )
                     if (hasMore) {
                         item(key = "load-more") {
                             Box(
@@ -408,15 +483,88 @@ private fun TaskList(
                             }
                         }
                     }
+                    item(key = "hint") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .size(6.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.tertiary,
+                                                CircleShape,
+                                            ),
+                                    )
+                                    Text(
+                                        "Every task links back to its message",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/** One status group: a SectionHeader + its rows fused into one paper card. */
+private fun LazyListScope.taskSection(
+    label: String,
+    tasks: List<Task>,
+    memberName: (String?) -> String?,
+    onOpenTask: (String) -> Unit,
+    onToggleDone: (Task, Boolean) -> Unit,
+) {
+    if (tasks.isEmpty()) return
+    item(key = "hdr-$label") {
+        SectionHeader(
+            label,
+            Modifier.padding(start = 18.dp, top = 10.dp),
+            count = tasks.size,
+        )
+    }
+    itemsIndexed(tasks, key = { _, task -> task.id }) { index, task ->
+        Column(
+            Modifier
+                .padding(horizontal = 18.dp)
+                .clip(cardGroupShape(index, tasks.size))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            TaskListRow(
+                task = task,
+                assigneeName = memberName(task.assigned_user_id),
+                onClick = { onOpenTask(task.id) },
+                onToggleDone = { done -> onToggleDone(task, done) },
+            )
+            if (index < tasks.lastIndex) RowDivider()
+        }
+    }
+}
+
+/**
+ * One task row (spec 24): done ring, 13.5sp SemiBold title (struck when
+ * done), the muted due/context ladder with overdue emphasis, and the 28dp
+ * assignee avatar. Done rows fade to ~62%.
+ */
 @Composable
 internal fun TaskListRow(
     task: Task,
+    assigneeName: String?,
     onClick: () -> Unit,
     onToggleDone: (Boolean) -> Unit,
 ) {
@@ -424,46 +572,67 @@ internal fun TaskListRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(start = 9.dp, end = 15.dp, top = 7.dp, bottom = 7.dp)
+            .alpha(if (task.done) 0.62f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DoneCircle(done = task.done, onToggle = onToggleDone)
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 task.title,
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (task.done) {
-                    androidx.compose.ui.text.style.TextDecoration.LineThrough
-                } else null,
-                color = if (task.done) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textDecoration = if (task.done) TextDecoration.LineThrough else null,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             val overdue = isOverdue(task)
-            if (task.due_at != null) {
-                Text(
-                    if (overdue) "Overdue · due ${formatDue(task.due_at)}"
-                    else "Due ${formatDue(task.due_at)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    // Overdue = amber (tertiary), never red.
-                    color = if (overdue) MaterialTheme.colorScheme.tertiary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            val dueText = task.due_at?.let {
+                if (overdue) "Overdue · due ${formatDue(it)}" else "Due ${formatDue(it)}"
+            }
+            val context = task.contact?.name?.ifBlank { null }
+            if (dueText != null || context != null) {
+                Row(
+                    Modifier.padding(top = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    if (dueText != null) {
+                        Text(
+                            dueText,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (overdue) FontWeight.SemiBold
+                            else FontWeight.Normal,
+                            // Overdue = olive emphasis, never a red scare.
+                            color = if (overdue) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                    if (dueText != null && context != null) {
+                        Box(
+                            Modifier
+                                .size(3.dp)
+                                .background(MaterialTheme.colorScheme.outline, CircleShape),
+                        )
+                    }
+                    if (context != null) {
+                        Text(
+                            context,
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
-    }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-/** The round derived-done toggle: hollow circle → filled petrol check. */
-@Composable
-internal fun DoneCircle(done: Boolean, onToggle: (Boolean) -> Unit) {
-    IconButton(onClick = { onToggle(!done) }) {
-        Icon(
-            if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-            contentDescription = if (done) "Mark not done" else "Mark done",
-            tint = if (done) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (task.assigned_user_id != null) {
+            Spacer(Modifier.width(12.dp))
+            TaskAvatar(assigneeName, size = 28.dp)
+        }
     }
 }

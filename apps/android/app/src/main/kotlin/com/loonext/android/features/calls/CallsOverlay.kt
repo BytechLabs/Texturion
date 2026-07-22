@@ -39,6 +39,7 @@ import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneSnapshot
+import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
 
 /**
@@ -113,7 +114,7 @@ fun CallsOverlay(
         ) {
             Surface(
                 Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface,
+                color = callScreenColor(),
             ) {
                 InCallScreen(
                     manager = manager,
@@ -187,7 +188,7 @@ fun CallChip(
     val call = featured ?: endedChip ?: return
 
     Surface(
-        shape = MaterialTheme.shapes.large,
+        shape = CircleShape,
         color = MaterialTheme.colorScheme.primaryContainer,
         modifier = modifier
             .fillMaxWidth()
@@ -205,7 +206,7 @@ fun CallChip(
                         if (call.phase == CallPhase.ENDED) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
-                            MaterialTheme.colorScheme.primary
+                            BrandColor.LimeBright
                         },
                         CircleShape,
                     ),

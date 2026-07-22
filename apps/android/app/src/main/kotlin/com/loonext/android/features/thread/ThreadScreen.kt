@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,8 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.AlertDialog
@@ -41,7 +42,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -62,10 +62,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
@@ -89,7 +91,9 @@ import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.theme.BrandColor
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -374,7 +378,6 @@ private fun ThreadLoaded(
             onOpenContactPanel = { contactPanelOpen = true },
             onOpenGallery = onOpenGallery,
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         ThreadTagsRow(
             tags = detail.tags,
@@ -393,7 +396,6 @@ private fun ThreadLoaded(
                     }
                 },
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
 
         Box(Modifier.weight(1f)) {
@@ -446,6 +448,7 @@ private fun ThreadLoaded(
                             is TimelineItem.EventItem -> EventLine(
                                 text = eventLine(item.event, names, contactName),
                                 timeIso = item.event.created_at,
+                                eventType = item.event.type,
                             )
 
                             is TimelineItem.DayDivider -> DayDividerLine(item.label)
@@ -544,10 +547,12 @@ private fun ThreadLoaded(
         )
     }
     makeTaskFor?.let { message ->
-        MakeTaskDialog(
+        MakeTaskSheet(
             message = message,
-            onCreate = { title ->
-                controller.makeTask(message, title)
+            contactName = contactName,
+            members = controller.members,
+            onCreate = { title, assignedUserId, dueAtIso ->
+                controller.makeTask(message, title, assignedUserId, dueAtIso)
                 makeTaskFor = null
             },
             onDismiss = { makeTaskFor = null },
@@ -595,18 +600,15 @@ private fun ThreadTagsRow(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         tags.forEach { tag ->
             Row(
                 Modifier
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                        RoundedCornerShape(50),
-                    )
-                    .padding(start = 10.dp, top = 3.dp, bottom = 3.dp, end = 4.dp),
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                    .padding(start = 10.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -651,6 +653,26 @@ private fun ThreadTagsRow(
 // Header
 // ---------------------------------------------------------------------------
 
+/** 38dp identity circle on the avatar tint (spec header grammar). */
+@Composable
+private fun HeaderAvatar(name: String?) {
+    Box(
+        Modifier
+            .size(38.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            initialsOf(name),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
 @Composable
 private fun ThreadHeader(
     controller: ThreadController,
@@ -671,187 +693,244 @@ private fun ThreadHeader(
     var confirmOptOut by remember { mutableStateOf(false) }
     var confirmRevoke by remember { mutableStateOf(false) }
 
-    Row(
-        Modifier
+    // Paper pill header (spec 21/30): back · avatar · name + status line ·
+    // ink call circle · overflow dots.
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = 14.dp, end = 14.dp, top = 6.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-        }
-        // The identity block opens the contact panel sheet (#165).
         Row(
-            Modifier
-                .weight(1f)
-                .clickable(onClick = onOpenContactPanel),
+            Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            InitialsAvatar(contactName, size = 34.dp)
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+
+            // The identity block opens the contact panel sheet (#165); the
+            // status line beneath the name anchors the status menu.
+            Box(Modifier.clickable(onClick = onOpenContactPanel)) {
+                HeaderAvatar(contactName)
+            }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     contactName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(onClick = onOpenContactPanel),
                 )
-                Text(
-                    if (controller.contact?.opted_out == true) "$phoneLabel · Opted out"
-                    else phoneLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        // Call (#165) — enabled even for opted-out contacts (voice ≠ SMS
-        // consent); the mic preflight and gate errors live in the caller.
-        IconButton(onClick = onCall, enabled = !calling) {
-            if (calling) {
-                LoadingIndicator(Modifier.size(20.dp))
-            } else {
-                Icon(Icons.Filled.Call, contentDescription = "Call $contactName")
-            }
-        }
-
-        // Status pill + menu (the single status control).
-        Box {
-            Text(
-                statusLabel(detail.status),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .background(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(50),
-                    )
-                    .clickable { statusMenuOpen = true }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            )
-            DropdownMenu(
-                expanded = statusMenuOpen,
-                onDismissRequest = { statusMenuOpen = false },
-            ) {
-                listOf(
-                    ConversationStatus.NEW,
-                    ConversationStatus.OPEN,
-                    ConversationStatus.WAITING,
-                    ConversationStatus.CLOSED,
-                ).forEach { status ->
-                    DropdownMenuItem(
-                        text = { Text(statusLabel(status)) },
-                        trailingIcon = {
-                            if (detail.status == status) {
-                                Icon(Icons.Filled.Check, contentDescription = "Current")
-                            }
-                        },
-                        onClick = {
-                            statusMenuOpen = false
-                            if (status != detail.status) controller.setStatus(status)
-                        },
-                    )
+                Box {
+                    val assigneeName = members
+                        .firstOrNull { it.user_id == detail.assigned_user_id }
+                        ?.display_name?.ifBlank { null }
+                    val subtitle = buildString {
+                        append(statusLabel(detail.status))
+                        append(" · ")
+                        append(assigneeName ?: phoneLabel)
+                        if (controller.contact?.opted_out == true) append(" · Opted out")
+                    }
+                    Row(
+                        Modifier.clickable { statusMenuOpen = true },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(6.dp)
+                                .background(
+                                    if (isSystemInDarkTheme()) BrandColor.Lime
+                                    else BrandColor.LimeBright,
+                                    CircleShape,
+                                ),
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = statusMenuOpen,
+                        onDismissRequest = { statusMenuOpen = false },
+                    ) {
+                        listOf(
+                            ConversationStatus.NEW,
+                            ConversationStatus.OPEN,
+                            ConversationStatus.WAITING,
+                            ConversationStatus.CLOSED,
+                        ).forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(statusLabel(status)) },
+                                trailingIcon = {
+                                    if (detail.status == status) {
+                                        Icon(Icons.Filled.Check, contentDescription = "Current")
+                                    }
+                                },
+                                onClick = {
+                                    statusMenuOpen = false
+                                    if (status != detail.status) controller.setStatus(status)
+                                },
+                            )
+                        }
+                    }
                 }
             }
-        }
+            Spacer(Modifier.width(8.dp))
 
-        // Assignee control.
-        IconButton(onClick = { assigneeSheetOpen = true }) {
-            val assignee = members.firstOrNull { it.user_id == detail.assigned_user_id }
-            if (assignee != null) {
-                InitialsAvatar(assignee.display_name.ifBlank { null }, size = 28.dp)
-            } else {
-                Icon(
-                    Icons.Filled.Person,
-                    contentDescription = "Assign",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // Overflow.
-        Box {
-            IconButton(onClick = { overflowOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "More")
-            }
-            DropdownMenu(
-                expanded = overflowOpen,
-                onDismissRequest = { overflowOpen = false },
+            // Call (#165) — the 44dp ink circle. Enabled even for opted-out
+            // contacts (voice ≠ SMS consent); mic preflight and gate errors
+            // live in the caller.
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(enabled = !calling, onClick = onCall),
+                contentAlignment = Alignment.Center,
             ) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (detail.pinned_at == null) "Pin conversation"
-                            else "Unpin conversation",
-                        )
-                    },
-                    onClick = {
-                        overflowOpen = false
-                        controller.toggleConversationPin()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Photos & files") },
-                    onClick = {
-                        overflowOpen = false
-                        onOpenGallery()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(if (detail.is_spam) "Not spam" else "Mark as spam") },
-                    onClick = {
-                        overflowOpen = false
-                        controller.setSpam(!detail.is_spam)
-                    },
-                )
-                if (controller.contact?.opted_out == true) {
-                    DropdownMenuItem(
-                        text = { Text("Remove opt-out") },
-                        onClick = {
-                            overflowOpen = false
-                            confirmRevoke = true
-                        },
+                if (calling) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 } else {
-                    DropdownMenuItem(
-                        text = { Text("Opt out of texts") },
-                        onClick = {
-                            overflowOpen = false
-                            confirmOptOut = true
-                        },
+                    Icon(
+                        Icons.Filled.Call,
+                        contentDescription = "Call $contactName",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                DropdownMenuItem(
-                    text = { Text("Show messages") },
-                    trailingIcon = {
-                        if (controller.filter.messages) {
-                            Icon(Icons.Filled.Check, contentDescription = "On")
-                        }
-                    },
-                    onClick = { controller.filter = controller.filter.toggledMessages() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Show notes") },
-                    trailingIcon = {
-                        if (controller.filter.notes) {
-                            Icon(Icons.Filled.Check, contentDescription = "On")
-                        }
-                    },
-                    onClick = { controller.filter = controller.filter.toggledNotes() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Show events") },
-                    trailingIcon = {
-                        if (controller.filter.events) {
-                            Icon(Icons.Filled.Check, contentDescription = "On")
-                        }
-                    },
-                    onClick = { controller.filter = controller.filter.toggledEvents() },
-                )
+            }
+
+            // Overflow (assignee moved here — the status line names them).
+            Box {
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { overflowOpen = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.MoreHoriz,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = overflowOpen,
+                    onDismissRequest = { overflowOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            val assignee =
+                                members.firstOrNull { it.user_id == detail.assigned_user_id }
+                            Text(
+                                assignee?.let {
+                                    "Assigned to ${it.display_name.ifBlank { "a teammate" }}"
+                                } ?: "Assign to…",
+                            )
+                        },
+                        onClick = {
+                            overflowOpen = false
+                            assigneeSheetOpen = true
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (detail.pinned_at == null) "Pin conversation"
+                                else "Unpin conversation",
+                            )
+                        },
+                        onClick = {
+                            overflowOpen = false
+                            controller.toggleConversationPin()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Photos & files") },
+                        onClick = {
+                            overflowOpen = false
+                            onOpenGallery()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (detail.is_spam) "Not spam" else "Mark as spam") },
+                        onClick = {
+                            overflowOpen = false
+                            controller.setSpam(!detail.is_spam)
+                        },
+                    )
+                    if (controller.contact?.opted_out == true) {
+                        DropdownMenuItem(
+                            text = { Text("Remove opt-out") },
+                            onClick = {
+                                overflowOpen = false
+                                confirmRevoke = true
+                            },
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Opt out of texts") },
+                            onClick = {
+                                overflowOpen = false
+                                confirmOptOut = true
+                            },
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    DropdownMenuItem(
+                        text = { Text("Show messages") },
+                        trailingIcon = {
+                            if (controller.filter.messages) {
+                                Icon(Icons.Filled.Check, contentDescription = "On")
+                            }
+                        },
+                        onClick = { controller.filter = controller.filter.toggledMessages() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Show notes") },
+                        trailingIcon = {
+                            if (controller.filter.notes) {
+                                Icon(Icons.Filled.Check, contentDescription = "On")
+                            }
+                        },
+                        onClick = { controller.filter = controller.filter.toggledNotes() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Show events") },
+                        trailingIcon = {
+                            if (controller.filter.events) {
+                                Icon(Icons.Filled.Check, contentDescription = "On")
+                            }
+                        },
+                        onClick = { controller.filter = controller.filter.toggledEvents() },
+                    )
+                }
             }
         }
     }
@@ -980,7 +1059,11 @@ private fun AssigneePickerSheet(
     }
 }
 
-/** Collapsed "Pinned · N" disclosure; expanded rows jump to the message. */
+/**
+ * Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
+ * Rendered as the cream pinned-well from the token table (paper-raised in
+ * dark, where cream has no counterpart).
+ */
 @Composable
 private fun PinnedBanner(
     pinned: List<Message>,
@@ -990,13 +1073,18 @@ private fun PinnedBanner(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow),
+            .padding(horizontal = 18.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerHigh
+                else BrandColor.Cream,
+            ),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable { expanded = !expanded }
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(

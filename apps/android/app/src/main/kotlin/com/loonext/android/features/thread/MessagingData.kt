@@ -256,15 +256,22 @@ class MessagingRepository(private val api: ApiClient) {
     )
 
     /** Promote a message into a task ("Make a task"). 409 = already promoted. */
-    suspend fun createTask(companyId: String, messageId: String, title: String): Task =
-        api.post(
-            "/v1/tasks",
-            buildJsonObject {
-                put("message_id", messageId)
-                put("title", title)
-            },
-            companyId = companyId,
-        )
+    suspend fun createTask(
+        companyId: String,
+        messageId: String,
+        title: String,
+        assignedUserId: String? = null,
+        dueAtIso: String? = null,
+    ): Task = api.post(
+        "/v1/tasks",
+        buildJsonObject {
+            put("message_id", messageId)
+            put("title", title)
+            if (assignedUserId != null) put("assigned_user_id", assignedUserId)
+            if (dueAtIso != null) put("due_at", dueAtIso)
+        },
+        companyId = companyId,
+    )
 
     // --- Supporting reads -----------------------------------------------------
 

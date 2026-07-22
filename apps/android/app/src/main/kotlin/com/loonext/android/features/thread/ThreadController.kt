@@ -520,10 +520,15 @@ class ThreadController(
         }
     }
 
-    fun makeTask(message: Message, title: String) {
+    fun makeTask(
+        message: Message,
+        title: String,
+        assignedUserId: String? = null,
+        dueAtIso: String? = null,
+    ) {
         scope.launch {
             try {
-                val task = repo.createTask(companyId, message.id, title)
+                val task = repo.createTask(companyId, message.id, title, assignedUserId, dueAtIso)
                 replaceMessage(
                     message.copy(
                         has_task = true,

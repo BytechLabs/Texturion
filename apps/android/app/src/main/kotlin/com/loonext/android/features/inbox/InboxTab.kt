@@ -1,40 +1,49 @@
 package com.loonext.android.features.inbox
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,11 +56,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -63,11 +82,17 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.appendPage
 import com.loonext.android.features.thread.dropVanishedFromFirstWindow
 import com.loonext.android.features.thread.mergeFirstPage
+import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
-import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.ScreenTitle
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CoroutineScope
@@ -83,7 +108,7 @@ private enum class InboxStatusTab(val label: String) {
 }
 
 /**
- * Inbox: pinned section + segmented Open|Mine|All|Closed + filter chips
+ * Inbox: pinned section + segmented Open|Mine|All|Closed + filter sheet
  * (assignee/tag/unread/spam) + debounced global search (≥2 chars) + cursor
  * infinite scroll + realtime re-sort. Tapping a row opens [ThreadScreen]
  * in place (state-based detail — no global NavHost).
@@ -142,6 +167,10 @@ fun InboxTab(
             companyId = companyId,
             me = me,
             onOpen = { openConversationId = it },
+            onCompose = {
+                composeContactId = null
+                composeOpen = true
+            },
             onTextContact = { contactId ->
                 composeContactId = contactId
                 composeOpen = true
@@ -228,6 +257,16 @@ private class InboxController(
 
     fun toggleSpam() {
         spamOnly = !spamOnly
+        reload(showLoading = true)
+    }
+
+    /** One reload for the sheet's Reset (not four chained ones). */
+    fun resetFilters() {
+        if (!hasFilterChips) return
+        assignee = null
+        tag = null
+        unreadOnly = false
+        spamOnly = false
         reload(showLoading = true)
     }
 
@@ -397,7 +436,7 @@ private class InboxController(
 }
 
 // ---------------------------------------------------------------------------
-// List UI
+// List UI (Paper & Olive — spec 20)
 // ---------------------------------------------------------------------------
 
 @OptIn(FlowPreview::class)
@@ -407,6 +446,7 @@ private fun InboxList(
     companyId: String,
     me: Me,
     onOpen: (String) -> Unit,
+    onCompose: () -> Unit,
     onTextContact: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -433,176 +473,265 @@ private fun InboxList(
             .collect { controller.runSearch() }
     }
 
-    var assigneeSheetOpen by remember { mutableStateOf(false) }
-    var tagSheetOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
+    var filterSheetOpen by remember { mutableStateOf(false) }
 
-    Column(modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = controller.query,
-            onValueChange = { controller.query = it.take(200) },
-            placeholder = { Text("Search conversations, contacts, tasks…") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = {
-                if (controller.query.isNotEmpty()) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Clear search",
-                        modifier = Modifier.clickable { controller.query = "" },
-                    )
-                }
-            },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-
-        if (controller.searching) {
-            SearchResultsPane(
+    Box(modifier.fillMaxSize()) {
+        if (searchOpen) {
+            SearchSurface(
                 controller = controller,
+                onCancel = {
+                    controller.query = ""
+                    searchOpen = false
+                },
                 onOpen = { id ->
                     controller.markLocallyRead(id)
                     onOpen(id)
                 },
                 onTextContact = onTextContact,
             )
-            return@Column
-        }
+        } else {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 18.dp),
+            ) {
+                Spacer(Modifier.height(8.dp))
+                InboxHeader(
+                    unreadCount = controller.pinnedRows.count { it.unread } +
+                        controller.rows.count { it.unread },
+                    filtersActive = controller.hasFilterChips,
+                    onSearch = { searchOpen = true },
+                    onFilters = { filterSheetOpen = true },
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    InboxStatusTab.entries.forEach { item ->
+                        FilterPill(
+                            text = item.label,
+                            selected = controller.tab == item,
+                            onClick = { controller.selectTab(item) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Box(Modifier.weight(1f)) {
+                    when (val current = controller.state) {
+                        is LoadState.Loading -> CenteredLoading()
+                        is LoadState.Failed -> CenteredError(
+                            current.message,
+                            onRetry = { controller.reload(showLoading = true) },
+                        )
 
-        SingleChoiceSegmentedButtonRow(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-        ) {
-            InboxStatusTab.entries.forEachIndexed { index, item ->
-                SegmentedButton(
-                    selected = controller.tab == item,
-                    onClick = { controller.selectTab(item) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = InboxStatusTab.entries.size,
-                    ),
-                ) { Text(item.label) }
+                        is LoadState.Ready -> ConversationListPane(
+                            controller = controller,
+                            meUserId = me.user_id,
+                            onOpen = { id ->
+                                controller.markLocallyRead(id)
+                                onOpen(id)
+                            },
+                        )
+                    }
+                }
+            }
+
+            // The 54dp ink compose FAB — the shell's 96dp inset already floats
+            // this clear of the pill nav.
+            Surface(
+                onClick = onCompose,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shadowElevation = 10.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 18.dp)
+                    .size(54.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "New conversation",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
 
-        FilterChipRow(
-            controller = controller,
-            onPickAssignee = { assigneeSheetOpen = true },
-            onPickTag = { tagSheetOpen = true },
-        )
-
-        when (val current = controller.state) {
-            is LoadState.Loading -> CenteredLoading()
-            is LoadState.Failed -> CenteredError(
-                current.message,
-                onRetry = { controller.reload(showLoading = true) },
-            )
-
-            is LoadState.Ready -> ConversationListPane(
+        if (filterSheetOpen) {
+            FiltersSheet(
                 controller = controller,
-                onOpen = { id ->
-                    controller.markLocallyRead(id)
-                    onOpen(id)
-                },
+                meUserId = me.user_id,
+                onDismiss = { filterSheetOpen = false },
             )
         }
-    }
-
-    if (assigneeSheetOpen) {
-        AssigneeFilterSheet(
-            members = controller.members,
-            meUserId = me.user_id,
-            selected = controller.assignee,
-            onPick = { member ->
-                assigneeSheetOpen = false
-                controller.setAssigneeFilter(member)
-            },
-            onDismiss = { assigneeSheetOpen = false },
-        )
-    }
-    if (tagSheetOpen) {
-        TagFilterSheet(
-            tags = controller.allTags,
-            selected = controller.tag,
-            onPick = { tag ->
-                tagSheetOpen = false
-                controller.setTagFilter(tag)
-            },
-            onDismiss = { tagSheetOpen = false },
-        )
     }
 }
 
 @Composable
-private fun FilterChipRow(
-    controller: InboxController,
-    onPickAssignee: () -> Unit,
-    onPickTag: () -> Unit,
+private fun InboxHeader(
+    unreadCount: Int,
+    filtersActive: Boolean,
+    onSearch: () -> Unit,
+    onFilters: () -> Unit,
 ) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (controller.tab != InboxStatusTab.Mine) {
-            FilterChip(
-                selected = controller.assignee != null,
-                onClick = onPickAssignee,
-                label = {
-                    Text(
-                        controller.assignee?.let {
-                            "Assignee: ${it.display_name.ifBlank { "Teammate" }}"
-                        } ?: "Assignee",
-                    )
-                },
-                trailingIcon = {
-                    if (controller.assignee != null) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "Clear assignee filter",
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable { controller.setAssigneeFilter(null) },
-                        )
-                    }
-                },
+        ScreenTitle("Inbox")
+        if (unreadCount > 0) {
+            Spacer(Modifier.width(9.dp))
+            DsChip("$unreadCount unread")
+        }
+        Spacer(Modifier.weight(1f))
+        PaperIconButton(
+            icon = Icons.Outlined.Search,
+            contentDescription = "Search",
+            onClick = onSearch,
+        )
+        Spacer(Modifier.width(8.dp))
+        PaperIconButton(
+            icon = Icons.Outlined.Tune,
+            contentDescription = "Filters",
+            onClick = onFilters,
+            badge = filtersActive,
+        )
+    }
+}
+
+/** 44dp paper circle with a 17dp stroke icon (design grammar). */
+@Composable
+private fun PaperIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    badge: Boolean = false,
+) {
+    Box {
+        Surface(
+            onClick = onClick,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shadowElevation = 1.dp,
+            modifier = Modifier.size(44.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp))
+            }
+        }
+        if (badge) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(9.dp)
+                    .background(MaterialTheme.colorScheme.secondary, CircleShape),
             )
         }
-        FilterChip(
-            selected = controller.tag != null,
-            onClick = onPickTag,
-            label = { Text(controller.tag?.let { "Tag: ${it.name}" } ?: "Tag") },
-            trailingIcon = {
-                if (controller.tag != null) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Clear tag filter",
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clickable { controller.setTagFilter(null) },
-                    )
-                }
-            },
-        )
-        FilterChip(
-            selected = controller.unreadOnly,
-            onClick = { controller.toggleUnread() },
-            label = { Text("Unread") },
-        )
-        FilterChip(
-            selected = controller.spamOnly,
-            onClick = { controller.toggleSpam() },
-            label = { Text("Spam") },
-        )
+    }
+}
+
+/**
+ * Paper/ink filter pill (spec 20/01). `outlined` = selected-with-ink-ring
+ * (the tag style) instead of the solid ink fill.
+ */
+@Composable
+private fun FilterPill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    outlined: Boolean = false,
+    leading: (@Composable () -> Unit)? = null,
+) {
+    val solid = selected && !outlined
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (solid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentColor = when {
+            solid -> MaterialTheme.colorScheme.onPrimary
+            selected -> MaterialTheme.colorScheme.onSurface
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        border = if (selected && outlined) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            null
+        },
+    ) {
+        // Avatar-leading pills tuck the padding in around the 24dp circle;
+        // dot-leading (tag) pills keep the standard 10x16 (spec 01).
+        val avatarLeading = leading != null && !outlined
+        Row(
+            Modifier.padding(
+                start = if (avatarLeading) 8.dp else 16.dp,
+                end = 16.dp,
+                top = if (avatarLeading) 8.dp else 10.dp,
+                bottom = if (avatarLeading) 8.dp else 10.dp,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            leading?.invoke()
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                ),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Conversation list
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of a "card" that actually lives in a LazyColumn: first/last rows
+ * carry the 22dp paper-card corners so a run of rows reads as one PaperCard
+ * while staying lazy for paging.
+ */
+@Composable
+private fun GroupedRow(
+    first: Boolean,
+    last: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val radius = 22.dp
+    val shape = RoundedCornerShape(
+        topStart = if (first) radius else 0.dp,
+        topEnd = if (first) radius else 0.dp,
+        bottomStart = if (last) radius else 0.dp,
+        bottomEnd = if (last) radius else 0.dp,
+    )
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
+    ) {
+        content()
+        if (!last) RowDivider()
     }
 }
 
 @Composable
 private fun ConversationListPane(
     controller: InboxController,
+    meUserId: String,
     onOpen: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -635,20 +764,49 @@ private fun ConversationListPane(
         return
     }
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        if (controller.pinnedRows.isNotEmpty()) {
-            item(key = "pinned-header") {
-                SectionLabel("Pinned", icon = true)
-            }
-            items(controller.pinnedRows, key = { "pin:${it.id}" }) { row ->
-                ConversationRow(row, onClick = { onOpen(row.id) })
-            }
-            if (controller.rows.isNotEmpty()) {
-                item(key = "rest-header") { SectionLabel("Conversations", icon = false) }
+    val membersById = controller.members.associateBy { it.user_id }
+    fun assigneeName(row: ConversationListItem): String? =
+        row.assigned_user_id?.let { userId ->
+            if (userId == meUserId) {
+                "You"
+            } else {
+                membersById[userId]?.display_name?.ifBlank { "Teammate" }
             }
         }
-        items(controller.rows, key = { it.id }) { row ->
-            ConversationRow(row, onClick = { onOpen(row.id) })
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        val hasPinned = controller.pinnedRows.isNotEmpty()
+        if (hasPinned) {
+            item(key = "pinned-header") {
+                SectionHeader("Pinned", count = controller.pinnedRows.size)
+            }
+            itemsIndexed(
+                controller.pinnedRows,
+                key = { _, row -> "pin:${row.id}" },
+            ) { index, row ->
+                GroupedRow(
+                    first = index == 0,
+                    last = index == controller.pinnedRows.lastIndex,
+                    onClick = { onOpen(row.id) },
+                ) { ConversationRow(row, assigneeName(row)) }
+            }
+            if (controller.rows.isNotEmpty()) {
+                item(key = "rest-header") {
+                    Spacer(Modifier.height(14.dp))
+                    SectionHeader("Conversations")
+                }
+            }
+        }
+        itemsIndexed(controller.rows, key = { _, row -> row.id }) { index, row ->
+            GroupedRow(
+                first = index == 0,
+                last = index == controller.rows.lastIndex,
+                onClick = { onOpen(row.id) },
+            ) { ConversationRow(row, assigneeName(row)) }
         }
         if (controller.loadingMore) {
             item(key = "loading-more") {
@@ -664,64 +822,64 @@ private fun ConversationListPane(
 }
 
 @Composable
-private fun SectionLabel(label: String, icon: Boolean) {
-    Row(
-        Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon) {
-            Icon(
-                Icons.Filled.PushPin,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(13.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(
-            label,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun ConversationRow(row: ConversationListItem, onClick: () -> Unit) {
+private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        InitialsAvatar(name)
-        Spacer(Modifier.width(12.dp))
+        // 42dp squircle avatar; unread = coral dot ringed in paper (spec 20).
+        Box {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .background(
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        RoundedCornerShape(15.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    initialsOf(name),
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            if (row.unread) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .offset((-3).dp, (-3).dp)
+                        .size(13.dp)
+                        .background(MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { AttentionDot(size = 9.dp) }
+            }
+        }
+        Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (row.unread) FontWeight.SemiBold else FontWeight.Normal,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = if (row.unread) FontWeight.SemiBold else FontWeight.Medium,
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f),
                 )
-                if (row.is_spam) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Spam",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.surfaceContainerHigh,
-                                RoundedCornerShape(50),
-                            )
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
-                    )
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    relativeTime(row.last_message_at),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
             }
             val snippet = row.last_message?.let { last ->
                 val body = if (last.body.isBlank() && last.has_attachments) "Photo"
@@ -730,45 +888,49 @@ private fun ConversationRow(row: ConversationListItem, onClick: () -> Unit) {
             }.orEmpty()
             Text(
                 snippet,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
             )
-            if (row.tags.isNotEmpty()) {
+            if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null) {
                 Row(
-                    Modifier.padding(top = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     row.tags.take(3).forEach { tag -> TagChip(tag) }
                     if (row.tags.size > 3) {
                         Text(
                             "+${row.tags.size - 3}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (row.is_spam) {
+                        DsChip(
+                            "Spam",
+                            container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            content = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (assigneeName != null) {
+                        Text(
+                            assigneeName,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                relativeTime(row.last_message_at),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (row.unread) {
-                Spacer(Modifier.size(6.dp))
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                )
-            }
-        }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
@@ -776,283 +938,609 @@ private fun TagChip(tag: Tag) {
     val tint = tag.color?.let { hex ->
         runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
     }
-    Row(
-        Modifier
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                RoundedCornerShape(50),
-            )
-            .padding(horizontal = 6.dp, vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (tint != null) {
-            Box(
-                Modifier
-                    .size(6.dp)
-                    .background(tint, CircleShape),
-            )
-            Spacer(Modifier.width(3.dp))
-        }
-        Text(
-            tag.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Filter picker sheets
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun AssigneeFilterSheet(
-    members: List<Member>,
-    meUserId: String,
-    selected: Member?,
-    onPick: (Member?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(
+            Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (tint != null) {
+                Box(
+                    Modifier
+                        .size(6.dp)
+                        .background(tint, CircleShape),
+                )
+                Spacer(Modifier.width(4.dp))
+            }
             Text(
-                "Filter by assignee",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
-            PickerRow(
-                label = "Anyone",
-                selected = selected == null,
-                avatarName = null,
-                onClick = { onPick(null) },
-            )
-            members.filter { it.deactivated_at == null }.forEach { member ->
-                PickerRow(
-                    label = member.display_name.ifBlank { "Teammate" } +
-                        if (member.user_id == meUserId) " (you)" else "",
-                    selected = selected?.user_id == member.user_id,
-                    avatarName = member.display_name.ifBlank { null },
-                    onClick = { onPick(member) },
-                )
-            }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun TagFilterSheet(
-    tags: List<Tag>,
-    selected: Tag?,
-    onPick: (Tag?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
-            Text(
-                "Filter by tag",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
-            PickerRow(
-                label = "Any tag",
-                selected = selected == null,
-                avatarName = null,
-                onClick = { onPick(null) },
-            )
-            if (tags.isEmpty()) {
-                Text(
-                    "No tags yet. Add tags from a conversation on the web.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(20.dp),
-                )
-            }
-            tags.forEach { tag ->
-                PickerRow(
-                    label = tag.name,
-                    selected = selected?.id == tag.id,
-                    avatarName = null,
-                    onClick = { onPick(tag) },
-                )
-            }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun PickerRow(
-    label: String,
-    selected: Boolean,
-    avatarName: String?,
-    onClick: () -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (avatarName != null) {
-            InitialsAvatar(avatarName, size = 30.dp)
-            Spacer(Modifier.width(12.dp))
-        }
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
-        )
-        if (selected) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = "Selected",
-                tint = MaterialTheme.colorScheme.primary,
+                tag.name,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 // ---------------------------------------------------------------------------
-// Search results
+// Filter sheet (spec 01 — the sliders button)
 // ---------------------------------------------------------------------------
 
-/** ts_headline wraps matches in <b>…</b>; render plain on mobile. */
-private fun stripHighlight(snippet: String): String =
-    snippet.replace("<b>", "").replace("</b>", "")
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SearchResultsPane(
+private fun FiltersSheet(
     controller: InboxController,
+    meUserId: String,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Filters",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "Reset",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { controller.resetFilters() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+
+            Column {
+                SectionHeader("Status")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    InboxStatusTab.entries.forEach { item ->
+                        FilterPill(
+                            text = item.label,
+                            selected = controller.tab == item,
+                            onClick = { controller.selectTab(item) },
+                        )
+                    }
+                }
+            }
+
+            if (controller.tab != InboxStatusTab.Mine) {
+                Column {
+                    SectionHeader("Assignee")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        FilterPill(
+                            text = "Anyone",
+                            selected = controller.assignee == null,
+                            onClick = { controller.setAssigneeFilter(null) },
+                        )
+                        controller.members.filter { it.deactivated_at == null }.forEach { member ->
+                            val label = if (member.user_id == meUserId) {
+                                "Me"
+                            } else {
+                                member.display_name.ifBlank { "Teammate" }
+                            }
+                            FilterPill(
+                                text = label,
+                                selected = controller.assignee?.user_id == member.user_id,
+                                onClick = { controller.setAssigneeFilter(member) },
+                                leading = {
+                                    Box(
+                                        Modifier
+                                            .size(24.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.secondaryContainer,
+                                                CircleShape,
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            initialsOf(member.display_name.ifBlank { null }),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            Column {
+                SectionHeader("Tags")
+                if (controller.allTags.isEmpty()) {
+                    Text(
+                        "No tags yet. Add tags from a conversation on the web.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        FilterPill(
+                            text = "Any tag",
+                            selected = controller.tag == null,
+                            onClick = { controller.setTagFilter(null) },
+                        )
+                        controller.allTags.forEach { tag ->
+                            val tint = tag.color?.let { hex ->
+                                runCatching {
+                                    Color(android.graphics.Color.parseColor(hex))
+                                }.getOrNull()
+                            }
+                            FilterPill(
+                                text = tag.name,
+                                selected = controller.tag?.id == tag.id,
+                                onClick = { controller.setTagFilter(tag) },
+                                outlined = true,
+                                leading = tint?.let { dot ->
+                                    {
+                                        Box(
+                                            Modifier
+                                                .size(6.dp)
+                                                .background(dot, CircleShape),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            ToggleCard(
+                label = "Unread only",
+                checked = controller.unreadOnly,
+                onToggle = { controller.toggleUnread() },
+            )
+            ToggleCard(
+                label = "Spam only",
+                checked = controller.spamOnly,
+                onToggle = { controller.toggleSpam() },
+            )
+
+            // Filters apply live; this just closes the sheet (ink pill + lime
+            // arrow, spec 01).
+            Surface(
+                onClick = onDismiss,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Show conversations",
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .background(MaterialTheme.colorScheme.tertiary, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiary,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Paper toggle row (radius 18) with a lime-tracked switch (spec 01). */
+@Composable
+private fun ToggleCard(label: String, checked: Boolean, onToggle: () -> Unit) {
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = checked,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = MaterialTheme.colorScheme.tertiary,
+                    checkedThumbColor = MaterialTheme.colorScheme.surface,
+                    checkedBorderColor = Color.Transparent,
+                ),
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Search (spec 00 — texts, tasks, contacts)
+// ---------------------------------------------------------------------------
+
+private enum class SearchScope(val label: String) {
+    All("All"), Texts("Texts"), Tasks("Tasks"), Contacts("Contacts")
+}
+
+/** ts_headline wraps matches in <b>…</b>; render them as lime marks. */
+@Composable
+private fun highlightSnippet(snippet: String): AnnotatedString {
+    val container = MaterialTheme.colorScheme.primaryContainer
+    val content = MaterialTheme.colorScheme.onPrimaryContainer
+    return remember(snippet, container, content) {
+        buildAnnotatedString {
+            var rest = snippet
+            while (true) {
+                val start = rest.indexOf("<b>")
+                if (start < 0) {
+                    append(rest)
+                    break
+                }
+                append(rest.substring(0, start))
+                val after = rest.substring(start + 3)
+                val end = after.indexOf("</b>")
+                if (end < 0) {
+                    append(after)
+                    break
+                }
+                withStyle(
+                    SpanStyle(
+                        background = container,
+                        color = content,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                ) { append(after.substring(0, end)) }
+                rest = after.substring(end + 4)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSurface(
+    controller: InboxController,
+    onCancel: () -> Unit,
     onOpen: (String) -> Unit,
     onTextContact: (String) -> Unit,
 ) {
-    when (val current = controller.searchState) {
-        null, is LoadState.Loading -> CenteredLoading()
-        is LoadState.Failed -> CenteredError(
-            current.message,
-            onRetry = { controller.runSearch() },
-        )
+    var scope by rememberSaveable { mutableStateOf(SearchScope.All) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-        is LoadState.Ready -> {
-            val result = current.value
-            val empty = result.conversations.isEmpty() && result.contacts.isEmpty() &&
-                result.tasks.isEmpty() && result.attachments.isEmpty() &&
-                result.templates.isEmpty()
-            if (empty) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Nothing matches \"${controller.query.trim()}\".",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 18.dp),
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // The paper search pill with the ink focus ring (spec 00).
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+                modifier = Modifier.weight(1f),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
                     )
+                    Box(Modifier.weight(1f)) {
+                        if (controller.query.isEmpty()) {
+                            Text(
+                                "Search texts, tasks, contacts…",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                            )
+                        }
+                        BasicTextField(
+                            value = controller.query,
+                            onValueChange = { controller.query = it.take(200) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                        )
+                    }
+                    if (controller.query.isNotEmpty()) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "Clear search",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable { controller.query = "" },
+                        )
+                    }
                 }
-                return
             }
-            LazyColumn(Modifier.fillMaxSize()) {
-                if (result.conversations.isNotEmpty()) {
-                    item(key = "sh-conv") { SectionLabel("Conversations", icon = false) }
-                    items(
-                        result.conversations,
-                        key = { "sc:${it.matched_message_id}" },
-                    ) { hit ->
-                        val name = hit.contact.name ?: formatPhone(hit.contact.phone_e164)
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpen(hit.id) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            InitialsAvatar(name, size = 36.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(name, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Cancel",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onCancel)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
+        Spacer(Modifier.height(13.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SearchScope.entries.forEach { item ->
+                FilterPill(
+                    text = item.label,
+                    selected = scope == item,
+                    onClick = { scope = item },
+                )
+            }
+        }
+        Spacer(Modifier.height(13.dp))
+
+        if (!controller.searching) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Search your texts, tasks, and contacts.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            return
+        }
+
+        when (val current = controller.searchState) {
+            null, is LoadState.Loading -> CenteredLoading(Modifier.weight(1f))
+            is LoadState.Failed -> CenteredError(
+                current.message,
+                onRetry = { controller.runSearch() },
+                modifier = Modifier.weight(1f),
+            )
+
+            is LoadState.Ready -> SearchResultsPane(
+                result = current.value,
+                scope = scope,
+                controller = controller,
+                onOpen = onOpen,
+                onTextContact = onTextContact,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsPane(
+    result: SearchResult,
+    scope: SearchScope,
+    controller: InboxController,
+    onOpen: (String) -> Unit,
+    onTextContact: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val showTexts = scope == SearchScope.All || scope == SearchScope.Texts
+    val showTasks = scope == SearchScope.All || scope == SearchScope.Tasks
+    val showContacts = scope == SearchScope.All || scope == SearchScope.Contacts
+    val showExtras = scope == SearchScope.All
+
+    val empty = (!showTexts || result.conversations.isEmpty()) &&
+        (!showTasks || result.tasks.isEmpty()) &&
+        (!showContacts || result.contacts.isEmpty()) &&
+        (!showExtras || (result.attachments.isEmpty() && result.templates.isEmpty()))
+    if (empty) {
+        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                "Nothing matches \"${controller.query.trim()}\".",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+
+    LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        if (showTexts && result.conversations.isNotEmpty()) {
+            item(key = "sh-conv") {
+                SectionHeader("Conversations", count = result.conversations.size)
+            }
+            val hasMore = result.next_cursor != null
+            itemsIndexed(
+                result.conversations,
+                key = { _, hit -> "sc:${hit.matched_message_id}" },
+            ) { index, hit ->
+                GroupedRow(
+                    first = index == 0,
+                    last = index == result.conversations.lastIndex && !hasMore,
+                    onClick = { onOpen(hit.id) },
+                ) {
+                    val name = hit.contact.name ?: formatPhone(hit.contact.phone_e164)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 15.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        SearchAvatar(name, size = 40.dp)
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    (if (hit.direction == "note") "Note · " else "") +
-                                        stripHighlight(hit.snippet),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
+                                    name,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontSize = 13.5.sp,
+                                    ),
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
                                 )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                relativeTime(hit.matched_at),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                    if (result.next_cursor != null) {
-                        item(key = "sh-more") {
-                            Text(
-                                if (controller.searchLoadingMore) "Loading…"
-                                else "More results",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .clickable { controller.searchMore() }
-                                    .padding(16.dp),
-                            )
-                        }
-                    }
-                }
-                if (result.contacts.isNotEmpty()) {
-                    item(key = "sh-contacts") { SectionLabel("Contacts", icon = false) }
-                    items(result.contacts, key = { "sct:${it.id}" }) { contact ->
-                        val name = contact.name ?: formatPhone(contact.phone_e164)
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onTextContact(contact.id) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            InitialsAvatar(name, size = 36.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(name, style = MaterialTheme.typography.bodyLarge)
+                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    formatPhone(contact.phone_e164),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    relativeTime(hit.matched_at),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        .copy(alpha = 0.7f),
                                 )
                             }
+                            val snippet = highlightSnippet(hit.snippet)
+                            Text(
+                                buildAnnotatedString {
+                                    if (hit.direction == "note") append("Note · ")
+                                    append(snippet)
+                                },
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
-                if (result.tasks.isNotEmpty()) {
-                    item(key = "sh-tasks") { SectionLabel("Tasks", icon = false) }
-                    items(result.tasks, key = { "st:${it.id}" }) { task ->
+            }
+            if (hasMore) {
+                item(key = "sh-more") {
+                    GroupedRow(
+                        first = result.conversations.isEmpty(),
+                        last = true,
+                        onClick = { controller.searchMore() },
+                    ) {
+                        Text(
+                            if (controller.searchLoadingMore) "Loading…" else "More results",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                        )
+                    }
+                }
+            }
+            item(key = "sh-conv-gap") { Spacer(Modifier.height(13.dp)) }
+        }
+
+        if (showTasks && result.tasks.isNotEmpty()) {
+            item(key = "sh-tasks") {
+                SectionHeader("Tasks", count = result.tasks.size)
+                PaperCard {
+                    result.tasks.forEachIndexed { index, task ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { onOpen(task.conversation_id) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 15.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            TaskRing(done = task.done)
+                            Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(task.title, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    task.title,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontSize = 13.sp,
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                                 Text(
                                     if (task.done) "Done" else "Open task",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                    ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 1.dp),
                                 )
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        if (index != result.tasks.lastIndex) RowDivider()
                     }
                 }
-                if (result.attachments.isNotEmpty()) {
-                    item(key = "sh-att") { SectionLabel("Attachments", icon = false) }
-                    items(result.attachments, key = { "sa:${it.id}" }) { hit ->
-                        Row(
+                Spacer(Modifier.height(13.dp))
+            }
+        }
+
+        if (showContacts && result.contacts.isNotEmpty()) {
+            item(key = "sh-contacts") {
+                SectionHeader("Contacts", count = result.contacts.size)
+                PaperCard {
+                    result.contacts.forEachIndexed { index, contact ->
+                        SearchContactRow(contact, onClick = { onTextContact(contact.id) })
+                        if (index != result.contacts.lastIndex) RowDivider()
+                    }
+                }
+                Spacer(Modifier.height(13.dp))
+            }
+        }
+
+        if (showExtras && result.attachments.isNotEmpty()) {
+            item(key = "sh-att") {
+                SectionHeader("Attachments", count = result.attachments.size)
+                PaperCard {
+                    result.attachments.forEachIndexed { index, hit ->
+                        Column(
                             Modifier
                                 .fillMaxWidth()
                                 .let { base ->
@@ -1060,48 +1548,144 @@ private fun SearchResultsPane(
                                     if (convId != null) base.clickable { onOpen(convId) }
                                     else base
                                 }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(horizontal = 15.dp, vertical = 12.dp),
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    hit.file_name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    relativeTime(hit.created_at),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Text(
+                                hit.file_name,
+                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                relativeTime(hit.created_at),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 1.dp),
+                            )
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        if (index != result.attachments.lastIndex) RowDivider()
                     }
                 }
-                if (result.templates.isNotEmpty()) {
-                    item(key = "sh-templates") { SectionLabel("Saved replies", icon = false) }
-                    items(result.templates, key = { "stp:${it.id}" }) { hit ->
+                Spacer(Modifier.height(13.dp))
+            }
+        }
+
+        if (showExtras && result.templates.isNotEmpty()) {
+            item(key = "sh-templates") {
+                SectionHeader("Saved replies", count = result.templates.size)
+                PaperCard {
+                    result.templates.forEachIndexed { index, hit ->
                         Column(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 15.dp, vertical = 12.dp),
                         ) {
-                            Text(hit.name, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                stripHighlight(hit.snippet),
-                                style = MaterialTheme.typography.bodyMedium,
+                                hit.name,
+                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                highlightSnippet(hit.snippet),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
                             )
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        if (index != result.templates.lastIndex) RowDivider()
                     }
                 }
-                item(key = "sh-bottom") { Spacer(Modifier.height(24.dp)) }
             }
+        }
+    }
+}
+
+/** 38–40dp squircle initials avatar on the inset tint (spec 00). */
+@Composable
+private fun SearchAvatar(name: String, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier
+            .size(size)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                RoundedCornerShape(14.dp),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            initialsOf(name),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** 22dp outline ring; done = lime fill + check (spec 00 task rows). */
+@Composable
+private fun TaskRing(done: Boolean) {
+    val ring = Modifier.size(22.dp)
+    if (done) {
+        Box(
+            ring.background(MaterialTheme.colorScheme.tertiary, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Check,
+                contentDescription = "Done",
+                tint = MaterialTheme.colorScheme.onTertiary,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+    } else {
+        Box(ring.border(1.8.dp, MaterialTheme.colorScheme.outline, CircleShape))
+    }
+}
+
+@Composable
+private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
+    val name = contact.name ?: formatPhone(contact.phone_e164)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SearchAvatar(name, size = 38.dp)
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                formatPhone(contact.phone_e164),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .size(34.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Outlined.Chat,
+                contentDescription = "Text ${contact.name ?: "contact"}",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(15.dp),
+            )
         }
     }
 }

@@ -1,17 +1,24 @@
 package com.loonext.android.features.auth
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.core.auth.PendingOAuth
 import com.loonext.android.core.net.ApiException
@@ -154,8 +161,8 @@ class GoogleSignIn(private val authManager: AuthManager) {
 }
 
 /**
- * Brand-neutral Google button: outlined/neutral surface, the G mark drawn as
- * a bold text glyph in Google blue (no Google SDK assets, per D44 posture).
+ * Brand-neutral Google button as a paper pill (screen 10 grammar): the G mark
+ * drawn as a bold text glyph in Google blue (no Google SDK assets, per D44).
  */
 @Composable
 fun GoogleSignInButton(
@@ -163,18 +170,36 @@ fun GoogleSignInButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedButton(
+    Surface(
         onClick = onClick,
         enabled = !busy,
-        modifier = modifier.fillMaxWidth(),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shadowElevation = 1.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (busy) 0.55f else 1f),
     ) {
-        Text(
-            "G",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF4285F4),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text("Continue with Google")
+        Row(
+            Modifier.padding(13.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "G",
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4285F4),
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(
+                "Continue with Google",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+        }
     }
 }

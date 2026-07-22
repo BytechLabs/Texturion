@@ -4,27 +4,30 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.AssignmentInd
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PhoneMissed
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.AssignmentInd
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PhoneMissed
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,27 +39,35 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.NotificationType
+import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The derived notifications feed (D24): per-type icons, unread dots, relative
- * times, cursor pagination. Tap = optimistic watermark advance (that item and
- * everything older flips read; newer stays unread) + deep link into the
- * conversation. 'Mark all read' advances the watermark to now. The unread
- * count stays live via the company realtime channel plus a 60s poll.
+ * The derived notifications feed (D24), in the paper-&-olive bell grammar
+ * (screen 06): one paper card of rows with kind-tinted 38dp circles, coral
+ * unread dots, muted tabular times, cursor pagination. Tap = optimistic
+ * watermark advance (that item and everything older flips read; newer stays
+ * unread) + deep link into the conversation. 'Read all' advances the
+ * watermark to now. The unread count stays live via the company realtime
+ * channel plus a 60s poll.
  */
 @Composable
 fun NotificationsScreen(
@@ -208,22 +219,33 @@ fun NotificationsScreen(
                 },
             )
 
-            is LoadState.Ready -> Column(Modifier.fillMaxSize()) {
+            is LoadState.Ready -> Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp),
+            ) {
+                // The overlay scaffold already shows the back arrow + title;
+                // this row carries only the olive 'Read all' action.
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
+                    Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "Notifications",
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Spacer(Modifier.weight(1f))
                     TextButton(
                         onClick = ::markAllRead,
                         enabled = unreadCount > 0 || items.any { it.unread },
-                    ) { Text("Mark all read") }
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.secondary,
+                        ),
+                    ) {
+                        Text(
+                            "Read all",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        )
+                    }
                 }
 
                 if (items.isEmpty()) {
@@ -235,32 +257,69 @@ fun NotificationsScreen(
                         )
                     }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        items(items, key = { "${it.type}:${it.id}" }) { row ->
-                            NotificationRow(
-                                row = row,
-                                onTap = {
-                                    markItemRead(row)
-                                    row.conversation_id?.let(onOpenConversation)
-                                },
-                            )
-                        }
-                        if (nextCursor != null) {
-                            item(key = "show-older") {
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    TextButton(
-                                        onClick = ::loadOlder,
-                                        enabled = !loadingMore,
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
+                    ) {
+                        LazyColumn(contentPadding = PaddingValues(bottom = 4.dp)) {
+                            itemsIndexed(
+                                items,
+                                key = { _, row -> "${row.type}:${row.id}" },
+                            ) { index, row ->
+                                Column {
+                                    if (index > 0) RowDivider()
+                                    NotificationRow(
+                                        row = row,
+                                        onTap = {
+                                            markItemRead(row)
+                                            row.conversation_id?.let(onOpenConversation)
+                                        },
+                                    )
+                                }
+                            }
+                            if (nextCursor != null) {
+                                item(key = "show-older") {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Text(if (loadingMore) "Loading older…" else "Show older")
+                                        TextButton(
+                                            onClick = ::loadOlder,
+                                            enabled = !loadingMore,
+                                            colors = ButtonDefaults.textButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.secondary,
+                                            ),
+                                        ) {
+                                            Text(
+                                                if (loadingMore) "Loading older…" else "Show older",
+                                            )
+                                        }
                                     }
                                 }
                             }
+                        }
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 13.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                        ) {
+                            Text(
+                                "Push and email mirror these — Settings › Notifications",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                            )
                         }
                     }
                 }
@@ -280,23 +339,18 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onTap)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .alpha(if (row.unread) 1f else 0.6f)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            iconFor(row.type),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.width(14.dp))
+        KindBadge(row)
+        Spacer(Modifier.width(11.dp))
         Text(
             summaryFor(row),
-            style = if (row.unread) {
-                MaterialTheme.typography.titleSmall
-            } else {
-                MaterialTheme.typography.bodyLarge
-            },
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 13.sp,
+                fontWeight = if (row.unread) FontWeight.Bold else FontWeight.SemiBold,
+            ),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -304,19 +358,63 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
         Spacer(Modifier.width(8.dp))
         Text(
             relativeTime(row.created_at),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            color = MaterialTheme.colorScheme.outline,
         )
+    }
+}
+
+/** 38dp kind-tinted circle: contact initials for texts, stroke icon otherwise. */
+@Composable
+private fun KindBadge(row: NotificationItem) {
+    val colors = MaterialTheme.colorScheme
+    val (tint, content) = when (row.type) {
+        NotificationType.INBOUND_MESSAGE -> colors.secondaryContainer to colors.onSecondaryContainer
+        NotificationType.MISSED_CALL -> colors.errorContainer to colors.onErrorContainer
+        NotificationType.ASSIGNED, NotificationType.TASK_ASSIGNED ->
+            colors.secondaryContainer to colors.secondary
+
+        else -> colors.surfaceContainer to colors.onSurfaceVariant
+    }
+    val contactName = row.contact?.name
+    Box {
+        Box(
+            Modifier
+                .size(38.dp)
+                .background(tint, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (row.type == NotificationType.INBOUND_MESSAGE && contactName != null) {
+                Text(
+                    initialsOf(contactName),
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = content,
+                )
+            } else {
+                Icon(
+                    iconFor(row.type),
+                    contentDescription = null,
+                    tint = content,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
         if (row.unread) {
-            Spacer(Modifier.width(8.dp))
             Box(
                 Modifier
-                    .size(8.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-            )
+                    .align(Alignment.TopStart)
+                    .offset(x = (-3).dp, y = (-3).dp)
+                    .size(12.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                AttentionDot(size = 8.dp)
+            }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 /** One-line summaries, mirroring the web bell popover copy exactly. */
@@ -342,9 +440,9 @@ private fun summaryFor(row: NotificationItem): String {
 }
 
 private fun iconFor(type: String): ImageVector = when (type) {
-    NotificationType.INBOUND_MESSAGE -> Icons.AutoMirrored.Filled.Chat
-    NotificationType.ASSIGNED -> Icons.Filled.AssignmentInd
-    NotificationType.TASK_ASSIGNED -> Icons.Filled.Checklist
-    NotificationType.MISSED_CALL -> Icons.Filled.PhoneMissed
-    else -> Icons.Filled.Notifications
+    NotificationType.INBOUND_MESSAGE -> Icons.Outlined.ChatBubbleOutline
+    NotificationType.ASSIGNED -> Icons.Outlined.AssignmentInd
+    NotificationType.TASK_ASSIGNED -> Icons.Outlined.Checklist
+    NotificationType.MISSED_CALL -> Icons.Outlined.PhoneMissed
+    else -> Icons.Outlined.Notifications
 }

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,26 +19,31 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,9 +57,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Contact
@@ -62,9 +75,12 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
-import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.Dispatchers
@@ -274,86 +290,67 @@ private fun ContactListScreen(
         }
     }
 
-    Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it.take(200) },
-                label = { Text("Search name or number") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+    fun pickCsv() {
+        pendingImport = ImportKind.Csv
+        importLauncher.launch(
+            arrayOf("text/*", "application/csv", "application/vnd.ms-excel"),
+        )
+    }
 
+    fun pickVcard() {
+        pendingImport = ImportKind.Vcard
+        importLauncher.launch(arrayOf("text/*", "text/vcard", "text/x-vcard"))
+    }
+
+    Box(modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 18.dp),
+        ) {
+            // Title row: Bricolage heading + muted count, ink "+" circle.
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilledTonalButton(
-                    onClick = { createOpen = true },
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 4.dp),
-                    )
-                    Text("New contact")
+                Row(Modifier.weight(1f)) {
+                    ScreenTitle("Contacts", Modifier.alignByBaseline())
+                    if (state is LoadState.Ready && nextCursor == null && rows.isNotEmpty()) {
+                        Text(
+                            "${rows.size}",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .alignByBaseline()
+                                .padding(start = 9.dp),
+                        )
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                // Accent rationing: New contact is the region's one petrol
-                // element; export/import stay quiet stone.
-                val quiet = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(
-                    enabled = !exporting,
-                    colors = quiet,
-                    onClick = { exportLauncher.launch("contacts.csv") },
-                ) { Text(if (exporting) "Exporting…" else "Export") }
-                if (canImport) {
-                    Box {
-                        TextButton(
-                            enabled = !importing,
-                            colors = quiet,
-                            onClick = { importMenuOpen = true },
-                        ) { Text(if (importing) "Importing…" else "Import") }
-                        DropdownMenu(
-                            expanded = importMenuOpen,
-                            onDismissRequest = { importMenuOpen = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("CSV file") },
-                                onClick = {
-                                    importMenuOpen = false
-                                    pendingImport = ImportKind.Csv
-                                    importLauncher.launch(
-                                        arrayOf(
-                                            "text/*",
-                                            "application/csv",
-                                            "application/vnd.ms-excel",
-                                        ),
-                                    )
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("vCard file (.vcf)") },
-                                onClick = {
-                                    importMenuOpen = false
-                                    pendingImport = ImportKind.Vcard
-                                    importLauncher.launch(
-                                        arrayOf("text/*", "text/vcard", "text/x-vcard"),
-                                    )
-                                },
-                            )
-                        }
+                Surface(
+                    onClick = { createOpen = true },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Outlined.Add,
+                            contentDescription = "New contact",
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }
+
+            Spacer(Modifier.height(14.dp))
+            SearchPill(query, onValueChange = { query = it.take(200) })
+            Spacer(Modifier.height(14.dp))
 
             when (val current = state) {
                 is LoadState.Loading -> CenteredLoading()
@@ -362,7 +359,11 @@ private fun ContactListScreen(
 
                 is LoadState.Ready -> {
                     if (rows.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Text(
                                 if (debouncedQ.isBlank()) {
                                     "No contacts yet. They're added automatically when " +
@@ -370,15 +371,49 @@ private fun ContactListScreen(
                                 } else {
                                     "No matches for \"$debouncedQ\"."
                                 },
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 32.dp),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 14.dp),
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            ListFooter(
+                                canImport = canImport,
+                                importing = importing,
+                                exporting = exporting,
+                                importMenuOpen = importMenuOpen,
+                                onImportMenuOpenChange = { importMenuOpen = it },
+                                onPickCsv = ::pickCsv,
+                                onPickVcard = ::pickVcard,
+                                onExport = { exportLauncher.launch("contacts.csv") },
                             )
                         }
                     } else {
-                        LazyColumn(Modifier.fillMaxSize()) {
-                            items(rows, key = { it.id }) { contact ->
-                                ContactRow(contact, onClick = { onOpenContact(contact.id) })
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 24.dp),
+                        ) {
+                            itemsIndexed(rows, key = { _, contact -> contact.id }) { index, contact ->
+                                // Rows share one paper card: round only the
+                                // outer corners so dividers read as hairlines.
+                                val top = if (index == 0) 22.dp else 0.dp
+                                val bottom = if (index == rows.lastIndex) 22.dp else 0.dp
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(
+                                        topStart = top,
+                                        topEnd = top,
+                                        bottomStart = bottom,
+                                        bottomEnd = bottom,
+                                    ),
+                                ) {
+                                    Column {
+                                        ContactRow(contact, onClick = { onOpenContact(contact.id) })
+                                        if (index != rows.lastIndex) {
+                                            RowDivider(Modifier.padding(horizontal = 15.dp))
+                                        }
+                                    }
+                                }
                             }
                             if (nextCursor != null) {
                                 item(key = "load-more") {
@@ -390,6 +425,10 @@ private fun ContactListScreen(
                                     ) {
                                         TextButton(
                                             enabled = !loadingMore,
+                                            colors = ButtonDefaults.textButtonColors(
+                                                contentColor =
+                                                MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ),
                                             onClick = {
                                                 loadingMore = true
                                                 scope.launch {
@@ -421,6 +460,25 @@ private fun ContactListScreen(
                                     }
                                 }
                             }
+                            item(key = "footer") {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    ListFooter(
+                                        canImport = canImport,
+                                        importing = importing,
+                                        exporting = exporting,
+                                        importMenuOpen = importMenuOpen,
+                                        onImportMenuOpenChange = { importMenuOpen = it },
+                                        onPickCsv = ::pickCsv,
+                                        onPickVcard = ::pickVcard,
+                                        onExport = { exportLauncher.launch("contacts.csv") },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -448,44 +506,204 @@ private fun ContactListScreen(
     }
 }
 
+/** The paper search pill: 16dp muted glass icon + 13.5sp field. */
 @Composable
-private fun ContactRow(contact: Contact, onClick: () -> Unit) {
-    val name = contact.name ?: formatPhone(contact.phone_e164)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun SearchPill(value: String, onValueChange: (String) -> Unit) {
+    val hint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        InitialsAvatar(name)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                formatPhone(contact.phone_e164),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Search,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = hint,
             )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            contact.last_activity_at?.let {
-                Text(
-                    relativeTime(it),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (contact.opted_out) {
-                Text(
-                    "Opted out",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
+            Box(Modifier.weight(1f)) {
+                if (value.isEmpty()) {
+                    Text(
+                        "Search name or number…",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                        color = hint,
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.5.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Search name or number" },
                 )
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun ContactRow(contact: Contact, onClick: () -> Unit) {
+    val name = contact.name?.ifBlank { null } ?: formatPhone(contact.phone_e164)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .background(
+                    MaterialTheme.colorScheme.secondaryContainer,
+                    RoundedCornerShape(14.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                initialsOf(name),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (contact.opted_out) {
+                    DsChip(
+                        "Opted out",
+                        container = MaterialTheme.colorScheme.errorContainer,
+                        content = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+            Text(
+                listOfNotNull(
+                    formatPhone(contact.phone_e164),
+                    contact.last_activity_at?.let { relativeTime(it) },
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Box(
+            Modifier
+                .size(34.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Outlined.Chat,
+                contentDescription = null,
+                modifier = Modifier.size(15.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Quiet footer under the list: the inset import pill (admin-gated, opens the
+ * CSV/vCard menu) and the export-CSV text affordance.
+ */
+@Composable
+private fun ListFooter(
+    canImport: Boolean,
+    importing: Boolean,
+    exporting: Boolean,
+    importMenuOpen: Boolean,
+    onImportMenuOpenChange: (Boolean) -> Unit,
+    onPickCsv: () -> Unit,
+    onPickVcard: () -> Unit,
+    onExport: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (canImport) {
+            Box {
+                Surface(
+                    onClick = { onImportMenuOpenChange(true) },
+                    enabled = !importing,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Text(
+                        if (importing) {
+                            "Importing…"
+                        } else {
+                            "Import from CSV or your phone's contacts"
+                        },
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = importMenuOpen,
+                    onDismissRequest = { onImportMenuOpenChange(false) },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("CSV file") },
+                        onClick = {
+                            onImportMenuOpenChange(false)
+                            onPickCsv()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("vCard file (.vcf)") },
+                        onClick = {
+                            onImportMenuOpenChange(false)
+                            onPickVcard()
+                        },
+                    )
+                }
+            }
+        }
+        TextButton(
+            enabled = !exporting,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            onClick = onExport,
+        ) {
+            Text(
+                if (exporting) "Exporting…" else "Export CSV",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+        }
+    }
 }
 
 /**
@@ -517,7 +735,7 @@ private fun CreateContactSheet(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("New contact", style = MaterialTheme.typography.titleMedium)
@@ -619,7 +837,7 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 18.dp),
         ) {
             Text("Import finished", style = MaterialTheme.typography.titleMedium)
             Text(

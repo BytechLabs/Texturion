@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.CenteredLoading
@@ -76,6 +77,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
     ModalBottomSheet(
         onDismissRequest = { deliver(null) },
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
             Text(
@@ -84,7 +86,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
             )
             Text(
                 "Confirm you're human, then we'll finish signing you in.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
