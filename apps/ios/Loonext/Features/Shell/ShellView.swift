@@ -129,12 +129,14 @@ struct ShellView: View {
             sheetContent(sheet)
         }
         .overlay { bottomFade }
-        .overlay(alignment: .bottom) { pillNav }
+        .overlay(alignment: .bottom) { pillNav.ignoresSafeArea(.keyboard, edges: .bottom) }
         .overlay(alignment: .bottomTrailing) {
-            // Calls carries its own dial FAB in the same corner — the compose
-            // entry yields there (it was never visible over the old calls
-            // sheet either).
-            if tab != .calls { composeButton }
+            // Calls carries its own dial FAB and Inbox its own spec-20 compose
+            // FAB (which hides during search) in this corner — the shell's
+            // compose entry yields on both so two ink circles never stack.
+            if tab != .calls && tab != .inbox {
+                composeButton.ignoresSafeArea(.keyboard, edges: .bottom)
+            }
         }
         .overlay(alignment: .bottom) { globalLayers }
         // AppRouter commands: a conversation open lands on the Inbox tab (the
@@ -317,9 +319,9 @@ struct ShellView: View {
                 me: hydratedMe,
                 companyId: companyId,
                 unreadNotifications: counts.unreadNotifications,
-                onOpenCalls: {
+                onOpenContacts: {
                     activeSheet = nil
-                    tab = .calls
+                    tab = .contacts
                 },
                 onOpenNotifications: { activeSheet = .notifications },
                 onOpenSettings: { activeSheet = .settings },

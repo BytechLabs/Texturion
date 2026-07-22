@@ -52,14 +52,15 @@ class ApiClient(
         path: String,
         query: Map<String, String?> = emptyMap(),
         companyId: String? = null,
-    ): T = json.decodeFromString(raw("GET", path, query = query, companyId = companyId))
+    ): T = decodeBody(path, raw("GET", path, query = query, companyId = companyId))
 
     suspend inline fun <reified T, reified B> post(
         path: String,
         body: B,
         companyId: String? = null,
         idempotencyKey: String? = null,
-    ): T = json.decodeFromString(
+    ): T = decodeBody(
+        path,
         raw(
             "POST",
             path,
@@ -72,13 +73,14 @@ class ApiClient(
     suspend inline fun <reified T> post(
         path: String,
         companyId: String? = null,
-    ): T = json.decodeFromString(raw("POST", path, body = "{}", companyId = companyId))
+    ): T = decodeBody(path, raw("POST", path, body = "{}", companyId = companyId))
 
     suspend inline fun <reified T, reified B> patch(
         path: String,
         body: B,
         companyId: String? = null,
-    ): T = json.decodeFromString(
+    ): T = decodeBody(
+        path,
         raw("PATCH", path, body = json.encodeToString(body), companyId = companyId),
     )
 
@@ -86,9 +88,26 @@ class ApiClient(
         path: String,
         body: B,
         companyId: String? = null,
-    ): T = json.decodeFromString(
+    ): T = decodeBody(
+        path,
         raw("PUT", path, body = json.encodeToString(body), companyId = companyId),
     )
+
+    /**
+     * Decode a SUCCESSFUL (2xx) response body. A mismatch between the client
+     * model and what the server sent throws [ApiDecodeException] — distinct
+     * from [ApiException] because the ACTION ALREADY SUCCEEDED server-side.
+     * Mutation callers must treat it as success (toast success + refetch),
+     * never as a failed action: conflating the two is how "task created but
+     * 'Something went wrong' shown" happened (and the decline-mine crash
+     * before it). The mismatch itself is a client-model bug to report, not a
+     * user-facing failure.
+     */
+    inline fun <reified T> decodeBody(path: String, bodyText: String): T = try {
+        json.decodeFromString(bodyText)
+    } catch (cause: Exception) {
+        throw ApiDecodeException(path, cause)
+    }
 
     suspend fun delete(path: String, companyId: String? = null) {
         raw("DELETE", path, companyId = companyId)

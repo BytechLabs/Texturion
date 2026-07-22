@@ -21,8 +21,17 @@ data class Task(
     val created_by_user_id: String,
     val created_at: String,
     val updated_at: String,
-    val done: Boolean,
-    val status: String,
+    /**
+     * DERIVED fields: done-ness lives on the source message server-side, so
+     * list/detail responses include these but MUTATION responses (POST/PATCH
+     * /v1/tasks*) return the raw row WITHOUT them. Defaults keep a 2xx
+     * mutation response decodable — requiring them made every successful
+     * task mutation throw and surface a false "something went wrong". When
+     * replacing UI state from a mutation response, preserve the previous
+     * done/status rather than trusting these defaults.
+     */
+    val done: Boolean = false,
+    val status: String = "open",
     val contact: TaskContactLocation? = null,
     /** Present on checklist rows (GET /v1/conversations/:id/tasks). */
     val attachment_count: Int? = null,
@@ -98,8 +107,17 @@ data class TaskDetail(
     val created_by_user_id: String,
     val created_at: String,
     val updated_at: String,
-    val done: Boolean,
-    val status: String,
+    /**
+     * DERIVED fields: done-ness lives on the source message server-side, so
+     * list/detail responses include these but MUTATION responses (POST/PATCH
+     * /v1/tasks*) return the raw row WITHOUT them. Defaults keep a 2xx
+     * mutation response decodable — requiring them made every successful
+     * task mutation throw and surface a false "something went wrong". When
+     * replacing UI state from a mutation response, preserve the previous
+     * done/status rather than trusting these defaults.
+     */
+    val done: Boolean = false,
+    val status: String = "open",
     val assignee: TaskProfile? = null,
     val created_by: TaskProfile? = null,
     val source_message: TaskSourceMessage? = null,

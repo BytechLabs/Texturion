@@ -12,7 +12,7 @@ struct AccountSheet: View {
     let me: Me
     let companyId: String
     let unreadNotifications: Int
-    let onOpenCalls: @MainActor () -> Void
+    let onOpenContacts: @MainActor () -> Void
     let onOpenNotifications: @MainActor () -> Void
     let onOpenSettings: @MainActor () -> Void
     let onSwitchWorkspace: @MainActor (String) -> Void
@@ -174,8 +174,6 @@ struct AccountSheet: View {
 
     private var linksCard: some View {
         PaperCard {
-            linkRow(icon: "phone", label: "Calls", action: onOpenCalls)
-            RowDivider()
             linkRow(
                 icon: "bell",
                 label: "Notifications",
@@ -183,6 +181,10 @@ struct AccountSheet: View {
                 showDot: unreadNotifications > 0,
                 action: onOpenNotifications
             )
+            RowDivider()
+            // Spec 08 row order: Notifications · Contacts · Settings · Sign out.
+            // Calls left this sheet when it became a nav tab (#redesign IA).
+            linkRow(icon: "person.2", label: "Contacts", action: onOpenContacts)
             RowDivider()
             linkRow(icon: "gearshape", label: "Settings", action: onOpenSettings)
             RowDivider()

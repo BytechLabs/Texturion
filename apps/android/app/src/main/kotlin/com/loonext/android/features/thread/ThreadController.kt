@@ -20,6 +20,7 @@ import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.core.realtime.RealtimeEvent
 import com.loonext.android.features.compose.NoteFileUploader
@@ -536,6 +537,11 @@ class ThreadController(
                     ),
                 )
                 notify("Task created.")
+            } catch (cause: ApiDecodeException) {
+                // The task WAS created (2xx) — only the response decode failed.
+                // Success, honestly reported; the refresh fetches truth.
+                notify("Task created.")
+                runCatching { refreshMessagesFirstPage() }
             } catch (cause: Exception) {
                 if ((cause as? ApiException)?.code == ApiErrorCode.CONFLICT) {
                     notify("This message already has a task.")

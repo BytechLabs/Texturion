@@ -10,6 +10,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -351,6 +358,30 @@ private fun ReadyShell(
             onTabChange = { tab = it },
             onCompose = { overlay = Overlay.Compose(null) },
             onOpenAccountSheet = { sheetOpen = true },
+            floatingAction = if (tab == ShellTab.Inbox) {
+                {
+                    // Spec 20's ink pencil FAB, hosted in the shell slot so it can
+                    // never be underdrawn by the pill/gradient (#173).
+                    Surface(
+                        onClick = { overlay = Overlay.Compose(null) },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shadowElevation = 10.dp,
+                        modifier = Modifier.size(54.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.Edit,
+                                contentDescription = "New conversation",
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+            } else {
+                null
+            },
         ) { activeTab, modifier ->
             ShellContent(
                 activeTab, graph, hydratedMe, companyId, modifier,
@@ -390,7 +421,12 @@ private fun ReadyShell(
 
         overlay?.let { active ->
             BackHandler { overlay = null }
-            Surface(Modifier.fillMaxSize()) {
+            // Canvas + status inset once for every overlay-hosted surface
+            // (Thread/Compose previously drew under the status bar, #172).
+            Surface(
+                Modifier.fillMaxSize().statusBarsPadding(),
+                color = MaterialTheme.colorScheme.background,
+            ) {
                 when (active) {
                     is Overlay.Thread -> ThreadScreen(
                         graph = graph,
@@ -472,21 +508,51 @@ private fun ReadyShell(
     }
 }
 
-/** Back-arrow header around overlay surfaces that don't own navigation. */
+/**
+ * Back header around overlay surfaces that don't own navigation — spec-06
+ * grammar: 44dp paper-circle back w/ outlined arrow, centered muted 13sp
+ * label, on the canvas background.
+ */
 @Composable
 private fun OverlayScaffold(
     title: String,
     onBack: () -> Unit,
     content: @Composable (Modifier) -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 8.dp),
+            ) {
+                Surface(
+                    onClick = onBack,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            content(Modifier.fillMaxSize())
         }
-        content(Modifier.fillMaxSize())
     }
 }
 

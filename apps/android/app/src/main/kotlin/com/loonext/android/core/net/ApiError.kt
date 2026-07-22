@@ -36,3 +36,14 @@ class ApiException(
     override val message: String,
     val httpStatus: Int,
 ) : Exception(message)
+
+/**
+ * The server said 2xx but the body didn't match the client model. The ACTION
+ * SUCCEEDED — treat as success wherever it surfaces (toast the success copy,
+ * refetch the fresh state). The mismatch is a client-model bug: report it via
+ * diagnostics, never via a user-facing "something went wrong".
+ */
+class ApiDecodeException(
+    val path: String,
+    override val cause: Throwable,
+) : Exception("Response for $path did not match the client model", cause)

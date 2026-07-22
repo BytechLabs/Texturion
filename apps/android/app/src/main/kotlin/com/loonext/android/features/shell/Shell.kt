@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
@@ -65,28 +66,47 @@ fun MainShell(
     onTabChange: (ShellTab) -> Unit,
     onCompose: () -> Unit,
     onOpenAccountSheet: () -> Unit,
+    floatingAction: (@Composable () -> Unit)? = null,
     content: @Composable (ShellTab, Modifier) -> Unit,
 ) {
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Interim bottom inset keeps every pre-redesign tab clear of the pill;
-        // surface passes replace this with their own fade-under scroll.
-        content(tab, Modifier.fillMaxSize().padding(bottom = 96.dp))
+    // Surface, NOT Box+background: a Surface establishes LocalContentColor
+    // (onBackground). With a bare background modifier the ambient content color
+    // stayed the default BLACK app-wide, so every Text without an explicit
+    // color rendered black in DARK theme too (founder: unreadable inbox names —
+    // #174's root cause).
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize()) {
+            // ONE inset policy for every tab (#172): status bar at the top, and
+            // nav-bar + pill clearance (14dp inset + 66dp pill) at the bottom.
+            // The old fixed 96dp ignored the system nav inset, leaving list
+            // tails under the pill on 3-button nav. Screens must NOT add their
+            // own statusBarsPadding on top of this.
+            content(
+                tab,
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(bottom = 80.dp),
+            )
 
-        // Fade the content out underneath the pill (canvas → transparent).
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(130.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0f to MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                        0.72f to MaterialTheme.colorScheme.background,
+            // Fade the content out underneath the pill (canvas → transparent).
+            // Decoration over SCROLLING content only — interactive elements ride
+            // the [floatingAction] slot, which draws ABOVE this and the pill.
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                            0.72f to MaterialTheme.colorScheme.background,
+                        ),
                     ),
-                ),
-        )
+            )
 
-        Row(
+            Row(
             Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -126,6 +146,19 @@ fun MainShell(
                         size = 9.dp,
                     )
                 }
+            }
+            }
+
+            // The one place a floating action may live: ABOVE the gradient and
+            // the pill (66dp pill + 14dp inset + 12dp gap), so it can never be
+            // underdrawn (#173). Tabs provide it via the MainShell parameter.
+            floatingAction?.let { action ->
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(end = 18.dp, bottom = 92.dp),
+                ) { action() }
             }
         }
     }
