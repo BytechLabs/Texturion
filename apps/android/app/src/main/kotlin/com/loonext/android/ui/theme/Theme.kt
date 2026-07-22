@@ -1,66 +1,95 @@
 package com.loonext.android.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 
+/**
+ * "Paper & olive" theme (Loonext Mobile.dc.html). Role mapping, so surfaces
+ * that already read MaterialTheme tokens land on the new language for free:
+ *  - background  = canvas (#F3F3EE)         surface = paper cards (#FDFDF9)
+ *  - primary     = ink (dark buttons, the pill nav)
+ *  - secondary   = olive (counts, emphasis)  tertiary = lime (highlight fills)
+ *  - primaryContainer = pale lime chip       secondaryContainer = avatar tint
+ *  - outlineVariant   = hairline row dividers (#F0F0E8)
+ */
 private val LightColors = lightColorScheme(
-    primary = BrandColor.Petrol,
-    onPrimary = BrandColor.Stone50,
-    primaryContainer = BrandColor.PetrolTint,
-    onPrimaryContainer = BrandColor.PetrolDeep,
-    secondary = BrandColor.Stone600,
-    onSecondary = BrandColor.Stone50,
-    secondaryContainer = BrandColor.Stone200,
-    onSecondaryContainer = BrandColor.Stone800,
-    tertiary = BrandColor.PetrolDeep,
-    onTertiary = BrandColor.Stone50,
-    background = BrandColor.Stone50,
-    onBackground = BrandColor.Stone900,
-    surface = BrandColor.Stone50,
-    onSurface = BrandColor.Stone900,
-    surfaceVariant = BrandColor.Stone100,
-    onSurfaceVariant = BrandColor.Stone600,
-    surfaceContainerLowest = BrandColor.Stone50,
-    surfaceContainerLow = BrandColor.Stone100,
-    surfaceContainer = BrandColor.Stone100,
-    surfaceContainerHigh = BrandColor.Stone200,
-    surfaceContainerHighest = BrandColor.Stone200,
-    outline = BrandColor.Stone300,
-    outlineVariant = BrandColor.Stone200,
+    primary = BrandColor.Ink,
+    onPrimary = BrandColor.Paper,
+    primaryContainer = BrandColor.LimeChip,
+    onPrimaryContainer = BrandColor.OnLimeChip,
+    secondary = BrandColor.Olive,
+    onSecondary = BrandColor.Paper,
+    secondaryContainer = BrandColor.AvatarTint,
+    onSecondaryContainer = BrandColor.Muted900,
+    tertiary = BrandColor.Lime,
+    onTertiary = BrandColor.Ink,
+    tertiaryContainer = BrandColor.LimeWash,
+    onTertiaryContainer = BrandColor.OnLimeChip,
+    background = BrandColor.Canvas,
+    onBackground = BrandColor.Ink,
+    surface = BrandColor.Paper,
+    onSurface = BrandColor.Ink,
+    surfaceVariant = BrandColor.Inset,
+    onSurfaceVariant = BrandColor.Muted700,
+    surfaceContainerLowest = BrandColor.Paper,
+    surfaceContainerLow = BrandColor.Canvas,
+    surfaceContainer = BrandColor.Inset,
+    surfaceContainerHigh = BrandColor.InsetDeep,
+    surfaceContainerHighest = BrandColor.AvatarTint,
+    outline = BrandColor.Muted250,
+    outlineVariant = BrandColor.Inset,
     error = BrandColor.Destructive,
-    onError = BrandColor.Stone50,
+    onError = BrandColor.Paper,
+    errorContainer = BrandColor.DestructiveContainer,
+    onErrorContainer = BrandColor.Destructive,
 )
 
 private val DarkColors = darkColorScheme(
-    primary = BrandColor.PetrolBright,
-    onPrimary = BrandColor.Stone950,
-    primaryContainer = BrandColor.PetrolDeep,
-    onPrimaryContainer = BrandColor.PetrolTint,
-    secondary = BrandColor.Stone400,
-    onSecondary = BrandColor.Stone900,
-    secondaryContainer = BrandColor.Stone700,
-    onSecondaryContainer = BrandColor.Stone100,
-    tertiary = BrandColor.PetrolTint,
-    onTertiary = BrandColor.Stone900,
-    background = BrandColor.Stone950,
-    onBackground = BrandColor.Stone100,
-    surface = BrandColor.Stone950,
-    onSurface = BrandColor.Stone100,
-    surfaceVariant = BrandColor.Stone800,
-    onSurfaceVariant = BrandColor.Stone400,
-    surfaceContainerLowest = BrandColor.Stone950,
-    surfaceContainerLow = BrandColor.Stone900,
-    surfaceContainer = BrandColor.Stone900,
-    surfaceContainerHigh = BrandColor.Stone800,
-    surfaceContainerHighest = BrandColor.Stone800,
-    outline = BrandColor.Stone600,
-    outlineVariant = BrandColor.Stone700,
-    error = BrandColor.Destructive,
-    onError = BrandColor.Stone50,
+    primary = BrandColor.DarkInk,
+    onPrimary = BrandColor.Ink,
+    primaryContainer = BrandColor.DarkLimeChipBg,
+    onPrimaryContainer = BrandColor.DarkOnLimeChip,
+    secondary = BrandColor.DarkLime,
+    onSecondary = BrandColor.Ink,
+    secondaryContainer = BrandColor.DarkRaised,
+    onSecondaryContainer = BrandColor.DarkInk,
+    tertiary = BrandColor.DarkLime,
+    onTertiary = BrandColor.Ink,
+    tertiaryContainer = BrandColor.DarkLimeChipBg,
+    onTertiaryContainer = BrandColor.DarkOnLimeChip,
+    background = BrandColor.DarkCanvas,
+    onBackground = BrandColor.DarkInk,
+    surface = BrandColor.DarkPaper,
+    onSurface = BrandColor.DarkInk,
+    surfaceVariant = BrandColor.DarkInsetDeep,
+    onSurfaceVariant = BrandColor.DarkMuted500,
+    surfaceContainerLowest = BrandColor.DarkCanvas,
+    surfaceContainerLow = BrandColor.DarkInset,
+    surfaceContainer = BrandColor.DarkInsetDeep,
+    surfaceContainerHigh = BrandColor.DarkRaised,
+    surfaceContainerHighest = BrandColor.DarkRaised,
+    outline = BrandColor.DarkOutline,
+    outlineVariant = BrandColor.DarkInset,
+    error = BrandColor.DarkDestructive,
+    onError = BrandColor.DarkCanvas,
+    errorContainer = BrandColor.DarkLimeChipBg,
+    onErrorContainer = BrandColor.DarkDestructive,
+)
+
+/** Card grammar from the canvas: cards 22, sheets/screens 30, chips pill. */
+private val LoonextShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable
@@ -72,6 +101,7 @@ fun LoonextTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         motionScheme = MotionScheme.expressive(),
         typography = LoonextTypography,
+        shapes = LoonextShapes,
         content = content,
     )
 }

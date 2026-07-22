@@ -462,7 +462,7 @@ private fun ReadyShell(
             me = hydratedMe,
             companyId = companyId,
             unreadNotifications = counts.unreadNotifications,
-            onOpenCalls = { overlay = Overlay.Calls },
+            onOpenContacts = { tab = ShellTab.Contacts },
             onOpenNotifications = { overlay = Overlay.Notifications },
             onOpenSettings = { overlay = Overlay.Settings },
             onSwitchWorkspace = root::switchWorkspace,

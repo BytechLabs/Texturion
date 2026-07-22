@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 
 /**
  * The 'You' sheet (#100): workspace tile + copyable numbers, workspace
- * switcher (multi-membership only), theme, sign out. Calls/Settings entries
+ * switcher (multi-membership only), theme, sign out. Contacts/Settings entries
  * land with their feature passes (#155/#157).
  */
 @Composable
@@ -48,7 +48,7 @@ fun AccountSheet(
     me: Me,
     companyId: String,
     unreadNotifications: Int,
-    onOpenCalls: () -> Unit,
+    onOpenContacts: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenSettings: () -> Unit,
     onSwitchWorkspace: (String) -> Unit,
@@ -146,8 +146,8 @@ fun AccountSheet(
 
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
-            SheetLink("Calls") {
-                onOpenCalls()
+            SheetLink("Contacts") {
+                onOpenContacts()
                 onDismiss()
             }
             SheetLink(

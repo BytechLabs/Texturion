@@ -163,7 +163,7 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
         Text(
             notice.first,
             style = MaterialTheme.typography.bodyMedium,
-            color = BrandColor.Stone800,
+            color = BrandColor.Muted900,
         )
         if (canManage) {
             Spacer(Modifier.height(8.dp))

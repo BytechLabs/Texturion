@@ -4,15 +4,43 @@
     {
       "name": "api",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@loonext/api", "exec", "wrangler", "dev", "--port", "8787", "--ip", "127.0.0.1"],
+      "runtimeArgs": [
+        "--filter",
+        "@loonext/api",
+        "exec",
+        "wrangler",
+        "dev",
+        "--port",
+        "8787",
+        "--ip",
+        "127.0.0.1"
+      ],
       "port": 8787
     },
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@loonext/web", "exec", "next", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@loonext/web",
+        "exec",
+        "next",
+        "dev"
+      ],
       "port": 3100,
       "autoPort": true
+    },
+    {
+      "name": "design",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8474",
+        "--directory",
+        "C:/Users/ahmad/AppData/Local/Temp/claude/D--projects-JobText/d72af226-f2f2-42a7-80e6-b2b436e2769e/scratchpad/design"
+      ],
+      "port": 8474
     }
   ]
 }
