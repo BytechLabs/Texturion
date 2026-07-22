@@ -10,6 +10,8 @@ struct LoonextApp: App {
     @State private var graph: AppGraph
 
     init() {
+        // Paper & Olive fonts (Golos + Bricolage) before the first frame.
+        DesignFonts.register()
         let graph = AppGraph()
         _graph = State(initialValue: graph)
         // Construct the softphone at launch (#161): the PushKit delegate must

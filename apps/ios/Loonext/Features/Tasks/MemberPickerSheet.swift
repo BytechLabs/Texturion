@@ -26,14 +26,16 @@ struct MemberPickerSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(BrandColor.muted400)
                 TextField("Search teammates", text: $query)
+                    .font(.golos(13))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
+            .background(BrandColor.paper, in: Capsule())
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
 
@@ -61,13 +63,15 @@ struct MemberPickerSheet: View {
                 }
                 if matches.isEmpty {
                     Text("No teammates match.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted500)
                         .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .presentationDetents([.medium, .large])
     }
 
@@ -84,11 +88,12 @@ struct MemberPickerSheet: View {
                 Color.clear.frame(width: 32, height: 32)
             }
             Text(name)
-                .font(.body)
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             Spacer()
             if selected {
                 Image(systemName: "checkmark")
-                    .foregroundStyle(BrandColor.petrol)
+                    .foregroundStyle(BrandColor.olive)
                     .accessibilityLabel("Selected")
             }
         }

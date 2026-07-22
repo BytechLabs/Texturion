@@ -91,6 +91,7 @@ struct AttachmentsGalleryView: View {
                     .onTapGesture { self.noticeText = nil }
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .task(id: "\(conversationId)|\(refreshKey)") {
             if case .ready = state {} else { state = .loading }
             do {
@@ -111,15 +112,17 @@ struct AttachmentsGalleryView: View {
             Button(action: onBack) {
                 Image(systemName: "chevron.backward")
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .frame(width: 36, height: 36)
             }
             .accessibilityLabel("Back to conversation")
             VStack(alignment: .leading, spacing: 1) {
                 Text("Photos & files")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.golos(14.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                 Text(contactName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
                     .lineLimit(1)
             }
             Spacer()
@@ -178,7 +181,7 @@ struct AttachmentsGalleryView: View {
                     Button {
                         open(item)
                     } label: {
-                        Color(.secondarySystemFill)
+                        BrandColor.avatarTint
                             .overlay(
                                 AsyncImage(url: URL(string: item.url)) { phase in
                                     switch phase {
@@ -215,11 +218,11 @@ struct AttachmentsGalleryView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "doc")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(BrandColor.muted500)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(galleryFileName(item))
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(.golos(13.5, weight: .semibold))
+                                .foregroundStyle(BrandColor.ink)
                                 .lineLimit(1)
                             Text(
                                 [gallerySizeLabel(item.size_bytes), relativeTime(item.created_at)]
@@ -227,19 +230,22 @@ struct AttachmentsGalleryView: View {
                                     .filter { !$0.isEmpty }
                                     .joined(separator: " · ")
                             )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted500)
                         }
                     }
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(BrandColor.canvas)
             }
             if nextCursor != nil {
                 loadMoreRow
                     .listRowSeparator(.hidden)
+                    .listRowBackground(BrandColor.canvas)
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     private var loadMoreRow: some View {
@@ -249,8 +255,8 @@ struct AttachmentsGalleryView: View {
                 ProgressView()
             } else {
                 Button("Load more") { loadMore() }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(BrandColor.petrol)
+                    .font(.golos(12.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
             }
             Spacer()
         }

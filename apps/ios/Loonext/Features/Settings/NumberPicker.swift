@@ -159,7 +159,7 @@ struct NumberPickerSheet: View {
                     onPick(.areaCode(code))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(BrandColor.petrol)
+                .tint(BrandColor.olive)
                 .disabled(pending)
                 .padding(.top, 10)
             } else {

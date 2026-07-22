@@ -162,7 +162,7 @@ private struct MemberRow: View {
                 } label: {
                     Text(busy ? "Saving…" : roleLabel(member.role))
                         .font(.subheadline)
-                        .foregroundStyle(BrandColor.petrol)
+                        .foregroundStyle(BrandColor.olive)
                 }
                 .disabled(busy)
             } else {
@@ -275,7 +275,7 @@ private struct InvitesCard: View {
                 .disabled(seat.full || sending)
                 Button(sending ? "Inviting…" : "Invite") { invite() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(seat.full || sending || email.isBlank)
             }
             InlineError(formError)

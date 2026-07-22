@@ -77,7 +77,7 @@ private struct PortalButton: View {
             if solid {
                 Button(opening ? "Opening…" : label) { open() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(opening)
             } else {
                 Button(opening ? "Opening…" : label) { open() }
@@ -139,7 +139,7 @@ private struct StatusNotices: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(notice.0)
                     .font(.callout)
-                    .foregroundStyle(BrandColor.stone800)
+                    .foregroundStyle(BrandColor.ink)
                 if canManage {
                     PortalButton(scope: scope, label: notice.1, solid: true)
                 }
@@ -178,7 +178,7 @@ private struct PlanCard: View {
                 if canManage {
                     Button(opening ? "Opening…" : "Resubscribe") { resubscribe() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(opening)
                         .padding(.top, 10)
                 }

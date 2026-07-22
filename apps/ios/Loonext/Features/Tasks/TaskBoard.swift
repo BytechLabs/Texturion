@@ -213,16 +213,14 @@ private struct BoardColumn: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("\(title) · \(tasks.count)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+            SectionHeader(label: title, count: tasks.count)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
             if tasks.isEmpty {
                 Text(emptyCopy)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
+                    .padding(.horizontal, 18)
                 Spacer()
             } else {
                 ScrollView {
@@ -238,7 +236,9 @@ private struct BoardColumn: View {
                         }
                         if hasMore {
                             Button("Load more", action: onLoadMore)
-                                .font(.subheadline)
+                                .buttonStyle(.plain)
+                                .font(.golos(12, weight: .semibold))
+                                .foregroundStyle(BrandColor.olive)
                                 .padding(.vertical, 4)
                         }
                     }
@@ -250,7 +250,7 @@ private struct BoardColumn: View {
         // The whole column (empty space included) accepts a dragged card, so
         // dropping into an empty column works.
         .contentShape(Rectangle())
-        .background(dropTargeted ? Color(.secondarySystemFill).opacity(0.6) : Color.clear)
+        .background(dropTargeted ? BrandColor.inset.opacity(0.6) : Color.clear)
         .dropDestination(for: String.self) { ids, _ in
             onDropIds(ids)
         } isTargeted: { targeted in
@@ -269,38 +269,38 @@ private struct BoardCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(task.title)
-                .font(.subheadline)
+                .font(.golos(13.5, weight: .semibold))
                 .lineLimit(3)
                 .strikethrough(task.done)
-                .foregroundStyle(task.done ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(Color.primary))
+                .foregroundStyle(
+                    task.done
+                        ? AnyShapeStyle(BrandColor.muted400)
+                        : AnyShapeStyle(BrandColor.ink)
+                )
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
                 let overdue = isOverdue(task)
                 Text(dueLine(overdue: overdue))
-                    .font(.caption)
+                    .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     .foregroundStyle(
                         overdue
                             ? AnyShapeStyle(BrandColor.overdueAmber)
-                            : AnyShapeStyle(Color.secondary)
+                            : AnyShapeStyle(BrandColor.muted400)
                     )
                 Spacer()
                 Button {
                     onMove()
                 } label: {
                     Image(systemName: moveIcon)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(moveLabel)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contentShape(Rectangle())
         // The card IS the drag payload (its task id) — dropping it on the
         // other column runs the same derived-done PATCH as the arrow, which
@@ -377,6 +377,7 @@ private func previewTask(
         )
     }
     .padding(16)
+    .background(BrandColor.canvas)
 }
 
 #Preview("Board") {

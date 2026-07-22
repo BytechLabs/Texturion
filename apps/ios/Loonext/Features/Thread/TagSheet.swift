@@ -57,14 +57,14 @@ struct ThreadTagsRow: View {
                 ForEach(tags, id: \.id) { tag in
                     HStack(spacing: 2) {
                         Text(tag.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.golos(11, weight: .medium))
+                            .foregroundStyle(BrandColor.muted700)
                         Button {
                             onRemove(tag)
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(BrandColor.muted500)
                                 .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.plain)
@@ -73,16 +73,16 @@ struct ThreadTagsRow: View {
                     .padding(.leading, 10)
                     .padding(.trailing, 4)
                     .padding(.vertical, 3)
-                    .background(Color(.secondarySystemFill), in: Capsule())
+                    .background(BrandColor.paper, in: Capsule())
                 }
                 Button(action: onManage) {
                     HStack(spacing: 4) {
                         Image(systemName: "tag")
                             .font(.system(size: 11))
                         Text(tags.isEmpty ? "Add tag" : "Tags")
-                            .font(.caption)
+                            .font(.golos(11, weight: .medium))
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BrandColor.muted500)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                 }
@@ -189,7 +189,7 @@ struct TagManageSheet: View {
                             Spacer()
                             if isAttached {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(BrandColor.petrol)
+                                    .foregroundStyle(BrandColor.olive)
                             }
                         }
                     }

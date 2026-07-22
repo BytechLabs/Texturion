@@ -54,6 +54,7 @@ struct TasksTab: View {
         NavigationStack {
             VStack(spacing: 0) {
                 headerRow
+                tabPills
                 searchField
                 filterChips
                 if board {
@@ -73,6 +74,7 @@ struct TasksTab: View {
                     listContent
                 }
             }
+            .background(BrandColor.canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $openTask) { route in
                 TaskDetailView(
@@ -148,32 +150,59 @@ struct TasksTab: View {
         }
     }
 
+    /// Big display heading + the 44pt paper-circle view toggle (spec 24).
     private var headerRow: some View {
-        HStack(spacing: 8) {
-            Picker("Filter", selection: $tab) {
-                ForEach(board ? [TasksTabKind.mine, .all] : TasksTabKind.allCases) { item in
-                    Text(item.rawValue).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
+        HStack(alignment: .center, spacing: 8) {
+            ScreenTitle(text: "Tasks")
+            Spacer()
             Button {
                 board.toggle()
             } label: {
                 Image(systemName: board ? "list.bullet" : "square.grid.2x2")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.paper, in: Circle())
+                    .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .accessibilityLabel(board ? "List view" : "Board view")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+    }
+
+    /// The segmented pill track — ink-filled selected pill, paper idle pills
+    /// (spec 24/31). Board mode keeps the existing Mine/All reduction.
+    private var tabPills: some View {
+        HStack(spacing: 6) {
+            ForEach(board ? [TasksTabKind.mine, .all] : TasksTabKind.allCases) { item in
+                let selected = tab == item
+                Button {
+                    tab = item
+                } label: {
+                    Text(item.rawValue)
+                        .font(.golos(12, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 10)
+                        .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
     }
 
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(BrandColor.muted400)
             TextField("Search task titles", text: $search)
+                .font(.golos(13))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onChange(of: search) { _, next in
@@ -186,17 +215,17 @@ struct TasksTab: View {
                     search = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted300)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 10)
+        .background(BrandColor.paper, in: Capsule())
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 
     private var assigneeChipLabel: String {
@@ -236,9 +265,9 @@ struct TasksTab: View {
                     )
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, 6)
     }
 
     private func filterChip(
@@ -249,31 +278,31 @@ struct TasksTab: View {
         onClear: @escaping @MainActor () -> Void
     ) -> some View {
         let foreground = selected
-            ? AnyShapeStyle(BrandColor.onPetrolContainer)
-            : AnyShapeStyle(Color.primary)
+            ? AnyShapeStyle(BrandColor.muted900)
+            : AnyShapeStyle(BrandColor.muted500)
         return HStack(spacing: 4) {
             Button(action: onTap) {
                 Text(label)
-                    .font(.subheadline)
+                    .font(.golos(11, weight: selected ? .semibold : .medium))
                     .foregroundStyle(foreground)
             }
             .buttonStyle(.plain)
             if let clearLabel {
                 Button(action: onClear) {
                     Image(systemName: "xmark")
-                        .font(.caption2)
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(foreground)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(clearLabel)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 6)
         .background(
             selected
-                ? AnyShapeStyle(BrandColor.petrolContainer)
-                : AnyShapeStyle(Color(.secondarySystemFill)),
+                ? AnyShapeStyle(BrandColor.avatarTint)
+                : AnyShapeStyle(BrandColor.paper),
             in: Capsule()
         )
     }
@@ -292,36 +321,62 @@ struct TasksTab: View {
                         ? "Nothing on this list."
                         : "No tasks yet. Promote a message from its ⋯ menu in a conversation."
                 )
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(rows, id: \.id) { task in
-                        TaskListRow(task: task) { done in
-                            toggleDone(task, done: done)
+                ScrollView {
+                    VStack(spacing: 14) {
+                        PaperCard {
+                            ForEach(rows, id: \.id) { task in
+                                TaskListRow(task: task, assigneeName: assigneeName(task)) { done in
+                                    toggleDone(task, done: done)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture { openTask = TaskRoute(id: task.id) }
+                                if task.id != rows.last?.id {
+                                    RowDivider()
+                                }
+                            }
                         }
-                        .contentShape(Rectangle())
-                        .onTapGesture { openTask = TaskRoute(id: task.id) }
-                    }
-                    if hasMore {
-                        HStack {
-                            Spacer()
+                        if hasMore {
                             Button(loadingMore ? "Loading…" : "Load more") {
                                 loadMore()
                             }
                             .disabled(loadingMore)
-                            .font(.subheadline)
-                            Spacer()
+                            .buttonStyle(.plain)
+                            .font(.golos(12, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
                         }
-                        .listRowSeparator(.hidden)
+                        HStack(spacing: 7) {
+                            Circle()
+                                .fill(BrandColor.lime)
+                                .frame(width: 6, height: 6)
+                            Text("Every task links back to its message")
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted700)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(BrandColor.insetDeep, in: Capsule())
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
-                .listStyle(.plain)
             }
         }
+    }
+
+    /// The row's assignee initials come from the members roster the picker
+    /// already fetches — nil (no avatar) when unassigned or the name is blank.
+    private func assigneeName(_ task: TaskItem) -> String? {
+        guard let id = task.assigned_user_id else { return nil }
+        if id == me.user_id { return me.display_name }
+        let name = members.first { $0.user_id == id }?.display_name
+        return (name?.isBlank ?? true) ? nil : name
     }
 
     /// Any filter change (including the ordering-flipping due chips) rebuilds
@@ -391,30 +446,41 @@ struct TasksTab: View {
 
 private struct TaskListRow: View {
     let task: TaskItem
+    let assigneeName: String?
     let onToggleDone: @MainActor (Bool) -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            // The round derived-done toggle: hollow circle → filled petrol check.
+        HStack(alignment: .top, spacing: 12) {
+            // The round derived-done toggle: 22pt ring → lime fill + ink check
+            // (spec 24/31).
             Button {
                 onToggleDone(!task.done)
             } label: {
-                Image(systemName: task.done ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(
-                        task.done
-                            ? AnyShapeStyle(BrandColor.petrol)
-                            : AnyShapeStyle(Color.secondary)
-                    )
+                ZStack {
+                    if task.done {
+                        Circle().fill(BrandColor.lime)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(BrandColor.onLime)
+                    } else {
+                        Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)
+                    }
+                }
+                .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(task.done ? "Mark not done" : "Mark done")
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
-                    .font(.body)
+                    .font(.golos(13.5, weight: .semibold))
+                    .lineLimit(1)
                     .strikethrough(task.done)
-                    .foregroundStyle(task.done ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(Color.primary))
+                    .foregroundStyle(
+                        task.done
+                            ? AnyShapeStyle(BrandColor.muted400)
+                            : AnyShapeStyle(BrandColor.ink)
+                    )
                 if task.due_at != nil {
                     let overdue = isOverdue(task)
                     Text(
@@ -422,17 +488,22 @@ private struct TaskListRow: View {
                             ? "Overdue · due \(formatDue(task.due_at))"
                             : "Due \(formatDue(task.due_at))"
                     )
-                    .font(.caption)
+                    .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     // Overdue = amber, never red.
                     .foregroundStyle(
                         overdue
                             ? AnyShapeStyle(BrandColor.overdueAmber)
-                            : AnyShapeStyle(Color.secondary)
+                            : AnyShapeStyle(BrandColor.muted400)
                     )
                 }
             }
+            Spacer(minLength: 0)
+            if let assigneeName {
+                InitialsAvatar(name: assigneeName, size: 28)
+            }
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
     }
 }
 
@@ -484,29 +555,37 @@ private func previewTask(
 }
 
 #Preview("Task rows") {
-    List {
-        TaskListRow(
-            task: previewTask(
-                id: "t1",
-                title: "Send the quote for the deck repair",
-                done: false,
-                dueAt: "2099-07-20T15:00:00Z"
-            ),
-            onToggleDone: { _ in }
-        )
-        TaskListRow(
-            task: previewTask(
-                id: "t2",
-                title: "Order shingles for the Hendersons",
-                done: false,
-                dueAt: "2020-07-01T15:00:00Z" // past due → the amber Overdue line
-            ),
-            onToggleDone: { _ in }
-        )
-        TaskListRow(
-            task: previewTask(id: "t3", title: "Invoice the Hendersons", done: true),
-            onToggleDone: { _ in }
-        )
+    VStack(spacing: 14) {
+        PaperCard {
+            TaskListRow(
+                task: previewTask(
+                    id: "t1",
+                    title: "Send the quote for the deck repair",
+                    done: false,
+                    dueAt: "2099-07-20T15:00:00Z"
+                ),
+                assigneeName: "Sam Carpenter",
+                onToggleDone: { _ in }
+            )
+            RowDivider()
+            TaskListRow(
+                task: previewTask(
+                    id: "t2",
+                    title: "Order shingles for the Hendersons",
+                    done: false,
+                    dueAt: "2020-07-01T15:00:00Z" // past due → the amber Overdue line
+                ),
+                assigneeName: nil,
+                onToggleDone: { _ in }
+            )
+            RowDivider()
+            TaskListRow(
+                task: previewTask(id: "t3", title: "Invoice the Hendersons", done: true),
+                assigneeName: "Alex Mason",
+                onToggleDone: { _ in }
+            )
+        }
     }
-    .listStyle(.plain)
+    .padding(18)
+    .background(BrandColor.canvas)
 }

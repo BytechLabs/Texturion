@@ -55,7 +55,7 @@ private struct DisplayNameCard: View {
             if dirty {
                 Button(saving ? "Saving…" : "Save") { save() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(!valid || saving)
                     .padding(.top, 10)
             }
@@ -141,7 +141,7 @@ private struct ChangeEmailBlock: View {
                 InlineError(error)
                 Button(saving ? "Sending…" : "Send confirmation links") { submit() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(saving || newEmail.isBlank)
                     .padding(.top, 8)
             }
@@ -221,7 +221,7 @@ private struct ChangePasswordBlock: View {
                 InlineError(error)
                 Button(saving ? "Saving…" : "Save password") { submit() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(saving || password.isEmpty || (nonceNeeded && nonce.isBlank))
                     .padding(.top, 8)
             }

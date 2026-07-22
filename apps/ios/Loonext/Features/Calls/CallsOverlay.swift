@@ -82,10 +82,11 @@ struct CallChip: View {
 
             HStack(spacing: 10) {
                 Circle()
-                    .fill(call.phase == .ended ? Color.secondary : BrandColor.petrol)
+                    .fill(call.phase == .ended ? BrandColor.muted300 : BrandColor.olive)
                     .frame(width: 8, height: 8)
                 Text(call.peerName)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .lineLimit(1)
                 ChipStatus(call: call, heldCount: heldCount)
                 Spacer(minLength: 8)
@@ -118,36 +119,48 @@ struct CallChip: View {
             Button {
                 manager.hangup(call.id)
             } label: {
-                Image(systemName: "phone.down.fill")
-                    .foregroundStyle(BrandColor.destructive)
-                    .padding(8)
+                Image(systemName: "phone.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColor.paperFixed)
+                    .frame(width: 34, height: 34)
+                    .background(BrandColor.destructive, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Decline")
             Button {
                 answerWithMicPreflight(call.id)
             } label: {
-                Image(systemName: "phone.fill")
-                    .foregroundStyle(BrandColor.petrol)
-                    .padding(8)
+                Image(systemName: "phone")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColor.onLime)
+                    .frame(width: 34, height: 34)
+                    .background(BrandColor.lime, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Answer")
         } else if call.phase == .ended {
             Button {
                 manager.dismiss(call.id)
             } label: {
                 Image(systemName: "xmark")
-                    .foregroundStyle(.secondary)
-                    .padding(8)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted600)
+                    .frame(width: 34, height: 34)
+                    .background(BrandColor.inset, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Dismiss")
         } else {
             Button {
                 manager.hangup(call.id)
             } label: {
-                Image(systemName: "phone.down.fill")
-                    .foregroundStyle(BrandColor.destructive)
-                    .padding(8)
+                Image(systemName: "phone.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColor.paperFixed)
+                    .frame(width: 34, height: 34)
+                    .background(BrandColor.destructive, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Hang up")
         }
     }
@@ -197,8 +210,8 @@ private struct ChipStatus: View {
 
     private func statusText(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.golos(11))
+            .foregroundStyle(BrandColor.muted500)
             .monospacedDigit()
     }
 }

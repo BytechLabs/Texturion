@@ -89,6 +89,7 @@ private struct NewConversationLoaded: View {
     @State private var lastIntent: (key: ComposeIntentKey, idempotencyKey: String)?
     @State private var noticeText: String?
     @State private var noticeDismissTask: Task<Void, Never>?
+    @FocusState private var toFocused: Bool
 
     private var rawDigits: String { Nanp.nationalDigits(recipientInput) }
     private var rawE164: String? { Nanp.toE164(recipientInput) }
@@ -114,12 +115,10 @@ private struct NewConversationLoaded: View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 header
-                Divider()
                 if numbers.isEmpty {
                     noNumberState
                 } else if let composer {
                     form(composer: composer)
-                    Divider()
                     sendBar
                 }
             }
@@ -133,6 +132,7 @@ private struct NewConversationLoaded: View {
                     .onTapGesture { self.noticeText = nil }
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .onAppear {
             if fromNumberId == nil { fromNumberId = numbers.first?.id }
             if composer == nil {
@@ -203,29 +203,36 @@ private struct NewConversationLoaded: View {
     private var header: some View {
         HStack(spacing: 8) {
             Button(action: onBack) {
-                Image(systemName: "chevron.backward")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 36, height: 36)
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(BrandColor.paper))
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Back")
-            Text("New message")
-                .font(.headline)
             Spacer()
+            Text("New text")
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.muted500)
+            Spacer()
+            Color.clear.frame(width: 44, height: 44)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
     }
 
     private var noNumberState: some View {
         VStack(spacing: 6) {
             Text("Your number isn't ready yet.")
-                .font(.subheadline.weight(.semibold))
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             Text(
                 "You need an active number to start a conversation. "
                     + "Check the web app for its status."
             )
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(.golos(12.5))
+            .foregroundStyle(BrandColor.muted600)
             .multilineTextAlignment(.center)
         }
         .padding(32)
@@ -239,10 +246,23 @@ private struct NewConversationLoaded: View {
                 contactMatchList
 
                 if let localTimeLabel {
-                    Text("It's \(localTimeLabel) for them.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 6)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(BrandColor.overdueAmber)
+                            .padding(.top, 1)
+                        Text("It's \(localTimeLabel) for them.")
+                            .font(.golos(11.5))
+                            .foregroundStyle(BrandColor.overdueAmber)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .background(
+                        BrandColor.cream,
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .padding(.top, 13)
                 }
 
                 fromNumberPicker
@@ -256,27 +276,33 @@ private struct NewConversationLoaded: View {
                     .padding(.top, 4)
                 }
 
-                HStack(spacing: 4) {
+                HStack(spacing: 10) {
                     Button {
                         photosPickerOpen = true
                     } label: {
                         Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 36)
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundStyle(BrandColor.ink)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(BrandColor.paper))
                     }
+                    .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
                     .accessibilityLabel("Attach a photo")
+
+                    Spacer()
 
                     Button {
                         templatePickerOpen = true
                     } label: {
-                        Image(systemName: "text.badge.plus")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 36)
+                        Text("Templates")
+                            .font(.golos(11.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Saved replies")
                 }
-                .padding(.top, 4)
+                .padding(.top, 8)
 
                 ComposerHints(
                     text: composer.text,
@@ -286,37 +312,46 @@ private struct NewConversationLoaded: View {
                 )
                 .padding(.top, 2)
             }
-            .padding(16)
+            .padding(18)
         }
         .scrollDismissesKeyboard(.interactively)
     }
 
     @ViewBuilder
     private var recipientField: some View {
-        if let selectedContact {
-            HStack(spacing: 6) {
-                Text(
-                    (selectedContact.name ?? formatPhone(selectedContact.phone_e164))
-                        + (selectedContact.opted_out ? " · Opted out" : "")
-                )
-                .font(.subheadline)
-                .foregroundStyle(BrandColor.onPetrolContainer)
-                Button {
-                    onContactChange(nil)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(BrandColor.onPetrolContainer)
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: "To")
+            if let selectedContact {
+                HStack {
+                    HStack(spacing: 8) {
+                        Text(
+                            (selectedContact.name ?? formatPhone(selectedContact.phone_e164))
+                                + (selectedContact.opted_out ? " · Opted out" : "")
+                        )
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        Button {
+                            onContactChange(nil)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(BrandColor.muted600)
+                        }
+                        .accessibilityLabel("Clear recipient")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(BrandColor.avatarTint))
+                    Spacer()
                 }
-                .accessibilityLabel("Clear recipient")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(BrandColor.petrolContainer))
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
+                .padding(9)
+                .background(
+                    BrandColor.paper,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+            } else {
                 TextField(
-                    "To — name or phone number",
+                    "Name or phone number",
                     text: Binding(
                         get: { recipientInput },
                         set: { value in
@@ -326,20 +361,37 @@ private struct NewConversationLoaded: View {
                         }
                     )
                 )
+                .font(.golos(15, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+                .focused($toFocused)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 13)
+                .background(
+                    BrandColor.paper,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            toFocused ? BrandColor.ink : BrandColor.insetDeep,
+                            lineWidth: toFocused ? 2 : 1.5
+                        )
+                )
 
                 if rawDigits.count == 10, let rawE164 {
                     Text(
                         validDestination
-                            ? "Will text \(formatPhone(rawE164))"
+                            ? (contactMatches.isEmpty
+                                ? "No match in contacts — this starts a new conversation."
+                                : "Will text \(formatPhone(rawE164))")
                             : "US and Canadian numbers only."
                     )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted300)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 5)
                 }
             }
         }
@@ -347,36 +399,43 @@ private struct NewConversationLoaded: View {
 
     @ViewBuilder
     private var contactMatchList: some View {
-        if selectedContact == nil {
-            ForEach(contactMatches, id: \.id) { contact in
-                Button {
-                    onContactChange(contact)
-                    recipientInput = ""
-                    contactMatches = []
-                } label: {
-                    HStack(spacing: 10) {
-                        InitialsAvatar(
-                            name: contact.name ?? formatPhone(contact.phone_e164),
-                            size: 32
-                        )
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(contact.name ?? formatPhone(contact.phone_e164))
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Text(
-                                formatPhone(contact.phone_e164)
-                                    + (contact.opted_out ? " · Opted out" : "")
+        if selectedContact == nil, !contactMatches.isEmpty {
+            PaperCard {
+                ForEach(contactMatches, id: \.id) { contact in
+                    Button {
+                        onContactChange(contact)
+                        recipientInput = ""
+                        contactMatches = []
+                    } label: {
+                        HStack(spacing: 10) {
+                            InitialsAvatar(
+                                name: contact.name ?? formatPhone(contact.phone_e164),
+                                size: 32
                             )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(contact.name ?? formatPhone(contact.phone_e164))
+                                    .font(.golos(13.5, weight: .semibold))
+                                    .foregroundStyle(BrandColor.ink)
+                                Text(
+                                    formatPhone(contact.phone_e164)
+                                        + (contact.opted_out ? " · Opted out" : "")
+                                )
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted500)
+                            }
+                            Spacer()
                         }
-                        Spacer()
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 8)
+                    .buttonStyle(.plain)
+                    if contact.id != contactMatches.last?.id {
+                        RowDivider()
+                    }
                 }
-                .buttonStyle(.plain)
-                Divider()
             }
+            .padding(.top, 10)
         }
     }
 
@@ -393,48 +452,67 @@ private struct NewConversationLoaded: View {
                 }
             } label: {
                 Text("From: \(formatPhone(selected?.number_e164))")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(BrandColor.petrol)
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
             }
             .padding(.top, 12)
         }
     }
 
     private func bodyField(composer: ComposerState) -> some View {
-        TextField(
-            "Text message",
-            text: Binding(
-                get: { composer.text },
-                set: { composer.onTextChange(String($0.prefix(4096))) }
-            ),
-            axis: .vertical
-        )
-        .lineLimit(3 ... 8)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: "Message")
+            TextField(
+                "Text message",
+                text: Binding(
+                    get: { composer.text },
+                    set: { composer.onTextChange(String($0.prefix(4096))) }
+                ),
+                axis: .vertical
+            )
+            .lineLimit(3 ... 8)
+            .font(.golos(14))
+            .foregroundStyle(BrandColor.ink)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 14)
+            .background(
+                BrandColor.paper,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(BrandColor.insetDeep, lineWidth: 1.5)
+            )
+        }
         .padding(.top, 16)
     }
 
     private var sendBar: some View {
-        HStack {
-            Spacer()
-            Button {
-                send()
-            } label: {
-                HStack(spacing: 6) {
-                    Text(sending ? "Sending…" : "Send")
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 14))
-                }
-                .foregroundStyle(BrandColor.onPetrol)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(canSend ? BrandColor.petrol : Color(.systemFill)))
+        Button {
+            send()
+        } label: {
+            HStack(spacing: 10) {
+                Text(sending ? "Sending…" : "Send text")
+                    .font(.golos(15, weight: .semibold))
+                    .foregroundStyle(canSend ? BrandColor.paper : BrandColor.muted500)
+                Spacer()
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(canSend ? BrandColor.onLime : BrandColor.muted500)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        Circle().fill(canSend ? BrandColor.lime : BrandColor.insetDeep)
+                    )
             }
-            .disabled(!canSend)
+            .padding(.leading, 22)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(canSend ? BrandColor.ink : BrandColor.inset))
         }
-        .padding(16)
+        .buttonStyle(.plain)
+        .disabled(!canSend)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Sending

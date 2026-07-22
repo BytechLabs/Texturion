@@ -5,6 +5,9 @@ import AVKit
 /// transfer with honest busy flags, add-note (opens the conversation), and
 /// call-waiting (answer the 2nd holds the 1st; the core auto-declines a 3rd).
 /// Presented full-screen by `CallsOverlay` above the shell.
+/// Paper & Olive reskin per specs 26/32 (in-call), 04 (ring), 05 (transfer):
+/// deep-inset canvas, ringed avatar, paper control circles with 10.5pt
+/// labels, warm-brick End-call pill, lime Answer.
 @MainActor
 struct InCallView: View {
     let manager: CallsManager
@@ -32,26 +35,41 @@ struct InCallView: View {
             Spacer().frame(height: 48)
 
             if let featured {
-                InitialsAvatar(name: featured.peerName, size: 72)
-                Spacer().frame(height: 16)
+                ZStack {
+                    Circle()
+                        .stroke(BrandColor.lime.opacity(0.55), lineWidth: 2)
+                        .frame(width: 130, height: 130)
+                    Circle()
+                        .stroke(
+                            BrandColor.ink.opacity(0.2),
+                            style: StrokeStyle(lineWidth: 2, dash: [2, 5])
+                        )
+                        .frame(width: 150, height: 150)
+                    InitialsAvatar(name: featured.peerName, size: 112)
+                }
+                .frame(height: 152)
+                Spacer().frame(height: 20)
                 Text(featured.peerName)
-                    .font(.title.weight(.semibold))
+                    .font(.display(26))
+                    .kerning(-0.26)
+                    .foregroundStyle(BrandColor.ink)
                     .multilineTextAlignment(.center)
                 if !featured.peerNumber.isEmpty,
                    formatPhone(featured.peerNumber) != featured.peerName {
                     Text(formatPhone(featured.peerNumber))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted600)
+                        .padding(.top, 4)
                 }
-                Spacer().frame(height: 4)
+                Spacer().frame(height: 8)
                 CallPhaseLine(call: featured)
             }
 
             Spacer().frame(height: 12)
             if let error = snapshot.error {
                 Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
             }
@@ -65,7 +83,7 @@ struct InCallView: View {
                         OtherCallRow(call: other, manager: manager)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 22)
             }
 
             Spacer()
@@ -74,32 +92,31 @@ struct InCallView: View {
                 controls(for: featured)
             }
 
-            Spacer().frame(height: 24)
+            Spacer().frame(height: 22)
+
+            if let featured, featured.phase == .ringing {
+                // The in-app ring layout (spec 04): brick Decline, lime Answer.
+                ringActions(for: featured)
+            } else {
+                endCallBar
+            }
+
+            Spacer().frame(height: 14)
             HStack {
                 Button("Hide", action: onClose)
-                    .font(.body)
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted700)
                 Spacer()
-                Button {
-                    if let featured { manager.hangup(featured.id) }
-                } label: {
-                    Image(systemName: "phone.down.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .frame(width: 30, height: 30)
-                        .padding(17)
-                        .background(BrandColor.destructive, in: Circle())
-                }
-                .disabled(featured == nil)
-                .accessibilityLabel("Hang up")
-                Spacer()
-                // Balance the trailing edge so the hangup button centers.
-                Color.clear.frame(width: 60, height: 1)
+                // Bluetooth/AirPods routing is system-owned on iOS.
+                AudioRoutePicker()
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.paper, in: Circle())
             }
-            .padding(.horizontal, 32)
-            Spacer().frame(height: 24)
+            .padding(.horizontal, 22)
+            Spacer().frame(height: 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemBackground))
+        .background(BrandColor.insetDeep.ignoresSafeArea())
         .task(id: snapshot.liveCalls.isEmpty) {
             if snapshot.liveCalls.isEmpty {
                 // A brief beat so "Call ended" registers, then close.
@@ -130,91 +147,184 @@ struct InCallView: View {
         }
     }
 
+    /// The warm-brick full-width End-call pill (specs 26/32).
+    private var endCallBar: some View {
+        Button {
+            if let featured { manager.hangup(featured.id) }
+        } label: {
+            HStack(spacing: 10) {
+                Text("End call")
+                    .font(.golos(15, weight: .semibold))
+                Spacer()
+                Image(systemName: "phone.down")
+                    .font(.system(size: 19, weight: .medium))
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.paperFixed.opacity(0.16), in: Circle())
+            }
+            .foregroundStyle(BrandColor.paperFixed)
+            .padding(.leading, 24)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .background(BrandColor.destructive, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(featured == nil)
+        .accessibilityLabel("Hang up")
+        .padding(.horizontal, 22)
+    }
+
+    /// Decline / Answer circles for a featured ringing call (spec 04) — the
+    /// same manager calls the chip uses, with the mic preflight.
+    private func ringActions(for call: CallSnapshot) -> some View {
+        HStack {
+            VStack(spacing: 8) {
+                Button {
+                    manager.hangup(call.id)
+                } label: {
+                    Image(systemName: "phone.down")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(BrandColor.paperFixed)
+                        .frame(width: 72, height: 72)
+                        .background(BrandColor.destructive, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Decline")
+                Text("Decline")
+                    .font(.golos(11, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted700)
+            }
+            Spacer()
+            VStack(spacing: 8) {
+                Button {
+                    answerWithMicPreflight(call.id)
+                } label: {
+                    Image(systemName: "phone")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(BrandColor.onLime)
+                        .frame(width: 72, height: 72)
+                        .background(BrandColor.lime, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Answer")
+                Text("Answer")
+                    .font(.golos(11, weight: .bold))
+                    .foregroundStyle(BrandColor.ink)
+            }
+        }
+        .padding(.horizontal, 48)
+    }
+
+    private func answerWithMicPreflight(_ id: String) {
+        if manager.hasMicPermission {
+            manager.answer(id)
+            return
+        }
+        Task {
+            if await manager.requestMicPermission() {
+                manager.answer(id)
+            }
+        }
+    }
+
     @ViewBuilder
     private func controls(for featured: CallSnapshot) -> some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
+        VStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
                 ControlToggle(
                     on: featured.muted,
-                    systemImage: featured.muted ? "mic.slash.fill" : "mic.fill",
-                    label: featured.muted ? "Unmute" : "Mute"
+                    systemImage: featured.muted ? "mic.slash" : "mic",
+                    label: featured.muted ? "Unmute" : "Mute",
+                    title: featured.muted ? "Unmute" : "Mute"
                 ) {
                     manager.setMuted(featured.id, muted: !featured.muted)
                 }
+                .frame(maxWidth: .infinity)
                 ControlToggle(
                     on: false,
-                    systemImage: "circle.grid.3x3.fill",
+                    systemImage: "circle.grid.3x3",
                     label: "Keypad",
+                    title: "Keypad",
                     enabled: featured.phase == .active
                 ) {
                     dtmfOpen = true
                 }
-                ControlToggle(
-                    on: speakerOn,
-                    systemImage: "speaker.wave.2.fill",
-                    label: "Speaker"
-                ) {
-                    speakerOn.toggle()
-                    manager.setAudioRoute(speakerOn ? .speaker : .earpiece)
-                }
-                // Bluetooth/AirPods routing is system-owned on iOS.
-                AudioRoutePicker()
-                    .frame(width: 52, height: 52)
-                    .background(.quaternary.opacity(0.5), in: Circle())
-            }
-            HStack(spacing: 12) {
+                .frame(maxWidth: .infinity)
                 ControlToggle(
                     on: featured.phase == .held,
-                    systemImage: featured.phase == .held ? "play.fill" : "pause.fill",
-                    label: featured.phase == .held ? "Resume" : "Hold"
+                    systemImage: featured.phase == .held ? "play" : "pause",
+                    label: featured.phase == .held ? "Resume" : "Hold",
+                    title: featured.phase == .held ? "Resume" : "Hold"
                 ) {
                     manager.toggleHold(featured.id)
                 }
+                .frame(maxWidth: .infinity)
+            }
+            HStack(alignment: .top, spacing: 12) {
                 ControlToggle(
                     on: false,
-                    systemImage: "phone.arrow.right",
+                    systemImage: "arrow.left.arrow.right",
                     label: "Transfer",
+                    title: "Transfer",
                     // Transfer needs the CUSTOMER session — resolved via
                     // by-leg for inbound answers; disabled until it lands.
                     enabled: featured.sessionId != nil && featured.phase == .active
                 ) {
                     transferOpen = true
                 }
+                .frame(maxWidth: .infinity)
                 ControlToggle(
                     on: false,
                     systemImage: "text.bubble",
                     label: "Add a note in the conversation",
+                    title: "Note",
                     enabled: conversationId != nil
                 ) {
                     if let conversationId { openConversation(conversationId) }
                 }
+                .frame(maxWidth: .infinity)
+                ControlToggle(
+                    on: speakerOn,
+                    systemImage: "speaker.wave.2",
+                    label: "Speaker",
+                    title: "Speaker"
+                ) {
+                    speakerOn.toggle()
+                    manager.setAudioRoute(speakerOn ? .speaker : .earpiece)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
+        .padding(.horizontal, 24)
     }
 }
 
-/// One round in-call control.
+/// One round in-call control: 60pt paper circle, outline icon, 10.5pt Golos
+/// label beneath. Active state inverts to ink (specs 26/32).
 private struct ControlToggle: View {
     let on: Bool
     let systemImage: String
     let label: String
+    var title: String? = nil
     var enabled = true
     let action: @MainActor () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.body)
-                .foregroundStyle(
-                    on ? BrandColor.onPetrolContainer : Color.primary
-                )
-                .frame(width: 52, height: 52)
-                .background(
-                    on
-                        ? AnyShapeStyle(BrandColor.petrolContainer)
-                        : AnyShapeStyle(.quaternary.opacity(0.5)),
-                    in: Circle()
-                )
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(on ? BrandColor.paper : BrandColor.ink)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        on ? BrandColor.ink : BrandColor.paper,
+                        in: Circle()
+                    )
+                if let title {
+                    Text(title)
+                        .font(.golos(10.5, weight: on ? .bold : .semibold))
+                        .foregroundStyle(on ? BrandColor.ink : BrandColor.muted700)
+                }
+            }
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -243,8 +353,8 @@ struct CallPhaseLine: View {
                     Text(formatTimer(
                         elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
                     ))
-                    .font(.headline)
-                    .foregroundStyle(BrandColor.petrol)
+                    .font(.golos(48, weight: .regular))
+                    .foregroundStyle(BrandColor.ink)
                     .monospacedDigit()
                 }
             }
@@ -253,8 +363,8 @@ struct CallPhaseLine: View {
 
     private func phaseText(_ text: String) -> some View {
         Text(text)
-            .font(.headline)
-            .foregroundStyle(.secondary)
+            .font(.golos(15, weight: .semibold))
+            .foregroundStyle(BrandColor.muted600)
     }
 }
 
@@ -273,37 +383,65 @@ private struct OtherCallRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.peerName)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                 Text(statusLine)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
             }
             Spacer()
             if call.phase == .ringing {
-                Button("Decline") { manager.hangup(call.id) }
-                    .font(.footnote)
-                    .foregroundStyle(BrandColor.destructive)
+                Button {
+                    manager.hangup(call.id)
+                } label: {
+                    Text("Decline")
+                        .font(.golos(11.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.destructive)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Decline")
                 Button {
                     answerWithMicPreflight()
                 } label: {
-                    Label("Answer", systemImage: "phone.fill")
-                        .font(.footnote)
+                    HStack(spacing: 6) {
+                        Image(systemName: "phone")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Answer")
+                            .font(.golos(11.5, weight: .bold))
+                    }
+                    .foregroundStyle(BrandColor.onLime)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 8)
+                    .background(BrandColor.lime, in: Capsule())
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(BrandColor.petrol)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Answer")
             } else if call.phase == .held {
-                Button("Swap") { manager.toggleHold(call.id) }
-                    .font(.footnote)
-                    .buttonStyle(.bordered)
-                    .tint(BrandColor.petrol)
+                Button {
+                    manager.toggleHold(call.id)
+                } label: {
+                    Text("Swap")
+                        .font(.golos(11.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted900)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                        .background(BrandColor.inset, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Swap")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 15)
+        .padding(.vertical, 12)
+        .background(
+            BrandColor.paper,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
     }
 
     private func answerWithMicPreflight() {
@@ -333,23 +471,24 @@ private struct DtmfSheet: View {
     ]
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Text(sent.isEmpty ? "Keypad" : sent)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(sent.isEmpty ? Color.secondary : Color.primary)
+                .font(.golos(22, weight: .semibold))
+                .foregroundStyle(sent.isEmpty ? BrandColor.muted400 : BrandColor.ink)
                 .padding(.vertical, 12)
                 .monospacedDigit()
             ForEach(rows, id: \.self) { row in
-                HStack(spacing: 0) {
+                HStack(spacing: 24) {
                     ForEach(row, id: \.self) { key in
                         Button {
                             sent += key
                             onDigit(key)
                         } label: {
                             Text(key)
-                                .font(.title2)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
+                                .font(.golos(22, weight: .semibold))
+                                .foregroundStyle(BrandColor.ink)
+                                .frame(width: 60, height: 60)
+                                .background(BrandColor.paper, in: Circle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -360,12 +499,14 @@ private struct DtmfSheet: View {
         .padding(.horizontal, 24)
         .padding(.top, 16)
         .presentationDetents([.medium])
+        .presentationBackground(BrandColor.canvas)
     }
 }
 
-/// Blind-transfer picker: eligible teammates with honest busy flags. Names
-/// come from GET /v1/members (targets are id-only). Decline/timeout recovery
-/// is server-side — the customer snaps back to us, never stranded.
+/// Blind-transfer picker (spec 05): eligible teammates with honest presence
+/// dots — lime "Available", muted "On a call". Names come from
+/// GET /v1/members (targets are id-only). Decline/timeout recovery is
+/// server-side — the customer snaps back to us, never stranded.
 private struct TransferSheet: View {
     let manager: CallsManager
     let service: CallsService
@@ -386,10 +527,16 @@ private struct TransferSheet: View {
     @State private var reloadKey = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Transfer to")
-                .font(.headline)
-                .padding(.top, 20)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Transfer this call")
+                    .font(.display(21))
+                    .foregroundStyle(BrandColor.ink)
+                Text("The customer stays on hold while we ring them.")
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+            .padding(.top, 20)
 
             switch state {
             case .loading:
@@ -402,57 +549,87 @@ private struct TransferSheet: View {
             case .failed(let message):
                 VStack(spacing: 12) {
                     Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted500)
                         .multilineTextAlignment(.center)
                     Button("Try again") { reloadKey += 1 }
-                        .buttonStyle(.bordered)
+                        .font(.golos(12, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             case .ready(let rows):
                 if rows.isEmpty {
                     Text("No teammates can take this call right now.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted500)
                         .padding(.vertical, 24)
                 } else {
-                    List(rows) { row in
-                        HStack(spacing: 12) {
-                            InitialsAvatar(name: row.name, size: 36)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.name)
-                                    .font(.body)
-                                if row.busy {
-                                    Text("On a call")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                    ScrollView {
+                        PaperCard {
+                            ForEach(rows) { row in
+                                transferRow(row)
+                                if row.id != rows.last?.id {
+                                    RowDivider().padding(.leading, 66)
                                 }
                             }
-                            Spacer()
-                            Button("Transfer") { transfer(to: row.id) }
-                                .buttonStyle(.bordered)
-                                .tint(BrandColor.petrol)
-                                .disabled(row.busy || transferring)
                         }
-                        .listRowInsets(EdgeInsets(
-                            top: 10, leading: 0, bottom: 10, trailing: 0
-                        ))
                     }
-                    .listStyle(.plain)
                 }
             }
 
             if let errorText {
                 Text(errorText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
             }
+            Text("If they decline, the call snaps back to you.")
+                .font(.golos(11))
+                .foregroundStyle(BrandColor.muted300)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
             Spacer(minLength: 16)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 20)
         .presentationDetents([.medium, .large])
+        .presentationBackground(BrandColor.canvas)
         .task(id: "\(sessionId)|\(reloadKey)") { await reload() }
+    }
+
+    @ViewBuilder
+    private func transferRow(_ row: Row) -> some View {
+        HStack(spacing: 11) {
+            InitialsAvatar(name: row.name, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(row.name)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(row.busy ? BrandColor.muted300 : BrandColor.lime)
+                        .frame(width: 6, height: 6)
+                    Text(row.busy ? "On a call" : "Available")
+                        .font(.golos(11, weight: row.busy ? .regular : .semibold))
+                        .foregroundStyle(row.busy ? BrandColor.muted500 : BrandColor.olive)
+                }
+            }
+            Spacer()
+            Button {
+                transfer(to: row.id)
+            } label: {
+                Text("Transfer")
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.paper)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 8)
+                    .background(BrandColor.ink, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(row.busy || transferring)
+            .opacity(row.busy || transferring ? 0.45 : 1)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
     }
 
     private func reload() async {
@@ -539,12 +716,13 @@ private func previewSnapshot(
     let manager = CallsManager.get(graph: AppGraph())
     VStack(spacing: 24) {
         VStack(spacing: 8) {
-            InitialsAvatar(name: "Dana Whitcomb", size: 72)
+            InitialsAvatar(name: "Dana Whitcomb", size: 112)
             Text("Dana Whitcomb")
-                .font(.title.weight(.semibold))
+                .font(.display(26))
+                .foregroundStyle(BrandColor.ink)
             Text("(415) 555-0134")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.golos(12.5))
+                .foregroundStyle(BrandColor.muted600)
             CallPhaseLine(call: previewSnapshot(
                 id: "a",
                 name: "Dana Whitcomb",
@@ -571,17 +749,19 @@ private func previewSnapshot(
             ),
             manager: manager
         )
-        HStack(spacing: 12) {
-            ControlToggle(on: true, systemImage: "mic.slash.fill", label: "Unmute") {}
-            ControlToggle(on: false, systemImage: "circle.grid.3x3.fill", label: "Keypad") {}
-            ControlToggle(on: false, systemImage: "pause.fill", label: "Hold") {}
+        HStack(alignment: .top, spacing: 12) {
+            ControlToggle(on: true, systemImage: "mic.slash", label: "Unmute", title: "Unmute") {}
+            ControlToggle(on: false, systemImage: "circle.grid.3x3", label: "Keypad", title: "Keypad") {}
+            ControlToggle(on: false, systemImage: "pause", label: "Hold", title: "Hold") {}
             ControlToggle(
                 on: false,
-                systemImage: "phone.arrow.right",
+                systemImage: "arrow.left.arrow.right",
                 label: "Transfer",
+                title: "Transfer",
                 enabled: false
             ) {}
         }
     }
     .padding()
+    .background(BrandColor.insetDeep)
 }

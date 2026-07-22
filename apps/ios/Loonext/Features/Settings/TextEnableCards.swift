@@ -76,7 +76,7 @@ private struct TextEnableCard: View {
                 if canManage && order.status == TextEnablementStatus.failed {
                     Button(busy ? "Resubmitting…" : "Resubmit") { resubmit() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(busy)
                 }
                 if canCancel && open {
@@ -273,7 +273,7 @@ private struct VerificationRow: View {
                 .disabled(verifying)
                 Button(verifying ? "Checking…" : "Verify") { verify() }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(verifying || code.isBlank)
             }
             .padding(.top, 6)

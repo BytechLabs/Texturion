@@ -25,7 +25,7 @@ private func monthLabel(_ month: String) -> String {
     return formatter.string(from: date)
 }
 
-/// Usage (#163): hero tabular figures, the segments meter (petrol, amber at
+/// Usage (#163): hero tabular figures, the segments meter (olive, amber at
 /// 80%), the overage projection, voice minutes, the free storage line, the
 /// 6-month history bars, and the owner-only overage-cap chips.
 @MainActor
@@ -158,7 +158,7 @@ private struct UsageMeter: View {
                 let fraction = min(max(ratio, 0), 1)
                 if fraction > 0 {
                     Capsule()
-                        .fill(warning ? BrandColor.overdueAmber : BrandColor.petrol)
+                        .fill(warning ? BrandColor.overdueAmber : BrandColor.olive)
                         .frame(width: geo.size.width * CGFloat(fraction))
                 }
             }
@@ -264,7 +264,7 @@ private struct HistoryCard: View {
                                 .foregroundStyle(.secondary)
                             let fraction = min(max(Double(month.segments) / Double(maxSegments), 0.02), 1)
                             UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
-                                .fill(BrandColor.petrol.opacity(index == months.count - 1 ? 1 : 0.45))
+                                .fill(BrandColor.olive.opacity(index == months.count - 1 ? 1 : 0.45))
                                 .frame(width: 30, height: CGFloat(fraction) * 84)
                             Text(monthLabel(month.month))
                                 .font(.caption2)
@@ -325,14 +325,14 @@ private struct CapCard: View {
                                     .font(.subheadline)
                                     .foregroundStyle(
                                         selected
-                                            ? AnyShapeStyle(BrandColor.onPetrolContainer)
+                                            ? AnyShapeStyle(BrandColor.muted900)
                                             : AnyShapeStyle(Color.primary)
                                     )
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 7)
                                     .background(
                                         selected
-                                            ? AnyShapeStyle(BrandColor.petrolContainer)
+                                            ? AnyShapeStyle(BrandColor.avatarTint)
                                             : AnyShapeStyle(Color(.secondarySystemFill)),
                                         in: Capsule()
                                     )

@@ -134,18 +134,20 @@ struct ContactsTab: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                headerBar
                 searchField
-                actionsRow
                 if let notice {
                     Text(notice)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted600)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 18)
                         .padding(.top, 2)
                 }
                 content
+                actionsRow
             }
+            .background(BrandColor.canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $openContact) { route in
                 ContactDetailView(
@@ -224,11 +226,45 @@ struct ContactsTab: View {
         }
     }
 
+    /// Spec 27 header: the display title with an honest tabular count, and
+    /// the region's one ink accent — the 44pt New-contact circle.
+    private var headerBar: some View {
+        HStack(alignment: .center) {
+            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                ScreenTitle(text: "Contacts")
+                // The spec count is the total — only honest once every page
+                // has loaded (no server-side total on the wire).
+                if case .ready = state, nextCursor == nil, !rows.isEmpty {
+                    Text("\(rows.count)")
+                        .font(.golos(12, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandColor.muted500)
+                }
+            }
+            Spacer()
+            Button {
+                createOpen = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(BrandColor.paper)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.ink, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("New contact")
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+    }
+
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(BrandColor.muted300)
             TextField("Search name or number", text: $query)
+                .font(.golos(13.5))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onChange(of: query) { _, next in
@@ -241,39 +277,32 @@ struct ContactsTab: View {
                     query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted300)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(BrandColor.paper, in: Capsule())
+        .padding(.horizontal, 18)
         .padding(.vertical, 8)
     }
 
+    /// Export/import live at the foot of the screen as quiet inset pills —
+    /// spec 27's footer hint made functional. New contact moved to the header.
     private var actionsRow: some View {
-        HStack(spacing: 8) {
-            // Accent rationing: New contact is the region's one petrol
-            // element; export/import stay quiet stone.
-            Button {
-                createOpen = true
-            } label: {
-                Label("New contact", systemImage: "plus")
-                    .font(.subheadline.weight(.medium))
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(BrandColor.petrol)
-            .controlSize(.small)
-            Spacer()
-            Button(exporting ? "Exporting…" : "Export") {
+        HStack(spacing: 10) {
+            Button(exporting ? "Exporting…" : "Export CSV") {
                 exportCsv()
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
             .buttonStyle(.plain)
+            .font(.golos(11, weight: .semibold))
+            .foregroundStyle(BrandColor.muted700)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(BrandColor.insetDeep, in: Capsule())
             .disabled(exporting)
             if canImport {
                 Menu {
@@ -286,14 +315,19 @@ struct ContactsTab: View {
                         importPresented = true
                     }
                 } label: {
-                    Text(importing ? "Importing…" : "Import")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(importing ? "Importing…" : "Import CSV or vCard")
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(BrandColor.insetDeep, in: Capsule())
                 }
                 .disabled(importing)
             }
         }
-        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 
     @ViewBuilder
@@ -311,32 +345,41 @@ struct ContactsTab: View {
                             + "someone texts you, or add one yourself."
                         : "No matches for \"\(debouncedQ)\"."
                 )
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(rows, id: \.id) { contact in
-                        ContactRow(contact: contact)
-                            .contentShape(Rectangle())
-                            .onTapGesture { openContact = ContactRoute(id: contact.id) }
-                    }
-                    if nextCursor != nil {
-                        HStack {
-                            Spacer()
-                            Button(loadingMore ? "Loading…" : "Load more") {
-                                loadMore()
+                ScrollView {
+                    PaperCard {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, contact in
+                                if index > 0 {
+                                    RowDivider()
+                                }
+                                ContactRow(contact: contact)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { openContact = ContactRoute(id: contact.id) }
                             }
-                            .disabled(loadingMore)
-                            .font(.subheadline)
-                            Spacer()
+                            if nextCursor != nil {
+                                RowDivider()
+                                Button(loadingMore ? "Loading…" : "Load more") {
+                                    loadMore()
+                                }
+                                .buttonStyle(.plain)
+                                .font(.golos(12, weight: .semibold))
+                                .foregroundStyle(BrandColor.olive)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .disabled(loadingMore)
+                            }
                         }
-                        .listRowSeparator(.hidden)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
                 }
-                .listStyle(.plain)
             }
         }
     }
@@ -448,6 +491,27 @@ struct ContactsTab: View {
     }
 }
 
+/// Spec 27/07 contact identity mark: a soft-square initials tile on the
+/// avatar tint (circles stay reserved for members/people elsewhere).
+struct ContactSquareAvatar: View {
+    let name: String?
+    var size: CGFloat = 40
+    var cornerRadius: CGFloat = 14
+    var fontSize: CGFloat = 12.5
+    var tint: Color = BrandColor.avatarTint
+
+    var body: some View {
+        Text(initialsOf(name))
+            .font(.golos(fontSize, weight: .semibold))
+            .foregroundStyle(BrandColor.muted900)
+            .frame(width: size, height: size)
+            .background(
+                tint,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+    }
+}
+
 private struct ContactRow: View {
     let contact: Contact
 
@@ -455,33 +519,46 @@ private struct ContactRow: View {
         contact.name ?? formatPhone(contact.phone_e164)
     }
 
+    /// Spec 27 sub line: the number, with last activity folded in when known.
+    private var sub: String {
+        let phone = formatPhone(contact.phone_e164)
+        guard let lastActivity = contact.last_activity_at else { return phone }
+        return "\(phone) · \(relativeTime(lastActivity))"
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            InitialsAvatar(name: name)
+        HStack(alignment: .center, spacing: 11) {
+            ContactSquareAvatar(name: name)
             VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.body)
-                Text(formatPhone(contact.phone_e164))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 6) {
-                if let lastActivity = contact.last_activity_at {
-                    Text(relativeTime(lastActivity))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 7) {
+                    Text(name)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .lineLimit(1)
+                    if contact.opted_out {
+                        DsChip(
+                            text: "Opted out",
+                            container: BrandColor.insetDeep,
+                            content: BrandColor.muted700
+                        )
+                    }
                 }
-                if contact.opted_out {
-                    Text("Opted out")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.quaternary.opacity(0.6), in: Capsule())
-                }
+                Text(sub)
+                    .font(.golos(11.5))
+                    .monospacedDigit()
+                    .foregroundStyle(BrandColor.muted400)
+                    .lineLimit(1)
             }
+            Spacer(minLength: 8)
+            // Decorative doorway glyph — the whole row opens the contact.
+            Image(systemName: "message")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(BrandColor.muted900)
+                .frame(width: 34, height: 34)
+                .background(BrandColor.inset, in: Circle())
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 11)
+        .padding(.horizontal, 15)
     }
 }
 
@@ -561,6 +638,8 @@ private struct CreateContactSheet: View {
                         .foregroundStyle(BrandColor.destructive)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas.ignoresSafeArea())
             .navigationTitle("New contact")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -573,6 +652,7 @@ private struct CreateContactSheet: View {
                 }
             }
         }
+        .tint(BrandColor.olive)
         .presentationDetents([.large])
     }
 
@@ -613,7 +693,8 @@ private struct ImportReportSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Import finished")
-                .font(.headline)
+                .font(.golos(15, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             Text(
                 [
                     "\(report.result.imported) imported",
@@ -621,12 +702,12 @@ private struct ImportReportSheet: View {
                     "\(report.result.skipped) skipped",
                 ].joined(separator: " · ")
             )
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .font(.golos(12.5))
+            .foregroundStyle(BrandColor.muted600)
             if !report.result.errors.isEmpty {
                 Text("Skipped rows:")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted500)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(
@@ -634,13 +715,14 @@ private struct ImportReportSheet: View {
                             id: \.offset
                         ) { _, rowError in
                             Text("\(report.kind.rowWord) \(rowError.row) — \(rowError.reason)")
-                                .font(.caption)
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted700)
                         }
                         let hidden = report.result.errors.count - importErrorsShown
                         if hidden > 0 {
                             Text("…and \(hidden) more.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted500)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -650,10 +732,12 @@ private struct ImportReportSheet: View {
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }
+                    .tint(BrandColor.olive)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(BrandColor.canvas.ignoresSafeArea())
         .presentationDetents([.medium, .large])
     }
 }
@@ -689,26 +773,31 @@ private func previewContact(
 }
 
 #Preview("Contact rows") {
-    List {
-        ContactRow(
-            contact: previewContact(
-                id: "ct1",
-                phone: "+14165550134",
-                name: "Dana Whitcomb",
-                lastActivityAt: "2026-07-15T18:00:00Z"
+    VStack {
+        PaperCard {
+            ContactRow(
+                contact: previewContact(
+                    id: "ct1",
+                    phone: "+14165550134",
+                    name: "Dana Whitcomb",
+                    lastActivityAt: "2026-07-15T18:00:00Z"
+                )
             )
-        )
-        ContactRow(
-            contact: previewContact(
-                id: "ct2",
-                phone: "+14155550188",
-                name: nil,
-                optedOut: true,
-                lastActivityAt: "2026-07-01T12:00:00Z"
+            RowDivider()
+            ContactRow(
+                contact: previewContact(
+                    id: "ct2",
+                    phone: "+14155550188",
+                    name: nil,
+                    optedOut: true,
+                    lastActivityAt: "2026-07-01T12:00:00Z"
+                )
             )
-        )
+        }
+        .padding(18)
     }
-    .listStyle(.plain)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(BrandColor.canvas)
 }
 
 #Preview("New contact sheet") {

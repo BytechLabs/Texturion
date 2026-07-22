@@ -22,11 +22,12 @@ struct SettingsCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.headline)
+                .font(.golos(15, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             if let description {
                 Text(description)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
                     .padding(.top, 2)
             }
             Spacer().frame(height: 12)
@@ -34,10 +35,7 @@ struct SettingsCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 1)
-        )
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
@@ -53,8 +51,8 @@ struct ReadOnlyLine: View {
 
     var body: some View {
         Text(text)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
     }
 }
 
@@ -69,7 +67,7 @@ struct InlineError: View {
     var body: some View {
         if let message {
             Text(message)
-                .font(.footnote)
+                .font(.golos(12))
                 .foregroundStyle(BrandColor.destructive)
                 .padding(.top, 6)
         }
@@ -89,15 +87,16 @@ struct LabeledToggleRow: View {
         Toggle(isOn: Binding(get: { isOn }, set: { onChange($0) })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(.body)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                 if let supporting {
                     Text(supporting)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted500)
                 }
             }
         }
-        .tint(BrandColor.petrol)
+        .tint(BrandColor.olive)
         .disabled(!enabled)
         .padding(.vertical, 4)
     }
@@ -119,25 +118,26 @@ struct StatusPill: View {
 
     private var background: Color {
         switch tone {
-        case .positive: BrandColor.petrolContainer
+        case .positive: BrandColor.limeChip
         case .warn: BrandColor.amberBg
-        case .bad: BrandColor.destructive.opacity(0.1)
-        case .neutral: Color(.secondarySystemFill)
+        case .bad: BrandColor.destructiveContainer
+        case .neutral: BrandColor.inset
         }
     }
 
     private var foreground: Color {
         switch tone {
-        case .positive: BrandColor.onPetrolContainer
-        case .warn: Color(hex: 0x92400E)
+        case .positive: BrandColor.onLimeChip
+        case .warn: BrandColor.overdueAmber
         case .bad: BrandColor.destructive
-        case .neutral: Color.secondary
+        case .neutral: BrandColor.muted600
         }
     }
 
     var body: some View {
         Text(label)
-            .font(.caption.weight(.medium))
+            .font(.golos(10, weight: .bold))
+            .lineLimit(1)
             .foregroundStyle(foreground)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -192,7 +192,8 @@ struct ConfirmSheet<Extra: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.title3.weight(.semibold))
+                .font(.golos(17, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(message)
@@ -210,7 +211,7 @@ struct ConfirmSheet<Extra: View>: View {
                 Spacer()
                 Button(pending ? "Working…" : confirmLabel) { onConfirm() }
                     .buttonStyle(.borderedProminent)
-                    .tint(destructive ? BrandColor.destructive : BrandColor.petrol)
+                    .tint(destructive ? BrandColor.destructive : BrandColor.olive)
                     .disabled(!confirmEnabled || pending)
             }
             .padding(.top, 16)
@@ -261,13 +262,15 @@ struct PreviewBubble: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .font(.golos(10.5, weight: .bold))
+                .kerning(1.0)
+                .foregroundStyle(BrandColor.muted500)
             Text(text)
-                .font(.callout)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .padding(.top, 10)
     }

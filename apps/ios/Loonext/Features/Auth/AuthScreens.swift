@@ -216,9 +216,9 @@ struct AuthFlow: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 Wordmark()
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 24)
                 switch screen {
                 case .login:
                     LoginForm(
@@ -232,13 +232,13 @@ struct AuthFlow: View {
                     ForgotForm(model: model, onLogin: { screen = .login })
                 }
             }
-            .frame(maxWidth: 440)
-            .padding(.horizontal, 28)
-            .padding(.top, 96)
+            .frame(maxWidth: 440, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 64)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color(uiColor: .systemBackground))
+        .background(BrandColor.canvas.ignoresSafeArea())
         .sheet(
             isPresented: $model.captchaVisible,
             onDismiss: { model.captchaResolved(nil) }
@@ -248,17 +248,89 @@ struct AuthFlow: View {
     }
 }
 
-/// Text wordmark: 'Loonext' with the 'ext' half in petrol (no logo glyph).
+/// Text wordmark: 'Loonext' with the 'ext' half in olive (no logo glyph).
 private struct Wordmark: View {
     var body: some View {
         HStack(spacing: 0) {
             Text("Loon")
-                .font(.system(.largeTitle, design: .default, weight: .semibold))
+                .font(.golos(20, weight: .bold))
+                .kerning(-0.4)
+                .foregroundStyle(BrandColor.ink)
             Text("ext")
-                .font(.system(.largeTitle, design: .default, weight: .semibold))
-                .foregroundStyle(BrandColor.petrol)
+                .font(.golos(20, weight: .bold))
+                .kerning(-0.4)
+                .foregroundStyle(BrandColor.olive)
         }
         .accessibilityLabel("Loonext")
+    }
+}
+
+/// Bricolage display heading + one muted sub-line (specs 10–12).
+private struct AuthHeadline: View {
+    let title: String
+    let sub: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.display(28))
+                .kerning(-0.3)
+                .foregroundStyle(BrandColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(sub)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 22)
+    }
+}
+
+/// Quiet text link (olive by default) — forgot/switch-screen affordances.
+private struct LinkButton: View {
+    let title: String
+    var tint: Color = BrandColor.olive
+    let action: @MainActor () -> Void
+
+    init(_ title: String, tint: Color = BrandColor.olive, action: @escaping @MainActor () -> Void) {
+        self.title = title
+        self.tint = tint
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(tint)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The lime-check "email sent" note (spec 12 sent state).
+private struct SentNote: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(BrandColor.lime)
+                    .frame(width: 22, height: 22)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(BrandColor.onLime)
+            }
+            Text(text)
+                .font(.golos(12.5))
+                .foregroundStyle(BrandColor.muted900)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -280,27 +352,28 @@ private struct SsoButtons: View {
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 46)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(Capsule())
             .disabled(model.busy)
 
             Button {
                 model.signInWithGoogle()
             } label: {
                 Text("Continue with Google")
-                    .font(.body.weight(.medium))
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 13)
             }
             .buttonStyle(.plain)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .background(BrandColor.paper, in: Capsule())
             .disabled(model.busy)
 
             HStack(spacing: 10) {
-                Rectangle().fill(.quaternary).frame(height: 1)
+                Rectangle().fill(BrandColor.insetDeep).frame(height: 1)
                 Text("or")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Rectangle().fill(.quaternary).frame(height: 1)
+                    .font(.golos(11, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted300)
+                Rectangle().fill(BrandColor.insetDeep).frame(height: 1)
             }
             .padding(.vertical, 4)
         }
@@ -318,6 +391,10 @@ private struct LoginForm: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            AuthHeadline(
+                title: "The whole crew,\none business number.",
+                sub: "Texts, calls, and the jobs that come from them — together in one inbox."
+            )
             SsoButtons(model: model, appleLabel: .signIn)
             AuthField("Email", text: $email, kind: .email)
             AuthField("Password", text: $password, kind: .password)
@@ -328,11 +405,12 @@ private struct LoginForm: View {
             ) {
                 model.signIn(email: email, password: password)
             }
-            Button("Forgot password?", action: onForgot)
-                .font(.subheadline)
-            Button("New to Loonext? Create an account", action: onSignUp)
-                .font(.subheadline)
+            LinkButton("Forgot password?", tint: BrandColor.muted500, action: onForgot)
+                .padding(.top, 6)
+            LinkButton("New to Loonext? Create your account", tint: BrandColor.ink, action: onSignUp)
+                .padding(.top, 10)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -348,18 +426,30 @@ private struct SignUpForm: View {
     var body: some View {
         if model.confirmationSent {
             VStack(spacing: 16) {
-                Text("Check your email to confirm your account, then sign in.")
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                Button("Back to sign in", action: onLogin)
-                    .font(.subheadline)
+                AuthHeadline(
+                    title: "Check your email",
+                    sub: "Confirm your account from the email we just sent, then sign in."
+                )
+                SentNote(text: "Check your email to confirm your account, then sign in.")
+                LinkButton("Back to sign in", action: onLogin)
             }
+            .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 12) {
+                AuthHeadline(
+                    title: "Create your account",
+                    sub: "Your business number in minutes."
+                )
                 SsoButtons(model: model, appleLabel: .signUp)
                 AuthField("Your name", text: $name, kind: .name)
                 AuthField("Email", text: $email, kind: .email)
-                AuthField("Password (8+ characters)", text: $password, kind: .newPassword)
+                VStack(alignment: .leading, spacing: 5) {
+                    AuthField("Password", text: $password, kind: .newPassword)
+                    Text("At least 8 characters.")
+                        .font(.golos(10.5))
+                        .foregroundStyle(BrandColor.muted300)
+                        .padding(.horizontal, 4)
+                }
                 ErrorLine(error: model.error)
                 PrimaryButton(
                     title: model.busy ? "Creating account…" : "Create account",
@@ -367,9 +457,10 @@ private struct SignUpForm: View {
                 ) {
                     model.signUp(name: name, email: email, password: password)
                 }
-                Button("Already have an account? Sign in", action: onLogin)
-                    .font(.subheadline)
+                LinkButton("Already have an account? Sign in", tint: BrandColor.ink, action: onLogin)
+                    .padding(.top, 10)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -384,14 +475,20 @@ private struct ForgotForm: View {
     var body: some View {
         if model.resetSent {
             VStack(spacing: 16) {
-                Text("If that email has an account, a reset link is on its way.")
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                Button("Back to sign in", action: onLogin)
-                    .font(.subheadline)
+                AuthHeadline(
+                    title: "Reset your password",
+                    sub: "We'll email you a reset link. It works for an hour."
+                )
+                SentNote(text: "If that email has an account, a reset link is on its way. Didn't get it? Check spam.")
+                LinkButton("Back to sign in", action: onLogin)
             }
+            .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 12) {
+                AuthHeadline(
+                    title: "Reset your password",
+                    sub: "We'll email you a reset link. It works for an hour."
+                )
                 AuthField("Email", text: $email, kind: .email)
                 ErrorLine(error: model.error)
                 PrimaryButton(
@@ -400,9 +497,10 @@ private struct ForgotForm: View {
                 ) {
                     model.sendReset(email: email)
                 }
-                Button("Back to sign in", action: onLogin)
-                    .font(.subheadline)
+                LinkButton("Remembered it? Back to sign in", tint: BrandColor.ink, action: onLogin)
+                    .padding(.top, 10)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -428,28 +526,41 @@ private struct AuthField: View {
     }
 
     var body: some View {
-        Group {
-            switch kind {
-            case .name:
-                TextField(title, text: $text)
-                    .textContentType(.name)
-            case .email:
-                TextField(title, text: $text)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            case .password:
-                SecureField(title, text: $text)
-                    .textContentType(.password)
-            case .newPassword:
-                SecureField(title, text: $text)
-                    .textContentType(.newPassword)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.golos(10.5, weight: .bold))
+                .kerning(1.0)
+                .foregroundStyle(BrandColor.muted500)
+                .padding(.horizontal, 4)
+            Group {
+                switch kind {
+                case .name:
+                    TextField(title, text: $text)
+                        .textContentType(.name)
+                case .email:
+                    TextField(title, text: $text)
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                case .password:
+                    SecureField(title, text: $text)
+                        .textContentType(.password)
+                case .newPassword:
+                    SecureField(title, text: $text)
+                        .textContentType(.newPassword)
+                }
             }
+            .font(.golos(14))
+            .foregroundStyle(BrandColor.ink)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(BrandColor.insetDeep, lineWidth: 1.5)
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -459,7 +570,7 @@ private struct ErrorLine: View {
     var body: some View {
         if let error {
             Text(error)
-                .font(.footnote)
+                .font(.golos(12))
                 .foregroundStyle(BrandColor.destructive)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 2)
@@ -467,7 +578,8 @@ private struct ErrorLine: View {
     }
 }
 
-/// The one filled CTA per screen — Liquid Glass prominent, petrol tint.
+/// The one filled CTA per screen — the ink pill with the lime arrow circle
+/// (Paper & Olive primary-button grammar, specs 10–17).
 struct PrimaryButton: View {
     let title: String
     let enabled: Bool
@@ -475,14 +587,29 @@ struct PrimaryButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(.golos(15, weight: .semibold))
+                    .foregroundStyle(BrandColor.paper)
+                Spacer(minLength: 8)
+                ZStack {
+                    Circle()
+                        .fill(BrandColor.lime)
+                        .frame(width: 42, height: 42)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(BrandColor.onLime)
+                }
+            }
+            .padding(.leading, 22)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(BrandColor.ink, in: Capsule())
         }
-        .buttonStyle(.glassProminent)
-        .tint(BrandColor.petrol)
+        .buttonStyle(.plain)
         .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.45)
         .padding(.top, 8)
     }
 }

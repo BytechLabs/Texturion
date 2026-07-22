@@ -319,12 +319,11 @@ struct TaskDetailView: View {
                         activitySection(detail)
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
                 .padding(.top, 8)
                 .padding(.bottom, 16)
             }
             if !noAccess {
-                Divider()
                 NoteComposer(
                     mutations: mutations,
                     multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore),
@@ -335,28 +334,37 @@ struct TaskDetailView: View {
                 )
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
     }
 
     private func header(_ detail: TaskDetail) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 13) {
             if !noAccess {
+                // The big derived-done ring: 28pt outline → lime fill + ink
+                // check (spec 23).
                 Button {
                     toggleDone()
                 } label: {
-                    Image(systemName: detail.done ? "checkmark.circle.fill" : "circle")
-                        .font(.title2)
-                        .foregroundStyle(
-                            detail.done
-                                ? AnyShapeStyle(BrandColor.petrol)
-                                : AnyShapeStyle(Color.secondary)
-                        )
+                    ZStack {
+                        if detail.done {
+                            Circle().fill(BrandColor.lime)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(BrandColor.onLime)
+                        } else {
+                            Circle().strokeBorder(BrandColor.muted250, lineWidth: 2)
+                        }
+                    }
+                    .frame(width: 28, height: 28)
+                    .padding(.top, 3)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(detail.done ? "Mark not done" : "Mark done")
             }
             if noAccess {
                 Text(detail.title)
-                    .font(.title3.weight(.semibold))
+                    .font(.golos(21, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .strikethrough(detail.done)
             } else {
                 InlineEditField(
@@ -365,7 +373,7 @@ struct TaskDetailView: View {
                     placeholder: "Task title",
                     multiline: false,
                     allowEmpty: false,
-                    font: .title3.weight(.semibold)
+                    font: .golos(21, weight: .semibold)
                 ) { value in
                     await saveField {
                         try await mutations.rename(
@@ -394,18 +402,39 @@ struct TaskDetailView: View {
             return "Due \(formatDue(detail.due_at))"
         }()
 
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(label: assigneeLabel, icon: "person") {
-                    if !noAccess { pickerOpen = true }
+        // Spec 23: a paper card of Assignee / Due rows with hairlines.
+        return PaperCard {
+            Button {
+                if !noAccess { pickerOpen = true }
+            } label: {
+                HStack(spacing: 11) {
+                    metaRowLabel("Assignee")
+                    Text(assigneeLabel)
+                        .font(.golos(13, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    Spacer(minLength: 0)
+                    metaRowChevron
                 }
-                chip(
-                    label: dueLabel,
-                    icon: "calendar",
-                    tint: overdue ? BrandColor.overdueAmber : nil
-                ) {
+                .padding(.horizontal, 15)
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            RowDivider()
+            HStack(spacing: 11) {
+                Button {
                     if !noAccess { duePickerOpen = true }
+                } label: {
+                    HStack(spacing: 11) {
+                        metaRowLabel("Due")
+                        Text(dueLabel)
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(overdue ? BrandColor.overdueAmber : BrandColor.ink)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 if detail.due_at != nil && !noAccess {
                     Button {
                         runPatch { try await mutations.setDue(
@@ -413,34 +442,29 @@ struct TaskDetailView: View {
                         ) }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(BrandColor.muted300)
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Clear due date")
                 }
+                metaRowChevron
             }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 11)
         }
     }
 
-    private func chip(
-        label: String,
-        icon: String,
-        tint: Color? = nil,
-        onTap: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(label)
-                    .font(.subheadline)
-            }
-            .foregroundStyle(tint ?? Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Color(.secondarySystemFill), in: Capsule())
-        }
-        .buttonStyle(.plain)
+    private func metaRowLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.golos(11, weight: .semibold))
+            .foregroundStyle(BrandColor.muted500)
+            .frame(width: 64, alignment: .leading)
+    }
+
+    private var metaRowChevron: some View {
+        Image(systemName: "chevron.down")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(BrandColor.muted250)
     }
 
     private func createdLine(_ detail: TaskDetail) -> some View {
@@ -452,9 +476,12 @@ struct TaskDetailView: View {
             creator.map { "Created by \($0)" },
             relativeTime(detail.created_at),
         ].compactMap(\.self).filter { !$0.isEmpty }
-        return Text(parts.joined(separator: " · "))
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        return HStack(spacing: 7) {
+            DsChip(text: detail.done ? "Done" : "To do")
+            Text(parts.joined(separator: " · "))
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted300)
+        }
     }
 
     private var noAccessCard: some View {
@@ -463,11 +490,11 @@ struct TaskDetailView: View {
                 + "You can see the task, but not its messages, files, or "
                 + "discussion. Ask an owner or admin for access."
         )
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .padding(12)
+        .font(.golos(13))
+        .foregroundStyle(BrandColor.muted700)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
@@ -475,23 +502,31 @@ struct TaskDetailView: View {
         if let source = detail.source_message {
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel("From this message")
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(source.body.isBlank ? "A photo" : source.body)
-                        .font(.subheadline)
-                    if onOpenConversation != nil {
-                        Button("View in conversation") {
-                            onOpenConversation?(detail.conversation_id, detail.message_id)
+                // Spec 23: paper well with the lime source-quote bar.
+                HStack(alignment: .top, spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(BrandColor.lime)
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(source.body.isBlank ? "A photo" : source.body)
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.muted700)
+                        if onOpenConversation != nil {
+                            Button("View in conversation") {
+                                onOpenConversation?(detail.conversation_id, detail.message_id)
+                            }
+                            .font(.golos(11, weight: .bold))
+                            .foregroundStyle(BrandColor.olive)
+                            .buttonStyle(.plain)
                         }
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(BrandColor.petrol)
-                        .buttonStyle(.plain)
                     }
                 }
-                .padding(12)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 12)
+                    BrandColor.paper,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
                 )
             }
         }
@@ -506,7 +541,7 @@ struct TaskDetailView: View {
                 placeholder: "Add details teammates should know",
                 multiline: true,
                 allowEmpty: true,
-                font: .subheadline
+                font: .golos(13)
             ) { value in
                 await saveField {
                     try await mutations.describe(
@@ -557,8 +592,8 @@ struct TaskDetailView: View {
             sectionLabel("Activity")
             if detail.activity.isEmpty {
                 Text("No activity yet. Post a note below to start a discussion.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
             }
             ForEach(detail.activity, id: \.id) { item in
                 if item.kind == "note" {
@@ -572,10 +607,16 @@ struct TaskDetailView: View {
                     by: actorName(item),
                     memberName: memberName
                 ) {
-                    Text("\(sentence) · \(relativeTime(item.created_at))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
+                    // Spec 23: a muted dot bullet + quiet sentence per event.
+                    HStack(alignment: .firstTextBaseline, spacing: 9) {
+                        Circle()
+                            .fill(BrandColor.muted250)
+                            .frame(width: 6, height: 6)
+                        Text("\(sentence) · \(relativeTime(item.created_at))")
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.muted600)
+                    }
+                    .padding(.leading, 4)
                 }
             }
         }
@@ -592,9 +633,7 @@ struct TaskDetailView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
+        SectionHeader(label: text)
     }
 }
 
@@ -712,7 +751,7 @@ private struct DuePickerSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(BrandColor.petrol)
+                .tint(BrandColor.olive)
             }
         }
         .padding(16)
@@ -748,7 +787,7 @@ private struct AttachmentCell: View {
     private var imageCell: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemFill))
+                .fill(BrandColor.inset)
             if let url {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -791,19 +830,20 @@ private struct AttachmentCell: View {
     private var fileCell: some View {
         HStack(spacing: 8) {
             Image(systemName: "doc")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BrandColor.muted500)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.file_name ?? "File")
-                    .font(.caption)
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .lineLimit(1)
                 Text(formatBytes(item.size_bytes))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted400)
             }
         }
         .padding(10)
         .frame(width: 180, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
         .onTapGesture { openFresh() }
     }
@@ -840,25 +880,34 @@ private struct NoteCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                InitialsAvatar(name: author, size: 24)
-                Text(author)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text(relativeTime(createdAt))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            // Spec 23: internal note = dashed inset well, lock + AUTHOR · TIME.
+            HStack(spacing: 6) {
+                Image(systemName: "lock")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted600)
+                Text("\(author) · \(relativeTime(createdAt))".uppercased())
+                    .font(.golos(10, weight: .bold))
+                    .kerning(0.8)
+                    .foregroundStyle(BrandColor.muted600)
             }
             if !body_.isBlank {
                 Text(body_)
-                    .font(.subheadline)
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.ink)
             }
         }
-        .padding(12)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Amber = notes/overdue in the calm system; a quiet wash, not a shout.
-        .background(BrandColor.overdueAmber.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    BrandColor.muted250,
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
+                )
+        )
     }
 }
 
@@ -910,7 +959,7 @@ private struct NoteComposer: View {
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(Color(.secondarySystemFill), in: Capsule())
+                                .background(BrandColor.inset, in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Remove \(file.name)")
@@ -923,16 +972,19 @@ private struct NoteComposer: View {
                     .font(.caption)
                     .foregroundStyle(BrandColor.destructive)
             }
+            // Spec 23: paper capsule composer with the 38pt ink send circle.
             HStack(alignment: .bottom, spacing: 8) {
                 Button {
                     pickerOpen = true
                 } label: {
                     Image(systemName: "paperclip")
+                        .foregroundStyle(BrandColor.muted500)
                 }
                 .buttonStyle(.borderless)
                 .disabled(posting || staged.count >= noteFilesMax)
                 .accessibilityLabel("Attach files")
                 TextField("Add a note for your team", text: $body_, axis: .vertical)
+                    .font(.golos(13))
                     .lineLimit(1 ... 4)
                     .onChange(of: body_) { _, next in
                         error = nil
@@ -943,16 +995,25 @@ private struct NoteComposer: View {
                 Button {
                     post()
                 } label: {
-                    Image(systemName: "paperplane.fill")
-                        .foregroundStyle(BrandColor.petrol)
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BrandColor.paper)
+                        .frame(width: 38, height: 38)
+                        .background(BrandColor.ink, in: Circle())
                 }
                 .buttonStyle(.borderless)
                 .disabled(posting || (body_.isBlank && staged.isEmpty))
                 .accessibilityLabel("Post note")
             }
+            .padding(.leading, 14)
+            .padding(.trailing, 5)
+            .padding(.vertical, 5)
+            .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .shadow(color: Color.black.opacity(0.07), radius: 4, y: 2)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
         .fileImporter(
             isPresented: $pickerOpen,
             allowedContentTypes: [.item],

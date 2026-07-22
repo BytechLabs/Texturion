@@ -78,19 +78,20 @@ struct ComposerBannerCard: View {
 
     var body: some View {
         let copy = bannerCopy(banner)
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(copy.title)
-                .font(.subheadline.weight(.semibold))
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
             Text(copy.body)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted600)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color(.separator), lineWidth: 0.5)
+        .background(
+            BrandColor.cream,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 8)

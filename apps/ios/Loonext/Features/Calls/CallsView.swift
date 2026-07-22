@@ -4,6 +4,7 @@ import AVFoundation
 private enum CallsFilter: String, CaseIterable, Identifiable {
     case all = "All"
     case missed = "Missed"
+    case voicemail = "Voicemail"
 
     var id: String { rawValue }
 
@@ -11,14 +12,16 @@ private enum CallsFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all: nil
         case .missed: CallOutcome.missed
+        case .voicemail: CallOutcome.voicemail
         }
     }
 }
 
-/// The calls surface (#161): softphone status pill, All|Missed log
+/// The calls surface (#161): softphone status line, All|Missed|Voicemail log
 /// (cursor-paged), outcome rows, voicemail playback, realtime call.updated
 /// refresh, and the dialer. Registering the softphone here (and in
 /// `CallsOverlay`) is what makes this member ring-eligible.
+/// Paper & Olive reskin per spec 25 (docs/MOBILE-DESIGN.md).
 @MainActor
 struct CallsView: View {
     let graph: AppGraph
@@ -54,17 +57,14 @@ struct CallsView: View {
         VStack(spacing: 0) {
             header
 
-            Picker("Filter", selection: $filter) {
-                ForEach(CallsFilter.allCases) { item in
-                    Text(item.rawValue).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            filterPills
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
 
             content
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.canvas)
         .task(id: companyId) {
             manager.start(companyId: companyId, callerIdName: me.display_name)
         }
@@ -94,28 +94,69 @@ struct CallsView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Calls")
-                    .font(.title2.weight(.semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    ScreenTitle(text: "Calls")
+                    SoftphoneStatusPill(
+                        status: manager.state.status,
+                        onRetry: manager.retryNow
+                    )
+                }
                 // Honest until the founder uploads a Telnyx VoIP push
                 // credential — without it, nothing rings a closed app.
                 Text("Calls ring here while the app is open.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
             }
             Spacer()
-            SoftphoneStatusPill(status: manager.state.status, onRetry: manager.retryNow)
             Button {
                 dialerOpen = true
             } label: {
-                Image(systemName: "circle.grid.3x3.fill")
-                    .font(.body)
+                Image(systemName: "circle.grid.3x3")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.paper, in: Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Dial a number")
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 18)
         .padding(.top, 16)
         .padding(.bottom, 4)
+    }
+
+    private var filterPills: some View {
+        HStack(spacing: 7) {
+            ForEach(CallsFilter.allCases) { item in
+                let selected = filter == item
+                Button {
+                    filter = item
+                } label: {
+                    Text(item.rawValue)
+                        .font(.golos(12, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(
+                            selected ? BrandColor.muted900 : BrandColor.muted500
+                        )
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 9)
+                        .background(
+                            selected ? BrandColor.avatarTint : BrandColor.paper,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+
+    private var emptyCopy: String {
+        switch filter {
+        case .missed: "No missed calls."
+        case .voicemail: "No voicemails yet."
+        case .all: "No calls yet. When customers call your number, they land here."
+        }
     }
 
     @ViewBuilder
@@ -127,42 +168,46 @@ struct CallsView: View {
             CenteredError(message: message) { refreshKey += 1 }
         case .ready(let calls):
             if calls.isEmpty {
-                Text(
-                    filter == .missed
-                        ? "No missed calls."
-                        : "No calls yet. When customers call your number, they land here."
-                )
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text(emptyCopy)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(calls, id: \.id) { call in
-                        CallRow(
-                            call: call,
-                            service: service,
-                            companyId: companyId,
-                            onOpen: openAction(for: call)
-                        )
-                    }
-                    if nextCursor != nil {
-                        HStack {
-                            Spacer()
-                            if loadingMore {
-                                ProgressView()
-                            } else {
-                                Button("Load more") { loadMore() }
-                                    .font(.subheadline)
+                ScrollView {
+                    VStack(spacing: 14) {
+                        PaperCard {
+                            ForEach(calls, id: \.id) { call in
+                                CallRow(
+                                    call: call,
+                                    service: service,
+                                    companyId: companyId,
+                                    onOpen: openAction(for: call)
+                                )
+                                if call.id != calls.last?.id {
+                                    RowDivider().padding(.leading, 64)
+                                }
                             }
-                            Spacer()
                         }
-                        .padding(.vertical, 4)
-                        .listRowSeparator(.hidden)
+                        if nextCursor != nil {
+                            HStack {
+                                Spacer()
+                                if loadingMore {
+                                    ProgressView()
+                                } else {
+                                    Button("Load more") { loadMore() }
+                                        .font(.golos(12, weight: .semibold))
+                                        .foregroundStyle(BrandColor.olive)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 24)
                 }
-                .listStyle(.plain)
             }
         }
     }
@@ -212,14 +257,15 @@ struct CallsView: View {
     }
 }
 
-/// Ready / Connecting / Offline — one calm pill, tap retries when down.
+/// Ready / Connecting / Offline — one calm status line (lime dot + olive text
+/// when the line is ready, spec 25), tap retries when down.
 private struct SoftphoneStatusPill: View {
     let status: SoftphoneStatus
     let onRetry: @MainActor () -> Void
 
     private var label: String {
         switch status {
-        case .ready: "Ready"
+        case .ready: "Ready to ring"
         case .connecting: "Connecting…"
         case .disconnected: "Offline · retry"
         }
@@ -227,8 +273,16 @@ private struct SoftphoneStatusPill: View {
 
     private var dotColor: Color {
         switch status {
-        case .ready: BrandColor.petrol
-        case .connecting: Color.secondary
+        case .ready: BrandColor.lime
+        case .connecting: BrandColor.muted400
+        case .disconnected: BrandColor.overdueAmber
+        }
+    }
+
+    private var textColor: Color {
+        switch status {
+        case .ready: BrandColor.olive
+        case .connecting: BrandColor.muted500
         case .disconnected: BrandColor.overdueAmber
         }
     }
@@ -237,17 +291,14 @@ private struct SoftphoneStatusPill: View {
         Button {
             if status == .disconnected { onRetry() }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Circle()
                     .fill(dotColor)
-                    .frame(width: 7, height: 7)
+                    .frame(width: 6, height: 6)
                 Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11, weight: .semibold))
+                    .foregroundStyle(textColor)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.quaternary.opacity(0.5), in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -262,61 +313,66 @@ private struct CallRow: View {
     private var name: String { callerDisplayName(call) }
 
     private var directionIcon: String {
-        if call.direction == "outbound" { return "phone.arrow.up.right" }
-        if call.outcome == CallOutcome.missed { return "phone.arrow.down.left" }
-        return "phone.arrow.down.left.fill"
+        call.direction == "outbound" ? "phone.arrow.up.right" : "phone.arrow.down.left"
+    }
+
+    private var metaColor: Color {
+        isActionableMiss(call) ? BrandColor.overdueAmber : BrandColor.muted500
+    }
+
+    private var showsVoicemail: Bool {
+        call.outcome == CallOutcome.voicemail && (call.voicemail_seconds ?? 0) > 0
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 12) {
-                InitialsAvatar(name: name)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 11) {
+                InitialsAvatar(name: name, size: 38)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.body)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .lineLimit(1)
                     HStack(spacing: 6) {
                         Image(systemName: directionIcon)
-                            .font(.caption2)
-                            .foregroundStyle(
-                                isActionableMiss(call)
-                                    ? BrandColor.overdueAmber
-                                    : Color.secondary
-                            )
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(metaColor)
                         Text(callOutcomeLabel(call))
-                            .font(.caption)
-                            // Amber for the actionable inbound miss — the
-                            // row's one tinted element; all else stays quiet.
-                            .foregroundStyle(
-                                isActionableMiss(call)
-                                    ? BrandColor.overdueAmber
-                                    : Color.secondary
-                            )
+                            .font(.golos(
+                                11.5,
+                                weight: isActionableMiss(call) ? .semibold : .regular
+                            ))
+                            .foregroundStyle(metaColor)
                         if let label = screeningLabel(call.screening_result) {
-                            Text(label)
-                                .font(.caption2)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(.quaternary.opacity(0.6), in: Capsule())
-                                .foregroundStyle(.secondary)
+                            DsChip(
+                                text: label,
+                                container: BrandColor.inset,
+                                content: BrandColor.muted600
+                            )
                         }
                     }
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 Text(relativeTime(call.started_at))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .monospacedDigit()
             }
-            if call.outcome == CallOutcome.voicemail, (call.voicemail_seconds ?? 0) > 0 {
+            .padding(.horizontal, 15)
+            .padding(.top, 11)
+            .padding(.bottom, showsVoicemail ? 6 : 11)
+            if showsVoicemail {
                 VoicemailPlayerRow(
                     service: service,
                     companyId: companyId,
                     sessionId: call.call_session_id,
                     seconds: call.voicemail_seconds ?? 0
                 )
-                .padding(.leading, 52)
+                .padding(.leading, 64)
+                .padding(.trailing, 15)
+                .padding(.bottom, 12)
             }
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture {
             onOpen?()
@@ -325,7 +381,8 @@ private struct CallRow: View {
 }
 
 /// Inline voicemail playback: mint the 1h signed URL on demand (never
-/// cached), stream via AVPlayer with seek + live progress.
+/// cached), stream via AVPlayer with seek + live progress. Spec 25 pill:
+/// inset capsule, ink play circle, muted tabular time.
 private struct VoicemailPlayerRow: View {
     let service: CallsService
     let companyId: String
@@ -350,19 +407,23 @@ private struct VoicemailPlayerRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+            HStack(spacing: 9) {
                 Button(action: togglePlayback) {
-                    if preparing {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: playing ? "pause.fill" : "play.fill")
-                            .font(.footnote)
+                    Group {
+                        if preparing {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(BrandColor.paper)
+                        } else {
+                            Image(systemName: playing ? "pause.fill" : "play.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(BrandColor.paper)
+                        }
                     }
+                    .frame(width: 28, height: 28)
+                    .background(BrandColor.ink, in: Circle())
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.circle)
-                .tint(BrandColor.petrol)
+                .buttonStyle(.plain)
                 .accessibilityLabel(playing ? "Pause voicemail" : "Play voicemail")
 
                 Slider(
@@ -380,17 +441,22 @@ private struct VoicemailPlayerRow: View {
                         ))
                     }
                 }
+                .tint(BrandColor.olive)
                 .disabled(player == nil)
 
                 Text("\(formatTimer(elapsedMs: positionMs)) / \(formatVoicemailLength(seconds))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted600)
                     .monospacedDigit()
             }
+            .padding(.vertical, 6)
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
+            .background(BrandColor.inset, in: Capsule())
             if let errorText {
                 Text(errorText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
             }
         }
         .task(id: playing) {
@@ -505,65 +571,72 @@ private func previewCall(
 
 #Preview("Call log rows") {
     let service = CallsService(api: AppGraph().api)
-    List {
-        CallRow(
-            call: previewCall(
-                id: "c1",
-                outcome: CallOutcome.missed,
-                contactName: "Dana Whitcomb"
-            ),
-            service: service,
-            companyId: "company-1",
-            onOpen: nil
-        )
-        CallRow(
-            call: previewCall(
-                id: "c2",
-                outcome: CallOutcome.answered,
-                callerName: "ARI B",
-                callerE164: "+14155550188",
-                forwardSeconds: 272
-            ),
-            service: service,
-            companyId: "company-1",
-            onOpen: nil
-        )
-        CallRow(
-            call: previewCall(
-                id: "c3",
-                outcome: CallOutcome.answered,
-                direction: "outbound",
-                contactName: "Marta Reyes",
-                forwardSeconds: 58
-            ),
-            service: service,
-            companyId: "company-1",
-            onOpen: nil
-        )
-        CallRow(
-            call: previewCall(
-                id: "c4",
-                outcome: CallOutcome.voicemail,
-                callerE164: "+14155550134",
-                voicemailSeconds: 42
-            ),
-            service: service,
-            companyId: "company-1",
-            onOpen: nil
-        )
-        CallRow(
-            call: previewCall(
-                id: "c5",
-                outcome: CallOutcome.missed,
-                callerE164: "+18005550100",
-                screening: "spam_likely"
-            ),
-            service: service,
-            companyId: "company-1",
-            onOpen: nil
-        )
+    ScrollView {
+        PaperCard {
+            CallRow(
+                call: previewCall(
+                    id: "c1",
+                    outcome: CallOutcome.missed,
+                    contactName: "Dana Whitcomb"
+                ),
+                service: service,
+                companyId: "company-1",
+                onOpen: nil
+            )
+            RowDivider().padding(.leading, 64)
+            CallRow(
+                call: previewCall(
+                    id: "c2",
+                    outcome: CallOutcome.answered,
+                    callerName: "ARI B",
+                    callerE164: "+14155550188",
+                    forwardSeconds: 272
+                ),
+                service: service,
+                companyId: "company-1",
+                onOpen: nil
+            )
+            RowDivider().padding(.leading, 64)
+            CallRow(
+                call: previewCall(
+                    id: "c3",
+                    outcome: CallOutcome.answered,
+                    direction: "outbound",
+                    contactName: "Marta Reyes",
+                    forwardSeconds: 58
+                ),
+                service: service,
+                companyId: "company-1",
+                onOpen: nil
+            )
+            RowDivider().padding(.leading, 64)
+            CallRow(
+                call: previewCall(
+                    id: "c4",
+                    outcome: CallOutcome.voicemail,
+                    callerE164: "+14155550134",
+                    voicemailSeconds: 42
+                ),
+                service: service,
+                companyId: "company-1",
+                onOpen: nil
+            )
+            RowDivider().padding(.leading, 64)
+            CallRow(
+                call: previewCall(
+                    id: "c5",
+                    outcome: CallOutcome.missed,
+                    callerE164: "+18005550100",
+                    screening: "spam_likely"
+                ),
+                service: service,
+                companyId: "company-1",
+                onOpen: nil
+            )
+        }
+        .padding(18)
     }
-    .listStyle(.plain)
+    .background(BrandColor.canvas)
 }
 
 #Preview("Status pill states") {
@@ -573,4 +646,5 @@ private func previewCall(
         SoftphoneStatusPill(status: .disconnected, onRetry: {})
     }
     .padding()
+    .background(BrandColor.canvas)
 }

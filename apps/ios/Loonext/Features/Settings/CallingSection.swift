@@ -118,7 +118,7 @@ private struct TextBackCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save text-back") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(saving)
                         .padding(.top, 10)
                 }
@@ -208,7 +208,7 @@ private struct VoicemailCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save greeting") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(saving)
                         .padding(.top, 10)
                 }
@@ -290,7 +290,7 @@ private struct ScreeningCard: View {
                 } label: {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(selected ? BrandColor.petrol : Color.secondary)
+                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(choice.label)
@@ -409,7 +409,7 @@ private struct CallerIdCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save caller ID") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(saving)
                         .padding(.top, 10)
                 }

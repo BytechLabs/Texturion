@@ -11,9 +11,10 @@ struct MessageBubbleActions {
     let onCopied: @MainActor () -> Void
 }
 
-/// One message bubble: inbound hairline left, outbound flat petrol right,
-/// note amber centered. Long-press opens the standard iOS context menu with
-/// copy / done / pin / retry / make-a-task (the Android action sheet's twin).
+/// One message bubble: inbound paper left, outbound ink right, internal note
+/// a cream well centered ("Paper & Olive", screens 21/30). Long-press opens
+/// the standard iOS context menu with copy / done / pin / retry / make-a-task
+/// (the Android action sheet's twin).
 struct MessageBubble: View {
     let message: Message
     let authorName: String?
@@ -53,12 +54,12 @@ struct MessageBubble: View {
         VStack(alignment: .leading, spacing: 4) {
             if note {
                 HStack(spacing: 4) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NoteAmber.ink)
+                    Image(systemName: "lock")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(BrandColor.muted700)
                     Text(authorName ?? "Internal note")
-                        .font(.caption)
-                        .foregroundStyle(NoteAmber.ink)
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
                 }
             }
 
@@ -69,7 +70,7 @@ struct MessageBubble: View {
 
             if !message.body.isBlank {
                 Text(message.body)
-                    .font(.body)
+                    .font(.golos(14))
                     .foregroundStyle(bodyColor)
                     .strikethrough(done)
             }
@@ -83,14 +84,14 @@ struct MessageBubble: View {
                 )
                 if let taskLink = message.task ?? message.promoted_task {
                     Text("on: \(taskLink.title)")
-                        .font(.caption)
-                        .foregroundStyle(NoteAmber.ink)
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
                         .padding(.top, 2)
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
         .background(bubbleBackground)
         .frame(maxWidth: note ? 340 : 300, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -101,23 +102,34 @@ struct MessageBubble: View {
     }
 
     private var bodyColor: Color {
-        if note { return .primary }
-        return outbound ? BrandColor.onPetrol : .primary
+        if note { return BrandColor.ink }
+        return outbound ? BrandColor.canvas : BrandColor.ink
     }
 
     @ViewBuilder
     private var bubbleBackground: some View {
-        let shape = RoundedRectangle(cornerRadius: 16)
         if note {
-            shape
-                .fill(NoteAmber.bg)
-                .overlay(shape.strokeBorder(NoteAmber.line, lineWidth: 1))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(BrandColor.cream)
         } else if outbound {
-            shape.fill(BrandColor.petrol)
+            UnevenRoundedRectangle(
+                topLeadingRadius: 20,
+                bottomLeadingRadius: 20,
+                bottomTrailingRadius: 6,
+                topTrailingRadius: 20,
+                style: .continuous
+            )
+            .fill(BrandColor.ink)
         } else {
-            shape
-                .fill(Color(.systemBackground))
-                .overlay(shape.strokeBorder(Color(.separator), lineWidth: 0.5))
+            UnevenRoundedRectangle(
+                topLeadingRadius: 20,
+                bottomLeadingRadius: 6,
+                bottomTrailingRadius: 20,
+                topTrailingRadius: 20,
+                style: .continuous
+            )
+            .fill(BrandColor.paper)
+            .shadow(color: BrandColor.inkFixed.opacity(0.05), radius: 2, y: 1)
         }
     }
 
@@ -187,32 +199,37 @@ private struct MessageMetaLine: View {
             if message.pinned_at != nil {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BrandColor.muted300)
                     .accessibilityLabel("Pinned")
             }
             if message.has_task || message.promoted_task != nil {
                 Image(systemName: "checklist")
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BrandColor.muted300)
                     .accessibilityLabel("Has a task")
             }
             Text(metaText)
-                .font(.caption2)
+                .font(.golos(10.5))
                 .foregroundStyle(
                     failed && !optedOut
                         ? AnyShapeStyle(BrandColor.destructive)
-                        : AnyShapeStyle(Color.secondary)
+                        : AnyShapeStyle(BrandColor.muted300)
                 )
             if message.retryable {
-                Button("Retry", action: onRetry)
-                    .font(.caption2)
-                    .foregroundStyle(BrandColor.destructive)
-                    .buttonStyle(.plain)
+                Button(action: onRetry) {
+                    Text("Retry")
+                        .font(.golos(10.5, weight: .bold))
+                        .foregroundStyle(BrandColor.destructive)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(BrandColor.destructiveContainer, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
             if message.done_at != nil {
                 Text("Done" + (doneByName.map { " · \($0)" } ?? ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted300)
             }
         }
     }
@@ -227,27 +244,33 @@ struct PendingBubble: View {
             VStack(alignment: .leading, spacing: 2) {
                 if pending.mediaCount > 0 {
                     Text(pending.mediaCount == 1 ? "1 photo" : "\(pending.mediaCount) photos")
-                        .font(.caption)
-                        .foregroundStyle(BrandColor.onPetrol)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.canvas)
                 }
                 if !pending.body.isBlank {
                     Text(pending.body)
-                        .font(.body)
-                        .foregroundStyle(BrandColor.onPetrol)
+                        .font(.golos(14))
+                        .foregroundStyle(BrandColor.canvas)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(BrandColor.petrol.opacity(0.65))
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 20,
+                    bottomLeadingRadius: 20,
+                    bottomTrailingRadius: 6,
+                    topTrailingRadius: 20,
+                    style: .continuous
+                )
+                .fill(BrandColor.ink.opacity(0.65))
             )
             .frame(maxWidth: 300, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
 
             Text("Sending…")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.golos(10.5))
+                .foregroundStyle(BrandColor.muted300)
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 16)
@@ -262,8 +285,8 @@ struct EventLine: View {
 
     var body: some View {
         Text("\(text) · \(bubbleTime(timeIso))")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .font(.golos(11))
+            .foregroundStyle(BrandColor.muted400)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
@@ -271,25 +294,19 @@ struct EventLine: View {
     }
 }
 
-/// Hairline day divider with a centered label.
+/// Centered tracked-uppercase day label ("TODAY") — screens 21/30 drop the
+/// hairlines; the label alone carries the break.
 struct DayDividerLine: View {
     let label: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Rectangle()
-                .fill(Color(.separator))
-                .frame(height: 0.5)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize()
-            Rectangle()
-                .fill(Color(.separator))
-                .frame(height: 0.5)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        Text(label.uppercased())
+            .font(.golos(10.5, weight: .semibold))
+            .kerning(1.0)
+            .foregroundStyle(BrandColor.muted300)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
     }
 }
 
@@ -309,8 +326,8 @@ struct SignedAttachmentImage: View {
         Group {
             if failed {
                 Text("Photo unavailable — tap to retry")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
                     .onTapGesture {
                         autoRetried = false
                         url = nil
@@ -325,7 +342,7 @@ struct SignedAttachmentImage: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(maxWidth: 240)
                             .frame(height: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     case .failure:
                         loadingPlaceholder
                             .onAppear {
@@ -359,8 +376,8 @@ struct SignedAttachmentImage: View {
     }
 
     private var loadingPlaceholder: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .fill(Color(.secondarySystemFill))
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(BrandColor.avatarTint)
             .frame(width: 220, height: 140)
             .overlay(ProgressView())
     }
@@ -383,12 +400,12 @@ struct NoteFilesSection: View {
                             onOpenFile(file)
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "doc.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(NoteAmber.ink)
+                                Image(systemName: "doc")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(BrandColor.olive)
                                 Text(file.file_name ?? "File")
-                                    .font(.caption)
-                                    .foregroundStyle(NoteAmber.ink)
+                                    .font(.golos(11.5, weight: .medium))
+                                    .foregroundStyle(BrandColor.olive)
                                     .lineLimit(1)
                             }
                         }

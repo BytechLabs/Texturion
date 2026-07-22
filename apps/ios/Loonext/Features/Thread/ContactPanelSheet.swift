@@ -39,15 +39,16 @@ struct ContactPanelSheet: View {
                     InitialsAvatar(name: displayName, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(displayName)
-                            .font(.headline)
+                            .font(.golos(16, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
                         Text(
                             contact?.opted_out == true
                                 ? "\(formatPhone(detail.contact.phone_e164)) · Opted out"
                                 : formatPhone(detail.contact.phone_e164)
                         )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
                     }
                 }
                 .padding(.top, 18)
@@ -117,6 +118,7 @@ struct ContactPanelSheet: View {
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
     }
 
     private func sheetSection(
@@ -124,9 +126,7 @@ struct ContactPanelSheet: View {
         @ViewBuilder content: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+            SectionHeader(label: title)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,8 +165,8 @@ private struct TasksChecklistSection: View {
                                 Image(systemName: task.done ? "checkmark.square.fill" : "square")
                                     .foregroundStyle(
                                         task.done
-                                            ? AnyShapeStyle(BrandColor.petrol)
-                                            : AnyShapeStyle(Color.secondary)
+                                            ? AnyShapeStyle(BrandColor.olive)
+                                            : AnyShapeStyle(BrandColor.muted250)
                                     )
                                 Text(task.title)
                                     .font(.subheadline)

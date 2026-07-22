@@ -7,10 +7,17 @@ private let keypadRows: [[String]] = [
     ["*", "0", "#"],
 ]
 
+/// Classic keypad letter hints (spec 03) — display-only.
+private let keypadLetters: [String: String] = [
+    "2": "ABC", "3": "DEF", "4": "GHI", "5": "JKL", "6": "MNO",
+    "7": "PQRS", "8": "TUV", "9": "WXYZ", "0": "+",
+]
+
 /// The dialer — call ANY US/CA number. From-number chips appear only when the
 /// company owns several active numbers (a single-number company lets the
 /// server imply it). The mic permission is preflighted BEFORE authorizing, so
 /// a denial never reserves the line or bills a minute.
+/// Paper & Olive reskin per spec 03: paper key circles, lime call button.
 @MainActor
 struct DialerSheet: View {
     let manager: CallsManager
@@ -34,13 +41,15 @@ struct DialerSheet: View {
     var body: some View {
         VStack(spacing: 8) {
             Capsule()
-                .fill(.quaternary)
+                .fill(BrandColor.insetDeep)
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
 
             Text(digits.isEmpty ? "Enter a number" : formatAsYouDial(digits))
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(digits.isEmpty ? Color.secondary : Color.primary)
+                .font(.display(31))
+                .foregroundStyle(digits.isEmpty ? BrandColor.muted400 : BrandColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .monospacedDigit()
@@ -54,19 +63,15 @@ struct DialerSheet: View {
                                 fromId = number.id
                             } label: {
                                 Text("From \(formatPhone(number.number_e164))")
-                                    .font(.caption)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 7)
+                                    .font(.golos(11.5, weight: .semibold))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
                                     .background(
-                                        selected
-                                            ? AnyShapeStyle(BrandColor.petrolContainer)
-                                            : AnyShapeStyle(.quaternary.opacity(0.5)),
+                                        selected ? BrandColor.ink : BrandColor.inset,
                                         in: Capsule()
                                     )
                                     .foregroundStyle(
-                                        selected
-                                            ? BrandColor.onPetrolContainer
-                                            : Color.secondary
+                                        selected ? BrandColor.paper : BrandColor.muted700
                                     )
                             }
                             .buttonStyle(.plain)
@@ -77,19 +82,33 @@ struct DialerSheet: View {
                 .padding(.bottom, 8)
             }
 
-            ForEach(keypadRows, id: \.self) { row in
-                HStack(spacing: 0) {
-                    ForEach(row, id: \.self) { key in
-                        Button {
-                            if digits.count < 15 { digits += key }
-                        } label: {
-                            Text(key)
-                                .font(.title2)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
+            VStack(spacing: 12) {
+                ForEach(keypadRows, id: \.self) { row in
+                    HStack(spacing: 24) {
+                        ForEach(row, id: \.self) { key in
+                            Button {
+                                if digits.count < 15 { digits += key }
+                            } label: {
+                                VStack(spacing: 0) {
+                                    Text(key)
+                                        .font(.golos(24, weight: .semibold))
+                                        .foregroundStyle(
+                                            (key == "*" || key == "#")
+                                                ? BrandColor.muted500
+                                                : BrandColor.ink
+                                        )
+                                    if let letters = keypadLetters[key] {
+                                        Text(letters)
+                                            .font(.golos(8.5, weight: .bold))
+                                            .kerning(1.4)
+                                            .foregroundStyle(BrandColor.muted300)
+                                    }
+                                }
+                                .frame(width: 72, height: 72)
+                                .background(BrandColor.paper, in: Circle())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
                     }
                 }
             }
@@ -98,20 +117,20 @@ struct DialerSheet: View {
                 Spacer()
                     .frame(maxWidth: .infinity)
                 Button(action: preflightThenCall) {
-                    if calling {
-                        ProgressView()
-                            .tint(BrandColor.onPetrol)
-                            .frame(width: 30, height: 30)
-                            .padding(17)
-                    } else {
-                        Image(systemName: "phone.fill")
-                            .font(.title2)
-                            .foregroundStyle(BrandColor.onPetrol)
-                            .frame(width: 30, height: 30)
-                            .padding(17)
+                    Group {
+                        if calling {
+                            ProgressView()
+                                .tint(BrandColor.onLime)
+                        } else {
+                            Image(systemName: "phone")
+                                .font(.system(size: 24, weight: .medium))
+                        }
                     }
+                    .foregroundStyle(BrandColor.onLime)
+                    .frame(width: 68, height: 68)
+                    .background(BrandColor.lime, in: Circle())
                 }
-                .glassEffect(.regular.tint(BrandColor.petrol).interactive())
+                .buttonStyle(.plain)
                 .disabled(dialable == nil || calling)
                 .opacity(dialable == nil ? 0.4 : 1)
                 .accessibilityLabel("Call")
@@ -121,7 +140,8 @@ struct DialerSheet: View {
                         digits = String(digits.dropLast())
                     } label: {
                         Image(systemName: "delete.left")
-                            .font(.title3)
+                            .font(.system(size: 20, weight: .regular))
+                            .foregroundStyle(BrandColor.muted500)
                     }
                     .disabled(digits.isEmpty)
                     .accessibilityLabel("Delete last digit")
@@ -133,8 +153,8 @@ struct DialerSheet: View {
 
             if let errorText {
                 Text(errorText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
             }
@@ -143,6 +163,7 @@ struct DialerSheet: View {
         }
         .padding(.horizontal, 24)
         .presentationDetents([.large])
+        .presentationBackground(BrandColor.canvas)
     }
 
     /// Mic first, then authorize — a denial never reserves the line.

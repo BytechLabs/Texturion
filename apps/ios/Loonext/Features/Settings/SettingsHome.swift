@@ -42,6 +42,21 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "Your name, theme, email, and password"
         }
     }
+
+    /// Outline SF Symbol for the spec-28 icon tile.
+    var icon: String {
+        switch self {
+        case .workspace: "building.2"
+        case .hours: "clock"
+        case .calling: "phone"
+        case .team: "person.2"
+        case .numbers: "number"
+        case .usage: "chart.bar"
+        case .billing: "creditcard"
+        case .notifications: "bell"
+        case .profile: "person.crop.circle"
+        }
+    }
 }
 
 /// Everything a section needs, threaded once instead of six parameters.
@@ -107,8 +122,9 @@ struct SettingsHome: View {
                 }
             }
             .navigationTitle("Settings")
+            .background(BrandColor.canvas.ignoresSafeArea())
         }
-        .tint(BrandColor.petrol)
+        .tint(BrandColor.olive)
         .overlay(alignment: .bottom) { toastOverlay }
         .task(id: "\(companyId)|\(refreshKey)") { await load() }
         .task(id: companyId) {
@@ -123,27 +139,113 @@ struct SettingsHome: View {
     // MARK: - Index
 
     private func indexList(_ company: CompanyView) -> some View {
-        List {
-            Section {
-                ForEach(SettingsSection.allCases) { section in
-                    NavigationLink(value: section) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(section.title)
-                                .font(.body)
-                            Text(section.blurb)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 13) {
+                ScreenTitle(text: "Settings")
+                identityCard(company)
+                PaperCard {
+                    ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
+                        if index > 0 { RowDivider() }
+                        NavigationLink(value: section) {
+                            sectionRow(section)
                         }
-                        .padding(.vertical, 2)
+                        .buttonStyle(.plain)
                     }
                 }
-            } header: {
-                Text(company.name)
-                    .font(.subheadline)
-                    .textCase(nil)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .background(BrandColor.canvas)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Spec-28 ink identity card: who you are, your role, and the workspace
+    /// number one tap from the clipboard.
+    private func identityCard(_ company: CompanyView) -> some View {
+        HStack(spacing: 13) {
+            Text(initialsOf(me.display_name.isBlank ? company.name : me.display_name))
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.paper)
+                .frame(width: 46, height: 46)
+                .background(BrandColor.paper.opacity(0.14), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(me.display_name.isBlank ? company.name : me.display_name)
+                    .font(.golos(15, weight: .semibold))
+                    .foregroundStyle(BrandColor.paper)
+                    .lineLimit(1)
+                Text(roleLine(company))
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.paper.opacity(0.55))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if let number = activeNumber(company) {
+                Button {
+                    copyToClipboard(number)
+                    showToast("Number copied.")
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(formatPhone(number))
+                            .font(.golos(11, weight: .semibold))
+                            .monospacedDigit()
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(BrandColor.paper)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(BrandColor.paper.opacity(0.1), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Copy number")
             }
         }
-        .listStyle(.insetGrouped)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BrandColor.ink, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func roleLine(_ company: CompanyView) -> String {
+        if let role, !role.isEmpty {
+            return "\(role.capitalized) · \(company.name)"
+        }
+        return company.name
+    }
+
+    private func activeNumber(_ company: CompanyView) -> String? {
+        company.numbers.first { $0.status == NumberStatus.active && $0.number_e164 != nil }?.number_e164
+    }
+
+    /// Spec-28 index row: inset icon tile, 13.5 semibold title, 11 muted blurb.
+    private func sectionRow(_ section: SettingsSection) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: section.icon)
+                .font(.system(size: 15))
+                .foregroundStyle(BrandColor.muted900)
+                .frame(width: 36, height: 36)
+                .background(
+                    BrandColor.inset,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(section.title)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                Text(section.blurb)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted400)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BrandColor.muted250)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Section screens
@@ -186,6 +288,7 @@ struct SettingsHome: View {
             }
             .padding(.vertical, 10)
         }
+        .background(BrandColor.canvas)
         .navigationTitle(section.title)
         .navigationBarTitleDisplayMode(.inline)
     }

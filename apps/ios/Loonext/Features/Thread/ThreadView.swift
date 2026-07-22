@@ -101,6 +101,7 @@ private struct ThreadBody: View {
                 .padding(.bottom, 90)
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .onChange(of: controller.notice?.id) { _, _ in
             guard let notice = controller.notice else { return }
             visibleNotice = notice
@@ -162,7 +163,6 @@ private struct ThreadBody: View {
                     onConfirmOptOut: { confirmOptOut = true },
                     onConfirmRevoke: { confirmRevoke = true }
                 )
-                Divider()
 
                 ThreadTagsRow(
                     tags: detail.tags,
@@ -178,7 +178,6 @@ private struct ThreadBody: View {
                             }
                         }
                     }
-                    Divider()
                 }
 
                 timelinePane(names: names, contactName: contactName)
@@ -244,23 +243,26 @@ private struct ThreadBody: View {
                         + "asked to hear from you."
                 )
             }
-            .alert(
-                "Make a task",
+            .sheet(
                 isPresented: Binding(
                     get: { makeTaskFor != nil },
                     set: { if !$0 { makeTaskFor = nil } }
                 )
             ) {
-                TextField("Task title", text: $makeTaskTitle)
-                Button("Cancel", role: .cancel) { makeTaskFor = nil }
-                Button("Create") {
-                    if let message = makeTaskFor {
-                        let title = makeTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !title.isEmpty {
-                            controller.makeTask(message, title: String(title.prefix(200)))
+                if let message = makeTaskFor {
+                    MakeTaskSheet(
+                        message: message,
+                        contactName: contactName,
+                        title: $makeTaskTitle,
+                        onCancel: { makeTaskFor = nil },
+                        onCreate: {
+                            let title = makeTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !title.isEmpty {
+                                controller.makeTask(message, title: String(title.prefix(200)))
+                            }
+                            makeTaskFor = nil
                         }
-                    }
-                    makeTaskFor = nil
+                    )
                 }
             }
         }
@@ -341,14 +343,14 @@ private struct ThreadBody: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Text("New message")
-                                        .font(.footnote.weight(.medium))
+                                        .font(.golos(12, weight: .semibold))
                                     Image(systemName: "chevron.down")
                                         .font(.system(size: 12, weight: .semibold))
                                 }
-                                .foregroundStyle(BrandColor.onPetrol)
+                                .foregroundStyle(BrandColor.canvas)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(Capsule().fill(BrandColor.petrol))
+                                .background(Capsule().fill(BrandColor.ink))
                             }
                             .padding(.bottom, 12)
                         }
@@ -529,6 +531,7 @@ private struct ThreadHeader: View {
             Button(action: onBack) {
                 Image(systemName: "chevron.backward")
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .frame(width: 36, height: 36)
             }
             .accessibilityLabel("Back")
@@ -536,20 +539,20 @@ private struct ThreadHeader: View {
             // The identity block opens the contact panel sheet.
             Button(action: onOpenContactPanel) {
                 HStack(spacing: 8) {
-                    InitialsAvatar(name: contactName, size: 34)
+                    InitialsAvatar(name: contactName, size: 38)
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(contactName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
+                            .font(.golos(14.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
                         Text(
                             controller.contact?.opted_out == true
                                 ? "\(phoneLabel) · Opted out"
                                 : phoneLabel
                         )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
                         .lineLimit(1)
                     }
                 }
@@ -566,12 +569,13 @@ private struct ThreadHeader: View {
                     if calling {
                         ProgressView()
                             .controlSize(.small)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     } else {
                         Image(systemName: "phone")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(BrandColor.petrol)
-                            .frame(width: 36, height: 36)
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(BrandColor.canvas)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(BrandColor.ink))
                     }
                 }
                 .disabled(calling)
@@ -601,11 +605,11 @@ private struct ThreadHeader: View {
                 }
             } label: {
                 Text(statusLabel(detail.status))
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(BrandColor.onPetrolContainer)
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted900)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(BrandColor.petrolContainer))
+                    .background(Capsule().fill(BrandColor.avatarTint))
             }
 
             // Assignee control.
@@ -619,7 +623,7 @@ private struct ThreadHeader: View {
                     )
                 } else {
                     Image(systemName: "person")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted500)
                         .frame(width: 28, height: 28)
                 }
             }
@@ -694,12 +698,16 @@ private struct ThreadHeader: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.body.weight(.medium))
+                    .foregroundStyle(BrandColor.muted700)
                     .frame(width: 36, height: 36)
             }
             .accessibilityLabel("More")
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.top, 4)
     }
 }
 
@@ -724,7 +732,7 @@ struct AssigneePickerSheet: View {
                         Spacer()
                         if selectedUserId == nil {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(BrandColor.petrol)
+                                .foregroundStyle(BrandColor.olive)
                         }
                     }
                 }
@@ -745,7 +753,7 @@ struct AssigneePickerSheet: View {
                             Spacer()
                             if selectedUserId == member.user_id {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(BrandColor.petrol)
+                                    .foregroundStyle(BrandColor.olive)
                             }
                         }
                     }
@@ -760,6 +768,7 @@ struct AssigneePickerSheet: View {
 }
 
 /// Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
+/// Pinned lives in the warm cream well ("Paper & Olive").
 @MainActor
 private struct PinnedBanner: View {
     let pinned: [Message]
@@ -775,14 +784,14 @@ private struct PinnedBanner: View {
                 HStack(spacing: 8) {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted700)
                     Text("Pinned · \(pinned.count)")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted900)
                     Spacer()
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted700)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -797,13 +806,13 @@ private struct PinnedBanner: View {
                     } label: {
                         HStack(spacing: 8) {
                             Text(message.body.isBlank ? "Photo" : message.body)
-                                .font(.footnote)
-                                .foregroundStyle(.primary)
+                                .font(.golos(12.5))
+                                .foregroundStyle(BrandColor.ink)
                                 .lineLimit(1)
                             Spacer()
                             Text(bubbleTime(message.created_at))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.golos(10.5))
+                                .foregroundStyle(BrandColor.muted400)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
@@ -812,7 +821,9 @@ private struct PinnedBanner: View {
                 }
             }
         }
-        .background(Color(.secondarySystemBackground))
+        .background(BrandColor.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
     }
 }
 
@@ -825,16 +836,16 @@ private struct ToastView: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(notice.text)
-                .font(.footnote)
-                .foregroundStyle(.primary)
+                .font(.golos(12.5))
+                .foregroundStyle(BrandColor.ink)
                 .lineLimit(2)
             if let label = notice.actionLabel {
                 Button(label) {
                     notice.action?()
                     onDismiss()
                 }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(BrandColor.petrol)
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
             }
         }
         .padding(.horizontal, 16)
@@ -842,6 +853,113 @@ private struct ToastView: View {
         .background(.regularMaterial, in: Capsule())
         .padding(.horizontal, 24)
         .onTapGesture { onDismiss() }
+    }
+}
+
+// MARK: - Make a task (spec 22)
+
+/// "Make a task — from a message": quoted source message with a lime bar,
+/// title field on paper, ink Create bar with a lime check circle. Assign-to
+/// and due chips are OMITTED — createTask takes a title only (no data layer
+/// for assignee/due at creation).
+@MainActor
+private struct MakeTaskSheet: View {
+    let message: Message
+    let contactName: String
+    @Binding var title: String
+    let onCancel: @MainActor () -> Void
+    let onCreate: @MainActor () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("New task")
+                        .font(.golos(21, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    Text("From \(contactName)'s message · posts to the thread")
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                Spacer()
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(BrandColor.inset))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cancel")
+            }
+
+            if !message.body.isBlank {
+                HStack(alignment: .top, spacing: 9) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(BrandColor.lime)
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\u{201C}\(message.body)\u{201D}")
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.muted700)
+                            .lineLimit(4)
+                        Text("\(contactName) · \(bubbleTime(message.created_at))")
+                            .font(.golos(10.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.muted300)
+                    }
+                }
+                .padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    BrandColor.inset,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(label: "Title")
+                TextField("Task title", text: $title, axis: .vertical)
+                    .font(.golos(14.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1 ... 3)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 13)
+                    .background(
+                        BrandColor.paper,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+
+            Button(action: onCreate) {
+                HStack(spacing: 10) {
+                    Text("Create task")
+                        .font(.golos(15, weight: .semibold))
+                        .foregroundStyle(BrandColor.canvas)
+                    Spacer()
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(BrandColor.onLime)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(BrandColor.lime))
+                }
+                .padding(.leading, 22)
+                .padding(.trailing, 8)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(BrandColor.ink))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Create task")
+
+            Text("The thread shows the task line")
+                .font(.golos(11))
+                .foregroundStyle(BrandColor.muted300)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(BrandColor.canvas)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 }
 

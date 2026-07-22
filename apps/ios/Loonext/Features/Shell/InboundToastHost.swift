@@ -87,17 +87,23 @@ struct InboundToastHost: View {
             if let toast {
                 HStack(spacing: 12) {
                     Text(toast.line)
-                        .font(.subheadline)
+                        .font(.golos(13, weight: .medium))
+                        .foregroundStyle(BrandColor.ink)
                         .lineLimit(1)
-                    Button("View") {
+                    Button {
                         self.toast = nil
                         onView(toast.conversationId)
+                    } label: {
+                        Text("View")
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .glassEffect()
+                .padding(.vertical, 12)
+                .background(BrandColor.paper, in: Capsule())
+                .shadow(color: BrandColor.inkFixed.opacity(0.18), radius: 12, x: 0, y: 4)
                 .padding(.horizontal, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }

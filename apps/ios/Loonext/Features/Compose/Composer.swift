@@ -8,18 +8,12 @@ enum ComposerMode: Equatable, Sendable {
     case note
 }
 
-/// Loonext amber — notes/overdue accent, tuned per theme for contrast
-/// (mirrors the Android NoteAmber twin).
+/// Loonext amber — notes/overdue accent (mirrors the Android NoteAmber twin),
+/// now aliased onto the Paper & Olive amber tokens so both themes come free.
 enum NoteAmber {
-    static let bg = adaptiveColor(light: 0xFEF3C7, dark: 0x3B2A0A)
-    static let ink = adaptiveColor(light: 0x92400E, dark: 0xFCD34D)
-    static let line = adaptiveColor(light: 0xFDE68A, dark: 0x6B4E16)
-
-    private static func adaptiveColor(light: UInt32, dark: UInt32) -> Color {
-        Color(UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)
-        })
-    }
+    static let bg = BrandColor.amberBg
+    static let ink = BrandColor.overdueAmber
+    static let line = BrandColor.overdueAmber.opacity(0.35)
 }
 
 /// Composer state hoisted out of the UI so the thread controller can restore a
@@ -119,8 +113,8 @@ struct ThreadComposerView: View {
                     modePill(
                         label: "Text",
                         selected: state.mode == .text,
-                        selectedBg: BrandColor.petrolContainer,
-                        selectedInk: BrandColor.onPetrolContainer
+                        selectedBg: BrandColor.avatarTint,
+                        selectedInk: BrandColor.muted900
                     ) { state.mode = .text }
                     modePill(
                         label: "Note",
@@ -203,7 +197,7 @@ struct ThreadComposerView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted500)
                         .frame(width: 36, height: 36)
                 }
                 .accessibilityLabel("Add to message")
@@ -237,13 +231,17 @@ struct ThreadComposerView: View {
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(isNote ? NoteAmber.bg : BrandColor.onPetrol)
+                    .foregroundStyle(
+                        canSend
+                            ? (isNote ? NoteAmber.bg : BrandColor.onLime)
+                            : BrandColor.muted500
+                    )
                     .frame(width: 34, height: 34)
                     .background(
                         Circle().fill(
                             canSend
-                                ? (isNote ? NoteAmber.ink : BrandColor.petrol)
-                                : Color(.systemFill)
+                                ? (isNote ? NoteAmber.ink : BrandColor.lime)
+                                : BrandColor.insetDeep
                         )
                     )
             }
@@ -253,13 +251,13 @@ struct ThreadComposerView: View {
         }
         .padding(.horizontal, 6)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(isNote ? NoteAmber.bg : Color(.systemBackground))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(isNote ? NoteAmber.bg : BrandColor.paper)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .strokeBorder(
-                            isNote ? NoteAmber.line : Color(.separator),
-                            lineWidth: isNote ? 1 : 0.5
+                            isNote ? NoteAmber.line : BrandColor.insetDeep,
+                            lineWidth: 1
                         )
                 )
         )
@@ -277,7 +275,7 @@ struct ThreadComposerView: View {
         Button(action: onTap) {
             Text(label)
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(selected ? selectedInk : Color.secondary)
+                .foregroundStyle(selected ? selectedInk : BrandColor.muted500)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(selected ? selectedBg : Color.clear, in: Capsule())
@@ -376,8 +374,8 @@ struct ComposerHints: View {
             VStack(alignment: .leading, spacing: 2) {
                 if meter.visible {
                     Text(meter.label)
-                        .font(.caption2)
-                        .foregroundStyle(meter.warn ? NoteAmber.ink : Color.secondary)
+                        .font(.golos(10.5))
+                        .foregroundStyle(meter.warn ? BrandColor.overdueAmber : BrandColor.muted300)
                 }
                 if showPreview {
                     Text(
@@ -387,8 +385,8 @@ struct ComposerHints: View {
                             businessName: businessName
                         )
                     )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted300)
                     .lineLimit(2)
                 }
             }
@@ -417,11 +415,11 @@ struct PhotoChipsRow: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .strokeBorder(Color(.separator), lineWidth: 0.5)
+                                        .strokeBorder(BrandColor.insetDeep, lineWidth: 0.5)
                                 )
                         } else {
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.secondarySystemFill))
+                                .fill(BrandColor.inset)
                                 .frame(width: 56, height: 56)
                         }
                         Button {
@@ -429,7 +427,7 @@ struct PhotoChipsRow: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 16))
-                                .foregroundStyle(.primary, Color(.systemBackground))
+                                .foregroundStyle(BrandColor.ink, BrandColor.paper)
                         }
                         .accessibilityLabel("Remove photo")
                         .offset(x: 6, y: -6)
@@ -461,7 +459,7 @@ struct FileChipsRow: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(BrandColor.muted500)
                         }
                         .accessibilityLabel("Remove \(file.name)")
                     }
@@ -469,7 +467,7 @@ struct FileChipsRow: View {
                     .padding(.vertical, 6)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(Color(.separator), lineWidth: 0.5)
+                            .strokeBorder(BrandColor.insetDeep, lineWidth: 1)
                     )
                 }
             }
@@ -490,12 +488,18 @@ struct TemplatePickerSheet: View {
     @State private var retryKey = 0
 
     var body: some View {
-        NavigationStack {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Templates")
+                .font(.display(21))
+                .foregroundStyle(BrandColor.ink)
             content
-                .navigationTitle("Saved replies")
-                .navigationBarTitleDisplayMode(.inline)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(BrandColor.canvas.ignoresSafeArea())
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .task(id: retryKey) {
             state = .loading
             do {
@@ -516,8 +520,8 @@ struct TemplatePickerSheet: View {
         case .ready(let templates):
             if templates.isEmpty {
                 Text("No saved replies yet. Create them on the web under Settings.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted600)
                     .multilineTextAlignment(.center)
                     .padding(24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -528,32 +532,76 @@ struct TemplatePickerSheet: View {
                         template.name.localizedCaseInsensitiveContains(trimmed) ||
                         template.body.localizedCaseInsensitiveContains(trimmed)
                 }
-                List {
-                    ForEach(matches, id: \.id) { template in
-                        Button {
-                            onPick(template.body)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(template.name)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                Text(template.body)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
+                searchField
+                ScrollView {
+                    if matches.isEmpty {
+                        Text("Nothing matches.")
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.muted600)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 24)
+                    } else {
+                        PaperCard {
+                            ForEach(matches, id: \.id) { template in
+                                Button {
+                                    onPick(template.body)
+                                } label: {
+                                    HStack(alignment: .top, spacing: 11) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(template.name)
+                                                .font(.golos(13.5, weight: .bold))
+                                                .foregroundStyle(BrandColor.ink)
+                                            Text(template.body)
+                                                .font(.golos(12))
+                                                .foregroundStyle(BrandColor.muted600)
+                                                .lineLimit(2)
+                                        }
+                                        Spacer(minLength: 11)
+                                        Text("Insert")
+                                            .font(.golos(11, weight: .semibold))
+                                            .foregroundStyle(BrandColor.muted900)
+                                            .padding(.horizontal, 13)
+                                            .padding(.vertical, 7)
+                                            .background(Capsule().fill(BrandColor.inset))
+                                    }
+                                    .padding(.horizontal, 15)
+                                    .padding(.vertical, 13)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                if template.id != matches.last?.id {
+                                    RowDivider()
+                                }
                             }
                         }
                     }
-                    if matches.isEmpty {
-                        Text("Nothing matches.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
                 }
-                .listStyle(.plain)
-                .searchable(text: $query, prompt: "Search saved replies")
+                .scrollDismissesKeyboard(.interactively)
+                Text("Type / in the composer to open these inline · shared with the crew")
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 10)
             }
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(BrandColor.muted300)
+            TextField("Search templates", text: $query)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.ink)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
+        .background(BrandColor.paper, in: Capsule())
+        .overlay(Capsule().strokeBorder(BrandColor.insetDeep, lineWidth: 1.5))
     }
 }
 

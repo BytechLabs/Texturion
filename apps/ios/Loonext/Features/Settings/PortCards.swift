@@ -194,13 +194,13 @@ private struct PortCard: View {
                 if canManage && port.status == PortStatus.draft && port.has_loa && port.has_invoice {
                     Button(busy ? "Submitting…" : "Submit transfer") { submit() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(busy)
                 }
                 if canManage && port.status == PortStatus.exception {
                     Button("Fix and resubmit") { fixing = true }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(busy)
                 }
                 if canCancel && port.status != PortStatus.ported && port.status != PortStatus.cancelPending {
@@ -297,7 +297,7 @@ private struct PortStepper: View {
             ForEach(Array(portSteps.enumerated()), id: \.offset) { i, step in
                 VStack(spacing: 2) {
                     Circle()
-                        .fill(index >= i ? BrandColor.petrol : Color(.secondarySystemFill))
+                        .fill(index >= i ? BrandColor.olive : Color(.secondarySystemFill))
                         .frame(width: 10, height: 10)
                     Text(step)
                         .font(.caption2)
@@ -305,7 +305,7 @@ private struct PortStepper: View {
                 }
                 if i < portSteps.count - 1 {
                     Rectangle()
-                        .fill(index > i ? BrandColor.petrol : Color(.separator).opacity(0.5))
+                        .fill(index > i ? BrandColor.olive : Color(.separator).opacity(0.5))
                         .frame(height: 2)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 4)
@@ -457,12 +457,12 @@ private struct StartPortSheet: View {
                     if !readyForForm {
                         Button(pending ? "Checking…" : "Check the number") { checkNumber() }
                             .buttonStyle(.borderedProminent)
-                            .tint(BrandColor.petrol)
+                            .tint(BrandColor.olive)
                             .disabled(pending || phoneInput.isBlank)
                     } else {
                         Button(pending ? "Creating…" : "Create the transfer") { create() }
                             .buttonStyle(.borderedProminent)
-                            .tint(BrandColor.petrol)
+                            .tint(BrandColor.olive)
                             .disabled(pending || !form.isComplete(wireless: wireless))
                     }
                 }
@@ -578,7 +578,7 @@ private struct FixPortSheet: View {
                     Spacer().frame(height: 16)
                     Button(pending ? "Resubmitting…" : "Resubmit") { resubmit() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(pending || !form.isComplete(wireless: port.is_wireless))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

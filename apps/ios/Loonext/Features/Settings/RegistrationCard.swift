@@ -64,7 +64,7 @@ struct RegistrationBlock: View {
                             InlineError(error)
                             Button(submitting ? "Resubmitting…" : "Resubmit registration") { resubmit() }
                                 .buttonStyle(.borderedProminent)
-                                .tint(BrandColor.petrol)
+                                .tint(BrandColor.olive)
                                 .disabled(submitting)
                                 .padding(.top, 8)
                         }
@@ -185,7 +185,7 @@ private struct SolePropOtpRow: View {
             .disabled(verifying || resending)
             Button(verifying ? "Checking…" : "Verify") { verify() }
                 .buttonStyle(.borderedProminent)
-                .tint(BrandColor.petrol)
+                .tint(BrandColor.olive)
                 .disabled(verifying || resending || code.count != 6)
         }
         .padding(.top, 6)

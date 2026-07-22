@@ -26,7 +26,8 @@ struct NotificationPrefsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Notifications")
-                .font(.headline)
+                .font(.golos(15, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
 
             switch state {
             case .loading:
@@ -127,13 +128,14 @@ private struct PrefToggleRow: View {
         Toggle(isOn: Binding(get: { isOn }, set: onChange)) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                 Text(supporting)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
             }
         }
-        .tint(BrandColor.petrol)
+        .tint(BrandColor.olive)
         .padding(.vertical, 10)
     }
 }
@@ -282,7 +284,7 @@ private struct DevicePushSection: View {
             if solid {
                 Button(action, action: onAction)
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.petrol)
+                    .tint(BrandColor.olive)
                     .disabled(requesting)
             } else {
                 Button(action, action: onAction)

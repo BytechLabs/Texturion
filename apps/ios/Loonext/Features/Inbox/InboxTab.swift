@@ -55,8 +55,10 @@ struct InboxTab: View {
             } else {
                 // iPad's resting detail column; never visible on iPhone.
                 Text("Select a conversation to read it here.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted600)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(BrandColor.canvas)
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -486,12 +488,33 @@ private struct InboxList: View {
             }
             if let visibleNotice {
                 Text(visibleNotice)
-                    .font(.footnote)
+                    .font(.golos(12.5))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.regularMaterial, in: Capsule())
                     .padding(.bottom, 12)
                     .onTapGesture { self.visibleNotice = nil }
+            }
+        }
+        .background(BrandColor.canvas)
+        // The ink 54pt compose FAB (spec 20) — the same compose action the
+        // old header pencil fired; hidden while global search is showing.
+        .overlay(alignment: .bottomTrailing) {
+            if let controller, !controller.searching {
+                Button {
+                    onCompose()
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(BrandColor.paper)
+                        .frame(width: 54, height: 54)
+                        .background(BrandColor.ink, in: Circle())
+                        .shadow(color: BrandColor.inkFixed.opacity(0.28), radius: 14, x: 0, y: 8)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New message")
+                .padding(.trailing, 18)
+                .padding(.bottom, 12)
             }
         }
         .onChange(of: controller?.notice?.id) { _, _ in
@@ -531,20 +554,15 @@ private struct InboxList: View {
     private func listBody(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                searchField(controller)
-                Button {
-                    onCompose()
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(BrandColor.petrol)
-                        .frame(width: 36, height: 36)
-                }
-                .accessibilityLabel("New message")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            ScreenTitle(text: "Inbox")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+
+            searchField(controller)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 10)
 
             if controller.searching {
                 SearchResultsPane(
@@ -557,17 +575,7 @@ private struct InboxList: View {
                     onTextContact: onTextContact
                 )
             } else {
-                Picker("Filter", selection: Binding(
-                    get: { controller.tab },
-                    set: { controller.selectTab($0) }
-                )) {
-                    ForEach(InboxStatusTab.allCases) { item in
-                        Text(item.rawValue).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
+                statusPillRow(controller)
 
                 FilterChipRow(
                     controller: controller,
@@ -593,6 +601,7 @@ private struct InboxList: View {
                 }
             }
         }
+        .background(BrandColor.canvas)
         // Debounced search over the query field.
         .task(id: controller.query) {
             if !controller.query.isEmpty {
@@ -641,10 +650,13 @@ private struct InboxList: View {
 
     private func searchField(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
-        return HStack(spacing: 8) {
+        return HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search conversations, contacts, tasks…", text: $controller.query)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(BrandColor.muted700)
+            TextField("Search texts, tasks, contacts…", text: $controller.query)
+                .font(.golos(13.5))
+                .foregroundStyle(BrandColor.ink)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onChange(of: controller.query) { _, next in
@@ -657,15 +669,47 @@ private struct InboxList: View {
                     controller.query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(BrandColor.paper, in: Capsule())
+    }
+
+    /// Spec 20's segmented pills: selected = ink pill with paper text, idle =
+    /// paper pill with muted text. Same `selectTab` mutation as the old
+    /// segmented Picker.
+    private func statusPillRow(_ controller: InboxController) -> some View {
+        HStack(spacing: 7) {
+            ForEach(InboxStatusTab.allCases) { item in
+                statusPill(item, selected: controller.tab == item) {
+                    controller.selectTab(item)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 4)
+    }
+
+    private func statusPill(
+        _ item: InboxStatusTab,
+        selected: Bool,
+        onTap: @escaping @MainActor () -> Void
+    ) -> some View {
+        Button(action: onTap) {
+            Text(item.rawValue)
+                .font(.golos(12.5, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -729,7 +773,7 @@ private struct FilterChipRow: View {
                     onClear: nil
                 )
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
             .padding(.vertical, 2)
         }
     }
@@ -742,39 +786,26 @@ private struct FilterChip: View {
     let onClear: (@MainActor () -> Void)?
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Button(action: onTap) {
                 Text(label)
-                    .font(.subheadline)
-                    .foregroundStyle(
-                        selected
-                            ? AnyShapeStyle(BrandColor.onPetrolContainer)
-                            : AnyShapeStyle(Color.primary)
-                    )
+                    .font(.golos(12, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
             }
             .buttonStyle(.plain)
             if let onClear {
                 Button(action: onClear) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(
-                            selected
-                                ? AnyShapeStyle(BrandColor.onPetrolContainer)
-                                : AnyShapeStyle(Color.secondary)
-                        )
+                        .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted500)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear filter")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(
-            selected
-                ? AnyShapeStyle(BrandColor.petrolContainer)
-                : AnyShapeStyle(Color(.secondarySystemFill)),
-            in: Capsule()
-        )
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+        .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
     }
 }
 
@@ -791,28 +822,28 @@ private struct ConversationListPane: View {
             // A List so pull-to-refresh works from the empty state too.
             List {
                 Text(emptyLabel)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted600)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 32)
                     .padding(.top, 120)
                     .listRowSeparator(.hidden)
+                    .listRowBackground(BrandColor.canvas)
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas)
             .refreshable { await controller.refreshFirstPage() }
         } else {
             List(selection: $selection) {
                 if !controller.pinnedRows.isEmpty {
                     Section {
                         ForEach(controller.pinnedRows, id: \.id) { row in
-                            rowCell(row)
+                            rowCell(row, pinned: true)
                         }
                     } header: {
-                        Label("Pinned", systemImage: "pin.fill")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(nil)
+                        SectionHeader(label: "Pinned")
                     }
                 }
                 Section {
@@ -831,17 +862,17 @@ private struct ConversationListPane: View {
                             Spacer()
                         }
                         .listRowSeparator(.hidden)
+                        .listRowBackground(BrandColor.canvas)
                     }
                 } header: {
                     if !controller.pinnedRows.isEmpty, !controller.rows.isEmpty {
-                        Text("Conversations")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(nil)
+                        SectionHeader(label: "Conversations")
                     }
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas)
             // The reconnect path's first-page refetch, on demand.
             .refreshable { await controller.refreshFirstPage() }
         }
@@ -850,10 +881,13 @@ private struct ConversationListPane: View {
     /// One row + its swipe actions. Done/Reopen IS the close/open status flip
     /// (product vocabulary: "Done" == closed — the web removed the redundant
     /// separate control); Assign opens the thread's assignee picker.
-    private func rowCell(_ row: ConversationListItem) -> some View {
+    private func rowCell(_ row: ConversationListItem, pinned: Bool = false) -> some View {
         let closed = row.status == ConversationStatus.closed
         return ConversationRow(row: row) { onOpen(row.id) }
             .tag(row.id)
+            // Pinned rows sit on the warm cream well (design-system grammar).
+            .listRowBackground(pinned ? BrandColor.cream : BrandColor.paper)
+            .listRowSeparatorTint(BrandColor.inset)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
                     controller.setRowStatus(
@@ -866,7 +900,7 @@ private struct ConversationListPane: View {
                         systemImage: closed ? "arrow.uturn.backward" : "checkmark"
                     )
                 }
-                .tint(BrandColor.petrol)
+                .tint(BrandColor.olive)
                 Button {
                     onAssign(row)
                 } label: {
@@ -903,27 +937,27 @@ private struct ConversationRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .center, spacing: 12) {
-                InitialsAvatar(name: name)
+            HStack(alignment: .center, spacing: 11) {
+                InitialsAvatar(name: name, size: 42)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(name)
-                            .font(row.unread ? .body.weight(.semibold) : .body)
-                            .foregroundStyle(.primary)
+                            .font(.golos(14, weight: row.unread ? .semibold : .medium))
+                            .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
                         if row.is_spam {
                             Text("Spam")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1)
-                                .background(Color(.secondarySystemFill), in: Capsule())
+                                .font(.golos(10, weight: .bold))
+                                .foregroundStyle(BrandColor.muted600)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(BrandColor.inset, in: Capsule())
                         }
                     }
                     if !snippet.isEmpty {
                         Text(snippet)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.muted600)
                             .lineLimit(2)
                     }
                     if !row.tags.isEmpty {
@@ -933,26 +967,25 @@ private struct ConversationRow: View {
                             }
                             if row.tags.count > 3 {
                                 Text("+\(row.tags.count - 3)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(.golos(10.5, weight: .semibold))
+                                    .foregroundStyle(BrandColor.muted500)
                             }
                         }
-                        .padding(.top, 1)
+                        .padding(.top, 2)
                     }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
                     Text(relativeTime(row.last_message_at))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandColor.muted300)
                     if row.unread {
-                        Circle()
-                            .fill(BrandColor.petrol)
-                            .frame(width: 8, height: 8)
+                        AttentionDot()
                     }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 5)
         }
         .buttonStyle(.plain)
     }
@@ -962,19 +995,19 @@ private struct TagChip: View {
     let tag: Tag
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 4) {
             if let tint = tag.color.flatMap(parseHexColor) {
                 Circle()
                     .fill(tint)
                     .frame(width: 6, height: 6)
             }
             Text(tag.name)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.golos(10.5, weight: .semibold))
+                .foregroundStyle(BrandColor.muted600)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 1)
-        .background(Color(.secondarySystemFill), in: Capsule())
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(BrandColor.inset, in: Capsule())
     }
 }
 
@@ -1031,11 +1064,12 @@ private struct AssigneeFilterSheet: View {
                     InitialsAvatar(name: avatarName, size: 30)
                 }
                 Text(label)
-                    .foregroundStyle(.primary)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(BrandColor.petrol)
+                        .foregroundStyle(BrandColor.olive)
                 }
             }
         }
@@ -1055,29 +1089,33 @@ private struct TagFilterSheet: View {
                     onPick(nil)
                 } label: {
                     HStack {
-                        Text("Any tag").foregroundStyle(.primary)
+                        Text("Any tag")
+                            .font(.golos(13.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
                         Spacer()
                         if selected == nil {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(BrandColor.petrol)
+                                .foregroundStyle(BrandColor.olive)
                         }
                     }
                 }
                 if tags.isEmpty {
                     Text("No tags yet. Add tags from a conversation on the web.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted500)
                 }
                 ForEach(tags, id: \.id) { tag in
                     Button {
                         onPick(tag)
                     } label: {
                         HStack {
-                            Text(tag.name).foregroundStyle(.primary)
+                            Text(tag.name)
+                                .font(.golos(13.5, weight: .semibold))
+                                .foregroundStyle(BrandColor.ink)
                             Spacer()
                             if selected?.id == tag.id {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(BrandColor.petrol)
+                                    .foregroundStyle(BrandColor.olive)
                             }
                         }
                     }
@@ -1125,8 +1163,8 @@ private struct SearchResultsPane: View {
             result.tasks.isEmpty && result.attachments.isEmpty && result.templates.isEmpty
         if empty {
             Text("Nothing matches \"\(controller.query.trimmingCharacters(in: .whitespaces))\".")
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(selection: $selection) {
@@ -1134,26 +1172,32 @@ private struct SearchResultsPane: View {
                     Section {
                         ForEach(result.conversations, id: \.matched_message_id) { hit in
                             conversationHit(hit)
+                                .listRowBackground(BrandColor.paper)
+                                .listRowSeparatorTint(BrandColor.inset)
                         }
                         if result.next_cursor != nil {
                             Button(controller.searchLoadingMore ? "Loading…" : "More results") {
                                 controller.searchMore()
                             }
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(BrandColor.petrol)
+                            .font(.golos(12.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
                             .disabled(controller.searchLoadingMore)
+                            .listRowBackground(BrandColor.paper)
+                            .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        sectionLabel("Conversations")
+                        SectionHeader(label: "Conversations", count: result.conversations.count)
                     }
                 }
                 if !result.contacts.isEmpty {
                     Section {
                         ForEach(result.contacts, id: \.id) { contact in
                             contactHit(contact)
+                                .listRowBackground(BrandColor.paper)
+                                .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        sectionLabel("Contacts")
+                        SectionHeader(label: "Contacts", count: result.contacts.count)
                     }
                 }
                 if !result.tasks.isEmpty {
@@ -1162,56 +1206,58 @@ private struct SearchResultsPane: View {
                             Button {
                                 onOpen(task.conversation_id)
                             } label: {
-                                VStack(alignment: .leading, spacing: 1) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(task.title)
-                                        .font(.body)
-                                        .foregroundStyle(.primary)
+                                        .font(.golos(13, weight: .semibold))
+                                        .foregroundStyle(BrandColor.ink)
                                     Text(task.done ? "Done" : "Open task")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.golos(11))
+                                        .foregroundStyle(BrandColor.muted400)
                                 }
                             }
                             .buttonStyle(.plain)
+                            .listRowBackground(BrandColor.paper)
+                            .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        sectionLabel("Tasks")
+                        SectionHeader(label: "Tasks", count: result.tasks.count)
                     }
                 }
                 if !result.attachments.isEmpty {
                     Section {
                         ForEach(result.attachments, id: \.id) { hit in
                             attachmentHit(hit)
+                                .listRowBackground(BrandColor.paper)
+                                .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        sectionLabel("Attachments")
+                        SectionHeader(label: "Attachments", count: result.attachments.count)
                     }
                 }
                 if !result.templates.isEmpty {
                     Section {
                         ForEach(result.templates, id: \.id) { hit in
-                            VStack(alignment: .leading, spacing: 1) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(hit.name)
-                                    .font(.body)
+                                    .font(.golos(13, weight: .semibold))
+                                    .foregroundStyle(BrandColor.ink)
                                 Text(stripHighlight(hit.snippet))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .font(.golos(12))
+                                    .foregroundStyle(BrandColor.muted600)
                                     .lineLimit(2)
                             }
+                            .listRowBackground(BrandColor.paper)
+                            .listRowSeparatorTint(BrandColor.inset)
                         }
                     } header: {
-                        sectionLabel("Saved replies")
+                        SectionHeader(label: "Saved replies", count: result.templates.count)
                     }
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas)
         }
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .textCase(nil)
     }
 
     private func conversationHit(_ hit: SearchConversationHit) -> some View {
@@ -1219,24 +1265,25 @@ private struct SearchResultsPane: View {
         return Button {
             onOpen(hit.id)
         } label: {
-            HStack(spacing: 12) {
-                InitialsAvatar(name: name, size: 36)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 11) {
+                InitialsAvatar(name: name, size: 38)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.body)
-                        .foregroundStyle(.primary)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
                     Text(
                         (hit.direction == "note" ? "Note · " : "")
                             + stripHighlight(hit.snippet)
                     )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
                     .lineLimit(2)
                 }
                 Spacer()
                 Text(relativeTime(hit.matched_at))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .monospacedDigit()
+                    .foregroundStyle(BrandColor.muted300)
             }
         }
         .buttonStyle(.plain)
@@ -1247,15 +1294,16 @@ private struct SearchResultsPane: View {
         return Button {
             onTextContact(contact.id)
         } label: {
-            HStack(spacing: 12) {
-                InitialsAvatar(name: name, size: 36)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 11) {
+                InitialsAvatar(name: name, size: 38)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.body)
-                        .foregroundStyle(.primary)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
                     Text(formatPhone(contact.phone_e164))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.golos(11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandColor.muted400)
                 }
                 Spacer()
             }
@@ -1265,13 +1313,14 @@ private struct SearchResultsPane: View {
 
     @ViewBuilder
     private func attachmentHit(_ hit: SearchAttachmentHit) -> some View {
-        let content = VStack(alignment: .leading, spacing: 1) {
+        let content = VStack(alignment: .leading, spacing: 2) {
             Text(hit.file_name)
-                .font(.body)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
                 .lineLimit(1)
             Text(relativeTime(hit.created_at))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.golos(11))
+                .foregroundStyle(BrandColor.muted400)
         }
         if let conversationId = hit.conversation_id {
             Button {

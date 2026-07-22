@@ -75,7 +75,7 @@ private struct BusinessHoursCard: View {
                 HStack(spacing: 10) {
                     Toggle("", isOn: $day.enabled)
                         .labelsHidden()
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(!canEdit || saving)
                     Text(weekdayLabels[day.weekday] ?? day.weekday)
                         .font(.callout)
@@ -103,7 +103,7 @@ private struct BusinessHoursCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save hours") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(!allValid || saving)
                         .padding(.top, 10)
                 }
@@ -228,7 +228,7 @@ private struct AwayReplyCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save away reply") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(saving)
                         .padding(.top, 10)
                 }

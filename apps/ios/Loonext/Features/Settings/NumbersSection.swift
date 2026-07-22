@@ -434,7 +434,7 @@ private struct NumberAccessSheet: View {
             } label: {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: mode == option ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(mode == option ? BrandColor.petrol : Color.secondary)
+                        .foregroundStyle(mode == option ? BrandColor.olive : Color.secondary)
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(option.label)
@@ -471,7 +471,7 @@ private struct NumberAccessSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: checked ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(checked ? BrandColor.petrol : Color.secondary)
+                            .foregroundStyle(checked ? BrandColor.olive : Color.secondary)
                         Text(member.display_name.isBlank ? "Teammate" : member.display_name)
                             .font(.callout)
                             .foregroundStyle(Color.primary)
@@ -489,7 +489,7 @@ private struct NumberAccessSheet: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: level == value ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(level == value ? BrandColor.petrol : Color.secondary)
+                            .foregroundStyle(level == value ? BrandColor.olive : Color.secondary)
                         Text(value == NumberAccessLevel.text ? "Can text" : "View & notes only")
                             .font(.callout)
                             .foregroundStyle(Color.primary)

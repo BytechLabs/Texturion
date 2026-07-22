@@ -47,6 +47,7 @@ struct NotificationsView: View {
                 feed
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .overlay(alignment: .bottom) { toastNotice }
         .animation(.default, value: model.toast)
         .task(id: "\(companyId)#\(refreshKey)") { await model.refresh() }
@@ -78,50 +79,69 @@ struct NotificationsView: View {
 
     private var feed: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Text("Notifications")
-                    .font(.title2.weight(.semibold))
+                    .font(.display(24))
+                    .kerning(-0.2)
+                    .foregroundStyle(BrandColor.ink)
                 Spacer()
-                Button("Mark all read") {
+                Button {
                     model.markAllRead()
+                } label: {
+                    Text("Read all")
+                        .font(.golos(11.5, weight: .bold))
+                        .foregroundStyle(model.hasUnread ? BrandColor.olive : BrandColor.muted300)
                 }
-                .font(.subheadline)
+                .buttonStyle(.plain)
                 .disabled(!model.hasUnread)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 18)
             .padding(.top, 16)
-            .padding(.bottom, 4)
+            .padding(.bottom, 12)
 
             if model.items.isEmpty {
                 Text("You're all caught up.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted600)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(model.items, id: \.feedKey) { row in
-                        NotificationRow(row: row) {
-                            model.markItemRead(row)
-                            if let conversationId = row.conversation_id {
-                                onOpenConversation(conversationId)
+                ScrollView {
+                    LazyVStack(spacing: 13) {
+                        PaperCard {
+                            ForEach(Array(model.items.enumerated()), id: \.element.feedKey) { index, row in
+                                if index > 0 { RowDivider() }
+                                NotificationRow(row: row) {
+                                    model.markItemRead(row)
+                                    if let conversationId = row.conversation_id {
+                                        onOpenConversation(conversationId)
+                                    }
+                                }
                             }
                         }
-                    }
-                    if model.nextCursor != nil {
-                        HStack {
-                            Spacer()
-                            Button(model.loadingMore ? "Loading older…" : "Show older") {
+                        if model.nextCursor != nil {
+                            Button {
                                 model.loadOlder()
+                            } label: {
+                                Text(model.loadingMore ? "Loading older…" : "Show older")
+                                    .font(.golos(12, weight: .semibold))
+                                    .foregroundStyle(BrandColor.olive)
                             }
-                            .font(.subheadline)
+                            .buttonStyle(.plain)
                             .disabled(model.loadingMore)
-                            Spacer()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
                         }
-                        .listRowSeparator(.hidden)
-                        .padding(.vertical, 4)
+                        Text("Push and email mirror these — Settings › Notifications")
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted700)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(BrandColor.insetDeep, in: Capsule())
+                            .frame(maxWidth: .infinity)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 24)
                 }
-                .listStyle(.plain)
             }
         }
     }
@@ -148,30 +168,55 @@ private struct NotificationRow: View {
         // Every derived type today links to its conversation; a future type
         // without one renders disabled instead of dead-tapping.
         Button(action: onTap) {
-            HStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 11) {
                 Image(systemName: iconFor(row.type))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
+                    .font(.system(size: 15))
+                    .foregroundStyle(iconTint(row.type))
+                    .frame(width: 38, height: 38)
+                    .background(iconWell(row.type), in: Circle())
                 Text(summaryFor(row))
-                    .font(row.unread ? .body.weight(.semibold) : .body)
-                    .foregroundStyle(.primary)
+                    .font(.golos(13, weight: row.unread ? .bold : .semibold))
+                    .foregroundStyle(BrandColor.ink)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    .padding(.top, 3)
                 Spacer(minLength: 8)
                 Text(relativeTime(row.created_at))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .padding(.top, 5)
                 if row.unread {
-                    Circle()
-                        .fill(BrandColor.petrol)
-                        .frame(width: 8, height: 8)
+                    AttentionDot()
+                        .padding(.top, 8)
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+            .opacity(row.unread ? 1 : 0.7)
         }
         .buttonStyle(.plain)
         .disabled(row.conversation_id == nil)
+    }
+}
+
+/// Tinted icon-circle wells (spec 06): cream for texts, inset for tasks,
+/// warm-brick container for missed calls, avatar tint for assignments.
+private func iconWell(_ type: String) -> Color {
+    switch type {
+    case NotificationType.inboundMessage: BrandColor.cream
+    case NotificationType.assigned: BrandColor.avatarTint
+    case NotificationType.taskAssigned: BrandColor.inset
+    case NotificationType.missedCall: BrandColor.destructiveContainer
+    default: BrandColor.inset
+    }
+}
+
+private func iconTint(_ type: String) -> Color {
+    switch type {
+    case NotificationType.missedCall: BrandColor.destructive
+    case NotificationType.taskAssigned: BrandColor.olive
+    default: BrandColor.muted900
     }
 }
 

@@ -58,7 +58,7 @@ private struct NameCard: View {
                 if dirty {
                     Button(saving ? "Saving…" : "Save") { save() }
                         .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.petrol)
+                        .tint(BrandColor.olive)
                         .disabled(!valid || saving)
                         .padding(.top, 10)
                 }
@@ -321,7 +321,7 @@ private struct TimezonePickerSheet: View {
                             HStack {
                                 Text(zoneId)
                                     .font(.callout)
-                                    .foregroundStyle(zoneId == current ? BrandColor.petrol : Color.primary)
+                                    .foregroundStyle(zoneId == current ? BrandColor.olive : Color.primary)
                                 Spacer()
                                 if let time = localTimeString(zoneId: zoneId, at: Date()) {
                                     Text(time)

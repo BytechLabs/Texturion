@@ -8,6 +8,10 @@ import SwiftUI
 ///
 /// `onOpenCalls` is the shell's navigation to the full Calls surface — the
 /// "View all" affordance hides until the shell wires it.
+///
+/// Visuals: "Paper & Olive" (docs/MOBILE-DESIGN.md, screen 19/29) — canvas
+/// background, radius-22 paper cards with hairline dividers, tracked
+/// micro-headers with olive counts, Bricolage screen title.
 @MainActor
 struct ForYouTab: View {
     let graph: AppGraph
@@ -34,8 +38,10 @@ struct ForYouTab: View {
                 switch state {
                 case .loading:
                     CenteredLoading()
+                        .background(BrandColor.canvas)
                 case .failed(let message):
                     CenteredError(message: message) { refreshKey += 1 }
+                        .background(BrandColor.canvas)
                 case .ready(let forYou):
                     ForYouList(
                         forYou: forYou,
@@ -120,129 +126,181 @@ private struct ForYouList: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("For you")
-                        .font(.title2.weight(.semibold))
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .listRowSeparator(.hidden)
-                .padding(.vertical, 4)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                heading
+                triageSection
+                waitingSection
+                tasksSection
+                unreadSection
+                recentCallsSection
             }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(BrandColor.canvas)
+    }
 
-            if let triage = forYou.triage,
-               !triage.conversations.isEmpty || !triage.tasks.isEmpty {
-                Section {
-                    ForEach(triage.conversations, id: \.conversation_id) { row in
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ScreenTitle(text: "For you")
+            Text(subtitle)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
+        }
+        .padding(.bottom, 2)
+    }
+
+    @ViewBuilder
+    private var triageSection: some View {
+        if let triage = forYou.triage,
+           !triage.conversations.isEmpty || !triage.tasks.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(
+                    label: "Triage",
+                    count: triage.conversations.count + triage.tasks.count
+                )
+                PaperCard {
+                    ForEach(
+                        Array(triage.conversations.enumerated()),
+                        id: \.element.conversation_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
-                    ForEach(triage.tasks, id: \.task_id) { row in
+                    ForEach(
+                        Array(triage.tasks.enumerated()),
+                        id: \.element.task_id
+                    ) { index, row in
+                        if index > 0 || !triage.conversations.isEmpty { RowDivider() }
                         TaskLineRow(
                             title: row.title,
                             overdue: row.overdue,
                             dueAt: row.due_at
                         ) { onOpenConversation(row.conversation_id) }
                     }
-                } header: {
-                    SectionHeader("Needs an owner")
                 }
             }
+        }
+    }
 
-            if !forYou.waiting_on_you.isEmpty {
-                Section {
-                    ForEach(forYou.waiting_on_you, id: \.conversation_id) { row in
+    @ViewBuilder
+    private var waitingSection: some View {
+        if !forYou.waiting_on_you.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(label: "Waiting on you", count: forYou.waiting_on_you.count)
+                PaperCard {
+                    ForEach(
+                        Array(forYou.waiting_on_you.enumerated()),
+                        id: \.element.conversation_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
-                } header: {
-                    SectionHeader("Waiting on you")
                 }
             }
+        }
+    }
 
-            if !forYou.my_tasks.isEmpty {
-                Section {
-                    ForEach(forYou.my_tasks, id: \.task_id) { row in
+    @ViewBuilder
+    private var tasksSection: some View {
+        if !forYou.my_tasks.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(label: "My tasks", count: forYou.my_tasks.count)
+                PaperCard {
+                    ForEach(
+                        Array(forYou.my_tasks.enumerated()),
+                        id: \.element.task_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
                         TaskLineRow(
                             title: row.title,
                             overdue: row.overdue,
                             dueAt: row.due_at
                         ) { onOpenConversation(row.conversation_id) }
                     }
-                } header: {
-                    SectionHeader("Your tasks")
                 }
             }
+        }
+    }
 
-            if !forYou.unread.isEmpty {
-                Section {
-                    ForEach(forYou.unread, id: \.conversation_id) { row in
+    @ViewBuilder
+    private var unreadSection: some View {
+        if !forYou.unread.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(label: "Unread", count: forYou.unread.count)
+                PaperCard {
+                    ForEach(
+                        Array(forYou.unread.enumerated()),
+                        id: \.element.conversation_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
                             meta: relativeTime(row.last_message_at),
                             unread: true
                         ) { onOpenConversation(row.conversation_id) }
                     }
-                } header: {
-                    SectionHeader("Unread")
                 }
             }
+        }
+    }
 
-            // Recent calls (#161/D43) — the mobile doorway into the Calls
-            // surface. Hidden entirely while loading or empty; an honest
-            // error line when the log couldn't load (Android twin parity).
-            switch recentCalls {
-            case .loading:
-                EmptyView()
-            case .failed:
-                Section {
+    // Recent calls (#161/D43) — the mobile doorway into the Calls surface.
+    // Hidden entirely while loading or empty; an honest error line when the
+    // log couldn't load (Android twin parity).
+    @ViewBuilder
+    private var recentCallsSection: some View {
+        switch recentCalls {
+        case .loading:
+            EmptyView()
+        case .failed:
+            VStack(alignment: .leading, spacing: 0) {
+                recentCallsHeader
+                PaperCard {
                     Text("Couldn't load recent calls.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .listRowSeparator(.hidden)
-                } header: {
-                    RecentCallsHeader(onOpenCalls: onOpenCalls)
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted500)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                 }
-            case .ready(let calls):
-                if !calls.isEmpty {
-                    Section {
-                        ForEach(calls, id: \.id) { call in
+            }
+        case .ready(let calls):
+            if !calls.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    recentCallsHeader
+                    PaperCard {
+                        ForEach(Array(calls.enumerated()), id: \.element.id) { index, call in
+                            if index > 0 { RowDivider() }
                             RecentCallRow(call: call, onTap: callTap(call))
                         }
-                    } header: {
-                        RecentCallsHeader(onOpenCalls: onOpenCalls)
                     }
                 }
             }
         }
-        .listStyle(.plain)
     }
-}
 
-/// "Recent calls" + the shell-wired "View all" doorway (hidden until wired).
-private struct RecentCallsHeader: View {
-    let onOpenCalls: (() -> Void)?
-
-    var body: some View {
-        HStack {
-            Text("Recent calls")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(nil)
+    /// "Recent calls" + the shell-wired "View all" doorway (hidden until wired).
+    private var recentCallsHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            SectionHeader(label: "Recent calls")
             Spacer()
             if let onOpenCalls {
                 Button("View all", action: onOpenCalls)
-                    .font(.footnote)
-                    .textCase(nil)
+                    .font(.golos(12, weight: .bold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 6)
             }
         }
     }
@@ -263,53 +321,37 @@ private struct RecentCallRow: View {
         return "phone.arrow.down.left.fill"
     }
 
+    private var metaColor: Color {
+        isActionableMiss(call) ? BrandColor.overdueAmber : BrandColor.muted400
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            InitialsAvatar(name: name)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 11) {
+            InitialsAvatar(name: name, size: 34)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(name)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                HStack(spacing: 6) {
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1)
+                HStack(spacing: 5) {
                     Image(systemName: directionIcon)
-                        .font(.caption2)
-                        .foregroundStyle(
-                            isActionableMiss(call)
-                                ? BrandColor.overdueAmber
-                                : Color.secondary
-                        )
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(metaColor)
                     Text(callOutcomeLabel(call))
-                        .font(.caption)
-                        .foregroundStyle(
-                            isActionableMiss(call)
-                                ? BrandColor.overdueAmber
-                                : Color.secondary
-                        )
+                        .font(.golos(11.5, weight: isActionableMiss(call) ? .semibold : .regular))
+                        .foregroundStyle(metaColor)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             Text(relativeTime(call.started_at))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.golos(11))
+                .monospacedDigit()
+                .foregroundStyle(BrandColor.muted300)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
-    }
-}
-
-private struct SectionHeader: View {
-    let title: String
-
-    init(_ title: String) {
-        self.title = title
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .textCase(nil)
     }
 }
 
@@ -326,17 +368,28 @@ private struct PersonRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                InitialsAvatar(name: name)
-                Text(displayName)
-                    .font(unread ? .body.weight(.semibold) : .body)
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(meta)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 11) {
+                InitialsAvatar(name: name, size: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .lineLimit(1)
+                    Text(meta)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted400)
+                }
+                Spacer(minLength: 8)
+                if unread {
+                    AttentionDot()
+                }
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BrandColor.muted250)
             }
-            .padding(.vertical, 2)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -350,20 +403,30 @@ private struct TaskLineRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                Text(subtitle)
-                    .font(.caption)
-                    // Overdue = amber, never red (calm system).
-                    .foregroundStyle(
-                        overdue
-                            ? AnyShapeStyle(BrandColor.overdueAmber)
-                            : AnyShapeStyle(Color.secondary)
-                    )
+            HStack(spacing: 12) {
+                Circle()
+                    .strokeBorder(BrandColor.muted250, lineWidth: 1.8)
+                    .frame(width: 22, height: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.golos(11.5, weight: overdue ? .bold : .regular))
+                        // Overdue = amber, never red (calm system).
+                        .foregroundStyle(
+                            overdue ? BrandColor.overdueAmber : BrandColor.muted400
+                        )
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BrandColor.muted250)
             }
-            .padding(.vertical, 2)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

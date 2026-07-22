@@ -91,11 +91,12 @@ struct ExternalStepView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(headline)
-                .font(.title3.weight(.semibold))
+                .font(.display(24))
+                .foregroundStyle(BrandColor.ink)
                 .multilineTextAlignment(.center)
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.golos(13.5))
+                .foregroundStyle(BrandColor.muted600)
                 .multilineTextAlignment(.center)
                 .padding(.top, 8)
                 .padding(.bottom, 20)
@@ -103,14 +104,16 @@ struct ExternalStepView: View {
                 openURL(url)
             }
             Button("I've done this — refresh", action: onRefresh)
-                .font(.subheadline)
+                .font(.golos(13, weight: .medium))
                 .padding(.top, 12)
             Button("Sign out", action: onSignOut)
-                .font(.subheadline)
+                .font(.golos(13, weight: .medium))
                 .padding(.top, 8)
         }
         .frame(maxWidth: 440)
         .padding(.horizontal, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.canvas.ignoresSafeArea())
+        .tint(BrandColor.olive)
     }
 }
