@@ -68,6 +68,10 @@ import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.ShellTab
+import com.loonext.android.features.tasks.TaskDetailScreen
+import com.loonext.android.features.tasks.TaskMutations
+import com.loonext.android.features.contacts.ContactDetailScreen
+import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
@@ -239,9 +243,22 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
     }
 }
 
-/** Full-screen surfaces layered over the tab shell (state-based, no NavHost). */
+/**
+ * Full-screen ROUTES layered over the tab shell as a STACK (state-based, no
+ * NavHost). The architectural rule the founder mandated: the pill nav exists
+ * ONLY on the four tab roots — ANYTHING pushed (thread, task, contact,
+ * compose, notifications, settings) renders here, above the shell, so a
+ * pushed surface with a visible nav bar is not constructible. The stack makes
+ * task → conversation → back → task work with one BackHandler.
+ */
 private sealed interface Overlay {
-    data class Thread(val conversationId: String) : Overlay
+    data class Thread(
+        val conversationId: String,
+        /** Search-result jump target: scroll to + flash this message. */
+        val highlightMessageId: String? = null,
+    ) : Overlay
+    data class Task(val taskId: String) : Overlay
+    data class Contact(val contactId: String) : Overlay
     data class Compose(val prefillContactId: String?) : Overlay
     data object Calls : Overlay
     data object Notifications : Overlay
@@ -259,7 +276,9 @@ private fun ReadyShell(
     val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
-    var overlay by remember { mutableStateOf<Overlay?>(null) }
+    val routeStack = remember { androidx.compose.runtime.mutableStateListOf<Overlay>() }
+    fun push(route: Overlay) = routeStack.add(route)
+    fun pop() { routeStack.removeLastOrNull() }
     var counts by remember { mutableStateOf(ShellCounts()) }
     var countsKey by remember { mutableIntStateOf(0) }
     var hydratedMe by remember(companyId) { mutableStateOf(me) }
@@ -267,7 +286,7 @@ private fun ReadyShell(
     // The thread the user is LOOKING at right now (tab-internal or overlay) —
     // suppresses the global inbound toast for that conversation (#165).
     var tabViewedConversation by remember { mutableStateOf<String?>(null) }
-    val viewedConversation = (overlay as? Overlay.Thread)?.conversationId
+    val viewedConversation = (routeStack.lastOrNull() as? Overlay.Thread)?.conversationId
         ?: tabViewedConversation
 
     // The process-wide softphone. get() also INSTALLS the call-wake +
@@ -292,9 +311,9 @@ private fun ReadyShell(
     LaunchedEffect(companyId) {
         deepLinks.collect { link ->
             when (link) {
-                is DeepLink.Thread -> overlay = Overlay.Thread(link.conversationId)
+                is DeepLink.Thread -> push(Overlay.Thread(link.conversationId))
                 is DeepLink.Calls -> {
-                    overlay = Overlay.Calls
+                    push(Overlay.Calls)
                     // §10.2/§10.3: a tap that carries the session runs the
                     // wake sequence (register → /state → ring-me), same as a
                     // `kind:'call'` push — the tray-fallback / cold-start join.
@@ -356,14 +375,14 @@ private fun ReadyShell(
             counts = counts,
             tab = tab,
             onTabChange = { tab = it },
-            onCompose = { overlay = Overlay.Compose(null) },
+            onCompose = { push(Overlay.Compose(null)) },
             onOpenAccountSheet = { sheetOpen = true },
             floatingAction = if (tab == ShellTab.Inbox) {
                 {
                     // Spec 20's ink pencil FAB, hosted in the shell slot so it can
                     // never be underdrawn by the pill/gradient (#173).
                     Surface(
-                        onClick = { overlay = Overlay.Compose(null) },
+                        onClick = { push(Overlay.Compose(null)) },
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -385,9 +404,14 @@ private fun ReadyShell(
         ) { activeTab, modifier ->
             ShellContent(
                 activeTab, graph, hydratedMe, companyId, modifier,
-                onOpenThread = { overlay = Overlay.Thread(it) },
-                onComposeNew = { overlay = Overlay.Compose(it) },
-                onOpenCalls = { overlay = Overlay.Calls },
+                onOpenThread = { conversationId, highlightMessageId ->
+                    push(Overlay.Thread(conversationId, highlightMessageId))
+                },
+                onOpenTask = { push(Overlay.Task(it)) },
+                onOpenContact = { push(Overlay.Contact(it)) },
+                onOpenNotifications = { push(Overlay.Notifications) },
+                onComposeNew = { push(Overlay.Compose(it)) },
+                onOpenCalls = { push(Overlay.Calls) },
                 onViewedConversationChanged = { tabViewedConversation = it },
             )
         }
@@ -398,7 +422,7 @@ private fun ReadyShell(
             graph = graph,
             companyId = companyId,
             me = hydratedMe,
-            openConversation = { overlay = Overlay.Thread(it) },
+            openConversation = { push(Overlay.Thread(it)) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),
@@ -413,16 +437,16 @@ private fun ReadyShell(
             graph = graph,
             companyId = companyId,
             viewedConversationId = { viewedConversation },
-            onView = { overlay = Overlay.Thread(it) },
+            onView = { push(Overlay.Thread(it)) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),
         )
 
-        overlay?.let { active ->
-            BackHandler { overlay = null }
-            // Canvas + status inset once for every overlay-hosted surface
-            // (Thread/Compose previously drew under the status bar, #172).
+        routeStack.lastOrNull()?.let { active ->
+            BackHandler { pop() }
+            // Canvas + status inset once for every routed surface (#172). Only
+            // the TOP of the stack renders; back pops one route at a time.
             Surface(
                 Modifier.fillMaxSize().statusBarsPadding(),
                 color = MaterialTheme.colorScheme.background,
@@ -433,11 +457,34 @@ private fun ReadyShell(
                         companyId = companyId,
                         me = hydratedMe,
                         conversationId = active.conversationId,
-                        onBack = { overlay = null },
-                        // Contact panel "Other conversations" hops stay
-                        // tappable when the thread was opened via overlay
-                        // (push tap / Calls / toast View).
-                        onOpenConversation = { overlay = Overlay.Thread(it) },
+                        highlightMessageId = active.highlightMessageId,
+                        onBack = { pop() },
+                        onOpenConversation = { push(Overlay.Thread(it)) },
+                    )
+
+                    is Overlay.Task -> TaskDetailScreen(
+                        graph = graph,
+                        mutations = remember(companyId) { TaskMutations(graph.api) },
+                        companyId = companyId,
+                        me = hydratedMe,
+                        taskId = active.taskId,
+                        onBack = { pop() },
+                        onOpenConversation = { conversationId, _ ->
+                            push(Overlay.Thread(conversationId))
+                        },
+                    )
+
+                    is Overlay.Contact -> ContactDetailScreen(
+                        graph = graph,
+                        mutations = remember(companyId) {
+                            ContactMutations(graph.api, BuildConfig.API_URL)
+                        },
+                        companyId = companyId,
+                        callerIdName = hydratedMe.display_name,
+                        contactId = active.contactId,
+                        onBack = { pop() },
+                        onOpenConversation = { push(Overlay.Thread(it)) },
+                        onComposeNew = { push(Overlay.Compose(it)) },
                     )
 
                     is Overlay.Compose -> NewConversationScreen(
@@ -445,39 +492,42 @@ private fun ReadyShell(
                         companyId = companyId,
                         me = hydratedMe,
                         prefillContactId = active.prefillContactId,
-                        onCreated = { overlay = Overlay.Thread(it) },
-                        onBack = { overlay = null },
+                        onCreated = {
+                            pop()
+                            push(Overlay.Thread(it))
+                        },
+                        onBack = { pop() },
                     )
 
-                    Overlay.Calls -> OverlayScaffold("Calls", onBack = { overlay = null }) {
+                    Overlay.Calls -> OverlayScaffold("Calls", onBack = { pop() }) {
                         CallsScreen(
                             graph = graph,
                             companyId = companyId,
                             me = hydratedMe,
                             modifier = it,
                             openConversation = { conversationId ->
-                                overlay = Overlay.Thread(conversationId)
+                                push(Overlay.Thread(conversationId))
                             },
                         )
                     }
 
                     Overlay.Notifications -> OverlayScaffold(
                         "Notifications",
-                        onBack = { overlay = null },
+                        onBack = { pop() },
                     ) {
                         NotificationsScreen(
                             graph = graph,
                             companyId = companyId,
                             modifier = it,
                             onOpenConversation = { conversationId ->
-                                overlay = Overlay.Thread(conversationId)
+                                push(Overlay.Thread(conversationId))
                             },
                         )
                     }
 
                     Overlay.Settings -> OverlayScaffold(
                         "Settings",
-                        onBack = { overlay = null },
+                        onBack = { pop() },
                     ) {
                         SettingsHome(
                             graph = graph,
@@ -499,8 +549,8 @@ private fun ReadyShell(
             companyId = companyId,
             unreadNotifications = counts.unreadNotifications,
             onOpenContacts = { tab = ShellTab.Contacts },
-            onOpenNotifications = { overlay = Overlay.Notifications },
-            onOpenSettings = { overlay = Overlay.Settings },
+            onOpenNotifications = { push(Overlay.Notifications) },
+            onOpenSettings = { push(Overlay.Settings) },
             onSwitchWorkspace = root::switchWorkspace,
             onSignOut = root::signOut,
             onDismiss = { sheetOpen = false },

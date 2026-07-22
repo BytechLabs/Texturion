@@ -83,42 +83,20 @@ fun TasksTab(
     companyId: String,
     me: Me,
     modifier: Modifier = Modifier,
-    onOpenConversation: ((conversationId: String, messageId: String) -> Unit)? = null,
+    onOpenTask: (taskId: String) -> Unit,
 ) {
     val mutations = remember(companyId) { TaskMutations(graph.api) }
-    var openTaskId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
-
-    // SaveableStateHolder: when the detail branch replaces the list, the list
-    // subtree LEAVES composition and plain rememberSaveable state inside it is
-    // discarded — which is why board/filter/scroll choices reset after opening
-    // a task and coming back (founder: "this kind of stuff must not be
-    // possible"). The holder parks the whole subtree's saveable state and
-    // restores it on re-entry.
-    val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-    val detailId = openTaskId
-    if (detailId != null) {
-        TaskDetailScreen(
-            graph = graph,
-            mutations = mutations,
-            companyId = companyId,
-            me = me,
-            taskId = detailId,
-            onBack = { openTaskId = null },
-            onOpenConversation = onOpenConversation,
-            modifier = modifier,
-        )
-    } else {
-        stateHolder.SaveableStateProvider("tasks-list") {
-            TaskListScreen(
-                graph = graph,
-                mutations = mutations,
-                companyId = companyId,
-                me = me,
-                onOpenTask = { openTaskId = it },
-                modifier = modifier,
-            )
-        }
-    }
+    // Task detail is a ROUTE above the shell now (founder mandate: nothing
+    // pushed shows the pill nav) — this tab is only ever the list, so its
+    // saveable state (board/filters/scroll) trivially survives detail trips.
+    TaskListScreen(
+        graph = graph,
+        mutations = mutations,
+        companyId = companyId,
+        me = me,
+        onOpenTask = onOpenTask,
+        modifier = modifier,
+    )
 }
 
 @Composable

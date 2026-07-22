@@ -119,71 +119,26 @@ fun InboxTab(
     companyId: String,
     me: Me,
     modifier: Modifier = Modifier,
-    initialConversationId: String? = null,
-    onViewedConversationChanged: ((conversationId: String?) -> Unit)? = null,
+    onOpenThread: ((conversationId: String, highlightMessageId: String?) -> Unit)? = null,
+    onOpenTask: ((taskId: String) -> Unit)? = null,
+    onComposeNew: ((prefillContactId: String?) -> Unit)? = null,
 ) {
-    var openConversationId by rememberSaveable(companyId) {
-        mutableStateOf(initialConversationId)
-    }
-    // Report the open thread (null = back on the list) so the shell's
-    // inbound toast (#165) can suppress itself while its thread is on screen.
-    LaunchedEffect(openConversationId) {
-        onViewedConversationChanged?.invoke(openConversationId)
-    }
-    var composeOpen by rememberSaveable(companyId) { mutableStateOf(false) }
-    var composeContactId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
-
-    // Parks the list subtree's saveable state (filters, search, scroll) while a
-    // thread/compose branch replaces it - without this, coming back reset the
-    // whole inbox (same class as the tasks board reset).
-    val inboxStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-    val openId = openConversationId
-    when {
-        openId != null -> ThreadScreen(
-            graph = graph,
-            companyId = companyId,
-            me = me,
-            conversationId = openId,
-            onBack = { openConversationId = null },
-            modifier = modifier,
-            onOpenConversation = { openConversationId = it },
-        )
-
-        composeOpen -> NewConversationScreen(
-            graph = graph,
-            companyId = companyId,
-            me = me,
-            prefillContactId = composeContactId,
-            onCreated = { conversationId ->
-                composeOpen = false
-                composeContactId = null
-                openConversationId = conversationId
-            },
-            onBack = {
-                composeOpen = false
-                composeContactId = null
-            },
-            modifier = modifier,
-        )
-
-        else -> inboxStateHolder.SaveableStateProvider("inbox-list") {
-            InboxList(
-                graph = graph,
-                companyId = companyId,
-                me = me,
-                onOpen = { openConversationId = it },
-                onCompose = {
-                    composeContactId = null
-                    composeOpen = true
-                },
-                onTextContact = { contactId ->
-                    composeContactId = contactId
-                    composeOpen = true
-                },
-                modifier = modifier,
-            )
-        }
-    }
+    // Threads and compose are ROUTES above the shell now (founder mandate:
+    // nothing pushed shows the pill nav) — this tab is only ever the list, so
+    // its saveable state (filters, search, scroll) trivially survives trips.
+    InboxList(
+        graph = graph,
+        companyId = companyId,
+        me = me,
+        onOpen = { onOpenThread?.invoke(it, null) },
+        onOpenMessage = { conversationId, messageId ->
+            onOpenThread?.invoke(conversationId, messageId)
+        },
+        onOpenTask = { onOpenTask?.invoke(it) },
+        onCompose = { onComposeNew?.invoke(null) },
+        onTextContact = { contactId -> onComposeNew?.invoke(contactId) },
+        modifier = modifier,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -452,6 +407,8 @@ private fun InboxList(
     companyId: String,
     me: Me,
     onOpen: (String) -> Unit,
+    onOpenMessage: (conversationId: String, messageId: String) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
     onCompose: () -> Unit,
     onTextContact: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -494,6 +451,11 @@ private fun InboxList(
                     controller.markLocallyRead(id)
                     onOpen(id)
                 },
+                onOpenMessage = { conversationId, messageId ->
+                    controller.markLocallyRead(conversationId)
+                    onOpenMessage(conversationId, messageId)
+                },
+                onOpenTask = onOpenTask,
                 onTextContact = onTextContact,
             )
         } else {
@@ -1231,6 +1193,8 @@ private fun SearchSurface(
     controller: InboxController,
     onCancel: () -> Unit,
     onOpen: (String) -> Unit,
+    onOpenMessage: (conversationId: String, messageId: String) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
     onTextContact: (String) -> Unit,
 ) {
     var scope by rememberSaveable { mutableStateOf(SearchScope.All) }
@@ -1348,6 +1312,8 @@ private fun SearchSurface(
                 scope = scope,
                 controller = controller,
                 onOpen = onOpen,
+                onOpenMessage = onOpenMessage,
+                onOpenTask = onOpenTask,
                 onTextContact = onTextContact,
                 modifier = Modifier.weight(1f),
             )
@@ -1361,6 +1327,8 @@ private fun SearchResultsPane(
     scope: SearchScope,
     controller: InboxController,
     onOpen: (String) -> Unit,
+    onOpenMessage: (conversationId: String, messageId: String) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
     onTextContact: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1397,7 +1365,9 @@ private fun SearchResultsPane(
                 GroupedRow(
                     first = index == 0,
                     last = index == result.conversations.lastIndex && !hasMore,
-                    onClick = { onOpen(hit.id) },
+                    // Jump to the MATCHED message, not just the thread — the
+                    // route carries the id so the thread scrolls + flashes it.
+                    onClick = { onOpenMessage(hit.id, hit.matched_message_id) },
                 ) {
                     val name = hit.contact.name ?: formatPhone(hit.contact.phone_e164)
                     Row(
@@ -1474,7 +1444,7 @@ private fun SearchResultsPane(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpen(task.conversation_id) }
+                                .clickable { onOpenTask(task.id) }
                                 .padding(horizontal = 15.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {

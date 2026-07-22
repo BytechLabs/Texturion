@@ -115,11 +115,10 @@ fun ContactsTab(
     companyId: String,
     modifier: Modifier = Modifier,
     me: Me? = null,
-    onOpenConversation: ((conversationId: String) -> Unit)? = null,
+    onOpenContact: ((contactId: String) -> Unit)? = null,
     onComposeNew: ((contactId: String) -> Unit)? = null,
 ) {
     val mutations = remember(companyId) { ContactMutations(graph.api, BuildConfig.API_URL) }
-    var openContactId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var listRefresh by remember(companyId) { mutableIntStateOf(0) }
 
     // Role for the import gate. Quiet resolve when the shell didn't pass me;
@@ -133,39 +132,18 @@ fun ContactsTab(
     val role = resolvedMe?.memberships?.firstOrNull { it.company_id == companyId }?.role
     val canImport = MemberRole.atLeast(role, MemberRole.ADMIN)
 
-    val contactsStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-    val detailId = openContactId
-    if (detailId != null) {
-        ContactDetailScreen(
-            graph = graph,
-            mutations = mutations,
-            companyId = companyId,
-            callerIdName = resolvedMe?.display_name.orEmpty(),
-            contactId = detailId,
-            onBack = {
-                openContactId = null
-                listRefresh++ // edits/opt-outs/deletes show on return
-            },
-            onOpenConversation = onOpenConversation,
-            onComposeNew = onComposeNew,
-            modifier = modifier,
-        )
-    } else {
-        // Same state-parking as tasks/inbox: the list's saveable state must
-        // survive the detail branch replacing it.
-        contactsStateHolder.SaveableStateProvider("contacts-list") {
-        ContactListScreen(
-            graph = graph,
-            mutations = mutations,
-            companyId = companyId,
-            canImport = canImport,
-            refreshKey = listRefresh,
-            onRefresh = { listRefresh++ },
-            onOpenContact = { openContactId = it },
-            modifier = modifier,
-        )
-        }
-    }
+    // Contact detail is a ROUTE above the shell now (founder mandate: nothing
+    // pushed shows the pill nav) — this tab is only ever the list.
+    ContactListScreen(
+        graph = graph,
+        mutations = mutations,
+        companyId = companyId,
+        canImport = canImport,
+        refreshKey = listRefresh,
+        onRefresh = { listRefresh++ },
+        onOpenContact = { onOpenContact?.invoke(it) },
+        modifier = modifier,
+    )
 }
 
 @Composable

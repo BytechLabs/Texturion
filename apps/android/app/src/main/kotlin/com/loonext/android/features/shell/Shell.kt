@@ -201,7 +201,10 @@ fun ShellContent(
     me: Me,
     companyId: String,
     modifier: Modifier = Modifier,
-    onOpenThread: (conversationId: String) -> Unit,
+    onOpenThread: (conversationId: String, highlightMessageId: String?) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
+    onOpenContact: (contactId: String) -> Unit,
+    onOpenNotifications: () -> Unit,
     onComposeNew: (prefillContactId: String?) -> Unit,
     onOpenCalls: () -> Unit,
     onViewedConversationChanged: (conversationId: String?) -> Unit,
@@ -210,28 +213,31 @@ fun ShellContent(
         ShellTab.ForYou -> ForYouTab(
             graph, companyId, me, modifier,
             onOpenCalls = onOpenCalls,
-            onViewedConversationChanged = onViewedConversationChanged,
+            onOpenThread = { onOpenThread(it, null) },
+            onOpenNotifications = onOpenNotifications,
         )
 
         ShellTab.Inbox -> InboxTab(
             graph, companyId, me, modifier,
-            onViewedConversationChanged = onViewedConversationChanged,
+            onOpenThread = onOpenThread,
+            onOpenTask = onOpenTask,
+            onComposeNew = onComposeNew,
         )
 
         ShellTab.Calls -> CallsScreen(
             graph, companyId, me, modifier,
-            openConversation = onOpenThread,
+            openConversation = { onOpenThread(it, null) },
         )
 
         ShellTab.Tasks -> TasksTab(
             graph, companyId, me, modifier,
-            onOpenConversation = { conversationId, _ -> onOpenThread(conversationId) },
+            onOpenTask = onOpenTask,
         )
 
         ShellTab.Contacts -> ContactsTab(
             graph, companyId, modifier,
             me = me,
-            onOpenConversation = onOpenThread,
+            onOpenContact = onOpenContact,
             onComposeNew = { contactId -> onComposeNew(contactId) },
         )
     }

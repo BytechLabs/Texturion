@@ -97,39 +97,12 @@ fun ForYouTab(
     me: Me,
     modifier: Modifier = Modifier,
     onOpenCalls: (() -> Unit)? = null,
-    onViewedConversationChanged: ((conversationId: String?) -> Unit)? = null,
+    onOpenThread: ((conversationId: String) -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
 ) {
-    var openConversationId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
-    var showNotifications by rememberSaveable(companyId) { mutableStateOf(false) }
-    LaunchedEffect(openConversationId) {
-        onViewedConversationChanged?.invoke(openConversationId)
-    }
-
-    val openId = openConversationId
-    if (openId != null) {
-        ThreadScreen(
-            graph = graph,
-            companyId = companyId,
-            me = me,
-            conversationId = openId,
-            onBack = { openConversationId = null },
-            modifier = modifier,
-            onOpenConversation = { openConversationId = it },
-        )
-        return
-    }
-
-    if (showNotifications) {
-        NotificationsHost(
-            graph = graph,
-            companyId = companyId,
-            onBack = { showNotifications = false },
-            onOpenConversation = { openConversationId = it },
-            modifier = modifier,
-        )
-        return
-    }
-
+    // Threads and notifications are ROUTES above the shell now (founder
+    // mandate: nothing pushed shows the pill nav) — this tab is only ever the
+    // For You list itself.
     var state by remember(companyId) { mutableStateOf<LoadState<ForYou>>(LoadState.Loading) }
     var refreshKey by remember { mutableStateOf(0) }
 
@@ -189,9 +162,9 @@ fun ForYouTab(
             recentCalls = recentCalls,
             unreadNotifications = unreadNotifications,
             me = me,
-            onOpenConversation = { openConversationId = it },
+            onOpenConversation = { onOpenThread?.invoke(it) },
             onOpenCalls = onOpenCalls,
-            onOpenNotifications = { showNotifications = true },
+            onOpenNotifications = { onOpenNotifications?.invoke() },
             modifier = modifier,
         )
     }

@@ -20,10 +20,14 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -118,6 +122,8 @@ fun ThreadScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenConversation: ((conversationId: String) -> Unit)? = null,
+    /** Search-result jump: scroll to this message and flash it briefly. */
+    highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -206,6 +212,7 @@ fun ThreadScreen(
                         repo = repo,
                         companyId = companyId,
                         me = me,
+                        highlightMessageId = highlightMessageId,
                         onBack = onBack,
                         onOpenFile = { attachment ->
                             scope.launch {
@@ -244,6 +251,7 @@ private fun ThreadLoaded(
     onNotice: (String) -> Unit,
     onOpenGallery: () -> Unit,
     onOpenConversation: ((conversationId: String) -> Unit)?,
+    highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -362,6 +370,24 @@ private fun ThreadLoaded(
 
     // Pinned-banner jump target: scroll once the message is in the timeline.
     var jumpToMessageId by remember { mutableStateOf<String?>(null) }
+
+    // The row to FLASH (search-result indication). Set when the highlight
+    // target lands in the timeline; cleared after the flash animation.
+    var flashMessageId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(highlightMessageId, timeline.size) {
+        val target = highlightMessageId ?: return@LaunchedEffect
+        if (flashMessageId == target) return@LaunchedEffect
+        if (timeline.any { it.key == "m:$target" }) {
+            jumpToMessageId = target
+            flashMessageId = target
+        }
+    }
+    LaunchedEffect(flashMessageId) {
+        if (flashMessageId != null) {
+            kotlinx.coroutines.delay(2_200)
+            flashMessageId = null
+        }
+    }
     LaunchedEffect(jumpToMessageId, timeline.size) {
         val target = jumpToMessageId ?: return@LaunchedEffect
         val index = timeline.indexOfFirst { it.key == "m:$target" }
@@ -429,6 +455,20 @@ private fun ThreadLoaded(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(timeline, key = { it.key }) { item ->
+                        val flashed = item is TimelineItem.MessageItem &&
+                            flashMessageId == item.message.id
+                        val flashColor by animateColorAsState(
+                            if (flashed) {
+                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
+                            } else {
+                                Color.Transparent
+                            },
+                            animationSpec = tween(durationMillis = 600),
+                            label = "search-flash",
+                        )
+                        Box(
+                            Modifier.background(flashColor, MaterialTheme.shapes.medium),
+                        ) {
                         when (item) {
                             is TimelineItem.MessageItem -> {
                                 val message = item.message
@@ -467,6 +507,7 @@ private fun ThreadLoaded(
                             )
 
                             is TimelineItem.DayDivider -> DayDividerLine(item.label)
+                        }
                         }
                     }
                     if (controller.loadingOlder) {
@@ -702,8 +743,7 @@ private fun ThreadHeader(
     onOpenGallery: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
-    var statusMenuOpen by remember { mutableStateOf(false) }
-    var overflowOpen by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
     var confirmRevoke by remember { mutableStateOf(false) }
@@ -738,7 +778,7 @@ private fun ThreadHeader(
 
             // The identity block opens the contact panel sheet (#165); the
             // status line beneath the name anchors the status menu.
-            Box(Modifier.clickable(onClick = onOpenContactPanel)) {
+            Box(Modifier.clickable { menuOpen = true }) {
                 HeaderAvatar(contactName)
             }
             Spacer(Modifier.width(10.dp))
@@ -751,7 +791,7 @@ private fun ThreadHeader(
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable(onClick = onOpenContactPanel),
+                    modifier = Modifier.clickable { menuOpen = true },
                 )
                 Box {
                     val assigneeName = members
@@ -764,7 +804,7 @@ private fun ThreadHeader(
                         if (controller.contact?.opted_out == true) append(" · Opted out")
                     }
                     Row(
-                        Modifier.clickable { statusMenuOpen = true },
+                        Modifier.clickable { menuOpen = true },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -784,30 +824,6 @@ private fun ThreadHeader(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                    }
-                    DropdownMenu(
-                        expanded = statusMenuOpen,
-                        onDismissRequest = { statusMenuOpen = false },
-                    ) {
-                        listOf(
-                            ConversationStatus.NEW,
-                            ConversationStatus.OPEN,
-                            ConversationStatus.WAITING,
-                            ConversationStatus.CLOSED,
-                        ).forEach { status ->
-                            DropdownMenuItem(
-                                text = { Text(statusLabel(status)) },
-                                trailingIcon = {
-                                    if (detail.status == status) {
-                                        Icon(Icons.Filled.Check, contentDescription = "Current")
-                                    }
-                                },
-                                onClick = {
-                                    statusMenuOpen = false
-                                    if (status != detail.status) controller.setStatus(status)
-                                },
-                            )
-                        }
                     }
                 }
             }
@@ -845,7 +861,7 @@ private fun ThreadHeader(
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .clickable { overflowOpen = true },
+                        .clickable { menuOpen = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -855,99 +871,37 @@ private fun ThreadHeader(
                         modifier = Modifier.size(18.dp),
                     )
                 }
-                DropdownMenu(
-                    expanded = overflowOpen,
-                    onDismissRequest = { overflowOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = {
-                            val assignee =
-                                members.firstOrNull { it.user_id == detail.assigned_user_id }
-                            Text(
-                                assignee?.let {
-                                    "Assigned to ${it.display_name.ifBlank { "a teammate" }}"
-                                } ?: "Assign to…",
-                            )
-                        },
-                        onClick = {
-                            overflowOpen = false
-                            assigneeSheetOpen = true
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (detail.pinned_at == null) "Pin conversation"
-                                else "Unpin conversation",
-                            )
-                        },
-                        onClick = {
-                            overflowOpen = false
-                            controller.toggleConversationPin()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Photos & files") },
-                        onClick = {
-                            overflowOpen = false
-                            onOpenGallery()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (detail.is_spam) "Not spam" else "Mark as spam") },
-                        onClick = {
-                            overflowOpen = false
-                            controller.setSpam(!detail.is_spam)
-                        },
-                    )
-                    if (controller.contact?.opted_out == true) {
-                        DropdownMenuItem(
-                            text = { Text("Remove opt-out") },
-                            onClick = {
-                                overflowOpen = false
-                                confirmRevoke = true
-                            },
-                        )
-                    } else {
-                        DropdownMenuItem(
-                            text = { Text("Opt out of texts") },
-                            onClick = {
-                                overflowOpen = false
-                                confirmOptOut = true
-                            },
-                        )
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    DropdownMenuItem(
-                        text = { Text("Show messages") },
-                        trailingIcon = {
-                            if (controller.filter.messages) {
-                                Icon(Icons.Filled.Check, contentDescription = "On")
-                            }
-                        },
-                        onClick = { controller.filter = controller.filter.toggledMessages() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Show notes") },
-                        trailingIcon = {
-                            if (controller.filter.notes) {
-                                Icon(Icons.Filled.Check, contentDescription = "On")
-                            }
-                        },
-                        onClick = { controller.filter = controller.filter.toggledNotes() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Show events") },
-                        trailingIcon = {
-                            if (controller.filter.events) {
-                                Icon(Icons.Filled.Check, contentDescription = "On")
-                            }
-                        },
-                        onClick = { controller.filter = controller.filter.toggledEvents() },
-                    )
-                }
             }
         }
+    }
+
+    if (menuOpen) {
+        ConversationSheet(
+            controller = controller,
+            detail = detail,
+            members = members,
+            onOpenContactPanel = {
+                menuOpen = false
+                onOpenContactPanel()
+            },
+            onAssign = {
+                menuOpen = false
+                assigneeSheetOpen = true
+            },
+            onOpenGallery = {
+                menuOpen = false
+                onOpenGallery()
+            },
+            onOptOut = {
+                menuOpen = false
+                confirmOptOut = true
+            },
+            onRevokeOptOut = {
+                menuOpen = false
+                confirmRevoke = true
+            },
+            onDismiss = { menuOpen = false },
+        )
     }
 
     if (assigneeSheetOpen) {
@@ -1145,6 +1099,250 @@ private fun PinnedBanner(
                     )
                 }
             }
+        }
+    }
+}
+
+
+/**
+ * The conversation menu + info sheet (founder: "a proper card like the
+ * filters, at the bottom, with nice controls" — replaces BOTH header
+ * dropdowns). Identity on top (tap-through to the full contact panel), the
+ * status as segmented pills, then assign/pin/gallery/spam/opt-out rows, and
+ * the timeline visibility toggles.
+ */
+@Composable
+private fun ConversationSheet(
+    controller: ThreadController,
+    detail: com.loonext.android.core.model.ConversationDetail,
+    members: List<Member>,
+    onOpenContactPanel: () -> Unit,
+    onAssign: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOptOut: () -> Unit,
+    onRevokeOptOut: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val contactName = controller.contact?.name
+        ?: controller.contact?.phone_e164?.let(::formatPhone)
+        ?: "Contact"
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 18.dp, end = 18.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // Identity → full contact panel.
+            Surface(
+                onClick = onOpenContactPanel,
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    InitialsAvatar(contactName, size = 40.dp)
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            contactName,
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            controller.contact?.phone_e164?.let(::formatPhone) ?: "",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        "View contact",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+            }
+
+            // Status pills.
+            Column {
+                Text(
+                    "STATUS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = androidx.compose.ui.unit.TextUnit(
+                            0.12f,
+                            androidx.compose.ui.unit.TextUnitType.Em,
+                        ),
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp, bottom = 7.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(
+                        ConversationStatus.NEW,
+                        ConversationStatus.OPEN,
+                        ConversationStatus.WAITING,
+                        ConversationStatus.CLOSED,
+                    ).forEach { status ->
+                        val selected = detail.status == status
+                        Surface(
+                            onClick = {
+                                if (!selected) controller.setStatus(status)
+                                onDismiss()
+                            },
+                            shape = CircleShape,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                            contentColor = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        ) {
+                            Text(
+                                statusLabel(status),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                modifier = Modifier.padding(
+                                    horizontal = 13.dp,
+                                    vertical = 8.dp,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Actions.
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Column {
+                    val assignee = members
+                        .firstOrNull { it.user_id == detail.assigned_user_id }
+                        ?.display_name?.ifBlank { null }
+                    SheetActionRow(
+                        label = assignee?.let { "Assigned to " + it } ?: "Assign to…",
+                        onClick = onAssign,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetActionRow(
+                        label = if (detail.pinned_at == null) "Pin conversation"
+                        else "Unpin conversation",
+                        onClick = {
+                            controller.toggleConversationPin()
+                            onDismiss()
+                        },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetActionRow(label = "Photos & files", onClick = onOpenGallery)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetActionRow(
+                        label = if (detail.is_spam) "Not spam" else "Mark as spam",
+                        onClick = {
+                            controller.setSpam(!detail.is_spam)
+                            onDismiss()
+                        },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    if (controller.contact?.opted_out == true) {
+                        SheetActionRow(label = "Remove opt-out", onClick = onRevokeOptOut)
+                    } else {
+                        SheetActionRow(label = "Opt out of texts", onClick = onOptOut)
+                    }
+                }
+            }
+
+            // Timeline visibility.
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Column {
+                    SheetToggleRow(
+                        label = "Show messages",
+                        checked = controller.filter.messages,
+                        onToggle = { controller.filter = controller.filter.toggledMessages() },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetToggleRow(
+                        label = "Show notes",
+                        checked = controller.filter.notes,
+                        onToggle = { controller.filter = controller.filter.toggledNotes() },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetToggleRow(
+                        label = "Show events",
+                        checked = controller.filter.events,
+                        onToggle = { controller.filter = controller.filter.toggledEvents() },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetActionRow(label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun SheetToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            modifier = Modifier.weight(1f),
+        )
+        if (checked) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = "On",
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
