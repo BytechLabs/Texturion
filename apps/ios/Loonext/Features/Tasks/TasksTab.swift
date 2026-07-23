@@ -21,7 +21,7 @@ struct TasksTab: View {
     }
 
     @State private var tab: TasksTabKind = .open
-    @State private var board = false
+    @State private var view: TaskViewKind = .list
     @State private var assigneeChip: String?
     @State private var unassignedChip = false
     @State private var dueChip: DueChip?
@@ -46,8 +46,21 @@ struct TasksTab: View {
     private var reloadToken: String {
         [
             companyId, tab.rawValue, assigneeChip ?? "", unassignedChip ? "u" : "",
-            dueChip?.rawValue ?? "", debouncedQ, String(refreshKey), board ? "b" : "",
+            dueChip?.rawValue ?? "", debouncedQ, String(refreshKey), view.rawValue,
         ].joined(separator: "|")
+    }
+
+    /// Which status tabs actually DO something per view (the web's tabsForView):
+    /// Board's columns ARE the status dimension, so it keeps Mine | All; the
+    /// Map consumes only the assignee chips, so status tabs disappear there;
+    /// List and Calendar consume all four (Calendar applies Open/Done
+    /// client-side over the month grid).
+    private var visibleTabs: [TasksTabKind] {
+        switch view {
+        case .board: return [.mine, .all]
+        case .map: return []
+        case .list, .calendar: return TasksTabKind.allCases
+        }
     }
 
     var body: some View {
@@ -57,7 +70,10 @@ struct TasksTab: View {
                 tabPills
                 searchField
                 filterChips
-                if board {
+                switch view {
+                case .list:
+                    listContent
+                case .board:
                     TaskBoardView(
                         graph: graph,
                         companyId: companyId,
@@ -70,8 +86,30 @@ struct TasksTab: View {
                         onOpenTask: { openTask = TaskRoute(id: $0) },
                         onToggleDone: { task, done in toggleDone(task, done: done) }
                     )
-                } else {
-                    listContent
+                case .calendar:
+                    TaskCalendarView(
+                        graph: graph,
+                        companyId: companyId,
+                        me: me,
+                        members: members,
+                        tab: tab,
+                        assigneeChip: assigneeChip,
+                        unassignedChip: unassignedChip,
+                        dueChip: dueChip,
+                        q: debouncedQ,
+                        refreshKey: refreshKey,
+                        onOpenTask: { openTask = TaskRoute(id: $0) },
+                        onToggleDone: { task, done in toggleDone(task, done: done) }
+                    )
+                case .map:
+                    TaskMapView(
+                        graph: graph,
+                        companyId: companyId,
+                        assigneeChip: assigneeChip,
+                        unassignedChip: unassignedChip,
+                        refreshKey: refreshKey,
+                        onOpenTask: { openTask = TaskRoute(id: $0) }
+                    )
                 }
             }
             .background(BrandColor.canvas.ignoresSafeArea())
@@ -97,7 +135,9 @@ struct TasksTab: View {
             )
         }
         .task(id: reloadToken) {
-            if !board { await reload() }
+            // Board, Calendar, and Map each self-fetch; only the List arm
+            // reloads through this tab's own loader.
+            if view == .list { await reload() }
         }
         .task(id: companyId) {
             // Active members back the assignee chip label and the picker. A
@@ -119,10 +159,12 @@ struct TasksTab: View {
                 refreshKey += 1
             }
         }
-        .onChange(of: board) { _, isBoard in
+        .onChange(of: view) { _, newView in
             // Board organizes by status, so the Open/Done dimension is a
-            // no-op there (#113): entering the board coerces to Mine.
-            if isBoard && (tab == .open || tab == .done) {
+            // no-op there (#113): entering the board coerces to Mine. Calendar
+            // and Map deliberately do NOT coerce — the tab the list returns to
+            // is preserved.
+            if newView == .board && (tab == .open || tab == .done) {
                 tab = .mine
             }
         }
@@ -150,33 +192,46 @@ struct TasksTab: View {
         }
     }
 
-    /// Big display heading + the 44pt paper-circle view toggle (spec 24).
+    /// Big display heading + the paper-circle view switcher (spec 24). Four
+    /// views now (#184/#186): List, Board, Calendar, Map — icon-only pills with
+    /// spoken labels, ink-filled when selected.
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 8) {
             ScreenTitle(text: "Tasks")
-            Spacer()
-            Button {
-                board.toggle()
-            } label: {
-                Image(systemName: board ? "list.bullet" : "square.grid.2x2")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(BrandColor.ink)
-                    .frame(width: 44, height: 44)
-                    .background(BrandColor.paper, in: Circle())
-                    .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
+            Spacer(minLength: 8)
+            HStack(spacing: 6) {
+                viewToggle(kind: .list, icon: "list.bullet", label: "List view")
+                viewToggle(kind: .board, icon: "square.grid.2x2", label: "Board view")
+                viewToggle(kind: .calendar, icon: "calendar", label: "Calendar view")
+                viewToggle(kind: .map, icon: "map", label: "Map view")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(board ? "List view" : "Board view")
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
+    }
+
+    private func viewToggle(kind: TaskViewKind, icon: String, label: String) -> some View {
+        let selected = view == kind
+        return Button {
+            if view != kind { view = kind }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                .frame(width: 38, height: 38)
+                .background(selected ? BrandColor.ink : BrandColor.paper, in: Circle())
+                .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     /// The segmented pill track — ink-filled selected pill, paper idle pills
     /// (spec 24/31). Board mode keeps the existing Mine/All reduction.
     private var tabPills: some View {
         HStack(spacing: 6) {
-            ForEach(board ? [TasksTabKind.mine, .all] : TasksTabKind.allCases) { item in
+            ForEach(visibleTabs) { item in
                 let selected = tab == item
                 Button {
                     tab = item
@@ -442,6 +497,19 @@ struct TasksTab: View {
             refreshKey += 1
         }
     }
+}
+
+/// The four task views (#184/#186), the iOS sibling of the web's TaskView
+/// union and the Android TaskViewKind. Persisted by rawValue through the same
+/// state pattern the old List/Board toggle used; List is the default landing
+/// view.
+enum TaskViewKind: String, CaseIterable, Identifiable, Sendable {
+    case list
+    case board
+    case calendar
+    case map
+
+    var id: String { rawValue }
 }
 
 private struct TaskListRow: View {
