@@ -57,6 +57,8 @@ interface FakeConfig {
   dialResult?: () => { ccid: string } | { failure: "known-dead" | "ambiguous" };
   answerInbound?: () => "ok" | "dead";
   answerVm?: () => "ok" | "dead";
+  /** #208 F4: per-ccid hangup discrimination ("dead" = leg already gone). */
+  hangupResult?: (ccid: string) => "ok" | "dead";
   probeAlive?: () => boolean;
   pushUnreachable?: () => string[];
   pushAudience?: string[];
@@ -105,6 +107,7 @@ function makeRuntime(config: FakeConfig = {}) {
       },
       async hangup(ccid) {
         calls.hangups.push(ccid);
+        return config.hangupResult ? config.hangupResult(ccid) : "ok";
       },
       async reject(ccid) {
         calls.hangups.push(`reject:${ccid}`);
@@ -228,6 +231,20 @@ function memberAnsweredEvent(id: string, ccid: string): TelnyxEvent {
     data: {
       id,
       event_type: "call.answered",
+      payload: {
+        call_control_id: ccid,
+        client_state: buildMemberRingState({ sessionId: SESSION, userId: "u1", caller: "+15551000", inboundCcid: "cust-ccid" }),
+        to: "sip:s1@sip.telnyx.com",
+      } as never,
+    },
+  };
+}
+
+function memberHangupEvent(id: string, ccid: string): TelnyxEvent {
+  return {
+    data: {
+      id,
+      event_type: "call.hangup",
       payload: {
         call_control_id: ccid,
         client_state: buildMemberRingState({ sessionId: SESSION, userId: "u1", caller: "+15551000", inboundCcid: "cust-ccid" }),
@@ -435,6 +452,36 @@ describe("CallSessionDO — decline (#171)", () => {
     const rm = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: true });
     expect(rm).toMatchObject({ rang: false, reason: "declined" });
     expect(calls.dials.length).toBe(dialsBefore); // no re-dial for the decliner
+  });
+});
+
+describe("CallSessionDO (#208 F4): dead-customer-leg teardown", () => {
+  it("owner death where the customer leg is ALREADY dead synthesizes the terminal (no 4h outcome-null wedge)", async () => {
+    const { instance, calls } = makeDO({
+      initiated: ctx(),
+      // The T7 teardown's hangup of the customer leg discriminates "dead":
+      // the leg was already gone, so no bri webhook will ever run T8.
+      hangupResult: (ccid) => (ccid === "cust-ccid" ? "dead" : "ok"),
+    });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // → answered
+    // The owner's leg dies with NO intent live → T7 hangs up the customer leg.
+    await instance.onTelnyxEvent(memberHangupEvent("e3", "cc0"));
+    expect(calls.hangups).toContain("cust-ccid"); // the teardown DID try
+    const snap = await snapshot(instance);
+    expect(snap?.state).toBe("ended_answered"); // synthesized, not stranded
+    expect(calls.terminalMerges).toContain("synthetic:answered");
+    expect(calls.mirrors.some((m) => m.state === "ended_answered")).toBe(true);
+  });
+
+  it("counterfactual: a LIVE customer leg is not synthesized (its own bri hangup runs T8)", async () => {
+    const { instance, calls } = makeDO({ initiated: ctx() }); // hangup → "ok"
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    await instance.onTelnyxEvent(memberHangupEvent("e3", "cc0"));
+    const snap = await snapshot(instance);
+    expect(snap?.state).toBe("answered"); // the bri hangup will run T8
+    expect(calls.terminalMerges).toHaveLength(0);
   });
 });
 

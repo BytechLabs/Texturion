@@ -586,6 +586,62 @@ describe("T7 — owner death / intent stand-down", () => {
     expect(has(r.effects, "telnyx-hangup")).toBe(true);
     expect(r.machine?.ownerLegDeadDuringIntent).toBeNull();
   });
+
+  it("#208: set-owner after a COMPLETED blind transfer stands the expiry down (the customer is never hung up)", () => {
+    let machine = answeredMachine();
+    machine.intent = { kind: "transfer", targetUserId: "u2" };
+    // The sender's own leg dies mid-transfer: the EXPECTED shape of a blind
+    // transfer (Telnyx unbridges the sender when the target answers).
+    machine = reduce(
+      machine,
+      { type: "member-leg-hangup", ccid: "leg-u1", userId: "u1", destination: null },
+      3_000,
+      KEY,
+    ).machine as SessionMachine;
+    expect(machine.ownerLegDeadDuringIntent).toBe("u1");
+    // The transfer answer hands the owner over (handleTransferAnswered's
+    // setOwner), clearing the stood-down flag...
+    machine = reduce(machine, { type: "set-owner", userId: "u2" }, 3_100, KEY)
+      .machine as SessionMachine;
+    expect(machine.ownerLegDeadDuringIntent).toBeNull();
+    expect(machine.answeredByUserId).toBe("u2");
+    // ...so neither clear-intent nor the expiry alarm tears the call down.
+    const cleared = reduce(machine, { type: "clear-intent" }, 3_200, KEY);
+    expect(has(cleared.effects, "telnyx-hangup")).toBe(false);
+    const expired = reduce(
+      cleared.machine as SessionMachine,
+      { type: "alarm-intent-expiry" },
+      43_000,
+      KEY,
+    );
+    expect(has(expired.effects, "telnyx-hangup")).toBe(false);
+    expect(expired.machine?.state).toBe("answered");
+  });
+
+  it("#208 F4: inbound-leg-gone in `answered` synthesizes ended_answered (never a 4h outcome-null wedge)", () => {
+    const machine = answeredMachine();
+    const r = reduce(machine, { type: "inbound-leg-gone" }, 4_000, KEY);
+    expect(r.machine?.state).toBe("ended_answered");
+    const merge = r.effects.find((e) => e.kind === "terminal-merge") as
+      | Extract<Effect, { kind: "terminal-merge" }>
+      | undefined;
+    expect(merge).toMatchObject({
+      mode: "synthetic",
+      outcome: "answered",
+      briAnsweredAtIso: machine.answeredAtIso,
+    });
+  });
+
+  it("#208 F4: inbound-leg-gone outside `answered` is a T14-style no-op (a terminal never regresses)", () => {
+    for (const state of CALL_STATES) {
+      if (state === "answered") continue;
+      const machine = ringingMachine();
+      machine.state = state;
+      const r = reduce(machine, { type: "inbound-leg-gone" }, 4_000, KEY);
+      expect(r.machine?.state).toBe(state);
+      expect(r.effects).toEqual([]);
+    }
+  });
 });
 
 // ---- Voicemail T9/T11/T13 --------------------------------------------------

@@ -156,6 +156,13 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     expect(state).toBe(
       `brt|${SESSION}|${TARGET_ID}|${auth.subject}|0|+16135551000`,
     );
+    // CALLS-CLIENT-V2 §3.2 (#208): the transfer's NEW member leg carries the
+    // session-correlation custom SIP header (exactly like ring legs) so the
+    // target's client correlates the INVITE deterministically.
+    expect(
+      (body as { custom_headers: { name: string; value: string }[] })
+        .custom_headers,
+    ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
   });
 
   it("409s when the call isn't live (already ended)", async () => {
@@ -252,6 +259,14 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
       "sip:gencred_sender@sip.telnyx.com",
       "sip:gencred_target@sip.telnyx.com",
     ]);
+    // CALLS-CLIENT-V2 §3.2 (#208): both consult legs carry the session-
+    // correlation custom SIP header, exactly like ring legs.
+    for (const dial of dials) {
+      expect(
+        (dial.body as { custom_headers: { name: string; value: string }[] })
+          .custom_headers,
+      ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
+    }
     const ledger = sb.find("POST", "/rest/v1/call_member_legs");
     expect(ledger).toHaveLength(1);
     const rows = ledger[0].body as { kind: string }[];
@@ -336,6 +351,98 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
     expect(res.status).toBe(409);
+  });
+
+  /** #208: a CALL_SESSIONS namespace recording setOwner/clearIntent into a
+   *  shared ops log, so DO-vs-Telnyx ordering is assertable. */
+  function recordingSessions(ops: string[]): Env["CALL_SESSIONS"] {
+    return {
+      idFromName: (name: string) => name,
+      get: () => ({
+        setOwner: async (input: { sessionId: string; userId: string }) => {
+          ops.push(`setOwner:${input.userId}`);
+        },
+        clearIntent: async () => {
+          ops.push("clearIntent");
+        },
+      }),
+    } as unknown as Env["CALL_SESSIONS"];
+  }
+
+  it("complete (#208): the DO owner stamp (setOwner then clearIntent) lands BEFORE the bridge-steal", async () => {
+    // Ordering is the crash-window fix: a crash between the steal and a
+    // post-steal DO stamp would leave the machine believing the SENDER still
+    // owns the call, and the re-armed intent expiry would force-hang the
+    // transferred customer.
+    const ops: string[] = [];
+    const doEnv: Env = { ...env, CALL_SESSIONS: recordingSessions(ops) };
+    const sb = liveWorld({
+      consultLegs: [
+        { call_control_id: "brc-target", user_id: TARGET_ID, state: "answered" },
+        {
+          call_control_id: "brc-sender",
+          user_id: auth.subject,
+          state: "answered",
+        },
+      ],
+    });
+    const telnyx = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/(bridge|hangup)$/.test(url.pathname),
+      (call) => {
+        if (call.url.pathname.endsWith("/bridge")) ops.push("bridge");
+        return { data: { result: "ok" } };
+      },
+    );
+    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
+
+    const res = await apiRequest(
+      app,
+      doEnv,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/consult/complete`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(200);
+    expect(ops).toEqual([`setOwner:${TARGET_ID}`, "clearIntent", "bridge"]);
+  });
+
+  it("complete (#208): a FAILED bridge-steal restores the SENDER as the machine owner too", async () => {
+    const ops: string[] = [];
+    const doEnv: Env = { ...env, CALL_SESSIONS: recordingSessions(ops) };
+    const sb = liveWorld({
+      consultLegs: [
+        { call_control_id: "brc-target", user_id: TARGET_ID, state: "answered" },
+        {
+          call_control_id: "brc-sender",
+          user_id: auth.subject,
+          state: "answered",
+        },
+      ],
+    });
+    const bridge = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/bridge$/.test(url.pathname),
+      () => Response.json({ errors: [{ title: "call gone" }] }, { status: 422 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, bridge.route);
+
+    const res = await apiRequest(
+      app,
+      doEnv,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/consult/complete`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(500);
+    // The pre-steal hand-off happened, then the failure handed it back.
+    expect(ops).toEqual([
+      `setOwner:${TARGET_ID}`,
+      "clearIntent",
+      `setOwner:${auth.subject}`,
+    ]);
   });
 
   it("complete (#168 ordering): stamps the new owner BEFORE the bridge-steal, and RESTORES the sender when the bridge fails", async () => {

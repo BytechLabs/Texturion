@@ -42,7 +42,10 @@ import {
   type LiveCallRow,
 } from "../messaging/live-call";
 import { insertJourneyEvent } from "../messaging/live-call";
-import { ringMemberBrowser } from "../messaging/inbound-ring";
+import {
+  LOONEXT_SESSION_HEADER,
+  ringMemberBrowser,
+} from "../messaging/inbound-ring";
 import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -678,6 +681,13 @@ liveCallsRoutes.post(
               userId: leg.userId,
               role: leg.role,
             }),
+            // CALLS-CLIENT-V2 §3.2 (#208): consult legs carry the same
+            // session-correlation custom SIP header as ring legs (X- prefix
+            // mandatory), so both members' clients correlate the INVITE to the
+            // server session deterministically.
+            custom_headers: [
+              { name: LOONEXT_SESSION_HEADER, value: sessionId },
+            ],
           },
         })) as { data?: { call_control_id?: string } };
         const ccid = response.data?.call_control_id;
@@ -774,6 +784,21 @@ liveCallsRoutes.post(
     if (ownerError) {
       throw new Error(`transfer stamp failed: ${ownerError.message}`);
     }
+    // #170 §7.4 + #208: the DO owner stamp moves WITH the DB stamp, BEFORE
+    // the bridge-steal and the sender-leg hangup (set-owner is idempotent, so
+    // a replay is safe). Stamping after the steal left a crash window where
+    // the machine still believed the SENDER owned the call: the sender's leg
+    // death during the steal would flag ownerLegDeadDuringIntent, and the
+    // re-armed intent expiry would then force-hang the transferred customer.
+    // Clearing the intent re-runs T7's stood-down recovery check, a no-op
+    // now that the owner changed.
+    const completeStub = callsV3Active(env)
+      ? callSessionStub(env, sessionId)
+      : null;
+    if (completeStub) {
+      await completeStub.setOwner({ sessionId, userId: targetLeg.user_id });
+      await completeStub.clearIntent();
+    }
     try {
       await telnyxRequest(env, {
         method: "POST",
@@ -785,6 +810,13 @@ liveCallsRoutes.post(
         .from("calls")
         .update({ answered_by_user_id: c.get("userId") })
         .eq("call_session_id", sessionId);
+      // #208: the machine's owner must follow the DB restore. The steal
+      // failed, so the SENDER still holds the customer (set-owner is
+      // idempotent; a stale target owner would misroute T7's stranded-call
+      // teardown at the sender's next leg death).
+      if (completeStub) {
+        await completeStub.setOwner({ sessionId, userId: c.get("userId") });
+      }
       throw cause;
     }
 
@@ -811,18 +843,6 @@ liveCallsRoutes.post(
         });
       } catch {
         /* already gone */
-      }
-    }
-
-    // #170 §7.4: the owner stamp goes through the DO too, so the stamp-before-
-    // steal ordering is enforced by object serialization (the DB update above
-    // stays for immediate row/legacy-reader correctness; the DO mirror is
-    // idempotent). Clearing the intent re-runs T7's stood-down recovery check.
-    if (callsV3Active(env)) {
-      const stub = callSessionStub(env, sessionId);
-      if (stub) {
-        await stub.setOwner({ sessionId, userId: targetLeg.user_id });
-        await stub.clearIntent();
       }
     }
 

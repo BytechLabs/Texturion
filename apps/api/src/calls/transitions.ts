@@ -263,6 +263,14 @@ export type SessionEvent =
       ccid: string;
       userId: string;
       alive: boolean;
+    }
+  | {
+      /** #208 F4: a TERMINAL telnyx-hangup on the inbound (customer) leg
+       *  discriminated "dead": the leg was already gone/uncontrollable, so
+       *  the T8 bri hangup webhook may never arrive. The reducer resolves the
+       *  terminal itself (T16-janitor idiom) instead of stranding the row
+       *  outcome-null for the 4h janitor window. */
+      type: "inbound-leg-gone";
     };
 
 export const EVENT_TYPES: readonly SessionEvent["type"][] = [
@@ -285,6 +293,7 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "push-fanout-settled",
   "dial-outcome",
   "member-probe-outcome",
+  "inbound-leg-gone",
 ];
 
 export type AlarmKind =
@@ -693,6 +702,33 @@ export function reduce(
         leg.status = "dead"; // T3's "dial POST threw with a KNOWN-dead outcome"
       }
       runAvenueLadder(next, effects);
+      return { machine: next, effects };
+    }
+
+    // ---- Internal: #208 F4 dead-customer-leg discrimination ---------------
+    case "inbound-leg-gone": {
+      // The shell's TERMINAL hangup of the customer leg (T7's teardown /
+      // its intent-expiry re-run) discriminated "already dead": no bri
+      // webhook is coming to run T8. Resolve the terminal HERE with the
+      // machine's own facts (exactly the T16-janitor answered idiom) so a
+      // hangup race can never wedge the line for the 4h janitor window.
+      // Only `answered` needs this (the teardown only fires there); any
+      // other state means T8/T17 already resolved it: a T14-style no-op.
+      if (next.state !== "answered") return { machine: next, effects };
+      terminalize(
+        next,
+        effects,
+        nowMs,
+        "ended_answered",
+        {
+          kind: "terminal-merge",
+          mode: "synthetic",
+          outcome: "answered",
+          payload: null,
+          briAnsweredAtIso: next.answeredAtIso,
+        },
+        null,
+      );
       return { machine: next, effects };
     }
 

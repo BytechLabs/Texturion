@@ -137,6 +137,74 @@ describe("D43 phase 3 — transfer target legs (brt)", () => {
     });
   });
 
+  it("#208: a successful transfer answer hands the DO owner to the TARGET, then clears the intent, in that order", async () => {
+    // The order is load-bearing: set-owner clears ownerLegDeadDuringIntent
+    // (the sender's leg dying mid-transfer is the expected blind-transfer
+    // shape); clearIntent FIRST would re-run T7's stood-down teardown against
+    // the old owner and force-hang the transferred customer.
+    const ops: string[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          setOwner: async (input: { sessionId: string; userId: string }) => {
+            ops.push(`setOwner:${input.userId}`);
+          },
+          clearIntent: async () => {
+            ops.push("clearIntent");
+          },
+        }),
+      } as unknown as Env["CALL_SESSIONS"],
+    };
+    const claim = transferLegPatch([{ company_id: COMPANY_ID }]);
+    serve(claim, liveCallStub(), callsPatch(), eventScan(), eventInsert());
+
+    await handleCallEvent(
+      doEnv,
+      event("call.answered", {
+        call_control_id: "brt-leg-1",
+        call_session_id: SESSION,
+        direction: "outgoing",
+        client_state: brtState(0),
+      }),
+    );
+
+    expect(ops).toEqual([`setOwner:${TARGET}`, "clearIntent"]);
+  });
+
+  it("#208: a FORGED/replayed brt answer (no claimed intent) never touches the DO", async () => {
+    const ops: string[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          setOwner: async () => {
+            ops.push("setOwner");
+          },
+          clearIntent: async () => {
+            ops.push("clearIntent");
+          },
+        }),
+      } as unknown as Env["CALL_SESSIONS"],
+    };
+    const claim = transferLegPatch([]); // no ledgered intent for this session
+    serve(claim, liveCallStub(), callsPatch(), eventInsert());
+
+    await handleCallEvent(
+      doEnv,
+      event("call.answered", {
+        call_control_id: "brt-forged",
+        call_session_id: SESSION,
+        direction: "outgoing",
+        client_state: brtState(0),
+      }),
+    );
+
+    expect(ops).toEqual([]);
+  });
+
   it("answer: a FORGED brt with no ledgered intent is ignored (no stamp, no journey)", async () => {
     const claim = transferLegPatch([]); // no issued transfer for this session
     const stamp = callsPatch();

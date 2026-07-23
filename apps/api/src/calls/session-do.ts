@@ -568,8 +568,22 @@ export class CallSessionDO extends DurableObject<Env> {
       case "telnyx-hangup": {
         // Terminal-path hangups never drop; non-terminal cancels obey the cap.
         if (machine && !this.spendCommand(machine, effect.terminal)) return [];
-        await this.rt.telnyx.hangup(effect.ccid);
+        const outcome = await this.rt.telnyx.hangup(effect.ccid);
         if (machine) await this.save(machine);
+        if (
+          outcome === "dead" &&
+          effect.terminal &&
+          machine &&
+          effect.ccid === machine.inboundCcid
+        ) {
+          // #208 F4: a TERMINAL hangup of the CUSTOMER leg discriminated
+          // "dead": the leg was already gone, so the bri hangup webhook that
+          // runs T8 may never arrive. Re-enter the reducer so it synthesizes
+          // the terminal instead of stranding the row outcome-null for the 4h
+          // janitor window (the busy-line wedge class; see the terminal
+          // handler NOTE in messaging/voice-webhook.ts).
+          return [{ type: "inbound-leg-gone" }];
+        }
         return [];
       }
       case "telnyx-reject": {

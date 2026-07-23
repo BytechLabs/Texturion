@@ -341,7 +341,7 @@ export async function handleCallEvent(
     const state = parseTransferState(payload.client_state);
     if (!state) return;
     if (eventType === "call.answered") {
-      return handleTransferAnswered(db, state, payload.call_control_id);
+      return handleTransferAnswered(env, db, state, payload.call_control_id);
     }
     if (eventType === "call.hangup") {
       const missed = computeMissedFromEvent({

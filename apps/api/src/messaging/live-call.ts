@@ -27,9 +27,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { callsV3Active } from "../calls/runtime";
+import type { CallSessionDO } from "../calls/session-do";
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
-import { hangupLiveLeg } from "./inbound-ring";
+import { hangupLiveLeg, LOONEXT_SESSION_HEADER } from "./inbound-ring";
 
 /** Transfer target leg: `brt|<session>|<targetUser>|<senderUser>|<hops>|<caller-or-empty>` */
 export const TRANSFER_TARGET_STATE = "brt";
@@ -135,6 +137,17 @@ async function telnyxOnLiveLeg(
   }
 }
 
+/** The CallSessionDO stub for a session, or null when the binding is absent.
+ *  Mirrors routes/live-calls.ts: the webhook side needs the same #170 §7.4
+ *  owner/intent RPCs (the transfer answer is an owner hand-off too). */
+function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
+  const namespace = env.CALL_SESSIONS;
+  if (!namespace) return null;
+  return namespace.get(
+    namespace.idFromName(sessionId),
+  ) as unknown as CallSessionDO;
+}
+
 /** The live-call slice of the calls row every handler here needs. */
 export interface LiveCallRow {
   company_id: string;
@@ -211,6 +224,15 @@ export async function issueTransfer(
       from: input.callerNumberForTarget,
       timeout_secs: TRANSFER_TIMEOUT_SECS,
       target_leg_client_state: buildTransferState(input.state),
+      // CALLS-CLIENT-V2 §3.2 (#208): the transfer's NEW member leg carries the
+      // same session-correlation custom SIP header as ring legs (X- prefix
+      // mandatory), so the target's client correlates the inbound INVITE to
+      // its server session deterministically, never by a caller/time
+      // heuristic. Applies to the target leg only; the customer leg is
+      // untouched (its bri anchor stays).
+      custom_headers: [
+        { name: LOONEXT_SESSION_HEADER, value: input.state.sessionId },
+      ],
     },
   );
   if (!issued) {
@@ -234,6 +256,7 @@ export async function issueTransfer(
  * comes from the trusted ledger row, never the client tag.
  */
 export async function handleTransferAnswered(
+  env: Env,
   db: SupabaseClient,
   state: TransferState,
   realLegCcid: string | undefined,
@@ -266,6 +289,27 @@ export async function handleTransferAnswered(
     .eq("call_session_id", state.sessionId)
     .eq("company_id", companyId);
   if (error) throw new Error(`transfer stamp failed: ${error.message}`);
+
+  // #208 (#170 §7.4): hand the MACHINE's owner to the target, THEN clear the
+  // transfer intent. THE ORDER IS LOAD-BEARING: set-owner clears the reducer's
+  // ownerLegDeadDuringIntent flag (transitions.ts), and the sender's own leg
+  // dying mid-transfer is the EXPECTED shape of a blind transfer (Telnyx
+  // unbridges the sender when the target answers), not a stranded owner. A
+  // bare clearIntent would re-run T7's stood-down teardown against the OLD
+  // owner and force-hang the customer ~40s after a SUCCESSFUL transfer, and
+  // skipping both leaves the intent-expiry alarm to do the same. Same idiom
+  // and failure posture as consult/complete (routes/live-calls.ts): errors
+  // propagate into the webhook ledger for retry.
+  if (callsV3Active(env)) {
+    const stub = callSessionStub(env, state.sessionId);
+    if (stub) {
+      await stub.setOwner({
+        sessionId: state.sessionId,
+        userId: state.targetUserId,
+      });
+      await stub.clearIntent();
+    }
+  }
 
   const call = await liveCallBySession(db, state.sessionId);
   if (!call?.conversation_id) return; // unthreaded (anonymous) — list-only
