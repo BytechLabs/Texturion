@@ -20,6 +20,8 @@
  *          direction='note' (SPEC §6: notes ARE messages rows — they thread,
  *          search, paginate for free; status NULL per messages_note_status).
  *   POST   /v1/conversations/:id/read        upsert conversation_reads.
+ *   DELETE /v1/conversations/:id/read        drop the caller's watermark row
+ *          (mark unread — the conversation counts as unread again everywhere).
  *   GET    /v1/conversations/:id/events      audit timeline, cursor list.
  *   POST   /v1/conversations/:id/tags        { tag_id } | { name }
  *          (create-on-attach).
@@ -594,6 +596,41 @@ conversationsRoutes.post(
       "conversation_reads upsert",
     );
     return c.json(read);
+  },
+);
+
+conversationsRoutes.delete(
+  "/conversations/:id/read",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
+
+    // Unread is derived: no watermark row means the last message is newer
+    // than anything the caller has read. Deleting is idempotent by nature.
+    expectOk(
+      await db
+        .from("conversation_reads")
+        .delete()
+        .eq("conversation_id", id)
+        .eq("user_id", c.get("userId")),
+      "conversation_reads delete",
+    );
+    return c.body(null, 204);
   },
 );
 

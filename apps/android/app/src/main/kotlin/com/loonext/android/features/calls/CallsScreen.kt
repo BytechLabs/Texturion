@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Dialpad
 import androidx.compose.material.icons.outlined.Pause
@@ -84,6 +85,8 @@ import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.SwipeAction
+import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -566,93 +569,131 @@ private fun CallRow(
                 if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier,
             ),
     ) {
-        Row(
-            Modifier.padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-        ) {
-            InitialsAvatar(name, size = 38.dp)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    name,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        // #185 swipe shortcuts, on the row surface only (the voicemail player
+        // below stays outside so its scrubber keeps its own horizontal drags).
+        // Right = call back through the same dialer-prefill path as the circle
+        // (absent when there is no callable number; the dialer's existing
+        // offline handling still applies). Left = text back, the same
+        // conversation the row tap already opens. Both remain reachable by
+        // tap, so the swipe is a shortcut, never the only door.
+        SwipeActionRow(
+            modifier = Modifier.fillMaxWidth(),
+            startAction = onDialBack?.let { dial ->
+                SwipeAction(
+                    icon = Icons.Outlined.Call,
+                    label = "Call back",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    container = MaterialTheme.colorScheme.secondaryContainer,
+                    onCommit = {
+                        haptics.confirm()
+                        dial()
+                    },
                 )
-                Row(
-                    Modifier.padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        directionIcon(call),
-                        contentDescription = null,
-                        tint = if (isActionableMiss(call)) {
-                            coral
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(12.dp),
-                    )
+            },
+            endAction = onOpen?.let { open ->
+                SwipeAction(
+                    icon = Icons.AutoMirrored.Outlined.Message,
+                    label = "Text back",
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    container = MaterialTheme.colorScheme.tertiaryContainer,
+                    onCommit = {
+                        haptics.tap()
+                        open()
+                    },
+                )
+            },
+        ) {
+            Row(
+                Modifier.padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                InitialsAvatar(name, size = 38.dp)
+                Column(Modifier.weight(1f)) {
                     Text(
-                        callOutcomeLabel(call),
-                        fontSize = 11.5.sp,
-                        // Coral for the actionable inbound miss — the row's one
-                        // tinted element; everything else stays quiet.
-                        fontWeight = if (isActionableMiss(call)) {
-                            FontWeight.SemiBold
-                        } else {
-                            FontWeight.Normal
-                        },
-                        color = if (isActionableMiss(call)) {
-                            coral
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        name,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    screeningLabel(call.screening_result)?.let { label ->
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                        ) {
-                            Text(
-                                label,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            )
+                    Row(
+                        Modifier.padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            directionIcon(call),
+                            contentDescription = null,
+                            tint = if (isActionableMiss(call)) {
+                                coral
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            callOutcomeLabel(call),
+                            fontSize = 11.5.sp,
+                            // Coral for the actionable inbound miss — the row's one
+                            // tinted element; everything else stays quiet.
+                            fontWeight = if (isActionableMiss(call)) {
+                                FontWeight.SemiBold
+                            } else {
+                                FontWeight.Normal
+                            },
+                            color = if (isActionableMiss(call)) {
+                                coral
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                        screeningLabel(call.screening_result)?.let { label ->
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                            ) {
+                                Text(
+                                    label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(
+                                        horizontal = 8.dp,
+                                        vertical = 2.dp,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
-            }
-            Text(
-                relativeTime(call.started_at),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline,
-            )
-            if (onDialBack != null) {
-                val dialBackInteraction = remember { MutableInteractionSource() }
-                Surface(
-                    onClick = {
-                        haptics.tap()
-                        onDialBack()
-                    },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    interactionSource = dialBackInteraction,
-                    modifier = Modifier
-                        .size(34.dp)
-                        .pressScale(dialBackInteraction),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Outlined.Call,
-                            contentDescription = "Call back",
-                            modifier = Modifier.size(15.dp),
-                        )
+                Text(
+                    relativeTime(call.started_at),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                if (onDialBack != null) {
+                    val dialBackInteraction = remember { MutableInteractionSource() }
+                    Surface(
+                        onClick = {
+                            haptics.tap()
+                            onDialBack()
+                        },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        interactionSource = dialBackInteraction,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .pressScale(dialBackInteraction),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.Call,
+                                contentDescription = "Call back",
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
                     }
                 }
             }

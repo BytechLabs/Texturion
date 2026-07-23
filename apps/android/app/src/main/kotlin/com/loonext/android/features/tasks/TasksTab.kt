@@ -26,8 +26,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -73,6 +76,8 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.SwipeAction
+import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -645,7 +650,12 @@ private fun TaskList(
     }
 }
 
-/** One status group: a SectionHeader + its rows fused into one paper card. */
+/**
+ * One status group: a SectionHeader + its rows fused into one paper card.
+ * List rows carry the #185 swipe shortcuts (see the block comment on the
+ * row wiring); board cards get none because horizontal drag there moves a
+ * card between columns.
+ */
 private fun LazyListScope.taskSection(
     label: String,
     tasks: List<Task>,
@@ -667,6 +677,7 @@ private fun LazyListScope.taskSection(
     // key, so it glides to its new home instead of teleporting; fresh
     // compositions (cached repaints) never animate.
     itemsIndexed(tasks, key = { _, task -> task.id }) { index, task ->
+        val haptics = rememberHaptics()
         Column(
             Modifier
                 .animateItem()
@@ -674,12 +685,42 @@ private fun LazyListScope.taskSection(
                 .clip(cardGroupShape(index, tasks.size))
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            TaskListRow(
-                task = task,
-                assigneeName = memberName(task.assigned_user_id),
-                onClick = { onOpenTask(task.id) },
-                onToggleDone = { done -> onToggleDone(task, done) },
-            )
+            // Swipe shortcuts (#185) — never the only path: the done ring on
+            // the row and the detail screen's Due row remain the tap routes.
+            // Right (start) flips done through the SAME onToggleDone path as
+            // the ring, so the semantic haptic and the keyed section-move
+            // glide are identical; the reveal fills the lime chip pair per
+            // the "ring fills lime" intent. Left (end) is the due-date
+            // shortcut: the detail screen's date+time dialogs live inline
+            // there, so this opens the task detail where Due is one tap away.
+            SwipeActionRow(
+                startAction = SwipeAction(
+                    icon = if (task.done) Icons.Outlined.Undo else Icons.Outlined.Check,
+                    label = if (task.done) "Not done" else "Done",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    // onToggleDone plays the commit haptic itself (confirm on
+                    // done, tap on undo) — same as the ring, no double-play.
+                    onCommit = { onToggleDone(task, !task.done) },
+                ),
+                endAction = SwipeAction(
+                    icon = Icons.Outlined.Event,
+                    label = "Due date",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    container = MaterialTheme.colorScheme.secondaryContainer,
+                    onCommit = {
+                        haptics.tap()
+                        onOpenTask(task.id)
+                    },
+                ),
+            ) {
+                TaskListRow(
+                    task = task,
+                    assigneeName = memberName(task.assigned_user_id),
+                    onClick = { onOpenTask(task.id) },
+                    onToggleDone = { done -> onToggleDone(task, done) },
+                )
+            }
             if (index < tasks.lastIndex) RowDivider()
         }
     }

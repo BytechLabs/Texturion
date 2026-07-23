@@ -134,6 +134,11 @@ class MessagingRepository(private val api: ApiClient) {
         api.post<JsonObject>("/v1/conversations/$conversationId/read", companyId = companyId)
     }
 
+    /** Drops the caller's read watermark, so the conversation counts as unread everywhere. */
+    suspend fun markUnread(companyId: String, conversationId: String) {
+        api.delete("/v1/conversations/$conversationId/read", companyId = companyId)
+    }
+
     // --- Conversation mutations --------------------------------------------
 
     private suspend fun patchConversation(

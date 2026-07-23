@@ -34,8 +34,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +46,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -78,6 +85,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
+import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
@@ -98,6 +106,8 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.SwipeAction
+import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
@@ -187,6 +197,17 @@ fun InboxTab(
     )
 }
 
+/**
+ * One-shot snackbar payload for swipe outcomes (#185) — the id makes repeats
+ * re-fire the LaunchedEffect, same grammar as ThreadNotice.
+ */
+private data class InboxNotice(
+    val id: Long,
+    val text: String,
+    val actionLabel: String? = null,
+    val action: (() -> Unit)? = null,
+)
+
 // ---------------------------------------------------------------------------
 // List state
 // ---------------------------------------------------------------------------
@@ -238,6 +259,11 @@ private class InboxController(
         private set
     val searching: Boolean get() = query.trim().length >= 2
 
+    /** Swipe-action snackbar (#185); the tab-level effect shows it. */
+    var notice by mutableStateOf<InboxNotice?>(null)
+        private set
+
+    private var noticeSeq = 0L
     private var loadSeq = 0
     private var searchSeq = 0
     private var realtimeJob: Job? = null
@@ -500,6 +526,79 @@ private class InboxController(
         if (state is LoadState.Ready) persist()
     }
 
+    /** [markLocallyRead]'s counterpart for the swipe toggle: dot back on. */
+    private fun markLocallyUnread(conversationId: String) {
+        rows = rows.map { if (it.id == conversationId) it.copy(unread = true) else it }
+        pinnedRows = pinnedRows.map {
+            if (it.id == conversationId) it.copy(unread = true) else it
+        }
+        if (state is LoadState.Ready) persist()
+    }
+
+    // --- Swipe actions (#185) ---------------------------------------------
+
+    private fun notify(
+        text: String,
+        actionLabel: String? = null,
+        action: (() -> Unit)? = null,
+    ) {
+        notice = InboxNotice(++noticeSeq, text, actionLabel, action)
+    }
+
+    /**
+     * Swipe read/unread toggle, server-backed in both directions: an unread
+     * row gets the SAME read receipt ThreadScreen posts on open; a read row
+     * drops the caller's watermark (DELETE /read), so the dot survives
+     * revalidation and syncs everywhere. The local flip paints first either
+     * way; cache-first semantics untouched.
+     */
+    fun toggleRead(row: ConversationListItem) {
+        if (row.unread) {
+            markLocallyRead(row.id)
+            scope.launch { runCatching { repo.markRead(companyId, row.id) } }
+        } else {
+            markLocallyUnread(row.id)
+            scope.launch { runCatching { repo.markUnread(companyId, row.id) } }
+        }
+    }
+
+    /**
+     * Swipe close/reopen: the SAME status PATCH the thread's actions sheet
+     * commits. No optimistic splice — on success the pane merge-revalidates
+     * through the normal realtime path, so the row leaves or rejoins the
+     * current filter with animateItem gliding. Closing offers a one-tap
+     * Undo that reverts via the reopen mutation.
+     */
+    fun toggleStatus(row: ConversationListItem) {
+        val closing = row.status != ConversationStatus.CLOSED
+        val target = if (closing) ConversationStatus.CLOSED else ConversationStatus.OPEN
+        scope.launch {
+            try {
+                repo.setStatus(companyId, row.id, target)
+                scheduleRealtimeRefresh()
+                if (closing) {
+                    notify("Conversation closed", actionLabel = "Undo") { reopen(row.id) }
+                } else {
+                    notify("Conversation reopened")
+                }
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /** The Undo leg of a swipe-close. */
+    private fun reopen(conversationId: String) {
+        scope.launch {
+            try {
+                repo.setStatus(companyId, conversationId, ConversationStatus.OPEN)
+                scheduleRealtimeRefresh()
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
     // --- Search -----------------------------------------------------------
 
     fun runSearch() {
@@ -593,6 +692,21 @@ private fun InboxList(
     var filterSheetOpen by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
 
+    // Swipe-action outcomes (#185) surface here, at TAB scope, so the close
+    // Undo outlives the row it came from (a closed row leaves the pane on
+    // the next merge, taking any row-scoped coroutine with it).
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(controller.notice) {
+        val notice = controller.notice ?: return@LaunchedEffect
+        val result = snackbar.showSnackbar(
+            message = notice.text,
+            actionLabel = notice.actionLabel,
+            duration = if (notice.actionLabel != null) SnackbarDuration.Long
+            else SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
+    }
+
     Box(modifier.fillMaxSize()) {
         if (searchOpen) {
             SearchSurface(
@@ -683,6 +797,8 @@ private fun InboxList(
                 onDismiss = { filterSheetOpen = false },
             )
         }
+
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -922,7 +1038,7 @@ private fun ConversationListPane(
                     // Realtime arrivals fade in; re-sorts glide instead of jump.
                     modifier = Modifier.animateItem(),
                     onClick = { onOpen(row.id) },
-                ) { ConversationRow(row, assigneeName(row)) }
+                ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
             }
             if (controller.rows.isNotEmpty()) {
                 item(key = "rest-header") {
@@ -937,7 +1053,7 @@ private fun ConversationListPane(
                 last = index == controller.rows.lastIndex,
                 modifier = Modifier.animateItem(),
                 onClick = { onOpen(row.id) },
-            ) { ConversationRow(row, assigneeName(row)) }
+            ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
         }
         if (controller.loadingMore) {
             item(key = "loading-more") {
@@ -950,6 +1066,54 @@ private fun ConversationListPane(
             }
         }
     }
+}
+
+/**
+ * The inbox row wrapped in reveal-behind swipe actions (#185). Swipe right
+ * toggles the unread dot; swipe left closes (or, on a closed row, reopens).
+ * Both are shortcuts, never the only path (#185): opening the thread clears
+ * the dot, and status lives in the thread's actions sheet. Placed INSIDE
+ * [GroupedRow] so the revealed gutter clips to the card's corner radius; the
+ * gesture only claims horizontal slop, so the row tap and the LazyColumn's
+ * vertical scroll (and animateItem) keep working untouched.
+ *
+ * Commit haptics per the SwipeActionRow contract: tap() for the dot toggle,
+ * confirm() for the status commit (the arming tick lives in the component).
+ */
+@Composable
+private fun SwipeableConversationRow(
+    row: ConversationListItem,
+    controller: InboxController,
+    assigneeName: String?,
+) {
+    val haptics = rememberHaptics()
+    val closed = row.status == ConversationStatus.CLOSED
+    SwipeActionRow(
+        startAction = SwipeAction(
+            icon = if (row.unread) {
+                Icons.Outlined.MarkEmailRead
+            } else {
+                Icons.Outlined.MarkEmailUnread
+            },
+            label = if (row.unread) "Read" else "Unread",
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            onCommit = {
+                haptics.tap()
+                controller.toggleRead(row)
+            },
+        ),
+        endAction = SwipeAction(
+            icon = if (closed) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.Check,
+            label = if (closed) "Reopen" else "Close",
+            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            container = MaterialTheme.colorScheme.tertiaryContainer,
+            onCommit = {
+                haptics.confirm()
+                controller.toggleStatus(row)
+            },
+        ),
+    ) { ConversationRow(row, assigneeName) }
 }
 
 @Composable

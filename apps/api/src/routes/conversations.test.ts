@@ -641,6 +641,42 @@ describe("POST /v1/conversations/:id/read", () => {
   });
 });
 
+describe("DELETE /v1/conversations/:id/read", () => {
+  it("deletes the caller's conversation_reads row (mark unread)", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("DELETE", "/rest/v1/conversation_reads", () => new Response(null, { status: 204 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/read`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+    const del = sb.find("DELETE", "/rest/v1/conversation_reads")[0];
+    expect(del.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
+    expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
+  });
+
+  it("404s for a conversation outside the company", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/read`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("POST /v1/conversations/:id/notes", () => {
   const NOTE_ID = "abababab-1111-4222-8333-444444444444";
 
