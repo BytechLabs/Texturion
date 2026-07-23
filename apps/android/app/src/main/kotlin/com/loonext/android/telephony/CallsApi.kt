@@ -31,13 +31,11 @@ data class BrowserCallAuth(
      * stamps [CallSnapshot.sessionId] from it at PLACEMENT, so transfer/consult
      * no longer waits on the SDK's own (distinct) Telnyx session id.
      *
-     * Nullable and defaulted so this stays old-server tolerant: a pre-#211
-     * server, or a global-kill / [CALLS_OUTBOUND_V3]-off authorize that emits
-     * today's 3-part tag, returns no id, and its ABSENCE is never an authorize
-     * error (the leg still places; the SDK session backfills at ACTIVE, and
-     * transfer simply stays dark until a serverAddressable read confirms the
-     * session). ApiClient already sets ignoreUnknownKeys, so the field is safe
-     * to add ahead of the server and safe to omit behind it.
+     * Nullable and defaulted purely for decode safety: the server always
+     * mints it now (calls v3 is the sole path), but its ABSENCE must never be
+     * an authorize error (the leg still places; the SDK session backfills at
+     * ACTIVE, and transfer simply stays dark until a serverAddressable read
+     * confirms the session). ApiClient already sets ignoreUnknownKeys.
      */
     val call_session_id: String? = null,
 )

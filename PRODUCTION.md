@@ -85,7 +85,6 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 | `FCM_SERVICE_ACCOUNT_JSON` | Opt | Firebase **service-account key JSON** (the whole downloaded file, pasted as one value) for native Android/iOS device push over FCM HTTP v1 (#151). Unset = native pushes are logged no-ops; Web Push is unaffected. Founder steps in §6 (Firebase row) |
 | `TURNSTILE_SECRET_KEY` | Opt | Cloudflare Turnstile **secret** for server-side verification on `/contact`. Unset = honeypot + rate-limit + daily-cap only |
 | `POSTHOG_API_KEY` | Opt | PostHog Cloud project key. Unset = analytics is a silent no-op |
-| `CALLS_V3_LEGACY` | Opt | Calls v3 (#170) kill switch. Set to `1` to route inbound call webhooks back to the legacy ring engine (the `CallSessionDO` is bypassed, `/state` serves row-derivation, the DO alarm no-ops). Unset = the v3 state-machine path is live (the default once the `CALL_SESSIONS` DO binding is deployed). Emergency use only; removed with the legacy handlers at the §12.1-step-5 cleanup |
 
 ### Do NOT set in production
 | Secret | Why |
