@@ -303,7 +303,7 @@ private let screeningChoices = [
     ScreeningChoice(
         value: CallScreening.flag,
         label: "Label suspicious calls",
-        detail: "The carrier's verdict shows on the call — “Spam likely” — but every "
+        detail: "The carrier's verdict shows on the call as “Spam likely”, but every "
             + "call still rings the team."
     ),
     ScreeningChoice(
