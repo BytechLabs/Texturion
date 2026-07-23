@@ -14,6 +14,7 @@
  * re-notifies.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canonicalMmsType } from "@loonext/shared";
 
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
@@ -367,13 +368,17 @@ async function downloadInboundMedia(
         `media download failed (HTTP ${response.status}) for message ${args.messageId}`,
       );
     }
-    const contentType =
+    // #189: canonicalize vendor spellings (audio/x-wav, audio/amr-nb, …) so
+    // deliverable media isn't dropped over a MIME synonym; the canonical type
+    // is also what gets stored (the bucket's allowed_mime_types match it).
+    const contentType = canonicalMmsType(
       response.headers.get("content-type")?.split(";")[0]?.trim() ||
-      item.content_type ||
-      "";
+        item.content_type ||
+        "",
+    );
     if (!(INBOUND_MEDIA_TYPES as readonly string[]).includes(contentType)) {
-      // Permanent condition (e.g. video/audio MMS): skipping is the §7
-      // validation outcome — retrying would never change it.
+      // Permanent condition (a type carriers relayed but we can't serve):
+      // skipping is the §7 validation outcome — retrying would never change it.
       console.warn(
         `inbound media ${index} for message ${args.messageId} has unsupported type — skipped`,
       );

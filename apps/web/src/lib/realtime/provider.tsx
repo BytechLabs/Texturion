@@ -83,7 +83,7 @@ const TOAST_SNIPPET_LENGTH = 80;
 function toastSnippet(message: Message | undefined): string {
   if (!message) return "New message";
   const body = message.body.trim();
-  if (body.length === 0) return "Photo";
+  if (body.length === 0) return "Attachment"; // #189: not photos-only anymore
   if (body.length <= TOAST_SNIPPET_LENGTH) return body;
   return `${body.slice(0, TOAST_SNIPPET_LENGTH - 1)}…`;
 }

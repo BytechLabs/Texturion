@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+import { mmsMediaKind } from "@loonext/shared";
+
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import {
   Tooltip,
@@ -25,6 +27,7 @@ import { NoteAttachments } from "@/components/attachments/note-attachments";
 
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 
+import { AttachmentFileChip } from "./attachment-file";
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
 import { MessageActions } from "./message-actions";
@@ -237,6 +240,14 @@ export function MessageBubble({
   const outbound = message.direction === "outbound";
   const note = message.direction === "note";
   const attachments = message.attachments ?? [];
+  // #189: MMS carries more than pictures now — images keep their thumbnail
+  // grid; audio/video/vCard/calendar/PDF/text render as tappable file chips.
+  const imageAttachments = attachments.filter(
+    (attachment) => mmsMediaKind(attachment.content_type) === "image",
+  );
+  const fileAttachments = attachments.filter(
+    (attachment) => mmsMediaKind(attachment.content_type) !== "image",
+  );
   const failed = message.status === "failed";
   const done = isDone(message);
   const hasTask = message.has_task === true;
@@ -261,7 +272,7 @@ export function MessageBubble({
           outbound || note ? "items-end" : "items-start",
         )}
       >
-        {attachments.length > 0 && (
+        {imageAttachments.length > 0 && (
           <div
             className={cn(
               "flex max-w-full flex-wrap gap-1.5 transition-opacity duration-150 ease-out",
@@ -269,12 +280,27 @@ export function MessageBubble({
               done && "opacity-55",
             )}
           >
-            {attachments.map((attachment) => (
+            {imageAttachments.map((attachment) => (
               <AttachmentImage
                 key={attachment.id}
                 attachment={attachment}
                 alt={`Photo ${outbound ? "sent to" : "from"} ${contactName}`}
               />
+            ))}
+          </div>
+        )}
+        {/* #189 non-image MMS media: one calm file chip per item — kind icon,
+            kind label, size, tap opens the signed URL. */}
+        {fileAttachments.length > 0 && (
+          <div
+            className={cn(
+              "flex max-w-full flex-col gap-1.5 transition-opacity duration-150 ease-out",
+              outbound ? "items-end" : "items-start",
+              done && "opacity-55",
+            )}
+          >
+            {fileAttachments.map((attachment) => (
+              <AttachmentFileChip key={attachment.id} attachment={attachment} />
             ))}
           </div>
         )}

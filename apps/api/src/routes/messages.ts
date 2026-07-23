@@ -50,8 +50,8 @@ import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import {
   decodeOutboundMedia,
+  MAX_OUTBOUND_MEDIA_ITEMS,
   MMS_SEGMENTS,
-  OUTBOUND_MEDIA_TYPES,
   signedMediaUrls,
   uploadOutboundMedia,
 } from "../messaging/media";
@@ -90,9 +90,14 @@ export function requireIdempotencyKey(c: Context): string {
   return key;
 }
 
-/** Shared outbound-media item shape — reused by the compose route (§7). */
+/**
+ * Shared outbound-media item shape — reused by the compose route (§7).
+ * `content_type` is shape-checked here only; decodeOutboundMedia is the ONE
+ * allow-list gate (#189) — it canonicalizes vendor aliases (audio/x-wav …)
+ * and names the allowed set in its 422, which a zod enum can't do.
+ */
 export const mediaItemSchema = z.object({
-  content_type: z.enum(OUTBOUND_MEDIA_TYPES),
+  content_type: z.string().min(1).max(255),
   base64: z.string().min(1),
 });
 
@@ -100,7 +105,11 @@ const sendSchema = z
   .object({
     conversation_id: z.uuid(),
     body: z.string().max(4096).optional().default(""),
-    media: z.array(mediaItemSchema).min(1).max(3).optional(),
+    media: z
+      .array(mediaItemSchema)
+      .min(1)
+      .max(MAX_OUTBOUND_MEDIA_ITEMS)
+      .optional(),
   })
   .refine(
     (value) => value.body.trim().length > 0 || (value.media?.length ?? 0) > 0,

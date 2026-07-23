@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, FileText, ImagePlus, Send, X } from "lucide-react";
+import { ArrowLeft, FileText, Paperclip, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import {
   admitFiles,
   AttachmentChips,
   fileToBase64,
+  MediaErrors,
   SegmentMeterLabel,
   useAutoGrow,
   type DraftAttachment,
@@ -44,6 +45,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import type { Contact } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { isFilePaste } from "@/lib/attachments/clipboard";
+import { MMS_ACCEPT, MMS_MAX_MEDIA_ITEMS } from "@/lib/attachments/mms";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
@@ -71,8 +73,8 @@ type Recipient =
 
 /**
  * /inbox/new — the G5 outbound-first compose flow: contact search + raw
- * number with live E.164 formatting, saved-reply template picker, image
- * attachments, segment meter, quiet-hours dialog driven by the API's
+ * number with live E.164 formatting, saved-reply template picker, MMS file
+ * attachments (#189), segment meter, quiet-hours dialog driven by the API's
  * `quiet_hours_confirmation_required` code (409; matched structurally, never
  * by message text). Consent is attested implicitly server-side now (the visible
  * checkbox was removed).
@@ -125,8 +127,10 @@ export function NewConversation() {
   } | null>(null);
   const textareaRef = useAutoGrow(body);
 
-  // --- Attachments (§7 outbound MMS: ≤3 photos ≤1 MB each) -------------------
+  // --- Attachments (§7 outbound MMS, #189: ≤3 deliverable files ≤1 MB each) --
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  // #189 inline rejection copy from the LAST admission attempt.
+  const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Object URLs are revoked when a chip is removed or the composer unmounts —
@@ -135,7 +139,9 @@ export function NewConversation() {
   attachmentsRef.current = attachments;
   useEffect(
     () => () => {
-      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
+      for (const a of attachmentsRef.current) {
+        if (a.previewUrl !== null) URL.revokeObjectURL(a.previewUrl);
+      }
     },
     [],
   );
@@ -143,15 +149,21 @@ export function NewConversation() {
   const removeAttachment = (id: string) => {
     setAttachments((current) => {
       const found = current.find((a) => a.id === id);
-      if (found) URL.revokeObjectURL(found.previewUrl);
+      if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
       return current.filter((a) => a.id !== id);
     });
   };
 
-  // D28 intake — the attach button, dropped files, and pasted images all funnel
-  // through the shared admitFiles (count/type/size validation + G10 copy).
+  // D28/#189 intake — the attach button, dropped files, and pasted files all
+  // funnel through the shared admitFiles (count/type/size validation); the
+  // rejections render INLINE under the field, never as a doomed round-trip.
   const admitIncoming = (files: FileList) => {
-    setAttachments((cur) => admitFiles(cur, files));
+    const { attachments: next, errors } = admitFiles(
+      attachmentsRef.current,
+      files,
+    );
+    setAttachments(next);
+    setMediaErrors(errors);
   };
   const drop = useFileDrop(admitIncoming);
 
@@ -211,7 +223,7 @@ export function NewConversation() {
 
   const submit = async (quietConfirmed: boolean) => {
     if (!destinationE164 || numberId === null) return;
-    // Read the staged photos into base64 up front. Attachments are never
+    // Read the staged files into base64 up front. Attachments are never
     // cleared here, so they survive a quiet-hours 409 — the dialog's re-submit
     // (submit(true)) carries the same media.
     let media: OutboundMedia[] | undefined;
@@ -219,13 +231,13 @@ export function NewConversation() {
       if (attachments.length > 0) {
         media = await Promise.all(
           attachments.map(async (a) => ({
-            content_type: a.file.type as OutboundMedia["content_type"],
+            content_type: a.contentType,
             base64: await fileToBase64(a.file),
           })),
         );
       }
     } catch {
-      toast.error("Couldn't read that photo. Try attaching it again.");
+      toast.error("Couldn't read that file. Try attaching it again.");
       return;
     }
     const inputBody: ComposeInput = {
@@ -510,17 +522,17 @@ export function NewConversation() {
           <div className="flex items-center justify-between">
             <Label htmlFor="compose-body">Message</Label>
             <div className="flex items-center gap-1">
-              {/* Attach up to 3 photos (§7 outbound MMS) — the shared admitFiles
-                  enforces count/type/size; this is just the entry point. */}
+              {/* Attach up to 3 files (§7 outbound MMS, #189) — the shared
+                  admitFiles enforces count/type/size; this is the entry point. */}
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                disabled={attachments.length >= 3}
-                aria-label="Attach a photo"
+                disabled={attachments.length >= MMS_MAX_MEDIA_ITEMS}
+                aria-label="Attach files"
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-45"
               >
-                <ImagePlus className="size-3.5" strokeWidth={1.75} aria-hidden />
-                Photo
+                <Paperclip className="size-3.5" strokeWidth={1.75} aria-hidden />
+                Attach
               </button>
               {/* Saved-reply (template) picker — same one as the in-thread
                   composer; also opens on "/" in an empty draft. */}
@@ -543,7 +555,7 @@ export function NewConversation() {
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif"
+            accept={MMS_ACCEPT}
             multiple
             hidden
             onChange={(event) => {
@@ -551,6 +563,7 @@ export function NewConversation() {
               event.target.value = "";
             }}
           />
+          <MediaErrors errors={mediaErrors} />
           <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
           <textarea
             id="compose-body"
@@ -580,13 +593,13 @@ export function NewConversation() {
             className="min-h-20 w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-[15px]"
           />
           <div className="flex items-start justify-between gap-2">
-            {/* #56: a new conversation can't open photo-only — POST
+            {/* #56: a new conversation can't open attachment-only — POST
                 /v1/conversations requires words (unlike in-thread sends).
                 Name the reason instead of leaving Send silently dead. */}
             {attachments.length > 0 && body.trim() === "" ? (
               <p className="text-xs text-muted-foreground">
                 Add a short message. The first text in a new conversation
-                can&apos;t be photo-only.
+                can&apos;t be just an attachment.
               </p>
             ) : (
               <span aria-hidden />

@@ -20,12 +20,31 @@ describe("pinnedSnippet", () => {
     );
   });
 
-  it("falls back to 'Photo' for an empty body with attachments", () => {
+  it("falls back to 'Photo' for an empty body with an image attachment", () => {
     expect(
       pinnedSnippet(
-        m({ body: "", attachments: [{ id: "a" }] as Message["attachments"] }),
+        m({
+          body: "",
+          attachments: [
+            { id: "a", content_type: "image/jpeg" },
+          ] as Message["attachments"],
+        }),
       ),
     ).toBe("Photo");
+  });
+
+  it("names the non-image kind for an empty body (#189)", () => {
+    const withType = (content_type: string) =>
+      pinnedSnippet(
+        m({
+          body: "",
+          attachments: [{ id: "a", content_type }] as Message["attachments"],
+        }),
+      );
+    expect(withType("audio/amr")).toBe("Audio");
+    expect(withType("video/mp4")).toBe("Video");
+    expect(withType("text/vcard")).toBe("Contact card");
+    expect(withType("application/pdf")).toBe("PDF");
   });
 
   it("falls back to 'Attachment' for an empty body and no attachments", () => {

@@ -2,7 +2,6 @@
 
 import {
   FileText,
-  ImagePlus,
   Paperclip,
   Plus,
   Send as SendIcon,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { MmsMediaType } from "@loonext/shared";
 
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
@@ -32,23 +32,27 @@ import { ApiError } from "@/lib/api/error";
 import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import {
+  MMS_ACCEPT,
+  MMS_MAX_MEDIA_ITEMS,
+  partitionMmsFiles,
+} from "@/lib/attachments/mms";
+import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
 import { cn } from "@/lib/utils";
 
+import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { TemplatePicker } from "./template-picker";
-
-/** SPEC §7 outbound media limits — validated here AND by the API. */
-const MAX_ATTACHMENTS = 3;
-const MAX_BYTES = 1024 * 1024;
-const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/gif"]);
 
 export interface DraftAttachment {
   id: string;
   file: File;
-  previewUrl: string;
+  /** The type this item will be SENT as (#189: declared or extension-resolved). */
+  contentType: MmsMediaType;
+  /** Local object URL for image previews; null for non-image files. */
+  previewUrl: string | null;
 }
 
 export function fileToBase64(file: File): Promise<string> {
@@ -63,7 +67,11 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/** Removable chip previews for attached images (§3.1). */
+/**
+ * Removable draft chips (§3.1, #189): images keep their thumbnail preview;
+ * every other deliverable file (audio, video, contact card, PDF, text) shows
+ * as a quiet name-and-size chip. Nothing touches the network until send.
+ */
 export function AttachmentChips({
   attachments,
   onRemove,
@@ -73,56 +81,106 @@ export function AttachmentChips({
 }) {
   if (attachments.length === 0) return null;
   return (
-    <div className="mx-auto flex max-w-[42rem] gap-2 px-1 pb-2">
-      {attachments.map((attachment) => (
-        <span key={attachment.id} className="relative">
-          {/* Local object URL preview — never uploaded until send. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={attachment.previewUrl}
-            alt={attachment.file.name}
-            className="size-14 rounded-md border border-border object-cover"
-          />
-          <button
-            type="button"
-            onClick={() => onRemove(attachment.id)}
-            aria-label={`Remove ${attachment.file.name}`}
-            className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-secondary"
+    <div className="mx-auto flex max-w-[42rem] flex-wrap items-center gap-2 px-1 pb-2">
+      {attachments.map((attachment) => {
+        const name = attachment.file.name || "File";
+        if (attachment.previewUrl !== null) {
+          return (
+            <span key={attachment.id} className="relative">
+              {/* Local object URL preview — never uploaded until send. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachment.previewUrl}
+                alt={name}
+                className="size-14 rounded-md border border-border object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => onRemove(attachment.id)}
+                aria-label={`Remove ${name}`}
+                className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-secondary"
+              >
+                <X className="size-3" strokeWidth={1.75} />
+              </button>
+            </span>
+          );
+        }
+        const size = formatBytes(attachment.file.size);
+        return (
+          <span
+            key={attachment.id}
+            className="flex min-w-0 items-center gap-1.5 rounded-full border border-border bg-secondary/50 py-0.5 pl-2.5 pr-1 text-xs text-foreground"
           >
-            <X className="size-3" strokeWidth={1.75} />
-          </button>
-        </span>
-      ))}
+            <Paperclip className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+            <span className="max-w-40 truncate">{name}</span>
+            {size && (
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {size}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onRemove(attachment.id)}
+              aria-label={`Remove ${name}`}
+              className="tap-target flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
+            >
+              <X className="size-3" strokeWidth={1.75} />
+            </button>
+          </span>
+        );
+      })}
     </div>
   );
 }
 
-/** Validate + admit files into the draft; G10 error copy. */
+/** The result of admitting picked/dropped/pasted files into a text draft. */
+export interface AdmitFilesResult {
+  attachments: DraftAttachment[];
+  /** Plain-language reasons for the files that did NOT make it — rendered
+   * INLINE by the caller (#189), so a bad pick is explained where it happened. */
+  errors: string[];
+}
+
+/**
+ * Validate + admit files into the draft (#189): the shared MMS matrix
+ * (type + size + count, extension fallback for empty OS types) runs locally
+ * so a valid pick never round-trips to fail. Image admissions get an object
+ * URL for their preview chip; other kinds render as name chips.
+ */
 export function admitFiles(
   current: DraftAttachment[],
   incoming: FileList | File[],
-): DraftAttachment[] {
+): AdmitFilesResult {
+  const { accepted, rejected } = partitionMmsFiles(
+    Array.from(incoming),
+    current.length,
+  );
   const next = [...current];
-  for (const file of Array.from(incoming)) {
-    if (next.length >= MAX_ATTACHMENTS) {
-      toast.error("You can attach up to 3 photos per text.");
-      break;
-    }
-    if (!ACCEPTED_TYPES.has(file.type)) {
-      toast.error("Photos only: JPEG, PNG, or GIF.");
-      continue;
-    }
-    if (file.size > MAX_BYTES) {
-      toast.error("That image is over 1 MB. Try a smaller photo.");
-      continue;
-    }
+  for (const { file, contentType } of accepted) {
     next.push({
       id: crypto.randomUUID(),
       file,
-      previewUrl: URL.createObjectURL(file),
+      contentType,
+      previewUrl: contentType.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : null,
     });
   }
-  return next;
+  return { attachments: next, errors: rejected.map((r) => r.reason) };
+}
+
+/** Inline (not toast) rejection lines under the draft chips (#189). */
+export function MediaErrors({ errors }: { errors: string[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <div className="mx-auto max-w-[42rem] space-y-0.5 px-1 pb-2" role="alert">
+      {errors.map((error, index) => (
+        <p key={index} className="text-xs text-destructive">
+          {error}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -188,7 +246,8 @@ export function useAutoGrow(value: string) {
  * affordance (staged chips above the pill; on save the note is created first,
  * then each staged file uploads with the note id), and BOTH modes accept
  * dropped files (a quiet dashed overlay) and pasted images, validated against
- * the active mode's limits (text: 3 photos ≤1 MB; note: D19 — 10 files ≤25 MB).
+ * the active mode's limits (text: #189 MMS set, 3 files ≤1 MB; note: D19 —
+ * 10 files ≤25 MB).
  *
  * The pill is constrained to the same 42rem reading track as the message column
  * (§3.1) so the send affordance sits under the messages it belongs to.
@@ -207,6 +266,9 @@ export function Composer({
   const isNote = noteOnly || mode === "note";
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  // #189 inline rejection copy from the LAST admission attempt (type/size/
+  // count) — rendered above the pill, replaced or cleared on the next intake.
+  const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const noteStage = useStagedFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
   const textareaRef = useAutoGrow(text);
@@ -218,7 +280,9 @@ export function Composer({
   attachmentsRef.current = attachments;
   useEffect(
     () => () => {
-      for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
+      for (const a of attachmentsRef.current) {
+        if (a.previewUrl !== null) URL.revokeObjectURL(a.previewUrl);
+      }
     },
     [],
   );
@@ -226,7 +290,7 @@ export function Composer({
   const removeAttachment = (id: string) => {
     setAttachments((current) => {
       const found = current.find((a) => a.id === id);
-      if (found) URL.revokeObjectURL(found.previewUrl);
+      if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
       return current.filter((a) => a.id !== id);
     });
   };
@@ -302,12 +366,13 @@ export function Composer({
     // Clear immediately (fast by feel, G1); restore on failure.
     setText("");
     setAttachments([]);
+    setMediaErrors([]);
     let media: OutboundMedia[] | undefined;
     try {
       if (draftAttachments.length > 0) {
         media = await Promise.all(
           draftAttachments.map(async (a) => ({
-            content_type: a.file.type as OutboundMedia["content_type"],
+            content_type: a.contentType,
             base64: await fileToBase64(a.file),
           })),
         );
@@ -315,14 +380,16 @@ export function Composer({
     } catch {
       setText(draftText);
       setAttachments(draftAttachments);
-      toast.error("Couldn't read that photo. Try attaching it again.");
+      toast.error("Couldn't read that file. Try attaching it again.");
       return;
     }
     send.mutate(
       { body: draftText, media },
       {
         onSuccess: () => {
-          for (const a of draftAttachments) URL.revokeObjectURL(a.previewUrl);
+          for (const a of draftAttachments) {
+            if (a.previewUrl !== null) URL.revokeObjectURL(a.previewUrl);
+          }
           textareaRef.current?.focus();
         },
         onError: (error) => {
@@ -362,9 +429,17 @@ export function Composer({
     }
   };
 
+  // #189 text-mode intake: run the shared MMS matrix locally and surface the
+  // rejections INLINE (never a round-trip for a pick this gate can decide).
+  const admitDraftFiles = (files: FileList | File[]) => {
+    const { attachments: next, errors } = admitFiles(attachments, files);
+    setAttachments(next);
+    setMediaErrors(errors);
+  };
+
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      setAttachments((cur) => admitFiles(cur, event.target.files!));
+      admitDraftFiles(event.target.files);
     }
     event.target.value = "";
   };
@@ -377,14 +452,15 @@ export function Composer({
   };
 
   // D28 file intake for drops + pastes — validated per the ACTIVE mode's
-  // rules (text: MMS 3×1 MB images; note: D19 10×25 MB allow-list). Notes stage
-  // their files to storage; text mode stages photos as MMS (#97: ungated).
+  // rules (text: MMS 3×1 MB deliverable files; note: D19 10×25 MB allow-list).
+  // Notes stage their files to storage; text mode stages MMS media (#97:
+  // ungated).
   const admitIncoming = (files: FileList) => {
     if (isNote) {
       noteStage.admit(files);
       return;
     }
-    setAttachments((cur) => admitFiles(cur, files));
+    admitDraftFiles(files);
   };
 
   const drop = useFileDrop(admitIncoming);
@@ -398,7 +474,7 @@ export function Composer({
     admitIncoming(event.clipboardData.files);
   };
 
-  const attachDisabled = attachments.length >= MAX_ATTACHMENTS;
+  const attachDisabled = attachments.length >= MMS_MAX_MEDIA_ITEMS;
   const noteAttachDisabled = noteStage.files.length >= MAX_ATTACHMENTS_PER_OWNER;
 
   return (
@@ -434,6 +510,7 @@ export function Composer({
           ))}
         </div>
       )}
+      {!isNote && <MediaErrors errors={mediaErrors} />}
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}
@@ -468,15 +545,17 @@ export function Composer({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Attach a photo"
+                    aria-label="Attach files"
                     onClick={openFilePicker}
                     disabled={attachDisabled}
                     className="rounded-full text-muted-foreground"
                   >
-                    <ImagePlus className="size-5" strokeWidth={1.75} />
+                    <Paperclip className="size-5" strokeWidth={1.75} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Attach up to 3 photos</TooltipContent>
+                <TooltipContent>
+                  Attach up to {MMS_MAX_MEDIA_ITEMS} files, 1 MB each
+                </TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -525,8 +604,8 @@ export function Composer({
                     onSelect={openFilePicker}
                     disabled={attachDisabled}
                   >
-                    <ImagePlus className="size-4" strokeWidth={1.75} aria-hidden />
-                    Attach a photo
+                    <Paperclip className="size-4" strokeWidth={1.75} aria-hidden />
+                    Attach a file
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setPickerOpen(true)}>
                     <FileText className="size-4" strokeWidth={1.75} aria-hidden />
@@ -539,7 +618,7 @@ export function Composer({
             <input
               ref={fileRef}
               type="file"
-              accept="image/jpeg,image/png,image/gif"
+              accept={MMS_ACCEPT}
               multiple
               hidden
               onChange={onFileChange}

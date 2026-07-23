@@ -13,7 +13,7 @@ import type { ConversationEvent, Message } from "@/lib/api/types";
 const DONE_EXCERPT_MAX = 48;
 export function doneEventExcerpt(body: string): string {
   const clean = body.replace(/\s+/g, " ").trim();
-  if (clean === "") return "a photo";
+  if (clean === "") return "an attachment"; // #189: MMS is not photos-only
   if (clean.length <= DONE_EXCERPT_MAX) return `"${clean}"`;
   return `"${clean.slice(0, DONE_EXCERPT_MAX).trimEnd()}…"`;
 }

@@ -78,7 +78,9 @@ function useSnippet(conversation: ConversationListItem): Snippet | null {
 function snippetText(snippet: Snippet): string {
   const body = snippet.body.trim();
   if (body === "") {
-    return snippet.hasAttachments ? "Photo" : "";
+    // #189: MMS media is not photos-only anymore — the row only knows "has
+    // attachments", so the neutral word is the honest one.
+    return snippet.hasAttachments ? "Attachment" : "";
   }
   return body;
 }

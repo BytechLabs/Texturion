@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { MmsMediaType } from "@loonext/shared";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -29,9 +30,14 @@ import type {
   Page,
 } from "./types";
 
-/** Outbound media item (SPEC §7: ≤3 items, ≤1 MB decoded, jpeg/png/gif). */
+/**
+ * Outbound media item (SPEC §7, widened by #189): ≤3 items, ≤1 MB decoded,
+ * any type in the shared deliverable set (images, audio, video, vCard,
+ * calendar, PDF, text) — @loonext/shared is the one contract the API
+ * enforces and the composers validate against.
+ */
 export interface OutboundMedia {
-  content_type: "image/jpeg" | "image/png" | "image/gif";
+  content_type: MmsMediaType;
   base64: string;
 }
 

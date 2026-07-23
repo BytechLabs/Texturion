@@ -141,7 +141,7 @@ describe("notificationSnippet", () => {
   });
 
   it("falls back for empty bodies (media vs plain)", () => {
-    expect(notificationSnippet("  ", 2)).toBe("Sent a photo");
+    expect(notificationSnippet("  ", 2)).toBe("Sent an attachment");
     expect(notificationSnippet("", 0)).toBe("Sent a message");
   });
 });

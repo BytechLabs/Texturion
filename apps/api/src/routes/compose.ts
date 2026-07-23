@@ -34,6 +34,7 @@ import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import {
   decodeOutboundMedia,
+  MAX_OUTBOUND_MEDIA_ITEMS,
   MMS_SEGMENTS,
   signedMediaUrls,
   uploadOutboundMedia,
@@ -74,9 +75,14 @@ const composeSchema = z
     consent_attested: z.literal(true).optional(),
     quiet_hours_confirmed: z.boolean().optional(),
     // #97 outbound MMS: same shape/limits as POST /v1/messages/send — ≤3
-    // jpeg/png/gif items, ≤1 MB each (decoded + byte-checked server-side).
-    // Ungated (fair-use metered as segments, see the send below).
-    media: z.array(mediaItemSchema).min(1).max(3).optional(),
+    // items from the #189 deliverable set (images/audio/video/vCard/PDF/
+    // text), ≤1 MB each (decoded + byte-checked server-side). Ungated
+    // (fair-use metered as segments, see the send below).
+    media: z
+      .array(mediaItemSchema)
+      .min(1)
+      .max(MAX_OUTBOUND_MEDIA_ITEMS)
+      .optional(),
   })
   .refine(
     (value) => (value.contact_id === undefined) !== (value.phone_e164 === undefined),

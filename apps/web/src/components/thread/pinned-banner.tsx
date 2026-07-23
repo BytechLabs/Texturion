@@ -2,6 +2,7 @@
 
 import { ChevronDown, Pin } from "lucide-react";
 import { useState } from "react";
+import { mmsMediaKind } from "@loonext/shared";
 
 import type { Message } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -14,13 +15,31 @@ import { cn } from "@/lib/utils";
  * query is a later increment). Clicking a row jumps to the source message.
  */
 
-/** The one-line label a pinned row shows: the trimmed body, else a media note. */
+/** The one-line label a pinned row shows: the trimmed body, else a media note
+ * derived from the first attachment's kind (#189: MMS is not photos-only). */
 export function pinnedSnippet(
   message: Pick<Message, "body" | "attachments">,
 ): string {
   const body = message.body.trim();
   if (body !== "") return body;
-  return (message.attachments?.length ?? 0) > 0 ? "Photo" : "Attachment";
+  const first = message.attachments?.[0];
+  if (!first) return "Attachment";
+  switch (mmsMediaKind(first.content_type)) {
+    case "image":
+      return "Photo";
+    case "audio":
+      return "Audio";
+    case "video":
+      return "Video";
+    case "contact":
+      return "Contact card";
+    case "calendar":
+      return "Calendar invite";
+    case "document":
+      return "PDF";
+    default:
+      return "Attachment";
+  }
 }
 
 /** The pinned messages, newest-pin-first (pinned_at desc). Pure — unit-tested. */

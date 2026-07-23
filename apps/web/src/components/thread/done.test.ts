@@ -104,9 +104,9 @@ describe("doneEventExcerpt (§4.3)", () => {
     expect(out.length).toBeLessThan(long.length);
   });
 
-  it("collapses whitespace and reads an empty body as a photo", () => {
+  it("collapses whitespace and reads an empty body as an attachment", () => {
     expect(doneEventExcerpt("  hi   there ")).toBe('"hi there"');
-    expect(doneEventExcerpt("   ")).toBe("a photo");
+    expect(doneEventExcerpt("   ")).toBe("an attachment");
   });
 });
 

@@ -85,7 +85,8 @@ function unwrapRows<T>(
 export function notificationSnippet(body: string, mediaCount: number): string {
   const text = body.trim().replace(/\s+/g, " ");
   if (text.length === 0) {
-    return mediaCount > 0 ? "Sent a photo" : "Sent a message";
+    // #189: MMS is not photos-only (audio, video, contact cards, PDFs…).
+    return mediaCount > 0 ? "Sent an attachment" : "Sent a message";
   }
   return text.length <= SNIPPET_LENGTH
     ? text

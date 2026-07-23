@@ -821,7 +821,7 @@ Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conve
 | `POST /v1/conversations/:id/tags` | M | `{ tag_id }` or `{ name }` (create-on-attach) |
 | `DELETE /v1/conversations/:id/tags/:tag_id` | M | Detach |
 | `POST /v1/conversations/:id/read` | M | Upsert `conversation_reads` for caller |
-| `POST /v1/messages/send` | M | `{ conversation_id, body, media?: [{content_type, base64}] }` + `Idempotency-Key` → message row (status `queued`). Media limits (422 `validation_failed`): max 3 items, ≤1 MB each decoded, `content_type` ∈ image/jpeg \| image/png \| image/gif. Gate order: membership → subscription `active` → destination is US/CA NANP area code → per-destination registration gate → opt-out check → cap check → rate limit → insert → Telnyx `POST /v2/messages` |
+| `POST /v1/messages/send` | M | `{ conversation_id, body, media?: [{content_type, base64}] }` + `Idempotency-Key` → message row (status `queued`). Media limits (422 `validation_failed`): max 3 items, ≤1 MB each decoded, `content_type` in the #189 deliverable MMS set (images jpeg/png/gif/webp, audio mpeg/mp4/amr/wav/ogg/3gpp, video mp4/3gpp/quicktime, PDF, vCard, calendar, plain text — canonical list: packages/shared/src/mms.ts `MMS_OUTBOUND_MEDIA_TYPES`; SVG stays excluded). Gate order: membership → subscription `active` → destination is US/CA NANP area code → per-destination registration gate → opt-out check → cap check → rate limit → insert → Telnyx `POST /v2/messages` |
 | `POST /v1/messages/:id/retry` | M | Re-send a `failed` outbound **only when `telnyx_message_id IS NULL`** (the Telnyx API call failed before an ID was assigned): new Telnyx call, same row. Carrier-finalized failures (e.g. 40300) are not retryable — 409 `conflict`; the user composes a new message |
 | `GET /v1/contacts` | M | `q` via pg_trgm; cursor list |
 | `POST /v1/contacts` | M | `{ phone_e164, name?, address?, notes? }` — upsert on `(company_id, phone_e164)`: an existing row (soft-deleted included) is updated and `deleted_at` cleared |
@@ -961,8 +961,9 @@ Clients subscribe on inbox mount (`private: true`), apply events by refetching t
 POST /v1/messages/send
  → gates pass → INSERT messages (status='queued')      ← this insert IS the
    optimistic UI: the broadcast trigger pushes it to every open inbox
- → outbound media, when present (validated per §7: ≤3 items, ≤1 MB each,
-   jpeg/png/gif): upload each item to mms-media/{company_id}/{message_id}/{n},
+ → outbound media, when present (validated per §7: ≤3 items, ≤1 MB each, the
+   #189 deliverable MMS set — images/audio/video/PDF/vCard/calendar/text):
+   upload each item to mms-media/{company_id}/{message_id}/{n},
    INSERT message_attachments rows (source_url NULL for outbound), mint a
    24-hour signed URL per item (TTL covers Telnyx's fetch + retries) and pass
    those URLs as media_urls

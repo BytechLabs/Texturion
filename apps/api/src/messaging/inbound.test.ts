@@ -193,6 +193,103 @@ describe("handleInboundMessage — #121 storage is free (media never budget-gate
   });
 });
 
+describe("handleInboundMessage — #189 widened inbound media", () => {
+  it("stores a non-image type carriers deliver, canonicalizing vendor spellings", async () => {
+    // The carrier CDN reports the vendor alias; the stored row must carry the
+    // canonical audio/amr so the bucket's allowed_mime_types accept it.
+    const mediaDownload = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () =>
+        new Response(new TextEncoder().encode("#!AMR\n frames"), {
+          headers: { "content-type": "audio/amr-nb" },
+        }),
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({
+      Key: "mms-media/x",
+    }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      mediaDownload,
+      upload,
+      attachmentInsert,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "audio/amr-nb", size: 12 }],
+      }),
+    );
+
+    expect(mediaDownload.calls).toHaveLength(1);
+    expect(upload.calls).toHaveLength(1);
+    expect(attachmentInsert.calls).toHaveLength(1);
+    expect(attachmentInsert.calls[0].body).toMatchObject({
+      content_type: "audio/amr",
+    });
+  });
+
+  it("still skips a type the platform cannot serve", async () => {
+    const mediaDownload = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () =>
+        new Response(new Uint8Array([0x00, 0x01]), {
+          headers: { "content-type": "application/vnd.wap.mms-message" },
+        }),
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({
+      Key: "mms-media/x",
+    }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      mediaDownload,
+      upload,
+      attachmentInsert,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [
+          {
+            url: MEDIA_URL,
+            content_type: "application/vnd.wap.mms-message",
+            size: 2,
+          },
+        ],
+      }),
+    );
+
+    expect(mediaDownload.calls).toHaveLength(1);
+    expect(upload.calls).toHaveLength(0);
+    expect(attachmentInsert.calls).toHaveLength(0);
+  });
+});
+
 describe("handleInboundMessage — #39 notification budget", () => {
   it("sends the 100% owner alert and skips the member fan-out on a capped claim", async () => {
     const resend = resendStub();

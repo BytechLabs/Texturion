@@ -620,12 +620,12 @@ describe("inbound pipeline — MMS media (§7)", () => {
 
   it("skips unsupported media types without failing the pipeline", async () => {
     const stubs = mediaStubs();
-    const videoDownload = stubRoute(
+    const zipDownload = stubRoute(
       (url, request) =>
         request.method === "GET" && url.href.startsWith(MEDIA_URL),
       () =>
-        new Response(new Uint8Array([0x00]), {
-          headers: { "content-type": "video/mp4" },
+        new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), {
+          headers: { "content-type": "application/zip" },
         }),
     );
     serve(
@@ -635,14 +635,14 @@ describe("inbound pipeline — MMS media (§7)", () => {
       stubs.threadRpc,
       stubs.away,
       stubs.attachmentLookup,
-      videoDownload,
+      zipDownload,
       stubs.upload,
       stubs.attachmentInsert,
     );
 
     const { flush } = await deliver(
       messageReceivedEvent({
-        media: [{ url: MEDIA_URL, content_type: "video/mp4" }],
+        media: [{ url: MEDIA_URL, content_type: "application/zip" }],
       }),
     );
     await flush();

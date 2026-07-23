@@ -297,7 +297,7 @@ export function MessageList({
     if (lastMessage && lastMessage.direction === "inbound") {
       const body = lastMessage.body.trim();
       setAnnouncement(
-        `New message from ${contactDisplayName(contact)}: ${body === "" ? "photo" : body}`,
+        `New message from ${contactDisplayName(contact)}: ${body === "" ? "attachment" : body}`,
       );
     }
     return () => clearTimeout(timer);
