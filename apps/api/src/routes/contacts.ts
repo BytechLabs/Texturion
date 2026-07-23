@@ -56,7 +56,8 @@ import { parseVCards } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
-  "consent_attested_by,deleted_at,created_at,updated_at";
+  "consent_attested_by,created_by_user_id,updated_by_user_id," +
+  "deleted_at,created_at,updated_at";
 
 const createSchema = z.object({
   phone_e164: z.string().trim().min(1).max(32),
@@ -134,6 +135,30 @@ async function findContact(
   return rows[0] ?? null;
 }
 
+/**
+ * #191 attribution: resolve actor user-ids to member display names the same
+ * way the task-detail route does (a profiles user_id -> display_name lookup).
+ * One batched call; only a resolved, non-empty display_name maps to a name, so
+ * an actor-less (pre-#191) or blank-profile row yields null and the UI omits
+ * the attribution line rather than showing an empty one.
+ */
+async function resolveActorNames(
+  db: Db,
+  userIds: (string | null | undefined)[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const ids = [...new Set(userIds.filter((v): v is string => Boolean(v)))];
+  if (ids.length === 0) return names;
+  const found = unwrap<{ user_id: string; display_name: string | null }[]>(
+    await db.from("profiles").select("user_id,display_name").in("user_id", ids),
+    "contact attribution profiles",
+  );
+  for (const p of found) {
+    if (p.display_name) names.set(p.user_id, p.display_name);
+  }
+  return names;
+}
+
 export const contactsRoutes = new Hono<AppEnv>();
 
 contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
@@ -158,7 +183,13 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
     query = query.or(keysetFilter("created_at", cursor));
   }
   const rows = unwrap<
-    { id: string; created_at: string; phone_e164: string }[]
+    {
+      id: string;
+      created_at: string;
+      phone_e164: string;
+      created_by_user_id: string | null;
+      updated_by_user_id: string | null;
+    }[]
   >(
     await query
       .order("created_at", { ascending: false })
@@ -213,12 +244,27 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
     }
   }
 
+  // #191 attribution: resolve created/updated actor names for the page in one
+  // batched profiles lookup (the same mechanism as the detail route), so each
+  // list row carries created_by_name/updated_by_name — null when the actor was
+  // never recorded (older rows) or the profile has no name.
+  const actorNames = await resolveActorNames(
+    db,
+    page.data.flatMap((row) => [row.created_by_user_id, row.updated_by_user_id]),
+  );
+
   return c.json({
     ...page,
     data: page.data.map((row) => ({
       ...row,
       opted_out: optedOutPhones.has(row.phone_e164),
       last_activity_at: lastActivityByContact.get(row.id) ?? null,
+      created_by_name: row.created_by_user_id
+        ? actorNames.get(row.created_by_user_id) ?? null
+        : null,
+      updated_by_name: row.updated_by_user_id
+        ? actorNames.get(row.updated_by_user_id) ?? null
+        : null,
     })),
   });
 });
@@ -356,6 +402,8 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
     // Upsert semantics (SPEC §7): any create path resurrects a soft-deleted
     // contact.
     deleted_at: null,
+    // #191 attribution: record who created (or resurrected) the contact.
+    created_by_user_id: c.get("userId"),
   };
   if (body.name !== undefined) row.name = body.name;
   if (body.notes !== undefined) row.notes = body.notes;
@@ -395,7 +443,17 @@ contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
       .limit(1),
     "opt-out lookup",
   );
-  return c.json({ ...contact, opted_out: optOuts.length > 0 });
+  // #191 attribution: resolve the created/updated actor names (null for older,
+  // actor-less rows — the UI shows the attribution line only when it resolves).
+  const createdBy = contact.created_by_user_id as string | null;
+  const updatedBy = contact.updated_by_user_id as string | null;
+  const actorNames = await resolveActorNames(db, [createdBy, updatedBy]);
+  return c.json({
+    ...contact,
+    opted_out: optOuts.length > 0,
+    created_by_name: createdBy ? actorNames.get(createdBy) ?? null : null,
+    updated_by_name: updatedBy ? actorNames.get(updatedBy) ?? null : null,
+  });
 });
 
 contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
@@ -424,6 +482,9 @@ contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
     patch.consent_at = new Date().toISOString();
     patch.consent_attested_by = userId;
   }
+  // #191 attribution: any field change (patchSchema guarantees at least one)
+  // records who last edited the contact.
+  patch.updated_by_user_id = userId;
 
   const rows = unwrap<Record<string, unknown>[]>(
     await db
@@ -455,7 +516,11 @@ contactsRoutes.delete("/contacts/:id", requireRole("member"), async (c) => {
   const rows = unwrap<{ id: string }[]>(
     await db
       .from("contacts")
-      .update({ deleted_at: new Date().toISOString() })
+      // #191 attribution: record who soft-deleted the contact.
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by_user_id: c.get("userId"),
+      })
       .eq("company_id", c.get("companyId"))
       .eq("id", id)
       .select("id"),
@@ -595,6 +660,9 @@ contactsRoutes.post(
         company_id: companyId,
         phone_e164: phone,
         deleted_at: null,
+        // #191 attribution: every imported/resurrected row records the importer
+        // as its creator. A constant key, so the batching invariant holds.
+        created_by_user_id: userId,
       };
       if (nameCol !== -1) row.name = unguard(cell(cells, nameCol));
       if (addressCol !== -1) {
@@ -775,6 +843,7 @@ contactsRoutes.post(
     }
 
     const companyId = c.get("companyId");
+    const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
 
     const errors: { row: number; reason: string }[] = [];
@@ -838,6 +907,8 @@ contactsRoutes.post(
         company_id: companyId,
         phone_e164: phone,
         deleted_at: null,
+        // #191 attribution: the importer is the creator (same as the CSV path).
+        created_by_user_id: userId,
       };
       if (name !== null) row.name = name;
       return row;

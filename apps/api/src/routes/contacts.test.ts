@@ -209,6 +209,7 @@ describe("POST /v1/contacts (upsert semantics)", () => {
       company_id: COMPANY_ID,
       phone_e164: "+14165550199",
       deleted_at: null,
+      created_by_user_id: auth.subject, // #191 attribution
       name: "Jo Smith",
     });
     expect(upsert.url.searchParams.get("on_conflict")).toBe(
@@ -328,6 +329,198 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
   });
 });
 
+describe("#191 contact attribution (created/updated/deleted actors + names)", () => {
+  it("POST records created_by_user_id = the caller", async () => {
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { phone_e164: "+14165550199", name: "Jo Smith" },
+    });
+    expect(res.status).toBe(201);
+    const upsert = sb.find("POST", "/rest/v1/contacts")[0]
+      .body as Record<string, unknown>;
+    expect(upsert.created_by_user_id).toBe(auth.subject);
+  });
+
+  it("GET resolves created_by_name/updated_by_name from profiles (the message-sender/assignment mechanism)", async () => {
+    const OTHER = "1c2d3e4f-1111-4222-8333-444444444444";
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ created_by_user_id: auth.subject, updated_by_user_id: OTHER }),
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: auth.subject, display_name: "Casey Owner" },
+      { user_id: OTHER, display_name: "Pat Rivera" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      id: CONTACT_ID,
+      created_by_user_id: auth.subject,
+      created_by_name: "Casey Owner",
+      updated_by_user_id: OTHER,
+      updated_by_name: "Pat Rivera",
+    });
+    // Names resolve via a single batched profiles lookup on the actor ids.
+    const lookup = sb.find("GET", "/rest/v1/profiles")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(
+      `in.(${auth.subject},${OTHER})`,
+    );
+  });
+
+  it("GET returns null names for a pre-existing (actor-less) contact and never queries profiles", async () => {
+    const sb = stubWithRole("member");
+    // An older row: no created_by/updated_by columns recorded.
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.created_by_name).toBeNull();
+    expect(body.updated_by_name).toBeNull();
+    // No actor ids → no profiles round-trip.
+    expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
+  });
+
+  it("GET treats a blank profile display_name as unresolved (null name)", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ created_by_user_id: auth.subject }),
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: auth.subject, display_name: "" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Record<string, unknown>).toMatchObject({
+      created_by_user_id: auth.subject,
+      created_by_name: null,
+    });
+  });
+
+  it("PATCH records updated_by_user_id on a field change", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [contactRow({ name: "Jo S." })]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { name: "Jo S." } },
+    );
+    expect(res.status).toBe(200);
+    const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
+      .body as Record<string, unknown>;
+    expect(patch.name).toBe("Jo S.");
+    expect(patch.updated_by_user_id).toBe(auth.subject);
+  });
+
+  it("DELETE records deleted_by_user_id alongside deleted_at", async () => {
+    const sb = stubWithRole("member");
+    sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+    const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
+      .body as Record<string, unknown>;
+    expect(typeof patch.deleted_at).toBe("string");
+    expect(patch.deleted_by_user_id).toBe(auth.subject);
+  });
+
+  it("CSV import stamps created_by_user_id on every imported row", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) => {
+      const rows = call.body as { phone_e164: string }[];
+      return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name\n+14165550100,A\n+14165550101,B\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+    const upsert = sb.find("POST", "/rest/v1/contacts")[0].body as Record<
+      string,
+      unknown
+    >[];
+    expect(upsert).toHaveLength(2);
+    for (const row of upsert) {
+      expect(row.created_by_user_id).toBe(auth.subject);
+    }
+  });
+
+  it("list rows carry resolved created_by_name via a batched profiles lookup", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ created_by_user_id: auth.subject }),
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: auth.subject, display_name: "Casey Owner" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { created_by_name: string | null }[];
+    };
+    expect(body.data[0].created_by_name).toBe("Casey Owner");
+  });
+});
+
 describe("POST /v1/contacts/import (O/A, CSV)", () => {
   it("403s a plain member (role gate)", async () => {
     const sb = stubWithRole("member");
@@ -404,6 +597,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         company_id: COMPANY_ID,
         phone_e164: "+14165550100",
         deleted_at: null,
+        created_by_user_id: auth.subject, // #191 attribution
         name: "Smith, Jo",
         address: "1 Main St",
         lat: null,
@@ -415,6 +609,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         company_id: COMPANY_ID,
         phone_e164: "+14165550101",
         deleted_at: null,
+        created_by_user_id: auth.subject, // #191 attribution
         name: "New Person",
         address: null,
         lat: null,
