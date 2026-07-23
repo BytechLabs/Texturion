@@ -163,7 +163,9 @@ object Nanp {
      */
     fun destinationLocalTime(e164: String, at: Instant = Instant.now()): LocalTime? {
         val zone = lookupAreaCode(e164)?.timezone ?: return null
-        return runCatching { LocalTime.ofInstant(at, ZoneId.of(zone)) }.getOrNull()
+        // atZone().toLocalTime() rather than LocalTime.ofInstant: the latter is
+        // a Java 9 addition Android maps to API 31, above this app's minSdk.
+        return runCatching { at.atZone(ZoneId.of(zone)).toLocalTime() }.getOrNull()
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.loonext.android.telephony
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -114,6 +116,20 @@ internal class CallNotifier(private val context: Context) {
     }
 
     /**
+     * The single notify choke point. Lint cannot follow [canPost] across
+     * methods, so the POST_NOTIFICATIONS guard lives here, structurally in
+     * front of every post; runCatching absorbs the SecurityException race
+     * (permission revoked between the check and the notify).
+     */
+    @SuppressLint("MissingPermission")
+    private fun post(tag: String, id: Int, notification: Notification) {
+        if (!canPost()) return
+        runCatching {
+            NotificationManagerCompat.from(context).notify(tag, id, notification)
+        }
+    }
+
+    /**
      * The incoming-call RING (§3/§6, self-managed reality). A high-importance
      * `CallStyle.forIncomingCall` on the ringtone channel — the OS rings and
      * vibrates from the channel, shows a heads-up with Answer/Decline when
@@ -151,10 +167,7 @@ internal class CallNotifier(private val context: Context) {
             // Second guard: if this process dies mid-ring, no cancel path survives —
             // let the OS reap the row when the server ring window is over.
             .setTimeoutAfter(TelecomCallReducer.RING_WINDOW_MS)
-        runCatching {
-            NotificationManagerCompat.from(context)
-                .notify("call:$session", INCOMING_ID, builder.build())
-        }
+        post("call:$session", INCOMING_ID, builder.build())
     }
 
     fun cancelIncoming(session: String) = cancelIncomingForSession(context, session)
@@ -212,10 +225,7 @@ internal class CallNotifier(private val context: Context) {
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setContentIntent(openAppIntent(requestCode = 7))
-        runCatching {
-            NotificationManagerCompat.from(context)
-                .notify("call:$session", CONNECTING_ID, builder.build())
-        }
+        post("call:$session", CONNECTING_ID, builder.build())
     }
 
     fun cancelConnecting(session: String) {
