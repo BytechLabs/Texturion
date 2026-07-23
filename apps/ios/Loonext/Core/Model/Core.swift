@@ -109,6 +109,12 @@ enum DefaultScreeningOff: DefaultCodableProvider {
     static var defaultValue: String { "off" }
 }
 
+/// #193: caller ID defaults to the company name platform-wide, so a lagging
+/// payload without the field reads as the company-name default.
+enum DefaultCallerIdCompanyName: DefaultCodableProvider {
+    static var defaultValue: String { "company_name" }
+}
+
 enum DefaultEmptyBusinessHours: DefaultCodableProvider {
     static var defaultValue: [String: DayHours?] { [:] }
 }
@@ -145,10 +151,24 @@ struct CompanyView: Codable, Sendable {
     let away_message: String?
     @Default<DefaultFalse> var mctb_enabled: Bool
     let mctb_message: String?
+    /// #192: server-resolved template that will actually send (custom else the
+    /// shared product default) — the client renders server truth, never guesses.
+    let mctb_effective_message: String?
+    /// #192: true when the effective message is the owner's custom text.
+    @Default<DefaultFalse> var mctb_message_is_custom: Bool
     let voicemail_greeting: String?
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?
     @Default<DefaultFalse> var caller_id_lookup: Bool
+    /// #193: the outbound caller ID actually in effect (server-resolved: the
+    /// explicit override, else the company name in the carrier alphabet). Nil
+    /// only when neither yields a listable name.
+    let caller_id_effective: String?
+    /// #193: 'company_name' = platform default; 'custom' = owner-set.
+    @Default<DefaultCallerIdCompanyName> var caller_id_source: String
+    /// #193: when the listing last went to the carrier side (propagation takes
+    /// days with no completion signal, so the timestamp IS the state).
+    let cnam_submitted_at: String?
     let created_at: String
     let updated_at: String
     @Default<DefaultEmptyList<PhoneNumberSummary>> var numbers: [PhoneNumberSummary]

@@ -380,4 +380,124 @@ final class SettingsLogicTests: XCTestCase {
     func testInviteLinkMatchesTheWebOrigin() {
         XCTAssertEqual(inviteLink("abc"), "https://app.loonext.com/invite/abc")
     }
+
+    // MARK: - #178 usage presentation (mirror of Android UsageStatusLogicTest)
+
+    private func usage(
+        status: String = UsageStatus.quiet,
+        usedSegments: Int = 0,
+        includedSegments: Int = 500,
+        capSegments: Int? = 5000,
+        usedMinutes: Int = 0,
+        includedMinutes: Int = 2500,
+        capMinutes: Int? = 25000
+    ) -> Usage {
+        Usage(
+            status: status,
+            included_segments: includedSegments,
+            used_segments: usedSegments,
+            cap_segments: capSegments,
+            voice: UsageVoice(
+                used_minutes: usedMinutes,
+                included_minutes: includedMinutes,
+                cap_minutes: capMinutes
+            )
+        )
+    }
+
+    func testPacingSubjectNamesTheHotterMeter() {
+        XCTAssertEqual(pacingSubject(usage(usedSegments: 450, usedMinutes: 100)), "Messages")
+        XCTAssertEqual(pacingSubject(usage(usedSegments: 50, usedMinutes: 2400)), "Calling minutes")
+        XCTAssertEqual(
+            pacingSubject(usage(usedSegments: 600, usedMinutes: 2600)),
+            "Messages and calling minutes"
+        )
+        // One over, one merely warm: name the hot one alone.
+        XCTAssertEqual(pacingSubject(usage(usedSegments: 600, usedMinutes: 2000)), "Messages")
+        // Zero allowances never divide; the calm default noun wins.
+        XCTAssertEqual(pacingSubject(usage(includedSegments: 0, includedMinutes: 0)), "Messages")
+    }
+
+    func testCapUseRatioTakesTheHotterCapMeter() {
+        let hotVoice = usage(usedSegments: 500, usedMinutes: 23750)
+        XCTAssertEqual(capUseRatio(hotVoice), 0.95, accuracy: 1e-9)
+        XCTAssertEqual(capUsePercent(hotVoice), 95)
+    }
+
+    func testCapUsePercentClampsAtOneHundred() {
+        XCTAssertEqual(capUsePercent(usage(usedSegments: 6000)), 100)
+    }
+
+    func testCapUseRatioReadsNullCapsAsZero() {
+        XCTAssertEqual(
+            capUseRatio(usage(usedSegments: 400, capSegments: nil, capMinutes: nil)),
+            0.0,
+            accuracy: 1e-9
+        )
+    }
+
+    func testUsagePresentationMapsStatusAndDefaultsUnknownToQuiet() {
+        XCTAssertEqual(usagePresentation(UsageStatus.quiet), .quiet)
+        XCTAssertEqual(usagePresentation(UsageStatus.pacing), .pacing)
+        XCTAssertEqual(usagePresentation(UsageStatus.capped), .capped)
+        XCTAssertEqual(usagePresentation("brand_new_status"), .quiet)
+    }
+
+    func testPayloadsWithoutStatusDecodeAsTheCalmState() throws {
+        let decoded = try JSONDecoder().decode(Usage.self, from: Data(#"{"used_segments":12}"#.utf8))
+        XCTAssertEqual(decoded.status, UsageStatus.quiet)
+        XCTAssertEqual(decoded.used_segments, 12)
+    }
+
+    // MARK: - #192 text-back (a blank message is legal, sends the default)
+
+    func testBlankTextBackResolvesToTheDefaultNeverBlocksEnabling() {
+        // A blank local edit falls back to the server's effective template.
+        XCTAssertEqual(
+            mctbSendTemplate(message: "   ", effectiveMessage: "Custom from server"),
+            "Custom from server"
+        )
+        // Blank with no server hint falls back to the bundled default.
+        XCTAssertEqual(mctbSendTemplate(message: "", effectiveMessage: nil), defaultMctbMessage)
+        // A real edit wins and is trimmed.
+        XCTAssertEqual(
+            mctbSendTemplate(message: "  Text us back  ", effectiveMessage: "ignored"),
+            "Text us back"
+        )
+    }
+
+    // MARK: - #193 caller ID (defaults to the company name)
+
+    func testCompanyNameSanitizesToTheCarrierAlphabet() {
+        XCTAssertEqual(cnamFromCompanyName("Ace Plumbing & Co."), "Ace Plumbing Co")
+        XCTAssertEqual(cnamFromCompanyName("  O'Brien   Heating  "), "O Brien Heating")
+        // The 15-char cut lands on a word gap; no trailing space survives.
+        XCTAssertEqual(cnamFromCompanyName("Best Home Reno Pros"), "Best Home Reno")
+        XCTAssertEqual(cnamFromCompanyName("--- !!! ---"), "")
+    }
+
+    func testSubmittedCnamChangeReadsPendingForThreeDaysThenSettles() throws {
+        let now = try XCTUnwrap(parseWireTimestamp("2026-07-15T12:00:00Z"))
+        XCTAssertFalse(cnamChangePending(submittedAt: nil, now: now))
+        XCTAssertTrue(cnamChangePending(submittedAt: "2026-07-15T11:00:00Z", now: now)) // an hour ago
+        XCTAssertTrue(cnamChangePending(submittedAt: "2026-07-13T00:00:00+00:00", now: now)) // offset form
+        XCTAssertFalse(cnamChangePending(submittedAt: "2026-07-01T00:00:00Z", now: now)) // long past
+        XCTAssertFalse(cnamChangePending(submittedAt: "not-a-timestamp", now: now))
+    }
+
+    func testCallerIdAndTextBackModelDefaultsMirrorTheServer() throws {
+        let company: CompanyView = try JSONDecoder().decode(CompanyView.self, from: Data(#"""
+        {"id":"c1","name":"Acme","country":"US","us_texting_enabled":true,
+         "requested_area_code":"415","timezone":"America/Toronto",
+         "subscription_status":"active",
+         "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z"}
+        """#.utf8))
+        // #193: caller ID defaults to the company name when the server omits it.
+        XCTAssertEqual(company.caller_id_source, "company_name")
+        XCTAssertNil(company.caller_id_effective)
+        XCTAssertNil(company.cnam_submitted_at)
+        // #192: the effective template is absent and not custom until set.
+        XCTAssertNil(company.mctb_effective_message)
+        XCTAssertFalse(company.mctb_message_is_custom)
+    }
 }

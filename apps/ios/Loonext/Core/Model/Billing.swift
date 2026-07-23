@@ -76,8 +76,28 @@ enum DefaultEmptyProjection: DefaultCodableProvider {
     static var defaultValue: UsageOverageProjection { UsageOverageProjection() }
 }
 
+/// #178: the fair-use presentation contract. GET /v1/usage derives `status`
+/// server-side so every client renders the same philosophy: 'quiet' shows no
+/// meters anywhere, 'pacing' shows the early warning, 'capped' shows the
+/// owner-set spending cap approaching or reached. Server string-enum, so a
+/// lagging build never crashes; unknown values render the calm 'quiet' state.
+enum UsageStatus {
+    static let quiet = "quiet"
+    static let pacing = "pacing"
+    static let capped = "capped"
+}
+
+/// #178 decode default: keeps pre-#178 cached payloads (and unknown values)
+/// decoding as the calm state.
+enum DefaultUsageStatusQuiet: DefaultCodableProvider {
+    static var defaultValue: String { UsageStatus.quiet }
+}
+
 /// GET /v1/usage — nils when the company has never checked out.
 struct Usage: Codable, Sendable {
+    /// #178 presentation status; the default keeps pre-#178 payloads decoding
+    /// as the calm state (unknown values also render quiet).
+    @Default<DefaultUsageStatusQuiet> var status: String
     let period_start: String?
     let period_end: String?
     @Default<DefaultZero> var included_segments: Int
@@ -90,6 +110,36 @@ struct Usage: Codable, Sendable {
     @Default<DefaultEmptyList<UsageMonth>> var history: [UsageMonth]
     @Default<DefaultEmptyStorage> var storage: UsageStorage
     @Default<DefaultEmptyVoice> var voice: UsageVoice
+
+    init(
+        status: String = UsageStatus.quiet,
+        period_start: String? = nil,
+        period_end: String? = nil,
+        included_segments: Int = 0,
+        used_segments: Int = 0,
+        inbound_segments: Int = 0,
+        overage_segments: Int = 0,
+        cap_segments: Int? = nil,
+        projected_overage_cents: Int = 0,
+        overage_projection: UsageOverageProjection = UsageOverageProjection(),
+        history: [UsageMonth] = [],
+        storage: UsageStorage = UsageStorage(),
+        voice: UsageVoice = UsageVoice()
+    ) {
+        self.status = status
+        self.period_start = period_start
+        self.period_end = period_end
+        self.included_segments = included_segments
+        self.used_segments = used_segments
+        self.inbound_segments = inbound_segments
+        self.overage_segments = overage_segments
+        self.cap_segments = cap_segments
+        self.projected_overage_cents = projected_overage_cents
+        self.overage_projection = overage_projection
+        self.history = history
+        self.storage = storage
+        self.voice = voice
+    }
 }
 
 /// GET /v1/billing/modules — admin-only add-on catalog with enabled state.

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// #85/#95: meters warn at the SAME 80% the usage-alert emails fire at.
-private let meterWarnRatio = 0.8
+/// #178 fair-use policy link — the same page the web and Android open.
+private let fairUseUrl = "https://loonext.com/legal/fair-use"
 
 private func periodRange(_ usage: Usage) -> String? {
     guard let start = usage.period_start, let end = usage.period_end,
@@ -25,9 +25,73 @@ private func monthLabel(_ month: String) -> String {
     return formatter.string(from: date)
 }
 
-/// Usage (#163): hero tabular figures, the segments meter (olive, amber at
-/// 80%), the overage projection, voice minutes, the free storage line, the
-/// 6-month history bars, and the owner-only overage-cap chips.
+// MARK: - #178 presentation decisions (mirror of Android SettingsLogic.kt)
+
+/// Which card the server's `status` renders. Unknown values render the calm
+/// 'quiet' state, so a lagging build never surfaces a meter it shouldn't.
+enum UsagePresentation: Equatable {
+    case quiet
+    case pacing
+    case capped
+}
+
+func usagePresentation(_ status: String) -> UsagePresentation {
+    switch status {
+    case UsageStatus.capped: .capped
+    case UsageStatus.pacing: .pacing
+    default: .quiet
+    }
+}
+
+/// #178: which meter runs hot in the 'pacing' state, named plainly. Compares
+/// each meter's use of its own allowance; names both only when both are past
+/// their included amounts. Always a plural noun phrase, so "are" follows.
+func pacingSubject(_ usage: Usage) -> String {
+    let messages = usage.included_segments > 0
+        ? Double(usage.used_segments) / Double(usage.included_segments)
+        : 0
+    let minutes = usage.voice.included_minutes > 0
+        ? Double(usage.voice.used_minutes) / Double(usage.voice.included_minutes)
+        : 0
+    if messages >= 1.0 && minutes >= 1.0 { return "Messages and calling minutes" }
+    if minutes > messages { return "Calling minutes" }
+    return "Messages"
+}
+
+/// #178 'capped': how far along the owner-set spending cap the hotter meter is.
+func capUseRatio(_ usage: Usage) -> Double {
+    let messages: Double
+    if let cap = usage.cap_segments, cap > 0 {
+        messages = Double(usage.used_segments) / Double(cap)
+    } else {
+        messages = 0
+    }
+    let minutes: Double
+    if let cap = usage.voice.cap_minutes, cap > 0 {
+        minutes = Double(usage.voice.used_minutes) / Double(cap)
+    } else {
+        minutes = 0
+    }
+    return max(messages, minutes)
+}
+
+/// Whole-percent cap use for display, clamped to 100.
+func capUsePercent(_ usage: Usage) -> Int {
+    min(max(Int(capUseRatio(usage) * 100), 0), 100)
+}
+
+/// Usage (#178): the fair-use section. The server's `status` decides everything
+/// the customer sees, so product and marketing say the same thing:
+///
+///  - 'quiet' (the overwhelming default): one calm line and the fair-use
+///    policy link. No meters, no "X of Y", no progress bars anywhere.
+///  - 'pacing': the early, specific heads-up naming what runs hot and the
+///    projected extra, with the spending cap framed as the protection it is.
+///  - 'capped': how close the owner-set cap is and what pauses there.
+///
+/// The raw numbers, 6-month history, and storage live behind the owner-only
+/// "Details" affordance, collapsed by default in every status. The owner cap
+/// control stays reachable in all three.
 @MainActor
 struct UsageSectionView: View {
     let scope: SettingsScope
@@ -57,17 +121,36 @@ struct UsageSectionView: View {
                         .foregroundStyle(.secondary)
                     }
                 } else {
-                    MessagesCard(usage: usage)
-                    if usage.overage_projection.trending_over {
-                        ProjectionCard(usage: usage)
+                    let isOwner = SettingsRoleGate.canChangeOverageCap(scope.role)
+                    switch usagePresentation(usage.status) {
+                    case .capped:
+                        CappedCard(usage: usage)
+                    case .pacing:
+                        PacingCard(usage: usage)
+                    case .quiet:
+                        QuietCard()
                     }
-                    VoiceCard(usage: usage)
-                    StorageCard(usage: usage)
-                    if !usage.history.isEmpty {
-                        HistoryCard(history: usage.history)
+                    // The owner's cap control is reachable in every status.
+                    // Members only meet the cap when it actually matters
+                    // (pacing/capped); in the quiet state they see nothing that
+                    // reads like a limit.
+                    if isOwner || usage.status != UsageStatus.quiet {
+                        CapCard(
+                            scope: scope,
+                            company: company,
+                            usage: usage,
+                            onCompanyUpdated: { updated in
+                                onCompanyUpdated(updated)
+                                // The cap lives in both views. Revalidate the
+                                // usage so the pause point reflects the new
+                                // multiplier.
+                                refreshKey += 1
+                            }
+                        )
                     }
-                    CapCard(scope: scope, company: company, usage: usage, onCompanyUpdated: onCompanyUpdated)
-                    CountingExplainer()
+                    if isOwner {
+                        DetailsCard(usage: usage)
+                    }
                 }
             }
         }
@@ -82,203 +165,81 @@ struct UsageSectionView: View {
     }
 }
 
-// MARK: - Messages
+// MARK: - Quiet (the calm default)
 
-private struct MessagesCard: View {
+/// 'quiet': the calm fair-use line, echoing the marketing promise verbatim.
+private struct QuietCard: View {
+    var body: some View {
+        SettingsCard(title: "Usage") {
+            Text(
+                "Well within fair use this month. Almost every crew stays inside "
+                    + "what their plan covers, and we reach out early if usage ever "
+                    + "paces past it."
+            )
+            .font(.callout)
+            Spacer().frame(height: 4)
+            Button("See the fair use policy") { openExternal(fairUseUrl) }
+                .buttonStyle(.borderless)
+                .tint(BrandColor.olive)
+        }
+    }
+}
+
+// MARK: - Pacing (the early heads-up)
+
+/// 'pacing': the early heads-up. Specific about what and how much, never alarmed.
+private struct PacingCard: View {
     let usage: Usage
 
-    private var ratio: Double {
-        usage.included_segments > 0
-            ? Double(usage.used_segments) / Double(usage.included_segments)
-            : 0
-    }
-
     var body: some View {
-        SettingsCard(title: "Messages") {
-            HStack(alignment: .lastTextBaseline, spacing: 10) {
-                Text(groupDigits(usage.used_segments))
-                    .font(.system(size: 36, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                Text("of \(groupDigits(usage.included_segments)) included messages used")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if let range = periodRange(usage) {
-                Text(range)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer().frame(height: 10)
-            UsageMeter(ratio: ratio, warning: ratio >= meterWarnRatio)
-            Spacer().frame(height: 10)
-            if usage.overage_segments > 0 {
-                Text(
-                    "\(groupDigits(usage.overage_segments)) over your included amount: "
-                        + "\(formatCents(usage.projected_overage_cents)) in overage on your "
-                        + "next invoice."
-                )
-                .font(.callout)
-            } else {
-                Text("No overage this period. $0.00 extra so far.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            let pausePoint = usage.cap_segments
-                ?? capSegments(includedSegments: usage.included_segments, multiplier: nil)
+        let projected = usage.overage_projection.projected_overage_cents
+        SettingsCard(title: "Heads up") {
             Text(
-                "Sending pauses at \(groupDigits(pausePoint)) messages"
-                    + (usage.cap_segments == nil
-                        ? ", the maximum, which is 10 times your included messages."
-                        : ".")
+                "\(pacingSubject(usage)) are pacing past what your plan includes "
+                    + "this period."
+                    + (projected > 0
+                        ? " At the current pace, that adds about \(formatCents(projected)) "
+                            + "in overage to your next invoice."
+                        : "")
+            )
+            .font(.callout)
+            Spacer().frame(height: 8)
+            Text(
+                "This is the early flag, not a surprise bill. Your spending cap "
+                    + "below is the backstop: sending and calling pause there, and "
+                    + "nothing bills past it."
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
-            if usage.inbound_segments > 0 {
-                Text(
-                    "\(groupDigits(usage.inbound_segments)) messages received this period. "
-                        + "Inbound is always free."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
         }
     }
 }
 
-/// Olive meter that flips amber at the 80% warning threshold.
-private struct UsageMeter: View {
-    let ratio: Double
-    let warning: Bool
+// MARK: - Capped (approaching or reached)
 
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color(.secondarySystemFill))
-                let fraction = min(max(ratio, 0), 1)
-                if fraction > 0 {
-                    Capsule()
-                        .fill(warning ? BrandColor.overdueAmber : BrandColor.olive)
-                        .frame(width: geo.size.width * CGFloat(fraction))
-                }
-            }
-        }
-        .frame(height: 10)
-    }
-}
-
-private struct ProjectionCard: View {
+/// 'capped': the owner-set cap is close or reached. Plain about what pauses.
+private struct CappedCard: View {
     let usage: Usage
 
     var body: some View {
-        SettingsCard(title: "Heads up") {
+        let reached = capUseRatio(usage) >= 1.0
+        SettingsCard(
+            title: reached ? "At your spending cap" : "Approaching your spending cap"
+        ) {
             Text(
-                "You're on track to go past what your plan covers — about "
-                    + "\(formatCents(usage.overage_projection.projected_overage_cents)) in "
-                    + "overage by the end of this period at the current pace. Extra messages "
-                    + "bill at the overage rate until sending pauses at your cap."
+                reached
+                    ? "You've reached the spending cap you set. Sending and calling "
+                        + "are paused until you raise the cap. Nothing bills past it."
+                    : "You've used \(capUsePercent(usage))% of the spending cap you "
+                        + "set. At the cap, sending and calling pause until you "
+                        + "raise it. Nothing bills past it."
             )
             .font(.callout)
         }
     }
 }
 
-// MARK: - Voice
-
-private struct VoiceCard: View {
-    let usage: Usage
-
-    var body: some View {
-        let voice = usage.voice
-        if voice.included_minutes > 0 || voice.used_minutes > 0 {
-            let ratio = voice.included_minutes > 0
-                ? Double(voice.used_minutes) / Double(voice.included_minutes)
-                : 0
-            SettingsCard(title: "Calling minutes") {
-                HStack(alignment: .lastTextBaseline, spacing: 10) {
-                    Text(groupDigits(voice.used_minutes))
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                    Text("of \(groupDigits(voice.included_minutes)) included minutes used")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer().frame(height: 10)
-                UsageMeter(ratio: ratio, warning: ratio >= meterWarnRatio)
-                Spacer().frame(height: 10)
-                if voice.overage_minutes > 0 {
-                    Text(
-                        "\(groupDigits(voice.overage_minutes)) extra minutes so far: "
-                            + "\(formatCents(voice.projected_overage_cents)) on your next invoice."
-                    )
-                    .font(.callout)
-                }
-                Text(
-                    voice.overage_billed
-                        ? "Past your included minutes, extra minutes bill at 1¢ each. Calling "
-                            + "pauses at your spending cap, never mid-call."
-                        : "Extra minutes aren't billed on your plan."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-private struct StorageCard: View {
-    let usage: Usage
-
-    var body: some View {
-        let total = usage.storage.attachments_bytes + usage.storage.mms_bytes
-        SettingsCard(title: "Storage") {
-            Text(
-                "Photos and attachments use \(formatBytes(total)). Storage is free — "
-                    + "it never adds to your bill."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-        }
-    }
-}
-
-// MARK: - History
-
-private struct HistoryCard: View {
-    let history: [UsageMonth]
-
-    var body: some View {
-        let months = Array(history.suffix(6))
-        let maxSegments = max(months.map(\.segments).max() ?? 1, 1)
-        SettingsCard(
-            title: "Last 6 months",
-            description: "Outbound messages by calendar month."
-        ) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 14) {
-                    ForEach(Array(months.enumerated()), id: \.element.month) { index, month in
-                        VStack(spacing: 2) {
-                            Spacer(minLength: 0)
-                            Text(groupDigits(month.segments))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            let fraction = min(max(Double(month.segments) / Double(maxSegments), 0.02), 1)
-                            UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
-                                .fill(BrandColor.olive.opacity(index == months.count - 1 ? 1 : 0.45))
-                                .frame(width: 30, height: CGFloat(fraction) * 84)
-                            Text(monthLabel(month.month))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(height: 120, alignment: .bottom)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Overage cap (owner-only)
+// MARK: - Spending cap (owner sets it; members see it read-only when it matters)
 
 private struct CapCard: View {
     let scope: SettingsScope
@@ -295,13 +256,14 @@ private struct CapCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Overage cap",
-            description: "The cap is a multiple of your included messages. When you hit "
-                + "it, sending pauses until you raise it. Nothing is billed past it."
+            title: "Spending cap",
+            description: "Your protection against surprise bills. The cap is a "
+                + "multiple of your included usage. At the cap, sending and calling "
+                + "pause until you raise it. Nothing bills past it."
         ) {
             if !isOwner {
                 ReadOnlyLine(
-                    "Overage cap: \(capLabel(current)) your included messages. "
+                    "Spending cap: \(capLabel(current)) your included usage. "
                         + "Only the account owner can change it."
                 )
             } else {
@@ -380,7 +342,7 @@ private struct CapCard: View {
                 )
                 onCompanyUpdated(updated)
                 proposed = nil
-                scope.showMessage("Overage cap set to \(capLabel(next)).")
+                scope.showMessage("Spending cap set to \(capLabel(next)).")
             } catch {
                 self.error = error.userMessage
             }
@@ -389,16 +351,214 @@ private struct CapCard: View {
     }
 }
 
-private struct CountingExplainer: View {
+// MARK: - Details (owner-only, collapsed by default in every status)
+
+/// The owner-only "Details" affordance (#178): a quiet expandable card,
+/// collapsed by default in every status, holding the raw numbers, the 6-month
+/// history bars, storage, and the counting explainer. Explicitly opened, so
+/// "X of Y" is welcome inside.
+private struct DetailsCard: View {
+    let usage: Usage
+
+    @State private var expanded = false
+
     var body: some View {
-        SettingsCard(title: "How messages are counted") {
-            Text(
-                "A text up to 160 characters counts as one message; longer texts split "
-                    + "into 160-character segments (70 with emoji or accents). A photo "
-                    + "message counts as three. Incoming messages are always free."
+        SettingsCard(title: "Details", description: "The raw numbers, month by month, if you want them.") {
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack {
+                    Text(expanded ? "Hide the numbers" : "Show the numbers")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BrandColor.olive)
+                    Spacer(minLength: 0)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                VStack(alignment: .leading, spacing: 14) {
+                    MessagesDetail(usage: usage)
+                    VoiceDetail(usage: usage)
+                    StorageDetail(usage: usage)
+                    if !usage.history.isEmpty {
+                        HistoryDetail(history: usage.history)
+                    }
+                    CountingDetail()
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+}
+
+private struct MessagesDetail: View {
+    let usage: Usage
+
+    var body: some View {
+        let range = periodRange(usage)
+        let pausePoint = usage.cap_segments
+            ?? capSegments(includedSegments: usage.included_segments, multiplier: nil)
+        VStack(alignment: .leading, spacing: 2) {
+            DetailHeader("Messages")
+            DetailLine(
+                "\(groupDigits(usage.used_segments)) of "
+                    + "\(groupDigits(usage.included_segments)) included messages used"
+                    + (range.map { ", \($0)" } ?? "") + "."
             )
+            if usage.overage_segments > 0 {
+                DetailLine(
+                    "\(groupDigits(usage.overage_segments)) over your included amount: "
+                        + "\(formatCents(usage.projected_overage_cents)) in overage on your "
+                        + "next invoice."
+                )
+            } else {
+                DetailLine("No overage this period. $0.00 extra so far.")
+            }
+            DetailLine(
+                "Sending pauses at \(groupDigits(pausePoint)) messages"
+                    + (usage.cap_segments == nil
+                        ? ", the maximum, which is 10 times your included messages."
+                        : ".")
+            )
+            if usage.inbound_segments > 0 {
+                DetailLine(
+                    "\(groupDigits(usage.inbound_segments)) messages received this period. "
+                        + "Inbound is always free."
+                )
+            }
+        }
+    }
+}
+
+private struct VoiceDetail: View {
+    let usage: Usage
+
+    var body: some View {
+        let voice = usage.voice
+        if voice.included_minutes > 0 || voice.used_minutes > 0 {
+            VStack(alignment: .leading, spacing: 2) {
+                DetailHeader("Calling minutes")
+                DetailLine(
+                    "\(groupDigits(voice.used_minutes)) of "
+                        + "\(groupDigits(voice.included_minutes)) included minutes used."
+                )
+                if voice.overage_minutes > 0 {
+                    DetailLine(
+                        "\(groupDigits(voice.overage_minutes)) extra minutes so far: "
+                            + "\(formatCents(voice.projected_overage_cents)) on your next invoice."
+                    )
+                }
+                DetailLine(
+                    voice.overage_billed
+                        ? "Past your included minutes, extra minutes bill at 1¢ each. Calling "
+                            + "pauses at your spending cap, never mid-call."
+                        : "Extra minutes aren't billed on your plan."
+                )
+            }
+        }
+    }
+}
+
+private struct StorageDetail: View {
+    let usage: Usage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            DetailHeader("Storage")
+            DetailLine(
+                "Photos and attachments use "
+                    + "\(formatBytes(usage.storage.attachments_bytes + usage.storage.mms_bytes)). "
+                    + "Storage is free and never adds to your bill."
+            )
+        }
+    }
+}
+
+private struct HistoryDetail: View {
+    let history: [UsageMonth]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            DetailHeader("Last 6 months")
+            DetailLine("Outbound messages by calendar month.")
+            Spacer().frame(height: 8)
+            HistoryBars(history: history)
+        }
+    }
+}
+
+private struct CountingDetail: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            DetailHeader("How messages are counted")
+            DetailLine(
+                "A text up to 160 characters counts as one message; longer texts "
+                    + "split into 160-character segments (70 with emoji or accents). "
+                    + "A photo message counts as three. Incoming messages are always "
+                    + "free."
+            )
+        }
+    }
+}
+
+private struct DetailHeader: View {
+    let label: String
+
+    init(_ label: String) {
+        self.label = label
+    }
+
+    var body: some View {
+        Text(label)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.primary)
+    }
+}
+
+private struct DetailLine: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
             .font(.footnote)
             .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 1)
+    }
+}
+
+private struct HistoryBars: View {
+    let history: [UsageMonth]
+
+    var body: some View {
+        let months = Array(history.suffix(6))
+        let maxSegments = max(months.map(\.segments).max() ?? 1, 1)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .bottom, spacing: 14) {
+                ForEach(Array(months.enumerated()), id: \.element.month) { index, month in
+                    VStack(spacing: 2) {
+                        Spacer(minLength: 0)
+                        Text(groupDigits(month.segments))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        let fraction = min(max(Double(month.segments) / Double(maxSegments), 0.02), 1)
+                        UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
+                            .fill(BrandColor.olive.opacity(index == months.count - 1 ? 1 : 0.45))
+                            .frame(width: 30, height: CGFloat(fraction) * 84)
+                        Text(monthLabel(month.month))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(height: 120, alignment: .bottom)
+                }
+            }
         }
     }
 }
