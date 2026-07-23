@@ -8,6 +8,7 @@ import androidx.core.telecom.CallControlResult
 import androidx.core.telecom.CallControlScope
 import androidx.core.telecom.CallEndpointCompat
 import androidx.core.telecom.CallsManager
+import com.loonext.android.core.diag.CallFlowLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -71,6 +72,13 @@ class TelecomCallRegistry(
          *  tracking, so a leg the user just DECLINED can never be promoted into a
          *  fresh ring before the server's BYE reaps it (HIGH re-review). Best-effort. */
         fun releaseHeldSession(session: String)
+
+        /** #195 F4/F5: a registry teardown (bind deadline / ring window) just
+         *  killed a call the user had ANSWERED — media never materialized. The
+         *  bridge surfaces an honest user-visible failure and resets the zombie
+         *  socket when nothing is genuinely engaged. Best-effort, never throws
+         *  back; NEVER a leg teardown (the caller already owns that). */
+        fun onAnswerFailedTeardown(session: String)
 
         /** Follower route mirror (§4.2/§4.3): Telecom picked [route]; tell Telnyx
          *  (never the leader — the user's route control is the OS in-call UI). */
@@ -222,11 +230,13 @@ class TelecomCallRegistry(
         if (!TelecomCallReducer.shouldAddCall(entries.keys, session)) return
         val entry = CallEntry(session, CallAttributesCompat.DIRECTION_INCOMING)
         if (entries.putIfAbsent(session, entry) != null) return // lost the race
+        CallFlowLog.log("telecom", "OS call registered sess=${CallFlowLog.tail(session)}")
         // SELF-MANAGED reality: Telecom draws no incoming UI, so WE ring. Posted
         // once per fresh registration (a duplicate push/INVITE returned above, so
         // it never re-rings). Answer/Decline on it drive [answerFromNotification]/
         // [declineFromNotification].
         runCatching { bridge.showIncomingCall(session, callerName, callerNumber) }
+        CallFlowLog.log("telecom", "ring presented sess=${CallFlowLog.tail(session)} caller=${CallFlowLog.mask(callerNumber)}")
         // Hold the process AND the mic from the moment the call exists. Jetpack
         // Telecom does NOT run a foreground service (verified: core-telecom only
         // calls startForeground in InCallServiceCompat, the dialer path), so
@@ -286,6 +296,7 @@ class TelecomCallRegistry(
             return
         }
         entry.legBound = true
+        CallFlowLog.log("sip", "leg bound sess=${CallFlowLog.tail(session)} leg=${CallFlowLog.tail(legId)}")
         // Claim ownership if unowned — including after a re-home cleared it
         // ([setLiveLegs] sets owningLegId=null when the previous owner dies with a
         // sibling still live, so a promoted/surviving leg takes over here).
@@ -427,6 +438,7 @@ class TelecomCallRegistry(
      * no-op (route is the OS's to own).
      */
     fun requestRoute(route: AudioRoute) {
+        CallFlowLog.log("audio", "route requested $route")
         // Scope the route change to the ACTIVE call (the one that owns the audio),
         // never a held second line (MINOR): a held call carries lastAction
         // SET_INACTIVE. Fall back to any live call if none is clearly active.
@@ -756,6 +768,7 @@ class TelecomCallRegistry(
     private fun armRingWindow(entry: CallEntry) {
         if (entry.direction != CallAttributesCompat.DIRECTION_INCOMING) return
         entry.ringWindowJob?.cancel()
+        CallFlowLog.log("timer", "ring-window armed sess=${CallFlowLog.tail(entry.key)}")
         entry.ringWindowJob = scope.launch {
             delay(TelecomCallReducer.RING_WINDOW_MS)
             val plan = claimTerminate(entry, DisconnectCause(DisconnectCause.ERROR)) {
@@ -764,10 +777,18 @@ class TelecomCallRegistry(
                 // pure reducer, evaluated here under the lock.
                 !TelecomCallReducer.shouldRingWindowDisconnect(it.legBound, it.accepted, it.terminated)
             }
+            CallFlowLog.log("timer", "ring-window fired plan=$plan sess=${CallFlowLog.tail(entry.key)}")
             if (plan == TerminatePlan.STAND_DOWN) return@launch
             runCatching { bridge.endLeg(entry.key) }
             if (plan == TerminatePlan.DISCONNECT_NOW) {
                 scopeOp(entry) { disconnect(DisconnectCause(DisconnectCause.ERROR)) }
+            }
+            // #195 F4/F5: the user ANSWERED this call and the ring window still
+            // had to reap it (the leg never bound) — that failure must be
+            // visible, and the socket that produced it must be reset.
+            if (entry.answerRequested) {
+                CallFlowLog.log("timer", "ring-window reaped an ANSWERED call sess=${CallFlowLog.tail(entry.key)}")
+                runCatching { bridge.onAnswerFailedTeardown(entry.key) }
             }
         }
     }
@@ -784,9 +805,11 @@ class TelecomCallRegistry(
     private fun armBindDeadline(entry: CallEntry) {
         val session = entry.key.removePrefix("out:")
         entry.deadlineJob?.cancel()
+        CallFlowLog.log("timer", "bind-deadline armed sess=${CallFlowLog.tail(session)}")
         entry.deadlineJob = scope.launch {
             delay(TelecomCallReducer.ANSWER_BIND_DEADLINE_MS)
             val plan = claimTerminate(entry, DisconnectCause(DisconnectCause.ERROR)) { it.accepted }
+            CallFlowLog.log("timer", "bind-deadline fired plan=$plan sess=${CallFlowLog.tail(session)}")
             if (plan == TerminatePlan.STAND_DOWN) return@launch
             // Tear down any half-bound Telnyx leg, deliver the OS disconnect if the
             // scope is up (else the addCall block delivers the recorded cause), and
@@ -797,6 +820,13 @@ class TelecomCallRegistry(
                 scopeOp(entry) { disconnect(DisconnectCause(DisconnectCause.ERROR)) }
             }
             declineForTeardown(entry)
+            // #195 F4/F5: the bind deadline only ever fires on an ANSWERED call
+            // whose leg never accepted — surface the failure honestly and reset
+            // the socket instead of leaving a silent "Connecting…" forever.
+            if (entry.answerRequested) {
+                CallFlowLog.log("timer", "bind-deadline reaped an ANSWERED call sess=${CallFlowLog.tail(session)}")
+                runCatching { bridge.onAnswerFailedTeardown(session) }
+            }
         }
     }
 
@@ -806,6 +836,7 @@ class TelecomCallRegistry(
             runCatching {
                 control.currentCallEndpoint.collectLatest { endpoint ->
                     endpointToRoute(endpoint)?.let { route ->
+                        CallFlowLog.log("audio", "route changed -> $route")
                         runCatching { bridge.mirrorRouteToTelnyx(route) }
                     }
                 }

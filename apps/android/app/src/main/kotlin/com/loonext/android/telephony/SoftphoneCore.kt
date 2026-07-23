@@ -1,5 +1,6 @@
 package com.loonext.android.telephony
 
+import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import kotlinx.coroutines.CancellationException
@@ -105,6 +106,18 @@ class SoftphoneCore(
 
     private val heldInvites = LinkedHashMap<String, HeldInvite>()
     private val heldWatchJobs = mutableMapOf<String, Job>()
+
+    /**
+     * #195 F2 — when each inbound leg (presented OR held) was FIRST seen, keyed
+     * by leg id. A side map on purpose: [CallSnapshot] is a published shape and
+     * must not grow a field for a private TTL. Entries die with the leg
+     * (ENDED / releaseHeld / reap); a promotion keeps the ORIGINAL first-seen —
+     * the TTL bounds the ring's total life, not its latest presentation.
+     */
+    private val ringFirstSeenMs = mutableMapOf<String, Long>()
+
+    /** The single F2 sweep job — self-terminating when nothing is tracked. */
+    private var ringTtlJob: Job? = null
 
     /** §10.1.4: held legs grouped by header session, for [SoftphoneSnapshot]. Held
      *  legs are invisible in `calls` by design, so this is how the Telecom registry
@@ -219,17 +232,44 @@ class SoftphoneCore(
     fun scheduleRecover() {
         if (_state.value.status == SoftphoneStatus.READY) return
         if (recoverJob?.isActive == true) return
+        CallFlowLog.log("recover", "recover scheduled debounce=${recoverDebounceMs}ms")
         recoverJob = scope.launch {
             delay(recoverDebounceMs)
             if (_state.value.status == SoftphoneStatus.READY) return@launch
-            if (_state.value.liveCalls.isNotEmpty()) return@launch
+            // #195 F3 honest gate: only a GENUINELY ENGAGED leg defers recovery
+            // (#138's "never rebuild while a call is live"). A silenced/stale
+            // RINGING zombie is presentation debris, not a call — letting it
+            // wedge recovery is how a dead socket stayed dead for good.
+            if (CallWakePolicy.anyEngaged(_state.value.calls)) return@launch
             runCatching { ensureConnected() }
         }
     }
 
     /** Status-pill tap: force a rebuild now (still refuses during a call). */
     fun retryNow() {
-        if (_state.value.liveCalls.isNotEmpty()) return
+        // #195 F3: same honest gate as scheduleRecover — an engaged leg refuses
+        // the rebuild; a zombie ring must never block the user's own retry.
+        if (CallWakePolicy.anyEngaged(_state.value.calls)) return
+        sdk.disconnect()
+        _state.update { CallStateMachine.disconnected(it) }
+        scope.launch { runCatching { ensureConnected() } }
+    }
+
+    /**
+     * #195 F5 — the socket reset after a FAILED answer. Called (via the bridge)
+     * when a registry teardown (bind deadline / ring window) kills a call the
+     * user had ANSWERED: the leg never bound or never accepted, which is the
+     * zombie-socket signature — the SDK claims READY but its legs never
+     * materialize. If nothing is genuinely engaged, rebuild the socket outright
+     * (mint-on-connect is the designed recovery), so at most ONE call is ever
+     * lost to a zombie socket. State hygiene only — no leg is ever hung up here.
+     */
+    fun forceRecoverAfterAnswerFailure() {
+        if (CallWakePolicy.anyEngaged(_state.value.calls)) {
+            CallFlowLog.log("recover", "answer-failure rebuild skipped - engaged leg present")
+            return
+        }
+        CallFlowLog.log("recover", "answer failed with no engaged leg - rebuilding socket")
         sdk.disconnect()
         _state.update { CallStateMachine.disconnected(it) }
         scope.launch { runCatching { ensureConnected() } }
@@ -249,12 +289,20 @@ class SoftphoneCore(
     private fun onSdkEvent(event: SdkEvent) {
         when (event) {
             is SdkEvent.Ready -> {
+                CallFlowLog.log("socket", "Ready")
                 consecutiveSdkErrors = 0
                 _state.update { CallStateMachine.ready(it) }
             }
 
             is SdkEvent.Disconnected -> {
+                CallFlowLog.log("socket", "Disconnected")
                 _state.update { CallStateMachine.disconnected(it) }
+                // #195 F1: a dead client's RINGING legs and held INVITEs are
+                // ZOMBIES — their phase flows can never emit after a rebuild,
+                // so nothing else will ever clear them and they wedge every
+                // gate that counts them. Reap the presentation state now
+                // (never a BYE — the server owns the real legs).
+                reapOnClientDeath()
                 scheduleRecover()
             }
 
@@ -271,6 +319,7 @@ class SoftphoneCore(
                 // failures without a READY in between) or an error while a
                 // call is actually live.
                 consecutiveSdkErrors++
+                CallFlowLog.log("socket", "Error consecutive=$consecutiveSdkErrors")
                 val worthTelling =
                     _state.value.liveCalls.isNotEmpty() || consecutiveSdkErrors >= 3
                 _state.update {
@@ -290,6 +339,7 @@ class SoftphoneCore(
 
     private fun onIncoming(event: SdkEvent.Incoming) {
         val id = event.call.id
+        CallFlowLog.log("sip", "INVITE received leg=${CallFlowLog.tail(id)} caller=${CallFlowLog.mask(event.callerNumber)}")
         if (_state.value.calls.any { it.id == id } || heldInvites.containsKey(id)) return
         val number = event.callerNumber.orEmpty()
         val name = event.callerName?.takeIf { it.isNotBlank() }
@@ -359,6 +409,10 @@ class SoftphoneCore(
         )
         handles[handle.id] = handle
         sdkPhases[handle.id] = CallPhase.RINGING
+        // F2: TTL clock — getOrPut so a promoted held fork keeps its ORIGINAL
+        // first-seen (the TTL bounds the ring's total life).
+        ringFirstSeenMs.getOrPut(handle.id) { now() }
+        ensureRingTtlSweep()
         _state.update { CallStateMachine.incoming(it, snapshot) }
         watch(handle)
         _events.tryEmit(CoreEvent.IncomingRinging(snapshot, legId))
@@ -380,6 +434,9 @@ class SoftphoneCore(
     ) {
         val id = handle.id
         heldInvites[id] = HeldInvite(handle, name, number, reason, headerSession, legId)
+        // F2: held INVITEs are subject to the same ring TTL as presented ones.
+        ringFirstSeenMs.getOrPut(id) { now() }
+        ensureRingTtlSweep()
         // Publish this held leg so the registry counts it as a live leg of the
         // session even though it is never presented — the presented leg's death
         // then re-homes the OS call here instead of tearing it down.
@@ -415,6 +472,9 @@ class SoftphoneCore(
     private fun releaseHeld(id: String) {
         heldInvites.remove(id)
         heldWatchJobs.remove(id)?.cancel()
+        // F2: the TTL clock dies with the held entry — unless this same leg is
+        // still PRESENTED in `calls` (promotion keeps the original clock).
+        if (_state.value.calls.none { it.id == id }) ringFirstSeenMs.remove(id)
         publishHeldLegs()
     }
 
@@ -589,6 +649,99 @@ class SoftphoneCore(
         }
     }
 
+    // ------------------------------------------------- zombie hygiene (#195)
+
+    /**
+     * #195 F1 — the SDK client died (socket [SdkEvent.Disconnected]): every
+     * still-RINGING presented call and every held INVITE belonged to that
+     * client, and their per-call flows can NEVER emit again after a rebuild.
+     * Drop the presentation state (watchers cancelled, `calls`/held cleared)
+     * so no immortal zombie wedges the wake/recovery gates. This is state
+     * hygiene, not teardown: no BYE, no decline — the server owns the legs.
+     */
+    private fun reapOnClientDeath() {
+        _state.value.calls
+            .filter { it.phase == CallPhase.RINGING }
+            .forEach { call ->
+                CallFlowLog.log(
+                    "reap",
+                    "client died - dropping RINGING zombie leg=${CallFlowLog.tail(call.id)} " +
+                        "caller=${CallFlowLog.mask(call.peerNumber)}",
+                )
+                dropRingingPresentation(call.id)
+            }
+        heldInvites.keys.toList().forEach { id ->
+            CallFlowLog.log(
+                "reap",
+                "client died - releasing held INVITE leg=${CallFlowLog.tail(id)}",
+            )
+            releaseHeld(id)
+        }
+    }
+
+    /**
+     * #195 F2 — one bounded sweep job while any inbound ring (presented or
+     * held) is tracked; exits on its own once nothing is left, so it can
+     * never leak. Each pass drops rings older than [CallWakePolicy.RING_TTL_MS]
+     * — the server ring window (45s) plus grace, so the real leg is already
+     * dead. Presentation state only; never a BYE.
+     */
+    private fun ensureRingTtlSweep() {
+        if (ringTtlJob?.isActive == true) return
+        ringTtlJob = scope.launch {
+            while (ringFirstSeenMs.isNotEmpty()) {
+                delay(CallWakePolicy.RING_TTL_SWEEP_MS)
+                reapExpiredRings()
+            }
+        }
+    }
+
+    private fun reapExpiredRings() {
+        val nowMs = now()
+        _state.value.calls
+            .filter { it.phase == CallPhase.RINGING && it.direction == CallDirection.INBOUND }
+            .forEach { call ->
+                val firstSeen = ringFirstSeenMs[call.id] ?: return@forEach
+                if (!CallWakePolicy.ringExpired(firstSeen, nowMs)) return@forEach
+                CallFlowLog.log(
+                    "reap",
+                    "ring TTL (${CallWakePolicy.RING_TTL_MS}ms) - dropping stale ring " +
+                        "leg=${CallFlowLog.tail(call.id)} silenced=${call.silenced}",
+                )
+                dropRingingPresentation(call.id)
+            }
+        heldInvites.keys.toList().forEach { id ->
+            val firstSeen = ringFirstSeenMs[id] ?: return@forEach
+            if (!CallWakePolicy.ringExpired(firstSeen, nowMs)) return@forEach
+            CallFlowLog.log(
+                "reap",
+                "ring TTL - releasing stale held INVITE leg=${CallFlowLog.tail(id)}",
+            )
+            releaseHeld(id)
+        }
+        // Ids no longer tracked anywhere (raced out between passes) — prune so
+        // the sweep's own liveness check can reach empty.
+        val tracked = _state.value.calls.map { it.id }.toSet() + heldInvites.keys
+        ringFirstSeenMs.keys.retainAll(tracked)
+    }
+
+    /**
+     * Drop ONE still-RINGING call's local presentation (F1/F2): cancel its
+     * watcher, forget its handle, and remove it from `calls` through the same
+     * silent-removal path a server-reaped ring takes. The snapshot change then
+     * drives the platform teardown (setLiveLegs) exactly like a real ring
+     * death. NEVER ends the leg — the server owns it.
+     */
+    private fun dropRingingPresentation(id: String) {
+        watchJobs.remove(id)?.cancel()
+        handles.remove(id)
+        sdkPhases.remove(id)
+        resolvingLegs.remove(id)
+        pendingHoldToggle.remove(id)
+        ringFirstSeenMs.remove(id)
+        _state.update { CallStateMachine.sdkPhase(it, id, CallPhase.ENDED, now()) }
+    }
+
     private fun watch(handle: SdkCallHandle) {
         watchJobs[handle.id] = scope.launch {
             handle.phases.collect { phase ->
@@ -603,9 +756,13 @@ class SoftphoneCore(
         pendingHoldToggle.remove(id)
         val before = _state.value
         val prev = before.calls.firstOrNull { it.id == id } ?: return
+        CallFlowLog.log("phase", "${phase.name} leg=${CallFlowLog.tail(id)} sess=${CallFlowLog.tail(prev.sessionId)}")
         _state.update { CallStateMachine.sdkPhase(it, id, phase, now()) }
 
         if (phase == CallPhase.ACTIVE) {
+            // F2: an answered leg is no longer a ring — stop its TTL clock (a
+            // live call must never be swept, and the sweep job can wind down).
+            ringFirstSeenMs.remove(id)
             // One active audio path: SDK-hold whichever call was active before
             // this one connected (the reducer already demoted it in state).
             before.activeId?.let { previousActive ->
@@ -624,6 +781,7 @@ class SoftphoneCore(
             handles.remove(id)
             sdkPhases.remove(id)
             resolvingLegs.remove(id)
+            ringFirstSeenMs.remove(id) // F2: the TTL clock dies with the leg
             // A recovery may have been deferred while this call held the
             // client (#138) — re-arm once the line is idle.
             if (_state.value.status != SoftphoneStatus.READY &&
@@ -943,7 +1101,19 @@ class SoftphoneCore(
         pushHintSession = sessionId
         pushHintCaller = callerHint
         pushHintAtMs = now()
-        if (_state.value.liveCalls.isNotEmpty() || heldInvites.isNotEmpty()) return
+        // #195 F3 honest gate: only a GENUINELY ENGAGED leg (active/held/
+        // connecting, or a non-silenced ring the user can see) means the
+        // INVITE path owns presentation. A silenced/stale RINGING zombie or a
+        // leftover held fork must never eat a wake push — that wedge is how
+        // every later call went straight to voicemail until app restart.
+        if (CallWakePolicy.anyEngaged(_state.value.calls)) return
+        if (_state.value.calls.isNotEmpty() || heldInvites.isNotEmpty()) {
+            CallFlowLog.log(
+                "wake",
+                "stale-only leg state (calls=${_state.value.calls.size} " +
+                    "held=${heldInvites.size}) - wake proceeds anyway",
+            )
+        }
         ensureConnected()
         awaitReady()
         val live = try {
@@ -963,8 +1133,10 @@ class SoftphoneCore(
         }
         if (ack.reason != CallWakePolicy.REASON_RECENT_LEG) return
         // §10.2: one retry after ~4s, only if no INVITE landed meanwhile.
+        // "Landed" means an ENGAGED leg (F3) — a fresh INVITE presents as a
+        // non-silenced ring; a zombie must not swallow the one retry.
         delay(CallWakePolicy.RING_ME_RETRY_MS)
-        if (_state.value.liveCalls.isNotEmpty() || heldInvites.isNotEmpty()) return
+        if (CallWakePolicy.anyEngaged(_state.value.calls)) return
         val retry = requestRingMe(company, sessionId) ?: return
         if (retry.rang != false) pushHintAtMs = now()
     }

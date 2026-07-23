@@ -31,6 +31,25 @@ class ApiClient(
     private val sessionStore: SessionSource,
     private val supabaseAuth: SupabaseAuth,
 ) {
+    companion object {
+        /**
+         * #195 F8 — the telephony-critical endpoints that must never queue
+         * behind the process-start cache-warmer burst: the Telnyx token mint
+         * and every live-call signal (ring-me / state / decline / by-leg).
+         * These ride [telephonyHttp]'s private dispatcher + connection pool,
+         * so ten screen prefetches on a cold cell socket cannot starve the
+         * one request a ringing call is waiting on.
+         */
+        fun isTelephonyCriticalPath(path: String): Boolean =
+            path == "/v1/webrtc/token" || path.startsWith("/v1/calls/live/")
+    }
+
+    /** #195 F8: own dispatcher + pool; shares TLS/timeouts with [http]. */
+    private val telephonyHttp: OkHttpClient = http.newBuilder()
+        .dispatcher(okhttp3.Dispatcher())
+        .connectionPool(okhttp3.ConnectionPool(3, 5, java.util.concurrent.TimeUnit.MINUTES))
+        .build()
+
     val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -218,8 +237,10 @@ class ApiClient(
             }
             .method(method, requestBody)
             .build()
+        // #195 F8: telephony-critical calls ride their own dispatcher/pool.
+        val client = if (isTelephonyCriticalPath(path)) telephonyHttp else http
         val response = try {
-            http.newCall(request).await()
+            client.newCall(request).await()
         } catch (cause: IOException) {
             throw ApiException(
                 ApiErrorCode.NETWORK,

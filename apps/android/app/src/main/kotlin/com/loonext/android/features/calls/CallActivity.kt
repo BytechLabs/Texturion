@@ -46,6 +46,7 @@ import com.loonext.android.LoonextApp
 import com.loonext.android.telephony.CallNotifier
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
+import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.LoonextTheme
 
@@ -169,6 +170,12 @@ private fun CallSurface(
     var answering by remember { mutableStateOf(false) }
     var everSeen by remember { mutableStateOf(false) }
 
+    // #195 F4: the honest answer-failure state — the up-to-50s silent
+    // "Connecting…" is replaced by the truth when the answered call is reaped.
+    var answerFailed by remember { mutableStateOf(false) }
+    var answeringAtMs by remember { mutableStateOf(0L) }
+    var wentLive by remember { mutableStateOf(false) }
+
     val ringing = snapshot.calls.firstOrNull {
         it.phase == CallPhase.RINGING && (session == null || it.sessionId == session || it.id == session)
     }
@@ -181,6 +188,7 @@ private fun CallSurface(
 
     fun answerNow() {
         answering = true
+        answeringAtMs = System.currentTimeMillis()
         onDismissKeyguard()
         target?.let { manager.answerIncoming(it) }
         runCatching { target?.let { CallNotifier.cancelIncomingForSession(context, it) } }
@@ -218,6 +226,30 @@ private fun CallSurface(
     // seen one, or the screen would close ~immediately on every push ring/answer.
     LaunchedEffect(ringing, live) {
         if (ringing != null || live != null) everSeen = true
+        if (live != null) wentLive = true
+    }
+
+    // #195 F4: the core reported the answered call could not connect (the bind
+    // deadline / ring window reaped it) — show the truth, not "Connecting…".
+    LaunchedEffect(answering, live, snapshot.error) {
+        if (answering && live == null && !wentLive &&
+            snapshot.error == SoftphoneManager.ANSWER_FAILED_MESSAGE
+        ) {
+            answerFailed = true
+        }
+    }
+
+    // #195 F4: the no-materialize backstop — an answer that produced neither a
+    // live call nor an explicit failure within 15s IS a failure.
+    LaunchedEffect(answering) {
+        if (answering) {
+            kotlinx.coroutines.delay(15_000)
+            if (!wentLive &&
+                manager.state.value.liveCalls.none { it.phase != CallPhase.RINGING }
+            ) {
+                answerFailed = true
+            }
+        }
     }
 
     LaunchedEffect(everSeen, ringing, live) {
@@ -242,10 +274,18 @@ private fun CallSurface(
         val receiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 val gone = i.getStringExtra(CallNotifier.EXTRA_SESSION)
-                if ((target == null || gone == target) && !answering &&
+                if (target != null && gone != target) return
+                val noLive =
                     manager.state.value.liveCalls.none { it.phase != CallPhase.RINGING }
-                ) {
+                if (!answering && noLive) {
                     onClose()
+                } else if (answering && noLive && !wentLive &&
+                    System.currentTimeMillis() - answeringAtMs > 2_000
+                ) {
+                    // #195 F4: the ring was torn down AFTER the user answered and
+                    // nothing went live — that is a failed answer; say so. (The 2s
+                    // guard skips the cancel our own answer tap fires.)
+                    answerFailed = true
                 }
             }
         }
@@ -274,6 +314,26 @@ private fun CallSurface(
                 onClose = onClose,
             )
 
+            // #195 F4: the answered call never connected — the honest terminal
+            // state (auto-closes shortly; the error is cleared so it does not
+            // linger on other surfaces).
+            answerFailed && live == null -> {
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(3_000)
+                    manager.clearError()
+                    onClose()
+                }
+                CallStatus(
+                    title = callerName.ifBlank { callerNumber },
+                    status = SoftphoneManager.ANSWER_FAILED_MESSAGE,
+                    actionLabel = "Close",
+                    onAction = {
+                        manager.clearError()
+                        onClose()
+                    },
+                )
+            }
+
             // Answered (or live but no companyId yet): a status surface that always
             // offers a way OUT, so a cold answer is never a controls-free dead end.
             live != null || answering -> CallStatus(
@@ -290,6 +350,9 @@ private fun CallSurface(
             ringing != null || target != null -> RingingSurface(
                 title = (ringing?.peerName ?: callerName).ifBlank { callerNumber },
                 subtitle = (ringing?.peerNumber ?: callerNumber),
+                // #195 F7: honest ring surface — the line is not READY, so an
+                // answer may take a beat (or fail); say so quietly.
+                reconnecting = snapshot.status != SoftphoneStatus.READY,
                 onAnswer = { answerWithMic() },
                 onDecline = { declineNow() },
             )
@@ -311,6 +374,7 @@ private fun RingingSurface(
     subtitle: String,
     onAnswer: () -> Unit,
     onDecline: () -> Unit,
+    reconnecting: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val display = title.ifBlank { "Unknown caller" }
@@ -347,6 +411,15 @@ private fun RingingSurface(
                 fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 5.dp),
+            )
+        }
+        if (reconnecting) {
+            // #195 F7: quiet honesty while the socket is not READY.
+            Text(
+                "Reconnecting your line…",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
         Spacer(Modifier.weight(1f))

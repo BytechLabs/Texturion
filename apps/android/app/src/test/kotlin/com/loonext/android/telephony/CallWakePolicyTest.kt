@@ -201,4 +201,67 @@ class CallWakePolicyTest {
             ).isEmpty(),
         )
     }
+
+    // ------------------------------------------- engaged-leg gate (#195 F3)
+
+    @Test
+    fun `only active, held, connecting, or a visible ring counts as engaged`() {
+        assertTrue(CallWakePolicy.engagedLeg(call("a", phase = CallPhase.ACTIVE)))
+        assertTrue(CallWakePolicy.engagedLeg(call("b", phase = CallPhase.HELD)))
+        assertTrue(
+            CallWakePolicy.engagedLeg(
+                call("c", phase = CallPhase.CONNECTING, direction = CallDirection.OUTBOUND),
+            ),
+        )
+        assertTrue(
+            "a non-silenced ring the user can see is engaged",
+            CallWakePolicy.engagedLeg(call("d", phase = CallPhase.RINGING)),
+        )
+        assertFalse(
+            "a SILENCED ring is presentation debris — never engaged",
+            CallWakePolicy.engagedLeg(call("e", phase = CallPhase.RINGING, silenced = true)),
+        )
+        assertFalse(CallWakePolicy.engagedLeg(call("f", phase = CallPhase.ENDED)))
+    }
+
+    @Test
+    fun `anyEngaged ignores a snapshot of nothing but zombies`() {
+        assertFalse(CallWakePolicy.anyEngaged(emptyList()))
+        assertFalse(
+            "silenced zombie + ended chip must not wedge a wake push or recovery",
+            CallWakePolicy.anyEngaged(
+                listOf(
+                    call("z", phase = CallPhase.RINGING, silenced = true),
+                    call("gone", phase = CallPhase.ENDED),
+                ),
+            ),
+        )
+        assertTrue(
+            CallWakePolicy.anyEngaged(
+                listOf(
+                    call("z", phase = CallPhase.RINGING, silenced = true),
+                    call("live", phase = CallPhase.ACTIVE),
+                ),
+            ),
+        )
+    }
+
+    // ------------------------------------------------- ring TTL math (#195 F2)
+
+    @Test
+    fun `a ring expires only after the TTL, never on a backwards clock`() {
+        val t0 = 1_000_000L
+        assertFalse(CallWakePolicy.ringExpired(t0, t0))
+        assertFalse(CallWakePolicy.ringExpired(t0, t0 + CallWakePolicy.RING_TTL_MS - 1))
+        assertTrue(CallWakePolicy.ringExpired(t0, t0 + CallWakePolicy.RING_TTL_MS))
+        assertTrue(CallWakePolicy.ringExpired(t0, t0 + CallWakePolicy.RING_TTL_MS + 60_000))
+        assertFalse("a clock that moved backwards expires nothing", CallWakePolicy.ringExpired(t0, t0 - 1))
+    }
+
+    @Test
+    fun `the TTL outlives the server ring window with grace`() {
+        // The 45s server window must have fully elapsed before the client
+        // reaps — the TTL may never race a legitimately-ringing leg.
+        assertTrue(CallWakePolicy.RING_TTL_MS > 45_000L)
+    }
 }

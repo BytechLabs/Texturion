@@ -54,3 +54,7 @@ Desktop.ini
 .idea/
 *.swp
 *~
+
+# scratch artifacts
+telnyx-aar/
+out/

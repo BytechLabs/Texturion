@@ -345,6 +345,7 @@ export async function pushCallSettingsToNumber(
     | undefined;
   if (!company) return;
 
+  const listing = effectiveCnamDisplayName(company);
   const voicePatch = buildVoicePatch({
     ...(company.call_screening != null
       ? { callScreening: company.call_screening }
@@ -352,13 +353,29 @@ export async function pushCallSettingsToNumber(
     ...(company.caller_id_lookup != null
       ? { callerIdLookup: company.caller_id_lookup }
       : {}),
-    cnamDisplayName: effectiveCnamDisplayName(company),
+    cnamDisplayName: listing,
   });
   await telnyxRequest(env, {
     method: "PATCH",
     path: `/v2/phone_numbers/${telnyxPhoneNumberId}/voice`,
     body: voicePatch,
   });
+
+  // #193 honesty: the clients date the "carriers take 1 to 3 days" note from
+  // cnam_submitted_at. A number bound through THIS catch-up may be the
+  // company's FIRST real listing submission — stamp it once (never re-stamp:
+  // re-pushing an already-propagated listing to a new number must not reset
+  // the propagation clock).
+  if (listing !== null) {
+    const { error: stampError } = await db
+      .from("companies")
+      .update({ cnam_submitted_at: new Date().toISOString() })
+      .eq("id", companyId)
+      .is("cnam_submitted_at", null);
+    if (stampError) {
+      console.error(`cnam_submitted_at catch-up stamp failed: ${stampError.message}`);
+    }
+  }
 }
 
 /**
@@ -418,9 +435,13 @@ export async function reconcileVoiceEnablement(
     }
   }
   if (failures.length > 0) {
-    throw new AggregateError(
-      failures,
-      `voice enablement reconcile failed for ${failures.length} number(s)`,
+    // Per-number failures are already captured above. Do NOT fail the whole
+    // run: one permanently-unbindable number (e.g. a Telnyx-side reject that
+    // no retry can fix) would otherwise page the */15 cron forever and drown
+    // the trigger's health signal. A single warning carries the count.
+    Sentry.captureMessage(
+      `voice enablement reconcile: ${failures.length} number(s) still failing`,
+      "warning",
     );
   }
   return summary;

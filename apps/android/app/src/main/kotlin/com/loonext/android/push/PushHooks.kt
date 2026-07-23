@@ -42,4 +42,13 @@ object PushHooks {
 
     @Volatile
     var callEndHandler: CallEndHandler? = null
+
+    /**
+     * #195 F8: epoch ms of the most recent `kind:'call'` wake push (0 = never).
+     * Stamped by the wake handler the instant the push arrives; read by the
+     * app-graph cache warmer so a call-wake process start defers the prefetch
+     * burst instead of racing it against the token mint / ring-me.
+     */
+    @Volatile
+    var lastCallWakeAtMs: Long = 0L
 }

@@ -103,6 +103,19 @@ class AppGraph(private val app: Application) {
                 .distinctUntilChanged()
                 .collect { companyId ->
                     if (companyId != null) {
+                        // #195 F8: a process started by an FCM call wake must not
+                        // race ten prefetches against the token mint / ring-me —
+                        // the telephony client is isolated too, but on a cold cell
+                        // socket the radio itself is the contended resource.
+                        val sinceWake = System.currentTimeMillis() -
+                            com.loonext.android.push.PushHooks.lastCallWakeAtMs
+                        if (sinceWake in 0..8_000) {
+                            com.loonext.android.core.diag.CallFlowLog.log(
+                                "warm",
+                                "call-wake start - cache warm deferred 8s",
+                            )
+                            kotlinx.coroutines.delay(8_000)
+                        }
                         runCatching {
                             com.loonext.android.features.shell.warmStoreCache(
                                 this@AppGraph, companyId,
@@ -126,11 +139,14 @@ class LoonextApp : Application() {
         super.onCreate()
         // FIRST (#168 part A): chain the default uncaught-exception handler so
         // every crash — main thread, SDK worker, timer thread — appends its
-        // stack to filesDir/crash-reports/latest.txt (last 5 kept) BEFORE the
-        // platform handler runs (crash dialog/ANR semantics stay intact). The
-        // founder's device has no adb; this file + MainActivity's share
-        // prompt are the only forensics channel.
+        // stack to filesDir/crash-reports/latest.txt (last 20 kept, #197)
+        // BEFORE the platform handler runs (crash dialog/ANR semantics stay
+        // intact). The founder's device has no adb; this file + MainActivity's
+        // share prompt + the Diagnostics screen are the forensics channel.
         CrashDiagnostics.install(this, BuildConfig.VERSION_NAME)
+        // #198: the call-flow evidence channel — file sink wired before any
+        // telephony code (including an FCM-woken cold process) can log.
+        com.loonext.android.core.diag.CallFlowLog.install(java.io.File(filesDir, "diag"))
         graph = AppGraph(this)
         com.loonext.android.push.ensureChannels(this)
     }

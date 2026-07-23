@@ -281,6 +281,31 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     expect(summary).toEqual({ checked: 0, enabled: 0 });
     expect(numbers.calls).toHaveLength(0); // never even queries numbers
   });
+
+  it("a permanently-failing number no longer fails the whole run (alert-fatigue fix)", async () => {
+    // Telnyx rejects the connection create every time — the per-number
+    // failure is captured, but the run RESOLVES with a summary instead of
+    // rethrowing an AggregateError that would page the */15 cron forever.
+    serve(
+      companySettingsGet(),
+      companiesStub([COMPANY_ID]),
+      numbersStub([{}]),
+      voiceGet(null),
+      stubRoute(
+        (url, request) =>
+          request.method === "PATCH" &&
+          url.pathname === `/v2/phone_numbers/${TELNYX_PN_ID}`,
+        () =>
+          new Response(JSON.stringify({ errors: [{ detail: "nope" }] }), {
+            status: 422,
+          }),
+      ),
+    );
+
+    const summary = await reconcileVoiceEnablement(env);
+    expect(summary.checked).toBe(1);
+    expect(summary.enabled).toBe(0);
+  });
 });
 
 describe("#193 caller ID defaults to the company name", () => {

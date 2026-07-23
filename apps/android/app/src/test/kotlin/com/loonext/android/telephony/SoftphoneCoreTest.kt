@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -248,6 +249,11 @@ class SoftphoneCoreTest {
             }.orEmpty()
             _events.tryEmit(SdkEvent.Incoming(handle, name, number, customHeaders = headers))
         }
+
+        /** #195 F1: the socket died (client rebuild ahead) — the zombie source. */
+        fun drop() {
+            _events.tryEmit(SdkEvent.Disconnected)
+        }
     }
 
     private class Harness(
@@ -256,14 +262,22 @@ class SoftphoneCoreTest {
         val scope: CoroutineScope,
     )
 
-    private fun TestScope.harness(): Harness {
+    private fun TestScope.harness(virtualClock: Boolean = false): Harness {
         // The core's scope shares runTest's scheduler through a
         // StandardTestDispatcher: every launch inside SoftphoneCore is queued
         // on the (single-threaded, virtual-time) test scheduler and runs only
         // under runCurrent()/first{} — never eagerly, never on another thread.
+        // [virtualClock] additionally pins the core's `now` to the scheduler's
+        // virtual time, so wall-clock policies (the #195 F2 ring TTL) can be
+        // driven deterministically with advanceTimeBy.
         val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val sdk = FakeSdk()
-        return Harness(SoftphoneCore(FakeCallsApi(), sdk, scope), sdk, scope)
+        val core = if (virtualClock) {
+            SoftphoneCore(FakeCallsApi(), sdk, scope, now = { testScheduler.currentTime })
+        } else {
+            SoftphoneCore(FakeCallsApi(), sdk, scope)
+        }
+        return Harness(core, sdk, scope)
     }
 
     /** Total-predicate wait — suspending into first{} drives the scheduler
@@ -849,6 +863,177 @@ class SoftphoneCoreTest {
         assertEquals("Couldn't answer — try again.", state.error)
         assertEquals("the ring survives the failed answer", CallPhase.RINGING, state.calls.single().phase)
         assertEquals("answer", reportedTag)
+        h.scope.cancel()
+    }
+
+    // ------------------------------------------- zombie hygiene (#195 F1/F2/F3)
+
+    @Test
+    fun `socket death reaps RINGING presentation and held INVITEs - never a BYE`() = runTest {
+        // F1: a dead client's RINGING legs and held forks are immortal zombies
+        // (their flows can never emit after a rebuild) — Disconnected must clear
+        // the presentation state without ever ending a leg.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val presented = FakeHandle("in-1")
+        h.sdk.ring(presented, name = "Dana", number = "+15557778888", headerSession = "S1")
+        runCurrent()
+        val fork = FakeHandle("in-1-fork")
+        h.sdk.ring(fork, name = "Dana", number = "+15557778888", headerSession = "S1")
+        runCurrent()
+        assertEquals(1, h.core.state.value.calls.size)
+        assertEquals(
+            "the fork is tracked as a held leg of S1",
+            setOf("in-1-fork"),
+            h.core.state.value.heldLegsBySession["S1"],
+        )
+
+        h.sdk.drop()
+        runCurrent()
+
+        assertTrue("the zombie ring is gone from state", h.core.state.value.calls.isEmpty())
+        assertTrue("held INVITEs are released", h.core.state.value.heldLegsBySession.isEmpty())
+        assertFalse("state hygiene is NOT a hangup", presented.ended)
+        assertFalse(fork.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a ring still RINGING past the TTL is dropped locally - never a BYE`() = runTest {
+        // F2: the server ring window is 45s; a leg still ringing at 55s is a
+        // zombie whose real leg is already dead. The sweep drops it from state.
+        val h = harness(virtualClock = true)
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg)
+        runCurrent()
+        assertEquals(CallPhase.RINGING, h.core.state.value.calls.single().phase)
+
+        advanceTimeBy(CallWakePolicy.RING_TTL_MS + CallWakePolicy.RING_TTL_SWEEP_MS + 1)
+        runCurrent()
+
+        assertTrue("the stale ring was swept", h.core.state.value.calls.isEmpty())
+        assertFalse("the sweep never ends the leg", leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `an answered call is never swept by the ring TTL`() = runTest {
+        val h = harness(virtualClock = true)
+        h.core.start("company-1")
+        h.core.awaitReady()
+        val leg = FakeHandle("in-1", callControlId = "ccid-1")
+        h.sdk.ring(leg)
+        runCurrent()
+        h.core.answer("in-1")
+        leg.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+
+        advanceTimeBy(CallWakePolicy.RING_TTL_MS * 3)
+        runCurrent()
+
+        assertEquals(
+            "the live call outlasts every sweep",
+            CallPhase.ACTIVE,
+            h.core.state.value.calls.single().phase,
+        )
+        assertFalse(leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a silenced zombie ring does not block a wake push for a new session`() = runTest {
+        // F3: the honest gate. A silenced RINGING leg (its session exited
+        // ringing; the BYE never came) used to swallow every later wake push —
+        // straight to voicemail until app restart.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-x", callerHint = "+15557778888")
+        assertEquals(listOf(true), ringMeNoLocalLeg)
+
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg, name = "Dana", number = "+15557778888")
+        runCurrent()
+        h.core.onCallSessionUpdate("sess-x", "answered")
+        assertTrue(h.core.state.value.calls.single().silenced)
+
+        // A NEW caller pushes — the zombie must not eat the ring-me.
+        h.core.onIncomingCallPush("sess-y", callerHint = "+15550001111")
+
+        assertEquals("the new session got its ring-me", listOf(true, true), ringMeNoLocalLeg)
+        assertFalse("the silenced leg is still never ended by the client", leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a visible ring still blocks a wake push`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg)
+        runCurrent()
+
+        h.core.onIncomingCallPush("sess-live", callerHint = "+15557778888")
+
+        assertTrue("an ENGAGED ring keeps owning presentation", ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `retryNow refuses for an engaged ring but proceeds past a silenced zombie`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        assertEquals(1, h.sdk.connects)
+
+        val leg = FakeHandle("in-1")
+        h.sdk.ring(leg, headerSession = "S1")
+        runCurrent()
+
+        h.core.retryNow()
+        runCurrent()
+        assertEquals("a visible ring refuses the rebuild", 1, h.sdk.connects)
+
+        h.core.onCallSessionUpdate("S1", "answered") // silence the ring
+        assertTrue(h.core.state.value.calls.single().silenced)
+        h.core.retryNow()
+        runCurrent()
+
+        assertEquals("a silenced zombie no longer wedges the rebuild", 2, h.sdk.connects)
+        assertFalse("the rebuild is not a hangup", leg.ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `forceRecoverAfterAnswerFailure rebuilds only when nothing is engaged`() = runTest {
+        // F5: the socket reset after a failed answer — at most ONE call is ever
+        // lost to a zombie socket; a genuinely engaged call blocks the reset.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        assertEquals(1, h.sdk.connects)
+
+        h.core.forceRecoverAfterAnswerFailure()
+        runCurrent()
+        assertEquals("idle line - socket rebuilt with a fresh mint", 2, h.sdk.connects)
+        assertEquals(2, tokenMints.get())
+
+        val leg = FakeHandle("in-1", callControlId = "ccid-1")
+        h.sdk.ring(leg)
+        runCurrent()
+        h.core.answer("in-1")
+        leg.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+        h.core.forceRecoverAfterAnswerFailure()
+        runCurrent()
+        assertEquals("an engaged call refuses the reset", 2, h.sdk.connects)
+        assertFalse(leg.ended)
         h.scope.cancel()
     }
 }

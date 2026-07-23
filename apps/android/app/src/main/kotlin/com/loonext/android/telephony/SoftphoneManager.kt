@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.diag.PostCrashHonesty
 import com.loonext.android.core.net.ApiClient
@@ -51,6 +52,14 @@ class SoftphoneManager private constructor(
     api: ApiClient,
 ) {
     companion object {
+        /**
+         * #195 F4 — the honest answer-failure line. ONE string, shared by the
+         * bridge (which reports it into the core's error channel) and
+         * [com.loonext.android.features.calls.CallActivity] (which matches on
+         * it to replace the endless "Connecting…" with the truth).
+         */
+        const val ANSWER_FAILED_MESSAGE = "Couldn't connect the call."
+
         @Volatile
         private var instance: SoftphoneManager? = null
 
@@ -192,6 +201,18 @@ class SoftphoneManager private constructor(
 
         override fun releaseHeldSession(session: String) = core.releaseHeldForSession(session)
 
+        /** #195 F4/F5: an ANSWERED call was reaped before media materialized —
+         *  tell the user the truth and reset the socket that failed them (the
+         *  core skips the reset when any leg is genuinely engaged). */
+        override fun onAnswerFailedTeardown(session: String) {
+            CallFlowLog.log(
+                "answer",
+                "answered call never connected sess=${CallFlowLog.tail(session)} - surfacing failure",
+            )
+            core.reportUiError(ANSWER_FAILED_MESSAGE)
+            core.forceRecoverAfterAnswerFailure()
+        }
+
         /** Per-session decline (IMPORTANT-4) — drop this device from ONLY the
          *  rejected session, so a reject with another ring live doesn't decline
          *  both. The OS callback already owns the leg teardown. */
@@ -237,6 +258,10 @@ class SoftphoneManager private constructor(
      * One retry on a real failure; a ring is never dropped silently.
      */
     private fun onCallWakePush(content: PushContent) {
+        // #195 F8: stamp the wake moment FIRST — the app-graph cache warmer
+        // consults it so a call-wake process start never races ten screen
+        // prefetches against the token mint / ring-me.
+        PushHooks.lastCallWakeAtMs = System.currentTimeMillis()
         val session = content.callSessionId
         if (session == null) {
             postPushNotification(appContext, content)
@@ -353,6 +378,7 @@ class SoftphoneManager private constructor(
      *  Telecom has no OS answer surface, so this is how the user answers. Drives
      *  the Telecom registry's answer (OS answer + accept the Telnyx leg). */
     fun answerIncoming(session: String) {
+        CallFlowLog.log("answer", "answerIncoming requested sess=${CallFlowLog.tail(session)}")
         runCatching {
             markedCallInFlight = true
             diagnostics.callMarker.set()
@@ -376,7 +402,19 @@ class SoftphoneManager private constructor(
             // nothing left to stop it. Reap the ghost instead.
             runCatching { markedCallInFlight = false; diagnostics.callMarker.clear() }
             runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
-            runCatching { CallForegroundService.stop(appContext) }
+            // #195 F6: only release the process/mic hold when NOTHING is live —
+            // mirror the syncPlatform guard. A ghost answer for one session must
+            // never stop the FGS out from under a REAL registered ring or live
+            // call (that kills the mic mid-ring/mid-call).
+            val coreIdle = core.state.value.calls.none { it.phase != CallPhase.ENDED }
+            if (!registry.hasActiveCalls() && coreIdle) {
+                runCatching { CallForegroundService.stop(appContext) }
+            } else {
+                CallFlowLog.log(
+                    "answer",
+                    "ghost reap kept the call FGS - another call is live sess=${CallFlowLog.tail(session)}",
+                )
+            }
             return
         }
         // Re-assert the call foreground service now that we're really answering. If
@@ -407,6 +445,7 @@ class SoftphoneManager private constructor(
      *  killed process where the SDK never bound this ring), route a member-scoped
      *  fire-and-forget server decline so the caller stops ringing. */
     fun declineIncoming(session: String) {
+        CallFlowLog.log("answer", "declineIncoming sess=${CallFlowLog.tail(session)}")
         val handled = runCatching { registry.declineFromNotification(session) }.getOrDefault(false)
         if (!handled) runCatching { core.declineCurrent(sessionHint = session) }
     }

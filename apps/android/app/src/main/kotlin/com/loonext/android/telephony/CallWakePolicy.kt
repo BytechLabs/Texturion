@@ -34,6 +34,41 @@ object CallWakePolicy {
     /** A wake-push hint is only trusted this long (ring window is 45s). */
     const val HINT_WINDOW_MS = 90_000L
 
+    /**
+     * #195 F2 — the client-side ring TTL. The server ring window is 45s, so any
+     * inbound leg still RINGING locally this long after it was first seen is a
+     * ZOMBIE (its real leg is already dead server-side; its phase flow may
+     * never emit again after a client rebuild). 55s = the window + grace. The
+     * TTL only drops LOCAL presentation state — never a BYE (§10.1.2).
+     */
+    const val RING_TTL_MS = 55_000L
+
+    /** How often the TTL sweep looks while any inbound ring is tracked. */
+    const val RING_TTL_SWEEP_MS = 15_000L
+
+    /** #195 F2 — has a tracked ring outlived [RING_TTL_MS]? Pure sweep math;
+     *  a clock that moved backwards never expires anything. */
+    fun ringExpired(firstSeenMs: Long, nowMs: Long, ttlMs: Long = RING_TTL_MS): Boolean =
+        nowMs >= firstSeenMs && nowMs - firstSeenMs >= ttlMs
+
+    /**
+     * #195 F3 — is the user GENUINELY ENGAGED with this leg? The honest-gate
+     * predicate for the wedge gates (wake-push short-circuit, scheduleRecover,
+     * retryNow): a leg counts only when audio flows or could flow at the
+     * user's word — ACTIVE, HELD, a CONNECTING outbound the user just placed,
+     * or a non-silenced RINGING the user can actually see. A silenced or
+     * stale RINGING zombie is presentation debris and must never wedge a wake
+     * push or a socket recovery.
+     */
+    fun engagedLeg(call: CallSnapshot): Boolean = when (call.phase) {
+        CallPhase.ACTIVE, CallPhase.HELD, CallPhase.CONNECTING -> true
+        CallPhase.RINGING -> !call.silenced
+        CallPhase.ENDED -> false
+    }
+
+    /** #195 F3 — any genuinely engaged leg in the snapshot (see [engagedLeg]). */
+    fun anyEngaged(calls: List<CallSnapshot>): Boolean = calls.any { engagedLeg(it) }
+
     /** §10.2: `rang:false, recent_leg` + no INVITE within this → one retry. */
     const val RING_ME_RETRY_MS = 4_000L
 

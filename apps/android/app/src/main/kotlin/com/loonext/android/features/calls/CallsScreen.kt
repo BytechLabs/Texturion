@@ -74,6 +74,7 @@ import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.CreateContactSheet
 import com.loonext.android.BuildConfig
+import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.CenteredError
@@ -214,6 +215,11 @@ fun CallsScreen(
                 Spacer(Modifier.width(9.dp))
                 SoftphoneStatusLine(
                     status = softphone.status,
+                    // #195 F7: a ring is on screen but the socket is down —
+                    // the line must say so instead of pretending all is well.
+                    ringPresented = softphone.calls.any {
+                        it.phase == CallPhase.RINGING && !it.silenced
+                    },
                     onRetry = manager::retryNow,
                     modifier = Modifier.padding(bottom = 7.dp),
                 )
@@ -489,23 +495,32 @@ private fun SoftphoneStatusLine(
     status: SoftphoneStatus,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    ringPresented: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
-    val (label, dot, text) = when (status) {
-        SoftphoneStatus.READY -> Triple(
+    val (label, dot, text) = when {
+        // #195 F7: a ring is presented but the socket is NOT ready — honest
+        // over reassuring (an answer right now may stall or fail).
+        ringPresented && status != SoftphoneStatus.READY -> Triple(
+            "Reconnecting your line…",
+            MaterialTheme.colorScheme.outline,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        status == SoftphoneStatus.READY -> Triple(
             "Ready to ring",
             BrandColor.LimeBright,
             MaterialTheme.colorScheme.secondary,
         )
 
-        SoftphoneStatus.CONNECTING -> Triple(
+        status == SoftphoneStatus.CONNECTING -> Triple(
             "Connecting…",
             MaterialTheme.colorScheme.outline,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        SoftphoneStatus.DISCONNECTED -> Triple(
+        else -> Triple(
             "Offline · retry",
             coral,
             MaterialTheme.colorScheme.onSurfaceVariant,
