@@ -1,6 +1,7 @@
 package com.loonext.android.features.notifications
 
 import com.loonext.android.core.model.MarkReadResult
+import com.loonext.android.core.model.NewlyRead
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.NotificationPrefs
 import com.loonext.android.core.model.Page
@@ -16,6 +17,14 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class MarkReadBody(val before: String)
+
+/**
+ * POST /v1/notifications/:id/read body — the item's `created_at` EXACTLY as
+ * the feed returned it (never re-serialized through a Date type: millisecond
+ * truncation was one of the two #188 root causes).
+ */
+@Serializable
+data class MarkReadItemBody(val created_at: String)
 
 /**
  * The notifications feature's own /v1 surface: derived feed + watermark
@@ -39,6 +48,14 @@ class NotificationsFeedRepository(private val api: ApiClient) {
     /** Advance the watermark to one item's `created_at` (it + older = read). */
     suspend fun markRead(companyId: String, before: String): MarkReadResult =
         api.post("/v1/notifications/mark-read", MarkReadBody(before), companyId = companyId)
+
+    /** Mark ONE notification read (#188) — older and newer items keep their state. */
+    suspend fun markReadItem(companyId: String, id: String, createdAt: String): NewlyRead =
+        api.post(
+            "/v1/notifications/$id/read",
+            MarkReadItemBody(createdAt),
+            companyId = companyId,
+        )
 
     /** Advance the watermark to now — every current item reads as read. */
     suspend fun markAllRead(companyId: String): MarkReadResult =

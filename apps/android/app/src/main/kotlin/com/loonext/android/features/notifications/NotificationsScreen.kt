@@ -98,8 +98,16 @@ fun NotificationsScreen(
     // Server unread counts are ignored while a mark POST is in flight (they'd
     // briefly resurrect the pre-mark badge); reconciled on settle.
     var pendingMarks by remember(companyId) { mutableStateOf(0) }
-    fun withLocalReads(fetched: List<NotificationItem>): List<NotificationItem> =
-        localWatermark?.let { applyWatermark(fetched, it) } ?: fetched
+    // Per-item reads this session (#188): applied over every refetch so a
+    // revalidate racing the POST can't resurrect a tapped row's dot.
+    val localReadIds = remember(companyId) { mutableSetOf<String>() }
+    fun withLocalReads(fetched: List<NotificationItem>): List<NotificationItem> {
+        val marked = localWatermark?.let { applyWatermark(fetched, it) } ?: fetched
+        if (localReadIds.isEmpty()) return marked
+        return marked.map {
+            if (it.unread && it.id in localReadIds) it.copy(unread = false) else it
+        }
+    }
 
     // #176 cache-first: the ACCUMULATED feed (first page + any loaded older
     // pages) is the cached value, so a return visit paints everything it had
@@ -161,34 +169,35 @@ fun NotificationsScreen(
 
     fun markItemRead(item: NotificationItem) {
         if (!item.unread) return
-        val previousFeed = feedFlow.value ?: return
         val previousCount = unreadCount
-        val previousWatermark = localWatermark
-        localWatermark = advanceWatermark(localWatermark, item.created_at)
-        val advanced = previousFeed.copy(
-            data = applyWatermark(previousFeed.data, item.created_at),
-        )
-        feedFlow.value = advanced
-        // Everything newer than a loaded item is also loaded (contiguous DESC
-        // feed), so counting loaded unread rows is exact after the advance.
-        unreadFlow.value = advanced.data.count { it.unread }
+        // #188: truly per-item now — flip ONLY the tapped row, never advance
+        // the watermark (that marked everything older read too).
+        localReadIds += item.id
+        feedFlow.value?.let { f ->
+            feedFlow.value = f.copy(
+                data = f.data.map {
+                    if (it.id == item.id) it.copy(unread = false) else it
+                },
+            )
+        }
+        unreadFlow.value = (previousCount - 1).coerceAtLeast(0)
         pendingMarks++
-        scope.launch {
+        // appScope, not the composable scope: the tap navigates away
+        // immediately, and a composition-scoped launch would cancel the POST
+        // mid-flight — the other half of the "tapping never marks it read" bug.
+        graph.appScope.launch {
             try {
-                val result = repo.markRead(companyId, item.created_at)
-                // The server may be further ahead (another device read more).
-                localWatermark = advanceWatermark(localWatermark, result.last_seen_at)
-                feedFlow.value?.let { latest ->
-                    val reconciled = latest.copy(
-                        data = applyWatermark(latest.data, result.last_seen_at),
-                    )
-                    feedFlow.value = reconciled
-                    unreadFlow.value = reconciled.data.count { it.unread }
-                }
+                repo.markReadItem(companyId, item.id, item.created_at)
             } catch (_: Exception) {
-                feedFlow.value = previousFeed
+                localReadIds -= item.id
+                feedFlow.value?.let { f ->
+                    feedFlow.value = f.copy(
+                        data = f.data.map {
+                            if (it.id == item.id) it.copy(unread = true) else it
+                        },
+                    )
+                }
                 unreadFlow.value = previousCount
-                localWatermark = previousWatermark
                 snackbar.showSnackbar("Couldn't mark that read.")
             } finally {
                 pendingMarks--

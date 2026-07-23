@@ -360,6 +360,7 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["GET", "/v1/notifications/unread-count"],
     ["POST", "/v1/notifications/mark-all-read"],
     ["POST", "/v1/notifications/mark-read"],
+    ["POST", "/v1/notifications/:id/read"],
     ["GET", "/v1/for-you"],
     // webhooks (unversioned, outside the /v1 chain)
     ["POST", "/webhooks/telnyx"],

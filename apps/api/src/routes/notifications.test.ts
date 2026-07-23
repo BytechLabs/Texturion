@@ -587,7 +587,7 @@ describe("GET /v1/notifications/unread-count", () => {
 });
 
 describe("POST /v1/notifications/mark-all-read", () => {
-  it("advances the watermark to now and echoes it", async () => {
+  it("advances the watermark on the DB clock and echoes it", async () => {
     const sb = memberStub();
     sb.on(
       "POST",
@@ -609,12 +609,94 @@ describe("POST /v1/notifications/mark-all-read", () => {
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
-    expect(rpc.body).toMatchObject({
+    // #188: p_now is NULL — the RPC stamps the DB's own now(). Item
+    // created_at values are DB-stamped; a Worker-clock watermark could land
+    // BEFORE the newest item and the badge would never zero. The DB-suite
+    // twin (for_you_notifications.test.sql NR2) asserts the count zeroes.
+    expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
+      p_now: null,
     });
-    // p_now is the server clock, a real ISO string (never client-supplied).
-    expect(typeof (rpc.body as Record<string, unknown>).p_now).toBe("string");
+  });
+});
+
+describe("POST /v1/notifications/:id/read", () => {
+  const READ_PATH = `/v1/notifications/${NOTIF_A.id}/read`;
+
+  it("marks ONE notification read via the per-item RPC", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_mark_notification_read", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), READ_PATH, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { created_at: NOTIF_A.created_at },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ newly_read: true });
+
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notification_read")[0];
+    expect(rpc.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_notification_id: NOTIF_A.id,
+      p_created_at: NOTIF_A.created_at,
+    });
+  });
+
+  it("is idempotent: an already-read item reports newly_read false", async () => {
+    const sb = memberStub();
+    // The RPC's ON CONFLICT DO NOTHING (or watermark coverage) → false; the
+    // route surfaces it as a 200, never an error (re-tapping is normal).
+    sb.on("POST", "/rest/v1/rpc/api_mark_notification_read", () => false);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), READ_PATH, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { created_at: NOTIF_A.created_at },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ newly_read: false });
+  });
+
+  it("404s a malformed notification id before any RPC", async () => {
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/not-a-uuid/read",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { created_at: NOTIF_A.created_at },
+      },
+    );
+    expect(res.status).toBe(404);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_mark_notification_read"),
+    ).toHaveLength(0);
+  });
+
+  it("422s a missing or non-ISO created_at", async () => {
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const body of [{}, { created_at: "yesterday" }, { created_at: 5 }]) {
+      const res = await apiRequest(app, env, await auth.token(), READ_PATH, {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body,
+      });
+      expect(res.status, JSON.stringify(body)).toBe(422);
+    }
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_mark_notification_read"),
+    ).toHaveLength(0);
   });
 });
 

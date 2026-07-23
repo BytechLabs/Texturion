@@ -350,6 +350,156 @@ begin
 end $$;
 
 -- ===========================================================================
+-- Per-item read fixtures (#188): a THIRD user (a…03) with two PAST-stamped
+-- targeted events, isolated from every other user's baseline (the assigned /
+-- task_assigned arms are payload-targeted, so a…03's rows are invisible to
+-- the member and the lead, and N5/N6/N7 keep their exact counts).
+-- ===========================================================================
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('a0000000-0000-4000-8000-000000000003', 'third@fy.test', '{"display_name":"Third"}'::jsonb);
+insert into public.company_members (company_id, user_id, role) values
+  ('c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000003', 'member');
+insert into public.conversation_events
+  (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
+values
+  ('30000000-0000-4000-8000-000000000021', 'c0000000-0000-4000-8000-000000000001',
+   'f0000000-0000-4000-8000-00000000000c', 'a0000000-0000-4000-8000-000000000001',
+   'assigned', '{"from":null,"to":"a0000000-0000-4000-8000-000000000003"}'::jsonb,
+   now() - interval '20 minutes'),
+  ('30000000-0000-4000-8000-000000000022', 'c0000000-0000-4000-8000-000000000001',
+   'f0000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000001',
+   'task_assigned',
+   '{"task_id":"20000000-0000-4000-8000-00000000000a","from_user_id":null,"to_user_id":"a0000000-0000-4000-8000-000000000003"}'::jsonb,
+   now() - interval '10 minutes');
+
+-- ===========================================================================
+-- NR1 (#188). api_mark_notification_read is PER-ITEM: marking the NEWER of
+--     two unread notifications decrements the badge by exactly one, flips
+--     only that item's feed dot (the OLDER one stays unread — the legacy
+--     watermark advance would have flipped both), never touches the
+--     watermark, and is idempotent (second call reports false, count holds).
+-- ===========================================================================
+do $$
+declare flipped boolean; cnt bigint; r jsonb;
+begin
+  if public.api_notifications_unread_count(
+       'c0000000-0000-4000-8000-000000000001',
+       'a0000000-0000-4000-8000-000000000003') <> 2 then
+    raise exception 'NR1 FAILED: baseline unread_count <> 2';
+  end if;
+
+  flipped := public.api_mark_notification_read(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003',
+    '30000000-0000-4000-8000-000000000022',
+    now() - interval '10 minutes');
+  if not flipped then
+    raise exception 'NR1 FAILED: first mark-one did not report newly read';
+  end if;
+
+  cnt := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003');
+  if cnt <> 1 then
+    raise exception 'NR1 FAILED: mark-one must decrement by exactly 1 (got %)', cnt;
+  end if;
+
+  -- Feed twin agrees: the tapped item is read, the OLDER item is still unread.
+  for r in select x from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003', 100, null, null) x
+  loop
+    if (r->>'id') = '30000000-0000-4000-8000-000000000022'
+       and (r->>'unread')::boolean then
+      raise exception 'NR1 FAILED: tapped item still unread in the feed';
+    end if;
+    if (r->>'id') = '30000000-0000-4000-8000-000000000021'
+       and not (r->>'unread')::boolean then
+      raise exception 'NR1 FAILED: mark-one flipped an OLDER item (watermark leak)';
+    end if;
+  end loop;
+
+  -- Per-item read never advances the watermark.
+  if exists (select 1 from public.notification_reads
+              where user_id = 'a0000000-0000-4000-8000-000000000003'
+                and company_id = 'c0000000-0000-4000-8000-000000000001') then
+    raise exception 'NR1 FAILED: mark-one moved the watermark';
+  end if;
+
+  -- Idempotent: same call again is a no-op and the count holds.
+  flipped := public.api_mark_notification_read(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003',
+    '30000000-0000-4000-8000-000000000022',
+    now() - interval '10 minutes');
+  if flipped then
+    raise exception 'NR1 FAILED: re-marking reported newly read';
+  end if;
+  if public.api_notifications_unread_count(
+       'c0000000-0000-4000-8000-000000000001',
+       'a0000000-0000-4000-8000-000000000003') <> 1 then
+    raise exception 'NR1 FAILED: idempotent re-mark changed the count';
+  end if;
+  if (select count(*) from public.notification_read_items
+       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 1 then
+    raise exception 'NR1 FAILED: re-mark duplicated the exception row';
+  end if;
+
+  raise notice 'NR1 PASSED: per-item mark-read decrements by one, leaves older unread, idempotent';
+end $$;
+
+-- ===========================================================================
+-- NR2 (#188). Mark-all with p_now NULL stamps the DB clock (now()) — the same
+--     clock that stamps created_at, so the count zeroes deterministically —
+--     and prunes the exception rows the watermark now covers.
+-- ===========================================================================
+do $$
+declare seen timestamptz;
+begin
+  seen := public.api_mark_notifications_read(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003', null);
+  if seen is distinct from now() then
+    raise exception 'NR2 FAILED: null p_now must stamp the DB now(), got %', seen;
+  end if;
+
+  if public.api_notifications_unread_count(
+       'c0000000-0000-4000-8000-000000000001',
+       'a0000000-0000-4000-8000-000000000003') <> 0 then
+    raise exception 'NR2 FAILED: unread_count not 0 after mark-all-read';
+  end if;
+
+  if (select count(*) from public.notification_read_items
+       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 0 then
+    raise exception 'NR2 FAILED: covered exception rows were not pruned';
+  end if;
+
+  raise notice 'NR2 PASSED: DB-clock mark-all zeroes the count and prunes the exception set';
+end $$;
+
+-- ===========================================================================
+-- NR3 (#188). Marking an item the watermark already covers is a clean no-op:
+--     reports false and adds no exception row.
+-- ===========================================================================
+do $$
+declare flipped boolean;
+begin
+  flipped := public.api_mark_notification_read(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000003',
+    '30000000-0000-4000-8000-000000000021',
+    now() - interval '20 minutes');
+  if flipped then
+    raise exception 'NR3 FAILED: covered item reported newly read';
+  end if;
+  if (select count(*) from public.notification_read_items
+       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 0 then
+    raise exception 'NR3 FAILED: covered mark-one inserted a dead row';
+  end if;
+  raise notice 'NR3 PASSED: watermark-covered mark-one is a row-free no-op';
+end $$;
+
+-- ===========================================================================
 -- N5. Tenant isolation: another company sees NONE of FY Co's notifications,
 --     and api_for_you returns empty sections for it.
 -- ===========================================================================

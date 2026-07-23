@@ -29,10 +29,23 @@
  *          carrying an `unread` dot derived from the caller's last-seen
  *          watermark (notification_reads). Popover feed.
  *   GET    /v1/notifications/unread-count { count } — the bell badge.
- *   POST   /v1/notifications/mark-all-read  advance the watermark to now →
- *          { last_seen_at }; every current item reads as read.
- *   POST   /v1/notifications/mark-read   { before } — advance the watermark to
- *          a notification's timestamp (marks it and everything older read).
+ *   POST   /v1/notifications/mark-all-read  advance the watermark → the DB
+ *          stamps now() itself (#188: item created_at values are DB-stamped,
+ *          so the watermark must come from the SAME clock or a fresh item
+ *          lands past it and the badge never zeroes) → { last_seen_at }.
+ *   POST   /v1/notifications/:id/read    { created_at } — mark ONE
+ *          notification read (#188). Per-item: newer AND older items keep
+ *          their unread state. Idempotent; { newly_read } says whether this
+ *          call flipped it.
+ *   POST   /v1/notifications/mark-read   { before } — LEGACY watermark
+ *          advance to a notification's timestamp (marks it and everything
+ *          older read). Kept for deployed clients; new clients tap through
+ *          POST /v1/notifications/:id/read instead.
+ *
+ *   Read state (one source of truth, #188): unread := created_at >
+ *   notification_reads.last_seen_at AND id not in the caller's
+ *   notification_read_items. Both read-model RPC twins apply that same
+ *   predicate; both mark paths write only those two stores.
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -258,6 +271,13 @@ const markReadSchema = z.object({
   before: z.iso.datetime({ offset: true }),
 });
 
+const markOneReadSchema = z.object({
+  // The tapped item's created_at exactly as the feed returned it. The RPC
+  // stores it beside the id so watermark advances can prune covered rows and
+  // an already-covered item is a clean no-op (#188).
+  created_at: z.iso.datetime({ offset: true }),
+});
+
 notificationsRoutes.get(
   "/notifications",
   requireRole("member"),
@@ -317,15 +337,44 @@ notificationsRoutes.post(
   requireRole("member"),
   async (c) => {
     const db = getDb(getEnv(c.env));
+    // #188: p_now null → the RPC stamps the DB's own now(). Notification
+    // created_at values are DB-stamped, and the Worker's Date (frozen between
+    // I/O, on a different clock entirely) could land BEFORE the newest item,
+    // leaving the badge nonzero after "mark all read". Same clock both sides.
     const lastSeen = unwrap<string>(
       await db.rpc("api_mark_notifications_read", {
         p_company_id: c.get("companyId"),
         p_user_id: c.get("userId"),
-        p_now: new Date().toISOString(),
+        p_now: null,
       }),
       "notifications mark-all-read",
     );
     return c.json({ last_seen_at: lastSeen });
+  },
+);
+
+notificationsRoutes.post(
+  "/notifications/:id/read",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const body = await parseJsonBody(c, markOneReadSchema);
+    const db = getDb(getEnv(c.env));
+    // #188 per-item mark-read: opening a notification marks THAT item read —
+    // newer and older items keep their unread state (unlike the watermark
+    // paths). Idempotent: re-marking reports newly_read false. The id is only
+    // ever subtracted from the caller's own unread set, so no existence or
+    // visibility check is needed (an invented id costs one capped row).
+    const newlyRead = unwrap<boolean>(
+      await db.rpc("api_mark_notification_read", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_notification_id: id,
+        p_created_at: body.created_at,
+      }),
+      "notification mark-one-read",
+    );
+    return c.json({ newly_read: newlyRead });
   },
 );
 
@@ -335,9 +384,10 @@ notificationsRoutes.post(
   async (c) => {
     const body = await parseJsonBody(c, markReadSchema);
     const db = getDb(getEnv(c.env));
-    // Watermark model: marking a single notification read advances the
-    // per-user last-seen to that notification's timestamp (the RPC keeps the
-    // greatest, so this never moves the watermark backwards).
+    // LEGACY watermark model (pre-#188 clients): advances the per-user
+    // last-seen to that notification's timestamp, marking it AND everything
+    // older read (the RPC keeps the greatest, so this never moves the
+    // watermark backwards). New clients use POST /notifications/:id/read.
     const lastSeen = unwrap<string>(
       await db.rpc("api_mark_notifications_read", {
         p_company_id: c.get("companyId"),

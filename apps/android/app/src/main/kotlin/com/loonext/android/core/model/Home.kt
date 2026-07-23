@@ -99,6 +99,10 @@ data class UnreadCount(val count: Int)
 @Serializable
 data class MarkReadResult(val last_seen_at: String)
 
+/** POST /v1/notifications/:id/read — false when it was already read. */
+@Serializable
+data class NewlyRead(val newly_read: Boolean)
+
 /** GET /v1/notification-prefs (+ vapid_public_key for web; unused natively). */
 @Serializable
 data class NotificationPrefs(
