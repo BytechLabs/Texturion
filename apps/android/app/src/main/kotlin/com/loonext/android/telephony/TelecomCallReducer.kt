@@ -19,6 +19,18 @@ object TelecomCallReducer {
      *  Telnyx WebRTC only forwards custom headers whose name starts with `X-`. */
     const val HEADER_NAME = "X-Loonext-Session"
 
+    /** #212: the custom SIP header carrying the REAL caller's E.164. The INVITE
+     *  `from` is Telnyx-REWRITTEN to a connection-owned number (the business
+     *  number) for WebRTC originations, so it is NOT the caller; this header is.
+     *  Absent for a CLIR/anonymous caller (the server sends no caller then). */
+    const val CALLER_HEADER_NAME = "X-Loonext-Caller"
+
+    /** #212: the optional caller display NAME (CNAM) header. Read
+     *  forward-compatibly. The server does not stamp it today (no caller_name on
+     *  the ring input), so this is null in practice until the DO contract carries
+     *  a name (#211). */
+    const val CALLER_NAME_HEADER_NAME = "X-Loonext-Caller-Name"
+
     /**
      * §3.3: the single tunable bind deadline. `onAnswer` holds the OS call
      * (setActive) immediately and binds media async; if the Telnyx leg never
@@ -82,6 +94,31 @@ object TelecomCallReducer {
             else -> Correlation.Uncorrelatable
         }
     }
+
+    /**
+     * #212: the REAL caller off the INVITE's custom SIP headers (`X-Loonext-Caller`),
+     * or null when absent/blank. Case-insensitive, mirroring [correlateInvite]'s
+     * header match. The INVITE `from` is Telnyx-rewritten to the business number
+     * for WebRTC originations, so this trusted header (never the `from`) is the
+     * caller-id the client shows. Null means the caller was anonymous (CLIR) or an
+     * older server that predates the header; the caller falls back to the `from`.
+     */
+    fun callerFromHeaders(customHeaders: List<Pair<String, String>>): String? =
+        customHeaders
+            .firstOrNull { it.first.equals(CALLER_HEADER_NAME, ignoreCase = true) }
+            ?.second
+            ?.takeIf { it.isNotBlank() }
+
+    /**
+     * #212: the caller display NAME (CNAM) off `X-Loonext-Caller-Name`, or null
+     * when absent/blank. Read forward-compatibly (the server does not stamp it
+     * yet), so callers must fall back to the caller number for the display name.
+     */
+    fun callerNameFromHeaders(customHeaders: List<Pair<String, String>>): String? =
+        customHeaders
+            .firstOrNull { it.first.equals(CALLER_NAME_HEADER_NAME, ignoreCase = true) }
+            ?.second
+            ?.takeIf { it.isNotBlank() }
 
     // ------------------------------------------------------- §3 idempotency
 

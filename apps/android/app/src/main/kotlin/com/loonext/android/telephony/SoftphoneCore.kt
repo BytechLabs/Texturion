@@ -339,10 +339,27 @@ class SoftphoneCore(
 
     private fun onIncoming(event: SdkEvent.Incoming) {
         val id = event.call.id
-        CallFlowLog.log("sip", "INVITE received leg=${CallFlowLog.tail(id)} caller=${CallFlowLog.mask(event.callerNumber)}")
+        // #212 caller-id correctness: the INVITE `from` (event.callerNumber) is the
+        // Telnyx-REWRITTEN value, a connection-owned number (the business number)
+        // for WebRTC originations, NOT the real caller. The server rides the true
+        // caller on the trusted `X-Loonext-Caller` header (same discipline as the
+        // session header); prefer it for BOTH the number and the display, and fall
+        // back to the untrusted INVITE `from` only for a header-less leg (an older
+        // server, or the by-leg path). A null caller (CLIR/anonymous) sends no
+        // header, so the fallback surfaces the INVITE value, which the caller
+        // knows may be the business number; nothing here can distinguish it without
+        // the business number, so the header is the whole correctness story.
+        val headerCaller = TelecomCallReducer.callerFromHeaders(event.customHeaders)
+        val headerName = TelecomCallReducer.callerNameFromHeaders(event.customHeaders)
+        val number = headerCaller ?: event.callerNumber.orEmpty()
+        CallFlowLog.log("sip", "INVITE received leg=${CallFlowLog.tail(id)} caller=${CallFlowLog.mask(number)}")
         if (_state.value.calls.any { it.id == id } || heldInvites.containsKey(id)) return
-        val number = event.callerNumber.orEmpty()
-        val name = event.callerName?.takeIf { it.isNotBlank() }
+        // Name precedence: the trusted CNAM header, else (only when NO trusted
+        // caller header exists) the INVITE's caller-id name, else the number.
+        // When the header caller IS present the INVITE name is untrusted too (it
+        // is the business number's CNAM), so it is deliberately skipped.
+        val name = headerName
+            ?: (if (headerCaller == null) event.callerName?.takeIf { it.isNotBlank() } else null)
             ?: number.ifBlank { "Unknown caller" }
         // §3.2 DETERMINISTIC correlation — the `X-Loonext-Session` header IS the
         // authoritative server session (never a caller/time guess). When present

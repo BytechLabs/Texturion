@@ -161,6 +161,18 @@ internal class CallNotifier(private val context: Context) {
             .setAutoCancel(false)
             // CallStyle is legal here ONLY because of the fullScreenIntent below
             // (the #168A precondition). forIncomingCall renders Answer/Decline.
+            //
+            // #212 — the "Loonext" header: a CallStyle heads-up ALWAYS renders
+            // the app label ("Loonext", from AndroidManifest android:label) as
+            // its own small header row above the caller. That is fixed system
+            // chrome for CallStyle (like the "Phone"/"Messages" byline on a
+            // native call/SMS heads-up); there is no per-notification API to
+            // hide or rename it, and dropping CallStyle would lose the OS
+            // Answer/Decline affordances and the self-managed-call ring contract.
+            // So it stays, honestly. The founder-facing beauty work lives on the
+            // FULL-SCREEN surface instead ([CallActivity]'s RingingSurface),
+            // which carries NO wordmark and leads with the caller — the label
+            // here is the notification shade's, not ours to style.
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, decline, answer))
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)

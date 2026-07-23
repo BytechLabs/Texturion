@@ -39,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +54,7 @@ import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneSnapshot
 import com.loonext.android.telephony.SoftphoneStatus
+import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.LoonextTheme
@@ -445,9 +448,21 @@ private fun CallSurfaceContent(
             },
         )
 
+        // #212 caller-id correctness: title/subtitle derive from the CORRECTED
+        // snapshot first (ringing.peerName/peerNumber). SoftphoneCore now sets
+        // those from the trusted `X-Loonext-Caller` header, never the Telnyx-
+        // rewritten INVITE `from` (the business number). The intent extras are
+        // the pre-INVITE fallback and carry the same real caller from the wake
+        // push. A defensive "hide the business number" guard would need the
+        // business number client-side (me.company.numbers), which this standalone
+        // activity does not load (no company view here), so the header-precedence
+        // fix in SoftphoneCore is the whole correctness story on this surface.
         ringing != null || target != null -> RingingSurface(
-            title = (ringing?.peerName ?: callerName).ifBlank { callerNumber },
-            subtitle = (ringing?.peerNumber ?: callerNumber),
+            // The plumbed caller-id values arrive RAW (peerName/peerNumber
+            // precedence set by SoftphoneCore's trusted header) — the surface
+            // only decides how to present them, never what they are.
+            callerName = (ringing?.peerName ?: callerName),
+            callerNumber = (ringing?.peerNumber ?: callerNumber),
             // #195 F7: honest ring surface — the line is not READY, so an
             // answer may take a beat (or fail); say so quietly.
             reconnecting = snapshot.status != SoftphoneStatus.READY,
@@ -464,66 +479,91 @@ private fun CallSurfaceContent(
     }
 }
 
-/** The ring screen (spec 04): halo avatar, Bricolage name, brick/lime discs. */
+/**
+ * The ring screen (spec 04): a generous halo avatar, the caller as the
+ * confident hero, the number quiet beneath, and two large brick/lime action
+ * discs sitting under the thumb. The caller LEADS — there is no brand wordmark
+ * here (the "Loonext" the founder saw is the CallStyle notification's own app
+ * label, documented in CallNotifications.showIncoming; it cannot live on this
+ * surface).
+ *
+ * Presentation only. The plumbed caller-id values ([callerName]/[callerNumber])
+ * arrive raw and are resolved for display via [callerHeroLine]/[callerSubLine]
+ * (no bare +1E164 ever leads); behavior — answer, decline, haptics, reconnect
+ * honesty — is unchanged. Every color is a Paper & Olive theme role, and the
+ * hero uses onBackground while the muted lines use onSurfaceVariant, both of
+ * which the #204 backdrop caps its blob alphas to keep ≥ AA on every frame, so
+ * no scrim is needed.
+ */
 @Composable
 private fun RingingSurface(
-    title: String,
-    subtitle: String,
+    callerName: String,
+    callerNumber: String,
     onAnswer: () -> Unit,
     onDecline: () -> Unit,
     reconnecting: Boolean = false,
 ) {
     val haptics = rememberHaptics()
-    val display = title.ifBlank { "Unknown caller" }
+    val hero = callerHeroLine(callerName, callerNumber)
+    val sub = callerSubLine(callerName, callerNumber)
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 26.dp),
+            .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The caller sits in the upper third; the actions live under the thumb.
+        Spacer(Modifier.weight(0.5f))
+        // The eyebrow names the moment but stays quiet — a small, tracked micro
+        // label so the caller, not the label, reads as the hero.
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
         ) {
             Text(
-                "Incoming call",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+                "INCOMING CALL",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.14.em,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             )
         }
-        Spacer(Modifier.height(24.dp))
-        CallerAvatar(display, size = 112.dp, ringing = true)
+        Spacer(Modifier.height(30.dp))
+        CallerAvatar(hero, size = 128.dp, ringing = true)
+        Spacer(Modifier.height(28.dp))
         Text(
-            display,
-            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 27.sp),
+            hero,
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 33.sp),
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 14.dp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
-        if (subtitle.isNotBlank() && subtitle != title) {
+        if (sub != null) {
             Text(
-                subtitle,
-                fontSize = 12.5.sp,
+                sub,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 5.dp),
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
         if (reconnecting) {
             // #195 F7: quiet honesty while the socket is not READY.
             Text(
                 "Reconnecting your line…",
-                fontSize = 12.sp,
+                fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 10.dp),
             )
         }
         Spacer(Modifier.weight(1f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 26.dp),
+                .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -534,7 +574,7 @@ private fun RingingSurface(
                 content = MaterialTheme.colorScheme.onError,
                 labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 labelWeight = FontWeight.SemiBold,
-                size = 72.dp,
+                size = 80.dp,
                 onClick = {
                     haptics.reject()
                     onDecline()
@@ -547,7 +587,7 @@ private fun RingingSurface(
                 content = MaterialTheme.colorScheme.onTertiary,
                 labelColor = MaterialTheme.colorScheme.onBackground,
                 labelWeight = FontWeight.Bold,
-                size = 72.dp,
+                size = 80.dp,
                 onClick = {
                     haptics.confirm()
                     onAnswer()
@@ -557,6 +597,14 @@ private fun RingingSurface(
     }
 }
 
+/**
+ * The connecting / answered / failed status surface — the same visual language
+ * as [RingingSurface] (generous avatar, confident hero, quiet status line) so
+ * the ring → in-call → status transitions read as one designed system. Centered
+ * rather than top-anchored because these are transient, action-light moments.
+ * [title] arrives pre-resolved; a bare number is formatted so a cold connect
+ * never shows a raw +1E164.
+ */
 @Composable
 private fun CallStatus(
     title: String,
@@ -564,30 +612,35 @@ private fun CallStatus(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
 ) {
+    val avatarName = title.ifBlank { "Call" }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CallerAvatar(title.ifBlank { "Call" }, size = 96.dp)
+            CallerAvatar(avatarName, size = 108.dp)
             Text(
-                text = title.ifBlank { "Call" },
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
+                text = formatPhone(avatarName),
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp),
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 22.dp),
             )
             Text(
                 text = status,
                 fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 10.dp),
             )
             if (actionLabel != null) {
                 val haptics = rememberHaptics()
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(36.dp))
                 EndCallPill(
                     onClick = {
                         haptics.reject()

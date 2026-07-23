@@ -22,6 +22,30 @@ fun callerDisplayName(call: Call): String {
     return "Unknown caller"
 }
 
+/**
+ * The caller HERO line for the ring / connecting surfaces (#212): the trusted
+ * name when we have one, else the formatted number, else a stable "Unknown
+ * caller". Never a bare +1XXXXXXXXXX — a raw E.164 as the hero reads as a bug,
+ * not a caller. The name/number values themselves are exactly what the caller-id
+ * plumbing resolved; this only decides which to show and how it is formatted.
+ */
+fun callerHeroLine(name: String, number: String): String {
+    name.trim().takeIf { it.isNotBlank() }?.let { return it }
+    number.takeIf { it.isNotBlank() }?.let { return formatPhone(it) }
+    return "Unknown caller"
+}
+
+/**
+ * The secondary number line under the hero (#212): the formatted number, shown
+ * only when the hero is a NAME. When there is no name the number is already the
+ * hero, so repeating it below is noise — return null and show nothing.
+ */
+fun callerSubLine(name: String, number: String): String? {
+    if (number.isBlank()) return null
+    if (name.trim().isBlank()) return null
+    return formatPhone(number)
+}
+
 /** "4m 32s" / "58s" — talk time for answered calls (never ring time). */
 fun formatCallDuration(seconds: Int): String {
     val whole = maxOf(0, seconds)

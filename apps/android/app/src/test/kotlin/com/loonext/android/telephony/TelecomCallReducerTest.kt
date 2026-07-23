@@ -60,6 +60,61 @@ class TelecomCallReducerTest {
         )
     }
 
+    // ------------------------------------------------ #212 caller-id header
+
+    @Test
+    fun `callerFromHeaders reads the real caller off X-Loonext-Caller`() {
+        val caller = TelecomCallReducer.callerFromHeaders(
+            listOf("X-Loonext-Session" to "S1", "X-Loonext-Caller" to "+15551234567"),
+        )
+        assertEquals("+15551234567", caller)
+    }
+
+    @Test
+    fun `callerFromHeaders name match is case-insensitive`() {
+        val caller = TelecomCallReducer.callerFromHeaders(
+            listOf("x-loonext-caller" to "+15559998888"),
+        )
+        assertEquals("+15559998888", caller)
+    }
+
+    @Test
+    fun `callerFromHeaders is null when the header is absent`() {
+        // Anonymous/CLIR or an older server: no header, so the caller falls back
+        // to the INVITE `from` (which may be the business number), never a guess.
+        assertEquals(
+            null,
+            TelecomCallReducer.callerFromHeaders(listOf("X-Loonext-Session" to "S1")),
+        )
+        assertEquals(null, TelecomCallReducer.callerFromHeaders(emptyList()))
+    }
+
+    @Test
+    fun `callerFromHeaders is null for a blank value`() {
+        assertEquals(
+            null,
+            TelecomCallReducer.callerFromHeaders(listOf("X-Loonext-Caller" to "   ")),
+        )
+    }
+
+    @Test
+    fun `callerNameFromHeaders reads the CNAM name, null when absent or blank`() {
+        assertEquals(
+            "Jane Doe",
+            TelecomCallReducer.callerNameFromHeaders(
+                listOf("X-Loonext-Caller-Name" to "Jane Doe"),
+            ),
+        )
+        assertEquals(
+            null,
+            TelecomCallReducer.callerNameFromHeaders(listOf("X-Loonext-Caller" to "+15551234567")),
+        )
+        assertEquals(
+            null,
+            TelecomCallReducer.callerNameFromHeaders(listOf("X-Loonext-Caller-Name" to " ")),
+        )
+    }
+
     // --------------------------------------------------- §3 idempotent ensure
 
     @Test

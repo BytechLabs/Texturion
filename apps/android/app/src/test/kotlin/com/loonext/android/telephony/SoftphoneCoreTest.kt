@@ -248,10 +248,14 @@ class SoftphoneCoreTest {
             name: String? = "Dana",
             number: String? = "+15557778888",
             headerSession: String? = null,
+            headerCaller: String? = null,
+            headerCallerName: String? = null,
         ) {
-            val headers = headerSession?.let {
-                listOf(TelecomCallReducer.HEADER_NAME to it)
-            }.orEmpty()
+            val headers = buildList {
+                headerSession?.let { add(TelecomCallReducer.HEADER_NAME to it) }
+                headerCaller?.let { add(TelecomCallReducer.CALLER_HEADER_NAME to it) }
+                headerCallerName?.let { add(TelecomCallReducer.CALLER_NAME_HEADER_NAME to it) }
+            }
             _events.tryEmit(SdkEvent.Incoming(handle, name, number, customHeaders = headers))
         }
 
@@ -397,6 +401,74 @@ class SoftphoneCoreTest {
         val resolved = h.core.state.first { it.calls.singleOrNull()?.sessionId != null }
         assertEquals("sess-real", resolved.calls.single().sessionId)
         assertEquals(1, byLegHits.get())
+        h.scope.cancel()
+    }
+
+    // ------------------------------------------- #212 caller-id header precedence
+
+    @Test
+    fun `the X-Loonext-Caller header wins over the Telnyx-rewritten INVITE from`() = runTest {
+        // The INVITE `from` (number) is the Telnyx-rewritten business number for
+        // WebRTC originations; the trusted header carries the REAL caller.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val leg = FakeHandle("in-212a")
+        h.sdk.ring(
+            leg,
+            name = "Ace Plumbing", // untrusted business CNAM off the INVITE
+            number = "+19995550100", // the rewritten business number
+            headerCaller = "+15551234567", // the real caller
+            headerCallerName = "Jane Doe",
+        )
+        runCurrent()
+
+        val call = h.core.state.value.calls.single()
+        assertEquals("+15551234567", call.peerNumber)
+        assertEquals("Jane Doe", call.peerName)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `with no name header the header caller number is the display, not the INVITE CNAM`() = runTest {
+        // When the trusted caller header is present but no CNAM header, the
+        // INVITE's caller-id NAME is also untrusted (the business CNAM) and must
+        // be skipped, so the real caller number is the display name.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val leg = FakeHandle("in-212b")
+        h.sdk.ring(
+            leg,
+            name = "Ace Plumbing",
+            number = "+19995550100",
+            headerCaller = "+15551234567",
+        )
+        runCurrent()
+
+        val call = h.core.state.value.calls.single()
+        assertEquals("+15551234567", call.peerNumber)
+        assertEquals("+15551234567", call.peerName)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `with no caller header the INVITE from is the fallback caller`() = runTest {
+        // An older server / by-leg path sends no caller header, so the INVITE
+        // values are the honest fallback (backward compatible).
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        val leg = FakeHandle("in-212c")
+        h.sdk.ring(leg, name = "Dana", number = "+15557778888")
+        runCurrent()
+
+        val call = h.core.state.value.calls.single()
+        assertEquals("+15557778888", call.peerNumber)
+        assertEquals("Dana", call.peerName)
         h.scope.cancel()
     }
 

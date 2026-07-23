@@ -75,6 +75,32 @@ class CallsLogicTest {
     }
 
     @Test
+    fun `ring hero prefers the name, else formats the number, never a bare E164`() {
+        // A trusted name always leads.
+        assertEquals("Dana Fix-It", callerHeroLine("Dana Fix-It", "+14155550134"))
+        // No name: the number becomes the hero, formatted (never raw +1…).
+        assertEquals("(415) 555-0134", callerHeroLine("", "+14155550134"))
+        assertEquals("(415) 555-0134", callerHeroLine("   ", "+14155550134"))
+        // Nothing at all resolves to a stable label, not an empty hero.
+        assertEquals("Unknown caller", callerHeroLine("", ""))
+        assertEquals("Unknown caller", callerHeroLine("  ", "  "))
+        // A non-NANP number is shown as-is rather than dropped.
+        assertEquals("+445555", callerHeroLine("", "+445555"))
+    }
+
+    @Test
+    fun `ring sub-line shows the number only under a name hero`() {
+        // Name hero: the formatted number belongs beneath it.
+        assertEquals("(415) 555-0134", callerSubLine("Dana Fix-It", "+14155550134"))
+        // Number IS the hero: no echo below.
+        assertNull(callerSubLine("", "+14155550134"))
+        assertNull(callerSubLine("   ", "+14155550134"))
+        // No number to show.
+        assertNull(callerSubLine("Dana Fix-It", ""))
+        assertNull(callerSubLine("Dana Fix-It", "   "))
+    }
+
+    @Test
     fun `outcome labels match the web's plain language`() {
         assertEquals("Missed", callOutcomeLabel(call(outcome = "missed")))
         assertEquals("No answer", callOutcomeLabel(call(outcome = "missed", direction = "outbound")))
