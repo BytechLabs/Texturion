@@ -33,9 +33,24 @@ data class UsageOverageProjection(
     val projected_overage_cents: Long = 0,
 )
 
+/**
+ * #178: the fair-use presentation contract. GET /v1/usage derives `status`
+ * server-side so every client renders the same philosophy: 'quiet' shows no
+ * meters anywhere, 'pacing' shows the early warning, 'capped' shows the
+ * owner-set spending cap approaching (>=90%) or reached.
+ */
+object UsageStatus {
+    const val QUIET = "quiet"
+    const val PACING = "pacing"
+    const val CAPPED = "capped"
+}
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 @Serializable
 data class Usage(
+    /** #178 presentation status; the default keeps pre-#178 cached payloads
+     *  decoding as the calm state (unknown values also render quiet). */
+    val status: String = UsageStatus.QUIET,
     val period_start: String? = null,
     val period_end: String? = null,
     val included_segments: Long = 0,

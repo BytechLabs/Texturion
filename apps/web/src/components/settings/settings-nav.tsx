@@ -74,9 +74,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: MessageSquareText,
   },
   {
+    // #178: the hub never frames usage as a quota — fair use plus the
+    // owner's protection, same words as marketing.
     slug: "usage",
     label: "Usage",
-    description: "Messages used this period and your overage cap",
+    description: "Fair use and the spending cap you control",
     icon: Gauge,
   },
   {

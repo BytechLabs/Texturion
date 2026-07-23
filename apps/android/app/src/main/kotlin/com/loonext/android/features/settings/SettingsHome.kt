@@ -5,15 +5,15 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +58,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +71,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
+import com.loonext.android.core.model.UsageStatus
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
@@ -85,6 +85,7 @@ import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.rememberShimmerBrush
+import com.loonext.android.ui.theme.BrandColor
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.launch
@@ -96,7 +97,7 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
     Team("Team", "Who can see and answer your customers' texts"),
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration"),
-    Usage("Usage", "Messages, minutes, and your overage cap"),
+    Usage("Usage", "Fair use, your spending cap, and the numbers"),
     Billing("Billing", "Plan, payment, and invoices"),
     Notifications("Notifications", "Email and push for new conversations"),
     Profile("Profile & account", "Your name, theme, email, and password"),
@@ -152,7 +153,7 @@ fun SettingsHome(
         key = CacheKeys.settingsHome(companyId),
         refreshKey = refreshKey,
     ) { repo.company(companyId) }
-    // The hub's "texts this period" meter shares the Usage section's key; the
+    // The hub's fair-use whisper (#178) shares the Usage section's key; the
     // card stays hidden until the first value ever resolves, then keeps the
     // last good value across background misses.
     val usageState = rememberCacheFirst(
@@ -269,7 +270,7 @@ private fun SettingsIndex(
     ) {
         ScreenTitle("Settings")
         IdentityCard(company, me, role, onCopyNumber)
-        usage?.let { UsageMeterCard(it) }
+        usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
         PaperCard(Modifier.fillMaxWidth()) {
             SettingsSection.entries.forEachIndexed { index, section ->
                 if (index > 0) RowDivider()
@@ -423,24 +424,52 @@ private fun IdentityCard(
     }
 }
 
-/** "Texts this period" — big Bricolage count over a lime meter. */
+/**
+ * The hub's usage whisper (#178): one calm line driven by the server's
+ * `status`, never a meter or an "X of Y". 'quiet' is the overwhelming
+ * default; 'pacing' and 'capped' surface the early warning here too. Tapping
+ * opens the Usage section, where the specifics and the owner details live.
+ */
 @Composable
-private fun UsageMeterCard(usage: Usage) {
+private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
+    // Pre-checkout there is nothing truthful to whisper about yet.
+    if (usage.included_segments <= 0L) return
+    val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
+    val caption = when (usage.status) {
+        UsageStatus.CAPPED -> "SPENDING CAP"
+        UsageStatus.PACING -> "PACING AHEAD"
+        else -> "FAIR USE"
+    }
+    val captionColor = when (usage.status) {
+        UsageStatus.CAPPED -> MaterialTheme.colorScheme.error
+        UsageStatus.PACING ->
+            if (isSystemInDarkTheme()) BrandColor.DarkAmber else BrandColor.Amber
+
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Surface(
+        onClick = {
+            haptics.tap()
+            onOpen()
+        },
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth(),
+        interactionSource = interaction,
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(interaction),
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "TEXTS THIS PERIOD",
+                    caption,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.12.em,
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = captionColor,
                     modifier = Modifier.weight(1f),
                 )
                 resetsIn(usage.period_end)?.let {
@@ -451,57 +480,43 @@ private fun UsageMeterCard(usage: Usage) {
                     )
                 }
             }
-            Row(
-                Modifier.padding(top = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                AnimatedContent(
-                    targetState = usage.used_segments,
-                    transitionSpec = {
-                        (slideInVertically { it / 3 } + fadeIn()) togetherWith
-                            (slideOutVertically { -it / 3 } + fadeOut())
-                    },
-                    label = "hubUsedSegments",
-                ) { used ->
-                    Text(
-                        "$used",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontSize = 38.sp,
-                            letterSpacing = (-0.02).em,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+            // The line swaps with a quiet fade when the status changes.
+            AnimatedContent(
+                targetState = usage.status,
+                transitionSpec = {
+                    fadeIn(tween(durationMillis = 180)) togetherWith
+                        fadeOut(tween(durationMillis = 120))
+                },
+                label = "hubUsageStatus",
+            ) { status ->
                 Text(
-                    "of ${usage.included_segments} included",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
-                )
-            }
-            val fraction = if (usage.included_segments > 0) {
-                (usage.used_segments.toFloat() / usage.included_segments).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-            Box(
-                Modifier
-                    .padding(top = 10.dp)
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(fraction)
-                        .height(8.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.tertiary),
+                    hubUsageLine(status, usage),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
         }
     }
+}
+
+/** The one calm sentence per status (#178); the section holds the rest. */
+private fun hubUsageLine(status: String, usage: Usage): String = when (status) {
+    UsageStatus.CAPPED ->
+        if (capUseRatio(usage) >= 1.0) {
+            "Spending cap reached. Sending and calling are paused until you raise it."
+        } else {
+            "${capUsePercent(usage)}% of your spending cap used. Sending and " +
+                "calling pause at the cap."
+        }
+
+    UsageStatus.PACING -> {
+        val projected = usage.overage_projection.projected_overage_cents
+        "${pacingSubject(usage)} are pacing past your plan." +
+            if (projected > 0) " About ${formatCents(projected)} extra at this pace." else ""
+    }
+
+    else -> "Well within fair use this month."
 }
 
 /** "resets in 18 days" from the usage period end; null when unknowable. */

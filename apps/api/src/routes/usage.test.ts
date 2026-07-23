@@ -60,6 +60,7 @@ function usageStub(
   company: Record<string, unknown>,
   used: number,
   storage: Record<string, unknown> = STORAGE,
+  inbound: number = INBOUND_USED,
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -69,7 +70,7 @@ function usageStub(
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
-  sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => INBOUND_USED);
+  sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => inbound);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => VOICE_SECONDS);
@@ -102,6 +103,9 @@ describe("GET /v1/usage", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      // 620 is far from the 1350 cap-approach line; pacing depends on the
+      // wall-clock position in the period (pinned deterministically below).
+      status: expect.stringMatching(/^(quiet|pacing)$/),
       period_start: "2026-06-15T00:00:00+00:00",
       period_end: "2026-07-15T00:00:00+00:00",
       included_segments: 500,
@@ -221,8 +225,55 @@ describe("GET /v1/usage", () => {
       companyId: COMPANY_ID,
     });
     expect(await res.json()).toMatchObject({
+      // #178: not near the cap and not trending over → the quiet default.
+      status: "quiet",
       projected_overage_cents: 360,
       overage_projection: { trending_over: false, projected_overage_cents: 360 },
+    });
+  });
+
+  it("#178 status: approaching the spending cap reads 'capped' (90% line)", async () => {
+    // 1400 of the 1500-segment cap (500 included × 3.0) crosses 0.9 × 1500 =
+    // 1350. Past period so the projection arm is deterministic; capped wins
+    // regardless of pacing.
+    const sb = usageStub(
+      {
+        ...starterCompany,
+        current_period_start: "2020-06-15T00:00:00+00:00",
+        current_period_end: "2020-07-15T00:00:00+00:00",
+      },
+      1400,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    expect(await res.json()).toMatchObject({ status: "capped" });
+  });
+
+  it("#178 status: trending over reads 'pacing'", async () => {
+    // Billed outbound largely pays for itself, so the deterministic way to
+    // out-cost revenue is UNBILLED volume: a flood of inbound segments in a
+    // completed period (multiplier clamps to 1). No cap so 'capped' can't
+    // shortcut the pacing read.
+    const sb = usageStub(
+      {
+        ...starterCompany,
+        overage_cap_multiplier: null,
+        current_period_start: "2020-06-15T00:00:00+00:00",
+        current_period_end: "2020-07-15T00:00:00+00:00",
+      },
+      137,
+      STORAGE,
+      1_000_000,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    expect(await res.json()).toMatchObject({
+      status: "pacing",
+      overage_projection: { trending_over: true, projected_overage_cents: expect.any(Number) },
     });
   });
 
@@ -242,6 +293,7 @@ describe("GET /v1/usage", () => {
       companyId: COMPANY_ID,
     });
     expect(await res.json()).toEqual({
+      status: "quiet",
       period_start: null,
       period_end: null,
       included_segments: 0,

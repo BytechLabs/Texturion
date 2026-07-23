@@ -86,9 +86,10 @@ export function ComposerBannerCard({ banner }: { banner: NonNullable<ComposerBan
         "US texting activates once your registration is approved. Usually 3 to 7 business days.";
       break;
     case "usage_cap":
+      // #178: the cap is the owner's protection, not a quota — name it that way.
       sentence = isOwner
-        ? "You've reached your monthly usage cap."
-        : "You've reached your monthly usage cap. Ask your account owner to raise it.";
+        ? "Sending is paused at the spending cap you set. Nothing bills past it."
+        : "Sending is paused at this workspace's spending cap. Ask your account owner to raise it.";
       if (isOwner) {
         action = (
           <Button size="sm" onClick={raiseCap} disabled={updateCompany.isPending}>

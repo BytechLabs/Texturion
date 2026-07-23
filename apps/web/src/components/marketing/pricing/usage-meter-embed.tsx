@@ -1,11 +1,11 @@
 /**
  * Usage-meter embed (COPY-DECK v2 §S9 "Usage-meter caption (real component)").
- * The app's Usage screen pattern as static DOM. Since #85/#95 the in-app screen
- * is CALM by default — a plain message count and the owner-set spending cap, no
- * "of N" ceiling and no progress bar — and only surfaces a detailed meter when a
- * limit is actually near or usage is trending over what you pay. This embed
- * mirrors that calm resting state (the honest common case), so the marketing
- * demo matches what a customer actually sees.
+ * The app's Usage screen pattern as static DOM. Since #178 the in-app screen
+ * renders from the API's fair-use `status`, and for almost every crew that
+ * status is 'quiet': one calm line, the fair-use policy, and the owner-set
+ * spending cap — no count, no "of N" ceiling, no progress bar. This embed
+ * mirrors that quiet resting state exactly, so the marketing demo says the
+ * same thing the product does.
  *
  * Law 2: this renders INSIDE a <PanelFrame>'s `.app-scope` region, so every
  * token class below (bg-background, text-foreground, bg-secondary,
@@ -15,22 +15,15 @@
  */
 
 export function UsageMeterEmbed() {
-  const sent = 212;
-
   return (
     <div className="bg-background p-5 text-foreground">
-      <div className="flex flex-wrap items-end gap-x-2.5 gap-y-1">
-        <span className="text-2xl font-semibold tabular-nums text-foreground">
-          {sent}
-        </span>
-        <span className="pb-0.5 text-sm text-muted-foreground">
-          messages sent this period
-        </span>
-      </div>
+      <p className="text-sm font-medium text-foreground">
+        Well within fair use this month.
+      </p>
 
       <p className="mt-3 text-sm text-muted-foreground">
-        You&apos;re comfortably within your plan. We email you only if you start
-        heading over, so you can just text.
+        That&apos;s the whole screen for almost every crew. We reach out early
+        if usage ever paces past what your plan covers, so you can just text.
       </p>
 
       {/* The owner-set spending cap stays reachable, always (SPEC §2). */}

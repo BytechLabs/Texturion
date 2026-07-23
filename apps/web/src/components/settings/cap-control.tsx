@@ -23,9 +23,10 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The owner's overage-cap control (G8 Usage): presets 2×/3×/5×/No cap, every
+ * The owner's spending-cap control (G8 Usage): presets 2×/3×/5×/Maximum, every
  * change confirmed with a sentence describing the new pause point. Members
- * see the current cap read-only.
+ * see the current cap read-only. #178: framed as protection the owner sets
+ * ("a spending cap you control"), never as a quota.
  */
 export function CapControl({
   current,
@@ -46,7 +47,7 @@ export function CapControl({
   if (!isOwner) {
     return (
       <p className="text-sm text-muted-foreground">
-        Overage cap: <span className="font-medium text-foreground">{capLabel(current)}</span>{" "}
+        Spending cap: <span className="font-medium text-foreground">{capLabel(current)}</span>{" "}
         your included messages. Only the account owner can change it.
       </p>
     );
@@ -72,7 +73,7 @@ export function CapControl({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Overage cap">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Spending cap">
         {presets.map((preset) => {
           const active = preset === current;
           return (
@@ -94,8 +95,9 @@ export function CapControl({
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        The cap is a multiple of your included messages. When you hit it,
-        sending pauses until you raise it. Nothing is billed past it.
+        Each preset is a multiple of what your plan includes. If a month ever
+        hits the cap, sending pauses until you raise it, and nothing is billed
+        past it.
       </p>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>

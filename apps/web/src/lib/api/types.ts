@@ -744,8 +744,22 @@ export interface UsageOverageProjection {
   projected_overage_cents: number;
 }
 
+/**
+ * #178: the fair-use presentation contract, derived by the API so every client
+ * renders the same philosophy (marketing promises fair use, not walls).
+ *   'quiet'  — projected to stay inside plan economics (the overwhelming
+ *              default): no meters, no "X of Y", just the calm fair-use line.
+ *   'pacing' — the dynamic projection says this period runs hot: the early
+ *              warning with the projected extra charges.
+ *   'capped' — the owner-set spending cap is approaching (>=90%) or reached
+ *              on either meter: the cap state and the owner control.
+ */
+export type UsageStatus = "quiet" | "pacing" | "capped";
+
 /** GET /v1/usage — nulls when the company has never checked out. */
 export interface Usage {
+  /** #178 fair-use presentation contract — gates every usage surface. */
+  status: UsageStatus;
   period_start: string | null;
   period_end: string | null;
   included_segments: number;

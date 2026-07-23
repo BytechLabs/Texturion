@@ -40,8 +40,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private const val FAIR_USE_URL = "https://loonext.com/legal/fair-use"
-
 private val FULL_DATE = DateTimeFormatter.ofPattern("MMMM d, yyyy")
 
 private fun fullDate(iso: String?): String? = iso?.let {

@@ -2,12 +2,23 @@
  * GET /v1/usage (SPEC §7, §9; DESIGN G8; D30) — current-period outbound
  * segment usage from usage_events (the app-side source of truth; never
  * Stripe), plus the D30 storage accounting:
- *   { period_start, period_end, included_segments, used_segments,
+ *   { status, period_start, period_end, included_segments, used_segments,
  *     overage_segments, cap_segments, projected_overage_cents,
  *     history: [{ month: 'YYYY-MM', segments }],
  *     storage: { attachments_bytes, mms_bytes },
  *     voice: { used_minutes, included_minutes, cap_minutes, overage_minutes,
  *              projected_overage_cents } }
+ *
+ * #178 — `status` is the fair-use presentation contract, derived HERE so every
+ * client renders the same philosophy (marketing promises fair use, not walls):
+ *   'quiet'  — projected to stay inside plan economics (the overwhelming
+ *              default): clients show NO meters, NO "X of Y", just the quiet
+ *              fair-use line.
+ *   'pacing' — the #85 projection says this period runs hot: clients surface
+ *              the early warning with overage_projection's projected charges.
+ *   'capped' — the owner-set spending cap is approaching (≥90%) or reached on
+ *              either meter: clients show the cap state and the owner control.
+ * Raw numbers stay in the payload for the owner-facing "details" affordance.
  * (#97/#103: no `mms` meter — pictures count 3 segments each in the message
  * meter, with no separate cap.)
  * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
@@ -75,6 +86,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     // storage arm is truthfully zero without querying (same posture as the
     // segment fields).
     return c.json({
+      status: "quiet",
       period_start: null,
       period_end: null,
       included_segments: 0,
@@ -197,14 +209,33 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     new Date(),
   );
 
+  // #178 status (see the header contract). Cap nearness checks BOTH meters —
+  // texting pauses at cap_segments and calling at the same multiplier over its
+  // own allowance — at 90%, mirroring the cost-mandate's alert-BEFORE-the-cap.
+  const capSegments =
+    multiplier === null ? null : Math.round(included * multiplier);
+  const capVoiceSeconds =
+    multiplier === null ? null : includedVoiceMinutes * 60 * multiplier;
+  const nearCap =
+    (capSegments !== null && capSegments > 0 && used >= 0.9 * capSegments) ||
+    (capVoiceSeconds !== null &&
+      capVoiceSeconds > 0 &&
+      voiceSeconds >= 0.9 * capVoiceSeconds);
+  const status = nearCap
+    ? "capped"
+    : projection.trendingOver
+      ? "pacing"
+      : "quiet";
+
   return c.json({
+    status,
     period_start: company.current_period_start,
     period_end: company.current_period_end,
     included_segments: included,
     used_segments: used,
     inbound_segments: inboundUsed,
     overage_segments: overage,
-    cap_segments: multiplier === null ? null : Math.round(included * multiplier),
+    cap_segments: capSegments,
     projected_overage_cents: Math.round(
       overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan],
     ),

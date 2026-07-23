@@ -37,6 +37,9 @@ import com.loonext.android.ui.theme.BrandColor
  * via ACTION_VIEW, never a webview or custom tab).
  */
 
+/** #178: every fair-use mention (Usage, Billing) links to the same policy. */
+internal const val FAIR_USE_URL = "https://loonext.com/legal/fair-use"
+
 @Composable
 fun SettingsCard(
     title: String,

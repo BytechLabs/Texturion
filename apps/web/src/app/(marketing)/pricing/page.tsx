@@ -284,8 +284,8 @@ export default function PricingPage() {
             <Reveal className="mt-10">
               <PanelFrame
                 className="mx-auto max-w-md"
-                caption="Your count and your spending cap. We email you only if you start heading over. No surprise bills."
-                ariaLabel="The app usage screen: 212 messages sent this period, comfortably within plan, with the owner-set spending cap"
+                caption="Well within fair use, and a spending cap you control. We reach out early if a month ever runs hot. No surprise bills."
+                ariaLabel="The app usage screen: well within fair use this month, with the owner-set spending cap"
               >
                 <UsageMeterEmbed />
               </PanelFrame>

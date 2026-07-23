@@ -255,13 +255,13 @@ export function TheDeal() {
 
         <div>
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
-            This is the usage screen you&apos;ll see in the app: your count and
-            your spending cap, with a heads-up only if you start heading over.
-            No surprise bills.
+            This is the usage screen you&apos;ll see in the app: well within
+            fair use, and a spending cap you control, with a heads-up early if
+            a month ever runs hot. No surprise bills.
           </p>
           <PanelFrame
             className="mt-5"
-            ariaLabel="The Loonext usage meter partway through a billing period"
+            ariaLabel="The Loonext usage screen resting well within fair use"
           >
             <AppSurface>
               <UsageMeterEmbed />

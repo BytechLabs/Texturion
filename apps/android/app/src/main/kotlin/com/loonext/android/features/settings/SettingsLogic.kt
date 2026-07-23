@@ -5,6 +5,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
+import com.loonext.android.core.model.Usage
 import java.time.Instant
 import java.util.Locale
 
@@ -160,6 +161,54 @@ fun capLabel(multiplier: Double?): String {
 /** Segments allowed under a cap — mirrors GET /v1/usage's Math.round. */
 fun capSegments(includedSegments: Long, multiplier: Double?): Long =
     Math.round(includedSegments * normalizeCapMultiplier(multiplier))
+
+/**
+ * #178: which meter runs hot in the 'pacing' state, named plainly. Compares
+ * each meter's use of its own allowance; names both only when both are past
+ * their included amounts. Always a plural noun phrase, so "are" follows.
+ */
+fun pacingSubject(usage: Usage): String {
+    val messages =
+        if (usage.included_segments > 0) {
+            usage.used_segments.toDouble() / usage.included_segments
+        } else {
+            0.0
+        }
+    val minutes =
+        if (usage.voice.included_minutes > 0) {
+            usage.voice.used_minutes.toDouble() / usage.voice.included_minutes
+        } else {
+            0.0
+        }
+    return when {
+        messages >= 1.0 && minutes >= 1.0 -> "Messages and calling minutes"
+        minutes > messages -> "Calling minutes"
+        else -> "Messages"
+    }
+}
+
+/** #178 'capped': how far along the owner-set spending cap the hotter meter is. */
+fun capUseRatio(usage: Usage): Double {
+    val capSegments = usage.cap_segments
+    val messages =
+        if (capSegments != null && capSegments > 0) {
+            usage.used_segments.toDouble() / capSegments
+        } else {
+            0.0
+        }
+    val capMinutes = usage.voice.cap_minutes
+    val minutes =
+        if (capMinutes != null && capMinutes > 0) {
+            usage.voice.used_minutes.toDouble() / capMinutes
+        } else {
+            0.0
+        }
+    return maxOf(messages, minutes)
+}
+
+/** Whole-percent cap use for display, clamped to 100. */
+fun capUsePercent(usage: Usage): Int =
+    (capUseRatio(usage) * 100).toInt().coerceIn(0, 100)
 
 data class CapChange(
     val requiresConfirmation: Boolean,
