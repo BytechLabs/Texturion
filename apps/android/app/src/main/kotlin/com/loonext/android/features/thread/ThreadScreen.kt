@@ -5,9 +5,20 @@ import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,12 +81,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -91,11 +104,13 @@ import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.time.LocalDate
@@ -172,7 +187,9 @@ fun ThreadScreen(
 
     Box(modifier.fillMaxSize()) {
         when (val load = controller.load) {
-            is LoadState.Loading -> CenteredLoading()
+            // First-fetch shimmer in the thread's own bubble grammar
+            // (cache-first #176 makes this a once-per-conversation sight).
+            is LoadState.Loading -> ThreadSkeleton()
             is LoadState.Failed -> {
                 if (load.code == ApiErrorCode.NOT_FOUND) {
                     Column(
@@ -226,6 +243,17 @@ fun ThreadScreen(
                                 }
                             }
                         },
+                        // #189 non-image MMS chips: mint a signed URL, open.
+                        onOpenAttachment = { attachment ->
+                            scope.launch {
+                                try {
+                                    val url = repo.attachmentUrl(companyId, attachment.id).url
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                                } catch (cause: Exception) {
+                                    snackbar.showSnackbar(cause.userMessage())
+                                }
+                            }
+                        },
                         onNotice = { scope.launch { snackbar.showSnackbar(it) } },
                         onOpenGallery = { galleryOpen = true },
                         onOpenConversation = onOpenConversation,
@@ -250,6 +278,7 @@ private fun ThreadLoaded(
     me: Me,
     onBack: () -> Unit,
     onOpenFile: (Attachment) -> Unit,
+    onOpenAttachment: (AttachmentSummary) -> Unit,
     onNotice: (String) -> Unit,
     onOpenGallery: () -> Unit,
     onOpenConversation: ((conversationId: String) -> Unit)?,
@@ -257,6 +286,7 @@ private fun ThreadLoaded(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val detail = controller.conversation ?: return
     val names = remember(controller.members) { memberNames(controller.members) }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
@@ -425,7 +455,10 @@ private fun ThreadLoaded(
         ThreadTagsRow(
             tags = detail.tags,
             onManage = { tagSheetOpen = true },
-            onRemove = { controller.detachTag(it) },
+            onRemove = {
+                haptics.tap()
+                controller.detachTag(it)
+            },
         )
 
         if (controller.pinnedMessages.isNotEmpty()) {
@@ -468,8 +501,13 @@ private fun ThreadLoaded(
                             animationSpec = tween(durationMillis = 600),
                             label = "search-flash",
                         )
+                        // animateItem: NEWLY ARRIVING rows fade + settle in
+                        // (medium-low springs); the initial cached paint lays
+                        // out without animation, so data is never delayed.
                         Box(
-                            Modifier.background(flashColor, MaterialTheme.shapes.medium),
+                            Modifier
+                                .animateItem()
+                                .background(flashColor, MaterialTheme.shapes.medium),
                         ) {
                         when (item) {
                             is TimelineItem.MessageItem -> {
@@ -491,12 +529,16 @@ private fun ThreadLoaded(
                                             null
                                         },
                                     onLoadNoteFiles = { controller.loadNoteFiles(message.id) },
+                                    // combinedClickable already performs the
+                                    // long-press haptic — no manual heavy()
+                                    // here or it would double-fire.
                                     onLongPress = { actionsFor = message },
                                     onRetry = { controller.retrySend(message.id) },
                                     mintAttachmentUrl = { id ->
                                         repo.attachmentUrl(companyId, id).url
                                     },
                                     onOpenFile = onOpenFile,
+                                    onOpenAttachment = onOpenAttachment,
                                 )
                             }
 
@@ -525,14 +567,31 @@ private fun ThreadLoaded(
                 }
             }
 
-            if (showNewPill) {
+            // "New message ↓" springs in instead of popping. Fully qualified:
+            // the outer ColumnScope's extension shadows the top-level overload
+            // inside this BoxScope and the DslMarker forbids calling it.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showNewPill,
+                enter = scaleIn(
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    initialScale = 0.8f,
+                ) + fadeIn(),
+                exit = scaleOut(targetScale = 0.9f) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp),
+            ) {
+                val pillInteraction = remember { MutableInteractionSource() }
                 Surface(
                     color = MaterialTheme.colorScheme.primary,
                     shape = RoundedCornerShape(50),
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp)
-                        .clickable {
+                        .pressScale(pillInteraction)
+                        .clickable(
+                            interactionSource = pillInteraction,
+                            indication = LocalIndication.current,
+                        ) {
+                            haptics.tap()
                             showNewPill = false
                             scope.launch { listState.animateScrollToItem(0) }
                         },
@@ -745,6 +804,7 @@ private fun ThreadHeader(
     onOpenGallery: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
+    val haptics = rememberHaptics()
     var menuOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
@@ -763,11 +823,17 @@ private fun ThreadHeader(
             Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val backInteraction = remember { MutableInteractionSource() }
             Box(
                 Modifier
                     .size(36.dp)
+                    .pressScale(backInteraction)
                     .clip(CircleShape)
-                    .clickable(onClick = onBack),
+                    .clickable(
+                        interactionSource = backInteraction,
+                        indication = LocalIndication.current,
+                        onClick = onBack,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -834,36 +900,58 @@ private fun ThreadHeader(
             // Call (#165) — the 44dp ink circle. Enabled even for opted-out
             // contacts (voice ≠ SMS consent); mic preflight and gate errors
             // live in the caller.
+            val callInteraction = remember { MutableInteractionSource() }
             Box(
                 Modifier
                     .size(44.dp)
+                    .pressScale(callInteraction)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = !calling, onClick = onCall),
+                    .clickable(
+                        interactionSource = callInteraction,
+                        indication = LocalIndication.current,
+                        enabled = !calling,
+                        onClick = onCall,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
-                if (calling) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Icon(
-                        Icons.Filled.Call,
-                        contentDescription = "Call $contactName",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
+                // Icon ⇄ in-flight loader morph instead of a hard swap.
+                AnimatedContent(
+                    targetState = calling,
+                    transitionSpec = {
+                        (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith
+                            (scaleOut(targetScale = 0.6f) + fadeOut())
+                    },
+                    label = "call-state",
+                ) { inFlight ->
+                    if (inFlight) {
+                        LoadingIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.Call,
+                            contentDescription = "Call $contactName",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
 
             // Overflow (assignee moved here — the status line names them).
             Box {
+                val moreInteraction = remember { MutableInteractionSource() }
                 Box(
                     Modifier
                         .size(36.dp)
+                        .pressScale(moreInteraction)
                         .clip(CircleShape)
-                        .clickable { menuOpen = true },
+                        .clickable(
+                            interactionSource = moreInteraction,
+                            indication = LocalIndication.current,
+                        ) { menuOpen = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -913,7 +1001,10 @@ private fun ThreadHeader(
             selectedUserId = detail.assigned_user_id,
             onPick = { userId ->
                 assigneeSheetOpen = false
-                if (userId != detail.assigned_user_id) controller.setAssignee(userId)
+                if (userId != detail.assigned_user_id) {
+                    haptics.confirm()
+                    controller.setAssignee(userId)
+                }
             },
             onDismiss = { assigneeSheetOpen = false },
         )
@@ -931,6 +1022,7 @@ private fun ThreadHeader(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.reject()
                     confirmOptOut = false
                     controller.optOutContact()
                 }) { Text("Opt out") }
@@ -952,6 +1044,7 @@ private fun ThreadHeader(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.confirm()
                     confirmRevoke = false
                     controller.revokeOptOut()
                 }) { Text("Remove opt-out") }
@@ -1067,12 +1160,23 @@ private fun PinnedBanner(
                 modifier = Modifier.size(14.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text(
-                "Pinned · ${pinned.size}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
+            // The count swaps with a quiet fade when pins change.
+            Box(Modifier.weight(1f)) {
+                AnimatedContent(
+                    targetState = pinned.size,
+                    transitionSpec = {
+                        fadeIn(tween(durationMillis = 180)) togetherWith
+                            fadeOut(tween(durationMillis = 120))
+                    },
+                    label = "pinned-count",
+                ) { count ->
+                    Text(
+                        "Pinned · $count",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -1130,6 +1234,7 @@ private fun ConversationSheet(
     val contactName = controller.contact?.name
         ?: controller.contact?.phone_e164?.let(::formatPhone)
         ?: "Contact"
+    val haptics = rememberHaptics()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
@@ -1202,7 +1307,10 @@ private fun ConversationSheet(
                         val selected = detail.status == status
                         Surface(
                             onClick = {
-                                if (!selected) controller.setStatus(status)
+                                if (!selected) {
+                                    haptics.tap()
+                                    controller.setStatus(status)
+                                }
                                 onDismiss()
                             },
                             shape = CircleShape,
@@ -1251,6 +1359,7 @@ private fun ConversationSheet(
                         label = if (detail.pinned_at == null) "Pin conversation"
                         else "Unpin conversation",
                         onClick = {
+                            haptics.tap()
                             controller.toggleConversationPin()
                             onDismiss()
                         },
@@ -1261,6 +1370,7 @@ private fun ConversationSheet(
                     SheetActionRow(
                         label = if (detail.is_spam) "Not spam" else "Mark as spam",
                         onClick = {
+                            haptics.tap()
                             controller.setSpam(!detail.is_spam)
                             onDismiss()
                         },
@@ -1283,19 +1393,28 @@ private fun ConversationSheet(
                     SheetToggleRow(
                         label = "Show messages",
                         checked = controller.filter.messages,
-                        onToggle = { controller.filter = controller.filter.toggledMessages() },
+                        onToggle = {
+                            haptics.tap()
+                            controller.filter = controller.filter.toggledMessages()
+                        },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
                         label = "Show notes",
                         checked = controller.filter.notes,
-                        onToggle = { controller.filter = controller.filter.toggledNotes() },
+                        onToggle = {
+                            haptics.tap()
+                            controller.filter = controller.filter.toggledNotes()
+                        },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
                         label = "Show events",
                         checked = controller.filter.events,
-                        onToggle = { controller.filter = controller.filter.toggledEvents() },
+                        onToggle = {
+                            haptics.tap()
+                            controller.filter = controller.filter.toggledEvents()
+                        },
                     )
                 }
             }
@@ -1319,6 +1438,46 @@ private fun SheetActionRow(label: String, onClick: () -> Unit) {
                 fontWeight = FontWeight.Medium,
             ),
             modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * First-fetch stand-in in the thread's own grammar: alternating bubble
+ * shapes shimmering where messages will land. Failed states render
+ * elsewhere; with cache-first paints this appears once per conversation.
+ */
+@Composable
+private fun ThreadSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        ThreadSkeletonBubble(inbound = true, width = 214.dp)
+        ThreadSkeletonBubble(inbound = false, width = 168.dp)
+        ThreadSkeletonBubble(inbound = false, width = 236.dp)
+        ThreadSkeletonBubble(inbound = true, width = 148.dp)
+        ThreadSkeletonBubble(inbound = true, width = 246.dp)
+        ThreadSkeletonBubble(inbound = false, width = 190.dp)
+    }
+}
+
+/** One shimmering bubble in the tail-corner grammar of the real timeline. */
+@Composable
+private fun ThreadSkeletonBubble(inbound: Boolean, width: Dp) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        horizontalAlignment = if (inbound) Alignment.Start else Alignment.End,
+    ) {
+        SkeletonBlock(
+            width = width,
+            height = 44.dp,
+            shape = if (inbound) RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)
+            else RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp),
         )
     }
 }

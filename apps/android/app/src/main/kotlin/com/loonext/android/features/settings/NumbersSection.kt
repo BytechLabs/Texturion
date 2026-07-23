@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
@@ -48,11 +50,11 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -106,7 +108,7 @@ fun NumbersSection(
     }
 
     when (val current = state) {
-        is LoadState.Loading -> CenteredLoading(Modifier.padding(vertical = 48.dp))
+        is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
         is LoadState.Failed -> CenteredError(
             current.message,
             onRetry = { refreshKey++ },
@@ -157,6 +159,7 @@ private fun NumberCard(
     onChanged: () -> Unit,
 ) {
     val context = LocalContext.current
+    val haptics = rememberHaptics()
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canRelease = SettingsRoleGate.canReleaseNumber(scope.role)
     val released = number.status == NumberStatus.RELEASED
@@ -187,6 +190,7 @@ private fun NumberCard(
             val e164 = number.number_e164
             if (e164 != null && !released) {
                 IconButton(onClick = {
+                    haptics.tap()
                     copyToClipboard(context, "Phone number", e164)
                     scope.showMessage("Number copied.")
                 }) {
@@ -335,6 +339,7 @@ private fun ReleaseNumberDialog(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     val expectedDigits = number.number_e164.orEmpty().filter(Char::isDigit)
     val typedDigits = typed.filter(Char::isDigit)
@@ -355,6 +360,7 @@ private fun ReleaseNumberDialog(
         dismissLabel = "Keep the number",
         onDismiss = onDismiss,
         onConfirm = {
+            haptics.reject()
             pending = true
             error = null
             coroutines.launch {
@@ -405,6 +411,7 @@ private fun NumberAccessDialog(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     LaunchedEffect(number.id, retryKey) {
         loaded = LoadState.Loading
@@ -434,7 +441,9 @@ private fun NumberAccessDialog(
         onDismissRequest = { if (!pending) onDismiss() },
         title = { Text("Who can use $display?") },
         text = {
-            Column {
+            // #180: option rows stay reachable at any viewport height; the
+            // member list keeps its own bounded scroll inside.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     "Owners and admins can always use every number.",
                     style = MaterialTheme.typography.bodySmall,
@@ -548,6 +557,7 @@ private fun NumberAccessDialog(
                                 number.id,
                                 buildAccessBody(mode, level, picked),
                             )
+                            haptics.confirm()
                             scope.showMessage("Access to $display updated.")
                             onDismiss()
                         } catch (cause: Exception) {
@@ -673,6 +683,7 @@ private fun AddNumberCard(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     SettingsCard(
         title = "Add a number",
@@ -721,6 +732,7 @@ private fun AddNumberCard(
                             )
                         }
                         picking = false
+                        haptics.confirm()
                         scope.showMessage("Your number is being set up.")
                         onChanged()
                     } catch (cause: Exception) {
@@ -745,6 +757,7 @@ private fun RemediateNumberFlow(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     NumberPickerDialog(
         scope = scope,
@@ -772,6 +785,7 @@ private fun RemediateNumberFlow(
                             requestedAreaCode = choice.code,
                         )
                     }
+                    haptics.confirm()
                     scope.showMessage("Setup restarted. You won't be charged again.")
                     onDone()
                 } catch (cause: Exception) {

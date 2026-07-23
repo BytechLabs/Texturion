@@ -1,11 +1,16 @@
 package com.loonext.android.features.compose
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -30,8 +35,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.outlined.ContactPage
+import androidx.compose.material.icons.outlined.Description as DescriptionOutlined
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -54,7 +64,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,12 +78,19 @@ import com.loonext.android.core.model.Template
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
+import java.io.ByteArrayOutputStream
+import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class ComposerMode { Text, Note }
 
@@ -109,6 +129,14 @@ class ComposerState(
     var mode by mutableStateOf(ComposerMode.Text)
     var photos by mutableStateOf(listOf<StagedPhoto>())
     var files by mutableStateOf(listOf<StagedFile>())
+
+    /**
+     * Display metadata for staged MMS media, keyed by staged id (#189 file
+     * chips need a name + size the wire format doesn't carry). Survives
+     * [clearForSend] on purpose: a failed send [restore] puts the same staged
+     * items back and their chips must still read.
+     */
+    var mediaInfo by mutableStateOf(mapOf<String, StagedMediaInfo>())
 
     private var draftLoaded = false
     private var saveJob: Job? = null
@@ -163,11 +191,13 @@ fun rememberComposerState(
 }
 
 /**
- * The Google-Messages-style composer pill: Text/Note mode toggle, auto-grow
- * field (internal scroll past 6 lines), `/` opens saved replies, photo attach
- * (≤3, transcoded ≤1 MB), note files (≤10 × 25 MB), passive segment meter,
- * merge-field live preview. [banner] replaces text mode with an explanatory
- * card — notes stay available; [noteOnly] is the viewer_level='note' gate.
+ * The Google-Messages-style composer pill: Text/Note mode toggle (tap the
+ * pills or swipe the input sideways, #185), auto-grow field (internal scroll
+ * past 6 lines), `/` opens saved replies, MMS attachments (#189: ≤3
+ * deliverable files ≤1 MB each, images transcoded down), note files
+ * (≤10 × 25 MB), passive segment meter, merge-field live preview. [banner]
+ * replaces text mode with an explanatory card — notes stay available;
+ * [noteOnly] is the viewer_level='note' gate.
  */
 @Composable
 fun ThreadComposer(
@@ -184,14 +214,15 @@ fun ThreadComposer(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val textBlocked = noteOnly || banner != null
     val isNote = textBlocked || state.mode == ComposerMode.Note
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var attachMenuOpen by remember { mutableStateOf(false) }
 
-    val photoPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTOS),
+    val mediaPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -201,12 +232,16 @@ fun ThreadComposer(
                     trimmed = true
                     break
                 }
-                when (val result = preparePhoto(context, uri)) {
-                    is PhotoPrepResult.Ready -> state.photos = state.photos + result.photo
-                    is PhotoPrepResult.Rejected -> onNotice(result.reason)
+                when (val result = stageMmsMedia(context, uri)) {
+                    is MmsStageResult.Ready -> {
+                        state.photos = state.photos + result.media
+                        state.mediaInfo = state.mediaInfo + (result.media.id to result.info)
+                    }
+
+                    is MmsStageResult.Rejected -> onNotice(result.reason)
                 }
             }
-            if (trimmed) onNotice("You can attach up to 3 photos per text.")
+            if (trimmed) onNotice("You can attach up to $MAX_PHOTOS files per text.")
         }
     }
 
@@ -236,6 +271,7 @@ fun ThreadComposer(
 
     fun submit() {
         if (!canSend) return
+        haptics.confirm()
         val body = state.text.trim()
         if (isNote) {
             val files = state.files
@@ -261,7 +297,10 @@ fun ThreadComposer(
                     selected = state.mode == ComposerMode.Text,
                     selectedBg = MaterialTheme.colorScheme.primaryContainer,
                     selectedInk = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onClick = { state.mode = ComposerMode.Text },
+                    onClick = {
+                        if (state.mode != ComposerMode.Text) haptics.tap()
+                        state.mode = ComposerMode.Text
+                    },
                 )
                 Spacer(Modifier.width(4.dp))
                 ModePill(
@@ -269,7 +308,10 @@ fun ThreadComposer(
                     selected = state.mode == ComposerMode.Note,
                     selectedBg = NoteAmber.bg(),
                     selectedInk = NoteAmber.ink(),
-                    onClick = { state.mode = ComposerMode.Note },
+                    onClick = {
+                        if (state.mode != ComposerMode.Note) haptics.tap()
+                        state.mode = ComposerMode.Note
+                    },
                 )
             }
         }
@@ -277,24 +319,69 @@ fun ThreadComposer(
         if (!isNote && state.photos.isNotEmpty()) {
             PhotoChipsRow(
                 photos = state.photos,
-                onRemove = { id -> state.photos = state.photos.filterNot { it.id == id } },
+                onRemove = { id ->
+                    haptics.tap()
+                    state.photos = state.photos.filterNot { it.id == id }
+                    state.mediaInfo = state.mediaInfo - id
+                },
+                info = state.mediaInfo,
             )
         }
         if (isNote && state.files.isNotEmpty()) {
             FileChipsRow(
                 files = state.files,
-                onRemove = { id -> state.files = state.files.filterNot { it.id == id } },
+                onRemove = { id ->
+                    haptics.tap()
+                    state.files = state.files.filterNot { it.id == id }
+                },
             )
         }
 
-        val pillBg = if (isNote) NoteAmber.bg() else MaterialTheme.colorScheme.surface
-        val pillLine = if (isNote) NoteAmber.line() else MaterialTheme.colorScheme.outlineVariant
+        // Mode colors crossfade (#185) so a swipe reads as one smooth turn of
+        // the pill, not a hard repaint.
+        val pillBg by animateColorAsState(
+            if (isNote) NoteAmber.bg() else MaterialTheme.colorScheme.surface,
+            animationSpec = tween(durationMillis = 240),
+            label = "composer-bg",
+        )
+        val pillLine by animateColorAsState(
+            if (isNote) NoteAmber.line() else MaterialTheme.colorScheme.outlineVariant,
+            animationSpec = tween(durationMillis = 240),
+            label = "composer-line",
+        )
+
+        // #185: a horizontal swipe anywhere on the pill flips Text/Note. The
+        // drag detector only sees gestures the field ignores — text selection
+        // and cursor-handle drags consume their events first.
+        val swipeThresholdPx = with(LocalDensity.current) { 56.dp.toPx() }
         Row(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .border(1.dp, pillLine, RoundedCornerShape(24.dp))
                 .background(pillBg, RoundedCornerShape(24.dp))
+                .pointerInput(textBlocked) {
+                    if (textBlocked) return@pointerInput
+                    var dragged = 0f
+                    var toggled = false
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragged = 0f
+                            toggled = false
+                        },
+                        onDragEnd = { dragged = 0f },
+                        onDragCancel = { dragged = 0f },
+                    ) { _, dragAmount ->
+                        dragged += dragAmount
+                        if (!toggled && abs(dragged) >= swipeThresholdPx) {
+                            toggled = true
+                            state.mode =
+                                if (state.mode == ComposerMode.Text) ComposerMode.Note
+                                else ComposerMode.Text
+                            haptics.tap()
+                        }
+                    }
+                }
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -312,16 +399,14 @@ fun ThreadComposer(
                         onDismissRequest = { attachMenuOpen = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Attach a photo") },
-                            leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                            text = { Text("Attach files") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.AttachFile, contentDescription = null)
+                            },
                             enabled = state.photos.size < MAX_PHOTOS,
                             onClick = {
                                 attachMenuOpen = false
-                                photoPicker.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                    ),
-                                )
+                                mediaPicker.launch(MMS_PICKER_MIME_TYPES)
                             },
                         )
                         DropdownMenuItem(
@@ -399,6 +484,7 @@ fun ThreadComposer(
         TemplatePickerSheet(
             loadTemplates = loadTemplates,
             onPick = { body ->
+                haptics.tap()
                 templatePickerOpen = false
                 val current = state.text
                 state.onTextChange(
@@ -489,26 +575,39 @@ private fun ModePill(
     selectedInk: Color,
     onClick: () -> Unit,
 ) {
+    // Crossfade with the pill body (#185) instead of snapping.
+    val bg by animateColorAsState(
+        if (selected) selectedBg else Color.Transparent,
+        animationSpec = tween(durationMillis = 200),
+        label = "mode-pill-bg",
+    )
+    val ink by animateColorAsState(
+        if (selected) selectedInk else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(durationMillis = 200),
+        label = "mode-pill-ink",
+    )
     Text(
         label,
         style = MaterialTheme.typography.labelMedium,
-        color = if (selected) selectedInk else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = ink,
         modifier = Modifier
-            .background(
-                if (selected) selectedBg else Color.Transparent,
-                RoundedCornerShape(50),
-            )
+            .background(bg, RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
 
-/** Removable photo previews above the pill. */
+/**
+ * Removable staged-media previews above the pill (#189): images keep their
+ * thumbnail; any other deliverable file renders as a chip with its kind icon,
+ * name, and size.
+ */
 @Composable
 fun PhotoChipsRow(
     photos: List<StagedPhoto>,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
+    info: Map<String, StagedMediaInfo> = emptyMap(),
 ) {
     Row(
         modifier
@@ -517,31 +616,94 @@ fun PhotoChipsRow(
             .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         photos.forEach { photo ->
-            Box(Modifier.padding(end = 8.dp)) {
-                AsyncImage(
-                    model = photo.uri,
-                    contentDescription = "Attached photo",
-                    modifier = Modifier
-                        .size(56.dp)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant,
-                            RoundedCornerShape(8.dp),
-                        ),
-                )
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Remove photo",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(18.dp)
-                        .background(MaterialTheme.colorScheme.surface, CircleShape)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .clickable { onRemove(photo.id) },
+            if (photo.contentType.startsWith("image/")) {
+                Box(Modifier.padding(end = 8.dp)) {
+                    AsyncImage(
+                        model = photo.uri,
+                        contentDescription = "Attached photo",
+                        modifier = Modifier
+                            .size(56.dp)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(8.dp),
+                            ),
+                    )
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Remove photo",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(18.dp)
+                            .background(MaterialTheme.colorScheme.surface, CircleShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                            .clickable { onRemove(photo.id) },
+                    )
+                }
+            } else {
+                StagedMediaChip(
+                    photo = photo,
+                    info = info[photo.id],
+                    onRemove = onRemove,
                 )
             }
         }
+    }
+}
+
+/** A staged non-image MMS file: kind icon + name + size + remove (#189). */
+@Composable
+private fun StagedMediaChip(
+    photo: StagedPhoto,
+    info: StagedMediaInfo?,
+    onRemove: (String) -> Unit,
+) {
+    val kind = mmsKindOf(photo.contentType)
+    val name = info?.name?.takeIf { it.isNotBlank() } ?: kind.label
+    Row(
+        Modifier
+            .padding(end = 8.dp)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant,
+                RoundedCornerShape(16.dp),
+            )
+            .padding(start = 9.dp, end = 7.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            kind.icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(7.dp))
+        Column {
+            Text(
+                name,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 140.dp),
+            )
+            val size = info?.sizeBytes?.let(::stagedSizeLabel)
+            if (size != null) {
+                Text(
+                    size,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(7.dp))
+        Icon(
+            Icons.Filled.Close,
+            contentDescription = "Remove $name",
+            modifier = Modifier
+                .size(16.dp)
+                .clickable { onRemove(photo.id) },
+        )
     }
 }
 
@@ -628,14 +790,12 @@ fun TemplatePickerSheet(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             when (val current = state) {
-                is LoadState.Loading -> Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    androidx.compose.material3.LoadingIndicator()
-                }
+                // First-fetch shimmer in the row grammar the list will use.
+                is LoadState.Loading -> SkeletonList(
+                    modifier = Modifier.padding(top = 10.dp),
+                    rows = 3,
+                    avatar = false,
+                )
 
                 is LoadState.Failed -> Column(
                     Modifier
@@ -832,3 +992,191 @@ private fun TemplateRow(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// #189 — the MMS deliverable contract, mirrored from @loonext/shared/mms.ts.
+// The API is the source of truth and re-validates; this exists so a pick that
+// would 422 never round-trips.
+// ---------------------------------------------------------------------------
+
+/** Media types an outbound MMS may declare — the DELIVERABLE set. */
+val MMS_OUTBOUND_MEDIA_TYPES = setOf(
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "audio/mpeg", "audio/mp4", "audio/amr", "audio/wav", "audio/ogg", "audio/3gpp",
+    "video/mp4", "video/3gpp", "video/quicktime",
+    "application/pdf", "text/vcard", "text/x-vcard", "text/calendar", "text/plain",
+)
+
+/** What the system picker offers — steering, not the gate (the API is). */
+val MMS_PICKER_MIME_TYPES = arrayOf(
+    "image/*", "audio/*", "video/mp4", "video/3gpp",
+    "application/pdf", "text/vcard", "text/x-vcard", "text/calendar",
+)
+
+/** Vendor/legacy MIME spellings normalized onto the canonical allow-list. */
+private val MMS_TYPE_ALIASES = mapOf(
+    "audio/x-m4a" to "audio/mp4",
+    "audio/m4a" to "audio/mp4",
+    "audio/x-wav" to "audio/wav",
+    "audio/wave" to "audio/wav",
+    "audio/vnd.wave" to "audio/wav",
+    "audio/amr-nb" to "audio/amr",
+    "audio/mp3" to "audio/mpeg",
+    "video/3gp" to "video/3gpp",
+    "text/directory" to "text/vcard",
+)
+
+/** Extension fallback for providers that report an empty/blank MIME type. */
+private val MMS_EXTENSION_TYPES = mapOf(
+    "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png",
+    "gif" to "image/gif", "webp" to "image/webp",
+    "mp3" to "audio/mpeg", "m4a" to "audio/mp4", "amr" to "audio/amr",
+    "wav" to "audio/wav", "ogg" to "audio/ogg", "oga" to "audio/ogg",
+    "mp4" to "video/mp4", "3gp" to "video/3gpp", "mov" to "video/quicktime",
+    "pdf" to "application/pdf", "vcf" to "text/vcard", "ics" to "text/calendar",
+    "txt" to "text/plain",
+)
+
+/** Lowercase, parameters stripped, aliases mapped. */
+fun canonicalMmsType(raw: String): String {
+    val cleaned = raw.substringBefore(';').trim().lowercase(Locale.US)
+    return MMS_TYPE_ALIASES[cleaned] ?: cleaned
+}
+
+/** The content type a picked file would be SENT as; null = not deliverable. */
+fun mmsTypeForFile(declaredType: String?, name: String?): String? {
+    val declared = canonicalMmsType(declaredType.orEmpty())
+    if (declared in MMS_OUTBOUND_MEDIA_TYPES) return declared
+    val extension = name.orEmpty().substringAfterLast('.', "").lowercase(Locale.US)
+    return MMS_EXTENSION_TYPES[extension]
+}
+
+/** Coarse media kind for icons/labels — mirrors shared `mmsMediaKind`. */
+enum class MmsKind(val label: String) {
+    Image("Image"),
+    Audio("Audio"),
+    Video("Video"),
+    Contact("Contact card"),
+    Calendar("Calendar invite"),
+    Document("PDF"),
+    Text("Text file"),
+    File("File"),
+}
+
+fun mmsKindOf(contentType: String?): MmsKind {
+    val type = canonicalMmsType(contentType.orEmpty())
+    return when {
+        type.startsWith("image/") -> MmsKind.Image
+        type.startsWith("audio/") -> MmsKind.Audio
+        type.startsWith("video/") -> MmsKind.Video
+        type == "text/vcard" || type == "text/x-vcard" -> MmsKind.Contact
+        type == "text/calendar" -> MmsKind.Calendar
+        type == "application/pdf" -> MmsKind.Document
+        type.startsWith("text/") -> MmsKind.Text
+        else -> MmsKind.File
+    }
+}
+
+/** The stroke icon a kind renders with (file chips in composer + bubbles). */
+val MmsKind.icon: ImageVector
+    get() = when (this) {
+        MmsKind.Audio -> Icons.Outlined.MusicNote
+        MmsKind.Video -> Icons.Outlined.Videocam
+        MmsKind.Contact -> Icons.Outlined.ContactPage
+        MmsKind.Calendar -> Icons.Outlined.Event
+        MmsKind.Document, MmsKind.Text -> Icons.Outlined.DescriptionOutlined
+        MmsKind.Image, MmsKind.File -> Icons.Outlined.InsertDriveFile
+    }
+
+/** Display metadata for one staged MMS item (chips show name + size). */
+data class StagedMediaInfo(val name: String?, val sizeBytes: Long?)
+
+sealed interface MmsStageResult {
+    data class Ready(val media: StagedPhoto, val info: StagedMediaInfo) : MmsStageResult
+    data class Rejected(val reason: String) : MmsStageResult
+}
+
+/** "312 B" / "48 KB" / "0.9 MB" for staged chips. */
+fun stagedSizeLabel(sizeBytes: Long): String = when {
+    sizeBytes < 1024 -> "$sizeBytes B"
+    sizeBytes < 1024 * 1024 -> "${(sizeBytes + 512) / 1024} KB"
+    else -> String.format(Locale.US, "%.1f MB", sizeBytes / (1024.0 * 1024.0))
+}
+
+/**
+ * Stage one picked document as outbound MMS media (#189): resolve name and
+ * type, route images through the existing transcode pipeline (an oversized
+ * photo still becomes deliverable), and hold everything else to the 1 MB
+ * decoded ceiling. Rejection copy matches the web composer word for word.
+ */
+suspend fun stageMmsMedia(context: Context, uri: Uri): MmsStageResult =
+    withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        var name: String? = null
+        try {
+            resolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIdx >= 0) name = cursor.getString(nameIdx)
+                }
+            }
+        } catch (_: Exception) {
+            // Name is display-only; the type and bytes below decide admission.
+        }
+        val display = name?.trim()?.takeIf { it.isNotEmpty() }?.let { "\"$it\"" }
+            ?: "That file"
+
+        val contentType = mmsTypeForFile(resolver.getType(uri), name)
+            ?: return@withContext MmsStageResult.Rejected(
+                "$display isn't something a text can carry. " +
+                    "Try a photo, video, audio clip, contact card, or PDF.",
+            )
+
+        if (contentType.startsWith("image/")) {
+            return@withContext when (val result = preparePhoto(context, uri)) {
+                is PhotoPrepResult.Ready -> MmsStageResult.Ready(
+                    result.photo,
+                    StagedMediaInfo(name, result.photo.bytes.size.toLong()),
+                )
+
+                is PhotoPrepResult.Rejected -> MmsStageResult.Rejected(result.reason)
+            }
+        }
+
+        // Bounded read: stop past the ceiling instead of buffering a whole
+        // phone video just to reject it.
+        val bytes = try {
+            resolver.openInputStream(uri)?.use { stream ->
+                val out = ByteArrayOutputStream()
+                val chunk = ByteArray(64 * 1024)
+                while (out.size() <= MAX_PHOTO_BYTES) {
+                    val read = stream.read(chunk)
+                    if (read < 0) break
+                    out.write(chunk, 0, read)
+                }
+                out.toByteArray()
+            }
+        } catch (_: Exception) {
+            null
+        } ?: return@withContext MmsStageResult.Rejected(
+            "Couldn't read that file. Try picking it again.",
+        )
+
+        if (bytes.isEmpty()) {
+            return@withContext MmsStageResult.Rejected("$display is empty.")
+        }
+        if (bytes.size > MAX_PHOTO_BYTES) {
+            return@withContext MmsStageResult.Rejected(
+                "$display is over 1 MB, the most a text can carry.",
+            )
+        }
+        MmsStageResult.Ready(
+            StagedPhoto(
+                id = java.util.UUID.randomUUID().toString(),
+                uri = uri,
+                contentType = contentType,
+                bytes = bytes,
+            ),
+            StagedMediaInfo(name, bytes.size.toLong()),
+        )
+    }

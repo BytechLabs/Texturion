@@ -3,8 +3,11 @@ package com.loonext.android.features.calls
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +17,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.outlined.Bluetooth
@@ -66,6 +71,8 @@ import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
@@ -101,6 +108,7 @@ fun InCallScreen(
         ?: live.firstOrNull()
         ?: snapshot.calls.lastOrNull()
 
+    val haptics = rememberHaptics()
     var dtmfOpen by remember { mutableStateOf(false) }
     var transferOpen by remember { mutableStateOf(false) }
     var speakerOn by remember { mutableStateOf(false) }
@@ -121,13 +129,20 @@ fun InCallScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(Modifier.fillMaxWidth()) {
+            val hideInteraction = remember { MutableInteractionSource() }
             Surface(
-                onClick = onClose,
+                onClick = {
+                    haptics.tap()
+                    onClose()
+                },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 shadowElevation = 1.dp,
-                modifier = Modifier.size(44.dp),
+                interactionSource = hideInteraction,
+                modifier = Modifier
+                    .size(44.dp)
+                    .pressScale(hideInteraction),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -202,7 +217,10 @@ fun InCallScreen(
                     label = if (featured.muted) "Unmute" else "Mute",
                     contentDescription = if (featured.muted) "Unmute" else "Mute",
                     active = featured.muted,
-                    onClick = { manager.setMuted(featured.id, !featured.muted) },
+                    onClick = {
+                        haptics.tap()
+                        manager.setMuted(featured.id, !featured.muted)
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 ControlCircle(
@@ -210,7 +228,10 @@ fun InCallScreen(
                     label = "Keypad",
                     contentDescription = "Keypad",
                     enabled = featured.phase == CallPhase.ACTIVE,
-                    onClick = { dtmfOpen = true },
+                    onClick = {
+                        haptics.tap()
+                        dtmfOpen = true
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 ControlCircle(
@@ -226,7 +247,10 @@ fun InCallScreen(
                         "Hold"
                     },
                     active = featured.phase == CallPhase.HELD,
-                    onClick = { manager.toggleHold(featured.id) },
+                    onClick = {
+                        haptics.tap()
+                        manager.toggleHold(featured.id)
+                    },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -240,7 +264,10 @@ fun InCallScreen(
                     // by-leg for inbound answers; disabled until it lands.
                     enabled = featured.sessionId != null &&
                         featured.phase == CallPhase.ACTIVE,
-                    onClick = { transferOpen = true },
+                    onClick = {
+                        haptics.tap()
+                        transferOpen = true
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 ControlCircle(
@@ -249,7 +276,10 @@ fun InCallScreen(
                     contentDescription = "Add a note in the conversation",
                     active = true,
                     enabled = conversationId != null,
-                    onClick = { conversationId?.let(openConversation) },
+                    onClick = {
+                        haptics.tap()
+                        conversationId?.let(openConversation)
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 ControlCircle(
@@ -258,6 +288,7 @@ fun InCallScreen(
                     contentDescription = "Speaker",
                     active = speakerOn,
                     onClick = {
+                        haptics.tap()
                         val on = !speakerOn
                         speakerOn = on
                         if (on) bluetoothOn = false
@@ -276,6 +307,7 @@ fun InCallScreen(
                 active = bluetoothOn,
                 size = 44.dp,
                 onClick = {
+                    haptics.tap()
                     val on = !bluetoothOn
                     bluetoothOn = on
                     if (on) speakerOn = false
@@ -323,7 +355,10 @@ fun InCallScreen(
                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     labelWeight = FontWeight.SemiBold,
                     size = 64.dp,
-                    onClick = { manager.hangup(featured.id) },
+                    onClick = {
+                        haptics.reject()
+                        manager.hangup(featured.id)
+                    },
                 )
                 RingActionCircle(
                     icon = Icons.Outlined.Call,
@@ -334,6 +369,7 @@ fun InCallScreen(
                     labelWeight = FontWeight.Bold,
                     size = 64.dp,
                     onClick = {
+                        haptics.confirm()
                         if (manager.hasMicPermission()) {
                             manager.answerRinging(featured)
                         } else {
@@ -344,7 +380,12 @@ fun InCallScreen(
             }
         } else {
             EndCallPill(
-                onClick = { featured?.let { manager.hangup(it.id) } },
+                onClick = {
+                    featured?.let {
+                        haptics.reject()
+                        manager.hangup(it.id)
+                    }
+                },
                 enabled = featured != null,
                 label = "End call",
                 modifier = Modifier.fillMaxWidth(),
@@ -387,12 +428,16 @@ internal fun RingActionCircle(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val interaction = remember { MutableInteractionSource() }
         Surface(
             onClick = onClick,
             shape = CircleShape,
             color = container,
             contentColor = content,
-            modifier = Modifier.size(size),
+            interactionSource = interaction,
+            modifier = Modifier
+                .size(size)
+                .pressScale(interaction),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
@@ -405,11 +450,15 @@ internal fun RingActionCircle(
 /** "Call note · saves to the thread" — tap opens the conversation (spec 26). */
 @Composable
 private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        modifier = modifier.fillMaxWidth(),
+        interactionSource = interaction,
+        modifier = modifier
+            .fillMaxWidth()
+            .pressScale(interaction),
     ) {
         Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
             Row(
@@ -443,51 +492,56 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 /** "Ringing…" / "Connecting…" / the big live timer / "On hold" / "Call ended". */
 @Composable
 private fun CallPhaseLine(call: CallSnapshot) {
-    if (call.phase == CallPhase.ACTIVE) {
-        val anchor = call.activeSinceMs
-        if (anchor != null) {
-            val now by produceState(System.currentTimeMillis(), call.id) {
-                while (true) {
-                    value = System.currentTimeMillis()
-                    delay(1_000)
+    // Phase swaps cross-animate; the per-second timer tick lives INSIDE the
+    // ACTIVE branch so it never retriggers the transition (#194).
+    AnimatedContent(targetState = call.phase, label = "callPhase") { phase ->
+        if (phase == CallPhase.ACTIVE) {
+            val anchor = call.activeSinceMs
+            if (anchor != null) {
+                val now by produceState(System.currentTimeMillis(), call.id) {
+                    while (true) {
+                        value = System.currentTimeMillis()
+                        delay(1_000)
+                    }
                 }
+                Text(
+                    formatTimer(now - anchor),
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = (-0.01).em,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
-            Text(
-                formatTimer(now - anchor),
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Normal,
-                letterSpacing = (-0.01).em,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+        } else {
+            val text = when (phase) {
+                CallPhase.RINGING -> "Incoming call"
+                CallPhase.CONNECTING -> "Calling…"
+                CallPhase.HELD -> "On hold"
+                CallPhase.ENDED -> "Call ended"
+                else -> ""
+            }
+            if (text.isNotEmpty()) {
+                Text(
+                    text,
+                    fontSize = 15.sp,
+                    fontWeight = if (phase == CallPhase.HELD) {
+                        FontWeight.SemiBold
+                    } else {
+                        FontWeight.Normal
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
         }
-        return
-    }
-    val text = when (call.phase) {
-        CallPhase.RINGING -> "Incoming call"
-        CallPhase.CONNECTING -> "Calling…"
-        CallPhase.HELD -> "On hold"
-        CallPhase.ENDED -> "Call ended"
-        else -> ""
-    }
-    if (text.isNotEmpty()) {
-        Text(
-            text,
-            fontSize = 15.sp,
-            fontWeight = if (call.phase == CallPhase.HELD) {
-                FontWeight.SemiBold
-            } else {
-                FontWeight.Normal
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 10.dp),
-        )
     }
 }
 
 /** A held line to swap to, or a ringing second call (answer holds current). */
 @Composable
 private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
+    val haptics = rememberHaptics()
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) manager.answerRinging(call) }
@@ -521,7 +575,10 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                 // #171 R1: an in-call second-ring Decline is the universal
                 // server signal too (decline-mine + local teardown), not a bare
                 // leg hangup that leaves the caller ringing.
-                TextButton(onClick = { manager.declineCurrent(call.id) }) {
+                TextButton(onClick = {
+                    haptics.reject()
+                    manager.declineCurrent(call.id)
+                }) {
                     Text(
                         "Decline",
                         fontSize = 11.5.sp,
@@ -530,8 +587,10 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                     )
                 }
                 Spacer(Modifier.width(4.dp))
+                val answerInteraction = remember { MutableInteractionSource() }
                 Surface(
                     onClick = {
+                        haptics.confirm()
                         if (manager.hasMicPermission()) {
                             manager.answerRinging(call)
                         } else {
@@ -541,6 +600,8 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.tertiary,
                     contentColor = MaterialTheme.colorScheme.onTertiary,
+                    interactionSource = answerInteraction,
+                    modifier = Modifier.pressScale(answerInteraction),
                 ) {
                     Row(
                         Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -556,11 +617,17 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                     }
                 }
             } else if (call.phase == CallPhase.HELD) {
+                val swapInteraction = remember { MutableInteractionSource() }
                 Surface(
-                    onClick = { manager.toggleHold(call.id) },
+                    onClick = {
+                        haptics.tap()
+                        manager.toggleHold(call.id)
+                    },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     contentColor = MaterialTheme.colorScheme.onSurface,
+                    interactionSource = swapInteraction,
+                    modifier = Modifier.pressScale(swapInteraction),
                 ) {
                     Text(
                         "Swap",
@@ -574,9 +641,20 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
     }
 }
 
+/**
+ * Height the full-size DTMF layout needs (#180). At or above it the sheet
+ * renders spec-exact; shorter viewports scale keys, spacing, and the readout
+ * together, with the scroll as a backstop below the scale floor.
+ */
+private val DTMF_DESIGN_HEIGHT = 430.dp
+
+/** Floor for the proportional DTMF scale (mirrors the dialer's, #180). */
+private const val MIN_DTMF_SCALE = 0.55f
+
 /** In-call DTMF keypad for IVR navigation — digits send immediately. */
 @Composable
 private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
+    val haptics = rememberHaptics()
     var sent by remember { mutableStateOf("") }
     val rows = listOf(
         listOf("1" to "", "2" to "ABC", "3" to "DEF"),
@@ -588,42 +666,53 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                sent.ifEmpty { "Keypad" },
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 26.sp),
-                color = if (sent.isEmpty()) {
-                    MaterialTheme.colorScheme.outline
-                } else {
-                    MaterialTheme.colorScheme.onBackground
-                },
-                maxLines = 1,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-            rows.forEach { row ->
-                Row(
-                    Modifier.padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(22.dp),
-                ) {
-                    row.forEach { (key, letters) ->
-                        KeypadKey(
-                            digit = key,
-                            letters = letters,
-                            size = 64.dp,
-                            onClick = {
-                                sent += key
-                                onDigit(key)
-                            },
-                        )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val scale = (maxHeight / DTMF_DESIGN_HEIGHT).coerceIn(MIN_DTMF_SCALE, 1f)
+            val keySpacing = 22.dp * scale
+            val keySize = (64.dp * scale)
+                .coerceAtMost((maxWidth - 48.dp - keySpacing * 2) / 3)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    sent.ifEmpty { "Keypad" },
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 26.sp * scale,
+                    ),
+                    color = if (sent.isEmpty()) {
+                        MaterialTheme.colorScheme.outline
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
+                    },
+                    maxLines = 1,
+                    modifier = Modifier.padding(vertical = 12.dp * scale),
+                )
+                rows.forEach { row ->
+                    Row(
+                        Modifier.padding(bottom = 12.dp * scale),
+                        horizontalArrangement = Arrangement.spacedBy(keySpacing),
+                    ) {
+                        row.forEach { (key, letters) ->
+                            KeypadKey(
+                                digit = key,
+                                letters = letters,
+                                size = keySize,
+                                textScale = scale,
+                                onClick = {
+                                    haptics.tap()
+                                    sent += key
+                                    onDigit(key)
+                                },
+                            )
+                        }
                     }
                 }
+                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(16.dp))
         }
     }
 }
@@ -671,11 +760,16 @@ private fun TransferSheet(
         }
     }
 
+    val haptics = rememberHaptics()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+        ) {
             Text(
                 "Transfer this call",
                 style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp),
@@ -719,6 +813,7 @@ private fun TransferSheet(
                             row = row,
                             enabled = !row.busy && !transferring,
                             onTransfer = {
+                                haptics.confirm()
                                 transferring = true
                                 error = null
                                 scope.launch {
@@ -784,13 +879,17 @@ private fun TransferTargetRow(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
+        val transferInteraction = remember { MutableInteractionSource() }
         Surface(
             onClick = onTransfer,
             enabled = enabled,
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.alpha(if (enabled) 1f else 0.5f),
+            interactionSource = transferInteraction,
+            modifier = Modifier
+                .pressScale(transferInteraction)
+                .alpha(if (enabled) 1f else 0.5f),
         ) {
             Text(
                 "Transfer",

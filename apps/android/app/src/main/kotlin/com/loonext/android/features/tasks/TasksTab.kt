@@ -1,5 +1,9 @@
 package com.loonext.android.features.tasks
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,9 +24,12 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +39,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,12 +68,13 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -102,6 +113,7 @@ fun TasksTab(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TaskListScreen(
     graph: AppGraph,
@@ -121,10 +133,12 @@ private fun TaskListScreen(
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var pickerOpen by remember { mutableStateOf(false) }
+    var pullRefreshing by remember(companyId) { mutableStateOf(false) }
 
     val dueChip = dueChipName?.let { name -> DueChip.entries.firstOrNull { it.name == name } }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val haptics = rememberHaptics()
 
     // Active members back the assignee chip label and the picker. A quiet
     // fetch — a failure leaves the generic chip label and the picker retries.
@@ -158,7 +172,20 @@ private fun TaskListScreen(
         graph.realtime.reconnected.collect { refreshKey++ }
     }
 
+    // Pull-to-refresh rides the same silent revalidate as everything else, so
+    // the indicator holds a short honest beat instead of pretending to track
+    // the fetch (the app-wide idiom).
+    LaunchedEffect(pullRefreshing) {
+        if (pullRefreshing) {
+            delay(650)
+            pullRefreshing = false
+        }
+    }
+
     val onToggleDone: (Task, Boolean) -> Unit = { task, done ->
+        // One semantic haptic per done flip, shared by list rows, board moves,
+        // and nothing else — marking done commits, unmarking is a light touch.
+        if (done) haptics.confirm() else haptics.tap()
         scope.launch {
             // Derived-done invariant: the write path is the SOURCE MESSAGE.
             val result = runCatching { mutations.setDone(companyId, task.message_id, done) }
@@ -187,24 +214,34 @@ private fun TaskListScreen(
                 PaperCircleButton(
                     icon = Icons.Outlined.Search,
                     contentDescription = if (searchOpen) "Hide search" else "Search task titles",
-                    onClick = { searchOpen = !searchOpen },
+                    onClick = {
+                        haptics.tap()
+                        searchOpen = !searchOpen
+                    },
                 )
             }
 
             Spacer(Modifier.height(14.dp))
 
-            // View pills: ink active, paper idle. (Calendar/Map views from the
-            // canvas have no data layer yet — List and Board are the two real
-            // views.)
+            // View switch: M3 Expressive toggle pair in our skin — ink active,
+            // paper idle; the press/checked shape morph carries the motion.
+            // (Calendar/Map views from the canvas have no data layer yet —
+            // List and Board are the two real views.)
             Row(
                 Modifier.padding(horizontal = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                ViewPill("List", selected = !board, onClick = { board = false })
-                ViewPill("Board", selected = board, onClick = { board = true })
+                ViewToggle("List", checked = !board) {
+                    haptics.tap()
+                    board = false
+                }
+                ViewToggle("Board", checked = board) {
+                    haptics.tap()
+                    board = true
+                }
             }
 
-            if (searchOpen || search.isNotEmpty()) {
+            AnimatedVisibility(visible = searchOpen || search.isNotEmpty()) {
                 OutlinedTextField(
                     value = search,
                     onValueChange = { search = it.take(TASK_SEARCH_MAX) },
@@ -225,7 +262,10 @@ private fun TaskListScreen(
                     ),
                     trailingIcon = {
                         if (search.isNotEmpty()) {
-                            IconButton(onClick = { search = "" }) {
+                            IconButton(onClick = {
+                                haptics.tap()
+                                search = ""
+                            }) {
                                 Icon(
                                     Icons.Outlined.Close,
                                     contentDescription = "Clear search",
@@ -263,7 +303,10 @@ private fun TaskListScreen(
                     FilterPill(
                         text = item.label,
                         selected = tab == item,
-                        onClick = { tab = item },
+                        onClick = {
+                            haptics.tap()
+                            tab = item
+                        },
                     )
                 }
                 val assigneeName = assigneeChip?.let { id ->
@@ -274,7 +317,10 @@ private fun TaskListScreen(
                 FilterPill(
                     text = assigneeName ?: "Assignee",
                     selected = assigneeChip != null,
-                    onClick = { pickerOpen = true },
+                    onClick = {
+                        haptics.tap()
+                        pickerOpen = true
+                    },
                     trailing = if (assigneeChip != null) {
                         {
                             Icon(
@@ -282,7 +328,10 @@ private fun TaskListScreen(
                                 contentDescription = "Clear assignee filter",
                                 modifier = Modifier
                                     .size(12.dp)
-                                    .clickable { assigneeChip = null },
+                                    .clickable {
+                                        haptics.tap()
+                                        assigneeChip = null
+                                    },
                             )
                         }
                     } else null,
@@ -291,6 +340,7 @@ private fun TaskListScreen(
                     text = "Unassigned",
                     selected = unassignedChip,
                     onClick = {
+                        haptics.tap()
                         unassignedChip = !unassignedChip
                         if (unassignedChip) assigneeChip = null
                     },
@@ -300,6 +350,7 @@ private fun TaskListScreen(
                         text = chip.label,
                         selected = dueChip == chip,
                         onClick = {
+                            haptics.tap()
                             dueChipName = if (dueChip == chip) null else chip.name
                         },
                     )
@@ -311,37 +362,49 @@ private fun TaskListScreen(
             val filtersActive = assigneeChip != null || unassignedChip ||
                 dueChip != null || debouncedQ.isNotEmpty()
 
-            if (board) {
-                TaskBoard(
-                    cache = graph.storeCache,
-                    mutations = mutations,
-                    companyId = companyId,
-                    tab = tab,
-                    assigneeChip = assigneeChip,
-                    unassignedChip = unassignedChip,
-                    dueChip = dueChip,
-                    q = debouncedQ,
-                    refreshKey = refreshKey,
-                    onOpenTask = onOpenTask,
-                    onToggleDone = onToggleDone,
-                )
-            } else {
-                TaskList(
-                    cache = graph.storeCache,
-                    mutations = mutations,
-                    companyId = companyId,
-                    tab = tab,
-                    assigneeChip = assigneeChip,
-                    unassignedChip = unassignedChip,
-                    dueChip = dueChip,
-                    q = debouncedQ,
-                    refreshKey = refreshKey,
-                    filtersActive = filtersActive,
-                    memberName = ::memberName,
-                    onRetry = { refreshKey++ },
-                    onOpenTask = onOpenTask,
-                    onToggleDone = onToggleDone,
-                )
+            // Pull-to-refresh IS the refreshKey bump — the manual refresh
+            // affordance for both views.
+            PullToRefreshBox(
+                isRefreshing = pullRefreshing,
+                onRefresh = {
+                    haptics.tick()
+                    pullRefreshing = true
+                    refreshKey++
+                },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (board) {
+                    TaskBoard(
+                        cache = graph.storeCache,
+                        mutations = mutations,
+                        companyId = companyId,
+                        tab = tab,
+                        assigneeChip = assigneeChip,
+                        unassignedChip = unassignedChip,
+                        dueChip = dueChip,
+                        q = debouncedQ,
+                        refreshKey = refreshKey,
+                        onOpenTask = onOpenTask,
+                        onToggleDone = onToggleDone,
+                    )
+                } else {
+                    TaskList(
+                        cache = graph.storeCache,
+                        mutations = mutations,
+                        companyId = companyId,
+                        tab = tab,
+                        assigneeChip = assigneeChip,
+                        unassignedChip = unassignedChip,
+                        dueChip = dueChip,
+                        q = debouncedQ,
+                        refreshKey = refreshKey,
+                        filtersActive = filtersActive,
+                        memberName = ::memberName,
+                        onRetry = { refreshKey++ },
+                        onOpenTask = onOpenTask,
+                        onToggleDone = onToggleDone,
+                    )
+                }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -354,11 +417,46 @@ private fun TaskListScreen(
             selectedUserId = assigneeChip,
             showUnassigned = false,
             onPick = { userId ->
+                haptics.tap()
                 assigneeChip = userId
                 if (userId != null) unassignedChip = false
                 pickerOpen = false
             },
             onDismiss = { pickerOpen = false },
+        )
+    }
+}
+
+/**
+ * View-switcher toggle (spec 24 pills, expressive build): M3 ToggleButton in
+ * our skin — ink container when active, paper when idle — so the checked and
+ * pressed shape morphs come from the component while the colors stay ours.
+ * [onSelect] fires only on an actual switch, never on re-tapping the active
+ * view.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ViewToggle(
+    text: String,
+    checked: Boolean,
+    onSelect: () -> Unit,
+) {
+    ToggleButton(
+        checked = checked,
+        onCheckedChange = { if (!checked) onSelect() },
+        colors = ToggleButtonDefaults.toggleButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            checkedContainerColor = MaterialTheme.colorScheme.primary,
+            checkedContentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
         )
     }
 }
@@ -442,6 +540,7 @@ private fun TaskList(
 ) {
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     // #176 cache-first: every filter combination is its own key, so a revisit
     // (or a return to a previously-used filter) paints instantly from
@@ -465,7 +564,7 @@ private fun TaskList(
     }
 
     when (val current = state) {
-        is LoadState.Loading -> CenteredLoading()
+        is LoadState.Loading -> TaskListSkeleton()
         is LoadState.Failed -> CenteredError(current.message, onRetry = onRetry)
         is LoadState.Ready -> {
             val rows = current.value.rows
@@ -506,6 +605,7 @@ private fun TaskList(
                         item(key = "load-more") {
                             Box(
                                 Modifier
+                                    .animateItem()
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center,
@@ -513,6 +613,7 @@ private fun TaskList(
                                 TextButton(
                                     enabled = !loadingMore,
                                     onClick = {
+                                        haptics.tap()
                                         val snapshot = current.value
                                         loadingMore = true
                                         scope.launch {
@@ -556,13 +657,19 @@ private fun LazyListScope.taskSection(
     item(key = "hdr-$label") {
         SectionHeader(
             label,
-            Modifier.padding(start = 18.dp, top = 10.dp),
+            Modifier
+                .animateItem()
+                .padding(start = 18.dp, top = 10.dp),
             count = tasks.size,
         )
     }
+    // animateItem: a done flip moves the row between sections under the same
+    // key, so it glides to its new home instead of teleporting; fresh
+    // compositions (cached repaints) never animate.
     itemsIndexed(tasks, key = { _, task -> task.id }) { index, task ->
         Column(
             Modifier
+                .animateItem()
                 .padding(horizontal = 18.dp)
                 .clip(cardGroupShape(index, tasks.size))
                 .background(MaterialTheme.colorScheme.surface),
@@ -590,12 +697,20 @@ internal fun TaskListRow(
     onClick: () -> Unit,
     onToggleDone: (Boolean) -> Unit,
 ) {
+    // The done settle: rows ease to the 62% fade instead of snapping — the
+    // spring is calm (medium-low stiffness), and because the row keeps its
+    // key across the section move, the fade rides along with the glide.
+    val doneAlpha by animateFloatAsState(
+        targetValue = if (task.done) 0.62f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "doneSettle",
+    )
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(start = 9.dp, end = 15.dp, top = 7.dp, bottom = 7.dp)
-            .alpha(if (task.done) 0.62f else 1f),
+            .alpha(doneAlpha),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DoneCircle(done = task.done, onToggle = onToggleDone)
@@ -655,6 +770,55 @@ internal fun TaskListRow(
         if (task.assigned_user_id != null) {
             Spacer(Modifier.width(12.dp))
             TaskAvatar(assigneeName, size = 28.dp)
+        }
+    }
+}
+
+/**
+ * First-fetch stand-in in the exact list grammar (spec 24): a section-header
+ * stub over rows fused into one paper card — done ring, title line, meta
+ * line, an assignee circle on some rows. With cache-first (#176) this can
+ * only ever appear once per filter key per process; failed states are
+ * untouched.
+ */
+@Composable
+private fun TaskListSkeleton() {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp),
+    ) {
+        SkeletonBlock(
+            56.dp,
+            10.dp,
+            Modifier.padding(start = 6.dp, top = 10.dp, bottom = 9.dp),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            repeat(7) { index ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SkeletonBlock(23.dp, 23.dp, shape = CircleShape)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        SkeletonBlock(if (index % 2 == 0) 172.dp else 124.dp, 12.dp)
+                        Spacer(Modifier.height(7.dp))
+                        SkeletonBlock(92.dp, 10.dp)
+                    }
+                    if (index % 3 == 0) {
+                        Spacer(Modifier.width(12.dp))
+                        SkeletonBlock(28.dp, 28.dp, shape = CircleShape)
+                    }
+                }
+            }
         }
     }
 }

@@ -1,5 +1,11 @@
 package com.loonext.android.features.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -33,9 +39,9 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageMonth
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
@@ -88,7 +94,7 @@ fun UsageSection(
     ) { scope.repo.usage(scope.companyId) }
 
     when (val current = state) {
-        is LoadState.Loading -> CenteredLoading(Modifier.padding(vertical = 48.dp))
+        is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
         is LoadState.Failed -> CenteredError(
             current.message,
             onRetry = { refreshKey++ },
@@ -136,12 +142,21 @@ private fun MessagesCard(usage: Usage) {
 
     SettingsCard(title = "Messages") {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                groupDigits(usage.used_segments),
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
+            AnimatedContent(
+                targetState = usage.used_segments,
+                transitionSpec = {
+                    (slideInVertically { it / 3 } + fadeIn()) togetherWith
+                        (slideOutVertically { -it / 3 } + fadeOut())
+                },
+                label = "usedSegments",
+            ) { used ->
+                Text(
+                    groupDigits(used),
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            }
             Spacer(Modifier.width(10.dp))
             Text(
                 "of ${groupDigits(usage.included_segments)} included messages used",
@@ -248,12 +263,21 @@ private fun VoiceCard(usage: Usage) {
 
     SettingsCard(title = "Calling minutes") {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                groupDigits(voice.used_minutes),
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
+            AnimatedContent(
+                targetState = voice.used_minutes,
+                transitionSpec = {
+                    (slideInVertically { it / 3 } + fadeIn()) togetherWith
+                        (slideOutVertically { -it / 3 } + fadeOut())
+                },
+                label = "usedMinutes",
+            ) { used ->
+                Text(
+                    groupDigits(used),
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            }
             Spacer(Modifier.width(10.dp))
             Text(
                 "of ${groupDigits(voice.included_minutes)} included minutes used",
@@ -364,6 +388,7 @@ private fun CapCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     SettingsCard(
         title = "Overage cap",
@@ -384,6 +409,7 @@ private fun CapCard(
                     FilterChip(
                         selected = preset == current,
                         onClick = {
+                            if (preset != current) haptics.tap()
                             val change =
                                 describeCapChange(current, preset, usage.included_segments)
                             if (change.requiresConfirmation) {
@@ -420,6 +446,7 @@ private fun CapCard(
                         )
                         onCompanyUpdated(updated)
                         proposed = null
+                        haptics.confirm()
                         scope.showMessage("Overage cap set to ${capLabel(next)}.")
                     } catch (cause: Exception) {
                         error = cause.userMessage()

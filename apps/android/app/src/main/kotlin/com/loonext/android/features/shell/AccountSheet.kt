@@ -3,6 +3,16 @@ package com.loonext.android.features.shell
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,15 +44,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +74,8 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.rememberHaptics
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
@@ -79,6 +98,7 @@ fun AccountSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val theme by graph.prefs.theme.collectAsStateWithLifecycle(initialValue = "system")
     val membership = me.memberships.firstOrNull { it.company_id == companyId }
     val company = me.company
@@ -184,42 +204,77 @@ fun AccountSheet(
                     )
                     // Segmented track per the design grammar: inset track, INK
                     // pill for the selected segment (paper-on-inset was nearly
-                    // invisible), equal-size segments.
-                    Row(
+                    // invisible), equal-size segments. The ink pill GLIDES to
+                    // the picked segment (#194); labels only cross-fade.
+                    val segmentBounds =
+                        remember { mutableStateMapOf<String, Pair<Float, IntSize>>() }
+                    Box(
                         Modifier
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                             .padding(3.dp),
                     ) {
-                        listOf("system" to "System", "light" to "Light", "dark" to "Dark")
-                            .forEach { (value, label) ->
-                                val selected = theme == value
-                                Surface(
-                                    onClick = { scope.launch { graph.prefs.setTheme(value) } },
-                                    shape = CircleShape,
-                                    color = if (selected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        Color.Transparent
-                                    },
-                                ) {
-                                    Text(
-                                        label,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                        ),
-                                        color = if (selected) {
+                        segmentBounds[theme]?.let { (segmentX, segmentSize) ->
+                            val density = LocalDensity.current
+                            val pillX by animateFloatAsState(
+                                targetValue = segmentX,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                label = "themePillX",
+                            )
+                            val pillWidth by animateFloatAsState(
+                                targetValue = segmentSize.width.toFloat(),
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                label = "themePillWidth",
+                            )
+                            Box(
+                                Modifier
+                                    .align(Alignment.CenterStart)
+                                    .offset { IntOffset(pillX.roundToInt(), 0) }
+                                    .size(
+                                        width = with(density) { pillWidth.toDp() },
+                                        height = with(density) { segmentSize.height.toDp() },
+                                    )
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                            )
+                        }
+                        Row {
+                            listOf("system" to "System", "light" to "Light", "dark" to "Dark")
+                                .forEach { (value, label) ->
+                                    val selected = theme == value
+                                    val labelColor by animateColorAsState(
+                                        targetValue = if (selected) {
                                             MaterialTheme.colorScheme.onPrimary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier
-                                            .widthIn(min = 58.dp)
-                                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                                        label = "themeLabel",
                                     )
+                                    Surface(
+                                        onClick = {
+                                            if (!selected) haptics.tap()
+                                            scope.launch { graph.prefs.setTheme(value) }
+                                        },
+                                        shape = CircleShape,
+                                        color = Color.Transparent,
+                                        modifier = Modifier.onGloballyPositioned {
+                                            segmentBounds[value] =
+                                                it.positionInParent().x to it.size
+                                        },
+                                    ) {
+                                        Text(
+                                            label,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                            color = labelColor,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .widthIn(min = 58.dp)
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                        )
+                                    }
                                 }
-                            }
+                        }
                     }
                 }
             }
@@ -232,14 +287,23 @@ fun AccountSheet(
                     dot = unreadNotifications > 0,
                     trailing = {
                         if (unreadNotifications > 0) {
-                            Text(
-                                "$unreadNotifications new",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                                color = MaterialTheme.colorScheme.secondary,
-                            )
+                            AnimatedContent(
+                                targetState = unreadNotifications,
+                                transitionSpec = {
+                                    (slideInVertically { it / 2 } + fadeIn()) togetherWith
+                                        (slideOutVertically { -it / 2 } + fadeOut())
+                                },
+                                label = "unreadBadge",
+                            ) { count ->
+                                Text(
+                                    "$count new",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
                         } else {
                             Chevron()
                         }
@@ -274,6 +338,7 @@ fun AccountSheet(
                     destructive = true,
                     trailing = {},
                     onClick = {
+                        haptics.reject()
                         onSignOut()
                         onDismiss()
                     },
@@ -351,8 +416,12 @@ fun AccountSheet(
 /** Pill number chip on the ink tile — tap to copy. */
 @Composable
 private fun NumberChip(numberE164: String, onCopy: (String) -> Unit) {
+    val haptics = rememberHaptics()
     Surface(
-        onClick = { onCopy(numberE164) },
+        onClick = {
+            haptics.tap()
+            onCopy(numberE164)
+        },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
         contentColor = MaterialTheme.colorScheme.onPrimary,

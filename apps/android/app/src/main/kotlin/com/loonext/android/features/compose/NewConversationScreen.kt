@@ -2,7 +2,6 @@ package com.loonext.android.features.compose
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,7 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -279,8 +278,8 @@ private fun NewConversationLoaded(
         dispatch(request, key)
     }
 
-    val photoPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTOS),
+    val mediaPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -290,15 +289,20 @@ private fun NewConversationLoaded(
                     trimmed = true
                     break
                 }
-                when (val result = preparePhoto(context, uri)) {
-                    is PhotoPrepResult.Ready ->
-                        composer.photos = composer.photos + result.photo
+                when (val result = stageMmsMedia(context, uri)) {
+                    is MmsStageResult.Ready -> {
+                        composer.photos = composer.photos + result.media
+                        composer.mediaInfo =
+                            composer.mediaInfo + (result.media.id to result.info)
+                    }
 
-                    is PhotoPrepResult.Rejected ->
+                    is MmsStageResult.Rejected ->
                         snackbar.showSnackbar(result.reason)
                 }
             }
-            if (trimmed) snackbar.showSnackbar("You can attach up to 3 photos per text.")
+            if (trimmed) {
+                snackbar.showSnackbar("You can attach up to $MAX_PHOTOS files per text.")
+            }
         }
     }
 
@@ -537,25 +541,20 @@ private fun NewConversationLoaded(
                     }
                 }
 
-                // --- Photos. ---
+                // --- Attachments (#189: the full MMS deliverable set). ---
                 if (composer.photos.isNotEmpty()) {
                     PhotoChipsRow(
                         photos = composer.photos,
                         onRemove = { id ->
                             composer.photos = composer.photos.filterNot { it.id == id }
                         },
+                        info = composer.mediaInfo,
                     )
                 }
                 PaperCircleButton(
-                    icon = Icons.Outlined.Image,
-                    contentDescription = "Attach a photo",
-                    onClick = {
-                        photoPicker.launch(
-                            PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly,
-                            ),
-                        )
-                    },
+                    icon = Icons.Outlined.AttachFile,
+                    contentDescription = "Add to message",
+                    onClick = { mediaPicker.launch(MMS_PICKER_MIME_TYPES) },
                     enabled = composer.photos.size < MAX_PHOTOS,
                 )
 

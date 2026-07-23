@@ -5,8 +5,10 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -46,6 +50,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,15 +83,17 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -157,6 +166,7 @@ fun ContactsTab(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ContactListScreen(
     graph: AppGraph,
@@ -171,10 +181,13 @@ private fun ContactListScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val haptics = rememberHaptics()
 
     var query by rememberSaveable(companyId) { mutableStateOf("") }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var loadingMore by remember(companyId) { mutableStateOf(false) }
+    var refreshing by remember(companyId) { mutableStateOf(false) }
+    val pullState = rememberPullToRefreshState()
 
     var createOpen by remember { mutableStateOf(false) }
     var importMenuOpen by remember { mutableStateOf(false) }
@@ -193,11 +206,10 @@ private fun ContactListScreen(
     // revalidate re-walks cursors to the depth already cached so a background
     // refresh never truncates pages the user has loaded.
     val defaultKey = CacheKeys.contacts(companyId)
-    val defaultState = rememberCacheFirst(
-        cache = graph.storeCache,
-        key = defaultKey,
-        refreshKey = refreshKey,
-    ) {
+
+    // One fetch body shared by the cache-first revalidate and pull-to-refresh
+    // so both re-walk cursors to the depth already cached.
+    suspend fun fetchDefaultSnapshot(): ContactsSnapshot {
         val target = graph.storeCache.flowOf<ContactsSnapshot>(defaultKey).value?.rows?.size ?: 0
         var page = graph.contactsRepo.contacts(companyId, limit = 50)
         var all = page.data
@@ -205,8 +217,14 @@ private fun ContactListScreen(
             page = graph.contactsRepo.contacts(companyId, cursor = page.next_cursor, limit = 50)
             all = all + page.data
         }
-        ContactsSnapshot(all, page.next_cursor)
+        return ContactsSnapshot(all, page.next_cursor)
     }
+
+    val defaultState = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = defaultKey,
+        refreshKey = refreshKey,
+    ) { fetchDefaultSnapshot() }
 
     // Typed searches stay live (never cached): results replace in place, and
     // the previously shown rows hold while a new query is in flight — same
@@ -251,6 +269,29 @@ private fun ContactListScreen(
                 searchSnapshot?.rows.orEmpty() + page.data,
                 page.next_cursor,
             )
+        }
+    }
+
+    // Pull-to-refresh: the same silent write-through revalidate a refreshKey
+    // bump performs, awaited here only so the indicator is honest about when
+    // the refetch actually settles. Data on screen never blanks.
+    fun manualRefresh() {
+        if (refreshing) return
+        refreshing = true
+        scope.launch {
+            try {
+                if (debouncedQ.isEmpty()) {
+                    graph.storeCache.put(defaultKey, fetchDefaultSnapshot())
+                } else {
+                    val page = graph.contactsRepo.contacts(companyId, q = debouncedQ, limit = 50)
+                    searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
+                    searchState = LoadState.Ready(Unit)
+                }
+            } catch (cause: Exception) {
+                snackbar.showSnackbar(cause.userMessage())
+            } finally {
+                refreshing = false
+            }
         }
     }
 
@@ -321,6 +362,7 @@ private fun ContactListScreen(
                     ImportKind.Vcard -> mutations.importVcard(companyId, name, bytes)
                 }
                 importReport = ImportReport(kind, result)
+                haptics.confirm()
                 onRefresh()
             } catch (cause: Exception) {
                 snackbar.showSnackbar(cause.userMessage())
@@ -358,25 +400,37 @@ private fun ContactListScreen(
                 Row(Modifier.weight(1f)) {
                     ScreenTitle("Contacts", Modifier.alignByBaseline())
                     if (state is LoadState.Ready && nextCursor == null && rows.isNotEmpty()) {
-                        Text(
-                            "${rows.size}",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        AnimatedContent(
+                            targetState = rows.size,
+                            label = "contactCount",
                             modifier = Modifier
                                 .alignByBaseline()
                                 .padding(start = 9.dp),
-                        )
+                        ) { count ->
+                            Text(
+                                "$count",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
+                val addInteraction = remember { MutableInteractionSource() }
                 Surface(
-                    onClick = { createOpen = true },
+                    onClick = {
+                        haptics.tap()
+                        createOpen = true
+                    },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(44.dp),
+                    interactionSource = addInteraction,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .pressScale(addInteraction),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -393,7 +447,17 @@ private fun ContactListScreen(
             Spacer(Modifier.height(14.dp))
 
             when (val current = state) {
-                is LoadState.Loading -> CenteredLoading()
+                is LoadState.Loading ->
+                    // First-fetch stand-in in the real row grammar: one shared
+                    // paper card of avatar rows, same outer radius as the list.
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(22.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        SkeletonList(rows = 8, avatar = true)
+                    }
+
                 is LoadState.Failed ->
                     CenteredError(current.message, onRetry = onRefresh)
 
@@ -429,93 +493,110 @@ private fun ContactListScreen(
                             )
                         }
                     } else {
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 24.dp),
+                        PullToRefreshBox(
+                            isRefreshing = refreshing,
+                            onRefresh = ::manualRefresh,
+                            state = pullState,
+                            modifier = Modifier.fillMaxSize(),
+                            indicator = {
+                                PullToRefreshDefaults.LoadingIndicator(
+                                    state = pullState,
+                                    isRefreshing = refreshing,
+                                    modifier = Modifier.align(Alignment.TopCenter),
+                                )
+                            },
                         ) {
-                            itemsIndexed(rows, key = { _, contact -> contact.id }) { index, contact ->
-                                // Rows share one paper card: round only the
-                                // outer corners so dividers read as hairlines.
-                                val top = if (index == 0) 22.dp else 0.dp
-                                val bottom = if (index == rows.lastIndex) 22.dp else 0.dp
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shape = RoundedCornerShape(
-                                        topStart = top,
-                                        topEnd = top,
-                                        bottomStart = bottom,
-                                        bottomEnd = bottom,
-                                    ),
-                                ) {
-                                    Column {
-                                        ContactRow(contact, onClick = { onOpenContact(contact.id) })
-                                        if (index != rows.lastIndex) {
-                                            RowDivider(Modifier.padding(horizontal = 15.dp))
-                                        }
-                                    }
-                                }
-                            }
-                            if (nextCursor != null) {
-                                item(key = "load-more") {
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center,
+                            LazyColumn(
+                                Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 24.dp),
+                            ) {
+                                itemsIndexed(rows, key = { _, contact -> contact.id }) { index, contact ->
+                                    // Rows share one paper card: round only the
+                                    // outer corners so dividers read as hairlines.
+                                    val top = if (index == 0) 22.dp else 0.dp
+                                    val bottom = if (index == rows.lastIndex) 22.dp else 0.dp
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(
+                                            topStart = top,
+                                            topEnd = top,
+                                            bottomStart = bottom,
+                                            bottomEnd = bottom,
+                                        ),
+                                        modifier = Modifier.animateItem(),
                                     ) {
-                                        TextButton(
-                                            enabled = !loadingMore,
-                                            colors = ButtonDefaults.textButtonColors(
-                                                contentColor =
-                                                MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                            onClick = {
-                                                loadingMore = true
-                                                val q = debouncedQ
-                                                scope.launch {
-                                                    try {
-                                                        val page =
-                                                            graph.contactsRepo.contacts(
-                                                                companyId,
-                                                                q = q.ifEmpty { null },
-                                                                cursor = nextCursor,
-                                                                limit = 50,
-                                                            )
-                                                        appendPage(q, page)
-                                                    } catch (cause: Exception) {
-                                                        snackbar.showSnackbar(
-                                                            cause.userMessage(),
-                                                        )
-                                                    } finally {
-                                                        loadingMore = false
-                                                    }
-                                                }
-                                            },
-                                        ) {
-                                            Text(
-                                                if (loadingMore) "Loading…" else "Load more",
-                                            )
+                                        Column {
+                                            ContactRow(contact, onClick = { onOpenContact(contact.id) })
+                                            if (index != rows.lastIndex) {
+                                                RowDivider(Modifier.padding(horizontal = 15.dp))
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            item(key = "footer") {
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 14.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    ListFooter(
-                                        canImport = canImport,
-                                        importing = importing,
-                                        exporting = exporting,
-                                        importMenuOpen = importMenuOpen,
-                                        onImportMenuOpenChange = { importMenuOpen = it },
-                                        onPickCsv = ::pickCsv,
-                                        onPickVcard = ::pickVcard,
-                                        onExport = { exportLauncher.launch("contacts.csv") },
-                                    )
+                                if (nextCursor != null) {
+                                    item(key = "load-more") {
+                                        Box(
+                                            Modifier
+                                                .animateItem()
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            TextButton(
+                                                enabled = !loadingMore,
+                                                colors = ButtonDefaults.textButtonColors(
+                                                    contentColor =
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                                ),
+                                                onClick = {
+                                                    loadingMore = true
+                                                    val q = debouncedQ
+                                                    scope.launch {
+                                                        try {
+                                                            val page =
+                                                                graph.contactsRepo.contacts(
+                                                                    companyId,
+                                                                    q = q.ifEmpty { null },
+                                                                    cursor = nextCursor,
+                                                                    limit = 50,
+                                                                )
+                                                            appendPage(q, page)
+                                                        } catch (cause: Exception) {
+                                                            snackbar.showSnackbar(
+                                                                cause.userMessage(),
+                                                            )
+                                                        } finally {
+                                                            loadingMore = false
+                                                        }
+                                                    }
+                                                },
+                                            ) {
+                                                Text(
+                                                    if (loadingMore) "Loading…" else "Load more",
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                item(key = "footer") {
+                                    Column(
+                                        Modifier
+                                            .animateItem()
+                                            .fillMaxWidth()
+                                            .padding(top = 14.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        ListFooter(
+                                            canImport = canImport,
+                                            importing = importing,
+                                            exporting = exporting,
+                                            importMenuOpen = importMenuOpen,
+                                            onImportMenuOpenChange = { importMenuOpen = it },
+                                            onPickCsv = ::pickCsv,
+                                            onPickVcard = ::pickVcard,
+                                            onExport = { exportLauncher.launch("contacts.csv") },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -762,6 +843,7 @@ internal fun CreateContactSheet(
     prefillPhone: String = "",
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     var phone by remember { mutableStateOf(prefillPhone) }
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
@@ -852,6 +934,7 @@ internal fun CreateContactSheet(
                                     address = address.trim().ifEmpty { null },
                                     notes = notes.trim().ifEmpty { null },
                                 )
+                                haptics.confirm()
                                 onCreated(created)
                             } catch (cause: Exception) {
                                 error = cause.userMessage()

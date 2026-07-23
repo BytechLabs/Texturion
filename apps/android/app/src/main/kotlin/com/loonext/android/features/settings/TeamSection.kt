@@ -36,11 +36,11 @@ import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -93,7 +93,7 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
     }
 
     when (val current = state) {
-        is LoadState.Loading -> CenteredLoading(Modifier.padding(vertical = 48.dp))
+        is LoadState.Loading -> SettingsSectionSkeleton(cards = 2)
         is LoadState.Failed -> CenteredError(
             current.message,
             onRetry = { refreshKey++ },
@@ -160,6 +160,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     var confirmingDeactivate by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     Row(
         Modifier
@@ -211,6 +212,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                                         scope.repo.setMemberRole(
                                             scope.companyId, member.id, role,
                                         )
+                                        haptics.confirm()
                                         scope.showMessage(
                                             "$name is now ${roleLabel(role).lowercase()}.",
                                         )
@@ -252,6 +254,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
             error = actionError,
             onDismiss = { confirmingDeactivate = false },
             onConfirm = {
+                haptics.reject()
                 busy = true
                 actionError = null
                 coroutines.launch {
@@ -281,6 +284,7 @@ private fun InvitesCard(
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val seat = seatUsage(
         activeMembers = countActiveMembers(members),
         pendingInvites = pendingInviteCount(invites),
@@ -340,6 +344,7 @@ private fun InvitesCard(
                         try {
                             val invite = scope.repo.createInvite(scope.companyId, trimmed, role)
                             email = ""
+                            haptics.confirm()
                             if (invite.email_sent == false) {
                                 scope.showMessage(
                                     "The invite email couldn't be sent. " +
@@ -395,12 +400,14 @@ private fun InvitesCard(
                     }
                     if (!expired) {
                         TextButton(onClick = {
+                            haptics.tap()
                             copyToClipboard(context, "Invite link", inviteLink(invite.id))
                             scope.showMessage("Invite link copied.")
                         }) { Text("Copy link") }
                     }
                     TextButton(
                         onClick = {
+                            haptics.reject()
                             revoking = true
                             coroutines.launch {
                                 try {

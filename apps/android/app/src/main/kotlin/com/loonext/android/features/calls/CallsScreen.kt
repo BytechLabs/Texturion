@@ -2,7 +2,9 @@ package com.loonext.android.features.calls
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,11 +14,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Dialpad
@@ -26,6 +31,7 @@ import androidx.compose.material.icons.outlined.PhoneForwarded
 import androidx.compose.material.icons.outlined.PhoneMissed
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -33,6 +39,9 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,15 +76,18 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
@@ -149,9 +161,11 @@ fun CallsScreen(
         manager.start(companyId, me.display_name)
     }
 
+    val haptics = rememberHaptics()
     var filter by rememberSaveable { mutableStateOf(CallsFilter.All) }
     var loadingMore by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
+    var refreshing by remember { mutableStateOf(false) }
     var dialerOpen by rememberSaveable { mutableStateOf(false) }
     var dialerPrefill by rememberSaveable { mutableStateOf("") }
     var addContactPrefill by rememberSaveable { mutableStateOf<String?>(null) }
@@ -167,7 +181,13 @@ fun CallsScreen(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
-    ) { fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey) }
+    ) {
+        try {
+            fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey)
+        } finally {
+            refreshing = false
+        }
+    }
     // Realtime: the calls table's DB trigger broadcasts call.updated (ID-only)
     // on every session change — refetch the first page; ditto on re-join.
     LaunchedEffect(companyId) {
@@ -206,17 +226,44 @@ fun CallsScreen(
                     FilterPill(
                         label = item.label,
                         selected = filter == item,
-                        onClick = { filter = item },
+                        onClick = {
+                            haptics.tap()
+                            filter = item
+                        },
                     )
                 }
             }
 
+            val pullState = rememberPullToRefreshState()
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    refreshing = true
+                    refreshKey++
+                },
+                state = pullState,
+                indicator = {
+                    PullToRefreshDefaults.LoadingIndicator(
+                        state = pullState,
+                        isRefreshing = refreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
             when (val current = state) {
-                is LoadState.Loading -> CenteredLoading()
+                is LoadState.Loading -> CallLogSkeleton()
                 is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
                 is LoadState.Ready -> {
                     if (current.value.calls.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             Text(
                                 when (filter) {
                                     CallsFilter.Missed -> "No missed calls."
@@ -245,12 +292,18 @@ fun CallsScreen(
                                 item(key = "hdr-$label") {
                                     SectionHeader(
                                         label,
-                                        Modifier.padding(top = 10.dp),
+                                        Modifier
+                                            .animateItem()
+                                            .padding(top = 10.dp),
                                         count = calls.size,
                                     )
                                 }
                                 item(key = "card-$label") {
-                                    PaperCard(Modifier.fillMaxWidth()) {
+                                    PaperCard(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .animateItem(),
+                                    ) {
                                         calls.forEachIndexed { index, call ->
                                             key(call.id) {
                                                 CallRow(
@@ -280,6 +333,7 @@ fun CallsScreen(
                                 item(key = "load-more") {
                                     Box(
                                         Modifier
+                                            .animateItem()
                                             .fillMaxWidth()
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center,
@@ -331,6 +385,7 @@ fun CallsScreen(
                             item(key = "auto-text-hint") {
                                 Box(
                                     Modifier
+                                        .animateItem()
                                         .fillMaxWidth()
                                         .padding(top = 14.dp),
                                     contentAlignment = Alignment.Center,
@@ -355,21 +410,26 @@ fun CallsScreen(
                     }
                 }
             }
+            }
         }
 
         // The dialpad FAB — 54dp ink circle above the pill nav (spec 25).
+        val fabInteraction = remember { MutableInteractionSource() }
         Surface(
             onClick = {
+                haptics.tap()
                 dialerPrefill = ""
                 dialerOpen = true
             },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
+            interactionSource = fabInteraction,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 18.dp, bottom = 10.dp)
                 .size(54.dp)
+                .pressScale(fabInteraction)
                 .shadow(14.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.3f)),
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -427,6 +487,7 @@ private fun SoftphoneStatusLine(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
     val (label, dot, text) = when (status) {
         SoftphoneStatus.READY -> Triple(
@@ -453,7 +514,10 @@ private fun SoftphoneStatusLine(
         textColor = text,
         modifier = modifier.clickable(
             enabled = status == SoftphoneStatus.DISCONNECTED,
-            onClick = onRetry,
+            onClick = {
+                haptics.tap()
+                onRetry()
+            },
         ),
     )
 }
@@ -493,6 +557,7 @@ private fun CallRow(
     onDialBack: (() -> Unit)?,
 ) {
     val name = callerDisplayName(call)
+    val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
     Column(
         Modifier
@@ -568,12 +633,19 @@ private fun CallRow(
                 color = MaterialTheme.colorScheme.outline,
             )
             if (onDialBack != null) {
+                val dialBackInteraction = remember { MutableInteractionSource() }
                 Surface(
-                    onClick = onDialBack,
+                    onClick = {
+                        haptics.tap()
+                        onDialBack()
+                    },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(34.dp),
+                    interactionSource = dialBackInteraction,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .pressScale(dialBackInteraction),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -643,6 +715,7 @@ private fun VoicemailPlayerRow(
     var durationMs by remember(sessionId) { mutableStateOf(seconds * 1000) }
     var error by remember(sessionId) { mutableStateOf<String?>(null) }
     var scrubbing by remember(sessionId) { mutableStateOf(false) }
+    val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
 
     DisposableEffect(sessionId) {
@@ -715,17 +788,20 @@ private fun VoicemailPlayerRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
+                val playInteraction = remember(sessionId) { MutableInteractionSource() }
                 Surface(
                     onClick = {
                         val current = player
                         when {
                             preparing -> Unit
                             playing -> {
+                                haptics.tap()
                                 runCatching { current?.pause() }
                                 playing = false
                             }
 
                             current != null -> {
+                                haptics.tap()
                                 // Replaying a finished clip restarts from the top.
                                 if (positionMs >= durationMs) {
                                     runCatching { current.seekTo(0) }
@@ -735,54 +811,95 @@ private fun VoicemailPlayerRow(
                                 playing = true
                             }
 
-                            else -> beginPlayback()
+                            else -> {
+                                haptics.tap()
+                                beginPlayback()
+                            }
                         }
                     },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(28.dp),
+                    interactionSource = playInteraction,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .pressScale(playInteraction),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (preparing) {
                             LoadingIndicator(Modifier.size(14.dp))
                         } else {
-                            Icon(
-                                if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                                contentDescription = if (playing) {
-                                    "Pause voicemail"
-                                } else {
-                                    "Play voicemail"
-                                },
-                                modifier = Modifier.size(14.dp),
-                            )
+                            AnimatedContent(
+                                targetState = playing,
+                                label = "vmPlayPause",
+                            ) { isPlaying ->
+                                Icon(
+                                    if (isPlaying) {
+                                        Icons.Outlined.Pause
+                                    } else {
+                                        Icons.Outlined.PlayArrow
+                                    },
+                                    contentDescription = if (isPlaying) {
+                                        "Pause voicemail"
+                                    } else {
+                                        "Play voicemail"
+                                    },
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
                         }
                     }
                 }
-                Slider(
-                    value = positionMs.toFloat()
-                        .coerceIn(0f, durationMs.toFloat().coerceAtLeast(1f)),
-                    onValueChange = {
-                        scrubbing = true
-                        positionMs = it.toInt()
-                    },
-                    onValueChangeFinished = {
-                        scrubbing = false
-                        runCatching { player?.seekTo(positionMs) }
-                    },
-                    valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
-                    enabled = player != null,
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                        disabledThumbColor = MaterialTheme.colorScheme.outline,
-                        disabledActiveTrackColor = MaterialTheme.colorScheme.outline,
-                        disabledInactiveTrackColor =
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
+                // The bar waves while audio is audible; paused/idle keeps the
+                // scrubber so seek stays one gesture away (#194).
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (playing && !scrubbing) {
+                        LinearWavyProgressIndicator(
+                            progress = {
+                                (
+                                    positionMs.toFloat() /
+                                        durationMs.toFloat().coerceAtLeast(1f)
+                                    ).coerceIn(0f, 1f)
+                            },
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor =
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Slider(
+                            value = positionMs.toFloat()
+                                .coerceIn(0f, durationMs.toFloat().coerceAtLeast(1f)),
+                            onValueChange = {
+                                scrubbing = true
+                                positionMs = it.toInt()
+                            },
+                            onValueChangeFinished = {
+                                scrubbing = false
+                                haptics.tick()
+                                runCatching { player?.seekTo(positionMs) }
+                            },
+                            valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
+                            enabled = player != null,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor =
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                disabledThumbColor = MaterialTheme.colorScheme.outline,
+                                disabledActiveTrackColor = MaterialTheme.colorScheme.outline,
+                                disabledInactiveTrackColor =
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
                 Text(
                     "${formatTimer(positionMs.toLong())} / ${formatVoicemailLength(seconds)}",
                     fontSize = 10.5.sp,
@@ -798,6 +915,37 @@ private fun VoicemailPlayerRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
+    }
+}
+
+/**
+ * First-fetch stand-in in the log's own grammar (#194): two shimmering
+ * day groups — header caption + carded avatar rows. Failed states and
+ * cached repaints never see this.
+ */
+@Composable
+private fun CallLogSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp),
+    ) {
+        SkeletonBlock(
+            width = 72.dp,
+            height = 10.dp,
+            modifier = Modifier.padding(top = 16.dp, bottom = 7.dp, start = 6.dp),
+        )
+        PaperCard(Modifier.fillMaxWidth()) {
+            SkeletonList(rows = 3)
+        }
+        SkeletonBlock(
+            width = 72.dp,
+            height = 10.dp,
+            modifier = Modifier.padding(top = 18.dp, bottom = 7.dp, start = 6.dp),
+        )
+        PaperCard(Modifier.fillMaxWidth()) {
+            SkeletonList(rows = 4)
         }
     }
 }

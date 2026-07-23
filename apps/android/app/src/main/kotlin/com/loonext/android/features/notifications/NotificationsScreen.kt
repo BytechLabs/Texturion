@@ -1,5 +1,6 @@
 package com.loonext.android.features.notifications
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,8 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.PhoneMissed
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -30,6 +34,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,13 +60,14 @@ import com.loonext.android.core.model.NotificationType
 import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -77,6 +85,7 @@ import kotlinx.coroutines.launch
  * instantly from StoreCache on every return visit and revalidate silently;
  * the only spinner is the true first in-process fetch.
  */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NotificationsScreen(
     graph: AppGraph,
@@ -87,9 +96,12 @@ fun NotificationsScreen(
     val repo = remember(graph) { NotificationsFeedRepository(graph.api) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val haptics = rememberHaptics()
 
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
+    var refreshing by remember(companyId) { mutableStateOf(false) }
+    val pullState = rememberPullToRefreshState()
 
     // The furthest watermark this session has advanced to (forward-only, the
     // server RPC's semantics). Re-applied to every fetched page so a refetch
@@ -208,6 +220,7 @@ fun NotificationsScreen(
     fun markAllRead() {
         val previousFeed = feedFlow.value
         if (unreadCount == 0 && previousFeed?.data.orEmpty().none { it.unread }) return
+        haptics.confirm()
         val previousCount = unreadCount
         val previousWatermark = localWatermark
         if (previousFeed != null) {
@@ -231,6 +244,26 @@ fun NotificationsScreen(
                 snackbar.showSnackbar("Couldn't mark all read.")
             } finally {
                 pendingMarks--
+            }
+        }
+    }
+
+    // Pull-to-refresh: the same page-1 revalidate a realtime tick performs
+    // (trim back to page 1, badge refetch), awaited here only so the
+    // indicator settles honestly. Data on screen never blanks.
+    fun manualRefresh() {
+        if (refreshing) return
+        refreshing = true
+        scope.launch {
+            try {
+                val page = repo.feed(companyId)
+                feedFlow.value = page.copy(data = withLocalReads(page.data))
+                runCatching { repo.unreadCount(companyId) }
+                    .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
+            } catch (_: Exception) {
+                snackbar.showSnackbar("Couldn't refresh.")
+            } finally {
+                refreshing = false
             }
         }
     }
@@ -262,114 +295,172 @@ fun NotificationsScreen(
 
     Box(modifier.fillMaxSize()) {
         when (val current = state) {
-            is LoadState.Loading -> CenteredLoading()
+            is LoadState.Loading ->
+                // First-fetch stand-in in the real bell grammar: one paper
+                // card of avatar rows below where the actions row sits.
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 18.dp),
+                ) {
+                    Spacer(Modifier.height(48.dp))
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        SkeletonList(rows = 8, avatar = true)
+                    }
+                }
 
             is LoadState.Failed -> CenteredError(
                 current.message,
                 onRetry = { refreshKey++ },
             )
 
-            is LoadState.Ready -> Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 18.dp),
+            is LoadState.Ready -> PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = ::manualRefresh,
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.LoadingIndicator(
+                        state = pullState,
+                        isRefreshing = refreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                },
             ) {
-                // The overlay scaffold already shows the back arrow + title;
-                // this row carries only the olive 'Read all' action.
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 18.dp),
                 ) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        onClick = ::markAllRead,
-                        enabled = unreadCount > 0 || items.any { it.unread },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.secondary,
-                        ),
+                    // The overlay scaffold already shows the back arrow +
+                    // title; this row carries the live unread count and the
+                    // olive 'Read all' action.
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            "Read all",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
+                        AnimatedContent(
+                            targetState = unreadCount,
+                            label = "unreadCount",
+                            modifier = Modifier.padding(start = 6.dp),
+                        ) { count ->
+                            Text(
+                                if (count > 0) "$count unread" else "",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(
+                            onClick = ::markAllRead,
+                            enabled = unreadCount > 0 || items.any { it.unread },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary,
                             ),
-                        )
+                        ) {
+                            Text(
+                                "Read all",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                            )
+                        }
                     }
-                }
 
-                if (items.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "You're all caught up.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false),
-                    ) {
-                        LazyColumn(contentPadding = PaddingValues(bottom = 4.dp)) {
-                            itemsIndexed(
-                                items,
-                                key = { _, row -> "${row.type}:${row.id}" },
-                            ) { index, row ->
-                                Column {
-                                    if (index > 0) RowDivider()
-                                    NotificationRow(
-                                        row = row,
-                                        onTap = {
-                                            markItemRead(row)
-                                            row.conversation_id?.let(onOpenConversation)
-                                        },
-                                    )
+                    if (items.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "You're all caught up.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
+                        ) {
+                            LazyColumn(contentPadding = PaddingValues(bottom = 4.dp)) {
+                                itemsIndexed(
+                                    items,
+                                    key = { _, row -> "${row.type}:${row.id}" },
+                                ) { index, row ->
+                                    Column(Modifier.animateItem()) {
+                                        if (index > 0) RowDivider()
+                                        NotificationRow(
+                                            row = row,
+                                            onTap = {
+                                                haptics.tap()
+                                                markItemRead(row)
+                                                row.conversation_id?.let(onOpenConversation)
+                                            },
+                                        )
+                                    }
                                 }
-                            }
-                            if (nextCursor != null) {
-                                item(key = "show-older") {
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        TextButton(
-                                            onClick = ::loadOlder,
-                                            enabled = !loadingMore,
-                                            colors = ButtonDefaults.textButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.secondary,
-                                            ),
+                                if (nextCursor != null) {
+                                    item(key = "show-older") {
+                                        Box(
+                                            Modifier
+                                                .animateItem()
+                                                .fillMaxWidth()
+                                                .padding(vertical = 6.dp),
+                                            contentAlignment = Alignment.Center,
                                         ) {
-                                            Text(
-                                                if (loadingMore) "Loading older…" else "Show older",
-                                            )
+                                            TextButton(
+                                                onClick = ::loadOlder,
+                                                enabled = !loadingMore,
+                                                colors = ButtonDefaults.textButtonColors(
+                                                    contentColor =
+                                                    MaterialTheme.colorScheme.secondary,
+                                                ),
+                                            ) {
+                                                Text(
+                                                    if (loadingMore) {
+                                                        "Loading older…"
+                                                    } else {
+                                                        "Show older"
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 13.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainer,
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 13.dp),
+                            horizontalArrangement =
+                            androidx.compose.foundation.layout.Arrangement.Center,
                         ) {
-                            Text(
-                                "Push and email mirror these · Settings › Notifications",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                            ) {
+                                Text(
+                                    "Push and email mirror these · Settings › Notifications",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(
+                                        horizontal = 14.dp,
+                                        vertical = 7.dp,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }

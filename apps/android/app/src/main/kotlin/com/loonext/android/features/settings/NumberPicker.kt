@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -95,7 +97,9 @@ fun NumberPickerDialog(
         onDismissRequest = { if (!pending) onDismiss() },
         title = { Text(title) },
         text = {
-            Column {
+            // #180: the dialog text scrolls so the refresh button below the
+            // bounded results list is never squeezed out on short viewports.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = areaCode,
@@ -258,29 +262,31 @@ private fun PickerResults(
         }
         LazyColumn(Modifier.heightIn(max = 320.dp)) {
             items(filtered, key = { it.phone_number }) { number ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !pending) {
-                            onPick(NumberChoice.Exact(number.phone_number))
-                        }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        formatPhone(number.phone_number),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    number.region?.let { region ->
+                Column(Modifier.animateItem()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !pending) {
+                                onPick(NumberChoice.Exact(number.phone_number))
+                            }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            region,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            formatPhone(number.phone_number),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
                         )
+                        number.region?.let { region ->
+                            Text(
+                                region,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
         TextButton(onClick = onRefresh, enabled = !pending) { Text("Refresh the list") }

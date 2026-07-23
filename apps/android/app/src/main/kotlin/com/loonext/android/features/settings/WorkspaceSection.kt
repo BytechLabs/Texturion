@@ -31,7 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +72,7 @@ private fun NameCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val trimmed = name.trim()
     val dirty = trimmed != company.name
     val valid = trimmed.length in 1..200
@@ -105,6 +108,7 @@ private fun NameCard(
                                     buildJsonObject { put("name", trimmed) },
                                 )
                                 onCompanyUpdated(updated)
+                                haptics.confirm()
                                 scope.showMessage("Workspace name saved.")
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
@@ -142,11 +146,11 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
             "It comes from your texting registration.",
     ) {
         when (val current = state) {
-            is LoadState.Loading -> Text(
-                "Loading…",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            is LoadState.Loading -> Column {
+                SkeletonBlock(224.dp, 11.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonBlock(176.dp, 11.dp)
+            }
 
             is LoadState.Failed -> Column {
                 Text(
@@ -260,6 +264,7 @@ private fun TimezoneCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     // Live "It's 3:42 PM in …" preview — ticks with the clock.
     val now by produceState(initialValue = ZonedDateTime.now(), company.timezone) {
@@ -317,6 +322,7 @@ private fun TimezoneCard(
                             buildJsonObject { put("timezone", picked) },
                         )
                         onCompanyUpdated(updated)
+                        haptics.confirm()
                         scope.showMessage("Timezone saved.")
                     } catch (cause: Exception) {
                         error = cause.userMessage()
@@ -369,32 +375,36 @@ private fun TimezonePickerDialog(
                             val zoneTime = runCatching {
                                 now.withZoneSameInstant(ZoneId.of(zoneId)).format(TIME_FORMAT)
                             }.getOrNull()
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onPick(zoneId) }
-                                    .padding(vertical = 10.dp),
-                            ) {
-                                Text(
-                                    zoneId,
-                                    style = if (zoneId == current) {
-                                        MaterialTheme.typography.bodyMedium.copy(
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    } else {
-                                        MaterialTheme.typography.bodyMedium
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                )
-                                if (zoneTime != null) {
+                            Column(Modifier.animateItem()) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onPick(zoneId) }
+                                        .padding(vertical = 10.dp),
+                                ) {
                                     Text(
-                                        zoneTime,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        zoneId,
+                                        style = if (zoneId == current) {
+                                            MaterialTheme.typography.bodyMedium.copy(
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        } else {
+                                            MaterialTheme.typography.bodyMedium
+                                        },
+                                        modifier = Modifier.weight(1f),
                                     )
+                                    if (zoneTime != null) {
+                                        Text(
+                                            zoneTime,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }

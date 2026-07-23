@@ -9,11 +9,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 
 /**
@@ -66,9 +69,12 @@ internal fun TagManageSheet(
     }
 
     val attachedIds = attached.mapTo(HashSet()) { it.id }
+    val haptics = rememberHaptics()
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+        // #180 contract: sheet roots scroll so every tag row is reachable at
+        // ANY viewport height (inert on tall screens).
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(
                 "Tags",
                 style = MaterialTheme.typography.titleMedium,
@@ -76,12 +82,8 @@ internal fun TagManageSheet(
             )
 
             when (val current = allTags) {
-                is LoadState.Loading -> Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                ) { LoadingIndicator() }
+                // First-fetch shimmer in the sheet's own row grammar.
+                is LoadState.Loading -> SkeletonList(rows = 4, avatar = false)
 
                 is LoadState.Failed -> Column(Modifier.padding(horizontal = 20.dp)) {
                     Text(
@@ -111,6 +113,7 @@ internal fun TagManageSheet(
                         TextButton(
                             enabled = plan != null,
                             onClick = {
+                                haptics.confirm()
                                 plan?.let(onAttach)
                                 input = ""
                             },
@@ -138,6 +141,7 @@ internal fun TagManageSheet(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    haptics.tap()
                                     if (isAttached) onDetach(tag)
                                     else onAttach(TagAttachPlan.Existing(tag))
                                 }

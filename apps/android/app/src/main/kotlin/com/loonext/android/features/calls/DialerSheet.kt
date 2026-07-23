@@ -3,6 +3,7 @@ package com.loonext.android.features.calls
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -47,6 +48,8 @@ import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
@@ -87,6 +90,7 @@ fun DialerSheet(
     /** Offer "Add contact" for an unmatched dialable number. */
     onAddContact: ((e164: String) -> Unit)? = null,
 ) {
+    val haptics = rememberHaptics()
     var digits by remember { mutableStateOf(initialDigits.take(15)) }
     var matchedName by remember { mutableStateOf<String?>(null) }
     if (lookupContact != null) {
@@ -179,7 +183,10 @@ fun DialerSheet(
                             FromNumberPill(
                                 label = "From ${formatPhone(number.number_e164)}",
                                 selected = fromId == number.id,
-                                onClick = { fromId = number.id },
+                                onClick = {
+                                    haptics.tap()
+                                    fromId = number.id
+                                },
                             )
                         }
                     }
@@ -236,7 +243,10 @@ fun DialerSheet(
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .clickable { onAddContact!!.invoke(addTarget) }
+                                .clickable {
+                                    haptics.tap()
+                                    onAddContact!!.invoke(addTarget)
+                                }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         )
                     }
@@ -251,7 +261,12 @@ fun DialerSheet(
                             KeypadKey(
                                 digit = key,
                                 letters = letters,
-                                onClick = { if (digits.length < 15) digits += key },
+                                onClick = {
+                                    if (digits.length < 15) {
+                                        haptics.tap()
+                                        digits += key
+                                    }
+                                },
                                 size = keySize,
                                 textScale = scale,
                             )
@@ -267,8 +282,10 @@ fun DialerSheet(
                 ) {
                     Box(Modifier.weight(1f)) {}
                     // The lime call disc (spec 03) — disabled until dialable.
+                    val callInteraction = remember { MutableInteractionSource() }
                     Surface(
                         onClick = {
+                            haptics.confirm()
                             if (manager.hasMicPermission()) {
                                 placeCall()
                             } else {
@@ -279,8 +296,10 @@ fun DialerSheet(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.tertiary,
                         contentColor = MaterialTheme.colorScheme.onTertiary,
+                        interactionSource = callInteraction,
                         modifier = Modifier
                             .size(68.dp * scale)
+                            .pressScale(callInteraction)
                             .alpha(if (dialable != null && !calling) 1f else 0.45f),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -297,7 +316,10 @@ fun DialerSheet(
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         IconButton(
-                            onClick = { digits = digits.dropLast(1) },
+                            onClick = {
+                                haptics.tap()
+                                digits = digits.dropLast(1)
+                            },
                             enabled = digits.isNotEmpty(),
                         ) {
                             Icon(

@@ -4,8 +4,11 @@ import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,16 +69,19 @@ import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.SkeletonListRow
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -170,7 +176,7 @@ internal fun ContactDetailScreen(
         }
 
         when (val current = state) {
-            is LoadState.Loading -> CenteredLoading()
+            is LoadState.Loading -> ContactDetailSkeleton()
             is LoadState.Failed ->
                 if (notFound) {
                     Text(
@@ -217,6 +223,7 @@ private fun ContactDetailBody(
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val haptics = rememberHaptics()
 
     var actionError by remember(contact.id) { mutableStateOf<String?>(null) }
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
@@ -325,7 +332,10 @@ private fun ContactDetailBody(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 IconButton(
-                    onClick = { clipboard.setText(AnnotatedString(contact.phone_e164)) },
+                    onClick = {
+                        haptics.tap()
+                        clipboard.setText(AnnotatedString(contact.phone_e164))
+                    },
                     modifier = Modifier.size(28.dp),
                 ) {
                     Icon(
@@ -358,7 +368,10 @@ private fun ContactDetailBody(
                         icon = Icons.AutoMirrored.Outlined.Chat,
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
-                        onClick = { onOpenConversation(conversation.id) },
+                        onClick = {
+                            haptics.tap()
+                            onOpenConversation(conversation.id)
+                        },
                     )
                 } else if (conversation == null && onComposeNew != null) {
                     ActionPill(
@@ -366,7 +379,10 @@ private fun ContactDetailBody(
                         icon = Icons.AutoMirrored.Outlined.Chat,
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
-                        onClick = { onComposeNew(contact.id) },
+                        onClick = {
+                            haptics.tap()
+                            onComposeNew(contact.id)
+                        },
                     )
                 }
                 ActionPill(
@@ -376,6 +392,7 @@ private fun ContactDetailBody(
                     content = MaterialTheme.colorScheme.onSurface,
                     enabled = !placingCall,
                     onClick = {
+                        haptics.tap()
                         if (softphone.hasMicPermission()) {
                             placeCall()
                         } else {
@@ -406,6 +423,7 @@ private fun ContactDetailBody(
                     TextButton(
                         enabled = !working,
                         onClick = {
+                            haptics.confirm()
                             runAction {
                                 mutations.revokeOptOut(companyId, contact.id)
                                 onChanged()
@@ -484,11 +502,22 @@ private fun ContactDetailBody(
         if (conversationRow != null && onOpenConversation != null) {
             Column {
                 SectionHeader("Conversations")
-                PaperCard(Modifier.fillMaxWidth()) {
+                val cardInteraction = remember { MutableInteractionSource() }
+                PaperCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .pressScale(cardInteraction),
+                ) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenConversation(conversationRow.id) }
+                            .clickable(
+                                interactionSource = cardInteraction,
+                                indication = LocalIndication.current,
+                            ) {
+                                haptics.tap()
+                                onOpenConversation(conversationRow.id)
+                            }
                             .padding(horizontal = 15.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -584,6 +613,7 @@ private fun ContactDetailBody(
                 TextButton(
                     enabled = !working,
                     onClick = {
+                        haptics.reject()
                         confirmOptOut = false
                         runAction {
                             mutations.optOut(companyId, contact.id)
@@ -613,6 +643,7 @@ private fun ContactDetailBody(
                 TextButton(
                     enabled = !working,
                     onClick = {
+                        haptics.reject()
                         confirmDelete = false
                         runAction {
                             mutations.delete(companyId, contact.id)
@@ -628,6 +659,35 @@ private fun ContactDetailBody(
     }
 }
 
+/**
+ * First-open stand-in shimmering in the detail's real grammar: squircle
+ * avatar, name and phone lines, then the info card's three field rows.
+ * Cache-first (#176) makes this the true first open only.
+ */
+@Composable
+private fun ContactDetailSkeleton() {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(6.dp))
+        SkeletonBlock(78.dp, 78.dp, shape = RoundedCornerShape(26.dp))
+        Spacer(Modifier.height(12.dp))
+        SkeletonBlock(148.dp, 20.dp)
+        Spacer(Modifier.height(9.dp))
+        SkeletonBlock(110.dp, 12.dp)
+        Spacer(Modifier.height(24.dp))
+        PaperCard(Modifier.fillMaxWidth()) {
+            repeat(3) { index ->
+                if (index > 0) RowDivider(Modifier.padding(horizontal = 15.dp))
+                SkeletonListRow(avatar = false)
+            }
+        }
+    }
+}
+
 /** 44dp paper circle with a 17dp stroke back arrow. */
 @Composable
 private fun PaperCircleButton(
@@ -635,12 +695,16 @@ private fun PaperCircleButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp,
-        modifier = modifier.size(44.dp),
+        interactionSource = interaction,
+        modifier = modifier
+            .size(44.dp)
+            .pressScale(interaction),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -662,12 +726,15 @@ private fun ActionPill(
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
         enabled = enabled,
         shape = CircleShape,
         color = container,
         contentColor = content,
+        interactionSource = interaction,
+        modifier = Modifier.pressScale(interaction),
     ) {
         Row(
             Modifier.padding(horizontal = 17.dp, vertical = 10.dp),
@@ -675,13 +742,15 @@ private fun ActionPill(
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
+            AnimatedContent(targetState = label, label = "pillLabel") { text ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            }
         }
     }
 }

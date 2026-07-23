@@ -1,11 +1,13 @@
 package com.loonext.android.features.inbox
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -93,9 +97,12 @@ import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -212,6 +219,10 @@ private class InboxController(
     var cursor by mutableStateOf<String?>(null)
         private set
     var loadingMore by mutableStateOf(false)
+        private set
+
+    /** True only while a pull-to-refresh revalidation is in flight. */
+    var refreshing by mutableStateOf(false)
         private set
 
     var members by mutableStateOf<List<Member>>(emptyList())
@@ -389,9 +400,10 @@ private class InboxController(
         }
     }
 
-    fun reload(showLoading: Boolean) {
+    fun reload(showLoading: Boolean, manual: Boolean = false) {
         val seq = ++loadSeq
         if (showLoading) state = LoadState.Loading
+        if (manual) refreshing = true
         scope.launch {
             try {
                 val page = fetchPage(cursor = null, pinned = "exclude")
@@ -411,6 +423,10 @@ private class InboxController(
                 if (seq == loadSeq && state !is LoadState.Ready) {
                     state = LoadState.Failed(cause.userMessage())
                 }
+            } finally {
+                // Unconditional: a superseded manual refresh must never leave
+                // the crest spinning.
+                if (manual) refreshing = false
             }
         }
     }
@@ -537,7 +553,7 @@ private class InboxController(
 // List UI (Paper & Olive — spec 20)
 // ---------------------------------------------------------------------------
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun InboxList(
     graph: AppGraph,
@@ -575,6 +591,7 @@ private fun InboxList(
 
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var filterSheetOpen by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
 
     Box(modifier.fillMaxSize()) {
         if (searchOpen) {
@@ -627,20 +644,33 @@ private fun InboxList(
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.weight(1f)) {
                     when (val current = controller.state) {
-                        is LoadState.Loading -> CenteredLoading()
+                        // First fetch only (#176 keeps every revisit cached):
+                        // shimmer in the conversation-row grammar, not a spinner.
+                        is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
+                            SkeletonList(rows = 8)
+                        }
+
                         is LoadState.Failed -> CenteredError(
                             current.message,
                             onRetry = { controller.reload(showLoading = true) },
                         )
 
-                        is LoadState.Ready -> ConversationListPane(
-                            controller = controller,
-                            meUserId = me.user_id,
-                            onOpen = { id ->
-                                controller.markLocallyRead(id)
-                                onOpen(id)
+                        is LoadState.Ready -> PullToRefreshBox(
+                            isRefreshing = controller.refreshing,
+                            onRefresh = {
+                                haptics.tick()
+                                controller.reload(showLoading = false, manual = true)
                             },
-                        )
+                        ) {
+                            ConversationListPane(
+                                controller = controller,
+                                meUserId = me.user_id,
+                                onOpen = { id ->
+                                    controller.markLocallyRead(id)
+                                    onOpen(id)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -668,9 +698,14 @@ private fun InboxHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ScreenTitle("Inbox")
-        if (unreadCount > 0) {
-            Spacer(Modifier.width(9.dp))
-            DsChip("$unreadCount unread")
+        // Animated so the chip grows in, ticks its count, and shrinks away.
+        AnimatedContent(targetState = unreadCount, label = "unreadBadge") { count ->
+            if (count > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.width(9.dp))
+                    DsChip("$count unread")
+                }
+            }
         }
         Spacer(Modifier.weight(1f))
         PaperIconButton(
@@ -696,13 +731,20 @@ private fun PaperIconButton(
     onClick: () -> Unit,
     badge: Boolean = false,
 ) {
-    Box {
+    val haptics = rememberHaptics()
+    val pressSource = remember { MutableInteractionSource() }
+    // pressScale on the wrapper so the badge dot gives with the circle.
+    Box(Modifier.pressScale(pressSource)) {
         Surface(
-            onClick = onClick,
+            onClick = {
+                haptics.tap()
+                onClick()
+            },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             shadowElevation = 1.dp,
+            interactionSource = pressSource,
             modifier = Modifier.size(44.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -733,8 +775,12 @@ private fun FilterPill(
     leading: (@Composable () -> Unit)? = null,
 ) {
     val solid = selected && !outlined
+    val haptics = rememberHaptics()
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptics.tap()
+            onClick()
+        },
         shape = CircleShape,
         color = if (solid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         contentColor = when {
@@ -873,6 +919,8 @@ private fun ConversationListPane(
                 GroupedRow(
                     first = index == 0,
                     last = index == controller.pinnedRows.lastIndex,
+                    // Realtime arrivals fade in; re-sorts glide instead of jump.
+                    modifier = Modifier.animateItem(),
                     onClick = { onOpen(row.id) },
                 ) { ConversationRow(row, assigneeName(row)) }
             }
@@ -887,6 +935,7 @@ private fun ConversationListPane(
             GroupedRow(
                 first = index == 0,
                 last = index == controller.rows.lastIndex,
+                modifier = Modifier.animateItem(),
                 onClick = { onOpen(row.id) },
             ) { ConversationRow(row, assigneeName(row)) }
         }
@@ -1058,6 +1107,7 @@ private fun FiltersSheet(
     meUserId: String,
     onDismiss: () -> Unit,
 ) {
+    val haptics = rememberHaptics()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
@@ -1087,7 +1137,10 @@ private fun FiltersSheet(
                     modifier = Modifier
                         .minimumInteractiveComponentSize()
                         .clip(CircleShape)
-                        .clickable { controller.resetFilters() }
+                        .clickable {
+                            haptics.tap()
+                            controller.resetFilters()
+                        }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                 )
             }
@@ -1215,7 +1268,10 @@ private fun FiltersSheet(
             // Filters apply live; this just closes the sheet (ink pill + lime
             // arrow, spec 01).
             Surface(
-                onClick = onDismiss,
+                onClick = {
+                    haptics.tap()
+                    onDismiss()
+                },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1253,8 +1309,14 @@ private fun FiltersSheet(
 /** Paper toggle row (radius 18) with a lime-tracked switch (spec 01). */
 @Composable
 private fun ToggleCard(label: String, checked: Boolean, onToggle: () -> Unit) {
+    val haptics = rememberHaptics()
+    // One shared path so the row tap and the switch never double-fire.
+    val toggle = {
+        haptics.tap()
+        onToggle()
+    }
     Surface(
-        onClick = onToggle,
+        onClick = toggle,
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
     ) {
@@ -1272,7 +1334,7 @@ private fun ToggleCard(label: String, checked: Boolean, onToggle: () -> Unit) {
             )
             Switch(
                 checked = checked,
-                onCheckedChange = { onToggle() },
+                onCheckedChange = { toggle() },
                 colors = SwitchDefaults.colors(
                     checkedTrackColor = MaterialTheme.colorScheme.tertiary,
                     checkedThumbColor = MaterialTheme.colorScheme.surface,

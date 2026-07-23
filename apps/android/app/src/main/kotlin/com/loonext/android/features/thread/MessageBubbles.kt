@@ -1,8 +1,19 @@
 package com.loonext.android.features.thread
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,7 +67,10 @@ import com.loonext.android.core.model.CARRIER_OPT_OUT_ERROR_CODE
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
+import com.loonext.android.features.compose.icon
+import com.loonext.android.features.compose.mmsKindOf
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
 import java.time.ZoneId
@@ -110,6 +124,7 @@ fun MessageBubble(
     onRetry: () -> Unit,
     mintAttachmentUrl: suspend (String) -> String,
     onOpenFile: (Attachment) -> Unit,
+    onOpenAttachment: (AttachmentSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
@@ -173,6 +188,18 @@ fun MessageBubble(
                     SignedAttachmentImage(
                         attachment = attachment,
                         mintUrl = mintAttachmentUrl,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+
+            // #189 non-image MMS media: one calm tappable file chip per item.
+            message.attachments
+                .filterNot { it.content_type.startsWith("image/") }
+                .forEach { attachment ->
+                    AttachmentFileChip(
+                        attachment = attachment,
+                        onInk = outbound,
+                        onOpen = { onOpenAttachment(attachment) },
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
@@ -256,12 +283,31 @@ private fun MessageMetaLine(
             add(bubbleTime(message.created_at))
             if (outbound && !failed) deliveryLabel(message)?.let { add(it) }
         }
-        Text(
-            quiet.joinToString(" · "),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (delivered) {
+        // Delivery-state swaps (Sending… → Sent → Delivered) fade instead of
+        // snapping; the initial cached paint renders without animation.
+        AnimatedContent(
+            targetState = quiet.joinToString(" · "),
+            transitionSpec = {
+                fadeIn(tween(durationMillis = 180)) togetherWith
+                    fadeOut(tween(durationMillis = 120))
+            },
+            label = "delivery-line",
+        ) { line ->
+            Text(
+                line,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // The lime mark lands with a small spring when delivery confirms.
+        AnimatedVisibility(
+            visible = delivered,
+            enter = scaleIn(
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                initialScale = 0.4f,
+            ) + fadeIn(),
+            exit = fadeOut(),
+        ) {
             Icon(
                 Icons.Outlined.Check,
                 contentDescription = null,
@@ -323,8 +369,8 @@ fun PendingBubble(pending: PendingSend, modifier: Modifier = Modifier) {
         ) {
             if (pending.mediaCount > 0) {
                 Text(
-                    if (pending.mediaCount == 1) "1 photo"
-                    else "${pending.mediaCount} photos",
+                    if (pending.mediaCount == 1) "1 attachment"
+                    else "${pending.mediaCount} attachments",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -485,6 +531,70 @@ fun SignedAttachmentImage(
                 .height(180.dp)
                 .clip(RoundedCornerShape(14.dp)),
         )
+    }
+}
+
+/**
+ * Non-image MMS attachment in a bubble (#189): a calm tappable file chip —
+ * kind icon, kind label (MMS media carries no filename), size. Paper chip on
+ * the ink bubble, inset chip on paper, so it reads in both directions. Tap
+ * mints a signed URL and opens the file.
+ */
+@Composable
+fun AttachmentFileChip(
+    attachment: AttachmentSummary,
+    onInk: Boolean,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val kind = mmsKindOf(attachment.content_type)
+    val chipBg = if (onInk) MaterialTheme.colorScheme.surface
+    else MaterialTheme.colorScheme.surfaceContainer
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier
+            .pressScale(interaction)
+            .clip(RoundedCornerShape(12.dp))
+            .background(chipBg)
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                onClick = onOpen,
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(30.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                kind.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                kind.label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            gallerySizeLabel(attachment.size_bytes)?.let { size ->
+                Text(
+                    size,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

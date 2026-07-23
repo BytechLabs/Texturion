@@ -1,9 +1,12 @@
 package com.loonext.android.features.foryou
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,11 +27,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,18 +68,22 @@ import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
+import kotlinx.coroutines.delay
 
 /**
  * /for-you — the default landing: Triage (owner/admin), Waiting on you,
@@ -92,6 +102,7 @@ import com.loonext.android.ui.theme.BrandColor
  * [onViewedConversationChanged] reports which thread this tab has open (null
  * when back on the queue) so the shell's inbound toast can suppress itself.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForYouTab(
     graph: AppGraph,
@@ -146,19 +157,43 @@ fun ForYouTab(
         graph.realtime.reconnected.collect { refreshKey++ }
     }
 
+    // Pull-to-refresh rides the same silent refreshKey revalidation the
+    // realtime ticks use (cache-first: rows never blank underneath); the
+    // crest spins just long enough to acknowledge the gesture.
+    var pullRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(pullRefreshing) {
+        if (pullRefreshing) {
+            delay(650)
+            pullRefreshing = false
+        }
+    }
+    val haptics = rememberHaptics()
+
     when (val current = state) {
-        is LoadState.Loading -> CenteredLoading(modifier)
+        // First fetch only (#176 keeps every revisit cached): shimmer in the
+        // queue-card grammar, not a spinner.
+        is LoadState.Loading -> ForYouSkeleton(modifier)
         is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ }, modifier)
-        is LoadState.Ready -> ForYouList(
-            forYou = current.value,
-            recentCalls = recentCalls,
-            unreadNotifications = unreadNotifications,
-            me = me,
-            onOpenConversation = { onOpenThread?.invoke(it) },
-            onOpenCalls = onOpenCalls,
-            onOpenNotifications = { onOpenNotifications?.invoke() },
+        is LoadState.Ready -> PullToRefreshBox(
+            isRefreshing = pullRefreshing,
+            onRefresh = {
+                haptics.tick()
+                pullRefreshing = true
+                refreshKey++
+            },
             modifier = modifier,
-        )
+        ) {
+            ForYouList(
+                forYou = current.value,
+                recentCalls = recentCalls,
+                unreadNotifications = unreadNotifications,
+                me = me,
+                onOpenConversation = { onOpenThread?.invoke(it) },
+                onOpenCalls = onOpenCalls,
+                onOpenNotifications = { onOpenNotifications?.invoke() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
@@ -250,14 +285,19 @@ private fun ForYouList(
         // The activation/empty variant (screen-18 grammar): a centered inset
         // well instead of the queue cards.
         if (total == 0) {
-            item(key = "caught-up") { CaughtUpWell() }
+            item(key = "caught-up") { CaughtUpWell(Modifier.animateItem()) }
         }
 
         forYou.triage
             ?.takeIf { it.conversations.isNotEmpty() || it.tasks.isNotEmpty() }
             ?.let { triage ->
                 item(key = "triage") {
-                    QueueSection("Triage", count = triage.conversations.size + triage.tasks.size) {
+                    QueueSection(
+                        "Triage",
+                        count = triage.conversations.size + triage.tasks.size,
+                        // Sections glide as queues above them empty or fill.
+                        modifier = Modifier.animateItem(),
+                    ) {
                         triage.conversations.forEachIndexed { index, row ->
                             if (index > 0) RowDivider()
                             PersonRow(
@@ -283,7 +323,11 @@ private fun ForYouList(
 
         if (forYou.waiting_on_you.isNotEmpty()) {
             item(key = "waiting") {
-                QueueSection("Waiting on you", count = forYou.waiting_on_you.size) {
+                QueueSection(
+                    "Waiting on you",
+                    count = forYou.waiting_on_you.size,
+                    modifier = Modifier.animateItem(),
+                ) {
                     forYou.waiting_on_you.forEachIndexed { index, row ->
                         if (index > 0) RowDivider()
                         PersonRow(
@@ -299,7 +343,11 @@ private fun ForYouList(
 
         if (forYou.my_tasks.isNotEmpty()) {
             item(key = "tasks") {
-                QueueSection("My tasks", count = forYou.my_tasks.size) {
+                QueueSection(
+                    "My tasks",
+                    count = forYou.my_tasks.size,
+                    modifier = Modifier.animateItem(),
+                ) {
                     forYou.my_tasks.forEachIndexed { index, row ->
                         if (index > 0) RowDivider()
                         TaskQueueRow(
@@ -315,7 +363,11 @@ private fun ForYouList(
 
         if (forYou.unread.isNotEmpty()) {
             item(key = "unread") {
-                QueueSection("Unread", count = forYou.unread.size) {
+                QueueSection(
+                    "Unread",
+                    count = forYou.unread.size,
+                    modifier = Modifier.animateItem(),
+                ) {
                     forYou.unread.forEachIndexed { index, row ->
                         if (index > 0) RowDivider()
                         PersonRow(
@@ -335,7 +387,7 @@ private fun ForYouList(
         when (recentCalls) {
             is LoadState.Loading -> Unit
             is LoadState.Failed -> item(key = "calls-error") {
-                Column(Modifier.padding(top = 14.dp)) {
+                Column(Modifier.animateItem().padding(top = 14.dp)) {
                     RecentCallsHeader(onOpenCalls)
                     Text(
                         "Couldn't load recent calls.",
@@ -348,7 +400,7 @@ private fun ForYouList(
 
             is LoadState.Ready -> if (recentCalls.value.isNotEmpty()) {
                 item(key = "calls") {
-                    Column(Modifier.padding(top = 14.dp)) {
+                    Column(Modifier.animateItem().padding(top = 14.dp)) {
                         RecentCallsHeader(onOpenCalls)
                         PaperCard(Modifier.fillMaxWidth()) {
                             recentCalls.value.forEachIndexed { index, call ->
@@ -373,9 +425,10 @@ private fun ForYouList(
 private fun QueueSection(
     label: String,
     count: Int? = null,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.padding(top = 14.dp)) {
+    Column(modifier.padding(top = 14.dp)) {
         SectionHeader(label, count = count)
         PaperCard(Modifier.fillMaxWidth()) { content() }
     }
@@ -427,10 +480,16 @@ private fun PersonRow(
     chipLabel: String? = null,
     onClick: () -> Unit,
 ) {
+    val pressSource = remember { MutableInteractionSource() }
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = pressSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+            )
+            .pressScale(pressSource, pressed = 0.98f)
             .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -474,10 +533,16 @@ private fun PersonRow(
 /** Task row: 22dp outline ring, 13.5sp SemiBold title, due/overdue why-line. */
 @Composable
 private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClick: () -> Unit) {
+    val pressSource = remember { MutableInteractionSource() }
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = pressSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+            )
+            .pressScale(pressSource, pressed = 0.98f)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -527,10 +592,23 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
 private fun RecentCallRow(call: Call, onClick: (() -> Unit)?) {
     val name = callerDisplayName(call)
     val actionable = isActionableMiss(call)
+    val pressSource = remember { MutableInteractionSource() }
     Row(
         Modifier
             .fillMaxWidth()
-            .let { base -> if (onClick != null) base.clickable(onClick = onClick) else base }
+            .let { base ->
+                if (onClick != null) {
+                    base
+                        .clickable(
+                            interactionSource = pressSource,
+                            indication = LocalIndication.current,
+                            onClick = onClick,
+                        )
+                        .pressScale(pressSource, pressed = 0.98f)
+                } else {
+                    base
+                }
+            }
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -573,11 +651,11 @@ private fun RecentCallRow(call: Call, onClick: (() -> Unit)?) {
 
 /** Screen-18 activation grammar, adapted: a centered radius-26 inset well. */
 @Composable
-private fun CaughtUpWell() {
+private fun CaughtUpWell(modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(26.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth().padding(top = 15.dp),
+        modifier = modifier.fillMaxWidth().padding(top = 15.dp),
     ) {
         Column(
             Modifier.padding(horizontal = 22.dp, vertical = 26.dp),
@@ -606,6 +684,36 @@ private fun CaughtUpWell() {
     }
 }
 
+/**
+ * First-fetch stand-in in the real For You grammar: identity/bell circles,
+ * display title block, then two shimmering queue cards of avatar rows.
+ * Failed and cached states never see this (#176).
+ */
+@Composable
+private fun ForYouSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 18.dp, top = 8.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            SkeletonBlock(40.dp, 40.dp, shape = CircleShape)
+            SkeletonBlock(44.dp, 44.dp, shape = CircleShape)
+        }
+        Spacer(Modifier.height(15.dp))
+        SkeletonBlock(168.dp, 30.dp)
+        Spacer(Modifier.height(9.dp))
+        SkeletonBlock(236.dp, 12.dp)
+        Spacer(Modifier.height(21.dp))
+        PaperCard(Modifier.fillMaxWidth()) { SkeletonList(rows = 3) }
+        Spacer(Modifier.height(14.dp))
+        PaperCard(Modifier.fillMaxWidth()) { SkeletonList(rows = 2) }
+    }
+}
+
 /** 44dp paper circle icon button; optional coral dot (unread notifications). */
 @Composable
 private fun CircleIconButton(
@@ -614,21 +722,29 @@ private fun CircleIconButton(
     onClick: () -> Unit,
     showDot: Boolean = false,
 ) {
+    val haptics = rememberHaptics()
+    val pressSource = remember { MutableInteractionSource() }
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptics.tap()
+            onClick()
+        },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 1.dp,
-        modifier = Modifier.size(44.dp),
+        interactionSource = pressSource,
+        modifier = Modifier.size(44.dp).pressScale(pressSource),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(17.dp))
-            if (showDot) {
-                AttentionDot(
-                    Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 9.dp),
-                    size = 8.dp,
-                )
+            // Animated so the coral dot pops in and out instead of blinking.
+            AnimatedContent(
+                targetState = showDot,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 9.dp),
+                label = "attentionDot",
+            ) { dot ->
+                if (dot) AttentionDot(size = 8.dp)
             }
         }
     }

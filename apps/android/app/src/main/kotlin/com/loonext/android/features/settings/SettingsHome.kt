@@ -4,8 +4,16 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,14 +73,18 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
+import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberHaptics
+import com.loonext.android.ui.common.rememberShimmerBrush
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.launch
@@ -163,7 +175,7 @@ fun SettingsHome(
 
     Box(modifier.fillMaxSize()) {
         when (val current = companyState) {
-            is LoadState.Loading -> CenteredLoading()
+            is LoadState.Loading -> SettingsHubSkeleton()
             is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
             is LoadState.Ready -> {
                 val company = current.value
@@ -267,6 +279,56 @@ private fun SettingsIndex(
     }
 }
 
+/** First-fetch stand-in for the hub: identity block + index rows, no avatars. */
+@Composable
+private fun SettingsHubSkeleton() {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        ScreenTitle("Settings")
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(78.dp)
+                .background(rememberShimmerBrush(), MaterialTheme.shapes.large),
+        )
+        PaperCard(Modifier.fillMaxWidth()) {
+            SkeletonList(rows = 7, avatar = false)
+        }
+    }
+}
+
+/**
+ * First-fetch stand-in for a settings section: shimmering lines inside the
+ * section's own hairline card grammar (settings skeletons carry no avatars).
+ */
+@Composable
+internal fun SettingsSectionSkeleton(cards: Int = 2) {
+    repeat(cards) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(12.dp),
+                )
+                .padding(16.dp),
+        ) {
+            SkeletonBlock(132.dp, 14.dp)
+            Spacer(Modifier.height(14.dp))
+            SkeletonBlock(224.dp, 11.dp)
+            Spacer(Modifier.height(8.dp))
+            SkeletonBlock(176.dp, 11.dp)
+        }
+    }
+}
+
 /** The ink identity tile: avatar, who you are, and the workspace number. */
 @Composable
 private fun IdentityCard(
@@ -275,6 +337,7 @@ private fun IdentityCard(
     role: String?,
     onCopyNumber: (String) -> Unit,
 ) {
+    val haptics = rememberHaptics()
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primary,
@@ -328,7 +391,10 @@ private fun IdentityCard(
             if (number != null) {
                 Spacer(Modifier.width(8.dp))
                 Surface(
-                    onClick = { onCopyNumber(number) },
+                    onClick = {
+                        haptics.tap()
+                        onCopyNumber(number)
+                    },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -389,14 +455,23 @@ private fun UsageMeterCard(usage: Usage) {
                 Modifier.padding(top = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                Text(
-                    "${usage.used_segments}",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontSize = 38.sp,
-                        letterSpacing = (-0.02).em,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                AnimatedContent(
+                    targetState = usage.used_segments,
+                    transitionSpec = {
+                        (slideInVertically { it / 3 } + fadeIn()) togetherWith
+                            (slideOutVertically { -it / 3 } + fadeOut())
+                    },
+                    label = "hubUsedSegments",
+                ) { used ->
+                    Text(
+                        "$used",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 38.sp,
+                            letterSpacing = (-0.02).em,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 Text(
                     "of ${usage.included_segments} included",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
@@ -513,12 +588,16 @@ private fun SectionScreen(
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val backInteraction = remember { MutableInteractionSource() }
             Surface(
                 onClick = onBack,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 1.dp,
-                modifier = Modifier.size(44.dp),
+                interactionSource = backInteraction,
+                modifier = Modifier
+                    .size(44.dp)
+                    .pressScale(backInteraction),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(

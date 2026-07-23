@@ -6,8 +6,10 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,13 +98,15 @@ import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.CenteredError
-import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.Dispatchers
@@ -214,7 +218,7 @@ internal fun TaskDetailScreen(
     when (val current = state) {
         is LoadState.Loading -> Column(modifier.fillMaxSize()) {
             DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
-            CenteredLoading()
+            TaskDetailSkeleton()
         }
 
         is LoadState.Failed -> Column(modifier.fillMaxSize()) {
@@ -280,6 +284,56 @@ private fun DetailTopBar(
     }
 }
 
+/**
+ * First-fetch stand-in in the detail grammar (spec 23): done ring + title
+ * stub, created line, the Assignee/Due paper card, then a details block.
+ * With cache-first (#176) a revisit paints real data in the first frame, so
+ * this can only ever show on the true first fetch of a task.
+ */
+@Composable
+private fun TaskDetailSkeleton() {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp),
+    ) {
+        Row(
+            Modifier.padding(top = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBlock(30.dp, 30.dp, shape = CircleShape)
+            Spacer(Modifier.width(12.dp))
+            SkeletonBlock(198.dp, 17.dp)
+        }
+        Spacer(Modifier.height(13.dp))
+        SkeletonBlock(148.dp, 11.dp)
+        Spacer(Modifier.height(16.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 15.dp, vertical = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SkeletonBlock(44.dp, 10.dp)
+                Spacer(Modifier.width(20.dp))
+                SkeletonBlock(88.dp, 12.dp)
+            }
+            Spacer(Modifier.height(19.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SkeletonBlock(44.dp, 10.dp)
+                Spacer(Modifier.width(20.dp))
+                SkeletonBlock(116.dp, 12.dp)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        SkeletonBlock(60.dp, 10.dp)
+        Spacer(Modifier.height(8.dp))
+        SkeletonBlock(236.dp, 12.dp)
+    }
+}
+
 @Composable
 private fun TaskDetailBody(
     graph: AppGraph,
@@ -298,6 +352,7 @@ private fun TaskDetailBody(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val noAccess = detail.viewer_level == "none"
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -334,6 +389,9 @@ private fun TaskDetailBody(
 
     fun toggleDone() {
         val next = !detail.done
+        // Marking done commits; unmarking is a light touch. One haptic serves
+        // both the header ring and the menu item — they share this path.
+        if (next) haptics.confirm() else haptics.tap()
         scope.launch {
             onActionError(null)
             try {
@@ -346,6 +404,9 @@ private fun TaskDetailBody(
     }
 
     fun deleteTask() {
+        // Destructive commit — fires once whether it came straight from the
+        // menu or through the confirm dialog (both funnel here).
+        haptics.reject()
         deleting = true
         scope.launch {
             onActionError(null)
@@ -372,7 +433,10 @@ private fun TaskDetailBody(
                 PaperCircleButton(
                     icon = Icons.Outlined.MoreHoriz,
                     contentDescription = "Task actions",
-                    onClick = { menuOpen = true },
+                    onClick = {
+                        haptics.tap()
+                        menuOpen = true
+                    },
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     if (!noAccess) {
@@ -486,7 +550,14 @@ private fun TaskDetailBody(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    DsChip(if (detail.done) "Done" else "To do")
+                    // AnimatedContent so the done flip morphs the chip instead
+                    // of hard-swapping it.
+                    AnimatedContent(
+                        targetState = detail.done,
+                        label = "statusChip",
+                    ) { done ->
+                        DsChip(if (done) "Done" else "To do")
+                    }
                     Text(
                         listOfNotNull(
                             "Created ${relativeTime(detail.created_at)}",
@@ -510,7 +581,10 @@ private fun TaskDetailBody(
                     MetaRow(
                         label = "Assignee",
                         onClick = if (noAccess) null else {
-                            { pickerOpen = true }
+                            {
+                                haptics.tap()
+                                pickerOpen = true
+                            }
                         },
                     ) {
                         val assigneeLabel = detail.assignee?.display_name?.ifBlank { null }
@@ -545,12 +619,16 @@ private fun TaskDetailBody(
                     MetaRow(
                         label = "Due",
                         onClick = if (noAccess) null else {
-                            { datePickerOpen = true }
+                            {
+                                haptics.tap()
+                                datePickerOpen = true
+                            }
                         },
                         trailing = if (detail.due_at != null && !noAccess) {
                             {
                                 IconButton(
                                     onClick = {
+                                        haptics.tap()
                                         scope.launch {
                                             onActionError(null)
                                             try {
@@ -697,6 +775,9 @@ private fun TaskDetailBody(
                     }
                 }
 
+                // animateItem: freshly posted notes and realtime activity
+                // glide into the timeline; cached repaints rebuild the whole
+                // composition and never animate.
                 items(detail.activity.size, key = { "act:${detail.activity[it].id}" }) { i ->
                     val item = detail.activity[i]
                     if (item.kind == "note") {
@@ -705,6 +786,7 @@ private fun TaskDetailBody(
                                 ?: memberName(item.author_user_id) ?: "Teammate",
                             body = item.body.orEmpty(),
                             createdAt = item.created_at,
+                            modifier = Modifier.animateItem(),
                         )
                     } else {
                         val sentence = taskEventSentence(
@@ -715,7 +797,9 @@ private fun TaskDetailBody(
                         )
                         if (sentence != null) {
                             Row(
-                                Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                                Modifier
+                                    .animateItem()
+                                    .padding(horizontal = 24.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(9.dp),
                             ) {
@@ -789,6 +873,8 @@ private fun TaskDetailBody(
             selectedUserId = detail.assigned_user_id,
             showUnassigned = true,
             onPick = { userId ->
+                // Assignment is a commit, not a filter tweak.
+                haptics.confirm()
                 pickerOpen = false
                 scope.launch {
                     onActionError(null)
@@ -840,6 +926,7 @@ private fun TaskDetailBody(
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.confirm()
                     val date = pickedDate ?: LocalDate.now()
                     timePickerOpen = false
                     val local = LocalDateTime.of(
@@ -1114,23 +1201,28 @@ private fun AttachmentCell(
             }
         }
     } else {
+        // A tappable paper card: pressScale shares the click's interaction
+        // source so the card gives under the finger.
+        val pressInteraction = remember(item.id) { MutableInteractionSource() }
         Surface(
+            onClick = {
+                scope.launch {
+                    try {
+                        val fresh = mutations.attachmentUrl(companyId, item.id).url
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
+                        )
+                    } catch (cause: Exception) {
+                        onError(cause.userMessage())
+                    }
+                }
+            },
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surface,
+            interactionSource = pressInteraction,
             modifier = Modifier
                 .width(180.dp)
-                .clickable {
-                    scope.launch {
-                        try {
-                            val fresh = mutations.attachmentUrl(companyId, item.id).url
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
-                            )
-                        } catch (cause: Exception) {
-                            onError(cause.userMessage())
-                        }
-                    }
-                },
+                .pressScale(pressInteraction),
         ) {
             Row(
                 Modifier.padding(10.dp),
@@ -1173,10 +1265,15 @@ internal fun formatBytes(bytes: Long?): String = when {
  * tracked-uppercase author + micro-timestamp, quiet body.
  */
 @Composable
-private fun NoteCard(author: String, body: String, createdAt: String) {
+private fun NoteCard(
+    author: String,
+    body: String,
+    createdAt: String,
+    modifier: Modifier = Modifier,
+) {
     val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -1244,6 +1341,7 @@ private fun NoteComposer(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     val multipart = remember { MultipartClient(graph.api, BuildConfig.API_URL) }
 
     var body by remember(taskId) { mutableStateOf("") }
@@ -1279,7 +1377,10 @@ private fun NoteComposer(
                 items(staged.size, key = { staged[it].uri.toString() }) { index ->
                     val file = staged[index]
                     AssistChip(
-                        onClick = { staged = staged - file },
+                        onClick = {
+                            haptics.tap()
+                            staged = staged - file
+                        },
                         label = {
                             Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
@@ -1314,7 +1415,10 @@ private fun NoteComposer(
             ) {
                 IconButton(
                     enabled = !posting && staged.size < NOTE_FILES_MAX,
-                    onClick = { filePicker.launch(arrayOf("*/*")) },
+                    onClick = {
+                        haptics.tap()
+                        filePicker.launch(arrayOf("*/*"))
+                    },
                 ) {
                     Icon(
                         Icons.Outlined.AttachFile,
@@ -1353,9 +1457,12 @@ private fun NoteComposer(
                         .weight(1f)
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                 )
+                val sendInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     enabled = !posting && (body.isNotBlank() || staged.isNotEmpty()),
                     onClick = {
+                        // Posting a note is a commit.
+                        haptics.confirm()
                         posting = true
                         error = null
                         scope.launch {
@@ -1409,7 +1516,10 @@ private fun NoteComposer(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
-                    modifier = Modifier.size(38.dp),
+                    interactionSource = sendInteraction,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .pressScale(sendInteraction),
                 ) {
                     Icon(
                         Icons.Outlined.ArrowUpward,

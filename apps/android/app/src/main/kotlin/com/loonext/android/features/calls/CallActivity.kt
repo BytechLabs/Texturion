@@ -46,6 +46,7 @@ import com.loonext.android.LoonextApp
 import com.loonext.android.telephony.CallNotifier
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
+import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.LoonextTheme
 
 /**
@@ -311,6 +312,7 @@ private fun RingingSurface(
     onAnswer: () -> Unit,
     onDecline: () -> Unit,
 ) {
+    val haptics = rememberHaptics()
     val display = title.ifBlank { "Unknown caller" }
     Column(
         modifier = Modifier
@@ -363,7 +365,10 @@ private fun RingingSurface(
                 labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 labelWeight = FontWeight.SemiBold,
                 size = 72.dp,
-                onClick = onDecline,
+                onClick = {
+                    haptics.reject()
+                    onDecline()
+                },
             )
             RingActionCircle(
                 icon = Icons.Outlined.Call,
@@ -373,7 +378,10 @@ private fun RingingSurface(
                 labelColor = MaterialTheme.colorScheme.onBackground,
                 labelWeight = FontWeight.Bold,
                 size = 72.dp,
-                onClick = onAnswer,
+                onClick = {
+                    haptics.confirm()
+                    onAnswer()
+                },
             )
         }
     }
@@ -408,9 +416,13 @@ private fun CallStatus(
                 modifier = Modifier.padding(top = 8.dp),
             )
             if (actionLabel != null) {
+                val haptics = rememberHaptics()
                 Spacer(Modifier.height(32.dp))
                 EndCallPill(
-                    onClick = onAction,
+                    onClick = {
+                        haptics.reject()
+                        onAction()
+                    },
                     label = actionLabel,
                     modifier = Modifier.fillMaxWidth(),
                 )

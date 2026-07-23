@@ -1,9 +1,11 @@
 package com.loonext.android.features.thread
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddTask
@@ -58,6 +61,8 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -80,10 +85,14 @@ fun MessageActionsSheet(
     onDismiss: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
+    val haptics = rememberHaptics()
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+        // #180 contract: sheet roots scroll so rows are reachable at ANY
+        // viewport height (inert on tall screens).
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             if (message.body.isNotBlank()) {
                 ActionRow(Icons.Outlined.ContentCopy, "Copy text") {
+                    haptics.tap()
                     clipboard.setText(AnnotatedString(message.body))
                     onCopied()
                     onDismiss()
@@ -94,6 +103,7 @@ fun MessageActionsSheet(
                 else Icons.Outlined.CheckCircle,
                 label = if (message.done_at == null) "Mark done" else "Mark not done",
             ) {
+                haptics.confirm()
                 onToggleDone()
                 onDismiss()
             }
@@ -101,11 +111,13 @@ fun MessageActionsSheet(
                 icon = Icons.Outlined.PushPin,
                 label = if (message.pinned_at == null) "Pin message" else "Unpin message",
             ) {
+                haptics.tap()
                 onTogglePin()
                 onDismiss()
             }
             if (message.retryable) {
                 ActionRow(Icons.Outlined.Refresh, "Retry send") {
+                    haptics.confirm()
                     onRetry()
                     onDismiss()
                 }
@@ -114,6 +126,7 @@ fun MessageActionsSheet(
                 message.direction != MessageDirection.NOTE
             ) {
                 ActionRow(Icons.Outlined.AddTask, "Make a task") {
+                    haptics.tap()
                     onMakeTask()
                     // The sheet closes; the task sheet opens from the screen.
                 }
@@ -175,14 +188,18 @@ fun MakeTaskSheet(
     var due by remember { mutableStateOf<DueChoice?>(null) }
     var pickerOpen by remember { mutableStateOf(false) }
     val zone = remember { ZoneId.systemDefault() }
+    val haptics = rememberHaptics()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
+        // #180 contract: sheet roots scroll so every field is reachable at
+        // ANY viewport height (inert on tall screens).
         Column(
             Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(15.dp),
         ) {
@@ -269,6 +286,7 @@ fun MakeTaskSheet(
                             name = member.display_name.ifBlank { "Teammate" },
                             selected = assigneeId == member.user_id,
                             onClick = {
+                                haptics.tap()
                                 assigneeId =
                                     if (assigneeId == member.user_id) null else member.user_id
                             },
@@ -276,7 +294,10 @@ fun MakeTaskSheet(
                     }
                     NobodyChip(
                         selected = assigneeId == null,
-                        onClick = { assigneeId = null },
+                        onClick = {
+                            haptics.tap()
+                            assigneeId = null
+                        },
                     )
                 }
             }
@@ -303,12 +324,16 @@ fun MakeTaskSheet(
                     DueChip(
                         label = "Today",
                         selected = due?.label == "Today",
-                        onClick = { due = if (due?.label == "Today") null else today },
+                        onClick = {
+                            haptics.tap()
+                            due = if (due?.label == "Today") null else today
+                        },
                     )
                     DueChip(
                         label = "Tomorrow 9 AM",
                         selected = due?.label == "Tomorrow 9 AM",
                         onClick = {
+                            haptics.tap()
                             due = if (due?.label == "Tomorrow 9 AM") null else tomorrow
                         },
                     )
@@ -317,23 +342,33 @@ fun MakeTaskSheet(
                     DueChip(
                         label = if (picked) due?.label.orEmpty() else "Pick a time…",
                         selected = picked,
-                        onClick = { pickerOpen = true },
+                        onClick = {
+                            haptics.tap()
+                            pickerOpen = true
+                        },
                     )
                 }
             }
 
-            // Create pill.
+            // Create pill — gives under the finger like every other pill.
             val canCreate = title.isNotBlank()
+            val createInteraction = remember { MutableInteractionSource() }
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .pressScale(createInteraction)
                     .background(
                         MaterialTheme.colorScheme.primary.copy(
                             alpha = if (canCreate) 1f else 0.5f,
                         ),
                         CircleShape,
                     )
-                    .clickable(enabled = canCreate) {
+                    .clickable(
+                        interactionSource = createInteraction,
+                        indication = LocalIndication.current,
+                        enabled = canCreate,
+                    ) {
+                        haptics.confirm()
                         onCreate(title.trim(), assigneeId, due?.iso)
                     }
                     .padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),

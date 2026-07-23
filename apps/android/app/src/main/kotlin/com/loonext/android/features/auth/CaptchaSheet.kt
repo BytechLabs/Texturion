@@ -9,6 +9,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.loonext.android.core.net.ApiException
@@ -91,91 +93,97 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
         }
-        Box(Modifier.fillMaxWidth().height(360.dp)) {
-            if (loadFailed) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        "Couldn't load the security check. Check your connection.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    Button(
-                        onClick = {
-                            loadFailed = false
-                            loading = true
-                            retryKey++
-                        },
-                        modifier = Modifier.padding(top = 16.dp),
-                    ) { Text("Try again") }
-                }
-            } else {
-                // retryKey remounts the WebView for a clean reload after an error.
-                androidx.compose.runtime.key(retryKey) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.javaScriptEnabled = true
-                                settings.allowFileAccess = false
-                                settings.allowContentAccess = false
-                                // Turnstile's challenge iframe needs storage.
-                                settings.domStorageEnabled = true
-                                webViewClient = object : WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(
-                                        view: WebView,
-                                        request: WebResourceRequest,
-                                    ): Boolean {
-                                        // The Turnstile challenge itself is a
-                                        // cloudflare.com SUBFRAME — only the
-                                        // main frame is pinned to our page.
-                                        if (!request.isForMainFrame) return false
-                                        return request.url.host != CAPTCHA_HOST
-                                    }
+        // #180: the widget height derives from the space the sheet actually
+        // has (360dp when it fits, less on short viewports). Never wrap a
+        // WebView in a scroll container; Turnstile lays itself out inside.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val checkHeight = min(360.dp, maxHeight)
+            Box(Modifier.fillMaxWidth().height(checkHeight)) {
+                if (loadFailed) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "Couldn't load the security check. Check your connection.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                        Button(
+                            onClick = {
+                                loadFailed = false
+                                loading = true
+                                retryKey++
+                            },
+                            modifier = Modifier.padding(top = 16.dp),
+                        ) { Text("Try again") }
+                    }
+                } else {
+                    // retryKey remounts the WebView for a clean reload after an error.
+                    androidx.compose.runtime.key(retryKey) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { context ->
+                                WebView(context).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.allowFileAccess = false
+                                    settings.allowContentAccess = false
+                                    // Turnstile's challenge iframe needs storage.
+                                    settings.domStorageEnabled = true
+                                    webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView,
+                                            request: WebResourceRequest,
+                                        ): Boolean {
+                                            // The Turnstile challenge itself is a
+                                            // cloudflare.com SUBFRAME — only the
+                                            // main frame is pinned to our page.
+                                            if (!request.isForMainFrame) return false
+                                            return request.url.host != CAPTCHA_HOST
+                                        }
 
-                                    override fun onPageStarted(
-                                        view: WebView,
-                                        url: String?,
-                                        favicon: Bitmap?,
-                                    ) {
-                                        loading = true
-                                    }
+                                        override fun onPageStarted(
+                                            view: WebView,
+                                            url: String?,
+                                            favicon: Bitmap?,
+                                        ) {
+                                            loading = true
+                                        }
 
-                                    override fun onPageFinished(view: WebView, url: String?) {
-                                        loading = false
-                                    }
-
-                                    override fun onReceivedError(
-                                        view: WebView,
-                                        request: WebResourceRequest,
-                                        error: WebResourceError,
-                                    ) {
-                                        if (request.isForMainFrame) {
+                                        override fun onPageFinished(view: WebView, url: String?) {
                                             loading = false
-                                            loadFailed = true
+                                        }
+
+                                        override fun onReceivedError(
+                                            view: WebView,
+                                            request: WebResourceRequest,
+                                            error: WebResourceError,
+                                        ) {
+                                            if (request.isForMainFrame) {
+                                                loading = false
+                                                loadFailed = true
+                                            }
                                         }
                                     }
+                                    addJavascriptInterface(
+                                        CaptchaBridge { token ->
+                                            // JS-thread callback — hop to main.
+                                            post { deliver(token) }
+                                        },
+                                        "LoonextCaptcha",
+                                    )
+                                    loadUrl(CAPTCHA_URL)
                                 }
-                                addJavascriptInterface(
-                                    CaptchaBridge { token ->
-                                        // JS-thread callback — hop to main.
-                                        post { deliver(token) }
-                                    },
-                                    "LoonextCaptcha",
-                                )
-                                loadUrl(CAPTCHA_URL)
-                            }
-                        },
-                        onRelease = { webView ->
-                            webView.stopLoading()
-                            webView.destroy()
-                        },
-                    )
+                            },
+                            onRelease = { webView ->
+                                webView.stopLoading()
+                                webView.destroy()
+                            },
+                        )
+                    }
+                    if (loading) CenteredLoading()
                 }
-                if (loading) CenteredLoading()
             }
         }
     }
