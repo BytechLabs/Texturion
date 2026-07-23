@@ -23,6 +23,7 @@
  * claim RPC, so a retried webhook never double-texts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/cloudflare";
 
 import { reportVoiceSeconds } from "../billing/meter";
 import {
@@ -242,23 +243,63 @@ function decodeOutboundCustomer(raw: string | null | undefined): string | null {
 /** Build the tagged client_state for an outbound leg. A browser-originated
  *  oc_customer leg also carries the single-use authorization NONCE minted by
  *  POST /v1/calls/browser (`oc_customer|<customer>|<nonce>`) — the webhook
- *  requires it to authorize the call (D43 cross-tenant/forgery fix). */
+ *  requires it to authorize the call (D43 cross-tenant/forgery fix). #211 adds
+ *  an optional 4th part, the server session id S
+ *  (`oc_customer|<customer>|<nonce>|<S>`), when outbound v3 is live: S is the
+ *  ONE id the DO, the calls-row PK, and the client all key on. S REQUIRES the
+ *  nonce (an honest client always has both), so a sessionId with no nonce is
+ *  ignored — a 3-part tag never grows a hole. */
 export function buildOutboundState(
   tag: typeof OUTBOUND_AGENT_STATE | typeof OUTBOUND_CUSTOMER_STATE,
   customerE164: string,
   nonce?: string,
+  sessionId?: string,
 ): string {
+  if (nonce && sessionId) {
+    return btoa(`${tag}|${customerE164}|${nonce}|${sessionId}`);
+  }
   return btoa(nonce ? `${tag}|${customerE164}|${nonce}` : `${tag}|${customerE164}`);
 }
 
 /** The authorization nonce a browser-originated oc_customer leg carries
- *  (`oc_customer|<customer>|<nonce>`), or null when absent (a forged/omitted
- *  tag — the webhook then rejects the leg). */
-function parseOutboundNonce(raw: string | null | undefined): string | null {
+ *  (`oc_customer|<customer>|<nonce>` or the #211 4-part `…|<nonce>|<S>`), or
+ *  null when absent (a forged/omitted tag — the webhook then rejects the leg).
+ *  Exported for the #211 DO path (runtime.loadOutboundInitiatedContext). */
+export function parseOutboundNonce(raw: string | null | undefined): string | null {
   const decoded = decodeClientState(raw ?? null);
   if (!decoded) return null;
   const parts = decoded.split("|");
   return parts[0] === OUTBOUND_CUSTOMER_STATE && parts[2] ? parts[2] : null;
+}
+
+/** Canonical UUID shape — the #211 server session id S is a randomUUID(); a
+ *  4-part oc tag whose part-4 is not a well-formed UUID is treated as no S at
+ *  all (never keyed on, never idFromName'd). */
+const OUTBOUND_SESSION_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * #211: the server session id S a 4-part browser-originated oc_customer leg
+ * carries (`oc_customer|<customer>|<nonce>|<S>`), IFF part-4 is a well-formed
+ * UUID; null for a 3-part legacy tag, a non-oc tag, or a malformed part-4.
+ *
+ * This is the ONE id the DO idFromName, the calls-row PK, and the client all key
+ * on. It is AUTHORITATIVE for routing (the webhook-router routes a 4-part oc leg
+ * to the DO keyed on it), and the legacy webhook handlers key the calls row on
+ * it too when present (falling back to payload.call_session_id for 3-part), so a
+ * 4-part call that falls to legacy — a global kill flipped mid-call, or an
+ * in-flight leg — still stamps answered_at, bills, and stays client-addressable
+ * under the SAME id (C1 fall-to-legacy consistency).
+ */
+export function parseOutboundSessionId(
+  raw: string | null | undefined,
+): string | null {
+  const decoded = decodeClientState(raw ?? null);
+  if (!decoded) return null;
+  const parts = decoded.split("|");
+  if (parts[0] !== OUTBOUND_CUSTOMER_STATE) return null;
+  const s = parts[3];
+  return s && OUTBOUND_SESSION_UUID_RE.test(s) ? s : null;
 }
 
 interface InboundCompany {
@@ -283,6 +324,29 @@ export async function handleCallEvent(
   if (!payload) return;
 
   const db = getDb(env);
+
+  // #211 routing-bug tripwire: with the OUTBOUND flag live, a 4-part oc leg must
+  // be admitted to the CallSessionDO at the edge (webhook-router.shouldRouteToDO),
+  // so reaching this legacy handler means a routing bug. Warn (no behavior
+  // change: the legacy handlers below still key on part-4, so the call stays
+  // key-consistent and billable). This MUST require callsOutboundV3Active (the
+  // full outbound flag), NOT merely an active v3 path: the call-hijack fix
+  // routes a 4-part oc leg to the DO ONLY when CALLS_OUTBOUND_V3 is on, so with
+  // the flag dark (or under a global kill) a 4-part oc event LEGITIMATELY falls
+  // here; warning on that would be a false positive on every such call.
+  if (
+    Boolean(env.CALL_SESSIONS) &&
+    env.CALLS_V3_LEGACY !== "1" &&
+    env.CALLS_V3_LEGACY !== "true" &&
+    (env.CALLS_OUTBOUND_V3 === "1" || env.CALLS_OUTBOUND_V3 === "true") &&
+    parseOutboundSessionId(payload.client_state)
+  ) {
+    Sentry.captureMessage(
+      `#211 routing bug: 4-part oc ${eventType} reached legacy handleCallEvent ` +
+        `under an active outbound-v3 path (should have routed to the CallSessionDO)`,
+      "warning",
+    );
+  }
 
   if (eventType === "call.initiated") {
     if (payload.direction === "outgoing") {
@@ -388,13 +452,14 @@ export async function handleCallEvent(
 
   // D43: the outbound customer leg answered — stamp answered_at so the call
   // is transferable (requireLiveCall needs it) AND so billing anchors on
-  // talk time, not the ring window (mirrors the inbound bri anchor).
-  if (
-    eventType === "call.answered" &&
-    leg === "out_customer" &&
-    payload.call_session_id
-  ) {
-    return stampOutboundAnswered(db, payload.call_session_id);
+  // talk time, not the ring window (mirrors the inbound bri anchor). #211 C1
+  // fall-to-legacy: key on S (== tag part-4) when a 4-part call reaches this
+  // legacy handler (global kill / in-flight), else Telnyx's id for 3-part.
+  if (eventType === "call.answered" && leg === "out_customer") {
+    const outboundSession =
+      parseOutboundSessionId(payload.client_state) ?? payload.call_session_id;
+    if (outboundSession) return stampOutboundAnswered(db, outboundSession);
+    return;
   }
 
   // D38: the outbound AGENT leg's AMD verdict is a ROUTING decision, not a
@@ -615,13 +680,20 @@ async function handleOutboundInitiated(
     await telnyxRejectLeg(env, callControlId);
     return;
   }
+  // #211 C1 fall-to-legacy: when a 4-part call falls to THIS legacy handler (a
+  // global kill flipped, or an in-flight leg), key the calls row on S (== tag
+  // part-4), NOT Telnyx's id — the RPC already coalesces to the STORED S, so
+  // p_call_session_id must be S for the busy re-check (call_session_id <> it)
+  // to exclude the row correctly AND for the stamp below to hit it. A 3-part
+  // legacy tag has no part-4, so this falls back to Telnyx's id, unchanged.
+  const rowSessionId = parseOutboundSessionId(payload.client_state) ?? sessionId;
   const { data: authData, error: authError } = await db.rpc(
     "api_authorize_outbound_call",
     {
       p_nonce: nonce,
       p_from: businessNumberE164,
       p_customer: customerE164,
-      p_call_session_id: sessionId,
+      p_call_session_id: rowSessionId,
       p_max_age_secs: OUTBOUND_AUTH_MAX_AGE_SECS,
     },
   );
@@ -667,19 +739,36 @@ async function handleOutboundInitiated(
   }
 
   // The session row was created by the RPC (bound to the authorized company/
-  // number). Stamp the customer leg's control id for phase-3 hold/transfer.
+  // number) under S. Stamp the customer leg's control id keyed on the SAME id
+  // the RPC used (rowSessionId = S for 4-part, Telnyx's id for 3-part).
+  //
+  // #211 call-hijack fix: the customer-leg stamp is SET-ONCE - written only
+  // when customer_call_control_id IS NULL. This closes the forgery leg (a
+  // random nonce that falls to the RPC replay branch could, before this, stamp
+  // the caller's leg onto a row S resolved from the CALLER-SUPPLIED tag part-4:
+  // a LIVE call already has its ccid set, so the IS NULL filter refuses the
+  // overwrite - no hijack). It stays idempotent AND recovery-safe: a genuine
+  // replay after a fresh delivery whose stamp landed matches zero rows (no
+  // change), while a replay after a fresh delivery that consumed the nonce but
+  // whose stamp threw still fills the null (the fresh-only guard would have
+  // silently left it null forever). The RPC replay branch is additionally
+  // authorization-scoped (an outbound row matching the presented business
+  // number), so the branch cannot even reach here for a victim's row.
   const { error } = await db
     .from("calls")
     .update({ customer_call_control_id: callControlId })
-    .eq("call_session_id", sessionId);
+    .eq("call_session_id", rowSessionId)
+    .is("customer_call_control_id", null);
   if (error) {
     throw new Error(`outbound metadata stamp failed: ${error.message}`);
   }
 }
 
 /** How long a minted outbound authorization stays valid (the browser dials
- *  immediately; this is generous headroom for a slow client). */
-const OUTBOUND_AUTH_MAX_AGE_SECS = 120;
+ *  immediately; this is generous headroom for a slow client). Exported for the
+ *  #211 DO path (runtime.loadOutboundInitiatedContext), which consumes the same
+ *  nonce with the same freshness bound. */
+export const OUTBOUND_AUTH_MAX_AGE_SECS = 120;
 
 /** The outbound customer's answer time (ms), from the calls row — the
  *  talk-time billing anchor. Null when never answered / not yet stamped. */
@@ -1049,8 +1138,17 @@ export async function handleTerminalCallEvent(
   db: SupabaseClient,
   eventType: string,
   payload: CallPayload,
+  // #211 M1/C1: for an outbound (oc) leg the calls row is keyed on S (== tag
+  // part-4), NOT Telnyx's call_session_id. The DO's terminal-merge passes S as
+  // outboundSessionId AND the DO-authoritative answered-at anchor; a legacy
+  // fall-to-legacy 4-part event reads S from the tag (below). Inbound + 3-part
+  // legacy pass no opts and fall through to call_session_id — byte-identical.
+  opts?: { outboundSessionId?: string; outboundAnsweredAtIso?: string | null },
 ): Promise<void> {
-  const callId = payload.call_session_id;
+  const callId =
+    opts?.outboundSessionId ??
+    parseOutboundSessionId(payload.client_state) ??
+    payload.call_session_id;
   if (!callId) return;
 
   const leg = classifyLeg(payload);
@@ -1110,7 +1208,18 @@ export async function handleTerminalCallEvent(
   // report their billable seconds to the Stripe voice meter (D36/D38: one
   // calling-minutes pool, both directions).
   if (eventType === "call.hangup" && ourNumberE164) {
-    await recordCallDuration(env, db, payload, leg, ourNumberE164);
+    // #211 M1: pass S (callId) so the out_customer answered_at read + the
+    // call_records.call_session_id key on the S-row, and the DO-authoritative
+    // answered-at override so talk time bills even if the mirror never landed.
+    await recordCallDuration(
+      env,
+      db,
+      payload,
+      leg,
+      ourNumberE164,
+      callId,
+      opts?.outboundAnsweredAtIso,
+    );
   }
 
   // The missed-cause classification. The pure classifier's leg semantics are
@@ -1440,6 +1549,14 @@ async function recordCallDuration(
   payload: CallPayload,
   leg: CallLeg,
   ourNumberE164: string,
+  // #211: the session id the calls row + call_records are keyed on. For an
+  // outbound (oc) leg this is S (== tag part-4), NOT Telnyx's call_session_id;
+  // for inbound it IS payload.call_session_id (byte-identical to today).
+  sessionId: string,
+  // #211 M1: the DO-authoritative outbound answered-at (machine.answeredAtIso).
+  // PREFERRED over the calls.answered_at row read, so out_customer bills talk
+  // time even if the answered_at mirror never landed.
+  outboundAnsweredAtIso?: string | null,
 ): Promise<void> {
   const startMs = Date.parse(payload.start_time ?? "");
   const endMs = Date.parse(payload.end_time ?? "");
@@ -1478,10 +1595,19 @@ async function recordCallDuration(
         ? 0
         : Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
   } else if (leg === "out_customer" && !rangOut) {
-    const answeredAtMs = await outboundAnsweredAtMs(
-      db,
-      payload.call_session_id,
-    );
+    // #211 M1: PREFER the DO-authoritative answered-at override (machine.
+    // answeredAtIso — mirror-independent) over the calls.answered_at row read;
+    // both anchor talk time on the customer's pickup, never ring time. Read by
+    // S (sessionId). A missing anchor bills ZERO (a call that never proved it
+    // connected never bills).
+    let answeredAtMs: number | null = null;
+    if (outboundAnsweredAtIso) {
+      const overrideMs = Date.parse(outboundAnsweredAtIso);
+      if (Number.isFinite(overrideMs)) answeredAtMs = overrideMs;
+    }
+    if (answeredAtMs === null) {
+      answeredAtMs = await outboundAnsweredAtMs(db, sessionId);
+    }
     seconds =
       answeredAtMs === null
         ? 0
@@ -1509,7 +1635,9 @@ async function recordCallDuration(
       {
         company_id: resolved.companyId,
         phone_number_id: resolved.phoneNumberId,
-        call_session_id: payload.call_session_id ?? null,
+        // #211: key the billing record on S (== tag part-4) for outbound; for
+        // inbound sessionId IS payload.call_session_id, so byte-identical.
+        call_session_id: sessionId,
         call_leg_id: legId,
         leg:
           leg === "forward" ||

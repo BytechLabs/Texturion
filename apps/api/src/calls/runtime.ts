@@ -27,11 +27,16 @@ import {
 } from "../messaging/inbound-ring";
 import {
   companyOverVoiceCap,
+  type CompanyVoiceState,
   handleTerminalCallEvent,
   handleVoicemailSaved,
   normalizeCaller,
+  OUTBOUND_AUTH_MAX_AGE_SECS,
+  parseOutboundNonce,
+  parseOutboundSessionId,
   threadCallSession,
 } from "../messaging/voice-webhook";
+import { normalizeNanpPhone } from "../routes/core/phone";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { sendMissedCallText } from "../messaging/missed-call";
 import {
@@ -45,6 +50,7 @@ import type {
   AnswerIntent,
   CallState,
   InitiatedContext,
+  OutboundInitiatedContext,
   SessionMachine,
 } from "./transitions";
 import { isTerminal, outcomeForState, RING_WINDOW_SECS } from "./transitions";
@@ -141,6 +147,22 @@ export interface SessionRuntime {
     shaken_stir_attestation?: string;
     caller_id_name?: string;
   }): Promise<InitiatedContext | "drop" | "replay-ended">;
+  /** #211 T-O1: the pre-reduce I/O for a 4-part oc call.initiated — consume the
+   *  nonce (deriving the calls-row PK from the STORED S), enforce the part-4==S
+   *  identity check (S1/M3), the #136 NANP re-validation, and the lapsed-sub /
+   *  voice-cap re-check, then stamp the customer leg ccid. Returns the authorized
+   *  context to mint from, "reject" to hang up the leg and mint nothing, or
+   *  "drop" to silently ignore. A REPLAY (already-authorized re-delivery) returns
+   *  "drop": no mint, no stamp, and NOT a hangup (the live customer leg must
+   *  survive); the call-hijack fix forbids any write derived from the
+   *  caller-supplied session id on the replay path. */
+  loadOutboundInitiatedContext(payload: {
+    call_control_id: string;
+    call_session_id: string;
+    client_state: string | null;
+    to: string;
+    from?: string;
+  }): Promise<OutboundInitiatedContext | "reject" | "drop">;
   /** §7.5 adoption read. */
   loadAdoptionRow(sessionId: string): Promise<AdoptionRow | null>;
   /** §7.7 adopted-machine ledger-less minting gate: active member holding a
@@ -169,8 +191,16 @@ export interface SessionRuntime {
   }): Promise<void>;
   threadAtAnswer(machine: SessionMachine): Promise<void>;
   /** Event-mode terminal merge: replay the triggering Telnyx payload through
-   *  the existing replay-idempotent delegate (billing, outcome, thread, MCTB). */
-  terminalMergeEvent(payload: Record<string, unknown>): Promise<void>;
+   *  the existing replay-idempotent delegate (billing, outcome, thread, MCTB).
+   *  #211 M1: for outbound, `opts` carries S as an explicit session-id override
+   *  (the raw payload keys on Telnyx's T; the calls row is under S) AND the
+   *  DO-authoritative answered-at anchor, so billing addresses the S-row and
+   *  meters talk time even if the answered_at mirror never landed. Inbound
+   *  passes no opts → byte-identical to today. */
+  terminalMergeEvent(
+    payload: Record<string, unknown>,
+    opts?: { outboundSessionId?: string; outboundAnsweredAtIso?: string | null },
+  ): Promise<void>;
   /** Synthetic merge (dead-inbound discrimination, janitor): no payload
    *  exists — merge from the machine's own facts. */
   terminalMergeSynthetic(
@@ -204,6 +234,17 @@ export function callsV3LegacyMode(env: Env): boolean {
  *  not flipped. The binding guard fails loudly via Sentry at the call sites. */
 export function callsV3Active(env: Env): boolean {
   return Boolean(env.CALL_SESSIONS) && !callsV3LegacyMode(env);
+}
+
+/** #211: true when browser-originated outbound calls should mint the 4-part
+ *  session id S at authorize (C1 gate). Requires BOTH the v3 path to be live
+ *  (binding present AND no global kill) AND the CALLS_OUTBOUND_V3 flag, so a
+ *  global kill or an absent binding reverts NEW outbound calls to the exact
+ *  3-part legacy flow — never handing the client a session id the webhook path
+ *  will not key on. Defaulted OFF: unset CALLS_OUTBOUND_V3 keeps it dark. */
+export function callsOutboundV3Active(env: Env): boolean {
+  const raw = env.CALLS_OUTBOUND_V3;
+  return callsV3Active(env) && (raw === "1" || raw === "true");
 }
 
 /** §4.1: is this Telnyx leg alive? GET /v2/calls/{ccid} — the DO-era
@@ -517,6 +558,135 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       };
     },
 
+    async loadOutboundInitiatedContext(payload) {
+      // (1) The tag's part-4 (S) MUST be a well-formed UUID and its part-3 the
+      //     nonce. The router validated part-4 before idFromName; re-validate
+      //     here (defense in depth) BEFORE any RPC/idFromName/PK use (S1).
+      const embeddedSession = parseOutboundSessionId(payload.client_state);
+      const nonce = parseOutboundNonce(payload.client_state);
+      const callControlId = payload.call_control_id;
+      const businessNumberE164 = payload.from; // we present the business number
+      if (!embeddedSession || !nonce || !callControlId || !businessNumberE164) {
+        return "reject";
+      }
+
+      // (2) #136: enforce US/CA on the TELNYX-REPORTED destination (payload.to,
+      //     unforgeable) — NEVER the browser-echoed customer, which a member
+      //     could keep benign while dialing a premium/Caribbean number.
+      const customerE164 = normalizeNanpPhone(payload.to ?? "");
+      if (!customerE164) return "reject";
+
+      // (3) Consume the nonce. api_authorize_outbound_call DERIVES the calls-row
+      //     PK from the STORED S (never the caller's tag) and RETURNS it, and
+      //     creates the row under it (bound to the AUTHORIZED company/number).
+      const { data: authData, error: authError } = await db.rpc(
+        "api_authorize_outbound_call",
+        {
+          p_nonce: nonce,
+          p_from: businessNumberE164,
+          p_customer: customerE164,
+          // The honest client's part-4 IS S; the RPC ignores it in favor of the
+          // stored S when one exists (coalesce), so the caller can never
+          // substitute a session id.
+          p_call_session_id: embeddedSession,
+          p_max_age_secs: OUTBOUND_AUTH_MAX_AGE_SECS,
+        },
+      );
+      if (authError) {
+        throw new Error(`outbound authorize failed: ${authError.message}`);
+      }
+      const auth = (authData ?? {}) as {
+        authorized?: boolean;
+        company_id?: string;
+        phone_number_id?: string;
+        replay?: boolean;
+        session_id?: string;
+        user_id?: string | null;
+      };
+      if (
+        !auth.authorized ||
+        !auth.company_id ||
+        !auth.phone_number_id ||
+        !auth.session_id
+      ) {
+        // Forged / expired / already-consumed nonce, mismatched caller number,
+        // or a leg that skipped /calls/browser — refuse it (mint nothing).
+        return "reject";
+      }
+
+      // (4) S1/M3 — the ONE-id gate: the row PK the RPC returns MUST equal the
+      //     tag's part-4. A forger supplying a wrong part-4 for their OWN valid
+      //     nonce lands on their own nonce-bound S (session_id != part-4) →
+      //     reject WITHOUT minting (bounded self-DoS on their own line, sweeper-
+      //     freed), NEVER binding a victim's row. The stamp below never runs.
+      if (auth.session_id !== embeddedSession) return "reject";
+
+      // (5) #211 call-hijack fix: a REPLAY is a re-delivery of an ALREADY-
+      //     authorized initiated: its row + machine were minted (and stamped)
+      //     by the FRESH delivery. DROP it here (acked no-op, NEVER "reject": a
+      //     reject would hang up what, on a genuine replay, is the LIVE customer
+      //     leg). A live DO absorbs the redelivery via the reducer's machine-
+      //     exists guard; an EVICTED DO reconstructs from the row on the next
+      //     non-initiated event. Returning a mint-capable context on replay was
+      //     the forgery vector: a random nonce misses the DELETE, falls to the
+      //     RPC replay branch, and (on an evicted DO) reduceOutboundInitiated
+      //     would re-mint a machine + stamp customer_call_control_id from a
+      //     CALLER-SUPPLIED session id (S_v), hijacking the victim leg. No mint,
+      //     no stamp, no DB write derived from the caller's id on replay.
+      if (auth.replay) return "drop";
+
+      // (6) Defense in depth: a subscription that LAPSED between authorize and
+      //     dial must not connect (port of voice-webhook.ts). Keyed on the
+      //     AUTHORIZED company. Only a FRESH mint reaches here (replay dropped).
+      {
+        const { data: companyRows, error: companyError } = await db
+          .from("companies")
+          .select(
+            "plan,current_period_start,overage_cap_multiplier,subscription_status",
+          )
+          .eq("id", auth.company_id)
+          .limit(1);
+        if (companyError) {
+          throw new Error(`outbound company lookup failed: ${companyError.message}`);
+        }
+        const company = (companyRows ?? [])[0] as
+          | (CompanyVoiceState & { subscription_status: string })
+          | undefined;
+        if (
+          !company ||
+          company.subscription_status !== "active" ||
+          (await companyOverVoiceCap(db, auth.company_id, company))
+        ) {
+          return "reject";
+        }
+      }
+
+      // (7) S1 defense in depth: stamp the customer leg's control id onto the
+      //     S-row. Only a FRESH mint reaches here: the row the RPC just created
+      //     from the CONSUMED nonce (never a caller-controlled id). Scoped by
+      //     company AND number so even the fresh stamp cannot cross a tenant/
+      //     number boundary.
+      const { error: stampError } = await db
+        .from("calls")
+        .update({ customer_call_control_id: callControlId })
+        .eq("call_session_id", auth.session_id)
+        .eq("company_id", auth.company_id)
+        .eq("phone_number_id", auth.phone_number_id);
+      if (stampError) {
+        throw new Error(`outbound metadata stamp failed: ${stampError.message}`);
+      }
+
+      return {
+        callSessionId: auth.session_id,
+        customerCcid: callControlId,
+        companyId: auth.company_id,
+        phoneNumberId: auth.phone_number_id,
+        userId: auth.user_id ?? null,
+        customer: customerE164,
+        businessNumberE164,
+      };
+    },
+
     async loadAdoptionRow(sessionId) {
       const { data: rows, error } = await db
         .from("calls")
@@ -686,12 +856,13 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       }
     },
 
-    async terminalMergeEvent(payload) {
+    async terminalMergeEvent(payload, opts) {
       await handleTerminalCallEvent(
         env,
         db,
         "call.hangup",
         payload as never,
+        opts,
       );
     },
 
@@ -719,7 +890,9 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         p_forward_seconds: forwardSeconds,
         p_started_at: new Date(machine.startedAtMs).toISOString(),
         p_ended_at: endedAtIso,
-        p_direction: "inbound",
+        // #211 D8: direction-aware — api_upsert_call never changes direction
+        // after insert, so this can only ever agree with the row's own value.
+        p_direction: machine.direction,
       });
       if (error) {
         throw new Error(`calls-v3 synthetic merge failed: ${error.message}`);
@@ -732,8 +905,14 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         caller: machine.callerE164,
         outcome,
         forwardSeconds,
-        direction: "inbound",
+        direction: machine.direction,
       });
+      // #211 D8: the missed-call TEXT-BACK and the #132 crew alert are INBOUND
+      // behaviors — a janitor-resolved OUTBOUND no-answer must NEVER text the
+      // customer "sorry we missed you" (the event path already guards on
+      // outboundLeg; this closes the synthetic path). Threading above already
+      // ran (join-only), so the journey line is intact either way.
+      if (machine.direction === "outbound") return;
       if (outcome !== "missed" || !machine.callerE164 || !machine.businessNumberE164) {
         return;
       }

@@ -178,6 +178,7 @@ state never regresses), and terminal-state mirrors retry until they land
 
 | State | Meaning | `outcome` mirror |
 |---|---|---|
+| `dialing` | **#211 OUTBOUND ONLY.** The customer (oc) leg is initiated but not yet answered; the placer is already on the line hearing carrier ringback. Non-terminal; an inbound machine never reaches it. Owner (`answered_by_user_id`) is set from MINT (D9); `answered_at` is stamped only at answer (T-O2, the billing anchor). | `NULL` |
 | `ringing` | Caller hears ringback; nobody has answered; voicemail has not begun. Covers: legs ringing, zero-leg hold-for-wake (§5.3), and the unattended (suspended/inactive-subscription) ring-out. | `NULL` |
 | `answered` | A member owns the call (bridged or in the answer/bridge handshake). `answered_by_user_id` + `answered_at` are set — and are **never reverted** (§4 T2: they are only written after the customer leg is successfully answered). | `NULL` |
 | `voicemail_greeting` | Voicemail answered the caller; TTS greeting playing. | `NULL` |
@@ -192,17 +193,21 @@ state never regresses), and terminal-state mirrors retry until they land
 mapping above is enforced in one place (the transition mirror).
 
 **Nullability (binding for every reader): `calls.state` is NULLABLE.**
-`NULL` means "legacy or outbound" — every inbound row is minted by
-`api_claim_inbound_line` (kept verbatim) with `state NULL` and mirrored
-non-null only when T1 completes; every OUTBOUND row is `NULL` forever (the
-legacy outbound path never writes state, and this vocabulary is
-inbound-only). Consequences the implementer must honor: the §12.1 CHECK
-constraint permits NULL (`state is null or state in (…)`); every consumer of
-`api_list_calls` / `/mine` treats `NULL` as "derive from outcome/answered_at"
-(the §8.1 derivation rule); the optional partial index
-`where state not like 'ended%'` silently excludes NULL rows and must not be
-used as the line-busy scan (the outcome-null scan remains primary). Client
-code must never assume `state` is total.
+`NULL` means **legacy** — a pre-v3 inbound row, OR a pre-#211 (pre-parity)
+outbound row. Every inbound row is minted by `api_claim_inbound_line` (kept
+verbatim) with `state NULL` and mirrored non-null only when T1 completes.
+**#211**: an outbound row minted under `CALLS_OUTBOUND_V3` is a first-class DO
+session and DOES carry `state` (`dialing` → `answered` → `ended_*`), mirrored by
+the same transition mirror; only the LEGACY outbound path (flag off, or a global
+kill) leaves an outbound row `state NULL`. Consequences the implementer must
+honor: the §12.1 CHECK constraint permits NULL (`state is null or state in (…)`)
+and now includes `dialing`; every consumer of `api_list_calls` / `/mine` treats
+`NULL` as "derive from outcome/answered_at" (the §8.1 derivation rule, extended
+for outbound: `answered_at → answered`, else `dialing`); the optional partial
+index `where state not like 'ended%'` silently excludes NULL rows (and INCLUDES
+the non-terminal `dialing`) and must not be used as the line-busy scan (the
+outcome-null scan remains primary). Client code must never assume `state` is
+total.
 
 Exactly two *terminal-to-terminal* edges are legal, both upgrades of a
 provisional `ended_missed`:
@@ -1481,3 +1486,180 @@ implementation notes:
    today; vitest 'telnyx' project hosts mount.test.ts with no resolve.alias;
    `instrumentDurableObjectWithSentry` exists in @sentry/cloudflare 10.63.0;
    SWEEP_MAX_ATTEMPTS=5.
+
+---
+
+## 18. Outbound sessions (#211) — outbound joins the DO with full parity
+
+Browser-originated outbound calls become first-class `CallSessionDO` sessions,
+reusing `answered` + the `ended_*` terminals with ONE new state `dialing`, so
+transfer/consult, T7 owner teardown, the #209 outcome-coalesce mirror, the
+sweeper tiers, and the ENTIRE transfer/consult route+webhook code work
+UNCHANGED. Everything ships behind **`CALLS_OUTBOUND_V3`, defaulted OFF in code
+and env**, so it is dark until the founder enables it.
+
+### 18.1 The ONE-id invariant (S1 + M3 — load-bearing)
+
+A single server id **S** exists, and by construction every keying site is the
+same value:
+
+```
+S = randomUUID() at authorize (POST /calls/browser)
+  = the value STORED in outbound_call_authorizations bound to the nonce
+  = client_state tag part-4  (oc_customer|<customer>|<nonce>|<S>)
+  = api_authorize_outbound_call's returned session_id (the calls-row PK)
+  = calls.call_session_id (the row PK)   = machine.callSessionId
+  = idFromName key (client /state + transfer/consult RPCs AND the webhooks)
+  = the client's call_session_id (returned in the authorize body)
+```
+
+Trust originates ONLY from the row stored at authorize; **the tag is where the
+honest client ECHOES S, never where trust originates**:
+
+- `api_authorize_outbound_call` DERIVES the row PK from the STORED S
+  (`v_session_id := coalesce(stored_S, caller_T)`), NEVER the caller's tag value.
+- `runtime.loadOutboundInitiatedContext` UUID-validates tag part-4, passes it as
+  `p_call_session_id`, and **rejects the leg WITHOUT minting** when part-4 is
+  malformed or `!=` the RPC-returned S. A forger supplying a wrong part-4 for
+  their own valid nonce binds only their OWN nonce-bound S (self-DoS on their own
+  line, sweeper-freed) — never a victim's row.
+- The `customer_call_control_id` stamp runs ONLY after the `part-4 == S` check,
+  scoped by company AND number (defense in depth).
+
+**part-4 stays AUTHORITATIVE for routing** (never advisory): the webhook-router
+routes a 4-part oc leg to the DO keyed on part-4, and the mirror keys on
+`machine.callSessionId = part-4 = S = row PK`, so there is exactly one id — no
+DO split, no stranded row.
+
+### 18.2 Identity-at-authorize / machine-at-initiated
+
+- **Authorize** (`POST /v1/calls/browser`) mints the IDENTITY (S) + the line
+  reservation, stores S + the placing member on the reservation, returns
+  `call_session_id: S`, and embeds the 4-part tag. Gated on
+  `callsV3Active(env) && CALLS_OUTBOUND_V3` (C1): a global kill or the flag off
+  emits today's exact 3-part tag with NO `call_session_id`.
+- **call.initiated** mints the MACHINE (T-O1) via `loadOutboundInitiatedContext`
+  (nonce consumption + the part-4==S check). Reservation semantics stay
+  bit-identical: the auth row is the 30s reservation; the calls row lands only
+  here under the advisory lock with the #209-gated busy re-check.
+
+### 18.3 Transitions
+
+| # | Trigger | Effect |
+|---|---|---|
+| T-O1 | 4-part oc `call.initiated`, part-4==S | mint `dialing`, owner from mint, mirror `{state:'dialing', answered_by_user_id}`, arm the 4h janitor. NO ring/fanout/dial alarms. A reject context hangs up the leg and mints nothing. |
+| T-O2 | oc `call.answered` in `dialing` | `answered` + mirror `{state, answered_at}`. Idempotent re-delivery is a no-op. |
+| T-O3 | oc `call.hangup`, any non-terminal outbound state | `ended_answered` if `answeredAtIso` else `ended_missed`; `terminalize()` reused; terminal-merge **mode `event`** carrying `machine.answeredAtIso`. |
+
+### 18.4 Outbound billing is mirror-independent AND addresses the S-row (M1)
+
+Because `S != Telnyx's session id T`, replaying the raw hangup would key
+`handleTerminalCallEvent` on T and find no row. So the outbound terminal-merge
+carries, from `session-do.execute`:
+
+- `outboundSessionId = S` — `handleTerminalCallEvent` computes
+  `callId = opts.outboundSessionId ?? parseOutboundSessionId(tag) ?? T` ONCE, so
+  the existence check, `upsertCallSession`, threading, and `call_records` all key
+  on S; and
+- `outboundAnsweredAtIso = machine.answeredAtIso` — `recordCallDuration` PREFERS
+  this DO-authoritative anchor over the `calls.answered_at` row read, so talk
+  time bills even if the `answered_at` mirror never landed.
+
+`MAX_BILLABLE` clamp + `call_leg_id` dedupe unchanged; the **event path (not
+synthetic)** is what meters Stripe. The legacy path passes no opts →
+byte-identical to today.
+
+### 18.5 Direction-aware improvements
+
+- **`terminalMergeSynthetic`** (janitor / dead-discrimination) is direction-aware
+  (D8): `p_direction = machine.direction`, threading passes it, and MCTB +
+  missed-call crew alert are **SKIPPED for outbound** — a janitor-resolved
+  outbound no-answer texts no one (the event path was already guarded on
+  `outboundLeg`; this closes the synthetic path).
+- **`reconstructMachine`** has an explicit outbound branch (D15): `outcome →
+  ended_*`; `answered_at → answered`; else `dialing`; `customerCcid` from the
+  row; **no `ringDeadline`** (never a false `ringing` that arms a 45s deadline).
+- **`inboundCcid` renamed to `customerCcid`** (D6, the far-party PSTN leg both
+  directions), with a load-time alias for machines persisted before the deploy;
+  `SessionMachine.direction` added, defaulting `inbound` on load.
+
+### 18.6 D13 direction-gate dispositions
+
+| Gate | Disposition |
+|---|---|
+| `deriveStateFromRow` | **LIFT** — derives outbound (`outcome → ended_*`; `answered_at → answered`; else `dialing`). |
+| ring-me | **KEEP inbound-only** (M2). The #139 route `direction!=='inbound' → 409` STAYS; `reduceRingMe`'s natural `not_ringing` covers any outbound state. NO answered-state ring-me is built. |
+| decline / decline-mine | **KEEP inbound-only.** decline-mine's `state='ringing'` query never matches `dialing`; the per-session decline keeps its 409. |
+| transfer / consult / consult-complete | **CLOSE** — an explicit `direction==='outbound' && !callsV3Active(env) → 409` refuses the untested legacy path; parity exists only under v3. |
+
+### 18.7 Transfer / consult mechanic (D11 — the proven consult-style path)
+
+Parity is by the shared `answered` contract: `registerIntent`,
+`handleTransferAnswered`'s #208 **setOwner-then-clearIntent** ordering, and the
+consult routes are reused. The one direction-aware seam is the transfer COMMAND
+inside `issueTransfer`:
+
+- **INBOUND**: the Telnyx `transfer` command on the customer leg (unchanged).
+- **OUTBOUND (founder-directed, shipped WITHOUT a staging spike)**: the PROVEN
+  consult-style **dial + bridge-steal** — the same mechanic `consult/complete`
+  runs against customer ccids in prod. `issueTransfer` DIALS the target as a
+  `brt` leg; on its `call.answered`, `handleTransferAnswered` **bridge-STEALS the
+  customer (oc) leg onto it, dropping the placer**. The Telnyx `transfer` command
+  on a browser-originated oc leg was never exercised, so it is deliberately NOT
+  used. Because the placer stays bridged until the steal, a MISSED outbound
+  target leaves the placer still connected — `handleTransferLegHangup` marks the
+  transfer failed and returns (NO snap-back, NO customer hangup); the inbound
+  snap-back exists only because the Telnyx transfer unbridges the sender at issue.
+- **Consult** is unchanged for outbound: `consult/complete` already
+  bridge-steals onto `customer_call_control_id`, which for outbound is the oc leg.
+
+Owner-death teardown relies on the existing **4h janitor (T16)** as the
+correctness backstop, so a slow or absent oc `call.hangup` is a latency issue,
+never a lost or wedged call. T-O3 terminalizes on the oc hangup when it arrives;
+the janitor covers a silent machine.
+
+### 18.8 D10 leg topology
+
+The machine's `customerCcid` is the oc-tagged outdial leg whose party is the
+CUSTOMER. **The placer's browser SIP leg is deliberately UNREPRESENTED** in the
+DO leg map and the `call_member_legs` ledger — we never learn its ccid, and no
+mechanic needs it (transfer, consult bridge-steal, and teardown all target
+`customerCcid`). Owner-browser death reaches the machine as the oc leg's
+`call.hangup` (Telnyx tears the bridged pair) → T-O3.
+
+### 18.9 Kill-switch / rollback matrix
+
+| Mode | New calls | In-flight 4-part calls |
+|---|---|---|
+| v3 active + `CALLS_OUTBOUND_V3` on | 4-part; DO owns initiated/answered/hangup keyed on S | DO-owned |
+| `CALLS_OUTBOUND_V3` off (v3 active) | today's 3-part, no `call_session_id` | untouched |
+| **Global kill** (`CALLS_V3_LEGACY`) | 3-part (authorize minting suppressed — no dead affordance) | **fall to legacy, key-consistent**: the current worker's legacy oc handlers (`handleOutboundInitiated` stamp, `stampOutboundAnswered`, `handleTerminalCallEvent`'s `callId` + `recordCallDuration`) key the row on tag **part-4 = S** when present (falling back to `payload.call_session_id` for 3-part), and `api_authorize_outbound_call` coalesces stored-S-else-caller-T, so answered_at stamps, billing runs, and the client stays addressable under the SAME id. |
+
+**Irreducible residual**: a rollback to a **PRE-#211 worker** (which never learned
+part-4 keying) mis-keys an in-flight 4-part call's terminal on Telnyx's T →
+under-bill + delayed line-free (sweeper backstop) + possibly a false `missed`.
+Bounded to calls in-flight across the rollback window; inbound does NOT share this
+(inbound's S IS Telnyx's id); the client's serverAddressable gate prevents dead
+affordances. Documented, accepted.
+
+### 18.10 M2 scope note (deferred)
+
+Outbound answered-state **ring-me (browser-crash recovery for the placer)** is
+DROPPED from this parity pass — the founder ask is transfer/consult parity, which
+never uses ring-me, and the machinery genuinely does not exist (`reduceRingMe`
+hard-refuses any non-ringing state). It is filed as a separate follow-up, to be
+designed as a first-class answered-state transition behind its own staging proof
+if pursued. Until then, a placer whose browser dies mid-outbound-call cannot
+self-recover the leg; the call terminates honestly via T-O3 / the janitor.
+
+### 18.11 W0 staging spike — unblocked
+
+Design v2 gated the transfer mechanic on a staging spike to CHOOSE between the
+direct Telnyx-transfer and the consult-style fallback. **The founder directive
+unblocks this**: the fallback is already proven (consult/complete's dial +
+bridge-steal against customer ccids is live in prod), so outbound transfer ships
+the consult-style mechanic FROM THE START (§18.7), gated behind
+`CALLS_OUTBOUND_V3` (dark until enabled). No spike gates shipping; the direct-
+transfer optimization is not pursued. Placer-death teardown leans on the existing
+4h janitor (T16) as the correctness backstop, so the spike's latency finding
+tunes monitoring only, never the architecture.

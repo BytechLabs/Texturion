@@ -57,6 +57,10 @@ export const INTENT_EXPIRY_MS = (25 + 15) * 1_000;
 export const QUEUE_LATENCY_WARN_MS = 2_000;
 
 export type CallState =
+  /** #211: the ONE new outbound state — the customer (oc) leg is initiated but
+   *  not yet answered. Non-terminal; reuses 'answered' + the ended_* terminals.
+   *  Never reached by an inbound machine. */
+  | "dialing"
   | "ringing"
   | "answered"
   | "voicemail_greeting"
@@ -67,6 +71,7 @@ export type CallState =
   | "ended_rejected";
 
 export const CALL_STATES: readonly CallState[] = [
+  "dialing",
   "ringing",
   "answered",
   "voicemail_greeting",
@@ -154,7 +159,19 @@ export interface SessionMachine {
   greeting: string | null;
   callerE164: string | null;
   businessNumberE164: string | null;
-  inboundCcid: string | null;
+  /** #211 (D6): the far-party PSTN leg, BOTH directions. Inbound: the
+   *  customer's own incoming leg. Outbound: the Telnyx outdial (oc) leg whose
+   *  party IS the customer — the placer's browser SIP leg is deliberately
+   *  unrepresented (D10), so transfer/consult/teardown target this column in
+   *  either direction. Renamed from `inboundCcid`; session-do aliases a
+   *  pre-#211 persisted machine's old key on load. */
+  customerCcid: string | null;
+  /** #211: inbound (the customer rang us) vs outbound (we placed the call).
+   *  Drives the direction-aware terminal merge (D8 — NEVER text the customer on
+   *  an outbound no-answer) and adoption (D15). The owner/intent transfer
+   *  machinery is direction-agnostic (parity by the shared 'answered' contract).
+   *  A pre-#211 persisted machine loads as 'inbound' (session-do alias). */
+  direction: "inbound" | "outbound";
   startedAtMs: number;
   answeredByUserId: string | null;
   answeredAtIso: string | null;
@@ -198,6 +215,34 @@ export interface InitiatedContext {
    *  push-enabled per notification_prefs (#146) — same filter the delegate
    *  applies (§5.5, review R2-I1). */
   pushAudience: string[];
+}
+
+/**
+ * #211 T-O1: what the shell resolved (I/O) before minting an OUTBOUND machine
+ * from a 4-part oc call.initiated. runtime.loadOutboundInitiatedContext builds
+ * this ONLY after (a) the nonce is consumed AND (b) tag part-4 === the
+ * nonce-bound S (S1/M3). EVERY failure path — malformed part-4, part-4 != S,
+ * unauthorized/expired nonce, a non-NANP destination (#136), a lapsed
+ * subscription, or a busy line — is a shell-side reject that hangs up the leg
+ * and mints NOTHING, so this context always describes an authorized session
+ * under the ONE id S.
+ */
+export interface OutboundInitiatedContext {
+  /** S == tag part-4 == the nonce-bound stored S == the calls-row PK ==
+   *  the DO idFromName key. One value by construction. */
+  callSessionId: string;
+  /** The oc (outdial) leg's call_control_id — the customer's PSTN channel
+   *  (machine.customerCcid). The placer's browser SIP leg is unrepresented. */
+  customerCcid: string;
+  companyId: string;
+  phoneNumberId: string;
+  /** The placing member — owner from mint (D9), mirrored answered_by at T-O1.
+   *  Null only on the rare replay-of-an-evicted-DO edge where the row's
+   *  answered_by was never stamped (a degraded-but-honest unattributed owner). */
+  userId: string | null;
+  /** The customer number (the calls row's caller_e164; the threading anchor). */
+  customer: string | null;
+  businessNumberE164: string | null;
 }
 
 export type SessionEvent =
@@ -271,7 +316,20 @@ export type SessionEvent =
        *  terminal itself (T16-janitor idiom) instead of stranding the row
        *  outcome-null for the 4h janitor window. */
       type: "inbound-leg-gone";
-    };
+    }
+  // ---- #211 outbound (oc) lifecycle -------------------------------------------
+  /** T-O1: a 4-part oc call.initiated whose nonce+part-4==S check passed. The
+   *  ONLY outbound event that may mint a machine (the outbound analog of
+   *  'initiated'). */
+  | { type: "outbound-initiated"; context: OutboundInitiatedContext }
+  /** T-O2: the customer (oc) leg answered — 'dialing' → 'answered'. An
+   *  idempotent re-delivery (already answered/terminal) is a no-op. */
+  | { type: "outbound-answered" }
+  /** T-O3: the customer (oc) leg hung up — terminal from EVERY non-terminal
+   *  outbound state. Carries the raw Telnyx payload so the event-mode terminal
+   *  merge replays it through the existing billing/threading delegate (keyed on
+   *  S via the shell's outboundSessionId override — M1). */
+  | { type: "outbound-hangup"; payload: Record<string, unknown> | null };
 
 export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "initiated",
@@ -294,6 +352,9 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "dial-outcome",
   "member-probe-outcome",
   "inbound-leg-gone",
+  "outbound-initiated",
+  "outbound-answered",
+  "outbound-hangup",
 ];
 
 export type AlarmKind =
@@ -325,7 +386,7 @@ export type Effect =
     }
   | { kind: "telnyx-answer-inbound"; ccid: string; answerIntent: AnswerIntent }
   | { kind: "telnyx-answer-vm"; ccid: string }
-  | { kind: "telnyx-bridge"; memberCcid: string; inboundCcid: string }
+  | { kind: "telnyx-bridge"; memberCcid: string; customerCcid: string }
   | { kind: "telnyx-hangup"; ccid: string; terminal: boolean }
   | { kind: "telnyx-reject"; ccid: string; cause: "USER_BUSY" }
   | { kind: "telnyx-speak"; ccid: string }
@@ -424,10 +485,10 @@ function vmEntry(machine: SessionMachine, effects: Effect[]): void {
   machine.ringDeadlineMs = null;
   effects.push({ kind: "mirror", set: { state: "voicemail_greeting" }, terminal: false });
   effects.push({ kind: "clear-alarm", alarm: "ring" });
-  if (machine.inboundCcid) {
+  if (machine.customerCcid) {
     // Terminal-path exemption class (§13): the voicemail answer must never
     // drop at the command cap — it is how the session ends honestly.
-    effects.push({ kind: "telnyx-answer-vm", ccid: machine.inboundCcid });
+    effects.push({ kind: "telnyx-answer-vm", ccid: machine.customerCcid });
   }
   effects.push({ kind: "push-call-end", reason: "voicemail" });
 }
@@ -478,8 +539,8 @@ function terminalize(
 
 /** §4 T7's teardown: hang up the customer leg; the bri hangup runs T8. */
 function ownerDeathTeardown(machine: SessionMachine, effects: Effect[]): void {
-  if (machine.inboundCcid) {
-    effects.push({ kind: "telnyx-hangup", ccid: machine.inboundCcid, terminal: true });
+  if (machine.customerCcid) {
+    effects.push({ kind: "telnyx-hangup", ccid: machine.customerCcid, terminal: true });
   }
   machine.ownerLegDeadDuringIntent = null;
 }
@@ -504,6 +565,16 @@ export function reduce(
     return reduceInitiated(event.context, nowMs, pendingKeyFor);
   }
 
+  // ---- T-O1: outbound-initiated (the outbound analog — also mints) ---------
+  if (event.type === "outbound-initiated") {
+    if (machine !== null) {
+      // Replay guard: the machine exists — no-op (mirrors T1's guard). A replay
+      // of an authorized outbound initiated re-enters here idempotently.
+      return { machine, effects: [] };
+    }
+    return reduceOutboundInitiated(event.context, nowMs);
+  }
+
   if (machine === null) {
     // No machine: adoption/no-row-drop happen in the shell (§7.5) BEFORE the
     // reducer. Anything reaching here is a licensed no-op.
@@ -524,13 +595,37 @@ export function reduce(
     case "inbound-hangup":
       return reduceInboundHangup(next, event, effects, nowMs);
 
+    // ---- T-O2: outbound customer (oc) leg answered ------------------------
+    case "outbound-answered": {
+      // Only a live outbound machine in 'dialing' transitions; a re-delivery in
+      // 'answered' or any terminal state is an idempotent no-op (§17.4). An
+      // inbound machine can never receive this (the oc leg keys the outbound DO
+      // on S; an inbound leg keys a different DO).
+      if (next.direction !== "outbound" || next.state !== "dialing") {
+        return { machine: next, effects };
+      }
+      const answeredAtIso = new Date(nowMs).toISOString();
+      next.state = "answered";
+      next.answeredAtIso = answeredAtIso;
+      effects.push({
+        kind: "mirror",
+        set: { state: "answered", answered_at: answeredAtIso },
+        terminal: false,
+      });
+      return { machine: next, effects };
+    }
+
+    // ---- T-O3: outbound customer (oc) leg hung up (terminal) --------------
+    case "outbound-hangup":
+      return reduceOutboundHangup(next, event, effects, nowMs);
+
     // ---- T11 --------------------------------------------------------------
     case "speak-ended": {
       if (next.state !== "voicemail_greeting") return { machine: next, effects };
       next.state = "voicemail_recording";
       effects.push({ kind: "mirror", set: { state: "voicemail_recording" }, terminal: false });
-      if (next.inboundCcid) {
-        effects.push({ kind: "telnyx-record-start", ccid: next.inboundCcid });
+      if (next.customerCcid) {
+        effects.push({ kind: "telnyx-record-start", ccid: next.customerCcid });
       }
       return { machine: next, effects };
     }
@@ -618,6 +713,9 @@ export function reduce(
           "missed",
         );
       } else if (next.state === "answered") {
+        // Serves inbound AND outbound 'answered' — terminalMergeSynthetic is
+        // direction-aware (D8), so an outbound janitor-resolve bills its talk
+        // time from answeredAtIso and texts no one.
         terminalize(
           next,
           effects,
@@ -630,6 +728,18 @@ export function reduce(
             payload: null,
             briAnsweredAtIso: next.answeredAtIso,
           },
+          null,
+        );
+      } else if (next.state === "dialing") {
+        // #211 T-O3 backstop: an outbound customer leg that never answered and
+        // whose hangup we never saw → ended_missed. The synthetic merge is
+        // direction-aware (never texts the customer).
+        terminalize(
+          next,
+          effects,
+          nowMs,
+          "ended_missed",
+          { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
           null,
         );
       } else {
@@ -655,8 +765,8 @@ export function reduce(
     case "vm-answer-outcome": {
       if (next.state !== "voicemail_greeting") return { machine: next, effects };
       if (event.ok) {
-        if (next.inboundCcid) {
-          effects.push({ kind: "telnyx-speak", ccid: next.inboundCcid });
+        if (next.customerCcid) {
+          effects.push({ kind: "telnyx-speak", ccid: next.customerCcid });
         }
         cancelAllLiveLegs(next, effects, true);
         return { machine: next, effects };
@@ -751,10 +861,10 @@ export function reduce(
         userId: event.userId,
         answeredAtIso,
       };
-      if (next.inboundCcid) {
+      if (next.customerCcid) {
         effects.push({
           kind: "telnyx-answer-inbound",
-          ccid: next.inboundCcid,
+          ccid: next.customerCcid,
           answerIntent: next.answerIntent,
         });
       }
@@ -785,7 +895,8 @@ function reduceInitiated(
     greeting: context.greeting,
     callerE164: context.callerE164,
     businessNumberE164: context.businessNumberE164,
-    inboundCcid: context.inboundCcid,
+    customerCcid: context.inboundCcid,
+    direction: "inbound",
     startedAtMs: nowMs,
     answeredByUserId: null,
     answeredAtIso: null,
@@ -877,6 +988,98 @@ function reduceInitiated(
   return { machine: base, effects };
 }
 
+/**
+ * #211 T-O1: mint an OUTBOUND machine in 'dialing' from an authorized 4-part oc
+ * call.initiated. Owner-from-mint (D9): answeredByUserId = the placing member,
+ * mirrored immediately so /calls/live/mine crash recovery and GET /targets
+ * busy-truth work with ZERO query changes; answered_at is stamped only at T-O2
+ * (the billing anchor — a call that never proved it connected never bills). NO
+ * ring/fanout/dial-deadline alarms: the placer is already on the line hearing
+ * carrier ringback, and runaway dials are bounded by the #145 creation-age cron
+ * plus the 4h janitor — a machine-side ring cap would silently change UX. The
+ * customer (oc) leg is the machine's customerCcid; the placer's browser SIP leg
+ * is deliberately unrepresented (D10), so there are NO tracked legs.
+ */
+function reduceOutboundInitiated(
+  context: OutboundInitiatedContext,
+  nowMs: number,
+): ReduceResult {
+  const machine: SessionMachine = {
+    state: "dialing",
+    callSessionId: context.callSessionId,
+    companyId: context.companyId,
+    phoneNumberId: context.phoneNumberId,
+    // Voicemail-only fields are unused for outbound (no greeting path).
+    companyName: "",
+    greeting: null,
+    callerE164: context.customer,
+    businessNumberE164: context.businessNumberE164,
+    customerCcid: context.customerCcid,
+    direction: "outbound",
+    startedAtMs: nowMs,
+    answeredByUserId: context.userId, // owner from mint (D9)
+    answeredAtIso: null,
+    rejectedForCap: false,
+    unattended: false,
+    wakeAttempted: false,
+    ownerLegDeadDuringIntent: null,
+    adopted: false,
+    pushCapableUserIds: [],
+    declinedUserIds: [],
+    ringDeadlineMs: null,
+    telnyxCommandCount: 0,
+    legs: [],
+    intent: null,
+    answerIntent: null,
+  };
+  const effects: Effect[] = [
+    {
+      kind: "mirror",
+      set: { state: "dialing", answered_by_user_id: context.userId },
+      terminal: false,
+    },
+    { kind: "arm-alarm", alarm: "janitor", atMs: nowMs + JANITOR_MS },
+  ];
+  return { machine, effects };
+}
+
+/**
+ * #211 T-O3: the outbound customer (oc) leg hung up — TERMINAL from EVERY
+ * non-terminal outbound state (the outbound T17-equivalent totality that keeps
+ * the line from wedging). ended_answered when the leg had answered (answeredAtIso
+ * set), else ended_missed. terminalize is REUSED verbatim — same #209
+ * outcome-coalesce terminal mirror, same purge alarm, same never-MCTB posture.
+ * The terminal-merge is mode 'event' carrying machine.answeredAtIso as the
+ * briAnsweredAtIso anchor; session-do forwards it AND machine.callSessionId (S)
+ * as an outboundSessionId override into handleTerminalCallEvent, so outbound
+ * bills talk time keyed on S even if the answered_at mirror never landed (M1).
+ * No push-call-end: no members were ever rung.
+ */
+function reduceOutboundHangup(
+  next: SessionMachine,
+  event: Extract<SessionEvent, { type: "outbound-hangup" }>,
+  effects: Effect[],
+  nowMs: number,
+): ReduceResult {
+  if (isTerminal(next.state)) return { machine: next, effects }; // T14 no-op
+  const answered = next.answeredAtIso !== null;
+  terminalize(
+    next,
+    effects,
+    nowMs,
+    answered ? "ended_answered" : "ended_missed",
+    {
+      kind: "terminal-merge",
+      mode: "event",
+      outcome: answered ? "answered" : "missed",
+      payload: event.payload,
+      briAnsweredAtIso: next.answeredAtIso,
+    },
+    null, // no ring audience to revoke
+  );
+  return { machine: next, effects };
+}
+
 function reduceMemberAnswered(
   next: SessionMachine,
   event: Extract<SessionEvent, { type: "member-leg-answered" }>,
@@ -942,10 +1145,10 @@ function reduceMemberAnswered(
   // billing anchor D36). The 4xx discrimination re-enters as answer-outcome.
   const answeredAtIso = new Date().toISOString();
   next.answerIntent = { memberCcid: event.ccid, userId: event.userId, answeredAtIso };
-  if (next.inboundCcid) {
+  if (next.customerCcid) {
     effects.push({
       kind: "telnyx-answer-inbound",
-      ccid: next.inboundCcid,
+      ccid: next.customerCcid,
       answerIntent: next.answerIntent,
     });
   }
@@ -998,11 +1201,11 @@ function reduceAnswerOutcome(
     },
     terminal: false,
   });
-  if (next.inboundCcid) {
+  if (next.customerCcid) {
     effects.push({
       kind: "telnyx-bridge",
       memberCcid: event.memberCcid,
-      inboundCcid: next.inboundCcid,
+      customerCcid: next.customerCcid,
     });
   }
   // (5) Cancel all sibling legs.

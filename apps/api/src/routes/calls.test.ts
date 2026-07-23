@@ -420,6 +420,38 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(dial.calls).toHaveLength(0);
   });
 
+  it("#211: CALLS_OUTBOUND_V3 on → returns call_session_id (S), a 4-part tag, and stores S+placer on the claim", async () => {
+    const sb = browserWorld();
+    stubFetch(jwksRoute(auth), sb.route);
+    // The gate is callsV3Active(env) && CALLS_OUTBOUND_V3 — both must hold.
+    const v3env = {
+      ...env,
+      CALL_SESSIONS: { idFromName: () => ({}) },
+      CALLS_OUTBOUND_V3: "1",
+    } as unknown as typeof env;
+
+    const res = await apiRequest(app, v3env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      client_state: string;
+      call_session_id: string | null;
+    };
+    // The response carries S; the tag is 4-part with part-4 == S (the ONE id).
+    expect(body.call_session_id).toBeTruthy();
+    const parts = atob(body.client_state).split("|");
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toBe("oc_customer");
+    expect(parts[3]).toBe(body.call_session_id);
+    // The claim recorded S (=call_session_id) and the placing member.
+    const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
+    expect(claim[0].body).toMatchObject({ p_call_session_id: body.call_session_id });
+    expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
+  });
+
   it("402s a non-active subscription", async () => {
     const sb = browserWorld({ subscriptionStatus: "canceled" });
     stubFetch(jwksRoute(auth), sb.route);

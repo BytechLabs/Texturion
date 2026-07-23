@@ -471,4 +471,64 @@ begin
   raise notice 'C-11 PASSED: two-tier sweep honors the terminal mirror; stranded rows free the line, live ones hold it';
 end $$;
 
+-- ===========================================================================
+-- C-12. #211 call-hijack fix: the api_authorize_outbound_call REPLAY branch is
+--       AUTHORIZATION-SCOPED (migration 20260723005000). When the nonce is
+--       gone (a genuine re-delivery OR a forged leg with a random nonce), the
+--       lookup must match ONLY an OUTBOUND row (one THIS RPC minted) whose
+--       business number equals the PRESENTED `from`. Before the fix it did an
+--       UNSCOPED `where call_session_id = p_call_session_id`, letting a member
+--       craft a tag part-4 = a VICTIM's (non-secret) live session id and get
+--       the victim's company/number back (the call-hijack primitive).
+-- ===========================================================================
+do $$
+declare v jsonb;
+begin
+  -- A live OUTBOUND victim row under a non-secret session id, on number ...002
+  -- (+14165550300). No matching outbound_call_authorizations nonce exists.
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, caller_e164, direction, state, started_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+     'sess-victim-out', '+14165551111', 'outbound', 'answered', now() - interval '1 minute');
+
+  -- ATTACK 1: a forged leg presents a `from` it can produce (+14165559999) but
+  -- the victim's session id. The scoped lookup requires the row's OWN business
+  -- number, so it misses -> authorized=false (pre-fix: returned victim tenant).
+  v := public.api_authorize_outbound_call(
+    'nonce-does-not-exist', '+14165559999', '+14165552222', 'sess-victim-out', 120);
+  if (v->>'authorized')::boolean is distinct from false then
+    raise exception 'C-12 FAILED: replay bound a victim row under a non-matching from (%)', v;
+  end if;
+
+  -- ATTACK 2: an INBOUND victim row is unreachable via the replay branch even
+  -- when the presented `from` matches the number - the RPC only ever mints
+  -- OUTBOUND rows, so the direction scope excludes it.
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, caller_e164, direction, state, started_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+     'sess-victim-in', '+14165553333', 'inbound', 'answered', now() - interval '1 minute');
+  v := public.api_authorize_outbound_call(
+    'nonce-does-not-exist', '+14165550300', '+14165552222', 'sess-victim-in', 120);
+  if (v->>'authorized')::boolean is distinct from false then
+    raise exception 'C-12 FAILED: replay bound an INBOUND victim row (%)', v;
+  end if;
+
+  -- GENUINE REPLAY: the leg re-delivering its OWN outbound initiated (its own
+  -- outbound row + its own business number as `from`) authorizes as a replay,
+  -- returning the row's own tenant, so a live re-delivery is a safe no-op.
+  v := public.api_authorize_outbound_call(
+    'nonce-does-not-exist', '+14165550300', '+14165552222', 'sess-victim-out', 120);
+  if (v->>'authorized')::boolean is distinct from true
+     or (v->>'replay')::boolean is distinct from true
+     or v->>'company_id' <> '77777777-7777-4777-8777-777000000000'
+     or v->>'phone_number_id' <> '77777777-7777-4777-8777-777000000002'
+     or v->>'session_id' <> 'sess-victim-out' then
+    raise exception 'C-12 FAILED: genuine outbound replay not authorized correctly (%)', v;
+  end if;
+
+  raise notice 'C-12 PASSED: replay branch is authorization-scoped (outbound + matching from only)';
+end $$;
+
 rollback;

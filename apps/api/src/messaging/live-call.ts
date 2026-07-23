@@ -177,15 +177,25 @@ export async function liveCallBySession(
 }
 
 /**
- * LEDGER a transfer intent, then issue the blind transfer on the customer
- * leg. The ledger row (kind='transfer') is the proof handleTransferAnswered
- * checks before it trusts the echoed `brt` tag — without it, a member could
- * forge a brt client_state on their own softphone call and rewrite the
- * 'who answered' audit field / fabricate a journey line on any session.
- * `client_state` is NOT sent on the transfer command — the customer leg must
- * keep its `bri` billing anchor; only `target_leg_client_state` (the new
- * member leg) is tagged. The target sees the CUSTOMER as caller ID (who they
- * are about to talk to), not the workspace's own number.
+ * LEDGER a transfer intent, then issue the blind transfer. The ledger row
+ * (kind='transfer') is the proof handleTransferAnswered checks before it trusts
+ * the echoed `brt` tag — without it, a member could forge a brt client_state on
+ * their own softphone call and rewrite the 'who answered' audit field /
+ * fabricate a journey line on any session. The target sees the CUSTOMER as
+ * caller ID (who they are about to talk to), not the workspace's own number.
+ *
+ * The MECHANIC is direction-aware — this is the single #211 D11 swap seam:
+ *   INBOUND: the Telnyx `transfer` command on the customer leg. Telnyx
+ *   creates+bridges the target leg on answer and drops the sender's bridge
+ *   partner; `client_state` is NOT sent on the command so the customer leg
+ *   keeps its `bri` billing anchor (only the target leg is `brt`-tagged).
+ *   OUTBOUND (#211, founder-directed): the PROVEN consult-style dial +
+ *   bridge-steal — the same mechanic consult/complete runs against customer
+ *   ccids in prod. DIAL the target as a `brt` leg on the Call-Control app; on
+ *   its call.answered, handleTransferAnswered bridge-STEALS the customer (oc)
+ *   leg onto it, dropping the placer. (The Telnyx `transfer` command on a
+ *   browser-originated oc leg was never exercised, so it is deliberately NOT
+ *   used.) The oc leg keeps its 4-part billing anchor untouched.
  */
 export async function issueTransfer(
   env: Env,
@@ -196,6 +206,8 @@ export async function issueTransfer(
     targetSipUsername: string;
     callerNumberForTarget: string;
     state: TransferState;
+    /** #211: inbound (Telnyx transfer command) vs outbound (dial+bridge-steal). */
+    direction: "inbound" | "outbound";
   },
 ): Promise<boolean> {
   const legToken = `transfer:${input.state.targetUserId}:${input.state.hops}`;
@@ -214,6 +226,42 @@ export async function issueTransfer(
     throw new Error(`transfer ledger insert failed: ${ledgerError.message}`);
   }
 
+  // CALLS-CLIENT-V2 §3.2 (#208): the transfer's NEW member (brt) leg carries the
+  // same session-correlation custom SIP header as ring legs (X- prefix
+  // mandatory), so the target's client correlates the INVITE to its server
+  // session deterministically, never by a caller/time heuristic.
+  const targetHeaders = [
+    { name: LOONEXT_SESSION_HEADER, value: input.state.sessionId },
+  ];
+
+  if (input.direction === "outbound") {
+    // #211 (D11): DIAL the target on the Call-Control app (the consult-style
+    // seam). handleTransferAnswered bridge-steals the oc leg onto it on answer;
+    // the ledger row above is the forgery gate it checks, and it stamps the real
+    // ccid from the answered event (the synthetic legToken here is a placeholder,
+    // same as inbound). The oc customer leg is untouched until the steal, so a
+    // MISSED target simply leaves the placer connected (no snap-back — see
+    // handleTransferLegHangup).
+    const dialed = await telnyxOnLiveLeg(env, "/v2/calls", {
+      connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+      to: `sip:${input.targetSipUsername}@sip.telnyx.com`,
+      // The target sees who they're about to talk to (the customer), not our own
+      // number (falls back to the business number for an anonymous caller).
+      from: input.callerNumberForTarget,
+      timeout_secs: TRANSFER_TIMEOUT_SECS,
+      client_state: buildTransferState(input.state),
+      custom_headers: targetHeaders,
+    });
+    if (!dialed) {
+      await db
+        .from("call_member_legs")
+        .delete()
+        .eq("call_session_id", input.state.sessionId)
+        .eq("call_control_id", legToken);
+    }
+    return dialed;
+  }
+
   const issued = await telnyxOnLiveLeg(
     env,
     `/v2/calls/${input.customerCcid}/actions/transfer`,
@@ -224,15 +272,9 @@ export async function issueTransfer(
       from: input.callerNumberForTarget,
       timeout_secs: TRANSFER_TIMEOUT_SECS,
       target_leg_client_state: buildTransferState(input.state),
-      // CALLS-CLIENT-V2 §3.2 (#208): the transfer's NEW member leg carries the
-      // same session-correlation custom SIP header as ring legs (X- prefix
-      // mandatory), so the target's client correlates the inbound INVITE to
-      // its server session deterministically, never by a caller/time
-      // heuristic. Applies to the target leg only; the customer leg is
-      // untouched (its bri anchor stays).
-      custom_headers: [
-        { name: LOONEXT_SESSION_HEADER, value: input.state.sessionId },
-      ],
+      // Applies to the target leg only; the customer leg is untouched (its bri
+      // anchor stays).
+      custom_headers: targetHeaders,
     },
   );
   if (!issued) {
@@ -312,6 +354,26 @@ export async function handleTransferAnswered(
   }
 
   const call = await liveCallBySession(db, state.sessionId);
+
+  // #211 (D11): for an OUTBOUND call the blind transfer was a consult-style dial
+  // (issueTransfer), so the target answering does NOT auto-bridge — bridge-STEAL
+  // the customer (oc) leg onto the now-answered target leg, dropping the placer.
+  // This is the SAME proven mechanic consult/complete runs against customer
+  // ccids. Ordering mirrors consult/complete: DB owner stamp -> DO
+  // setOwner+clearIntent (above) -> bridge-steal. 4xx-tolerant: a dead customer
+  // leg means the call is already ending (its own hangup runs T-O3), so a false
+  // return here never strands anything. (Inbound skips this — Telnyx's transfer
+  // command already bridged the target and dropped the sender.)
+  if (
+    call?.direction === "outbound" &&
+    call.customer_call_control_id &&
+    realLegCcid
+  ) {
+    await telnyxOnLiveLeg(env, `/v2/calls/${realLegCcid}/actions/bridge`, {
+      call_control_id: call.customer_call_control_id,
+    });
+  }
+
   if (!call?.conversation_id) return; // unthreaded (anonymous) — list-only
   await insertJourneyEvent(db, {
     companyId,
@@ -357,6 +419,15 @@ export async function handleTransferLegHangup(
   if (!call?.customer_call_control_id) return;
   if (call.outcome !== null) return; // the call already ended — nothing to save
 
+  // #211: an OUTBOUND blind transfer is consult-style — the placer is NOT
+  // unbridged until the bridge-steal succeeds (handleTransferAnswered), so a
+  // MISSED target leaves the placer STILL connected to the customer. The ledger
+  // is already marked failed above; there is nothing to recover. Return WITHOUT
+  // snapping back (never re-dial the placer, who never left) and WITHOUT hanging
+  // up the customer (which the placer still holds). The inbound snap-back below
+  // exists only because Telnyx's transfer command unbridges the sender at issue.
+  if (call.direction === "outbound") return;
+
   if (state.hops < MAX_TRANSFER_HOPS) {
     // Snap the customer back to the sender.
     const { data, error } = await db
@@ -374,6 +445,9 @@ export async function handleTransferLegHangup(
         targetSipUsername: sip,
         callerNumberForTarget:
           state.caller ?? (await businessNumberFor(db, call)),
+        // Inbound-only path (we returned above for outbound): the Telnyx
+        // transfer command re-rings the sender's browser and re-bridges.
+        direction: "inbound",
         state: {
           sessionId: state.sessionId,
           targetUserId: state.senderUserId,

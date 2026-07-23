@@ -28,6 +28,7 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
+import { parseOutboundSessionId } from "../messaging/voice-webhook";
 
 import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./runtime";
 import {
@@ -50,6 +51,9 @@ import {
 /** The freshest machine view the /state route serves (read-your-writes). */
 export interface SessionSnapshot {
   state: CallState;
+  /** #211: inbound | outbound (additive — the /state route reads direction from
+   *  the row, but the snapshot carries it too for a read-your-writes consumer). */
+  direction: "inbound" | "outbound";
   answered_by_user_id: string | null;
   answered_at: string | null;
   started_at: string;
@@ -266,6 +270,7 @@ export class CallSessionDO extends DurableObject<Env> {
       if (!machine) return null;
       return {
         state: machine.state,
+        direction: machine.direction,
         answered_by_user_id: machine.answeredByUserId,
         answered_at: machine.answeredAtIso,
         started_at: new Date(machine.startedAtMs).toISOString(),
@@ -500,7 +505,7 @@ export class CallSessionDO extends DurableObject<Env> {
             sessionId: machine.callSessionId,
             userId: leg.userId,
             caller: machine.callerE164,
-            inboundCcid: machine.inboundCcid ?? "",
+            inboundCcid: machine.customerCcid ?? "",
           });
           const result = await this.rt.telnyx.dial({
             sipTarget: leg.sipTarget,
@@ -559,12 +564,12 @@ export class CallSessionDO extends DurableObject<Env> {
       case "telnyx-bridge": {
         if (!machine) return [];
         if (!this.spendCommand(machine, true)) return [];
-        const outcome = await this.rt.telnyx.bridge(effect.memberCcid, effect.inboundCcid);
+        const outcome = await this.rt.telnyx.bridge(effect.memberCcid, effect.customerCcid);
         await this.save(machine);
         if (outcome === "dead") {
           // Genuinely dead: hang up both legs; the bri hangup runs T8/T17.
           await this.rt.telnyx.hangup(effect.memberCcid);
-          await this.rt.telnyx.hangup(effect.inboundCcid);
+          await this.rt.telnyx.hangup(effect.customerCcid);
         }
         return [];
       }
@@ -577,7 +582,7 @@ export class CallSessionDO extends DurableObject<Env> {
           outcome === "dead" &&
           effect.terminal &&
           machine &&
-          effect.ccid === machine.inboundCcid
+          effect.ccid === machine.customerCcid
         ) {
           // #208 F4: a TERMINAL hangup of the CUSTOMER leg discriminated
           // "dead": the leg was already gone, so the bri hangup webhook that
@@ -643,7 +648,21 @@ export class CallSessionDO extends DurableObject<Env> {
       case "terminal-merge": {
         if (!machine) return [];
         if (effect.mode === "event" && effect.payload) {
-          await this.rt.terminalMergeEvent(effect.payload);
+          // #211 M1: for outbound, the raw hangup keys on Telnyx's T, but the
+          // calls row is under S — so carry S as an explicit session-id override
+          // (propagates to the existence check, upsert, thread, recordCallDuration)
+          // AND machine.answeredAtIso as the talk-time anchor (bills mirror-
+          // independently even if the answered_at mirror never landed). Inbound
+          // passes no opts → byte-identical to today.
+          await this.rt.terminalMergeEvent(
+            effect.payload,
+            machine.direction === "outbound"
+              ? {
+                  outboundSessionId: machine.callSessionId,
+                  outboundAnsweredAtIso: effect.briAnsweredAtIso,
+                }
+              : undefined,
+          );
         } else {
           await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
         }
@@ -767,8 +786,40 @@ export class CallSessionDO extends DurableObject<Env> {
     }
 
     const memberState = parseMemberRingState(payload.client_state);
+    // #211: the server session id S carried in a 4-part oc tag's part-4 (a valid
+    // UUID), or null. Present for EVERY oc lifecycle event (initiated/answered/
+    // hangup); it is the id THIS DO is keyed on (part-4 == S == idFromName), NOT
+    // payload.call_session_id (Telnyx's T, which differs for outbound).
+    const outboundSession = parseOutboundSessionId(payload.client_state);
 
     if (eventType === "call.initiated") {
+      // #211 T-O1: a 4-part oc call.initiated (browser-originated outbound,
+      // part-4 = a well-formed UUID = S) mints an OUTBOUND machine. The router
+      // only routes it here when part-4 is a valid UUID; loadOutboundInitiatedContext
+      // is the authority (nonce consume + tag-part-4==nonce-bound-S check) and
+      // rejects-without-minting on any mismatch (S1/M3).
+      if (outboundSession) {
+        const ctx = await this.rt.loadOutboundInitiatedContext({
+          call_control_id: payload.call_control_id ?? "",
+          call_session_id: payload.call_session_id ?? "",
+          client_state: payload.client_state ?? null,
+          to: payload.to ?? "",
+          from: payload.from,
+        });
+        if (ctx === "drop") return null;
+        if (ctx === "reject") {
+          // Terminal-exempt: hang up the unauthorized / forged-part-4 / non-NANP
+          // / over-cap / line-busy leg and mint NOTHING. There is no machine, so
+          // nothing to journal; the leg is a live PSTN channel we must not leave
+          // ringing (the legacy telnyxRejectLeg posture).
+          if (payload.call_control_id) {
+            await this.rt.telnyx.hangup(payload.call_control_id);
+          }
+          return null;
+        }
+        return { event: { type: "outbound-initiated", context: ctx } };
+      }
+
       // T0: a tagged initiated (our own leg family / forgery) or an unowned
       // number is dropped by loadInitiatedContext.
       if (memberState || (payload.client_state && payload.direction === "incoming")) {
@@ -787,9 +838,12 @@ export class CallSessionDO extends DurableObject<Env> {
       return { event: { type: "initiated", context } };
     }
 
-    // Learn the session id this object is keyed on (brm legs carry it in the
-    // tag; every other inbound leg in payload.call_session_id).
-    const sessionId = memberState?.sessionId ?? payload.call_session_id;
+    // Learn the session id this object is keyed on: brm legs carry it in the
+    // tag (S); a 4-part oc leg carries it as part-4 (S); every other inbound leg
+    // in payload.call_session_id. For an oc leg, part-4 (S) is authoritative —
+    // NEVER payload.call_session_id (Telnyx's T, which differs for outbound).
+    const sessionId =
+      memberState?.sessionId ?? outboundSession ?? payload.call_session_id;
     if (sessionId) await this.rememberSessionId(sessionId);
 
     // Every non-initiated event needs a machine — adopt if the DO is empty.
@@ -797,12 +851,30 @@ export class CallSessionDO extends DurableObject<Env> {
     if (!machine) {
       machine = await this.adoptFromRow(raw);
       if (!machine) {
-        // §7.5.1: a no-row inbound call.hangup returns WITHOUT stamping so the
-        // sweeper can replay it against a machine a delayed initiated retry
-        // mints minutes later; every other no-row drop stamps as today.
+        // §7.5.1: a no-row inbound (or oc) call.hangup returns WITHOUT stamping
+        // so the sweeper can replay it against a machine a delayed initiated
+        // retry mints minutes later; every other no-row drop stamps as today.
         if (eventType === "call.hangup") return "drop-no-stamp";
         return null; // forged / unknown → drop
       }
+    }
+
+    // #211 T-O2 / T-O3: the outbound customer (oc) leg's answered / hangup route
+    // to the outbound machine (keyed on S). call.initiated was handled above; a
+    // stray oc lifecycle event (e.g. bridging) is an acked no-op.
+    if (outboundSession) {
+      if (eventType === "call.answered") {
+        return { event: { type: "outbound-answered" } };
+      }
+      if (eventType === "call.hangup") {
+        return {
+          event: {
+            type: "outbound-hangup",
+            payload: payload as Record<string, unknown>,
+          },
+        };
+      }
+      return null;
     }
 
     if (memberState && payload.call_control_id) {
@@ -891,7 +963,22 @@ export class CallSessionDO extends DurableObject<Env> {
     const tag = this.classifyInboundTag(clientState);
 
     let state: CallState;
-    if (row.outcome) {
+    if (row.direction === "outbound") {
+      // #211 D15: an outbound row reconstructs EXPLICITLY — never the inbound
+      // default below that would arm a false 45s ring deadline and mis-evaluate
+      // decline/ring-me gates. outcome -> ended_*; answered_at -> 'answered';
+      // else 'dialing'. loadAdoptionRow's kind='ring' leg read is empty for
+      // outbound, so there are no legs and no ringDeadline (set below).
+      state = row.outcome
+        ? row.outcome === "answered"
+          ? "ended_answered"
+          : row.outcome === "voicemail"
+            ? "ended_voicemail"
+            : "ended_missed"
+        : row.answeredAt
+          ? "answered"
+          : "dialing";
+    } else if (row.outcome) {
       // §7.5.2: reconstruct the terminal state.
       state =
         row.outcome === "answered"
@@ -923,7 +1010,8 @@ export class CallSessionDO extends DurableObject<Env> {
       greeting: row.greeting,
       callerE164: row.callerE164,
       businessNumberE164: row.businessNumberE164,
-      inboundCcid: row.customerCallControlId,
+      customerCcid: row.customerCallControlId,
+      direction: row.direction === "outbound" ? "outbound" : "inbound",
       startedAtMs: row.startedAtMs,
       answeredByUserId: row.answeredByUserId,
       answeredAtIso: row.answeredAt,
@@ -975,6 +1063,21 @@ export class CallSessionDO extends DurableObject<Env> {
   private async load(): Promise<SessionMachine | null> {
     if (this.cachedMachine !== undefined) return this.cachedMachine;
     const machine = (await this.ctx.storage.get<SessionMachine>("machine")) ?? null;
+    if (machine) {
+      // #211 in-flight deploy compat: a machine persisted BEFORE the
+      // inboundCcid->customerCcid rename (D6) has no `customerCcid`, and any
+      // pre-#211 machine has no `direction`. Alias both on load so a call
+      // spanning the deploy keeps working; the next save() writes the new keys.
+      const legacy = machine as Partial<SessionMachine> & {
+        inboundCcid?: string | null;
+      };
+      if (legacy.customerCcid === undefined) {
+        machine.customerCcid = legacy.inboundCcid ?? null;
+      }
+      if (legacy.direction === undefined) {
+        machine.direction = "inbound";
+      }
+    }
     this.cachedMachine = machine;
     return machine;
   }

@@ -11,7 +11,11 @@ import type { TelnyxEvent } from "../messaging/types";
 
 import { CallSessionDO } from "./session-do";
 import type { AdoptionRow, SessionRuntime } from "./runtime";
-import type { InitiatedContext } from "./transitions";
+import type { InitiatedContext, OutboundInitiatedContext } from "./transitions";
+import {
+  buildOutboundState,
+  OUTBOUND_CUSTOMER_STATE,
+} from "../messaging/voice-webhook";
 
 // ---- in-memory storage double ----------------------------------------------
 
@@ -53,6 +57,8 @@ function makeStorage() {
 interface FakeConfig {
   killSwitch?: boolean;
   initiated?: InitiatedContext | "drop" | "replay-ended";
+  /** #211: what loadOutboundInitiatedContext returns for a 4-part oc initiated. */
+  outboundInitiated?: OutboundInitiatedContext | "reject" | "drop";
   adoptionRow?: AdoptionRow | null;
   dialResult?: () => { ccid: string } | { failure: "known-dead" | "ambiguous" };
   answerInbound?: () => "ok" | "dead";
@@ -78,6 +84,11 @@ function makeRuntime(config: FakeConfig = {}) {
     mirrors: [] as Record<string, unknown>[],
     callEnds: [] as { reason: string; userIds: string[] }[],
     terminalMerges: [] as string[],
+    /** #211: opts passed to terminalMergeEvent (S override + answered-at anchor). */
+    terminalMergeEventOpts: [] as (
+      | { outboundSessionId?: string; outboundAnsweredAtIso?: string | null }
+      | undefined
+    )[],
     voicemailPipelines: 0,
     sentryWarns: [] as string[],
     sentryErrors: 0,
@@ -130,6 +141,9 @@ function makeRuntime(config: FakeConfig = {}) {
     async loadInitiatedContext() {
       return config.initiated ?? "drop";
     },
+    async loadOutboundInitiatedContext() {
+      return config.outboundInitiated ?? "reject";
+    },
     async loadAdoptionRow() {
       return config.adoptionRow ?? null;
     },
@@ -151,8 +165,9 @@ function makeRuntime(config: FakeConfig = {}) {
     async threadAtAnswer() {
       calls.threads += 1;
     },
-    async terminalMergeEvent() {
+    async terminalMergeEvent(_payload, opts?) {
       calls.terminalMerges.push("event");
+      calls.terminalMergeEventOpts.push(opts);
     },
     async terminalMergeSynthetic(_m, outcome) {
       calls.terminalMerges.push(`synthetic:${outcome}`);
@@ -268,6 +283,72 @@ function inboundHangupEvent(id: string, tag: "bri" | "vmi" | "untagged"): Telnyx
 
 async function snapshot(instance: CallSessionDO) {
   return instance.snapshot(SESSION);
+}
+
+// ---- #211 outbound (oc) helpers --------------------------------------------
+
+/** The server session id S — a valid UUID (part-4 must pass parseOutboundSessionId).
+ *  Deliberately != the Telnyx call_session_id below, to pin the S-vs-T split. */
+const OUTBOUND_S = "11111111-1111-4111-8111-111111111111";
+const OUTBOUND_CUSTOMER = "+15551234567";
+const OC_STATE = buildOutboundState(
+  OUTBOUND_CUSTOMER_STATE,
+  OUTBOUND_CUSTOMER,
+  "nonce-1",
+  OUTBOUND_S,
+);
+
+function ocCtx(overrides: Partial<OutboundInitiatedContext> = {}): OutboundInitiatedContext {
+  return {
+    callSessionId: OUTBOUND_S,
+    customerCcid: "oc-ccid",
+    companyId: "co1",
+    phoneNumberId: "pn1",
+    userId: "placer-1",
+    customer: OUTBOUND_CUSTOMER,
+    businessNumberE164: "+19995000",
+    ...overrides,
+  };
+}
+
+function ocEvent(id: string, eventType: string, extra: Record<string, unknown> = {}): TelnyxEvent {
+  return {
+    data: {
+      id,
+      event_type: eventType,
+      payload: {
+        call_control_id: "oc-ccid",
+        // Telnyx's own session id — differs from S; the DO must NEVER key on it.
+        call_session_id: "telnyx-T-9999",
+        direction: "outgoing",
+        to: OUTBOUND_CUSTOMER,
+        from: "+19995000",
+        client_state: OC_STATE,
+        ...extra,
+      } as never,
+    },
+  };
+}
+
+/** An adopted outbound calls row (direction outbound). */
+function outboundRow(overrides: Partial<AdoptionRow> = {}): AdoptionRow {
+  return {
+    callSessionId: OUTBOUND_S,
+    companyId: "co1",
+    phoneNumberId: "pn1",
+    callerE164: OUTBOUND_CUSTOMER,
+    outcome: null,
+    answeredAt: null,
+    answeredByUserId: "placer-1",
+    startedAtMs: Date.now(),
+    customerCallControlId: "oc-ccid",
+    direction: "outbound",
+    companyName: "Acme",
+    greeting: null,
+    businessNumberE164: "+19995000",
+    ledgerLegs: [],
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
@@ -583,5 +664,110 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
     expect(reply).toMatchObject({ rang: false, reason: "live_leg" });
     expect(calls.dials.length).toBe(dialsBefore); // no dial
     expect(calls.hangups).toHaveLength(0); // and no cancel
+  });
+});
+
+// ---- #211 outbound (oc) sessions -------------------------------------------
+
+describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
+  it("T-O1: a 4-part oc call.initiated mints a 'dialing' outbound machine, owner from mint", async () => {
+    const { instance, calls, store } = makeDO({ outboundInitiated: ocCtx() });
+    const stamp = await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    expect(stamp).toBe(true);
+    // Owner is mirrored from mint; state 'dialing'.
+    const snap = await instance.snapshot(OUTBOUND_S);
+    expect(snap?.state).toBe("dialing");
+    expect(snap?.direction).toBe("outbound");
+    expect(snap?.answered_by_user_id).toBe("placer-1");
+    // No member dials for outbound; the janitor is armed but no ring alarm.
+    expect(calls.dials).toHaveLength(0);
+    expect(store.getAlarmAt()).not.toBeNull();
+    const mirrored = calls.mirrors.find((m) => m.state === "dialing");
+    expect(mirrored).toMatchObject({ state: "dialing", answered_by_user_id: "placer-1" });
+  });
+
+  it("T-O1 reject: a rejected context hangs up the leg and mints NOTHING", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: "reject" });
+    const stamp = await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    expect(stamp).toBe(true);
+    // The unauthorized leg is hung up; no machine minted.
+    expect(calls.hangups).toContain("oc-ccid");
+    const snap = await instance.snapshot(OUTBOUND_S);
+    expect(snap).toBeNull();
+  });
+
+  it("T-O2: oc call.answered moves 'dialing' → 'answered' and mirrors answered_at", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.onTelnyxEvent(ocEvent("e2", "call.answered"));
+    const snap = await instance.snapshot(OUTBOUND_S);
+    expect(snap?.state).toBe("answered");
+    expect(snap?.answered_at).not.toBeNull();
+    expect(calls.mirrors.some((m) => m.state === "answered" && m.answered_at)).toBe(true);
+  });
+
+  it("T-O3 answered: hangup → ended_answered; terminal-merge carries S + the answered-at anchor (M1)", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.onTelnyxEvent(ocEvent("e2", "call.answered"));
+    const answeredSnap = await instance.snapshot(OUTBOUND_S);
+    const answeredAt = answeredSnap?.answered_at;
+    await instance.onTelnyxEvent(
+      ocEvent("e3", "call.hangup", {
+        hangup_cause: "normal_clearing",
+        start_time: "2026-07-17T12:00:00.000Z",
+        end_time: "2026-07-17T12:05:00.000Z",
+      }),
+    );
+    const snap = await instance.snapshot(OUTBOUND_S);
+    expect(snap?.state).toBe("ended_answered");
+    // The EVENT-mode merge ran (meters Stripe), keyed on S with the answered-at
+    // anchor — NOT Telnyx's T, and mirror-independent.
+    expect(calls.terminalMerges).toContain("event");
+    const opts = calls.terminalMergeEventOpts.at(-1);
+    expect(opts?.outboundSessionId).toBe(OUTBOUND_S);
+    expect(opts?.outboundAnsweredAtIso).toBe(answeredAt);
+  });
+
+  it("T-O3 from dialing (never answered) → ended_missed, no answered-at anchor", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.onTelnyxEvent(
+      ocEvent("e2", "call.hangup", { hangup_cause: "originator_cancel" }),
+    );
+    const snap = await instance.snapshot(OUTBOUND_S);
+    expect(snap?.state).toBe("ended_missed");
+    const opts = calls.terminalMergeEventOpts.at(-1);
+    expect(opts?.outboundSessionId).toBe(OUTBOUND_S);
+    expect(opts?.outboundAnsweredAtIso).toBeNull();
+  });
+
+  it("adoption: an empty DO adopts an outbound ANSWERED row as 'answered' (no ringDeadline, D15)", async () => {
+    const { instance } = makeDO({
+      outboundInitiated: ocCtx(),
+      adoptionRow: outboundRow({ answeredAt: "2026-07-17T12:00:00.000Z" }),
+    });
+    // First event on an empty DO is a hangup — adopts the outbound row, then T-O3.
+    const stamp = await instance.onTelnyxEvent(
+      ocEvent("h1", "call.hangup", {
+        hangup_cause: "normal_clearing",
+        start_time: "2026-07-17T12:00:00.000Z",
+        end_time: "2026-07-17T12:03:00.000Z",
+      }),
+    );
+    expect(stamp).toBe(true);
+    const snap = await instance.snapshot(OUTBOUND_S);
+    // Adopted as 'answered' (answered_at present) then hung up → ended_answered.
+    expect(snap?.state).toBe("ended_answered");
+  });
+
+  it("part-4 != S: loadOutboundInitiatedContext rejecting mints nothing (S1/M3 self-DoS bound)", async () => {
+    // The runtime is the authority; a 'reject' here models a forged part-4 that
+    // did not equal the nonce-bound S. The shell hangs up and never mints.
+    const { instance, calls } = makeDO({ outboundInitiated: "reject" });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    expect(await instance.snapshot(OUTBOUND_S)).toBeNull();
+    expect(calls.mirrors).toHaveLength(0); // no state ever mirrored
+    expect(calls.hangups).toContain("oc-ccid");
   });
 });

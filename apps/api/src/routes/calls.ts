@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import { requireRole } from "../auth/company";
 import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
+import { callsOutboundV3Active } from "../calls/runtime";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -446,6 +447,15 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   // authorized for (closes cross-tenant caller-ID billing, the note-only #106
   // bypass, and forged/omitted client_state).
   const nonce = crypto.randomUUID();
+  // #211 identity-at-authorize (ONE-id): when outbound v3 is live, mint the
+  // server session id S HERE and bind it to the nonce in the claim. S is the
+  // client's live-call session id, the client_state tag's part-4, the DO
+  // idFromName key, AND the calls-row PK, all one value by construction; the DO
+  // MACHINE itself is still minted webhook-side at call.initiated (nonce
+  // consumption + row create under S). A global kill or the flag off leaves S
+  // null -> today's exact 3-part flow, so the client is never handed a session
+  // id the legacy webhook path will not key on (C1).
+  const sessionId = callsOutboundV3Active(env) ? crypto.randomUUID() : null;
   const claimed = unwrap<boolean>(
     await db.rpc("api_claim_outbound_line", {
       p_company_id: companyId,
@@ -454,6 +464,12 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
       p_from: auth.businessNumber,
       p_customer: auth.customer,
       p_window_start: new Date(Date.now() - 4 * 60 * 60_000).toISOString(),
+      // Additive named args (default null in the RPC): store S + the placing
+      // member on the reservation so api_authorize_outbound_call derives the
+      // calls-row PK from the STORED S, never the caller's tag. Both null on
+      // the legacy 3-part path.
+      p_call_session_id: sessionId,
+      p_user_id: sessionId ? userId : null,
     }),
     "outbound line claim",
   );
@@ -468,10 +484,19 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   return c.json({
     from: auth.businessNumber,
     to: auth.customer,
+    // 4-part `oc_customer|<customer>|<nonce>|<S>` when v3 is live; today's exact
+    // 3-part tag otherwise. The client passes client_state verbatim (verified:
+    // neither client parses it), so the arity change has zero client coupling.
     client_state: buildOutboundState(
       OUTBOUND_CUSTOMER_STATE,
       auth.customer,
       nonce,
+      sessionId ?? undefined,
     ),
+    // #211: the client seeds its live-call sessionId from this at placement.
+    // Nullable — its absence is NEVER an error (old/legacy clients ignore it),
+    // and the transfer/consult affordance lights only on a serverAddressable
+    // read (GET /state or /targets), never on bare presence of this id.
+    call_session_id: sessionId,
   });
 });

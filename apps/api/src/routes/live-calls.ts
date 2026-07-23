@@ -81,9 +81,12 @@ function deriveStateFromRow(row: {
   if (row.outcome === "answered") return "ended_answered";
   if (row.outcome === "voicemail") return "ended_voicemail";
   if (row.outcome === "missed") return "ended_missed";
-  if (row.direction !== "inbound") return null; // outbound has no v3 state
+  // A live (outcome-null) row that has answered_at is 'answered' in BOTH
+  // directions. #211: an outbound live row with no answered_at is 'dialing'
+  // (never a false 'ringing'); inbound (or a pre-v3 legacy row with null
+  // direction) stays 'ringing'.
   if (row.answered_at) return "answered";
-  return "ringing";
+  return row.direction === "outbound" ? "dialing" : "ringing";
 }
 
 export const liveCallsRoutes = new Hono<AppEnv>();
@@ -539,6 +542,13 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
 
+    // #211 D13 CLOSE: under the v3 kill switch (no DO adjudicating), REFUSE an
+    // outbound transfer — the legacy issueTransfer-on-outbound path is untested,
+    // and parity exists only under v3. (Inbound keeps its legacy fallback.)
+    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
+      return errorResponse(c, "conflict", "This call can't be transferred right now.");
+    }
+
     const target = await eligibleTarget(
       db,
       c.get("companyId"),
@@ -577,6 +587,10 @@ liveCallsRoutes.post(
       // Present the customer to the target (who they're about to talk to),
       // falling back to the business number for an anonymous caller.
       callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
+      // #211 (D11): outbound uses the consult-style dial+bridge-steal mechanic
+      // INSIDE issueTransfer (proven against customer ccids); inbound keeps the
+      // Telnyx transfer command. Same route, same intent discipline, same UX.
+      direction: gate.call.direction === "outbound" ? "outbound" : "inbound",
       state: {
         sessionId,
         targetUserId: body.target_user_id,
@@ -609,6 +623,12 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
     const companyId = c.get("companyId");
+
+    // #211 D13 CLOSE: no outbound consult under the v3 kill switch (untested
+    // legacy path); parity exists only under v3.
+    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
+      return errorResponse(c, "conflict", "This call can't be transferred right now.");
+    }
 
     const existing = await consultLegs(db, sessionId);
     if (existing.some((leg) => leg.state !== "failed")) {
@@ -744,6 +764,11 @@ liveCallsRoutes.post(
     const sessionId = c.req.param("sessionId");
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
+
+    // #211 D13 CLOSE: no outbound consult-complete under the v3 kill switch.
+    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
+      return errorResponse(c, "conflict", "This call can't be transferred right now.");
+    }
 
     const legs = await consultLegs(db, sessionId);
     const targetLeg = legs.find(

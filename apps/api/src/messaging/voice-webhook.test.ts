@@ -23,8 +23,11 @@ import {
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import {
   handleCallEvent,
+  buildOutboundState,
   FORWARD_LEG_STATE,
   INBOUND_FORWARDED_STATE,
+  OUTBOUND_CUSTOMER_STATE,
+  parseOutboundSessionId,
 } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";
 
@@ -421,6 +424,36 @@ function serve(...stubs: Stub[]) {
 function event(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
   return { data: { id: "evt-1", event_type: eventType, payload } };
 }
+
+describe("#211 outbound tag parsing (buildOutboundState / parseOutboundSessionId)", () => {
+  const S = "11111111-1111-4111-8111-111111111111";
+
+  it("4-part round-trip: builds oc_customer|<cust>|<nonce>|<S> and parses part-4 as S", () => {
+    const tag = buildOutboundState(OUTBOUND_CUSTOMER_STATE, "+15551234567", "nonce-1", S);
+    expect(atob(tag).split("|")).toEqual(["oc_customer", "+15551234567", "nonce-1", S]);
+    expect(parseOutboundSessionId(tag)).toBe(S);
+  });
+
+  it("a 3-part legacy tag has no session id (part-4 absent)", () => {
+    const tag = buildOutboundState(OUTBOUND_CUSTOMER_STATE, "+15551234567", "nonce-1");
+    expect(parseOutboundSessionId(tag)).toBeNull();
+  });
+
+  it("a malformed part-4 (not a UUID) parses to null — never keyed on", () => {
+    const tag = btoa("oc_customer|+15551234567|nonce-1|not-a-uuid");
+    expect(parseOutboundSessionId(tag)).toBeNull();
+  });
+
+  it("sessionId with no nonce is ignored (a 3-part tag never grows a hole)", () => {
+    const tag = buildOutboundState(OUTBOUND_CUSTOMER_STATE, "+15551234567", undefined, S);
+    expect(atob(tag).split("|")).toEqual(["oc_customer", "+15551234567"]);
+    expect(parseOutboundSessionId(tag)).toBeNull();
+  });
+
+  it("a non-oc tag (bri) parses to null", () => {
+    expect(parseOutboundSessionId(btoa("bri||2026-01-01T00:00:00Z"))).toBeNull();
+  });
+});
 
 describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
   const initiated = () =>

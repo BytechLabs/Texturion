@@ -18,6 +18,7 @@ import {
   type Effect,
   type InitiatedContext,
   isTerminal,
+  type OutboundInitiatedContext,
   reduce,
   type SessionEvent,
   type SessionMachine,
@@ -852,6 +853,136 @@ describe("§15.1 property (fuzzed) — VM-ENTRY only when the window is exhauste
         }
       }
     }
+  });
+});
+
+// ---- #211 outbound (oc) machine --------------------------------------------
+
+function ocContext(
+  overrides: Partial<OutboundInitiatedContext> = {},
+): OutboundInitiatedContext {
+  return {
+    callSessionId: "11111111-1111-4111-8111-111111111111",
+    customerCcid: "oc-cust",
+    companyId: "co1",
+    phoneNumberId: "pn1",
+    userId: "placer",
+    customer: "+15551234",
+    businessNumberE164: "+19995000",
+    ...overrides,
+  };
+}
+
+function dialingMachine(): SessionMachine {
+  const r = reduce(null, { type: "outbound-initiated", context: ocContext() }, 1_000, keyGen());
+  return r.machine as SessionMachine;
+}
+
+function answeredOutbound(): SessionMachine {
+  const r = reduce(dialingMachine(), { type: "outbound-answered" }, 2_000, keyGen());
+  return r.machine as SessionMachine;
+}
+
+function terminalMerge(effects: Effect[]): Extract<Effect, { kind: "terminal-merge" }> | undefined {
+  return effects.find((e) => e.kind === "terminal-merge") as
+    | Extract<Effect, { kind: "terminal-merge" }>
+    | undefined;
+}
+
+describe("#211 outbound — T-O1 mint", () => {
+  it("mints 'dialing' outbound, owner from mint, mirror {dialing, answered_by}, janitor only", () => {
+    const r = reduce(null, { type: "outbound-initiated", context: ocContext() }, 1_000, keyGen());
+    expect(r.machine?.state).toBe("dialing");
+    expect(r.machine?.direction).toBe("outbound");
+    expect(r.machine?.answeredByUserId).toBe("placer");
+    expect(r.machine?.answeredAtIso).toBeNull();
+    expect(r.machine?.customerCcid).toBe("oc-cust");
+    expect(r.machine?.callerE164).toBe("+15551234");
+    expect(r.machine?.ringDeadlineMs).toBeNull();
+    const mirror = r.effects.find((e) => e.kind === "mirror") as Extract<Effect, { kind: "mirror" }>;
+    expect(mirror.set).toMatchObject({ state: "dialing", answered_by_user_id: "placer" });
+    // Owner-from-start, NO ring/fanout/dial alarms — only the 4h janitor.
+    const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+    expect(alarms.map((a) => a.alarm)).toEqual(["janitor"]);
+    expect(has(r.effects, "telnyx-dial")).toBe(false);
+    expect(has(r.effects, "push-fanout")).toBe(false);
+  });
+
+  it("replay guard: outbound-initiated on an existing machine is a no-op", () => {
+    const m = dialingMachine();
+    const r = reduce(m, { type: "outbound-initiated", context: ocContext() }, 2_000, keyGen());
+    expect(r.effects).toHaveLength(0);
+    expect(r.machine).toBe(m);
+  });
+});
+
+describe("#211 outbound — T-O2 answer", () => {
+  it("'dialing' → 'answered' + mirror answered_at", () => {
+    const r = reduce(dialingMachine(), { type: "outbound-answered" }, 2_000, keyGen());
+    expect(r.machine?.state).toBe("answered");
+    expect(r.machine?.answeredAtIso).toBe(new Date(2_000).toISOString());
+    expect(mirrorState(r.effects)).toBe("answered");
+  });
+
+  it("idempotent re-delivery in 'answered' is a no-op", () => {
+    const r = reduce(answeredOutbound(), { type: "outbound-answered" }, 3_000, keyGen());
+    expect(r.effects).toHaveLength(0);
+  });
+});
+
+describe("#211 outbound — T-O3 terminal (totality)", () => {
+  it("hangup in 'answered' → ended_answered; event-mode merge carries the answered-at anchor", () => {
+    const m = answeredOutbound();
+    const r = reduce(m, { type: "outbound-hangup", payload: { hangup_cause: "normal_clearing" } }, 5_000, keyGen());
+    expect(r.machine?.state).toBe("ended_answered");
+    const merge = terminalMerge(r.effects);
+    expect(merge?.mode).toBe("event");
+    expect(merge?.outcome).toBe("answered");
+    expect(merge?.briAnsweredAtIso).toBe(m.answeredAtIso); // the billing anchor (M1)
+    // Purge armed; NO push-call-end (no ring audience was ever assembled).
+    expect(has(r.effects, "push-call-end")).toBe(false);
+  });
+
+  it("hangup in 'dialing' (never answered) → ended_missed, no anchor", () => {
+    const r = reduce(dialingMachine(), { type: "outbound-hangup", payload: { hangup_cause: "originator_cancel" } }, 5_000, keyGen());
+    expect(r.machine?.state).toBe("ended_missed");
+    const merge = terminalMerge(r.effects);
+    expect(merge?.mode).toBe("event");
+    expect(merge?.outcome).toBe("missed");
+    expect(merge?.briAnsweredAtIso).toBeNull();
+  });
+
+  it("hangup in a terminal state is a T14 no-op", () => {
+    const ended = reduce(dialingMachine(), { type: "outbound-hangup", payload: null }, 5_000, keyGen()).machine as SessionMachine;
+    const r = reduce(ended, { type: "outbound-hangup", payload: null }, 6_000, keyGen());
+    expect(r.machine?.state).toBe("ended_missed");
+    expect(terminalMerge(r.effects)).toBeUndefined(); // no second merge
+  });
+
+  it("janitor resolves 'dialing' → ended_missed and 'answered' → ended_answered (synthetic, direction-aware)", () => {
+    const dj = reduce(dialingMachine(), { type: "alarm-janitor" }, 9_000, keyGen());
+    expect(dj.machine?.state).toBe("ended_missed");
+    expect(terminalMerge(dj.effects)?.mode).toBe("synthetic");
+    const aj = reduce(answeredOutbound(), { type: "alarm-janitor" }, 9_000, keyGen());
+    expect(aj.machine?.state).toBe("ended_answered");
+    expect(terminalMerge(aj.effects)?.briAnsweredAtIso).toBe(answeredOutbound().answeredAtIso);
+  });
+});
+
+describe("#211 outbound — ring-me / decline stay inbound-only (M2)", () => {
+  it("ring-me on an outbound machine is not_ringing in BOTH 'dialing' and 'answered'", () => {
+    const dialing = reduce(dialingMachine(), { type: "ring-me", userId: "u9", sipUsername: "s9", noLocalLeg: true }, 3_000, keyGen());
+    expect(dialing.reply).toMatchObject({ rang: false, reason: "not_ringing" });
+    const answered = reduce(answeredOutbound(), { type: "ring-me", userId: "u9", sipUsername: "s9", noLocalLeg: true }, 3_000, keyGen());
+    expect(answered.reply).toMatchObject({ rang: false, reason: "not_ringing" });
+    // ring-me NEVER emits a hangup/cancel (§6) — outbound included.
+    expect(has(dialing.effects, "telnyx-hangup")).toBe(false);
+    expect(has(answered.effects, "telnyx-hangup")).toBe(false);
+  });
+
+  it("decline on an outbound machine is an idempotent declined:false no-op", () => {
+    const r = reduce(dialingMachine(), { type: "decline", userId: "u9" }, 3_000, keyGen());
+    expect(r.reply).toMatchObject({ declined: false, reason: "not_ringing" });
   });
 });
 
