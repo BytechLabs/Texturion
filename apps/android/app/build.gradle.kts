@@ -98,6 +98,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    // Tasks Map view (#184): osmdroid renders standard OSM raster tiles (the
+    // same tile source the web map island uses) inside an AndroidView. No API
+    // key, no Play Services. Tile policy compliance (user agent + attribution)
+    // is handled at the MapView call site (features/tasks/TaskMap.kt).
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation(libs.telnyx.webrtc)
     // Initialized manually from BuildConfig when the founder provisions
     // Firebase (no google-services plugin) — no-ops gracefully until then.

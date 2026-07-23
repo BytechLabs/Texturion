@@ -27,6 +27,9 @@
     <!-- Notifications (#156): Android 13+ runtime permission. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Tasks Map view (#184): the optional "my location" recenter. Coarse
+         only, requested at runtime on the button tap, never at startup. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".LoonextApp"

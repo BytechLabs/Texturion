@@ -26,11 +26,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Undo
+import androidx.compose.material.icons.outlined.ViewKanban
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -59,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,7 +91,8 @@ import kotlinx.coroutines.launch
 
 /**
  * /tasks — the "paper & olive" tasks surface (spec 24 / dark 31): ScreenTitle,
- * List ⇄ Board view pills, the filter pill rail (Open | Mine | All | Done +
+ * the List | Board | Calendar | Map view toggles (#184, the web's four-view
+ * parity), the filter pill rail (Open | Mine | All | Done +
  * assignee/unassigned/due), debounced title search behind the paper search
  * circle, and rows grouped into paper cards by status. All of the route's
  * exact default-filter semantics, cursor pagination per ordering, and the
@@ -107,7 +113,7 @@ fun TasksTab(
     val mutations = remember(companyId) { TaskMutations(graph.api) }
     // Task detail is a ROUTE above the shell now (founder mandate: nothing
     // pushed shows the pill nav) — this tab is only ever the list, so its
-    // saveable state (board/filters/scroll) trivially survives detail trips.
+    // saveable state (view/filters/scroll) trivially survives detail trips.
     TaskListScreen(
         graph = graph,
         mutations = mutations,
@@ -129,7 +135,13 @@ private fun TaskListScreen(
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable(companyId) { mutableStateOf(TasksTabKind.Open) }
-    var board by rememberSaveable(companyId) { mutableStateOf(false) }
+    // The 4-view switch (#184). Persisted by NAME through the same
+    // rememberSaveable pattern the old List/Board boolean used (and DueChip
+    // still uses), so the choice survives detail round-trips and process
+    // death identically (founder mandate); an unknown saved name falls back
+    // to List rather than crashing a downgrade.
+    var viewName by rememberSaveable(companyId) { mutableStateOf(TaskViewKind.List.name) }
+    val view = TaskViewKind.entries.firstOrNull { it.name == viewName } ?: TaskViewKind.List
     var assigneeChip by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var unassignedChip by rememberSaveable(companyId) { mutableStateOf(false) }
     var dueChipName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
@@ -159,9 +171,13 @@ private fun TaskListScreen(
     }
 
     // Board organizes by status, so the Open/Done dimension is a no-op there
-    // (#113): entering the board coerces a status-pinned tab to Mine.
-    LaunchedEffect(board) {
-        if (board && (tab == TasksTabKind.Open || tab == TasksTabKind.Done)) {
+    // (#113): entering the board coerces a status-pinned tab to Mine. Map
+    // deliberately does NOT coerce — its contract consumes only the assignee
+    // chips, so visiting it never clobbers the tab the list will return to.
+    LaunchedEffect(view) {
+        if (view == TaskViewKind.Board &&
+            (tab == TasksTabKind.Open || tab == TasksTabKind.Done)
+        ) {
             tab = TasksTabKind.Mine
         }
     }
@@ -216,37 +232,69 @@ private fun TaskListScreen(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 ScreenTitle("Tasks", Modifier.weight(1f))
-                PaperCircleButton(
-                    icon = Icons.Outlined.Search,
-                    contentDescription = if (searchOpen) "Hide search" else "Search task titles",
-                    onClick = {
-                        haptics.tap()
-                        searchOpen = !searchOpen
-                    },
-                )
+                if (view != TaskViewKind.Map) {
+                    PaperCircleButton(
+                        icon = Icons.Outlined.Search,
+                        contentDescription = if (searchOpen) "Hide search" else "Search task titles",
+                        onClick = {
+                            haptics.tap()
+                            searchOpen = !searchOpen
+                        },
+                    )
+                } else {
+                    // Title search does not feed the map contract — hold the
+                    // row height so the title never jumps between views.
+                    Spacer(Modifier.size(44.dp))
+                }
             }
 
             Spacer(Modifier.height(14.dp))
 
-            // View switch: M3 Expressive toggle pair in our skin — ink active,
+            // View switch: M3 Expressive toggles in our skin — ink active,
             // paper idle; the press/checked shape morph carries the motion.
-            // (Calendar/Map views from the canvas have no data layer yet —
-            // List and Board are the two real views.)
+            // Four views now (#184), so the pills go icon-only with spoken
+            // labels rather than crowding the rail.
             Row(
                 Modifier.padding(horizontal = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                ViewToggle("List", checked = !board) {
+                ViewToggle(
+                    icon = Icons.AutoMirrored.Outlined.ViewList,
+                    contentDescription = "List view",
+                    checked = view == TaskViewKind.List,
+                ) {
                     haptics.tap()
-                    board = false
+                    viewName = TaskViewKind.List.name
                 }
-                ViewToggle("Board", checked = board) {
+                ViewToggle(
+                    icon = Icons.Outlined.ViewKanban,
+                    contentDescription = "Board view",
+                    checked = view == TaskViewKind.Board,
+                ) {
                     haptics.tap()
-                    board = true
+                    viewName = TaskViewKind.Board.name
+                }
+                ViewToggle(
+                    icon = Icons.Outlined.CalendarMonth,
+                    contentDescription = "Calendar view",
+                    checked = view == TaskViewKind.Calendar,
+                ) {
+                    haptics.tap()
+                    viewName = TaskViewKind.Calendar.name
+                }
+                ViewToggle(
+                    icon = Icons.Outlined.Map,
+                    contentDescription = "Map view",
+                    checked = view == TaskViewKind.Map,
+                ) {
+                    haptics.tap()
+                    viewName = TaskViewKind.Map.name
                 }
             }
 
-            AnimatedVisibility(visible = searchOpen || search.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = view != TaskViewKind.Map && (searchOpen || search.isNotEmpty()),
+            ) {
                 OutlinedTextField(
                     value = search,
                     onValueChange = { search = it.take(TASK_SEARCH_MAX) },
@@ -302,8 +350,17 @@ private fun TaskListScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
-                val tabs = if (board) listOf(TasksTabKind.Mine, TasksTabKind.All)
-                else TasksTabKind.entries.toList()
+                // Which pills actually DO something per view (#113, the web's
+                // tabsForView): Board's columns ARE the status dimension, so
+                // it keeps Mine | All; Map's contract consumes only the
+                // assignee chips, so status tabs (and due chips, below)
+                // disappear there; List and Calendar consume all four —
+                // Calendar applies Open/Done client-side over the month grid.
+                val tabs = when (view) {
+                    TaskViewKind.Board -> listOf(TasksTabKind.Mine, TasksTabKind.All)
+                    TaskViewKind.Map -> emptyList()
+                    else -> TasksTabKind.entries.toList()
+                }
                 tabs.forEach { item ->
                     FilterPill(
                         text = item.label,
@@ -350,15 +407,17 @@ private fun TaskListScreen(
                         if (unassignedChip) assigneeChip = null
                     },
                 )
-                DueChip.entries.forEach { chip ->
-                    FilterPill(
-                        text = chip.label,
-                        selected = dueChip == chip,
-                        onClick = {
-                            haptics.tap()
-                            dueChipName = if (dueChip == chip) null else chip.name
-                        },
-                    )
+                if (view != TaskViewKind.Map) {
+                    DueChip.entries.forEach { chip ->
+                        FilterPill(
+                            text = chip.label,
+                            selected = dueChip == chip,
+                            onClick = {
+                                haptics.tap()
+                                dueChipName = if (dueChip == chip) null else chip.name
+                            },
+                        )
+                    }
                 }
             }
 
@@ -367,48 +426,79 @@ private fun TaskListScreen(
             val filtersActive = assigneeChip != null || unassignedChip ||
                 dueChip != null || debouncedQ.isNotEmpty()
 
-            // Pull-to-refresh IS the refreshKey bump — the manual refresh
-            // affordance for both views.
-            PullToRefreshBox(
-                isRefreshing = pullRefreshing,
-                onRefresh = {
-                    haptics.tick()
-                    pullRefreshing = true
-                    refreshKey++
-                },
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (board) {
-                    TaskBoard(
-                        cache = graph.storeCache,
-                        mutations = mutations,
-                        companyId = companyId,
-                        tab = tab,
-                        assigneeChip = assigneeChip,
-                        unassignedChip = unassignedChip,
-                        dueChip = dueChip,
-                        q = debouncedQ,
-                        refreshKey = refreshKey,
-                        onOpenTask = onOpenTask,
-                        onToggleDone = onToggleDone,
-                    )
-                } else {
-                    TaskList(
-                        cache = graph.storeCache,
-                        mutations = mutations,
-                        companyId = companyId,
-                        tab = tab,
-                        assigneeChip = assigneeChip,
-                        unassignedChip = unassignedChip,
-                        dueChip = dueChip,
-                        q = debouncedQ,
-                        refreshKey = refreshKey,
-                        filtersActive = filtersActive,
-                        memberName = ::memberName,
-                        onRetry = { refreshKey++ },
-                        onOpenTask = onOpenTask,
-                        onToggleDone = onToggleDone,
-                    )
+            if (view == TaskViewKind.Map) {
+                // The map lives OUTSIDE the pull-to-refresh box — a downward
+                // map pan at the top edge must never turn into a refresh
+                // gesture. TaskMap.kt owns the implementation; this call is
+                // the inter-agent contract signature, passing the tab's
+                // current assignee chip state.
+                TaskMapView(
+                    graph = graph,
+                    companyId = companyId,
+                    assigneeUserId = assigneeChip,
+                    unassigned = unassignedChip,
+                    onOpenTask = onOpenTask,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                // Pull-to-refresh IS the refreshKey bump — the manual refresh
+                // affordance for list, board, and calendar.
+                PullToRefreshBox(
+                    isRefreshing = pullRefreshing,
+                    onRefresh = {
+                        haptics.tick()
+                        pullRefreshing = true
+                        refreshKey++
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    when (view) {
+                        TaskViewKind.Board -> TaskBoard(
+                            cache = graph.storeCache,
+                            mutations = mutations,
+                            companyId = companyId,
+                            tab = tab,
+                            assigneeChip = assigneeChip,
+                            unassignedChip = unassignedChip,
+                            dueChip = dueChip,
+                            q = debouncedQ,
+                            refreshKey = refreshKey,
+                            onOpenTask = onOpenTask,
+                            onToggleDone = onToggleDone,
+                        )
+
+                        TaskViewKind.Calendar -> TaskCalendarView(
+                            cache = graph.storeCache,
+                            mutations = mutations,
+                            companyId = companyId,
+                            tab = tab,
+                            assigneeChip = assigneeChip,
+                            unassignedChip = unassignedChip,
+                            dueChip = dueChip,
+                            q = debouncedQ,
+                            refreshKey = refreshKey,
+                            memberName = ::memberName,
+                            onOpenTask = onOpenTask,
+                            onToggleDone = onToggleDone,
+                        )
+
+                        else -> TaskList(
+                            cache = graph.storeCache,
+                            mutations = mutations,
+                            companyId = companyId,
+                            tab = tab,
+                            assigneeChip = assigneeChip,
+                            unassignedChip = unassignedChip,
+                            dueChip = dueChip,
+                            q = debouncedQ,
+                            refreshKey = refreshKey,
+                            filtersActive = filtersActive,
+                            memberName = ::memberName,
+                            onRetry = { refreshKey++ },
+                            onOpenTask = onOpenTask,
+                            onToggleDone = onToggleDone,
+                        )
+                    }
                 }
             }
         }
@@ -433,16 +523,25 @@ private fun TaskListScreen(
 }
 
 /**
+ * The four task views (#184), the Android sibling of the web's TaskView union
+ * (task-view-url.ts). Persisted by name in [TaskListScreen]; List is the
+ * default landing view (D25).
+ */
+enum class TaskViewKind { List, Board, Calendar, Map }
+
+/**
  * View-switcher toggle (spec 24 pills, expressive build): M3 ToggleButton in
  * our skin — ink container when active, paper when idle — so the checked and
  * pressed shape morphs come from the component while the colors stay ours.
- * [onSelect] fires only on an actual switch, never on re-tapping the active
- * view.
+ * Icon-only with a spoken [contentDescription] since four views crowd a text
+ * rail. [onSelect] fires only on an actual switch, never on re-tapping the
+ * active view.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ViewToggle(
-    text: String,
+    icon: ImageVector,
+    contentDescription: String,
     checked: Boolean,
     onSelect: () -> Unit,
 ) {
@@ -457,11 +556,10 @@ private fun ViewToggle(
         ),
         contentPadding = PaddingValues(horizontal = 15.dp, vertical = 10.dp),
     ) {
-        Text(
-            text,
-            fontSize = 12.sp,
-            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
