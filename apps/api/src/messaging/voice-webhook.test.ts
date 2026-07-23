@@ -469,17 +469,58 @@ describe("handleCallEvent — inbound call.initiated (D43 v2 ring)", () => {
     expect(state).toBe(`brm|${SESSION}|${USER_A}|${CALLER}|${CC_ID}`);
     // CALLS-CLIENT-V2 §3.2: the SAME session id rides as a custom SIP header
     // (X- prefix mandatory) so the Android client correlates the inbound INVITE
-    // to its server session deterministically.
+    // to its server session deterministically. #212: the REAL caller ALSO rides
+    // as X-Loonext-Caller, since the INVITE `from` is Telnyx-rewritten to the
+    // business number, so this trusted header is the only honest caller-id the
+    // client can show.
     expect(
       (dial.calls[0].body as { custom_headers: { name: string; value: string }[] })
         .custom_headers,
-    ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
+    ).toEqual([
+      { name: "X-Loonext-Session", value: SESSION },
+      { name: "X-Loonext-Caller", value: CALLER },
+    ]);
     // The caller keeps hearing real carrier ringback: no answer while ringing.
     expect(
       action.calls.filter((c) => c.url.pathname.endsWith("/answer")),
     ).toHaveLength(0);
     // The ring ledger rows landed (the races are decided on them).
     expect(ledger.calls).toHaveLength(1);
+  });
+
+  it("#212: an anonymous (CLIR) caller sends NO X-Loonext-Caller header, so the client shows Unknown caller, never the business number", async () => {
+    const dial = telnyxDial();
+    const action = telnyxV2Actions();
+    const ledger = stubRoute(restMatch(env, "POST", "call_member_legs"), () =>
+      Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      ...companyStubs(null),
+      ledger,
+      ...ringWorldStubs(),
+      dial,
+      action,
+    );
+
+    // No `from` on the initiated event, so callerE164 resolves null (anonymous).
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        to: OUR_NUMBER,
+      }),
+    );
+
+    expect(dial.calls).toHaveLength(1);
+    // Only the session header rides; the caller header is OMITTED for a null
+    // caller (the client falls back to "Unknown caller", never the business no.).
+    expect(
+      (dial.calls[0].body as { custom_headers: { name: string; value: string }[] })
+        .custom_headers,
+    ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
   });
 
   it("a notes-only member's browser never rings (#106 — customer calls need 'text')", async () => {

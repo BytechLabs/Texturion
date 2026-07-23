@@ -72,6 +72,20 @@ export const VOICEMAIL_INBOUND_STATE = "vmi";
  *  an older server that omits it degrades to the client's by-leg fallback. */
 export const LOONEXT_SESSION_HEADER = "X-Loonext-Session";
 
+/** Custom SIP header (#212) carrying the REAL caller's E.164 on every member
+ *  ring dial. Telnyx rewrites the SIP `from` to a connection-owned number (the
+ *  business number) for WebRTC originations, so the INVITE's callerIdNumber the
+ *  client sees is the business number, NOT the caller. The true caller is known
+ *  server-side (input.callerE164) and is handed to the client on this trusted
+ *  header, same discipline as {@link LOONEXT_SESSION_HEADER}, X- prefix
+ *  MANDATORY (Telnyx WebRTC only forwards `X-`-prefixed custom headers). Emitted
+ *  ONLY when the caller is known: a null caller (CLIR/anonymous) sends no header
+ *  and the client shows "Unknown caller" rather than the business number.
+ *  A caller NAME/CNAM is NOT plumbed onto the ring input (the DO contract does
+ *  not carry caller_name, which is #211 territory), so no `X-Loonext-Caller-Name`
+ *  is emitted here; the client already reads it forward-compatibly if it lands. */
+export const LOONEXT_CALLER_HEADER = "X-Loonext-Caller";
+
 /** Ring window for member browser legs. Long enough (#135 push-to-wake) that a
  *  mobile member has time to be pushed, tap, open the app, and answer — while
  *  the caller keeps hearing ringback. */
@@ -282,8 +296,16 @@ export async function ringMembersOrVoicemail(
           // (name MUST start with X-) so the Android client correlates the
           // inbound INVITE to its server session deterministically. Same S as
           // the client_state above.
+          // #212: ALSO ride the real caller on X-Loonext-Caller. The INVITE
+          // `from` above is Telnyx-rewritten to the business number, so the
+          // trusted header is the only honest caller-id the client can show.
+          // Omitted for a null (CLIR/anonymous) caller, so the client then
+          // shows "Unknown caller", never the business number.
           custom_headers: [
             { name: LOONEXT_SESSION_HEADER, value: input.callSessionId },
+            ...(input.callerE164
+              ? [{ name: LOONEXT_CALLER_HEADER, value: input.callerE164 }]
+              : []),
           ],
         },
       })) as { data?: { call_control_id?: string } };
@@ -390,8 +412,15 @@ export async function ringMemberBrowser(
       // CALLS-CLIENT-V2 §3.2: same session-correlation header as the initial
       // fan-out (X- prefix mandatory), value = the same S built into the
       // client_state above.
+      // #212: same real-caller header as the fan-out. The INVITE `from` is the
+      // Telnyx-rewritten business number, so the client trusts this instead.
+      // Omitted for a null (CLIR/anonymous) caller, so the client shows
+      // "Unknown caller".
       custom_headers: [
         { name: LOONEXT_SESSION_HEADER, value: input.callSessionId },
+        ...(input.caller
+          ? [{ name: LOONEXT_CALLER_HEADER, value: input.caller }]
+          : []),
       ],
     },
   })) as { data?: { call_control_id?: string } };

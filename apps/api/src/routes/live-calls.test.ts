@@ -636,10 +636,15 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
     // CALLS-CLIENT-V2 §3.2: the ring-me re-dial carries the session-correlation
     // custom SIP header (X- prefix mandatory), value = the session id — exactly
     // like the initial fan-out, so a push-woken client correlates the INVITE.
+    // #212: it ALSO carries X-Loonext-Caller (the real caller) exactly like the
+    // fan-out, since the INVITE `from` is the Telnyx-rewritten business number.
     expect(
       (dials[0].body as { custom_headers: { name: string; value: string }[] })
         .custom_headers,
-    ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
+    ).toEqual([
+      { name: "X-Loonext-Session", value: SESSION },
+      { name: "X-Loonext-Caller", value: "+16135551000" },
+    ]);
     expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(1);
   });
 
