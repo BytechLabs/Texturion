@@ -63,9 +63,12 @@ class HostHeaderLintTest {
             host.contains("Overlay.Calls"),
         )
         val calls = readMainSource("features/calls/CallsScreen.kt")
+        // Precise patterns (the param declaration and its call-site form), not
+        // a bare word: a prose comment mentioning the concept must not trip
+        // the law (it did once in CI - the local gate had gone stale).
         assertFalse(
             "CallsScreen must not regrow a hosted variant",
-            calls.contains("hosted"),
+            calls.contains("hosted:") || calls.contains("hosted ="),
         )
     }
 

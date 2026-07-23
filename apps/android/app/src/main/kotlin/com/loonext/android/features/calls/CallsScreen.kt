@@ -248,7 +248,7 @@ fun CallsScreen(
         Column(Modifier.fillMaxSize()) {
             run {
                 // The tab's single title row (#203: Calls is ONE surface, the
-                // pager tab - no hosted route variant exists anymore).
+                // pager tab - no pushed route variant exists anymore).
                 Row(
                     Modifier
                         .fillMaxWidth()
