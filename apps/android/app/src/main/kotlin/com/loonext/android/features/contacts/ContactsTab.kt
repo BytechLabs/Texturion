@@ -69,10 +69,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
@@ -82,6 +84,7 @@ import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -97,6 +100,14 @@ private enum class ImportKind(val rowWord: String) { Csv("Row"), Vcard("Card") }
 
 /** One finished import, kept with its kind so skipped rows label honestly. */
 private data class ImportReport(val kind: ImportKind, val result: ImportResult)
+
+/**
+ * The cached contacts list (#176): every page loaded so far plus its cursor,
+ * cached as ONE value under [CacheKeys.contacts] so returning to the tab
+ * restores the full scroll depth instantly. Internal so the shell warmer can
+ * prefetch the default (empty-query) entry.
+ */
+internal data class ContactsSnapshot(val rows: List<Contact>, val nextCursor: String?)
 
 /**
  * Contacts: debounced name/phone search over the cursor-paginated list,
@@ -163,9 +174,6 @@ private fun ContactListScreen(
 
     var query by rememberSaveable(companyId) { mutableStateOf("") }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
-    var state by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    var rows by remember(companyId) { mutableStateOf(listOf<Contact>()) }
-    var nextCursor by remember(companyId) { mutableStateOf<String?>(null) }
     var loadingMore by remember(companyId) { mutableStateOf(false) }
 
     var createOpen by remember { mutableStateOf(false) }
@@ -180,20 +188,69 @@ private fun ContactListScreen(
         debouncedQ = query.trim()
     }
 
+    // #176 cache-first: the default (empty-query) list renders instantly from
+    // StoreCache on every revisit; refreshKey bumps revalidate silently. The
+    // revalidate re-walks cursors to the depth already cached so a background
+    // refresh never truncates pages the user has loaded.
+    val defaultKey = CacheKeys.contacts(companyId)
+    val defaultState = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = defaultKey,
+        refreshKey = refreshKey,
+    ) {
+        val target = graph.storeCache.flowOf<ContactsSnapshot>(defaultKey).value?.rows?.size ?: 0
+        var page = graph.contactsRepo.contacts(companyId, limit = 50)
+        var all = page.data
+        while (page.next_cursor != null && all.size < target) {
+            page = graph.contactsRepo.contacts(companyId, cursor = page.next_cursor, limit = 50)
+            all = all + page.data
+        }
+        ContactsSnapshot(all, page.next_cursor)
+    }
+
+    // Typed searches stay live (never cached): results replace in place, and
+    // the previously shown rows hold while a new query is in flight — same
+    // semantics as before #176.
+    var searchSnapshot by remember(companyId) { mutableStateOf<ContactsSnapshot?>(null) }
+    var searchState by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
     LaunchedEffect(companyId, debouncedQ, refreshKey) {
-        if (rows.isEmpty()) state = LoadState.Loading
+        if (debouncedQ.isEmpty()) {
+            searchSnapshot = null
+            searchState = LoadState.Loading
+            return@LaunchedEffect
+        }
         try {
-            val page = graph.contactsRepo.contacts(
-                companyId,
-                q = debouncedQ.ifEmpty { null },
-                limit = 50,
-            )
-            rows = page.data
-            nextCursor = page.next_cursor
-            state = LoadState.Ready(Unit)
+            val page = graph.contactsRepo.contacts(companyId, q = debouncedQ, limit = 50)
+            searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
+            searchState = LoadState.Ready(Unit)
         } catch (cause: Exception) {
-            if (rows.isEmpty()) state = LoadState.Failed(cause.userMessage())
+            if (searchSnapshot == null) searchState = LoadState.Failed(cause.userMessage())
             else snackbar.showSnackbar(cause.userMessage())
+        }
+    }
+
+    val defaultSnapshot = (defaultState as? LoadState.Ready)?.value
+    val snapshot = if (debouncedQ.isEmpty()) defaultSnapshot else searchSnapshot ?: defaultSnapshot
+    val rows = snapshot?.rows ?: emptyList()
+    val nextCursor = snapshot?.nextCursor
+    val state: LoadState<Unit> = when {
+        snapshot != null -> LoadState.Ready(Unit)
+        debouncedQ.isNotEmpty() -> searchState
+        defaultState is LoadState.Failed -> LoadState.Failed(defaultState.message)
+        else -> LoadState.Loading
+    }
+
+    // Load-more appends into the cached snapshot (or the live search one) so
+    // a return visit restores every loaded page.
+    fun appendPage(q: String, page: Page<Contact>) {
+        if (q.isEmpty()) {
+            val base = graph.storeCache.flowOf<ContactsSnapshot>(defaultKey).value?.rows.orEmpty()
+            graph.storeCache.put(defaultKey, ContactsSnapshot(base + page.data, page.next_cursor))
+        } else {
+            searchSnapshot = ContactsSnapshot(
+                searchSnapshot?.rows.orEmpty() + page.data,
+                page.next_cursor,
+            )
         }
     }
 
@@ -414,18 +471,17 @@ private fun ContactListScreen(
                                             ),
                                             onClick = {
                                                 loadingMore = true
+                                                val q = debouncedQ
                                                 scope.launch {
                                                     try {
                                                         val page =
                                                             graph.contactsRepo.contacts(
                                                                 companyId,
-                                                                q = debouncedQ
-                                                                    .ifEmpty { null },
+                                                                q = q.ifEmpty { null },
                                                                 cursor = nextCursor,
                                                                 limit = 50,
                                                             )
-                                                        rows = rows + page.data
-                                                        nextCursor = page.next_cursor
+                                                        appendPage(q, page)
                                                     } catch (cause: Exception) {
                                                         snackbar.showSnackbar(
                                                             cause.userMessage(),
@@ -476,6 +532,8 @@ private fun ContactListScreen(
             companyId = companyId,
             onCreated = { contact ->
                 createOpen = false
+                // Seed the detail cache so the new contact opens instantly.
+                graph.storeCache.put(CacheKeys.contact(companyId, contact.id), contact)
                 onRefresh()
                 onOpenContact(contact.id)
             },

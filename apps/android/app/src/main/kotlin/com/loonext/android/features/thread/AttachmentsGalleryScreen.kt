@@ -34,7 +34,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,24 +49,30 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.GalleryItem
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 
 /**
  * "Photos & files" (#165): the conversation gallery over
  * GET /v1/conversations/:id/attachments — MMS photos + note/task files in one
- * newest-first stream, split by an Images | Files toggle. Every visit
- * refetches, which is the per-view signed-URL mint (item URLs are short-lived
- * by design and never cached). Files open externally via ACTION_VIEW.
+ * newest-first stream, split by an Images | Files toggle. Cache-first (#176):
+ * a revisit paints the last snapshot instantly while page 1 revalidates
+ * silently — that refetch is also the per-view signed-URL mint (item URLs are
+ * short-lived, so fresh head rows replace stale ones as they land). Files open
+ * externally via ACTION_VIEW.
  */
 @Composable
 internal fun AttachmentsGalleryScreen(
     repo: MessagingRepository,
+    cache: StoreCache,
     companyId: String,
     conversationId: String,
     contactName: String,
@@ -80,35 +85,45 @@ internal fun AttachmentsGalleryScreen(
     val scope = rememberCoroutineScope()
 
     var view by remember { mutableStateOf(GalleryView.Images) }
-    var state by remember(conversationId) {
-        mutableStateOf<LoadState<List<GalleryItem>>>(LoadState.Loading)
-    }
-    var nextCursor by remember(conversationId) { mutableStateOf<String?>(null) }
     var loadingMore by remember(conversationId) { mutableStateOf(false) }
     var refreshKey by remember(conversationId) { mutableIntStateOf(0) }
 
-    LaunchedEffect(conversationId, refreshKey) {
-        if (state !is LoadState.Ready) state = LoadState.Loading
-        state = try {
-            val page = repo.gallery(companyId, conversationId)
-            nextCursor = page.next_cursor
-            LoadState.Ready(page.data)
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
+    val cacheKey = CacheKeys.gallery(companyId, conversationId)
+    val state = rememberCacheFirst(
+        cache = cache,
+        key = cacheKey,
+        refreshKey = refreshKey,
+    ) {
+        // Fresh page 1, keeping any older pages the user had already loaded so
+        // scroll-back survives the return trip (and their resume cursor too).
+        val page = repo.gallery(companyId, conversationId)
+        val freshIds = page.data.mapTo(HashSet()) { it.id }
+        val prior = cache.flowOf<GallerySnapshot>(cacheKey).value
+        val older = prior?.items?.filter { it.id !in freshIds }.orEmpty()
+        GallerySnapshot(
+            items = page.data + older,
+            nextCursor = if (older.isEmpty() || prior == null) page.next_cursor
+            else prior.nextCursor,
+        )
     }
 
     fun loadMore() {
-        val cursor = nextCursor ?: return
+        val current = (state as? LoadState.Ready)?.value ?: return
+        val cursor = current.nextCursor ?: return
         if (loadingMore) return
         loadingMore = true
         scope.launch {
             try {
                 val page = repo.gallery(companyId, conversationId, cursor)
-                nextCursor = page.next_cursor
-                val existing = (state as? LoadState.Ready)?.value ?: emptyList()
-                val seen = existing.mapTo(HashSet()) { it.id }
-                state = LoadState.Ready(existing + page.data.filter { it.id !in seen })
+                val latest = cache.flowOf<GallerySnapshot>(cacheKey).value ?: current
+                val seen = latest.items.mapTo(HashSet()) { it.id }
+                cache.put(
+                    cacheKey,
+                    GallerySnapshot(
+                        items = latest.items + page.data.filter { it.id !in seen },
+                        nextCursor = page.next_cursor,
+                    ),
+                )
             } catch (cause: Exception) {
                 onNotice(cause.userMessage())
             } finally {
@@ -168,7 +183,8 @@ internal fun AttachmentsGalleryScreen(
             is LoadState.Loading -> CenteredLoading()
             is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
             is LoadState.Ready -> {
-                val rows = galleryItemsFor(view, current.value)
+                val nextCursor = current.value.nextCursor
+                val rows = galleryItemsFor(view, current.value.items)
                 if (rows.isEmpty()) {
                     // Honest empty state; with older pages unloaded the copy
                     // says "yet loaded" and offers the next page.
@@ -215,6 +231,12 @@ internal fun AttachmentsGalleryScreen(
         }
     }
 }
+
+/** Cached gallery state (#176): accumulated pages + the resume cursor. */
+private data class GallerySnapshot(
+    val items: List<GalleryItem>,
+    val nextCursor: String?,
+)
 
 @Composable
 private fun ImagesGrid(

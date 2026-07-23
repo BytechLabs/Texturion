@@ -5,7 +5,9 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Contact
@@ -53,6 +55,28 @@ private data class FailedSendIntent(
 )
 
 /**
+ * The reopen-instantly snapshot (#176): everything the header + timeline need
+ * to paint in the first frame, cached under [CacheKeys.thread]. Session-local
+ * state (pending sends, drafts, contact-panel lists, per-note files) stays out
+ * on purpose — pending sends resolve against the live process, and the panel
+ * refreshes on every open by design.
+ */
+private data class ThreadSnapshot(
+    val conversation: ConversationDetail,
+    val messages: List<Message>,
+    val messagesCursor: String?,
+    val allMessagesLoaded: Boolean,
+    val events: List<ConversationEvent>,
+    val eventsCursor: String?,
+    val eventsExhausted: Boolean,
+    val pinnedMessages: List<Message>,
+    val members: List<Member>,
+    val contact: Contact?,
+    val company: CompanyView?,
+    val usage: Usage?,
+)
+
+/**
  * State + mutations for one conversation thread. Realtime payloads are treated
  * as ID-only routing hints — every update refetches through the authed API.
  */
@@ -62,6 +86,7 @@ class ThreadController(
     private val meRepo: MeRepository,
     private val uploader: NoteFileUploader,
     private val appContext: Context,
+    private val cache: StoreCache,
     private val companyId: String,
     val conversationId: String,
     private val meUserId: String,
@@ -122,6 +147,15 @@ class ThreadController(
     private var convRefreshJob: Job? = null
     private var lastFailedIntent: FailedSendIntent? = null
 
+    // #176 cache-first: reopening a conversation this process has already
+    // loaded paints the timeline in the first frame — [start]'s initialLoad
+    // then runs as a silent revalidation instead of a Loading gate. (This init
+    // block must stay below every field it writes.)
+    init {
+        cache.flowOf<ThreadSnapshot>(CacheKeys.thread(companyId, conversationId)).value
+            ?.let { restoreFromSnapshot(it) }
+    }
+
     val newestMessageId: String?
         get() = messages.firstOrNull()?.id
 
@@ -146,33 +180,97 @@ class ThreadController(
     }
 
     private suspend fun initialLoad() {
-        load = LoadState.Loading
+        // Seeded from a cached snapshot: keep painting it while this runs as a
+        // silent revalidation — a miss must never cover data with an error.
+        val seeded = load is LoadState.Ready
+        if (!seeded) load = LoadState.Loading
         val detail = try {
             repo.detail(companyId, conversationId)
         } catch (cause: Exception) {
-            load = LoadState.Failed(
-                cause.userMessage(),
-                (cause as? ApiException)?.code,
-            )
+            if (!seeded) {
+                load = LoadState.Failed(
+                    cause.userMessage(),
+                    (cause as? ApiException)?.code,
+                )
+            }
             return
         }
         conversation = detail
-        messages = detail.messages.data
-        messagesCursor = detail.messages.next_cursor
-        allMessagesLoaded = detail.messages.next_cursor == null
-        load = LoadState.Ready(Unit)
+        if (seeded) {
+            // Merge page 1 instead of trimming — the snapshot may hold pages
+            // the user had already scrolled back through.
+            messages = mergeFirstPage(
+                messages,
+                detail.messages.data,
+                { it.id },
+                { it.created_at },
+            )
+            val cursor = detail.messages.next_cursor
+            if (messagesCursor == null && cursor != null && !allMessagesLoaded) {
+                messagesCursor = cursor
+            }
+        } else {
+            messages = detail.messages.data
+            messagesCursor = detail.messages.next_cursor
+            allMessagesLoaded = detail.messages.next_cursor == null
+            load = LoadState.Ready(Unit)
+        }
+        persistSnapshot()
 
         // Secondary loads — quiet failures; they gate niceties, not the thread.
         scope.launch { runCatching { refreshEvents() } }
         scope.launch { runCatching { refreshPinned() } }
         scope.launch {
             runCatching { members = repo.members(companyId).data }
+            persistSnapshot()
         }
         scope.launch { runCatching { refreshContact() } }
         scope.launch {
             runCatching { company = meRepo.me(companyId).company }
+            persistSnapshot()
         }
-        scope.launch { runCatching { usage = repo.usage(companyId) } }
+        scope.launch {
+            runCatching { usage = repo.usage(companyId) }
+            persistSnapshot()
+        }
+    }
+
+    private fun restoreFromSnapshot(snapshot: ThreadSnapshot) {
+        conversation = snapshot.conversation
+        messages = snapshot.messages
+        messagesCursor = snapshot.messagesCursor
+        allMessagesLoaded = snapshot.allMessagesLoaded
+        events = snapshot.events
+        eventsCursor = snapshot.eventsCursor
+        eventsExhausted = snapshot.eventsExhausted
+        pinnedMessages = snapshot.pinnedMessages
+        members = snapshot.members
+        contact = snapshot.contact
+        company = snapshot.company
+        usage = snapshot.usage
+        load = LoadState.Ready(Unit)
+    }
+
+    /** Write-back after any state change worth surviving a reopen (#176). */
+    private fun persistSnapshot() {
+        val detail = conversation ?: return
+        cache.put(
+            CacheKeys.thread(companyId, conversationId),
+            ThreadSnapshot(
+                conversation = detail,
+                messages = messages,
+                messagesCursor = messagesCursor,
+                allMessagesLoaded = allMessagesLoaded,
+                events = events,
+                eventsCursor = eventsCursor,
+                eventsExhausted = eventsExhausted,
+                pinnedMessages = pinnedMessages,
+                members = members,
+                contact = contact,
+                company = company,
+                usage = usage,
+            ),
+        )
     }
 
     fun loadOlderMessages() {
@@ -186,6 +284,7 @@ class ThreadController(
                 messagesCursor = page.next_cursor
                 if (page.next_cursor == null) allMessagesLoaded = true
                 ensureEventsCoverMessages()
+                persistSnapshot()
             } catch (cause: Exception) {
                 notify(cause.userMessage())
             } finally {
@@ -200,6 +299,7 @@ class ThreadController(
         if (messagesCursor == null && page.next_cursor != null && !allMessagesLoaded) {
             messagesCursor = page.next_cursor
         }
+        persistSnapshot()
     }
 
     /**
@@ -220,6 +320,7 @@ class ThreadController(
         messages = acc
         messagesCursor = cursor
         allMessagesLoaded = cursor == null
+        persistSnapshot()
     }
 
     private suspend fun refreshEvents() {
@@ -230,6 +331,7 @@ class ThreadController(
             eventsExhausted = page.next_cursor == null
         }
         ensureEventsCoverMessages()
+        persistSnapshot()
     }
 
     /**
@@ -256,23 +358,32 @@ class ThreadController(
 
     private suspend fun refreshPinned() {
         pinnedMessages = repo.pinnedMessages(companyId, conversationId).data
+        persistSnapshot()
     }
 
     private suspend fun refreshConversationDetail() {
         val detail = repo.detail(companyId, conversationId)
         conversation = detail
         messages = mergeFirstPage(messages, detail.messages.data, { it.id }, { it.created_at })
+        persistSnapshot()
     }
 
     private suspend fun refreshContact() {
         val contactId = conversation?.contact_id ?: return
         contact = repo.contact(companyId, contactId)
+        persistSnapshot()
     }
 
     private fun refreshGates() {
         scope.launch { runCatching { refreshContact() } }
-        scope.launch { runCatching { company = meRepo.me(companyId).company } }
-        scope.launch { runCatching { usage = repo.usage(companyId) } }
+        scope.launch {
+            runCatching { company = meRepo.me(companyId).company }
+            persistSnapshot()
+        }
+        scope.launch {
+            runCatching { usage = repo.usage(companyId) }
+            persistSnapshot()
+        }
     }
 
     /** Reconnect: trim to page 1 and refetch everything active (SPEC §8). */
@@ -293,6 +404,7 @@ class ThreadController(
             }
             runCatching { refreshPinned() }
             runCatching { refreshContact() }
+            persistSnapshot()
         }
     }
 
@@ -405,6 +517,7 @@ class ThreadController(
                     { it.id },
                     { it.created_at },
                 )
+                persistSnapshot()
                 markRead()
             } catch (cause: Exception) {
                 pendingSends = pendingSends - pendingRow
@@ -451,6 +564,7 @@ class ThreadController(
                 return@launch
             }
             messages = mergeFirstPage(messages, listOf(note), { it.id }, { it.created_at })
+            persistSnapshot()
             if (files.isEmpty()) return@launch
             var failedCount = 0
             for (file in files) {
@@ -488,6 +602,7 @@ class ThreadController(
     private fun replaceMessage(updated: Message) {
         messages = messages.map { if (it.id == updated.id) updated else it }
         pinnedMessages = pinnedMessages.map { if (it.id == updated.id) updated else it }
+        persistSnapshot()
     }
 
     /** Optimistic done toggle with rollback. */
@@ -565,6 +680,7 @@ class ThreadController(
             closed_at = row.closed_at,
             updated_at = row.updated_at,
         )
+        persistSnapshot()
     }
 
     fun setStatus(status: String) {
@@ -674,6 +790,7 @@ class ThreadController(
         // Optimistic remove — a chip that lingers after the tap feels broken.
         val before = conversation
         conversation = before?.copy(tags = before.tags.filterNot { it.id == tag.id })
+        persistSnapshot()
         scope.launch {
             try {
                 repo.detachTag(companyId, conversationId, tag.id)
@@ -684,6 +801,7 @@ class ThreadController(
                     runCatching { refreshConversationDetail() }
                 } else {
                     conversation = before
+                    persistSnapshot()
                     notify(cause.userMessage())
                 }
             }
@@ -787,6 +905,7 @@ class ThreadController(
             guard++
         }
         runCatching { ensureEventsCoverMessages() }
+        persistSnapshot()
         return messages.any { it.id == messageId }
     }
 }

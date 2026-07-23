@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -51,6 +52,7 @@ import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -76,30 +78,21 @@ fun NumbersSection(
     company: CompanyView,
     onRefreshCompany: () -> Unit,
 ) {
-    var state by remember(scope.companyId) {
-        mutableStateOf<LoadState<NumbersData>>(LoadState.Loading)
-    }
     var refreshKey by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(scope.companyId, refreshKey) {
-        if (state !is LoadState.Ready) state = LoadState.Loading
-        state = try {
-            LoadState.Ready(
-                NumbersData(
-                    numbers = scope.repo.numbers(scope.companyId).data,
-                    ports = scope.repo.ports(scope.companyId).data,
-                    textEnablements = scope.repo.textEnablements(scope.companyId).data,
-                    registration = scope.repo.registration(scope.companyId),
-                ),
-            )
-        } catch (cause: Exception) {
-            if (state is LoadState.Ready) {
-                scope.showMessage(cause.userMessage())
-                state
-            } else {
-                LoadState.Failed(cause.userMessage())
-            }
-        }
+    // #176 cache-first: the whole numbers surface paints instantly from
+    // StoreCache after the first in-process fetch; realtime and mutation
+    // refreshKey bumps revalidate silently.
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.numbers(scope.companyId),
+        refreshKey = refreshKey,
+    ) {
+        NumbersData(
+            numbers = scope.repo.numbers(scope.companyId).data,
+            ports = scope.repo.ports(scope.companyId).data,
+            textEnablements = scope.repo.textEnablements(scope.companyId).data,
+            registration = scope.repo.registration(scope.companyId),
+        )
     }
     LaunchedEffect(scope.companyId) {
         scope.graph.realtime.events.collect { event ->

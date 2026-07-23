@@ -26,11 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
@@ -405,24 +407,22 @@ private fun ChangePlanDialog(
 
 @Composable
 private fun ModulesCard(scope: SettingsScope) {
-    var state by remember(scope.companyId) {
-        mutableStateOf<LoadState<List<BillingModule>>>(LoadState.Loading)
-    }
     var refreshKey by remember { mutableIntStateOf(0) }
     var confirming by remember { mutableStateOf<BillingModule?>(null) }
     var pending by remember { mutableStateOf(false) }
     var dialogError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
-    LaunchedEffect(scope.companyId, refreshKey) {
-        state = try {
-            LoadState.Ready(
-                scope.repo.modules(scope.companyId)
-                    .modules.filter { it.available || it.enabled },
-            )
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
+    // #176 cache-first: the add-ons catalog paints instantly from StoreCache
+    // after the first in-process fetch; the setModule mutation bumps
+    // refreshKey for a silent revalidate.
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.billing(scope.companyId),
+        refreshKey = refreshKey,
+    ) {
+        scope.repo.modules(scope.companyId)
+            .modules.filter { it.available || it.enabled }
     }
 
     when (val current = state) {

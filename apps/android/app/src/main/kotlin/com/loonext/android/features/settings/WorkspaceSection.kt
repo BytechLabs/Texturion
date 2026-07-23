@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.core.data.CacheKeys
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -126,17 +127,14 @@ private fun NameCard(
 
 @Composable
 private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyView) {
-    var state by remember(scope.companyId) {
-        mutableStateOf<LoadState<RegistrationDetailPair>>(LoadState.Loading)
-    }
     var refreshKey by remember { mutableStateOf(0) }
-    LaunchedEffect(scope.companyId, refreshKey) {
-        state = try {
-            LoadState.Ready(scope.repo.registration(scope.companyId))
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
-    }
+    // #176 cache-first. CacheKeys has no workspace entry yet, so the key is
+    // built inline and reported to the orchestrator as missing.
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.workspace(scope.companyId),
+        refreshKey = refreshKey,
+    ) { scope.repo.registration(scope.companyId) }
 
     SettingsCard(
         title = "Business identification",

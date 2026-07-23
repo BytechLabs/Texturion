@@ -34,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.ui.common.rememberCacheFirst
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,41 +105,31 @@ fun ForYouTab(
     // Threads and notifications are ROUTES above the shell now (founder
     // mandate: nothing pushed shows the pill nav) — this tab is only ever the
     // For You list itself.
-    var state by remember(companyId) { mutableStateOf<LoadState<ForYou>>(LoadState.Loading) }
+    // #176 cache-first: renders instantly from StoreCache on every visit after
+    // the first in-process fetch; refreshKey bumps are always silent revalidation.
     var refreshKey by remember { mutableStateOf(0) }
-
-    LaunchedEffect(companyId, refreshKey) {
-        if (refreshKey == 0) state = LoadState.Loading
-        state = try {
-            LoadState.Ready(graph.forYouRepo.forYou(companyId))
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
-    }
+    val state = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.forYou(companyId),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.forYou(companyId) }
 
     // Recent calls (#165): the 3 newest sessions, refetched on the same
     // realtime ticks as the queue (call.updated is in the filter below).
     val callsRepo = remember(graph) { CallsRepository(graph.api) }
-    var recentCalls by remember(companyId) {
-        mutableStateOf<LoadState<List<Call>>>(LoadState.Loading)
-    }
-    LaunchedEffect(companyId, refreshKey) {
-        recentCalls = try {
-            LoadState.Ready(callsRepo.calls(companyId, limit = 3).data)
-        } catch (cause: Exception) {
-            // Keep stale rows over an error flash on a refetch hiccup.
-            (recentCalls as? LoadState.Ready)?.let { it }
-                ?: LoadState.Failed(cause.userMessage())
-        }
-    }
+    val recentCalls = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.recentCalls(companyId),
+        refreshKey = refreshKey,
+    ) { callsRepo.calls(companyId, limit = 3).data }
     // Coral dot on the bell — refreshed on the same ticks (the feed derives
     // from message/task/call activity). A miss keeps the last known count.
-    var unreadNotifications by remember(companyId) { mutableStateOf(0) }
-    LaunchedEffect(companyId, refreshKey) {
-        unreadNotifications = runCatching {
-            graph.notificationsRepo.unreadCount(companyId).count
-        }.getOrDefault(unreadNotifications)
-    }
+    val unreadState = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.unreadNotifications(companyId),
+        refreshKey = refreshKey,
+    ) { graph.notificationsRepo.unreadCount(companyId).count }
+    val unreadNotifications = (unreadState as? LoadState.Ready)?.value ?: 0
     // Any conversation/task/call movement can change the queue — refetch quietly.
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->

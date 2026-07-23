@@ -18,7 +18,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,12 +28,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageMonth
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
@@ -77,17 +78,14 @@ fun UsageSection(
     company: CompanyView,
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
-    var state by remember(scope.companyId) { mutableStateOf<LoadState<Usage>>(LoadState.Loading) }
     var refreshKey by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(scope.companyId, refreshKey) {
-        if (state !is LoadState.Ready) state = LoadState.Loading
-        state = try {
-            LoadState.Ready(scope.repo.usage(scope.companyId))
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
-    }
+    // #176 cache-first: paints instantly from StoreCache after the first
+    // in-process fetch; refreshKey bumps revalidate silently.
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.usage(scope.companyId),
+        refreshKey = refreshKey,
+    ) { scope.repo.usage(scope.companyId) }
 
     when (val current = state) {
         is LoadState.Loading -> CenteredLoading(Modifier.padding(vertical = 48.dp))
@@ -115,7 +113,12 @@ fun UsageSection(
             VoiceCard(usage)
             StorageCard(usage)
             if (usage.history.isNotEmpty()) HistoryCard(usage.history)
-            CapCard(scope, company, usage, onCompanyUpdated)
+            CapCard(scope, company, usage) { updated ->
+                onCompanyUpdated(updated)
+                // The cap lives in both views — revalidate the cached usage
+                // silently so the pause point reflects the new multiplier.
+                refreshKey++
+            }
             CountingExplainer()
         }
     }

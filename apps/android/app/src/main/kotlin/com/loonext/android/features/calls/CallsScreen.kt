@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Me
@@ -73,6 +75,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
@@ -82,10 +85,45 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class CallsFilter(val label: String, val outcome: String?) {
-    All("All", null),
-    Missed("Missed", CallOutcome.MISSED),
-    Voicemail("Voicemail", CallOutcome.VOICEMAIL),
+private enum class CallsFilter(val label: String, val outcome: String?, val filterKey: String) {
+    All("All", null, "default"),
+    Missed("Missed", CallOutcome.MISSED, "missed"),
+    Voicemail("Voicemail", CallOutcome.VOICEMAIL, "voicemail"),
+}
+
+/**
+ * The cached call-log aggregate (#176): the ACCUMULATED pages plus the cursor
+ * to fetch more, so returning to the screen (or to a previously-used filter)
+ * restores everything the user had loaded. Internal so the shell warmer can
+ * replay the default fetch.
+ */
+internal data class CallsLog(
+    val calls: List<Call>,
+    val nextCursor: String?,
+)
+
+/**
+ * First-page fetch that MERGES with already-cached deeper pages: the fresh
+ * first page wins, then the older accumulated tail is kept (deduped by id),
+ * so a silent revalidate never collapses what the user scrolled to.
+ */
+internal suspend fun fetchCallsLog(
+    cache: StoreCache,
+    repo: CallsRepository,
+    companyId: String,
+    outcome: String?,
+    cacheKey: String,
+): CallsLog {
+    val page = repo.calls(companyId, outcome = outcome)
+    val cached = cache.flowOf<CallsLog>(cacheKey).value
+    if (cached == null || cached.calls.size <= page.data.size) {
+        return CallsLog(page.data, page.next_cursor)
+    }
+    val fresh = page.data.map { it.id }.toSet()
+    return CallsLog(
+        page.data + cached.calls.filter { it.id !in fresh },
+        cached.nextCursor,
+    )
 }
 
 /**
@@ -112,8 +150,6 @@ fun CallsScreen(
     }
 
     var filter by rememberSaveable { mutableStateOf(CallsFilter.All) }
-    var state by remember(companyId) { mutableStateOf<LoadState<List<Call>>>(LoadState.Loading) }
-    var nextCursor by remember { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
     var dialerOpen by rememberSaveable { mutableStateOf(false) }
@@ -122,16 +158,16 @@ fun CallsScreen(
     val contactsRepo = remember(graph) { com.loonext.android.core.data.ContactsRepository(graph.api) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(companyId, filter, refreshKey) {
-        if (state !is LoadState.Ready) state = LoadState.Loading
-        state = try {
-            val page = repo.calls(companyId, outcome = filter.outcome)
-            nextCursor = page.next_cursor
-            LoadState.Ready(page.data)
-        } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
-        }
-    }
+    // #176 cache-first: each filter is its own key, so a revisit (or a return
+    // to a previously-used filter) paints instantly from StoreCache while the
+    // first page revalidates silently; only a never-fetched filter may show
+    // the loading state.
+    val cacheKey = CacheKeys.calls(companyId, filter.filterKey)
+    val state = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = cacheKey,
+        refreshKey = refreshKey,
+    ) { fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey) }
     // Realtime: the calls table's DB trigger broadcasts call.updated (ID-only)
     // on every session change — refetch the first page; ditto on re-join.
     LaunchedEffect(companyId) {
@@ -179,7 +215,7 @@ fun CallsScreen(
                 is LoadState.Loading -> CenteredLoading()
                 is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
                 is LoadState.Ready -> {
-                    if (current.value.isEmpty()) {
+                    if (current.value.calls.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
                                 when (filter) {
@@ -194,7 +230,8 @@ fun CallsScreen(
                             )
                         }
                     } else {
-                        val groups = remember(current.value) { groupByDay(current.value) }
+                        val groups =
+                            remember(current.value.calls) { groupByDay(current.value.calls) }
                         LazyColumn(
                             Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
@@ -239,7 +276,7 @@ fun CallsScreen(
                                     }
                                 }
                             }
-                            if (nextCursor != null) {
+                            if (current.value.nextCursor != null) {
                                 item(key = "load-more") {
                                     Box(
                                         Modifier
@@ -251,25 +288,34 @@ fun CallsScreen(
                                             LoadingIndicator()
                                         } else {
                                             TextButton(onClick = {
-                                                val cursor = nextCursor ?: return@TextButton
+                                                val cursor = current.value.nextCursor
+                                                    ?: return@TextButton
                                                 loadingMore = true
+                                                val key = cacheKey
+                                                val outcome = filter.outcome
                                                 scope.launch {
                                                     try {
                                                         val page = repo.calls(
                                                             companyId,
-                                                            outcome = filter.outcome,
+                                                            outcome = outcome,
                                                             cursor = cursor,
                                                         )
-                                                        nextCursor = page.next_cursor
-                                                        val existing =
-                                                            (state as? LoadState.Ready)?.value
-                                                                ?: emptyList()
+                                                        // Append onto whatever the cache
+                                                        // holds NOW (a silent revalidate
+                                                        // may have landed since the tap).
+                                                        val base = graph.storeCache
+                                                            .flowOf<CallsLog>(key).value
+                                                            ?: current.value
                                                         val seen =
-                                                            existing.map { it.id }.toSet()
-                                                        state = LoadState.Ready(
-                                                            existing + page.data.filter {
-                                                                it.id !in seen
-                                                            },
+                                                            base.calls.map { it.id }.toSet()
+                                                        graph.storeCache.put(
+                                                            key,
+                                                            CallsLog(
+                                                                base.calls + page.data.filter {
+                                                                    it.id !in seen
+                                                                },
+                                                                page.next_cursor,
+                                                            ),
                                                         )
                                                     } catch (_: Exception) {
                                                         // Keep what's loaded; button stays.

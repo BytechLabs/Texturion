@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -78,6 +79,13 @@ class AppGraph(private val app: Application) {
     /** Device push registration (#156) — no-ops until Firebase is configured. */
     val pushRegistrar by lazy { com.loonext.android.push.PushRegistrar(app, api) }
 
+    /**
+     * #176: process-lifetime render cache. Screens read through
+     * rememberCacheFirst so navigation always paints instantly from here;
+     * cleared in [AuthManager.signOut] via the hook below.
+     */
+    val storeCache = com.loonext.android.core.data.StoreCache()
+
     val meRepo = MeRepository(api)
     val forYouRepo = ForYouRepository(api)
     val inboxRepo = InboxRepository(api)
@@ -87,6 +95,22 @@ class AppGraph(private val app: Application) {
     val searchRepo = SearchRepository(api)
 
     init {
+        authManager.onSignedOut = { storeCache.clear() }
+        // #176 warmer: the moment a company is active, prime every tab's
+        // default query so even the first tap after launch paints instantly.
+        appScope.launch {
+            prefs.activeCompanyId
+                .distinctUntilChanged()
+                .collect { companyId ->
+                    if (companyId != null) {
+                        runCatching {
+                            com.loonext.android.features.shell.warmStoreCache(
+                                this@AppGraph, companyId,
+                            )
+                        }
+                    }
+                }
+        }
         // Realtime channels authorize with the Supabase JWT — keep it fresh.
         appScope.launch {
             api.tokenRefreshed.collect { token -> realtime.setAuth(token) }

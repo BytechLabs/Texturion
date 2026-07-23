@@ -52,6 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
@@ -61,6 +63,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -310,6 +313,7 @@ private fun TaskListScreen(
 
             if (board) {
                 TaskBoard(
+                    cache = graph.storeCache,
                     mutations = mutations,
                     companyId = companyId,
                     tab = tab,
@@ -323,6 +327,7 @@ private fun TaskListScreen(
                 )
             } else {
                 TaskList(
+                    cache = graph.storeCache,
                     mutations = mutations,
                     companyId = companyId,
                     tab = tab,
@@ -358,8 +363,69 @@ private fun TaskListScreen(
     }
 }
 
+/**
+ * The cached tasks-list aggregate (#176): the ACCUMULATED open+done rows plus
+ * the live pager that produced them, so returning to the screen (or to a
+ * previously-used filter) restores the full paged depth instantly. Internal
+ * so the shell warmer can replay the default fetch.
+ */
+internal data class TaskListSnapshot(
+    val rows: List<Task>,
+    val hasMore: Boolean,
+    val loader: TaskListLoader,
+)
+
+/**
+ * Drain a FRESH loader to [targetRows] (at least one page) — a quiet refresh
+ * re-reads to the depth the user had paged to, and a cursor never crosses
+ * filter sets/orderings because every fetch builds its own loader.
+ */
+internal suspend fun fetchTaskListSnapshot(
+    mutations: TaskMutations,
+    companyId: String,
+    arms: List<TaskListFilters>,
+    targetRows: Int,
+): TaskListSnapshot {
+    val loader = TaskListLoader(mutations, companyId, arms)
+    val acc = mutableListOf<Task>()
+    var pages = 0
+    do {
+        acc += loader.nextPage()
+        pages++
+    } while (loader.hasMore && acc.size < maxOf(targetRows, 1) && pages < 40)
+    return TaskListSnapshot(acc, loader.hasMore, loader)
+}
+
+/**
+ * Stable filterKey for [CacheKeys.tasks]: the list's INITIAL state (Open tab,
+ * no chips, no search) is exactly "default" — the key the shell warmer
+ * prefetches. Board keys carry a "board|" prefix ([taskBoardFilterKey]) so
+ * the two view shapes never share one entry.
+ */
+internal fun taskListFilterKey(
+    tab: TasksTabKind,
+    assigneeChip: String?,
+    unassignedChip: Boolean,
+    dueChip: DueChip?,
+    q: String?,
+): String =
+    if (tab == TasksTabKind.Open && assigneeChip == null && !unassignedChip &&
+        dueChip == null && q.isNullOrEmpty()
+    ) {
+        "default"
+    } else {
+        listOf(
+            tab.name,
+            assigneeChip ?: "-",
+            if (unassignedChip) "unassigned" else "-",
+            dueChip?.name ?: "-",
+            "q=${q.orEmpty()}",
+        ).joinToString("|")
+    }
+
 @Composable
 private fun TaskList(
+    cache: StoreCache,
     mutations: TaskMutations,
     companyId: String,
     tab: TasksTabKind,
@@ -374,40 +440,35 @@ private fun TaskList(
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
 ) {
-    var state by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    var rows by remember(companyId) { mutableStateOf(listOf<Task>()) }
-    var hasMore by remember(companyId) { mutableStateOf(false) }
     var loadingMore by remember(companyId) { mutableStateOf(false) }
-    val loaderHolder = remember(companyId) { mutableStateOf<TaskListLoader?>(null) }
     val scope = rememberCoroutineScope()
 
-    // Any filter change (including the ordering-flipping due chips) rebuilds
-    // the loader from scratch — a cursor never crosses filter sets/orderings.
-    LaunchedEffect(companyId, tab, assigneeChip, unassignedChip, dueChip, q, refreshKey) {
-        if (rows.isEmpty()) state = LoadState.Loading
-        val arms = taskListArms(tab, assigneeChip, unassignedChip, dueChip, q)
-        val loader = TaskListLoader(mutations, companyId, arms)
-        val target = rows.size // preserve pagination depth on quiet refreshes
-        val acc = mutableListOf<Task>()
-        try {
-            var pages = 0
-            do {
-                acc += loader.nextPage()
-                pages++
-            } while (loader.hasMore && acc.size < maxOf(target, 1) && pages < 40)
-            rows = acc
-            hasMore = loader.hasMore
-            loaderHolder.value = loader
-            state = LoadState.Ready(Unit)
-        } catch (cause: Exception) {
-            if (rows.isEmpty()) state = LoadState.Failed(cause.userMessage())
-        }
+    // #176 cache-first: every filter combination is its own key, so a revisit
+    // (or a return to a previously-used filter) paints instantly from
+    // StoreCache while the snapshot revalidates silently; only a never-fetched
+    // filter may show the loading state.
+    val cacheKey = CacheKeys.tasks(
+        companyId,
+        taskListFilterKey(tab, assigneeChip, unassignedChip, dueChip, q),
+    )
+    val state = rememberCacheFirst(
+        cache = cache,
+        key = cacheKey,
+        refreshKey = refreshKey,
+    ) {
+        fetchTaskListSnapshot(
+            mutations = mutations,
+            companyId = companyId,
+            arms = taskListArms(tab, assigneeChip, unassignedChip, dueChip, q),
+            targetRows = cache.flowOf<TaskListSnapshot>(cacheKey).value?.rows?.size ?: 0,
+        )
     }
 
     when (val current = state) {
         is LoadState.Loading -> CenteredLoading()
         is LoadState.Failed -> CenteredError(current.message, onRetry = onRetry)
         is LoadState.Ready -> {
+            val rows = current.value.rows
             if (rows.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -441,7 +502,7 @@ private fun TaskList(
                         onOpenTask = onOpenTask,
                         onToggleDone = onToggleDone,
                     )
-                    if (hasMore) {
+                    if (current.value.hasMore) {
                         item(key = "load-more") {
                             Box(
                                 Modifier
@@ -452,12 +513,20 @@ private fun TaskList(
                                 TextButton(
                                     enabled = !loadingMore,
                                     onClick = {
-                                        val loader = loaderHolder.value ?: return@TextButton
+                                        val snapshot = current.value
                                         loadingMore = true
                                         scope.launch {
                                             try {
-                                                rows = rows + loader.nextPage()
-                                                hasMore = loader.hasMore
+                                                // Append INTO the cache so a
+                                                // return restores the depth.
+                                                val page = snapshot.loader.nextPage()
+                                                cache.put(
+                                                    cacheKey,
+                                                    snapshot.copy(
+                                                        rows = snapshot.rows + page,
+                                                        hasMore = snapshot.loader.hasMore,
+                                                    ),
+                                                )
                                             } catch (_: Exception) {
                                                 // Leave the button; the user retries.
                                             } finally {

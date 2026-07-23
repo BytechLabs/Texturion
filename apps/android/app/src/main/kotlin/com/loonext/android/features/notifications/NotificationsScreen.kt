@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,8 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.NotificationType
+import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
@@ -56,7 +59,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
-import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.common.rememberCacheFirst
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -68,6 +71,11 @@ import kotlinx.coroutines.launch
  * unread) + deep link into the conversation. 'Read all' advances the
  * watermark to now. The unread count stays live via the company realtime
  * channel plus a 60s poll.
+ *
+ * #176 cache-first: the accumulated feed (CacheKeys.notifications) and the
+ * badge (CacheKeys.unreadNotifications, shared with the For You bell) render
+ * instantly from StoreCache on every return visit and revalidate silently;
+ * the only spinner is the true first in-process fetch.
  */
 @Composable
 fun NotificationsScreen(
@@ -80,11 +88,7 @@ fun NotificationsScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
-    var state by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    var items by remember(companyId) { mutableStateOf<List<NotificationItem>>(emptyList()) }
-    var nextCursor by remember(companyId) { mutableStateOf<String?>(null) }
     var loadingMore by remember(companyId) { mutableStateOf(false) }
-    var unreadCount by remember(companyId) { mutableStateOf(0) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
 
     // The furthest watermark this session has advanced to (forward-only, the
@@ -97,19 +101,37 @@ fun NotificationsScreen(
     fun withLocalReads(fetched: List<NotificationItem>): List<NotificationItem> =
         localWatermark?.let { applyWatermark(fetched, it) } ?: fetched
 
-    // First page + badge. Realtime events bump refreshKey and trim back to
-    // page 1 (web reconnect parity); a quiet refresh failure keeps shown data.
+    // #176 cache-first: the ACCUMULATED feed (first page + any loaded older
+    // pages) is the cached value, so a return visit paints everything it had
+    // instantly; mutations and pagination write through this flow.
+    val feedFlow = remember(companyId) {
+        graph.storeCache.flowOf<Page<NotificationItem>>(CacheKeys.notifications(companyId))
+    }
+    // The badge shares the For You bell's key: mark-read emits no realtime
+    // event, so writing the count here is what keeps the bell dot honest.
+    val unreadFlow = remember(companyId) {
+        graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
+    }
+    val unreadCount = unreadFlow.collectAsState().value ?: 0
+    val feed = feedFlow.collectAsState().value
+    val items = feed?.data.orEmpty()
+    val nextCursor = feed?.next_cursor
+
+    // First page. Realtime events bump refreshKey and trim back to page 1
+    // (web reconnect parity); a background miss keeps shown data
+    // (rememberCacheFirst semantics), and Loading can only ever be the true
+    // first in-process fetch.
+    val state = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.notifications(companyId),
+        refreshKey = refreshKey,
+    ) { repo.feed(companyId).let { page -> page.copy(data = withLocalReads(page.data)) } }
+
+    // Badge refresh on first show and every realtime tick (same cadence the
+    // old feed effect carried); ignored while a mark POST is in flight.
     LaunchedEffect(companyId, refreshKey) {
-        try {
-            val page = repo.feed(companyId)
-            items = withLocalReads(page.data)
-            nextCursor = page.next_cursor
-            state = LoadState.Ready(Unit)
-        } catch (cause: Exception) {
-            if (state !is LoadState.Ready) state = LoadState.Failed(cause.userMessage())
-        }
         runCatching { repo.unreadCount(companyId) }
-            .onSuccess { if (pendingMarks == 0) unreadCount = it.count }
+            .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
     }
 
     // The feed is derived from messages/conversations/tasks/calls — any of
@@ -133,31 +155,39 @@ fun NotificationsScreen(
         while (true) {
             delay(60_000)
             runCatching { repo.unreadCount(companyId) }
-                .onSuccess { if (pendingMarks == 0) unreadCount = it.count }
+                .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
         }
     }
 
     fun markItemRead(item: NotificationItem) {
         if (!item.unread) return
-        val previousItems = items
+        val previousFeed = feedFlow.value ?: return
         val previousCount = unreadCount
         val previousWatermark = localWatermark
         localWatermark = advanceWatermark(localWatermark, item.created_at)
-        items = applyWatermark(items, item.created_at)
+        val advanced = previousFeed.copy(
+            data = applyWatermark(previousFeed.data, item.created_at),
+        )
+        feedFlow.value = advanced
         // Everything newer than a loaded item is also loaded (contiguous DESC
         // feed), so counting loaded unread rows is exact after the advance.
-        unreadCount = items.count { it.unread }
+        unreadFlow.value = advanced.data.count { it.unread }
         pendingMarks++
         scope.launch {
             try {
                 val result = repo.markRead(companyId, item.created_at)
                 // The server may be further ahead (another device read more).
                 localWatermark = advanceWatermark(localWatermark, result.last_seen_at)
-                items = applyWatermark(items, result.last_seen_at)
-                unreadCount = items.count { it.unread }
+                feedFlow.value?.let { latest ->
+                    val reconciled = latest.copy(
+                        data = applyWatermark(latest.data, result.last_seen_at),
+                    )
+                    feedFlow.value = reconciled
+                    unreadFlow.value = reconciled.data.count { it.unread }
+                }
             } catch (_: Exception) {
-                items = previousItems
-                unreadCount = previousCount
+                feedFlow.value = previousFeed
+                unreadFlow.value = previousCount
                 localWatermark = previousWatermark
                 snackbar.showSnackbar("Couldn't mark that read.")
             } finally {
@@ -167,20 +197,27 @@ fun NotificationsScreen(
     }
 
     fun markAllRead() {
-        if (unreadCount == 0 && items.none { it.unread }) return
-        val previousItems = items
+        val previousFeed = feedFlow.value
+        if (unreadCount == 0 && previousFeed?.data.orEmpty().none { it.unread }) return
         val previousCount = unreadCount
         val previousWatermark = localWatermark
-        items = items.map { if (it.unread) it.copy(unread = false) else it }
-        unreadCount = 0
+        if (previousFeed != null) {
+            feedFlow.value = previousFeed.copy(
+                data = previousFeed.data.map { if (it.unread) it.copy(unread = false) else it },
+            )
+        }
+        unreadFlow.value = 0
         pendingMarks++
         scope.launch {
             try {
                 val result = repo.markAllRead(companyId)
                 localWatermark = advanceWatermark(localWatermark, result.last_seen_at)
+                // Silent revalidate so the cached feed reconciles with the
+                // server; withLocalReads keeps the advance applied meanwhile.
+                refreshKey++
             } catch (_: Exception) {
-                items = previousItems
-                unreadCount = previousCount
+                if (previousFeed != null) feedFlow.value = previousFeed
+                unreadFlow.value = previousCount
                 localWatermark = previousWatermark
                 snackbar.showSnackbar("Couldn't mark all read.")
             } finally {
@@ -190,15 +227,22 @@ fun NotificationsScreen(
     }
 
     fun loadOlder() {
-        val cursor = nextCursor ?: return
+        val startFeed = feedFlow.value ?: return
+        val cursor = startFeed.next_cursor ?: return
         if (loadingMore) return
         loadingMore = true
         scope.launch {
             try {
                 val page = repo.feed(companyId, cursor = cursor)
-                items = (items + withLocalReads(page.data))
-                    .distinctBy { "${it.type}:${it.id}" }
-                nextCursor = page.next_cursor
+                // Append to whatever is cached NOW (a quiet revalidate may
+                // have landed) so the accumulated list is what a return
+                // visit repaints.
+                val base = feedFlow.value ?: startFeed
+                feedFlow.value = base.copy(
+                    data = (base.data + withLocalReads(page.data))
+                        .distinctBy { "${it.type}:${it.id}" },
+                    next_cursor = page.next_cursor,
+                )
             } catch (_: Exception) {
                 snackbar.showSnackbar("Couldn't load older notifications.")
             } finally {
@@ -213,10 +257,7 @@ fun NotificationsScreen(
 
             is LoadState.Failed -> CenteredError(
                 current.message,
-                onRetry = {
-                    state = LoadState.Loading
-                    refreshKey++
-                },
+                onRetry = { refreshKey++ },
             )
 
             is LoadState.Ready -> Column(

@@ -58,6 +58,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -143,23 +145,35 @@ internal fun TaskDetailScreen(
 ) {
     BackHandler(onBack = onBack)
 
-    var state by remember(taskId) { mutableStateOf<LoadState<TaskDetail>>(LoadState.Loading) }
+    // #176 cache-first: a revisit paints the cached detail instantly while it
+    // revalidates silently. Hand-rolled against StoreCache (instead of
+    // rememberCacheFirst) because a refetch 404 must EVICT and replace even
+    // cached data — a teammate deleting the task must not leave a stale row
+    // on screen forever.
+    val cacheKey = CacheKeys.task(companyId, taskId)
+    val detailFlow = remember(cacheKey) { graph.storeCache.flowOf<TaskDetail>(cacheKey) }
+    val cachedDetail by detailFlow.collectAsState()
+    var failure by remember(taskId) { mutableStateOf<LoadState.Failed?>(null) }
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
     var refreshKey by remember(taskId) { mutableStateOf(0) }
     var actionError by remember(taskId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(taskId, refreshKey) {
-        state = try {
-            LoadState.Ready(mutations.detail(companyId, taskId))
+        try {
+            detailFlow.value = mutations.detail(companyId, taskId)
+            failure = null
         } catch (cause: Exception) {
             val code = (cause as? ApiException)?.code
-            when {
+            failure = when {
                 // A teammate deleted it (task.changed → refetch → 404):
-                // say so instead of showing a stale row forever.
-                code == ApiErrorCode.NOT_FOUND ->
+                // evict and say so instead of showing a stale row forever.
+                code == ApiErrorCode.NOT_FOUND -> {
+                    detailFlow.value = null
                     LoadState.Failed("This task doesn't exist or was removed.", code)
+                }
 
-                state is LoadState.Ready -> state // keep data on a quiet refresh failure
+                // Keep shown data on a quiet refresh failure.
+                detailFlow.value != null -> null
                 else -> LoadState.Failed(cause.userMessage(), code)
             }
         }
@@ -171,7 +185,7 @@ internal fun TaskDetailScreen(
     // message.status. Payloads are ID-only — match and refetch via the API.
     LaunchedEffect(taskId) {
         graph.realtime.events.collect { event ->
-            val detail = (state as? LoadState.Ready)?.value
+            val detail = detailFlow.value
             when (event.event) {
                 "task.changed" -> {
                     val conversation =
@@ -190,6 +204,12 @@ internal fun TaskDetailScreen(
             }
         }
     }
+
+    // The cached value always wins the render; the ONLY failure that may
+    // outrank shown data is the explicit not-found eviction above.
+    val state: LoadState<TaskDetail> = cachedDetail?.let { LoadState.Ready(it) }
+        ?: failure
+        ?: LoadState.Loading
 
     when (val current = state) {
         is LoadState.Loading -> Column(modifier.fillMaxSize()) {
@@ -222,7 +242,7 @@ internal fun TaskDetailScreen(
             actionError = actionError,
             onActionError = { actionError = it },
             onChanged = { refreshKey++ },
-            onPatched = { state = LoadState.Ready(it) },
+            onPatched = { graph.storeCache.put(cacheKey, it) },
             onDeleted = onBack,
             onBack = onBack,
             onOpenConversation = onOpenConversation,

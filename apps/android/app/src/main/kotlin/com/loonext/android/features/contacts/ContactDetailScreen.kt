@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
@@ -74,6 +75,7 @@ import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -107,17 +109,26 @@ internal fun ContactDetailScreen(
 ) {
     BackHandler(onBack = onBack)
 
-    var state by remember(contactId) { mutableStateOf<LoadState<Contact>>(LoadState.Loading) }
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
     var conversation by remember(contactId) { mutableStateOf<ConversationListItem?>(null) }
     var refreshKey by remember(contactId) { mutableIntStateOf(0) }
 
-    LaunchedEffect(contactId, refreshKey) {
-        state = try {
-            LoadState.Ready(mutations.detail(companyId, contactId))
+    // #176 cache-first: a reopened contact paints instantly from StoreCache
+    // while the fetch revalidates silently; the loading state can only ever
+    // be the true first in-process open. NOT_FOUND is tracked beside the
+    // cache because rememberCacheFirst's Failed carries no error code.
+    var notFound by remember(contactId) { mutableStateOf(false) }
+    val state = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.contact(companyId, contactId),
+        refreshKey = refreshKey,
+    ) {
+        notFound = false
+        try {
+            mutations.detail(companyId, contactId)
         } catch (cause: Exception) {
-            if (state is LoadState.Ready) state // keep data on a quiet refresh failure
-            else LoadState.Failed(cause.userMessage(), (cause as? ApiException)?.code)
+            if ((cause as? ApiException)?.code == ApiErrorCode.NOT_FOUND) notFound = true
+            throw cause
         }
     }
     LaunchedEffect(companyId) {
@@ -161,7 +172,7 @@ internal fun ContactDetailScreen(
         when (val current = state) {
             is LoadState.Loading -> CenteredLoading()
             is LoadState.Failed ->
-                if (current.code == ApiErrorCode.NOT_FOUND) {
+                if (notFound) {
                     Text(
                         "This contact doesn't exist or was removed.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -433,7 +444,10 @@ private fun ContactDetailBody(
                 placeholder = "Add a name",
                 singleLine = true,
                 save = { value ->
-                    mutations.updateField(companyId, contact.id, "name", value)
+                    // #176: write the PATCHed row through to the cache so a
+                    // later reopen never paints the pre-edit value.
+                    val updated = mutations.updateField(companyId, contact.id, "name", value)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
             RowDivider()
@@ -445,7 +459,8 @@ private fun ContactDetailBody(
                 placeholder = "Add an address",
                 singleLine = true,
                 save = { value ->
-                    mutations.updateField(companyId, contact.id, "address", value)
+                    val updated = mutations.updateField(companyId, contact.id, "address", value)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
             RowDivider()
@@ -458,7 +473,8 @@ private fun ContactDetailBody(
                 singleLine = false,
                 idleCaption = "Saves automatically · visible to the crew",
                 save = { value ->
-                    mutations.updateField(companyId, contact.id, "notes", value)
+                    val updated = mutations.updateField(companyId, contact.id, "notes", value)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
         }

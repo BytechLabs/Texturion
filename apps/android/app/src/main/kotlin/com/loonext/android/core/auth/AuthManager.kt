@@ -145,10 +145,14 @@ class AuthManager(
         sessionStore.save(session)
     }
 
+    /** Set by AppGraph — drops the render cache so account data dies with the session. */
+    var onSignedOut: (() -> Unit)? = null
+
     suspend fun signOut() {
         val session = sessionStore.current()
         if (session != null) auth.signOut(session.accessToken)
         sessionStore.clear()
         prefs.setActiveCompany(null)
+        onSignedOut?.invoke()
     }
 }

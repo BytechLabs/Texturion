@@ -21,10 +21,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -36,13 +34,87 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.common.rememberCacheFirst
 import kotlinx.coroutines.launch
+
+/**
+ * The cached board aggregate (#176): both ACCUMULATED columns plus their live
+ * pagers, so returning to the board restores each column's paged depth
+ * instantly. Cached under [CacheKeys.tasks] with a "board|…" filterKey — the
+ * board's value shape must never share an entry with the list's.
+ */
+internal data class TaskBoardSnapshot(
+    val todo: List<Task>,
+    val done: List<Task>,
+    val todoHasMore: Boolean,
+    val doneHasMore: Boolean,
+    val todoLoader: TaskListLoader,
+    val doneLoader: TaskListLoader,
+)
+
+/**
+ * Drain FRESH per-column loaders to the targets (at least one page each) — a
+ * quiet refresh re-reads to the depth the user had paged to, and a cursor
+ * never crosses filter sets/orderings. [arms] must be the two statusless-tab
+ * arms from [taskListArms]: open then done.
+ */
+internal suspend fun fetchTaskBoardSnapshot(
+    mutations: TaskMutations,
+    companyId: String,
+    arms: List<TaskListFilters>,
+    todoTarget: Int,
+    doneTarget: Int,
+): TaskBoardSnapshot {
+    val todoLoader = TaskListLoader(mutations, companyId, listOf(arms[0]))
+    val doneLoader = TaskListLoader(mutations, companyId, listOf(arms[1]))
+    val todo = mutableListOf<Task>()
+    val done = mutableListOf<Task>()
+    var pages = 0
+    do {
+        todo += todoLoader.nextPage()
+        pages++
+    } while (todoLoader.hasMore && todo.size < maxOf(todoTarget, 1) && pages < 40)
+    pages = 0
+    do {
+        done += doneLoader.nextPage()
+        pages++
+    } while (doneLoader.hasMore && done.size < maxOf(doneTarget, 1) && pages < 40)
+    return TaskBoardSnapshot(
+        todo = todo,
+        done = done,
+        todoHasMore = todoLoader.hasMore,
+        doneHasMore = doneLoader.hasMore,
+        todoLoader = todoLoader,
+        doneLoader = doneLoader,
+    )
+}
+
+/**
+ * Board filterKey for [CacheKeys.tasks]: always "board|…"-prefixed so board
+ * snapshots and list snapshots (different value types) can never collide on
+ * one key. Never "default" — the warmer's default tasks entry is the list's.
+ */
+internal fun taskBoardFilterKey(
+    tab: TasksTabKind,
+    assigneeChip: String?,
+    unassignedChip: Boolean,
+    dueChip: DueChip?,
+    q: String?,
+): String = listOf(
+    "board",
+    tab.name,
+    assigneeChip ?: "-",
+    if (unassignedChip) "unassigned" else "-",
+    dueChip?.name ?: "-",
+    "q=${q.orEmpty()}",
+).joinToString("|")
 
 /**
  * Board view: two columns, "To do" (status=open) and "Done" (status=done),
@@ -52,6 +124,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun TaskBoard(
+    cache: StoreCache,
     mutations: TaskMutations,
     companyId: String,
     tab: TasksTabKind,
@@ -68,104 +141,98 @@ internal fun TaskBoard(
     // tab yields exactly the two column arms: [open, done].
     val boardTab = if (tab == TasksTabKind.All) TasksTabKind.All else TasksTabKind.Mine
 
-    var state by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    var todo by remember(companyId) { mutableStateOf(listOf<Task>()) }
-    var done by remember(companyId) { mutableStateOf(listOf<Task>()) }
-    var todoLoader by remember(companyId) { mutableStateOf<TaskListLoader?>(null) }
-    var doneLoader by remember(companyId) { mutableStateOf<TaskListLoader?>(null) }
-    var todoHasMore by remember(companyId) { mutableStateOf(false) }
-    var doneHasMore by remember(companyId) { mutableStateOf(false) }
     var localRefresh by remember(companyId) { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(
-        companyId, boardTab, assigneeChip, unassignedChip, dueChip, q, refreshKey, localRefresh,
+    // #176 cache-first: each board filter combination is its own key, so a
+    // revisit paints instantly from StoreCache while both columns revalidate
+    // silently; only a never-fetched filter may show the loading state.
+    val cacheKey = CacheKeys.tasks(
+        companyId,
+        taskBoardFilterKey(boardTab, assigneeChip, unassignedChip, dueChip, q),
+    )
+    val state = rememberCacheFirst(
+        cache = cache,
+        key = cacheKey,
+        refreshKey = refreshKey + localRefresh,
     ) {
-        if (todo.isEmpty() && done.isEmpty()) state = LoadState.Loading
-        val arms = taskListArms(boardTab, assigneeChip, unassignedChip, dueChip, q)
-        val openArm = TaskListLoader(mutations, companyId, listOf(arms[0]))
-        val doneArm = TaskListLoader(mutations, companyId, listOf(arms[1]))
-        try {
-            val todoTarget = maxOf(todo.size, 1)
-            val doneTarget = maxOf(done.size, 1)
-            val todoAcc = mutableListOf<Task>()
-            val doneAcc = mutableListOf<Task>()
-            var pages = 0
-            do {
-                todoAcc += openArm.nextPage()
-                pages++
-            } while (openArm.hasMore && todoAcc.size < todoTarget && pages < 40)
-            pages = 0
-            do {
-                doneAcc += doneArm.nextPage()
-                pages++
-            } while (doneArm.hasMore && doneAcc.size < doneTarget && pages < 40)
-            todo = todoAcc
-            done = doneAcc
-            todoLoader = openArm
-            doneLoader = doneArm
-            todoHasMore = openArm.hasMore
-            doneHasMore = doneArm.hasMore
-            state = LoadState.Ready(Unit)
-        } catch (cause: Exception) {
-            if (todo.isEmpty() && done.isEmpty()) {
-                state = LoadState.Failed(cause.userMessage())
-            }
-        }
+        val previous = cache.flowOf<TaskBoardSnapshot>(cacheKey).value
+        fetchTaskBoardSnapshot(
+            mutations = mutations,
+            companyId = companyId,
+            arms = taskListArms(boardTab, assigneeChip, unassignedChip, dueChip, q),
+            todoTarget = previous?.todo?.size ?: 0,
+            doneTarget = previous?.done?.size ?: 0,
+        )
     }
 
     when (val current = state) {
         is LoadState.Loading -> CenteredLoading()
         is LoadState.Failed -> CenteredError(current.message, onRetry = { localRefresh++ })
 
-        is LoadState.Ready -> Row(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            BoardColumn(
-                title = "To do",
-                count = todo.size,
-                tasks = todo,
-                emptyCopy = "Nothing to do here.",
-                hasMore = todoHasMore,
-                moveLabel = "Move to Done",
-                moveIcon = { Icons.AutoMirrored.Outlined.ArrowForward },
-                onLoadMore = {
-                    val loader = todoLoader ?: return@BoardColumn
-                    scope.launch {
-                        runCatching {
-                            todo = todo + loader.nextPage()
-                            todoHasMore = loader.hasMore
+        is LoadState.Ready -> {
+            val snapshot = current.value
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                BoardColumn(
+                    title = "To do",
+                    count = snapshot.todo.size,
+                    tasks = snapshot.todo,
+                    emptyCopy = "Nothing to do here.",
+                    hasMore = snapshot.todoHasMore,
+                    moveLabel = "Move to Done",
+                    moveIcon = { Icons.AutoMirrored.Outlined.ArrowForward },
+                    onLoadMore = {
+                        scope.launch {
+                            runCatching {
+                                // Append INTO the cache so a return restores
+                                // the paged depth.
+                                val page = snapshot.todoLoader.nextPage()
+                                cache.put(
+                                    cacheKey,
+                                    snapshot.copy(
+                                        todo = snapshot.todo + page,
+                                        todoHasMore = snapshot.todoLoader.hasMore,
+                                    ),
+                                )
+                            }
                         }
-                    }
-                },
-                onOpenTask = onOpenTask,
-                onMove = { task -> onToggleDone(task, true) },
-                modifier = Modifier.weight(1f),
-            )
-            BoardColumn(
-                title = "Done",
-                count = done.size,
-                tasks = done,
-                emptyCopy = "Nothing marked done yet.",
-                hasMore = doneHasMore,
-                moveLabel = "Move to To do",
-                moveIcon = { Icons.AutoMirrored.Outlined.Undo },
-                onLoadMore = {
-                    val loader = doneLoader ?: return@BoardColumn
-                    scope.launch {
-                        runCatching {
-                            done = done + loader.nextPage()
-                            doneHasMore = loader.hasMore
+                    },
+                    onOpenTask = onOpenTask,
+                    onMove = { task -> onToggleDone(task, true) },
+                    modifier = Modifier.weight(1f),
+                )
+                BoardColumn(
+                    title = "Done",
+                    count = snapshot.done.size,
+                    tasks = snapshot.done,
+                    emptyCopy = "Nothing marked done yet.",
+                    hasMore = snapshot.doneHasMore,
+                    moveLabel = "Move to To do",
+                    moveIcon = { Icons.AutoMirrored.Outlined.Undo },
+                    onLoadMore = {
+                        scope.launch {
+                            runCatching {
+                                val page = snapshot.doneLoader.nextPage()
+                                cache.put(
+                                    cacheKey,
+                                    snapshot.copy(
+                                        done = snapshot.done + page,
+                                        doneHasMore = snapshot.doneLoader.hasMore,
+                                    ),
+                                )
+                            }
                         }
-                    }
-                },
-                onOpenTask = onOpenTask,
-                onMove = { task -> onToggleDone(task, false) },
-                modifier = Modifier.weight(1f),
-            )
+                    },
+                    onOpenTask = onOpenTask,
+                    onMove = { task -> onToggleDone(task, false) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

@@ -17,7 +17,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
@@ -40,6 +40,7 @@ import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -76,23 +77,19 @@ private fun roleLabel(role: String): String = when (role) {
 @Composable
 fun TeamSection(scope: SettingsScope, company: CompanyView) {
     val canManage = SettingsRoleGate.canManageTeam(scope.role)
-    var state by remember(scope.companyId) { mutableStateOf<LoadState<TeamData>>(LoadState.Loading) }
     var refreshKey by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(scope.companyId, refreshKey) {
-        if (state !is LoadState.Ready) state = LoadState.Loading
-        state = try {
-            val members = scope.repo.members(scope.companyId).data
-            val invites = if (canManage) scope.repo.invites(scope.companyId).data else null
-            LoadState.Ready(TeamData(members, invites))
-        } catch (cause: Exception) {
-            if (state is LoadState.Ready) {
-                scope.showMessage(cause.userMessage())
-                state
-            } else {
-                LoadState.Failed(cause.userMessage())
-            }
-        }
+    // #176 cache-first: members + invites paint instantly from StoreCache
+    // after the first in-process fetch; mutation-driven refreshKey bumps
+    // revalidate silently.
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.team(scope.companyId),
+        refreshKey = refreshKey,
+    ) {
+        TeamData(
+            members = scope.repo.members(scope.companyId).data,
+            invites = if (canManage) scope.repo.invites(scope.companyId).data else null,
+        )
     }
 
     when (val current = state) {

@@ -70,12 +70,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.net.ApiClient
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.ThreadScreen
@@ -105,6 +108,43 @@ import kotlinx.coroutines.launch
 
 private enum class InboxStatusTab(val label: String) {
     Open("Open"), Mine("Mine"), All("All"), Closed("Closed")
+}
+
+/**
+ * One filter pane's paint-ready state (#176): the ACCUMULATED rows (first
+ * page plus every load-more append), the pinned section, and the resume
+ * cursor — cached under [CacheKeys.inbox] per filterKey so a return visit
+ * renders in the same frame and load-more continues from where it left off.
+ * Public (not private) only because the shell warmer prefetches the default
+ * key via [fetchInboxDefault].
+ */
+data class InboxSnapshot(
+    val rows: List<ConversationListItem>,
+    val pinnedRows: List<ConversationListItem>,
+    val cursor: String?,
+)
+
+/**
+ * The default pane (Open tab, no filter chips) as one cacheable value —
+ * exactly the shape [InboxController] stores under
+ * CacheKeys.inbox(companyId). The shell warmer replays this verbatim.
+ */
+suspend fun fetchInboxDefault(api: ApiClient, companyId: String): InboxSnapshot {
+    val repo = MessagingRepository(api)
+    val page = repo.conversations(
+        companyId = companyId,
+        status = "open",
+        pinned = "exclude",
+        limit = 25,
+    )
+    val pinned = runCatching {
+        repo.conversations(companyId = companyId, status = "open", pinned = "only", limit = 100)
+    }
+    return InboxSnapshot(
+        rows = page.data,
+        pinnedRows = pinned.getOrNull()?.data ?: emptyList(),
+        cursor = page.next_cursor,
+    )
 }
 
 /**
@@ -148,6 +188,7 @@ fun InboxTab(
 @Stable
 private class InboxController(
     private val repo: MessagingRepository,
+    private val cache: StoreCache,
     private val companyId: String,
     private val meUserId: String,
     private val scope: CoroutineScope,
@@ -192,33 +233,80 @@ private class InboxController(
     private var realtimeJob: Job? = null
     private var supportLoaded = false
 
+    // #176: CacheKeys has no entry for these two support lists yet — inline
+    // strings until the orchestrator adds them.
+    private val membersKey = CacheKeys.inboxMembers(companyId)
+    private val tagsKey = CacheKeys.inboxTags(companyId)
+
+    /**
+     * Stable cache discriminator for the current filters (#176). The initial
+     * state (Open, no chips) is exactly "default" so the shell warmer's
+     * prefetch lands on the first frame. Mine excludes the assignee chip
+     * because the request does too.
+     */
+    private val filterKey: String
+        get() {
+            val assigneeId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id
+            val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
+                tag == null && !unreadOnly && !spamOnly
+            if (isDefault) return "default"
+            return buildString {
+                append(tab.name.lowercase())
+                assigneeId?.let { append("/a=").append(it) }
+                tag?.let { append("/t=").append(it.id) }
+                if (unreadOnly) append("/unread")
+                if (spamOnly) append("/spam")
+            }
+        }
+
+    private val cacheKey: String get() = CacheKeys.inbox(companyId, filterKey)
+
+    init {
+        // #176 cache-first: seed synchronously at construction so the FIRST
+        // composed frame after a return visit paints rows (start() runs in a
+        // LaunchedEffect, one frame too late for instant navigation).
+        cache.flowOf<InboxSnapshot>(cacheKey).value?.let { snapshot ->
+            rows = snapshot.rows
+            pinnedRows = snapshot.pinnedRows
+            cursor = snapshot.cursor
+            state = LoadState.Ready(Unit)
+        }
+        cache.flowOf<List<Member>>(membersKey).value?.let { members = it }
+        cache.flowOf<List<Tag>>(tagsKey).value?.let { allTags = it }
+    }
+
+    /** Write the current pane back under its filter's key (#176). */
+    private fun persist() {
+        cache.put(cacheKey, InboxSnapshot(rows, pinnedRows, cursor))
+    }
+
     val hasFilterChips: Boolean
         get() = assignee != null || tag != null || unreadOnly || spamOnly
 
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
         tab = next
-        reload(showLoading = true)
+        showPane()
     }
 
     fun setAssigneeFilter(member: Member?) {
         assignee = member
-        reload(showLoading = true)
+        showPane()
     }
 
     fun setTagFilter(next: Tag?) {
         tag = next
-        reload(showLoading = true)
+        showPane()
     }
 
     fun toggleUnread() {
         unreadOnly = !unreadOnly
-        reload(showLoading = true)
+        showPane()
     }
 
     fun toggleSpam() {
         spamOnly = !spamOnly
-        reload(showLoading = true)
+        showPane()
     }
 
     /** One reload for the sheet's Reset (not four chained ones). */
@@ -228,7 +316,29 @@ private class InboxController(
         tag = null
         unreadOnly = false
         spamOnly = false
-        reload(showLoading = true)
+        showPane()
+    }
+
+    /**
+     * #176 cache-first filter switch: a previously-used filter paints its
+     * cached pane in this frame and merge-revalidates silently (the merge —
+     * not a reload — so restored deep pages survive the refresh). Only a
+     * never-fetched filter may show the pane spinner.
+     */
+    private fun showPane() {
+        val snapshot = cache.flowOf<InboxSnapshot>(cacheKey).value
+        if (snapshot == null) {
+            reload(showLoading = true)
+            return
+        }
+        // Invalidate any in-flight load for the previous filter so it cannot
+        // land its rows under this one.
+        loadSeq++
+        rows = snapshot.rows
+        pinnedRows = snapshot.pinnedRows
+        cursor = snapshot.cursor
+        state = LoadState.Ready(Unit)
+        scheduleRealtimeRefresh()
     }
 
     private suspend fun fetchPage(cursor: String?, pinned: String) =
@@ -253,16 +363,31 @@ private class InboxController(
         )
 
     fun start() {
-        if (state is LoadState.Ready) return
-        reload(showLoading = true)
+        if (state is LoadState.Ready) {
+            // Seeded from cache in init (or already live) — revalidate via
+            // the merge path so restored accumulated pages survive.
+            scheduleRealtimeRefresh()
+        } else {
+            reload(showLoading = true)
+        }
         loadSupportingLists()
     }
 
     private fun loadSupportingLists() {
         if (supportLoaded) return
         supportLoaded = true
-        scope.launch { runCatching { members = repo.members(companyId).data } }
-        scope.launch { runCatching { allTags = repo.tags(companyId).data } }
+        scope.launch {
+            runCatching {
+                members = repo.members(companyId).data
+                cache.put(membersKey, members)
+            }
+        }
+        scope.launch {
+            runCatching {
+                allTags = repo.tags(companyId).data
+                cache.put(tagsKey, allTags)
+            }
+        }
     }
 
     fun reload(showLoading: Boolean) {
@@ -275,10 +400,18 @@ private class InboxController(
                 if (seq != loadSeq) return@launch
                 rows = page.data
                 cursor = page.next_cursor
-                pinnedRows = pinnedPage.getOrNull()?.data ?: emptyList()
+                // A silent refresh keeps shown pinned rows through a partial
+                // (pinned-only) miss instead of blanking the section.
+                pinnedRows = pinnedPage.getOrNull()?.data
+                    ?: if (showLoading) emptyList() else pinnedRows
                 state = LoadState.Ready(Unit)
+                persist()
             } catch (cause: Exception) {
-                if (seq == loadSeq) state = LoadState.Failed(cause.userMessage())
+                // A background refresh miss never replaces shown rows with an
+                // error (#176) — only a first fetch may surface Failed.
+                if (seq == loadSeq && state !is LoadState.Ready) {
+                    state = LoadState.Failed(cause.userMessage())
+                }
             }
         }
     }
@@ -294,6 +427,9 @@ private class InboxController(
                 if (seq != loadSeq) return@launch
                 rows = appendPage(rows, page.data) { it.id }
                 cursor = page.next_cursor
+                // Persist the ACCUMULATED list so a return visit restores
+                // every loaded page, not just page 1.
+                persist()
             } catch (_: Exception) {
                 // Quiet: the scroll edge simply retries on the next reach.
             } finally {
@@ -330,6 +466,7 @@ private class InboxController(
                     sortKey = { it.last_message_at },
                 )
                 pinnedPage.getOrNull()?.let { pinnedRows = it.data }
+                persist()
             }
         }
     }
@@ -345,6 +482,7 @@ private class InboxController(
         pinnedRows = pinnedRows.map {
             if (it.id == conversationId) it.copy(unread = false) else it
         }
+        if (state is LoadState.Ready) persist()
     }
 
     // --- Search -----------------------------------------------------------
@@ -415,7 +553,7 @@ private fun InboxList(
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
     val controller = remember(companyId) {
-        InboxController(repo, companyId, me.user_id, graph.appScope)
+        InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope)
     }
     LaunchedEffect(controller) { controller.start() }
     LaunchedEffect(controller) {

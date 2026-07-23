@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
@@ -71,7 +72,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
-import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.common.rememberCacheFirst
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.launch
@@ -116,10 +117,6 @@ fun SettingsHome(
     val repo = remember(graph) { SettingsRepository(graph.api) }
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
     var section by rememberSaveable(companyId) { mutableStateOf<SettingsSection?>(null) }
-    var companyState by remember(companyId) {
-        mutableStateOf<LoadState<CompanyView>>(LoadState.Loading)
-    }
-    var usage by remember(companyId) { mutableStateOf<Usage?>(null) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -135,22 +132,23 @@ fun SettingsHome(
         )
     }
 
-    LaunchedEffect(companyId, refreshKey) {
-        if (refreshKey == 0) companyState = LoadState.Loading
-        companyState = try {
-            LoadState.Ready(repo.company(companyId))
-        } catch (cause: Exception) {
-            if (companyState is LoadState.Ready) {
-                settingsScope.showMessage(cause.userMessage())
-                companyState
-            } else {
-                LoadState.Failed(cause.userMessage())
-            }
-        }
-        // The hub's "texts this period" meter — quiet failure keeps the last
-        // good value (or hides the card on first load).
-        runCatching { repo.usage(companyId) }.onSuccess { usage = it }
-    }
+    // #176 cache-first: the company view paints instantly from StoreCache on
+    // every visit after the first in-process fetch; refreshKey bumps
+    // (realtime, retry) are silent revalidation.
+    val companyState = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.settingsHome(companyId),
+        refreshKey = refreshKey,
+    ) { repo.company(companyId) }
+    // The hub's "texts this period" meter shares the Usage section's key; the
+    // card stays hidden until the first value ever resolves, then keeps the
+    // last good value across background misses.
+    val usageState = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.usage(companyId),
+        refreshKey = refreshKey,
+    ) { repo.usage(companyId) }
+    val usage = (usageState as? LoadState.Ready)?.value
     // Provisioning completion / 10DLC approval appear live (SPEC §8: payloads
     // are ID-only, so refetch — never patch from the event).
     LaunchedEffect(companyId) {
@@ -172,7 +170,9 @@ fun SettingsHome(
                 val onCompanyUpdated: (CompanyView) -> Unit = { patched ->
                     // PATCH /v1/company returns scalar columns only — keep the
                     // embedded numbers/registration/modules from the last GET.
-                    companyState = LoadState.Ready(
+                    // Written straight into the cache so every visit sees it.
+                    graph.storeCache.put(
+                        CacheKeys.settingsHome(companyId),
                         patched.copy(
                             numbers = company.numbers,
                             enabled_modules = company.enabled_modules,

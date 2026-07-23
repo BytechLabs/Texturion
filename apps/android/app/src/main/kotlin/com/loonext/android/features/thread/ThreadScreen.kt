@@ -135,6 +135,7 @@ fun ThreadScreen(
             meRepo = graph.meRepo,
             uploader = uploader,
             appContext = context.applicationContext,
+            cache = graph.storeCache,
             companyId = companyId,
             conversationId = conversationId,
             meUserId = me.user_id,
@@ -197,6 +198,7 @@ fun ThreadScreen(
                 if (galleryOpen) {
                     AttachmentsGalleryScreen(
                         repo = repo,
+                        cache = graph.storeCache,
                         companyId = companyId,
                         conversationId = conversationId,
                         contactName = controller.conversation?.let { detail ->
