@@ -127,6 +127,24 @@ export async function enableVoiceOnNumber(
     throw new Error(`voice enable persist failed: ${error.message}`);
   }
 
+  // #193: a number that just became voice-capable must carry the company's
+  // calling settings — above all the effective caller ID (company name when
+  // no explicit one is set). Best-effort: a failed catch-up never un-binds
+  // voice; the next settings save re-pushes.
+  try {
+    await pushCallSettingsToNumber(
+      env,
+      db,
+      row.company_id,
+      row.telnyx_phone_number_id,
+    );
+  } catch (cause) {
+    console.error(
+      `call settings catch-up failed for number ${row.id}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+
   return {
     changed: true,
     connectionId,
@@ -174,6 +192,44 @@ export async function enableVoiceForCompany(
   return results;
 }
 
+/**
+ * #193: reduce a free-form business name to the carrier CNAM alphabet
+ * (letters, digits, spaces; 15 chars max). Disallowed characters drop,
+ * whitespace collapses, and the result is trimmed after the cut so a
+ * mid-word truncation never leaves a trailing space. Returns null when
+ * nothing usable survives (a name of pure punctuation).
+ */
+export function sanitizeCnamDisplayName(name: string): string | null {
+  const cleaned = name
+    .replace(/[^A-Za-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 15)
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * #193: the effective outbound caller ID — the platform-wide rule, applied
+ * identically on the read path (GET /v1/company) and the outbound push
+ * (Telnyx cnam_listing): the explicit override when set, else the company
+ * name sanitized to the carrier alphabet.
+ */
+export function effectiveCnamDisplayName(company: {
+  name: string | null | undefined;
+  cnam_display_name: string | null | undefined;
+}): string | null {
+  if (
+    typeof company.cnam_display_name === "string" &&
+    company.cnam_display_name.length > 0
+  ) {
+    return company.cnam_display_name;
+  }
+  return typeof company.name === "string"
+    ? sanitizeCnamDisplayName(company.name)
+    : null;
+}
+
 /** D43: what the Calls settings sync pushes to every Telnyx number. */
 export interface CallSettingsSync {
   /** 'off' | 'flag' | 'divert' — Telnyx-side both flag AND divert map to
@@ -182,23 +238,15 @@ export interface CallSettingsSync {
   callScreening?: "off" | "flag" | "divert";
   /** Inbound CNAM dip on/off (carrier-billed per lookup). */
   callerIdLookup?: boolean;
-  /** Outbound CNAM listing (≤15 alphanumeric+space); null clears it. */
+  /** #193: the RESOLVED effective outbound listing (callers pass it through
+   *  effectiveCnamDisplayName first — "no explicit value" is never sent here
+   *  as null anymore). null = nothing listable at all (a company name of
+   *  pure punctuation), which disables the listing honestly. */
   cnamDisplayName?: string | null;
 }
 
-/**
- * D43: push the company's Calls settings (screening / CNAM dip / CNAM
- * listing) to every active, Telnyx-purchased number. Per-number best-effort
- * — one bad number never blocks the rest (the settings row is the source of
- * truth; a re-save or the next settings change re-pushes). Only the fields
- * present in `sync` are sent, so a greeting-only save touches nothing here.
- */
-export async function syncCallSettingsForCompany(
-  env: Env,
-  db: SupabaseClient,
-  companyId: string,
-  sync: CallSettingsSync,
-): Promise<void> {
+/** Build the Telnyx /voice sub-resource patch a CallSettingsSync implies. */
+function buildVoicePatch(sync: CallSettingsSync): Record<string, unknown> {
   // ALL of screening, the inbound CNAM dip, AND the outbound CNAM listing
   // live on the /voice sub-resource — cnam_listing on the BASE phone-number
   // resource is silently ignored (verified against the live Telnyx API), so
@@ -219,7 +267,26 @@ export async function syncCallSettingsForCompany(
         }
       : { cnam_listing_enabled: false };
   }
-  if (Object.keys(voicePatch).length === 0) return;
+  return voicePatch;
+}
+
+/**
+ * D43: push the company's Calls settings (screening / CNAM dip / CNAM
+ * listing) to every active, Telnyx-purchased number. Per-number best-effort
+ * — one bad number never blocks the rest (the settings row is the source of
+ * truth; a re-save or the next settings change re-pushes). Only the fields
+ * present in `sync` are sent, so a greeting-only save touches nothing here.
+ * Returns how many numbers the patch actually reached (#193: callers stamp
+ * cnam_submitted_at only when a listing change really went out).
+ */
+export async function syncCallSettingsForCompany(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  sync: CallSettingsSync,
+): Promise<{ pushed: number }> {
+  const voicePatch = buildVoicePatch(sync);
+  if (Object.keys(voicePatch).length === 0) return { pushed: 0 };
 
   const { data, error } = await db
     .from("phone_numbers")
@@ -228,6 +295,7 @@ export async function syncCallSettingsForCompany(
     .eq("status", "active");
   if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
 
+  let pushed = 0;
   for (const row of data ?? []) {
     const telnyxId = row.telnyx_phone_number_id as string | null;
     if (!telnyxId) continue; // hosted number — voice lives on the old carrier
@@ -237,6 +305,7 @@ export async function syncCallSettingsForCompany(
         path: `/v2/phone_numbers/${telnyxId}/voice`,
         body: voicePatch,
       });
+      pushed += 1;
     } catch (cause) {
       console.error(
         `call settings sync failed for number ${row.id as string}:`,
@@ -244,6 +313,52 @@ export async function syncCallSettingsForCompany(
       );
     }
   }
+  return { pushed };
+}
+
+/**
+ * #193: catch-up push for a SINGLE freshly voice-bound number — reads the
+ * company's saved calling settings and applies them (screening, the inbound
+ * name dip, and the EFFECTIVE outbound caller ID, which defaults to the
+ * company name). Without this, a number provisioned after the last settings
+ * save carried no CNAM listing until an owner happened to re-save.
+ */
+export async function pushCallSettingsToNumber(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  telnyxPhoneNumberId: string,
+): Promise<void> {
+  const { data, error } = await db
+    .from("companies")
+    .select("name,cnam_display_name,call_screening,caller_id_lookup")
+    .eq("id", companyId)
+    .limit(1);
+  if (error) throw new Error(`company settings lookup failed: ${error.message}`);
+  const company = data?.[0] as
+    | {
+        name: string | null;
+        cnam_display_name: string | null;
+        call_screening: "off" | "flag" | "divert" | null;
+        caller_id_lookup: boolean | null;
+      }
+    | undefined;
+  if (!company) return;
+
+  const voicePatch = buildVoicePatch({
+    ...(company.call_screening != null
+      ? { callScreening: company.call_screening }
+      : {}),
+    ...(company.caller_id_lookup != null
+      ? { callerIdLookup: company.caller_id_lookup }
+      : {}),
+    cnamDisplayName: effectiveCnamDisplayName(company),
+  });
+  await telnyxRequest(env, {
+    method: "PATCH",
+    path: `/v2/phone_numbers/${telnyxPhoneNumberId}/voice`,
+    body: voicePatch,
+  });
 }
 
 /**

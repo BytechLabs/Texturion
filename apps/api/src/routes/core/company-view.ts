@@ -3,9 +3,11 @@
  * safe company columns (never Stripe/Telnyx internals) + numbers summary +
  * registration snapshot (brand and campaign rows).
  */
+import { effectiveMctbMessage } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../../env";
+import { effectiveCnamDisplayName } from "../../telnyx/voice";
 
 import { unwrap } from "./http";
 
@@ -20,8 +22,12 @@ export const COMPANY_COLUMNS =
   // FEATURE-GAPS voice wave: missed-call text-back settings. (D43 deleted
   // forward_to_cell — the browser is the phone; the column is dropped.)
   "mctb_enabled,mctb_message," +
-  // D43 Calls v2: voicemail greeting, screening routing, CNAM pair.
+  // D43 Calls v2: voicemail greeting, screening routing, CNAM pair. #193:
+  // cnam_submitted_at = when the effective listing last went to the carrier
+  // side (CNAM propagation takes days and Telnyx reports no status, so the
+  // timestamp IS the pending state).
   "voicemail_greeting,call_screening,cnam_display_name,caller_id_lookup," +
+  "cnam_submitted_at," +
   // Choose-your-number: the staged onboarding pick, so the plan-step review can
   // show "your number" pre-checkout. Cleared once provisioning drains it.
   "chosen_number_e164," +
@@ -49,6 +55,20 @@ interface RegistrationRow {
 export interface CompanyView {
   [key: string]: unknown;
   numbers: unknown[];
+  /** #192: the text-back template that will actually be sent — the owner's
+   *  non-blank text, else the product default. Clients render/preview THIS,
+   *  never a client-side copy of the default. */
+  mctb_effective_message: string;
+  /** #192: true when the owner's own text is in effect (mctb_message
+   *  non-blank); false means the product default ships. */
+  mctb_message_is_custom: boolean;
+  /** #193: the outbound caller ID actually in effect — the explicit
+   *  cnam_display_name when set, else the company name sanitized to the
+   *  carrier CNAM alphabet. null only when neither yields a listable name. */
+  caller_id_effective: string | null;
+  /** #193: where caller_id_effective came from — 'company_name' is the
+   *  platform default; 'custom' means the owner set one deliberately. */
+  caller_id_source: "custom" | "company_name";
   /** #133: live module ids (e.g. 'voice') — the MEMBER-visible on/off state.
    *  Every calling surface gates on this; GET /v1/billing/modules is
    *  admin-only (it carries billing detail), and gating member UI on it made
@@ -72,6 +92,55 @@ export interface CompanyView {
 export function billingWritesEnabled(env: Env): boolean {
   const raw = env.BILLING_WRITES_DISABLED?.trim().toLowerCase() ?? "";
   return raw !== "1" && raw !== "true";
+}
+
+/**
+ * #192: stamp the derived text-back fields on a raw companies row — the
+ * EFFECTIVE template (owner's non-blank text, else the product default) and
+ * whether it is custom. Applied to every surface that returns company
+ * settings (GET /v1/me, GET /v1/company, PATCH /v1/company) so clients never
+ * hardcode the default.
+ */
+export function withMctbDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & { mctb_effective_message: string; mctb_message_is_custom: boolean } {
+  const effective = effectiveMctbMessage(
+    typeof company.mctb_message === "string" ? company.mctb_message : null,
+  );
+  return {
+    ...company,
+    mctb_effective_message: effective.message,
+    mctb_message_is_custom: effective.custom,
+  };
+}
+
+/**
+ * #193: stamp the derived caller ID fields on a raw companies row — the
+ * EFFECTIVE outbound display name (explicit cnam_display_name, else the
+ * company name in the carrier alphabet) and its source. Applied everywhere
+ * company settings are returned (GET /v1/me, GET /v1/company,
+ * PATCH /v1/company) so every client shows the same default.
+ */
+export function withCallerIdDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & {
+  caller_id_effective: string | null;
+  caller_id_source: "custom" | "company_name";
+} {
+  const custom =
+    typeof company.cnam_display_name === "string" &&
+    company.cnam_display_name.length > 0;
+  return {
+    ...company,
+    caller_id_effective: effectiveCnamDisplayName({
+      name: company.name as string | null | undefined,
+      cnam_display_name: company.cnam_display_name as
+        | string
+        | null
+        | undefined,
+    }),
+    caller_id_source: custom ? "custom" : "company_name",
+  };
 }
 
 /**
@@ -122,7 +191,7 @@ export async function loadCompanyView(
   );
 
   return {
-    ...company,
+    ...withCallerIdDerived(withMctbDerived(company)),
     numbers,
     enabled_modules: modules.map((row) => row.module),
     billing_writes_enabled: billingWritesEnabled(env),

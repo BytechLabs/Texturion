@@ -11,7 +11,11 @@
  * vocabulary remains for calls in flight across the D43 deploy; nothing
  * dials a cell anymore.
  */
-import { estimateSegments, isUsCaDestination } from "@loonext/shared";
+import {
+  effectiveMctbMessage,
+  estimateSegments,
+  isUsCaDestination,
+} from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -157,8 +161,10 @@ export async function sendMissedCallText(
   const settings = (companyRows ?? [])[0] as MctbSettings | undefined;
   if (!settings || !settings.mctb_enabled) return NO_TEXT;
 
-  const template = (settings.mctb_message ?? "").trim();
-  if (template.length === 0) return NO_TEXT; // enabled but unauthored → send nothing
+  // #192: the toggle alone decides WHETHER a text goes out. The owner's text
+  // overrides only when non-blank; otherwise the product default ships — an
+  // enabled text-back never silently sends nothing.
+  const template = effectiveMctbMessage(settings.mctb_message).message;
 
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all
@@ -170,8 +176,8 @@ export async function sendMissedCallText(
   // A throw here is caught by the webhook dispatch and lands on the ledger.
   await runPreSendGates(env, args.companyId, args.callerE164);
 
-  // Merge fields into the owner-authored booking-forward message (contact name
-  // is unknown for a brand-new caller).
+  // Merge fields into the booking-forward message — owner-authored or the
+  // product default (contact name is unknown for a brand-new caller).
   const body = applySendMergeFields(template, {
     contactName: null,
     businessName: settings.name,

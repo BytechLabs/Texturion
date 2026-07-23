@@ -177,6 +177,26 @@ class SettingsLogicTest {
         assertFalse(isValidCnam("Apex & Sons")) // ampersand
     }
 
+    // -- #193 caller ID default (mirror of apps/api telnyx/voice.ts) -----------
+
+    @Test
+    fun `company name sanitizes to the carrier alphabet like the server`() {
+        assertEquals("Ace Plumbing Co", cnamFromCompanyName("Ace Plumbing & Co."))
+        assertEquals("O Brien Heating", cnamFromCompanyName("  O'Brien   Heating  "))
+        // The 15-char cut lands on a word gap; no trailing space survives.
+        assertEquals("Best Home Reno", cnamFromCompanyName("Best Home Reno Pros"))
+        assertEquals("", cnamFromCompanyName("--- !!! ---"))
+    }
+
+    @Test
+    fun `a submitted CNAM change reads pending for three days, then settles`() {
+        assertFalse(cnamChangePending(null, now))
+        assertTrue(cnamChangePending("2026-07-15T11:00:00Z", now)) // an hour ago
+        assertTrue(cnamChangePending("2026-07-13T00:00:00+00:00", now)) // offset form
+        assertFalse(cnamChangePending("2026-07-01T00:00:00Z", now)) // long past
+        assertFalse(cnamChangePending("not-a-timestamp", now))
+    }
+
     // -- overage cap (mirror of web lib/settings/cap-control.ts) ---------------
 
     @Test

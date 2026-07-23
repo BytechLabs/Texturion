@@ -128,10 +128,22 @@ data class CompanyView(
     val away_message: String? = null,
     val mctb_enabled: Boolean = false,
     val mctb_message: String? = null,
+    /** Server-resolved template that will actually send (custom else default). */
+    val mctb_effective_message: String? = null,
+    val mctb_message_is_custom: Boolean = false,
     val voicemail_greeting: String? = null,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,
     val caller_id_lookup: Boolean = false,
+    /** #193: the outbound caller ID actually in effect (server-resolved:
+     *  the explicit override, else the company name in the carrier
+     *  alphabet). Null only when neither yields a listable name. */
+    val caller_id_effective: String? = null,
+    /** #193: 'company_name' = platform default; 'custom' = owner-set. */
+    val caller_id_source: String = "company_name",
+    /** #193: when the listing last went to the carrier side (propagation
+     *  takes days with no completion signal, so the timestamp IS the state). */
+    val cnam_submitted_at: String? = null,
     val created_at: String,
     val updated_at: String,
     val numbers: List<PhoneNumberSummary> = emptyList(),

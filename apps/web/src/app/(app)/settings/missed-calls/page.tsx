@@ -8,7 +8,8 @@
  * screening, and caller ID (CNAM both directions). Cell forwarding is GONE
  * (D43 deleted it), so there is no cell to configure anywhere.
  */
-import { useEffect, useState } from "react";
+import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -26,12 +27,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
+import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { previewMissedCallText } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
-
-const DEFAULT_MCTB_MESSAGE =
-  "Sorry we missed your call! This is {business_name}. Reply here with your address and what you need, and we'll get you booked in.";
 
 /** Mirrors the server's spoken default (inbound-ring.ts defaultGreeting). */
 function defaultGreeting(businessName: string): string {
@@ -54,7 +53,13 @@ function CallingSkeleton() {
   );
 }
 
-/** The missed-call text-back toggle + owner-authored message + live preview. */
+/**
+ * The missed-call text-back (#192): the TOGGLE decides whether the text goes
+ * out; the message always exists (a product default lives server-side, and
+ * the owner's text overrides only when non-blank). So there is no Save
+ * button: the toggle saves on flip, the message autosaves as you type, and
+ * the input only shows while the feature is on.
+ */
 function TextBackCard({
   company,
   canEdit,
@@ -65,63 +70,91 @@ function TextBackCard({
   const update = useUpdateCompany();
   const [enabled, setEnabled] = useState(company.mctb_enabled);
   const [message, setMessage] = useState(company.mctb_message ?? "");
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaved = useRef(company.mctb_message ?? "");
 
+  // Another admin's toggle flip always reflects; the message refreshes an
+  // IDLE editor only (never clobber in-flight typing — the PATCH echo lands
+  // in the cache mid-keystroke otherwise).
   useEffect(() => {
     setEnabled(company.mctb_enabled);
-    setMessage(company.mctb_message ?? "");
-  }, [company.mctb_enabled, company.mctb_message]);
+  }, [company.mctb_enabled]);
+  useEffect(() => {
+    if (
+      (company.mctb_message ?? "") !== lastSaved.current &&
+      message === lastSaved.current
+    ) {
+      lastSaved.current = company.mctb_message ?? "";
+      setMessage(company.mctb_message ?? "");
+    }
+  }, [company.mctb_message, message]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
-  const dirty =
-    enabled !== company.mctb_enabled ||
-    message.trim() !== (company.mctb_message ?? "").trim();
+  function toggle(next: boolean) {
+    setError(null);
+    setEnabled(next); // optimistic; reverted on error below
+    update.mutate(
+      { mctb_enabled: next },
+      {
+        onError: (cause) => {
+          setEnabled(company.mctb_enabled);
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          );
+        },
+      },
+    );
+  }
+
+  function onChangeMessage(next: string) {
+    setMessage(next);
+    setSaved(false);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const trimmed = next.trim();
+      if (trimmed === lastSaved.current) return;
+      update.mutate(
+        { mctb_message: trimmed.length > 0 ? trimmed : null },
+        {
+          onSuccess: () => {
+            lastSaved.current = trimmed;
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+          },
+          onError: (cause) =>
+            setError(
+              cause instanceof ApiError
+                ? cause.message
+                : "Couldn't save. Try again.",
+            ),
+        },
+      );
+    }, 800);
+  }
 
   // previewMissedCallText, not previewAwayMessage: the server sends this with
   // no contact name (a missed call is usually a brand-new caller), so the
   // preview must drop {first_name} exactly as the wire does — never show a
-  // sample name that won't ship.
+  // sample name that won't ship. Blank message → the product default, the
+  // same fallback the server applies at send time.
   const preview = previewMissedCallText(
     message.trim().length > 0 ? message : DEFAULT_MCTB_MESSAGE,
     company.name,
   );
 
-  function save() {
-    setError(null);
-    const trimmed = message.trim();
-    if (enabled && trimmed.length === 0) {
-      setError("Write your text-back message before turning it on.");
-      return;
-    }
-    update.mutate(
-      {
-        mctb_enabled: enabled,
-        mctb_message: trimmed.length > 0 ? trimmed : null,
-      },
-      {
-        onSuccess: () => toast.success("Missed-call text-back saved."),
-        onError: (cause) =>
-          setError(
-            cause instanceof ApiError
-              ? cause.message
-              : "Couldn't save. Try again.",
-          ),
-      },
-    );
-  }
-
   return (
     <SettingsCard
       title="Text back a missed call"
       description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply, instead of calling the next number on their list."
-      footer={
-        canEdit ? (
-          <div className="flex items-center justify-end">
-            <Button onClick={save} disabled={!dirty || update.isPending}>
-              {update.isPending ? "Saving…" : "Save text-back"}
-            </Button>
-          </div>
-        ) : undefined
-      }
     >
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-4">
@@ -138,42 +171,60 @@ function TextBackCard({
           <Switch
             id="mctb-enabled"
             checked={enabled}
-            disabled={!canEdit || update.isPending}
-            onCheckedChange={setEnabled}
+            disabled={!canEdit}
+            onCheckedChange={toggle}
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="mctb-message" className="text-sm font-medium">
-            Your text-back message
-          </Label>
-          <Textarea
-            id="mctb-message"
-            value={message}
-            disabled={!canEdit || update.isPending}
-            maxLength={1000}
-            rows={4}
-            placeholder={DEFAULT_MCTB_MESSAGE}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            You can use{" "}
-            <code className="rounded bg-secondary px-1 py-0.5">
-              {"{business_name}"}
-            </code>
-            . Keep it short and ask for what you need to book them in.
-          </p>
-        </div>
+        {enabled && (
+          <>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="mctb-message" className="text-sm font-medium">
+                  Your text-back message
+                </Label>
+                <p
+                  aria-live="polite"
+                  className={
+                    "text-[11px] text-muted-foreground transition-opacity duration-150 " +
+                    (update.isPending || saved ? "opacity-100" : "opacity-0")
+                  }
+                >
+                  {update.isPending ? "Saving…" : saved ? "Saved" : ""}
+                </p>
+              </div>
+              <Textarea
+                id="mctb-message"
+                value={message}
+                disabled={!canEdit}
+                maxLength={1000}
+                rows={4}
+                placeholder={DEFAULT_MCTB_MESSAGE}
+                onChange={(e) => onChangeMessage(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Saves as you type. Leave it empty to send the default, or
+                write your own with{" "}
+                <code className="rounded bg-secondary px-1 py-0.5">
+                  {"{business_name}"}
+                </code>
+                .
+              </p>
+            </div>
 
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Preview</p>
-          <div
-            aria-live="polite"
-            className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
-          >
-            {preview}
-          </div>
-        </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                What the caller gets
+              </p>
+              <div
+                aria-live="polite"
+                className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
+              >
+                {preview}
+              </div>
+            </div>
+          </>
+        )}
 
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -386,7 +437,34 @@ function ScreeningCard({
   );
 }
 
-/** D43: caller ID both directions — outbound CNAM listing + inbound name dip. */
+/** #193: how long a submitted CNAM change is surfaced as "on its way". The
+ *  carrier side reports no completion, so this mirrors the 1 to 3 business
+ *  days carriers typically take, nothing more. */
+const CNAM_PROPAGATION_MS = 3 * 24 * 60 * 60 * 1000;
+
+function cnamChangePending(submittedAt: string | null): boolean {
+  if (!submittedAt) return false;
+  const at = Date.parse(submittedAt);
+  return Number.isFinite(at) && Date.now() - at < CNAM_PROPAGATION_MS;
+}
+
+/** Client mirror of the server's company-name sanitizer (telnyx/voice.ts). */
+function cnamFromCompanyName(name: string): string {
+  return name
+    .replace(/[^A-Za-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 15)
+    .trim();
+}
+
+/**
+ * #193: caller ID defaults to the company name platform-wide. The card shows
+ * the EFFECTIVE outbound name (server-resolved), and changing it is a
+ * deliberate two-step action because CNAM changes crawl through carrier
+ * databases for days with no completion signal. The inbound name dip stays a
+ * simple switch that saves on flip.
+ */
 function CallerIdCard({
   company,
   canEdit,
@@ -395,35 +473,69 @@ function CallerIdCard({
   canEdit: boolean;
 }) {
   const update = useUpdateCompany();
-  const [display, setDisplay] = useState(company.cnam_display_name ?? "");
-  const [lookup, setLookup] = useState(company.caller_id_lookup);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  // The value awaiting confirmation: a string = explicit name; null = back
+  // to the company name; undefined = no confirmation open.
+  const [confirming, setConfirming] = useState<string | null | undefined>(
+    undefined,
+  );
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDisplay(company.cnam_display_name ?? "");
-    setLookup(company.caller_id_lookup);
-  }, [company.cnam_display_name, company.caller_id_lookup]);
+  const usingCompanyName = company.caller_id_source === "company_name";
+  const pending = cnamChangePending(company.cnam_submitted_at);
+  const confirmTarget =
+    confirming === undefined
+      ? ""
+      : (confirming ?? cnamFromCompanyName(company.name));
 
-  const dirty =
-    display.trim() !== (company.cnam_display_name ?? "") ||
-    lookup !== company.caller_id_lookup;
-
-  function save() {
+  function beginEdit() {
+    setDraft(company.cnam_display_name ?? "");
     setError(null);
-    const trimmed = display.trim();
-    if (trimmed.length > 0 && !CNAM_RE.test(trimmed)) {
+    setConfirming(undefined);
+    setEditing(true);
+  }
+
+  function review(next: string | null) {
+    setError(null);
+    if (next !== null && !CNAM_RE.test(next)) {
       setError(
-        "The display name can use letters, digits, and spaces — 15 characters max (a carrier rule).",
+        "The display name can use letters, digits, and spaces, 15 characters max (a carrier rule).",
       );
       return;
     }
+    if (next === company.cnam_display_name) {
+      setEditing(false);
+      return;
+    }
+    setConfirming(next);
+  }
+
+  function confirmChange() {
+    if (confirming === undefined) return;
     update.mutate(
+      { cnam_display_name: confirming },
       {
-        cnam_display_name: trimmed.length > 0 ? trimmed : null,
-        caller_id_lookup: lookup,
+        onSuccess: () => {
+          setEditing(false);
+          setConfirming(undefined);
+          toast.success("Caller ID update submitted to carriers.");
+        },
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          ),
       },
+    );
+  }
+
+  function toggleLookup(next: boolean) {
+    setError(null);
+    update.mutate(
+      { caller_id_lookup: next },
       {
-        onSuccess: () => toast.success("Caller ID settings saved."),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
@@ -438,36 +550,114 @@ function CallerIdCard({
     <SettingsCard
       title="Caller ID"
       description="What people see when you call them, and what you see when they call you."
-      footer={
-        canEdit ? (
-          <div className="flex items-center justify-end">
-            <Button onClick={save} disabled={!dirty || update.isPending}>
-              {update.isPending ? "Saving…" : "Save caller ID"}
-            </Button>
-          </div>
-        ) : undefined
-      }
     >
       <div className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="cnam-name" className="text-sm font-medium">
-            Your outbound display name
-          </Label>
-          <Input
-            id="cnam-name"
-            value={display}
-            disabled={!canEdit || update.isPending}
-            maxLength={15}
-            placeholder={company.name.replace(/[^A-Za-z0-9 ]/g, "").slice(0, 15)}
-            onChange={(e) => setDisplay(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Shown on US caller ID when you call customers — letters, digits,
-            and spaces, 15 characters max. Carriers take 1–3 days to pick up a
-            change, and Canadian display names are set by the receiving
-            carrier, so this mainly helps your US calls.
-          </p>
+          <p className="text-sm font-medium">Your outbound display name</p>
+          <div className="flex items-center justify-between gap-4 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {company.caller_id_effective ?? "No display name"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {usingCompanyName
+                  ? "Using your company name"
+                  : "Custom display name"}
+              </p>
+            </div>
+            {canEdit && !editing && (
+              <Button variant="outline" size="sm" onClick={beginEdit}>
+                Change
+              </Button>
+            )}
+          </div>
+          {pending && company.cnam_submitted_at && (
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              Update submitted{" "}
+              {formatAbsoluteDateTime(company.cnam_submitted_at)}. Carriers
+              usually show the new name within 1 to 3 days.
+            </p>
+          )}
         </div>
+
+        {editing && confirming === undefined && (
+          <div className="space-y-2">
+            <Label htmlFor="cnam-name" className="text-sm font-medium">
+              New display name
+            </Label>
+            <Input
+              id="cnam-name"
+              value={draft}
+              disabled={update.isPending}
+              maxLength={15}
+              placeholder={cnamFromCompanyName(company.name)}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on US caller ID when you call customers. Letters, digits,
+              and spaces, 15 characters max. Canadian display names are set by
+              the receiving carrier, so this mainly helps your US calls.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                disabled={update.isPending || draft.trim().length === 0}
+                onClick={() => review(draft.trim())}
+              >
+                Review change
+              </Button>
+              {!usingCompanyName && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={update.isPending}
+                  onClick={() => review(null)}
+                >
+                  Use company name instead
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={update.isPending}
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {confirming !== undefined && (
+          <div
+            role="alertdialog"
+            aria-label="Confirm caller ID change"
+            className="space-y-3 rounded-md border border-border-subtle px-3 py-2.5"
+          >
+            <p className="text-sm">
+              Update your caller ID to{" "}
+              <span className="font-medium">&quot;{confirmTarget}&quot;</span>
+              {confirming === null ? " (your company name)" : ""}?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Carriers refresh their name databases on their own schedule, so
+              the new name can take a few days to show on calls.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" disabled={update.isPending} onClick={confirmChange}>
+                {update.isPending ? "Submitting…" : "Update caller ID"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={update.isPending}
+                onClick={() => setConfirming(undefined)}
+              >
+                Go back
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
@@ -481,9 +671,9 @@ function CallerIdCard({
           </div>
           <Switch
             id="cnam-lookup"
-            checked={lookup}
+            checked={company.caller_id_lookup}
             disabled={!canEdit || update.isPending}
-            onCheckedChange={setLookup}
+            onCheckedChange={toggleLookup}
           />
         </div>
 

@@ -10,6 +10,7 @@ const state: {
 
 // #134/D42: calling is included on every plan — enabled_modules carries no
 // 'voice' anymore, and the page must render its cards regardless.
+// Mutable so #192 tests can flip the text-back state per render.
 const company = {
   name: "Ace Plumbing",
   mctb_enabled: false,
@@ -18,9 +19,29 @@ const company = {
   call_screening: "flag",
   cnam_display_name: null,
   caller_id_lookup: true,
+  // #193: server-resolved effective caller ID (defaults to the company name).
+  caller_id_effective: "Ace Plumbing",
+  caller_id_source: "company_name",
+  cnam_submitted_at: null,
   numbers: [],
   enabled_modules: [],
 } as unknown as CompanyView;
+
+function setTextBack(enabled: boolean, message: string | null) {
+  company.mctb_enabled = enabled;
+  company.mctb_message = message;
+}
+
+/** #193: seed the caller ID state the server would resolve. */
+function setCallerId(
+  custom: string | null,
+  submittedAt: string | null = null,
+) {
+  company.cnam_display_name = custom;
+  company.caller_id_effective = custom ?? "Ace Plumbing";
+  company.caller_id_source = custom ? "custom" : "company_name";
+  company.cnam_submitted_at = submittedAt;
+}
 
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({
@@ -119,5 +140,92 @@ describe("/settings/missed-calls — D43 Calling surface", () => {
     expect(html).toContain("Label suspicious calls");
     expect(html).toContain("Send suspicious calls to voicemail");
     expect(html).toContain("misflagged can still leave a message");
+  });
+});
+
+/**
+ * #192 founder contract: the toggle decides IF the text-back fires; a product
+ * default always exists server-side; the owner's text overrides only when
+ * non-blank. No Save button anywhere on the card (autosave), and the message
+ * input exists only while the toggle is on.
+ */
+describe("/settings/missed-calls — #192 text-back settings contract", () => {
+  it("toggle OFF hides the message input, preview, and any Save button", () => {
+    setTextBack(false, null);
+    const html = render();
+    expect(html).toContain("Text back missed calls");
+    expect(html).not.toContain("Your text-back message");
+    expect(html).not.toContain("What the caller gets");
+    expect(html).not.toContain("Save text-back");
+  });
+
+  it("toggle ON with no custom text: empty input, default as placeholder, default previewed", () => {
+    setTextBack(true, null);
+    const html = render();
+    // The input is empty (never prefilled with the default as if authored)…
+    expect(html).toContain("Your text-back message");
+    // …the default rides the placeholder…
+    expect(html).toContain(
+      "placeholder=\"Sorry we missed your call! This is {business_name}.",
+    );
+    // …and the preview shows the default as the caller would get it.
+    expect(html).toContain("This is Ace Plumbing.");
+    expect(html).toContain("Saves as you type");
+  });
+
+  it("toggle ON with custom text: input carries the owner's message and the preview merges it", () => {
+    setTextBack(true, "You reached {business_name}. Text us your street address.");
+    const html = render();
+    expect(html).toContain("You reached Ace Plumbing. Text us your street address.");
+  });
+
+  it("has NO Save button in the enabled state either (autosave only)", () => {
+    setTextBack(true, null);
+    const html = render();
+    expect(html).not.toContain("Save text-back");
+    // The other cards keep their explicit saves — only the text-back card
+    // moved to autosave.
+    expect(html).toContain("Save greeting");
+  });
+});
+
+/**
+ * #193 contract: the caller ID defaults to the company name and the card
+ * shows the server-resolved EFFECTIVE value; changing it is an explicit
+ * Change action (no always-editable field), and a fresh submission surfaces
+ * the honest carrier-propagation note.
+ */
+describe("/settings/missed-calls — #193 caller ID default + change flow", () => {
+  it("unset: shows the effective name with the company-name attribution and a Change action", () => {
+    setCallerId(null);
+    const html = render();
+    expect(html).toContain("Ace Plumbing");
+    expect(html).toContain("Using your company name");
+    expect(html).toContain("Change");
+    // No always-editable input in view mode — changing is deliberate.
+    expect(html).not.toContain('id="cnam-name"');
+  });
+
+  it("custom: shows the override and attributes it as custom", () => {
+    setCallerId("ACE PLUMBERS");
+    const html = render();
+    expect(html).toContain("ACE PLUMBERS");
+    expect(html).toContain("Custom display name");
+    setCallerId(null);
+  });
+
+  it("a fresh submission shows the pending carrier-propagation note", () => {
+    setCallerId(null, new Date(Date.now() - 60_000).toISOString());
+    const html = render();
+    expect(html).toContain("Update submitted");
+    expect(html).toContain("1 to 3 days");
+    setCallerId(null);
+  });
+
+  it("an old submission shows no pending note (propagation window passed)", () => {
+    setCallerId(null, new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString());
+    const html = render();
+    expect(html).not.toContain("Update submitted");
+    setCallerId(null);
   });
 });

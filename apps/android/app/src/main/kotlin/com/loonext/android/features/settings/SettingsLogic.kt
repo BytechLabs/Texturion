@@ -111,6 +111,31 @@ private val CNAM_PATTERN = Regex("^[A-Za-z0-9 ]{1,15}$")
 
 fun isValidCnam(value: String): Boolean = CNAM_PATTERN.matches(value)
 
+/**
+ * #193 mirror of the server's sanitizer (telnyx/voice.ts): the company name
+ * reduced to the carrier CNAM alphabet — punctuation drops, whitespace
+ * collapses, 15-char cut, no trailing space. Empty when nothing survives.
+ */
+fun cnamFromCompanyName(name: String): String = name
+    .replace(Regex("[^A-Za-z0-9 ]+"), " ")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+    .take(15)
+    .trim()
+
+/** #193: how long a submitted CNAM change reads as "on its way" (carriers
+ *  take 1 to 3 days and report no completion, so this mirrors that window). */
+private const val CNAM_PROPAGATION_MS: Long = 3L * 24 * 60 * 60 * 1000
+
+fun cnamChangePending(submittedAtIso: String?, now: Instant = Instant.now()): Boolean {
+    if (submittedAtIso == null) return false
+    val submitted = runCatching { java.time.OffsetDateTime.parse(submittedAtIso).toInstant() }
+        .getOrNull()
+        ?: runCatching { Instant.parse(submittedAtIso) }.getOrNull()
+        ?: return false
+    return now.toEpochMilli() - submitted.toEpochMilli() < CNAM_PROPAGATION_MS
+}
+
 // ---------------------------------------------------------------------------
 // Overage cap — mirror of web lib/settings/cap-control.ts (#42 honesty:
 // there is no "no cap"; null clamps to the 10× hard ceiling)

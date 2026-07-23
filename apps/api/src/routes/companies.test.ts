@@ -1,6 +1,7 @@
 /**
  * POST /v1/companies, GET /v1/company, PATCH /v1/company (SPEC §4.1, §7, §10).
  */
+import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -276,6 +277,10 @@ describe("GET /v1/company", () => {
       plan: "pro",
       numbers: [],
       registration: { brand: null, campaign: null },
+      // #193: with no explicit display name the view resolves the effective
+      // caller ID from the company name, platform-wide.
+      caller_id_effective: "Acme",
+      caller_id_source: "company_name",
     });
   });
 
@@ -333,6 +338,9 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     sb.on("PATCH", "/rest/v1/companies", () => [
       { id: COMPANY_ID, name: "New Name" },
     ]);
+    // #193: a rename while the caller ID defaults re-pushes the listing; with
+    // no active numbers the push (and the submitted stamp) is a no-op.
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const rename = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -612,7 +620,14 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     sb.on("GET", "/rest/v1/companies", () => [
       { subscription_status: "active" },
     ]);
-    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        mctb_enabled: true,
+        mctb_message:
+          "Sorry we missed your call — reply with your address and we'll book you in.",
+      },
+    ]);
     // #134/D42: NO company_modules stub — the settings path never reads
     // module state anymore (a read would fail the test loudly).
     // enableVoiceForCompany lists active numbers; none active → no voice calls,
@@ -634,6 +649,12 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
       mctb_enabled: true,
       mctb_message:
         "Sorry we missed your call — reply with your address and we'll book you in.",
+    });
+    // #192: the echo carries the derived pair — the owner's text is in effect.
+    expect(await res.json()).toMatchObject({
+      mctb_effective_message:
+        "Sorry we missed your call — reply with your address and we'll book you in.",
+      mctb_message_is_custom: true,
     });
   });
 
@@ -682,9 +703,11 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
 
-  it("clears mctb_message with an empty value", async () => {
+  it("clears mctb_message with an empty value — the PRODUCT DEFAULT takes over (#192)", async () => {
     const sb = stubWithRole("admin");
-    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      { id: COMPANY_ID, mctb_message: null },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
       method: "PATCH",
@@ -694,6 +717,11 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     expect(res.status).toBe(200);
     expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
       mctb_message: null,
+    });
+    // #192: cleared custom text → the echo reports the default as effective.
+    expect(await res.json()).toMatchObject({
+      mctb_effective_message: DEFAULT_MCTB_MESSAGE,
+      mctb_message_is_custom: false,
     });
   });
 
@@ -742,5 +770,182 @@ describe("PATCH /v1/company — call-feature honesty gate (#134 review)", () => 
       body: { mctb_enabled: false },
     });
     expect(res.status).toBe(200);
+  });
+});
+
+describe("PATCH /v1/company — #193 caller ID defaults to the company name", () => {
+  const TELNYX_PN_ID = "9999999999";
+
+  /** One active Telnyx-purchased number for the outbound listing push. */
+  function stubActiveNumber(sb: SupabaseStub): void {
+    sb.on("GET", "/rest/v1/phone_numbers", () => [
+      { id: "n-1", telnyx_phone_number_id: TELNYX_PN_ID },
+    ]);
+  }
+
+  /** Captures the Telnyx /voice sub-resource PATCH (the carrier-side push). */
+  function telnyxVoicePush(): { calls: unknown[]; route: (url: URL, request: Request) => Promise<Response | undefined> } {
+    const calls: unknown[] = [];
+    return {
+      calls,
+      route: async (url: URL, request: Request) => {
+        if (
+          request.method !== "PATCH" ||
+          url.pathname !== `/v2/phone_numbers/${TELNYX_PN_ID}/voice`
+        ) {
+          return undefined;
+        }
+        calls.push(JSON.parse(await request.clone().text()));
+        return Response.json({ data: {} });
+      },
+    };
+  }
+
+  it("an explicit change saves the override, stamps cnam_submitted_at, and pushes it", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", (call) => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        cnam_display_name: "ACE PLUMBERS",
+        cnam_submitted_at: (call.body as Record<string, unknown>)
+          .cnam_submitted_at,
+      },
+    ]);
+    stubActiveNumber(sb);
+    const push = telnyxVoicePush();
+    stubFetch(jwksRoute(auth), sb.route, push.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { cnam_display_name: "ACE PLUMBERS" },
+    });
+    expect(res.status).toBe(200);
+
+    // The deliberate change is stamped in the SAME write (the pending state).
+    const patchBody = sb.find("PATCH", "/rest/v1/companies")[0]
+      .body as Record<string, unknown>;
+    expect(patchBody.cnam_display_name).toBe("ACE PLUMBERS");
+    expect(typeof patchBody.cnam_submitted_at).toBe("string");
+
+    // The carrier-side listing carries the explicit name.
+    expect(push.calls).toEqual([
+      {
+        cnam_listing: {
+          cnam_listing_enabled: true,
+          cnam_listing_details: "ACE PLUMBERS",
+        },
+      },
+    ]);
+
+    // The echo resolves the effective value for clients.
+    expect(await res.json()).toMatchObject({
+      caller_id_effective: "ACE PLUMBERS",
+      caller_id_source: "custom",
+    });
+  });
+
+  it("clearing the override falls back to the company name, NOT to no listing", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing & Co.",
+        cnam_display_name: null,
+      },
+    ]);
+    stubActiveNumber(sb);
+    const push = telnyxVoicePush();
+    stubFetch(jwksRoute(auth), sb.route, push.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { cnam_display_name: null },
+    });
+    expect(res.status).toBe(200);
+
+    // Server-side fallback rule: the pushed listing is the sanitized company
+    // name (carrier alphabet, 15 chars) — never a disabled listing.
+    expect(push.calls).toEqual([
+      {
+        cnam_listing: {
+          cnam_listing_enabled: true,
+          cnam_listing_details: "Acme Plumbing C",
+        },
+      },
+    ]);
+    expect(await res.json()).toMatchObject({
+      caller_id_effective: "Acme Plumbing C",
+      caller_id_source: "company_name",
+    });
+  });
+
+  it("a rename while defaulting re-pushes the listing and stamps the submission", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", (call) => {
+      const body = call.body as Record<string, unknown>;
+      // First write = the rename; second = the background submitted stamp.
+      return [
+        body.name !== undefined
+          ? { id: COMPANY_ID, name: body.name, cnam_display_name: null }
+          : { id: COMPANY_ID },
+      ];
+    });
+    stubActiveNumber(sb);
+    const push = telnyxVoicePush();
+    stubFetch(jwksRoute(auth), sb.route, push.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { name: "Bolt Electric" },
+    });
+    expect(res.status).toBe(200);
+
+    // The effective caller ID follows the new name out to the carrier side.
+    expect(push.calls).toEqual([
+      {
+        cnam_listing: {
+          cnam_listing_enabled: true,
+          cnam_listing_details: "Bolt Electric",
+        },
+      },
+    ]);
+
+    // The submission is stamped once the push reached a number.
+    const patches = sb.find("PATCH", "/rest/v1/companies");
+    expect(patches).toHaveLength(2);
+    expect(patches[0].body).toEqual({ name: "Bolt Electric" });
+    expect(
+      typeof (patches[1].body as Record<string, unknown>).cnam_submitted_at,
+    ).toBe("string");
+  });
+
+  it("a rename with a CUSTOM caller ID set leaves the listing alone", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        name: "Bolt Electric",
+        cnam_display_name: "ACE PLUMBERS",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { name: "Bolt Electric" },
+    });
+    expect(res.status).toBe(200);
+    // No phone_numbers read, no Telnyx push, no second companies write.
+    expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(1);
+    expect(await res.json()).toMatchObject({
+      caller_id_effective: "ACE PLUMBERS",
+      caller_id_source: "custom",
+    });
   });
 });

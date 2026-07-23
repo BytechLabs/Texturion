@@ -211,6 +211,11 @@ export interface CompanyView {
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;
+  /** #192: the template the server will actually send — the owner's
+   *  non-blank text, else the product default. */
+  mctb_effective_message: string;
+  /** #192: true when the owner's own text is in effect. */
+  mctb_message_is_custom: boolean;
   /** D43 Calls v2 — voicemail greeting (null = the spoken default), the
    *  carrier-screening routing choice, and the CNAM pair (outbound display
    *  name <=15 alphanumeric+space; inbound name-dip toggle). */
@@ -218,6 +223,14 @@ export interface CompanyView {
   call_screening: "off" | "flag" | "divert";
   cnam_display_name: string | null;
   caller_id_lookup: boolean;
+  /** #193: the outbound caller ID actually in effect — the explicit override
+   *  when set, else the company name in the carrier alphabet. */
+  caller_id_effective: string | null;
+  /** #193: 'company_name' = the platform default; 'custom' = owner-set. */
+  caller_id_source: "custom" | "company_name";
+  /** #193: when the listing last went to the carrier side (CNAM propagation
+   *  takes days and reports no completion, so the timestamp IS the state). */
+  cnam_submitted_at: string | null;
   created_at: string;
   updated_at: string;
   numbers: PhoneNumberSummary[];

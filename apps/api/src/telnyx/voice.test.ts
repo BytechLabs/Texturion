@@ -12,8 +12,11 @@ import type { Env } from "../env";
 import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import {
+  effectiveCnamDisplayName,
   enableVoiceOnNumber,
   reconcileVoiceEnablement,
+  sanitizeCnamDisplayName,
+  syncCallSettingsForCompany,
   type VoiceNumberRow,
 } from "./voice";
 
@@ -70,6 +73,34 @@ function numberUpdate(): Stub {
   );
 }
 
+/** #193: the settings read the post-bind catch-up push performs (its select
+ *  names cnam_display_name, which discriminates it from other companies GETs). */
+function companySettingsGet(
+  row: Record<string, unknown> = {
+    name: "Ace Plumbing & Co.",
+    cnam_display_name: null,
+    call_screening: "flag",
+    caller_id_lookup: true,
+  },
+): Stub {
+  return stubRoute(
+    restMatch(env, "GET", "companies", (url) =>
+      (url.searchParams.get("select") ?? "").includes("cnam_display_name"),
+    ),
+    () => [row],
+  );
+}
+
+/** #193: the per-number /voice sub-resource PATCH the catch-up push sends. */
+function voiceSettingsPatch(): Stub {
+  return stubRoute(
+    (url, request) =>
+      request.method === "PATCH" &&
+      url.pathname === `/v2/phone_numbers/${TELNYX_PN_ID}/voice`,
+    () => ({ data: {} }),
+  );
+}
+
 function serve(...stubs: Stub[]) {
   stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
 }
@@ -79,7 +110,9 @@ describe("enableVoiceOnNumber", () => {
     const get = voiceGet(null);
     const patch = voicePatch();
     const update = numberUpdate();
-    serve(get, patch, update);
+    const settings = companySettingsGet();
+    const voicePush = voiceSettingsPatch();
+    serve(settings, get, patch, update, voicePush);
 
     const result = await enableVoiceOnNumber(env, getDb(env), baseRow());
 
@@ -94,6 +127,36 @@ describe("enableVoiceOnNumber", () => {
       voice_connection_id: CONNECTION,
       voice_enabled: true,
     });
+    // #193: the freshly voice-bound number immediately carries the company's
+    // calling settings, with the caller ID DEFAULTED to the company name in
+    // the carrier alphabet ("Ace Plumbing & Co." sanitizes + cuts to 15).
+    expect(voicePush.calls).toHaveLength(1);
+    expect(voicePush.calls[0].body).toMatchObject({
+      inbound_call_screening: "flag_calls",
+      caller_id_name_enabled: true,
+      cnam_listing: {
+        cnam_listing_enabled: true,
+        cnam_listing_details: "Ace Plumbing Co",
+      },
+    });
+  });
+
+  it("#193: a failed settings catch-up never un-binds voice (best-effort)", async () => {
+    const get = voiceGet(null);
+    const patch = voicePatch();
+    const update = numberUpdate();
+    const settings = companySettingsGet();
+    const voicePush = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" &&
+        url.pathname === `/v2/phone_numbers/${TELNYX_PN_ID}/voice`,
+      () => new Response("{}", { status: 500 }),
+    );
+    serve(settings, get, patch, update, voicePush);
+
+    const result = await enableVoiceOnNumber(env, getDb(env), baseRow());
+    expect(result.changed).toBe(true); // bind + stamp survived the push failure
+    expect(update.calls).toHaveLength(1);
   });
 
   it("is a no-op when the row is already voice_enabled to our connection", async () => {
@@ -122,7 +185,7 @@ describe("enableVoiceOnNumber", () => {
     const get = voiceGet(CONNECTION);
     const patch = voicePatch();
     const update = numberUpdate();
-    serve(get, patch, update);
+    serve(get, patch, update, companySettingsGet(), voiceSettingsPatch());
 
     const result = await enableVoiceOnNumber(env, getDb(env), baseRow());
 
@@ -160,7 +223,18 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     const patch = voicePatch();
     const update = numberUpdate();
     const companies = companiesStub([COMPANY_ID]);
-    serve(companies, numbersStub([{}]), voiceGet(null), patch, update);
+    // The settings-read stub precedes companiesStub: its select-param match
+    // (cnam_display_name) claims the #193 catch-up read; the reconcile's own
+    // id-only companies lookup falls through to companiesStub.
+    serve(
+      companySettingsGet(),
+      companies,
+      numbersStub([{}]),
+      voiceGet(null),
+      patch,
+      update,
+      voiceSettingsPatch(),
+    );
 
     const summary = await reconcileVoiceEnablement(env);
     expect(summary).toEqual({ checked: 1, enabled: 1 });
@@ -206,5 +280,119 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
     const summary = await reconcileVoiceEnablement(env);
     expect(summary).toEqual({ checked: 0, enabled: 0 });
     expect(numbers.calls).toHaveLength(0); // never even queries numbers
+  });
+});
+
+describe("#193 caller ID defaults to the company name", () => {
+  describe("sanitizeCnamDisplayName (carrier alphabet: 15 alnum+space)", () => {
+    it("drops punctuation, collapses whitespace, and trims the 15-char cut", () => {
+      expect(sanitizeCnamDisplayName("Ace Plumbing & Co.")).toBe(
+        "Ace Plumbing Co",
+      );
+      expect(sanitizeCnamDisplayName("  O'Brien   Heating  ")).toBe(
+        "O Brien Heating",
+      );
+      // The 15-char cut lands on a word gap; no trailing space survives.
+      expect(sanitizeCnamDisplayName("Best Home Reno Pros")).toBe(
+        "Best Home Reno",
+      );
+    });
+
+    it("returns null when nothing listable survives", () => {
+      expect(sanitizeCnamDisplayName("--- !!! ---")).toBeNull();
+      expect(sanitizeCnamDisplayName("   ")).toBeNull();
+    });
+  });
+
+  describe("effectiveCnamDisplayName (the platform-wide fallback rule)", () => {
+    it("prefers the explicit override", () => {
+      expect(
+        effectiveCnamDisplayName({
+          name: "Ace Plumbing",
+          cnam_display_name: "ACE PLUMBERS",
+        }),
+      ).toBe("ACE PLUMBERS");
+    });
+
+    it("falls back to the sanitized company name when unset", () => {
+      expect(
+        effectiveCnamDisplayName({
+          name: "Ace Plumbing & Co.",
+          cnam_display_name: null,
+        }),
+      ).toBe("Ace Plumbing Co");
+    });
+
+    it("is null only when neither yields a listable name", () => {
+      expect(
+        effectiveCnamDisplayName({ name: "!!!", cnam_display_name: null }),
+      ).toBeNull();
+    });
+  });
+
+  describe("syncCallSettingsForCompany carries the RESOLVED listing", () => {
+    function activeNumbers(): Stub {
+      return stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
+        { id: NUMBER_ID, telnyx_phone_number_id: TELNYX_PN_ID },
+      ]);
+    }
+
+    it("pushes the effective name and reports how many numbers it reached", async () => {
+      const push = voiceSettingsPatch();
+      serve(activeNumbers(), push);
+
+      const result = await syncCallSettingsForCompany(
+        env,
+        getDb(env),
+        COMPANY_ID,
+        { cnamDisplayName: "Ace Plumbing Co" },
+      );
+
+      expect(result).toEqual({ pushed: 1 });
+      expect(push.calls).toHaveLength(1);
+      expect(push.calls[0].body).toEqual({
+        cnam_listing: {
+          cnam_listing_enabled: true,
+          cnam_listing_details: "Ace Plumbing Co",
+        },
+      });
+    });
+
+    it("disables the listing only for a genuinely unlistable value (null)", async () => {
+      const push = voiceSettingsPatch();
+      serve(activeNumbers(), push);
+
+      const result = await syncCallSettingsForCompany(
+        env,
+        getDb(env),
+        COMPANY_ID,
+        { cnamDisplayName: null },
+      );
+
+      expect(result).toEqual({ pushed: 1 });
+      expect(push.calls[0].body).toEqual({
+        cnam_listing: { cnam_listing_enabled: false },
+      });
+    });
+
+    it("reports pushed=0 when every number is hosted (nothing to reach)", async () => {
+      const push = voiceSettingsPatch();
+      serve(
+        stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
+          { id: NUMBER_ID, telnyx_phone_number_id: null },
+        ]),
+        push,
+      );
+
+      const result = await syncCallSettingsForCompany(
+        env,
+        getDb(env),
+        COMPANY_ID,
+        { cnamDisplayName: "Ace Plumbing Co" },
+      );
+
+      expect(result).toEqual({ pushed: 0 });
+      expect(push.calls).toHaveLength(0);
+    });
   });
 });

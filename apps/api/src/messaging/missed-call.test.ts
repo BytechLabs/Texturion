@@ -7,6 +7,10 @@
  *      dispatches it via Telnyx, and fires the crew-wide alert. Only the network
  *      edge (global fetch) is stubbed.
  */
+import {
+  applyMergeFields,
+  DEFAULT_MCTB_MESSAGE,
+} from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
@@ -266,6 +270,11 @@ describe("sendMissedCallText — text-back + alert", () => {
     // the per-call id for idempotency.
     expect(claim.calls).toHaveLength(1);
     expect(claimBody?.p_body).toContain("Ace Plumbing");
+    // #192: the owner's non-blank message OVERRIDES the product default.
+    expect(claimBody?.p_body).toContain("we'll book you in");
+    expect(claimBody?.p_body).not.toContain(
+      "Reply here with your address and what you need",
+    );
     expect(claimBody?.p_call_id).toBe(CALL_ID);
     expect(claimBody?.p_caller_e164).toBe(CALLER);
     // Dispatched via Telnyx from our number to the caller.
@@ -281,12 +290,69 @@ describe("sendMissedCallText — text-back + alert", () => {
     expect(claim.calls).toHaveLength(0);
   });
 
-  it("does nothing when enabled but the message is unauthored", async () => {
+  it("enabled with NO owner message sends the PRODUCT DEFAULT (#192 fallback)", async () => {
     const company = mctbCompanyStub({ mctb_message: null });
-    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
-    serve(company, claim);
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, ...gates, claim, telnyx, persist, ...alertStubs());
+
     await run();
-    expect(claim.calls).toHaveLength(0);
+
+    // The default template ships, merge-applied, byte-for-byte — an enabled
+    // text-back never silently sends nothing.
+    expect(claim.calls).toHaveLength(1);
+    expect(claimBody?.p_body).toBe(
+      applyMergeFields(DEFAULT_MCTB_MESSAGE, {
+        contactName: null,
+        businessName: "Ace Plumbing",
+      }),
+    );
+    expect(telnyx.calls).toHaveLength(1);
+  });
+
+  it("a WHITESPACE-ONLY owner message also falls back to the default (#192)", async () => {
+    const company = mctbCompanyStub({ mctb_message: "   \n  " });
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, ...gates, claim, telnyx, persist, ...alertStubs());
+
+    await run();
+
+    expect(claim.calls).toHaveLength(1);
+    expect(claimBody?.p_body).toBe(
+      applyMergeFields(DEFAULT_MCTB_MESSAGE, {
+        contactName: null,
+        businessName: "Ace Plumbing",
+      }),
+    );
   });
 
   it("a retried webhook (duplicate) never double-texts or alerts", async () => {

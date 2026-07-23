@@ -785,8 +785,12 @@ after-hours reply, merge fields, auto-send guard, and review link (Steps 0a/0b/1
   auto-text per conversation per 3h — a repeat caller is texted once), and dedupes per call
   (`conversation_events` `missed_call` payload `call_id`) so a retried webhook can never double-text. The
   send is a REPLY (the caller dialed us — D4 reply-exempt: no consent gate, no quiet hours); the queued row
-  dispatches through the exact §8 Telnyx path. The message is **owner-authored** (`mctb_message`,
-  merge-fields applied; enabled-but-unauthored sends nothing) and booking-forward per FEATURE-GAPS.
+  dispatches through the exact §8 Telnyx path. **#192 supersedes the original send rule:** the toggle alone
+  decides WHETHER a text goes out; a product default (`DEFAULT_MCTB_MESSAGE`, `@loonext/shared`) always
+  exists, and the owner's `mctb_message` overrides ONLY when non-blank — an enabled text-back never
+  silently sends nothing. The company view + PATCH echo expose `mctb_effective_message` +
+  `mctb_message_is_custom` so no client hardcodes the default; settings UIs autosave (no Save button) and
+  hide the message input while the toggle is off.
 - **Surfacing:** a `missed_call` conversation event renders in-thread ("This customer called and no one
   picked up — we texted them back") with the auto-text below it, and the crew gets the §8-mirrored loud
   alert (Resend email + Web Push to assignee-else-all). No new inbox row type, no D24 bell entry — the

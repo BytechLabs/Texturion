@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,6 +28,8 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
@@ -89,13 +92,16 @@ private fun TextBackCard(
     var message by remember(company.mctb_message) {
         mutableStateOf(company.mctb_message.orEmpty())
     }
-    var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #192 autosave: null = idle, false = saving, true = saved.
+    var savedState by remember { mutableStateOf<Boolean?>(null) }
+    var lastSavedMessage by remember(company.mctb_message) {
+        mutableStateOf(company.mctb_message.orEmpty().trim())
+    }
+    var saveJob by remember { mutableStateOf<Job?>(null) }
     val coroutines = rememberCoroutineScope()
 
     val trimmed = message.trim()
-    val dirty = enabled != company.mctb_enabled ||
-        trimmed != company.mctb_message.orEmpty().trim()
     // The server sends this with NO contact name (a missed call is usually a
     // brand-new caller) — the preview drops {first_name} exactly as the wire does.
     val preview = applyMergeFields(
@@ -103,6 +109,29 @@ private fun TextBackCard(
         contactName = null,
         businessName = company.name,
     )
+
+    fun patchMessage(value: String) {
+        saveJob?.cancel()
+        saveJob = coroutines.launch {
+            delay(800)
+            if (value == lastSavedMessage) return@launch
+            savedState = false
+            try {
+                val body = buildJsonObject {
+                    if (value.isEmpty()) put("mctb_message", JsonNull)
+                    else put("mctb_message", value)
+                }
+                val updated = scope.repo.updateCompany(scope.companyId, body)
+                lastSavedMessage = value
+                error = null
+                savedState = true
+                onCompanyUpdated(updated)
+            } catch (cause: Exception) {
+                savedState = null
+                error = cause.userMessage()
+            }
+        }
+    }
 
     SettingsCard(
         title = "Text back a missed call",
@@ -114,58 +143,57 @@ private fun TextBackCard(
             label = "Text back missed calls",
             supporting = "Fires once per caller when a call goes unanswered.",
             checked = enabled,
-            onCheckedChange = { enabled = it },
-            enabled = canEdit && !saving,
+            onCheckedChange = { next ->
+                // The toggle alone decides WHETHER the text-back fires; a
+                // blank message means the default ships. Flip is optimistic,
+                // reverted with the cause if the PATCH fails.
+                enabled = next
+                error = null
+                coroutines.launch {
+                    try {
+                        val body = buildJsonObject { put("mctb_enabled", next) }
+                        onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
+                    } catch (cause: Exception) {
+                        enabled = !next
+                        error = cause.userMessage()
+                    }
+                }
+            },
+            enabled = canEdit,
         )
-        if (canEdit) {
-            OutlinedTextField(
-                value = message,
-                onValueChange = { if (it.length <= 1000) message = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
-                minLines = 3,
-                enabled = !saving,
-                placeholder = { Text(DEFAULT_MCTB_MESSAGE) },
-                supportingText = {
-                    Text("${message.length}/1000 · {business_name} fills in automatically.")
-                },
-            )
-        }
-        PreviewBubble(label = "What the caller receives", text = preview)
-        InlineError(error)
-        if (canEdit) {
-            if (dirty) {
-                Button(
-                    onClick = {
-                        if (enabled && trimmed.isEmpty()) {
-                            error = "Write your text-back message before turning it on."
-                            return@Button
-                        }
-                        error = null
-                        saving = true
-                        coroutines.launch {
-                            try {
-                                val body = buildJsonObject {
-                                    put("mctb_enabled", enabled)
-                                    if (trimmed.isEmpty()) put("mctb_message", JsonNull)
-                                    else put("mctb_message", trimmed)
-                                }
-                                val updated = scope.repo.updateCompany(scope.companyId, body)
-                                onCompanyUpdated(updated)
-                                scope.showMessage("Missed-call text-back saved.")
-                            } catch (cause: Exception) {
-                                error = cause.userMessage()
-                            } finally {
-                                saving = false
-                            }
+        if (enabled) {
+            if (canEdit) {
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = {
+                        if (it.length <= 1000) {
+                            message = it
+                            savedState = null
+                            patchMessage(it.trim())
                         }
                     },
-                    enabled = !saving,
-                    modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save text-back") }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    minLines = 3,
+                    placeholder = { Text(DEFAULT_MCTB_MESSAGE) },
+                    supportingText = {
+                        val status = when (savedState) {
+                            false -> " · Saving…"
+                            true -> " · Saved"
+                            null -> ""
+                        }
+                        Text(
+                            "Leave it empty to send the default. " +
+                                "{business_name} fills in automatically.$status",
+                        )
+                    },
+                )
             }
-        } else {
+            PreviewBubble(label = "What the caller receives", text = preview)
+        }
+        InlineError(error)
+        if (!canEdit) {
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine("Only owners and admins can change the missed-call text-back.")
         }
@@ -343,6 +371,17 @@ private fun ScreeningCard(
     }
 }
 
+/** #193: the change awaiting confirmation — value null = back to the
+ *  company-name default. */
+private data class CallerIdChange(val value: String?)
+
+/**
+ * #193: caller ID defaults to the company name platform-wide. The card shows
+ * the server-resolved EFFECTIVE name; changing it is an explicit Change flow
+ * with a confirmation step, because CNAM changes crawl through carrier
+ * databases for days with no completion signal. The inbound name dip stays a
+ * switch that saves on flip.
+ */
 @Composable
 private fun CallerIdCard(
     scope: SettingsScope,
@@ -350,95 +389,200 @@ private fun CallerIdCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
-    var display by remember(company.cnam_display_name) {
-        mutableStateOf(company.cnam_display_name.orEmpty())
-    }
-    var lookup by remember(company.caller_id_lookup) {
-        mutableStateOf(company.caller_id_lookup)
-    }
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    var confirming by remember { mutableStateOf<CallerIdChange?>(null) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
-    val trimmed = display.trim()
-    val dirty = trimmed != company.cnam_display_name.orEmpty().trim() ||
-        lookup != company.caller_id_lookup
-    val cnamInvalid = trimmed.isNotEmpty() && !isValidCnam(trimmed)
+    val usingCompanyName = company.caller_id_source == "company_name"
+    val trimmedDraft = draft.trim()
+    val draftInvalid = trimmedDraft.isNotEmpty() && !isValidCnam(trimmedDraft)
+
+    fun submit(change: CallerIdChange) {
+        error = null
+        saving = true
+        coroutines.launch {
+            try {
+                val body = buildJsonObject {
+                    if (change.value == null) put("cnam_display_name", JsonNull)
+                    else put("cnam_display_name", change.value)
+                }
+                val updated = scope.repo.updateCompany(scope.companyId, body)
+                onCompanyUpdated(updated)
+                editing = false
+                confirming = null
+                scope.showMessage("Caller ID update submitted to carriers.")
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    fun saveLookup(next: Boolean) {
+        error = null
+        saving = true
+        coroutines.launch {
+            try {
+                val updated = scope.repo.updateCompany(
+                    scope.companyId,
+                    buildJsonObject { put("caller_id_lookup", next) },
+                )
+                onCompanyUpdated(updated)
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                saving = false
+            }
+        }
+    }
 
     SettingsCard(
         title = "Caller ID",
         description = "What people see when you call them, and what you see when " +
             "they call you.",
     ) {
-        if (canEdit) {
+        Text(
+            "Your outbound display name",
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    company.caller_id_effective ?: "No display name",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    if (usingCompanyName) "Using your company name"
+                    else "Custom display name",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (canEdit && !editing) {
+                TextButton(
+                    onClick = {
+                        draft = company.cnam_display_name.orEmpty()
+                        error = null
+                        confirming = null
+                        editing = true
+                    },
+                    enabled = !saving,
+                ) { Text("Change") }
+            }
+        }
+        if (cnamChangePending(company.cnam_submitted_at)) {
+            Text(
+                "Caller ID update submitted. Carriers usually show the new name " +
+                    "within 1 to 3 days.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        if (editing && confirming == null) {
             OutlinedTextField(
-                value = display,
-                onValueChange = { if (it.length <= 15) display = it },
-                modifier = Modifier.fillMaxWidth(),
+                value = draft,
+                onValueChange = { if (it.length <= 15) draft = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
                 singleLine = true,
                 enabled = !saving,
-                isError = cnamInvalid,
-                label = { Text("Your outbound display name") },
-                placeholder = {
-                    Text(company.name.filter { it.isLetterOrDigit() || it == ' ' }.take(15))
-                },
+                isError = draftInvalid,
+                label = { Text("New display name") },
+                placeholder = { Text(cnamFromCompanyName(company.name)) },
                 supportingText = {
                     Text(
-                        if (cnamInvalid) "1 to 15 letters, digits, or spaces."
+                        if (draftInvalid) "1 to 15 letters, digits, or spaces."
                         else "Shown on US caller ID when you call customers. Letters, " +
-                            "digits, and spaces, 15 characters max. Carriers take 1–3 " +
-                            "days to pick up a change, and Canadian display names are set " +
-                            "by the receiving carrier, so this mainly helps your US calls.",
+                            "digits, and spaces, 15 characters max. Canadian display " +
+                            "names are set by the receiving carrier, so this mainly " +
+                            "helps your US calls.",
                     )
                 },
             )
-        } else {
-            Text(
-                trimmed.ifEmpty { "No display name set." },
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            if (!usingCompanyName) {
+                TextButton(
+                    onClick = { confirming = CallerIdChange(null) },
+                    enabled = !saving,
+                ) { Text("Use company name instead") }
+            }
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        if (draftInvalid || trimmedDraft.isEmpty()) {
+                            error = "The display name must be 1 to 15 letters, digits, or spaces."
+                            return@Button
+                        }
+                        if (trimmedDraft == company.cnam_display_name) {
+                            editing = false
+                            return@Button
+                        }
+                        error = null
+                        confirming = CallerIdChange(trimmedDraft)
+                    },
+                    enabled = !saving,
+                ) { Text("Review change") }
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    onClick = { editing = false },
+                    enabled = !saving,
+                ) { Text("Cancel") }
+            }
         }
+
+        confirming?.let { change ->
+            val target = change.value ?: cnamFromCompanyName(company.name)
+            Column(Modifier.padding(top = 10.dp)) {
+                Text(
+                    "Update your caller ID to \"$target\"" +
+                        (if (change.value == null) " (your company name)?" else "?"),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    "Carriers refresh their name databases on their own schedule, " +
+                        "so the new name can take a few days to show on calls.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Row(
+                    Modifier.padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = { submit(change) },
+                        enabled = !saving,
+                    ) { Text(if (saving) "Submitting…" else "Update caller ID") }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = { confirming = null },
+                        enabled = !saving,
+                    ) { Text("Go back") }
+                }
+            }
+        }
+
         LabeledSwitchRow(
             label = "Look up who's calling",
             supporting = "Shows the caller's network-registered name on incoming calls " +
                 "when they aren't in your contacts yet.",
-            checked = lookup,
-            onCheckedChange = { lookup = it },
+            checked = company.caller_id_lookup,
+            onCheckedChange = { saveLookup(it) },
             enabled = canEdit && !saving,
         )
         InlineError(error)
-        if (canEdit) {
-            if (dirty) {
-                Button(
-                    onClick = {
-                        if (cnamInvalid) {
-                            error = "The display name must be 1 to 15 letters, digits, or spaces."
-                            return@Button
-                        }
-                        error = null
-                        saving = true
-                        coroutines.launch {
-                            try {
-                                val body = buildJsonObject {
-                                    if (trimmed.isEmpty()) put("cnam_display_name", JsonNull)
-                                    else put("cnam_display_name", trimmed)
-                                    put("caller_id_lookup", lookup)
-                                }
-                                val updated = scope.repo.updateCompany(scope.companyId, body)
-                                onCompanyUpdated(updated)
-                                scope.showMessage("Caller ID saved.")
-                            } catch (cause: Exception) {
-                                error = cause.userMessage()
-                            } finally {
-                                saving = false
-                            }
-                        }
-                    },
-                    enabled = !saving,
-                    modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save caller ID") }
-            }
-        } else {
+        if (!canEdit) {
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine("Only owners and admins can change caller ID settings.")
         }

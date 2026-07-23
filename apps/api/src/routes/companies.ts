@@ -30,10 +30,16 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
+  effectiveCnamDisplayName,
   enableVoiceForCompany,
   syncCallSettingsForCompany,
 } from "../telnyx/voice";
-import { COMPANY_COLUMNS, loadCompanyView } from "./core/company-view";
+import {
+  COMPANY_COLUMNS,
+  loadCompanyView,
+  withCallerIdDerived,
+  withMctbDerived,
+} from "./core/company-view";
 import { parseJsonBody, unwrap } from "./core/http";
 import { isValidIanaTimezone } from "./core/timezone";
 
@@ -111,6 +117,9 @@ const patchSchema = z
     // (null clears back to the honest default); call screening is the carrier
     // verdict routing choice; CNAM is the caller-ID pair — the ≤15-char
     // outbound listing (carrier alphabet rule) and the inbound name dip.
+    // #193: cnam_display_name null no longer means "no listing" — it means
+    // "default to the company name" (the effective value is resolved
+    // server-side and pushed to the carrier side either way).
     voicemail_greeting: z.string().trim().max(500).nullable().optional(),
     call_screening: z.enum(["off", "flag", "divert"]).optional(),
     cnam_display_name: z
@@ -312,6 +321,11 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   }
   if ("cnam_display_name" in body) {
     patch.cnam_display_name = body.cnam_display_name ?? null;
+    // #193: changing the caller ID is a deliberate act whose carrier-side
+    // propagation takes days (and Telnyx reports no status), so the row
+    // carries WHEN the change went out — that timestamp is the whole
+    // pending state clients can honestly show.
+    patch.cnam_submitted_at = new Date().toISOString();
   }
   if (body.caller_id_lookup !== undefined) {
     patch.caller_id_lookup = body.caller_id_lookup;
@@ -465,25 +479,51 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // D43: screening/CNAM changes must reach the numbers themselves (Telnyx
   // per-number settings). Best-effort in the background, same contract as
   // the voice enable above — the companies row is the source of truth and a
-  // re-save re-pushes.
+  // re-save re-pushes. #193: the caller ID defaults to the COMPANY NAME, so
+  // a rename while no explicit display name is set also changes the
+  // effective listing and re-pushes it (stamping cnam_submitted_at once the
+  // push actually reached a number).
+  const renameChangedCallerId =
+    body.name !== undefined && company.cnam_display_name == null;
   if (
     body.call_screening !== undefined ||
     body.caller_id_lookup !== undefined ||
-    "cnam_display_name" in body
+    "cnam_display_name" in body ||
+    renameChangedCallerId
   ) {
-    const sync = syncCallSettingsForCompany(env, db, c.get("companyId"), {
-      ...(body.call_screening !== undefined
-        ? { callScreening: body.call_screening }
-        : {}),
-      ...(body.caller_id_lookup !== undefined
-        ? { callerIdLookup: body.caller_id_lookup }
-        : {}),
-      ...("cnam_display_name" in body
-        ? { cnamDisplayName: body.cnam_display_name ?? null }
-        : {}),
-    }).catch((cause: unknown) => {
+    const companyId = c.get("companyId");
+    const sync = (async () => {
+      const { pushed } = await syncCallSettingsForCompany(env, db, companyId, {
+        ...(body.call_screening !== undefined
+          ? { callScreening: body.call_screening }
+          : {}),
+        ...(body.caller_id_lookup !== undefined
+          ? { callerIdLookup: body.caller_id_lookup }
+          : {}),
+        ...("cnam_display_name" in body || renameChangedCallerId
+          ? {
+              cnamDisplayName: effectiveCnamDisplayName({
+                name: company.name as string | null,
+                cnam_display_name: company.cnam_display_name as string | null,
+              }),
+            }
+          : {}),
+      });
+      // The rename path had no explicit cnam field to stamp in the main
+      // update; record the submission here, and only when a listing change
+      // really went out to a number.
+      if (renameChangedCallerId && !("cnam_display_name" in body) && pushed > 0) {
+        const { error } = await db
+          .from("companies")
+          .update({ cnam_submitted_at: new Date().toISOString() })
+          .eq("id", companyId);
+        if (error) {
+          throw new Error(`cnam_submitted_at stamp failed: ${error.message}`);
+        }
+      }
+    })().catch((cause: unknown) => {
       console.error(
-        `call settings sync for company ${c.get("companyId")} failed:`,
+        `call settings sync for company ${companyId} failed:`,
         cause instanceof Error ? cause.message : String(cause),
       );
     });
@@ -492,7 +532,9 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     else await sync;
   }
 
-  return c.json(company);
+  // #192/#193: the PATCH echo carries the same derived fields as the GET
+  // view (clients merge this straight into their cached company).
+  return c.json(withCallerIdDerived(withMctbDerived(company)));
 });
 
 /** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
