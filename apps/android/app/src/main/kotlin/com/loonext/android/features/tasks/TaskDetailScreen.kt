@@ -714,7 +714,7 @@ private fun TaskDetailBody(
 
                 item(key = "description") {
                     Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
-                        SectionHeader("Details")
+                        SectionHeader("Description")
                         InlineEditField(
                             key = detail.id + detail.updated_at + ":description",
                             initial = detail.description,

@@ -534,7 +534,7 @@ struct TaskDetailView: View {
 
     private func descriptionSection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionLabel("Notes on this task")
+            sectionLabel("Description")
             InlineEditField(
                 initial: detail.description,
                 maxLength: taskDescriptionMax,

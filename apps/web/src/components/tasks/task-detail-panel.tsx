@@ -371,7 +371,7 @@ function TaskDetailLoaded({
 
         {/* Description. */}
         <section className="flex flex-col gap-1.5">
-          <Label htmlFor="task-description">Notes</Label>
+          <Label htmlFor="task-description">Description</Label>
           <Textarea
             id="task-description"
             value={description}
