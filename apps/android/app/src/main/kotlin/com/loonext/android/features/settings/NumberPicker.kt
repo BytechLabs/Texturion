@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
 
@@ -99,7 +100,9 @@ fun NumberPickerDialog(
         text = {
             // #180: the dialog text scrolls so the refresh button below the
             // bounded results list is never squeezed out on short viewports.
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            // #199: the platform keeps the dialog window above the keyboard;
+            // the debug guard verifies the focused field stays visible.
+            Column(Modifier.verticalScroll(rememberScrollState()).assertAboveIme("dialog")) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = areaCode,

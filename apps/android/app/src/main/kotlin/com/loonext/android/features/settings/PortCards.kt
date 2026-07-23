@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -466,7 +467,9 @@ private fun StartPortDialog(
         onDismissRequest = { if (!pending) onDismiss() },
         title = { Text("Bring your existing number") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            // #199: platform-positioned dialog window + debug guard on the
+            // port form fields.
+            Column(Modifier.verticalScroll(rememberScrollState()).assertAboveIme("dialog")) {
                 if (verdict == null || !verdict.portable) {
                     OutlinedTextField(
                         value = phoneInput,
@@ -618,7 +621,9 @@ private fun FixPortDialog(
         onDismissRequest = { if (!pending) onDismiss() },
         title = { Text("Fix and resubmit") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            // #199: platform-positioned dialog window + debug guard on the
+            // port form fields.
+            Column(Modifier.verticalScroll(rememberScrollState()).assertAboveIme("dialog")) {
                 port.rejection_reason?.let { reason ->
                     Text(
                         "Rejection reason: $reason",

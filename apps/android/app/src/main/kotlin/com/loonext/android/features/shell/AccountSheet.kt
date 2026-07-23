@@ -39,7 +39,6 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +66,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.PaperCard
@@ -105,7 +105,7 @@ fun AccountSheet(
     val company = me.company
     val workspaceName = membership?.name ?: company?.name
 
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {

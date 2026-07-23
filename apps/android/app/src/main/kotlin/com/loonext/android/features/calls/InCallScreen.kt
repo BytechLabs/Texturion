@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +66,7 @@ import com.loonext.android.telephony.CallDirection
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
@@ -712,7 +712,7 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
         listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"),
         listOf("*" to "", "0" to "+", "#" to ""),
     )
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
@@ -811,7 +811,7 @@ private fun TransferSheet(
     }
 
     val haptics = rememberHaptics()
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {

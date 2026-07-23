@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -354,7 +355,9 @@ private fun TimezonePickerDialog(
         onDismissRequest = onDismiss,
         title = { Text("Choose a timezone") },
         text = {
-            Column {
+            // #199: platform-positioned dialog window + debug guard on the
+            // search field.
+            Column(Modifier.assertAboveIme("dialog")) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },

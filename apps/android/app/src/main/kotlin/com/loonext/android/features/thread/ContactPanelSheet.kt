@@ -15,7 +15,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +30,7 @@ import com.loonext.android.features.contacts.CONTACT_ADDRESS_MAX
 import com.loonext.android.features.contacts.CONTACT_NAME_MAX
 import com.loonext.android.features.contacts.CONTACT_NOTES_MAX
 import com.loonext.android.features.contacts.consentLine
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
@@ -63,7 +63,7 @@ internal fun ContactPanelSheet(
     fun memberName(userId: String?): String? =
         members.firstOrNull { it.user_id == userId }?.display_name?.ifBlank { null }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()

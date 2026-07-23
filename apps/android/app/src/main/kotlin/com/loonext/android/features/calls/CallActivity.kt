@@ -52,6 +52,7 @@ import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneSnapshot
 import com.loonext.android.telephony.SoftphoneStatus
+import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.LoonextTheme
 
@@ -170,17 +171,25 @@ class CallActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             LoonextTheme(darkTheme = darkTheme) {
-                CallSurface(
-                    manager = manager,
-                    repo = remember { CallsRepository(graph.api) },
-                    session = session,
-                    callerName = callerName,
-                    callerNumber = callerNumber,
-                    answerOnOpen = answerOnOpen,
-                    onDismissKeyguard = ::dismissKeyguard,
-                    onOpenConversation = ::openConversationInShell,
-                    onClose = { finish() },
-                )
+                // #199 host contract for this STANDALONE activity: the call
+                // surface has zero text inputs today, so imeHost is inert -
+                // but the day a call-note or search field lands here, the
+                // host already pads it above the keyboard and the debug
+                // guard already watches it. No screen inside may add its own
+                // ime handling (ImeContractLintTest).
+                Box(Modifier.fillMaxSize().imeHost("call-activity")) {
+                    CallSurface(
+                        manager = manager,
+                        repo = remember { CallsRepository(graph.api) },
+                        session = session,
+                        callerName = callerName,
+                        callerNumber = callerNumber,
+                        answerOnOpen = answerOnOpen,
+                        onDismissKeyguard = ::dismissKeyguard,
+                        onOpenConversation = ::openConversationInShell,
+                        onClose = { finish() },
+                    )
+                }
             }
         }
     }

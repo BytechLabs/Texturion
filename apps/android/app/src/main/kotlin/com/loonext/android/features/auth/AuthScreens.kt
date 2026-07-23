@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -287,12 +286,14 @@ fun AuthFlow(viewModel: AuthViewModel) {
         CaptchaSheet(onResult = viewModel::onCaptchaResult)
     }
 
+    // Keyboard: MainActivity's PreShellHost pads the ime for EVERY signed-out
+    // surface (#199) - no local imePadding here. The scroll plus foundation's
+    // focus relocation brings the focused field above the keyboard.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .statusBarsPadding()
-            .imePadding()
             .padding(horizontal = 24.dp)
             .padding(top = 18.dp, bottom = 24.dp),
     ) {

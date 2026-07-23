@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,7 +42,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -82,6 +80,7 @@ import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Page
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
@@ -853,12 +852,14 @@ internal fun CreateContactSheet(
 
     val normalized = Nanp.normalize(phone)
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
+        // Keyboard: AppSheet's pinned contentWindowInsets already ime-pad the
+        // sheet (#199) - a local imePadding here would be a consumed no-op
+        // and is forbidden by ImeContractLintTest.
         Column(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .imePadding()
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -958,7 +959,7 @@ internal fun CreateContactSheet(
 @Composable
 private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
     val result = report.result
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so the Done row stays reachable
         // on square viewports (inert on tall screens).
         Column(

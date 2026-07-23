@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.Tag
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.rememberHaptics
@@ -71,7 +71,7 @@ internal fun TagManageSheet(
     val attachedIds = attached.mapTo(HashSet()) { it.id }
     val haptics = rememberHaptics()
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so every tag row is reachable at
         // ANY viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {

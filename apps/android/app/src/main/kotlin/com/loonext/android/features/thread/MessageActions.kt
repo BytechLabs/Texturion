@@ -36,7 +36,6 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -60,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
@@ -86,7 +86,7 @@ fun MessageActionsSheet(
 ) {
     val clipboard = LocalClipboardManager.current
     val haptics = rememberHaptics()
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so rows are reachable at ANY
         // viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -190,7 +190,7 @@ fun MakeTaskSheet(
     val zone = remember { ZoneId.systemDefault() }
     val haptics = rememberHaptics()
 
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {

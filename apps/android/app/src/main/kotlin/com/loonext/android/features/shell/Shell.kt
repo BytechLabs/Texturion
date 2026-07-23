@@ -69,6 +69,7 @@ import com.loonext.android.features.inbox.InboxTab
 import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.BrandColor
@@ -170,8 +171,12 @@ fun MainShell(
             // clearance on top of it. The old fixed 96dp ignored the system
             // nav inset, leaving list tails under the pill on 3-button nav.
             // Screens must NOT add their own statusBarsPadding or imePadding
-            // on top of this; inset consumption makes leftovers no-ops. The
-            // PAGER carries the insets now, so every page inherits them.
+            // on top of this; inset consumption makes leftovers no-ops (and
+            // ImeContractLintTest forbids them, #199). The PAGER carries the
+            // insets now, so every page inherits them. assertAboveIme is the
+            // #199 debug guard: this host keeps its union math instead of
+            // imeHost's plain imePadding ON PURPOSE - max(pill, ime), never
+            // pill + ime - but gets the same covered-field crash in debug.
             val contentInsets = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
@@ -180,6 +185,7 @@ fun MainShell(
                         .add(WindowInsets(bottom = 80.dp))
                         .union(WindowInsets.ime),
                 )
+                .assertAboveIme("shell-pager")
 
             HorizontalPager(
                 state = pagerState,

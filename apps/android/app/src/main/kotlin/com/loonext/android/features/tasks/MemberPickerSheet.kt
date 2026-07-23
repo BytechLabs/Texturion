@@ -17,7 +17,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.Member
+import com.loonext.android.ui.common.AppSheet
 
 /**
  * cmdk-style member picker: a bottom sheet with a search field over the
@@ -50,7 +50,7 @@ fun MemberPickerSheet(
     val matches = if (query.isBlank()) active
     else active.filter { it.display_name.contains(query.trim(), ignoreCase = true) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = query,

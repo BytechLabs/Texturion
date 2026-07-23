@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -79,6 +78,7 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
+import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.theme.LoonextTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -214,36 +214,58 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
     val state by root.state.collectAsStateWithLifecycle()
 
     when (val current = state) {
-        RootState.Loading -> CenteredLoading()
-        RootState.SignedOut -> {
+        RootState.Loading -> PreShellHost { CenteredLoading() }
+        RootState.SignedOut -> PreShellHost {
             val auth: AuthViewModel = viewModel(factory = factory)
             AuthFlow(auth)
         }
 
-        is RootState.NeedsWorkspace -> ExternalStep(
-            headline = "Let's set up your workspace",
-            body = "Workspace creation and checkout live on the web for now. " +
-                "Create yours at app.loonext.com, then come back and pull to refresh.",
-            cta = "Open app.loonext.com",
-            url = "https://app.loonext.com/onboarding",
-            onRefresh = root::retry,
-            onSignOut = root::signOut,
-        )
+        is RootState.NeedsWorkspace -> PreShellHost {
+            ExternalStep(
+                headline = "Let's set up your workspace",
+                body = "Workspace creation and checkout live on the web for now. " +
+                    "Create yours at app.loonext.com, then come back and pull to refresh.",
+                cta = "Open app.loonext.com",
+                url = "https://app.loonext.com/onboarding",
+                onRefresh = root::retry,
+                onSignOut = root::signOut,
+            )
+        }
 
-        is RootState.NeedsCheckout -> ExternalStep(
-            headline = "Finish setting up",
-            body = "Your workspace hasn't completed checkout yet. Finish on the web " +
-                "and your number, texting, and calling light up here.",
-            cta = "Finish checkout",
-            url = "https://app.loonext.com/onboarding/plan",
-            onRefresh = root::retry,
-            onSignOut = root::signOut,
-        )
+        is RootState.NeedsCheckout -> PreShellHost {
+            ExternalStep(
+                headline = "Finish setting up",
+                body = "Your workspace hasn't completed checkout yet. Finish on the web " +
+                    "and your number, texting, and calling light up here.",
+                cta = "Finish checkout",
+                url = "https://app.loonext.com/onboarding/plan",
+                onRefresh = root::retry,
+                onSignOut = root::signOut,
+            )
+        }
 
-        is RootState.Failed -> CenteredError(current.message, onRetry = root::retry)
+        is RootState.Failed -> PreShellHost {
+            CenteredError(current.message, onRetry = root::retry)
+        }
 
         is RootState.Ready -> ReadyShell(graph, current.me, current.companyId, root, deepLinks)
     }
+}
+
+/**
+ * #199: the keyboard host for every NOT-Ready root state (auth, external
+ * steps, failure). The #187 route host only covers pushed overlays inside
+ * ReadyShell, so signed-out coverage used to be a per-screen convention
+ * (AuthFlow's own imePadding) that a new form could silently forget. Now the
+ * host pads the ime ONCE here - inset consumption makes any local imePadding
+ * below a no-op - and carries the #199 debug guard. Ready is deliberately
+ * NOT wrapped: the route host Surface and the shell pager own the keyboard
+ * there, and an extra ime pad above them would stack onto the pager's
+ * union-of-insets math (#172).
+ */
+@Composable
+private fun PreShellHost(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().imeHost("pre-shell")) { content() }
 }
 
 /**
@@ -478,15 +500,18 @@ private fun ReadyShell(
             BackHandler { pop() }
             // Canvas + status inset once for every routed surface (#172). Only
             // the TOP of the stack renders; back pops one route at a time.
-            // imePadding here is the ONE keyboard policy for pushed routes
-            // (#187): with enableEdgeToEdge the manifest's adjustResize does
-            // nothing by itself, so any input on any route (task notes, thread
-            // composer, compose) stays above the keyboard because the HOST
-            // pads — a screen cannot forget. Inset consumption makes any
-            // leftover imePadding inside a routed screen a no-op, so locals
-            // cannot double-pad.
+            // imeHost here is the ONE keyboard policy for pushed routes
+            // (#187, hardened by #199): with enableEdgeToEdge the manifest's
+            // adjustResize does nothing by itself, so any input on any route
+            // (task notes, thread composer, compose) stays above the keyboard
+            // because the HOST pads — a screen cannot forget. Inset
+            // consumption makes any leftover local ime handling inside a
+            // routed screen a no-op, so locals cannot double-pad — and
+            // ImeContractLintTest forbids them at build time. imeHost also
+            // carries the #199 debug guard: a covered focused field crashes
+            // debug builds.
             Surface(
-                Modifier.fillMaxSize().statusBarsPadding().imePadding(),
+                Modifier.fillMaxSize().statusBarsPadding().imeHost("route-host"),
                 color = MaterialTheme.colorScheme.background,
             ) {
                 when (active) {

@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,7 +58,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -103,6 +101,7 @@ import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
@@ -260,11 +259,11 @@ fun ThreadScreen(
                     )
                 }
         }
+        // Keyboard: the #187/#199 route host pads the ime; a local imePadding
+        // here was a consumed no-op and is gone (ImeContractLintTest).
         SnackbarHost(
             snackbar,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .imePadding(),
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
@@ -645,7 +644,6 @@ private fun ThreadLoaded(
                 }
             },
             onNotice = onNotice,
-            modifier = Modifier.imePadding(),
         )
     }
 
@@ -1065,7 +1063,7 @@ private fun AssigneePickerSheet(
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss) {
         // #180 contract: sheet roots scroll so rows are reachable at ANY
         // viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -1235,7 +1233,7 @@ private fun ConversationSheet(
         ?: controller.contact?.phone_e164?.let(::formatPhone)
         ?: "Contact"
     val haptics = rememberHaptics()
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {

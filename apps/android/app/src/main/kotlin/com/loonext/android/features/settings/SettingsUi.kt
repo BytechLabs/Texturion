@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.theme.BrandColor
 
 /**
@@ -183,7 +184,11 @@ fun ConfirmDialog(
         onDismissRequest = { if (!pending) onDismiss() },
         title = { Text(title) },
         text = {
-            Column {
+            // #199 host type 4: the PLATFORM window keeps a floating dialog
+            // above the keyboard (default DialogProperties). The debug guard
+            // watches extraContent text fields (release-confirm, start-order)
+            // in case that ever stops being true.
+            Column(Modifier.assertAboveIme("dialog")) {
                 Text(body, style = MaterialTheme.typography.bodyMedium)
                 extraContent?.invoke(this)
                 InlineError(error)

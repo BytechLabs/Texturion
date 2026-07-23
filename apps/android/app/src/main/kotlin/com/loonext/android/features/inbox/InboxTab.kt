@@ -45,7 +45,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -97,6 +96,7 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.appendPage
 import com.loonext.android.features.thread.dropVanishedFromFirstWindow
 import com.loonext.android.features.thread.mergeFirstPage
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
@@ -1273,7 +1273,7 @@ private fun FiltersSheet(
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.background,

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredLoading
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -76,7 +76,7 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
         if (delivered.compareAndSet(false, true)) currentOnResult(token)
     }
 
-    ModalBottomSheet(
+    AppSheet(
         onDismissRequest = { deliver(null) },
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
