@@ -444,7 +444,10 @@ struct TaskCalendarView: View {
 
     private func toggleSelection(_ day: Date) {
         let normalized = calendar.startOfDay(for: day)
-        if let selectedDay, calendar.isDate(selectedDay, inSameDayAs: normalized) {
+        // Distinct binding name: `if let selectedDay` would shadow the @State
+        // var with a let constant, so the reassignments below could not target
+        // it (tapping the selected day toggles it off).
+        if let current = selectedDay, calendar.isDate(current, inSameDayAs: normalized) {
             selectedDay = nil
         } else {
             selectedDay = normalized
