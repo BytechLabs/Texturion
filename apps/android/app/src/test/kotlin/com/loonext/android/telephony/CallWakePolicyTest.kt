@@ -48,6 +48,44 @@ class CallWakePolicyTest {
         assertTrue(CallWakePolicy.isRingingExit("ended_rejected"))
     }
 
+    // ------------------------------------------- transfer gating (#211)
+
+    @Test
+    fun `an inbound call is transfer-addressable on session presence alone`() {
+        // Inbound sessions land only after a by-leg resolve, so presence proves
+        // the server owns it, so the outboundAnswered flag is irrelevant here.
+        val resolved = call("in-1", phase = CallPhase.ACTIVE, sessionId = "S-in")
+        assertTrue(CallWakePolicy.transferAddressable(resolved, outboundAnswered = false))
+
+        val unresolved = call("in-2", phase = CallPhase.ACTIVE, sessionId = null)
+        assertFalse(CallWakePolicy.transferAddressable(unresolved, outboundAnswered = false))
+    }
+
+    @Test
+    fun `an outbound call is NOT addressable on stamped session presence alone`() {
+        // The session is stamped at placement, so presence proves nothing; a
+        // serverAddressable /state read (outboundAnswered) is required.
+        val stamped = call(
+            "out-1",
+            phase = CallPhase.ACTIVE,
+            direction = CallDirection.OUTBOUND,
+            sessionId = "S-out",
+        )
+        assertFalse(
+            "presence is not enough for outbound",
+            CallWakePolicy.transferAddressable(stamped, outboundAnswered = false),
+        )
+        assertTrue(
+            "a serverAddressable answered read lights it",
+            CallWakePolicy.transferAddressable(stamped, outboundAnswered = true),
+        )
+    }
+
+    @Test
+    fun `a null call is never transfer-addressable`() {
+        assertFalse(CallWakePolicy.transferAddressable(null, outboundAnswered = true))
+    }
+
     // --------------------------------------------------- caller correlation
 
     @Test

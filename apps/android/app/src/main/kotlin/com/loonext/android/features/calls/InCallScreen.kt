@@ -65,6 +65,7 @@ import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallDirection
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
+import com.loonext.android.telephony.CallWakePolicy
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
@@ -161,6 +162,36 @@ fun InCallScreen(
         }
         noteLinkGaveUp = true
     }
+
+    // #211 outbound parity: an OUTBOUND session id is stamped at PLACEMENT (from
+    // the authorize response), so its mere presence no longer proves the server
+    // owns the session. The call may still be dialing, or have fallen to a
+    // legacy/kill-switch path the CallSessionDO never minted. Light Transfer only
+    // on a serverAddressable signal: a successful /state read reporting the
+    // outbound session `answered`. Inbound sessions only ever land AFTER a by-leg
+    // resolve (already serverAddressable), so they gate on presence, unchanged.
+    var outboundAddressable by remember(featured?.id) { mutableStateOf(false) }
+    LaunchedEffect(featured?.id, featured?.sessionId, featured?.direction, featured?.phase) {
+        outboundAddressable = false
+        if (featured == null ||
+            featured.direction != CallDirection.OUTBOUND ||
+            featured.phase != CallPhase.ACTIVE
+        ) {
+            return@LaunchedEffect
+        }
+        val session = featured.sessionId ?: return@LaunchedEffect
+        // The T-O2 answered_at mirror can land a beat after the SDK reports
+        // ACTIVE, so brief retries mirror the note-link resolve idiom above.
+        repeat(4) { attempt ->
+            val state = runCatching { manager.sessionState(session).state }.getOrNull()
+            if (state == CallWakePolicy.STATE_ANSWERED) {
+                outboundAddressable = true
+                return@LaunchedEffect
+            }
+            if (attempt < 3) delay(1_200)
+        }
+    }
+    val transferAddressable = CallWakePolicy.transferAddressable(featured, outboundAddressable)
 
     Column(
         modifier
@@ -300,9 +331,11 @@ fun InCallScreen(
                     icon = Icons.Outlined.PhoneForwarded,
                     label = "Transfer",
                     contentDescription = "Transfer",
-                    // Transfer needs the CUSTOMER session — resolved via
-                    // by-leg for inbound answers; disabled until it lands.
-                    enabled = featured.sessionId != null &&
+                    // Transfer needs the CUSTOMER session to be serverAddressable:
+                    // inbound resolves it via by-leg (presence == addressable);
+                    // outbound (#211) stamps it at placement, so it also needs a
+                    // successful /state read reporting `answered` before lighting.
+                    enabled = transferAddressable &&
                         featured.phase == CallPhase.ACTIVE,
                     onClick = {
                         haptics.tap()

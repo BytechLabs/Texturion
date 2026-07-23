@@ -65,6 +65,10 @@ class SoftphoneCoreTest {
     private val tokenMints = AtomicInteger(0)
     private val byLegHits = AtomicInteger(0)
 
+    /** #211: the server-minted call_session_id (S) POST /calls/browser returns.
+     *  Null models a pre-#211 / kill-switch server that emits no id. */
+    private var authCallSessionId: String? = null
+
     /** Every key the by-leg resolve was issued with (#208 C1: must be a ccid). */
     private val byLegCcids = mutableListOf<String>()
 
@@ -89,6 +93,7 @@ class SoftphoneCoreTest {
     fun setUp() {
         tokenMints.set(0)
         byLegHits.set(0)
+        authCallSessionId = null
         byLegCcids.clear()
         sessionStateBehavior = { session ->
             LiveSessionState(call_session_id = session, state = CallWakePolicy.STATE_RINGING)
@@ -120,6 +125,7 @@ class SoftphoneCoreTest {
             from = "+15550001111",
             to = "+15552223333",
             client_state = serverClientState,
+            call_session_id = authCallSessionId,
         )
 
         override suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution {
@@ -338,13 +344,58 @@ class SoftphoneCoreTest {
     }
 
     @Test
-    fun `an outbound leg IS the customer leg - its session lands with no by-leg call`() = runTest {
+    fun `placeCall stamps the outbound sessionId from the authorize response at CONNECTING`() = runTest {
+        // #211: the server-minted session (S) is known at authorize, so it is
+        // stamped at PLACEMENT. The outbound call is server-addressable the
+        // instant it connects, with no wait for the SDK session at ACTIVE.
+        authCallSessionId = "S-outbound"
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent()
+
+        val call = h.core.state.value.calls.single()
+        assertEquals(CallPhase.CONNECTING, call.phase)
+        assertEquals("S-outbound", call.sessionId)
+        assertEquals("the stamped session is not an SDK fallback", 0, byLegHits.get())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `the stamped authorize session survives the SDK backfill at ACTIVE`() = runTest {
+        // The server session (S) must NOT be overwritten by the SDK's own
+        // (distinct) Telnyx session id once the leg goes ACTIVE — the ACTIVE
+        // backfill only fires for a null sessionId (the older-server path).
+        authCallSessionId = "S-outbound"
+        val h = harness()
+        h.sdk.nextOutboundSessionId = "sdk-leg-id"
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "A", to = "+15552223333")
+        runCurrent()
+
+        h.sdk.outboundHandles.single().phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+
+        val call = h.core.state.value.calls.single()
+        assertEquals(CallPhase.ACTIVE, call.phase)
+        assertEquals("the server S wins over the SDK leg id", "S-outbound", call.sessionId)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `an older server without a session backfills from the SDK at ACTIVE - no by-leg call`() = runTest {
+        // Pre-#211 / kill-switch server: authorize returns no call_session_id,
+        // so the snapshot is CONNECTING with a null session; the SDK's own
+        // session then backfills it at ACTIVE, exactly as before (fallback only).
         val h = harness()
         h.sdk.nextOutboundSessionId = "sess-out"
         h.core.start("company-1")
         h.core.awaitReady()
         h.core.placeCall(displayName = "A", to = "+15552223333")
         runCurrent()
+        assertNull("no server session to stamp", h.core.state.value.calls.single().sessionId)
 
         h.sdk.outboundHandles.single().phaseFlow.value = CallPhase.ACTIVE
         runCurrent()

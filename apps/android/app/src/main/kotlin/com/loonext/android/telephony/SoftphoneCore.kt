@@ -789,6 +789,12 @@ class SoftphoneCore(
                 resolveSession(handle)
             }
             if (prev.direction == CallDirection.OUTBOUND && prev.sessionId == null) {
+                // #211 FALLBACK ONLY: the server-minted session (S) is normally
+                // stamped at placement from the authorize response, so this runs
+                // only for a pre-#211 / kill-switch server that returned no id.
+                // The SDK's telnyxSessionId is the SDK's OWN leg id, NOT S, which
+                // the server never keys on, so a call that lands here can read
+                // notes but cannot address transfer/consult server-side.
                 handle.telnyxSessionId?.let { session ->
                     _state.update { CallStateMachine.sessionKnown(it, id, session) }
                 }
@@ -907,6 +913,12 @@ class SoftphoneCore(
             peerName = displayName.ifBlank { auth.to },
             peerNumber = auth.to,
             phase = CallPhase.CONNECTING,
+            // #211: stamp the server-minted customer session (S) at PLACEMENT.
+            // It is known at authorize, so live-call ops no longer wait for the
+            // SDK's Telnyx session id to surface at ACTIVE. Null from a pre-#211
+            // / kill-switch server; the SDK-session fallback below then fills it
+            // when the leg goes ACTIVE, exactly as before.
+            sessionId = auth.call_session_id,
         )
         _state.update { CallStateMachine.placing(it, snapshot) }
         watch(handle)
@@ -1104,6 +1116,16 @@ class SoftphoneCore(
 
     suspend fun liveFacts(sessionId: String): LiveCallFacts =
         api.liveFacts(requireCompany(), sessionId)
+
+    /**
+     * The always-200 `/state` read (§8.1) surfaced to the UI. #211: the
+     * transfer affordance gates the OUTBOUND session on a serverAddressable
+     * read of this. Mere [CallSnapshot.sessionId] presence no longer proves the
+     * server owns the session; it is stamped at placement now, before the call
+     * answers or even if it fell to a legacy/kill-switch path.
+     */
+    suspend fun sessionState(sessionId: String): LiveSessionState =
+        api.sessionState(requireCompany(), sessionId)
 
     suspend fun transferTargets(sessionId: String): TransferTargets =
         api.transferTargets(requireCompany(), sessionId)

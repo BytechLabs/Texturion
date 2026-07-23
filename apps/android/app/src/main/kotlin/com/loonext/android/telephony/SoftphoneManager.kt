@@ -497,6 +497,11 @@ class SoftphoneManager private constructor(
 
     suspend fun liveFacts(sessionId: String): LiveCallFacts = core.liveFacts(sessionId)
 
+    /** #211: the always-200 `/state` read the in-call surface uses to confirm an
+     *  OUTBOUND session is serverAddressable (answered) before lighting Transfer. */
+    suspend fun sessionState(sessionId: String): LiveSessionState =
+        core.sessionState(sessionId)
+
     suspend fun transferTargets(sessionId: String): TransferTargets =
         core.transferTargets(sessionId)
 

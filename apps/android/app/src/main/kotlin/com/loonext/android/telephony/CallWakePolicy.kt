@@ -75,6 +75,30 @@ object CallWakePolicy {
     /** The one state that licenses ring-me / promotion (§8.1 vocabulary). */
     const val STATE_RINGING = "ringing"
 
+    /** §8.1 answered state. #211 gates the OUTBOUND transfer affordance on a
+     *  serverAddressable read reporting this (mere sessionId presence is stamped
+     *  at placement now and no longer proves the server owns the session). */
+    const val STATE_ANSWERED = "answered"
+
+    /**
+     * #211: may the in-call Transfer affordance light for [call]? It needs a
+     * serverAddressable CUSTOMER session.
+     *  - INBOUND: the session lands only AFTER a by-leg resolve, so its mere
+     *    presence already proves the server owns it; light on presence.
+     *  - OUTBOUND: the session is stamped at PLACEMENT (from the authorize
+     *    response) before the call answers, and a legacy/kill-switch call the
+     *    CallSessionDO never minted also carries one, so presence proves
+     *    nothing. Require [outboundAnswered]: a successful `/state` read
+     *    reporting the session `answered`.
+     * Null / ended / session-less calls are never addressable.
+     */
+    fun transferAddressable(call: CallSnapshot?, outboundAnswered: Boolean): Boolean =
+        when (call?.direction) {
+            null -> false
+            CallDirection.OUTBOUND -> outboundAnswered
+            CallDirection.INBOUND -> call.sessionId != null
+        }
+
     /** ring-me 200 body reason that licenses the single §10.2 retry. */
     const val REASON_RECENT_LEG = "recent_leg"
 

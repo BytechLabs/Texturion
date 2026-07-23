@@ -35,8 +35,12 @@ data class CallSnapshot(
      * The CUSTOMER call_session_id once known — the server-side handle every
      * live-call op (transfer, notes link, ring-me) uses. For an answered
      * INBOUND call the SDK leg is the RING leg, so this arrives only after
-     * GET /v1/calls/live/by-leg/{ccid} resolves; outbound legs carry it
-     * directly (the SDK leg IS the customer leg).
+     * GET /v1/calls/live/by-leg/{ccid} resolves. For an OUTBOUND call (#211)
+     * it is the server-minted, nonce-bound session (S) returned by
+     * POST /v1/calls/browser and stamped at PLACEMENT, NOT the SDK's own
+     * Telnyx session id (a distinct leg id the server never keys on).
+     * A pre-#211 / kill-switch server may omit S; the SDK session then
+     * backfills it at ACTIVE as a last resort (notes only, not addressable).
      */
     val sessionId: String? = null,
     /** Epoch ms this call first went active — the live timer's anchor. */
