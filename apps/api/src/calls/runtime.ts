@@ -46,7 +46,7 @@ import type {
   InitiatedContext,
   SessionMachine,
 } from "./transitions";
-import { RING_WINDOW_SECS } from "./transitions";
+import { isTerminal, outcomeForState, RING_WINDOW_SECS } from "./transitions";
 
 /** Result of a dial POST (§7.7 pending-key discipline). */
 export type DialResult =
@@ -104,7 +104,10 @@ export interface SessionRuntime {
     probeLegAlive(ccid: string): Promise<boolean>;
   };
   /** Mirror one set of columns onto the calls row; throws on failure (the
-   *  shell retries via the mirror-retry alarm). */
+   *  shell retries via the mirror-retry alarm). #209: a TERMINAL state
+   *  mirror also back-fills a still-null `outcome` (coalesce semantics,
+   *  written BEFORE the state) so (state 'ended_%', outcome null) is never a
+   *  persistable pair even if the terminal merge dies mid-flight. */
   mirror(
     sessionId: string,
     set: {
@@ -337,6 +340,28 @@ export function createSessionRuntime(env: Env): SessionRuntime {
     },
 
     async mirror(sessionId, set) {
+      // #209 write-time coupling: a terminal state must never be persistable
+      // alongside a NULL outcome (tonight's incident: state='ended_answered'
+      // + outcome null wedged the line for 4h and rendered as in-progress).
+      // Back-fill the outcome FIRST, coalesce-style (`.is("outcome", null)` =
+      // outcome = coalesce(outcome, derived) - the api_upsert_call merge owns
+      // any richer resolution, e.g. the voicemail-wins upgrade), so whichever
+      // write the crash interrupts, the bad pair never lands: outcome-first
+      // means a lone first write frees the line and reads as ended, and the
+      // mirror-retry alarm re-runs both (the fill is idempotent).
+      if (set.state && isTerminal(set.state)) {
+        const derived = outcomeForState(set.state);
+        if (derived) {
+          const { error: outcomeError } = await db
+            .from("calls")
+            .update({ outcome: derived })
+            .eq("call_session_id", sessionId)
+            .is("outcome", null);
+          if (outcomeError) {
+            throw new Error(`calls-v3 mirror failed: ${outcomeError.message}`);
+          }
+        }
+      }
       const { error } = await db
         .from("calls")
         .update(set)

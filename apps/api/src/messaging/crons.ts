@@ -342,8 +342,11 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
  * dial with no events) to 'missed', the conservative "never proved
  * connected" outcome for both directions. Keeps /calls honest (no eternal
  * "Calling…") and re-opens the per-conversation double-dial guard. Billing
- * is per-leg in call_records and unaffected. The RPC owns the window
- * (4 hours) so the SQL tests pin it.
+ * is per-leg in call_records and unaffected. #209: rows whose DO state
+ * mirror is ALREADY terminal ('ended_%') instead finalize FAST (minutes) and
+ * derive the outcome FROM the mirror - the sweep never relabels a truthful
+ * ended_answered as missed. The RPC owns both windows (4 hours conservative,
+ * 5 minutes mirror-terminal) so the SQL tests pin them.
  */
 export async function sweepStaleCalls(env: Env): Promise<void> {
   const db = getDb(env);
@@ -393,7 +396,8 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
   //     the surrounding code already treats as possible. Catch it by CREATION
   //     age: an outbound call still open a full ceiling after it was minted is
   //     runaway regardless of a missing answer stamp. (Inbound outcome-null
-  //     rows are left to api_sweep_stale_calls, which flips them to 'missed'.)
+  //     rows are left to api_sweep_stale_calls: mirror-terminal ones finalize
+  //     to the outcome their state proves, the rest flip to 'missed'. #209)
   const { data: unstamped, error: unstampedError } = await db
     .from("calls")
     .select("call_session_id,customer_call_control_id")
@@ -435,13 +439,14 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
 
   const { data, error } = await db.rpc("api_sweep_stale_calls", {
     p_stale_before: null,
+    p_terminal_stale_before: null,
   });
   if (error) {
     throw new Error(`stale calls sweep failed: ${error.message}`);
   }
   const swept = (data as number | null) ?? 0;
   if (swept > 0) {
-    console.warn(`stale calls sweep: ${swept} session(s) flipped to missed`);
+    console.warn(`stale calls sweep: ${swept} session(s) finalized`);
   }
 }
 

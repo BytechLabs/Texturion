@@ -685,11 +685,23 @@ loss — no special deploy choreography.
 `calls.state` is written only by DO transitions, with exactly two documented
 backstops (both idle in a healthy system):
 
-- `api_sweep_stale_calls` (the 4h cron) also stamps
-  `state = 'ended_missed'` where it flips outcome — a dead-DO last resort;
-  the DO's own T16 janitor fires first at 4h. (It stamps outbound stale rows
-  with the same inbound-vocabulary label — consistent with today's outcome
-  flip and purely cosmetic; noted so nobody "fixes" it into a new enum.)
+- `api_sweep_stale_calls` (the */5 cron), two-tier since #209: rows whose
+  state mirror is already terminal (`ended_%`) but whose outcome merge died
+  finalize after **5 minutes** with the outcome the mirror proves
+  (`ended_answered` → `answered`, etc.) and the state untouched — the
+  sweeper can never contradict a truthful mirror (the 2026-07-22 incident:
+  an answered transfer stranded `ended_answered`+NULL, wedging the line and
+  at 4h it would have been relabeled `missed`). Rows with **no** mirror
+  keep the conservative 4h flip to `outcome='missed'`,
+  `state='ended_missed'` — a dead-DO last resort; the DO's own T16 janitor
+  fires first at 4h. (The missed-vocabulary stamp on outbound stale rows is
+  consistent with today's outcome flip and purely cosmetic; noted so nobody
+  "fixes" it into a new enum.) Belt-and-braces upstream of the sweeper:
+  the runtime's terminal mirror write back-fills
+  `outcome = coalesce(outcome, derived)` BEFORE stamping the state, so the
+  stranded pair is no longer persistable; and all three line-busy checks
+  (`api_claim_inbound_line`, `api_claim_outbound_line`,
+  `api_authorize_outbound_call`) ignore mirror-terminal rows entirely.
 - The v3 **migration backfill** (§12) stamps historical rows once.
 
 ### 7.7 Orphan legs — ambiguous dials, unknown ccids, cutover legs

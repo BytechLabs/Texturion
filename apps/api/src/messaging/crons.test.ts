@@ -649,4 +649,27 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
       "/v2/calls/ccid-dup/actions/hangup",
     ]);
   });
+
+  it("hands BOTH sweep windows to the RPC as null - SQL owns the 4h conservative and 5m mirror-terminal thresholds (#209)", async () => {
+    // The two-tier sweep semantics (a mirror-terminal outcome-null row
+    // finalizes to the MATCHING outcome on the short window; an answered
+    // call is never relabeled missed) live in api_sweep_stale_calls and are
+    // pinned by supabase/tests/calls_feature.test.sql C-11. This side pins
+    // the caller contract: one RPC call, both thresholds defaulted server-side.
+    const calls = stubRoute(restMatch(env, "GET", "calls"), () => []);
+    const authSweep = stubRoute(
+      restMatch(env, "DELETE", "outbound_call_authorizations"),
+      () => new Response(null, { status: 204 }),
+    );
+    const sweep = stubRoute(rpcMatch(env, "api_sweep_stale_calls"), () => 0);
+    stubFetch(calls.route, authSweep.route, sweep.route);
+
+    await sweepStaleCalls(env);
+
+    expect(sweep.calls).toHaveLength(1);
+    expect(sweep.calls[0].body).toEqual({
+      p_stale_before: null,
+      p_terminal_stale_before: null,
+    });
+  });
 });

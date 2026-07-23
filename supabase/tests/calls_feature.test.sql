@@ -355,4 +355,120 @@ begin
   raise notice 'C-10 PASSED: atomic dial lease (one winner, TTL steal, release, service-role only)';
 end $$;
 
+-- ===========================================================================
+-- C-11 (#209). The honest two-tier sweep + the gated outbound claims. A row
+--     whose DO state mirror is already terminal ('ended_%') but whose
+--     outcome never landed (the incident shape: the terminal merge died
+--     mid-flight) (1) finalizes on the SHORT window to the outcome the
+--     mirror proves - an answered call is NEVER relabeled missed, the state
+--     stays untouched - and (2) stops holding the line against outbound
+--     claims. NULL-state rows keep the conservative 4h missed flip (C-8),
+--     and a genuinely live row still refuses the claim.
+-- ===========================================================================
+do $$
+declare n int; v_out text; v_state text; claimed boolean; v jsonb;
+begin
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, direction, outcome, state, started_at)
+  values
+    -- Tonight's row: terminal mirror landed, outcome write lost, aged past
+    -- the short (5 min) window.
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c11-ans', 'inbound', null, 'ended_answered', now() - interval '10 minutes'),
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c11-vm', 'inbound', null, 'ended_voicemail', now() - interval '10 minutes'),
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c11-rej', 'inbound', null, 'ended_rejected', now() - interval '10 minutes'),
+    -- Inside the short window: the terminal merge may still be in flight.
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000001',
+     'sess-c11-inflight', 'inbound', null, 'ended_answered', now() - interval '1 minute');
+
+  n := public.api_sweep_stale_calls();
+  if n <> 3 then
+    raise exception 'C-11 FAILED: swept % rows (want the 3 aged mirror-terminal ones)', n;
+  end if;
+
+  select outcome, state into v_out, v_state
+    from public.calls where call_session_id = 'sess-c11-ans';
+  if v_out <> 'answered' or v_state <> 'ended_answered' then
+    raise exception 'C-11 FAILED: answered mirror finalized as (%, %) - the sweep must derive the outcome FROM the mirror and never relabel it missed', v_out, v_state;
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c11-vm';
+  if v_out <> 'voicemail' then
+    raise exception 'C-11 FAILED: voicemail mirror finalized as %', v_out;
+  end if;
+  select outcome, state into v_out, v_state
+    from public.calls where call_session_id = 'sess-c11-rej';
+  if v_out <> 'missed' or v_state <> 'ended_rejected' then
+    raise exception 'C-11 FAILED: rejected mirror finalized as (%, %)', v_out, v_state;
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c11-inflight';
+  if v_out is not null then
+    raise exception 'C-11 FAILED: in-flight terminal merge preempted (outcome %)', v_out;
+  end if;
+
+  -- The test hook: p_terminal_stale_before pulls the short window forward.
+  n := public.api_sweep_stale_calls(null, now());
+  if n <> 1 then
+    raise exception 'C-11 FAILED: explicit terminal window swept % rows', n;
+  end if;
+  select outcome into v_out from public.calls where call_session_id = 'sess-c11-inflight';
+  if v_out <> 'answered' then
+    raise exception 'C-11 FAILED: explicit-window finalize wrote %', v_out;
+  end if;
+
+  -- The claims: a stranded mirror-terminal row no longer wedges the line...
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, direction, outcome, state, started_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+     'sess-c11-stranded', 'inbound', null, 'ended_answered', now() - interval '2 hours');
+  claimed := public.api_claim_outbound_line(
+    '77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+    'nonce-c11-a', '+14165550300', '+14165550999', now() - interval '4 hours');
+  if claimed is distinct from true then
+    raise exception 'C-11 FAILED: stranded terminal-mirror row still wedges the outbound claim';
+  end if;
+  -- Free the reservation the successful claim minted (30s busy window).
+  delete from public.outbound_call_authorizations where nonce = 'nonce-c11-a';
+
+  -- ...while a genuinely live row (non-terminal mirror, and the NULL-state
+  -- legacy shape) still refuses it.
+  insert into public.calls
+    (company_id, phone_number_id, call_session_id, direction, outcome, state, started_at)
+  values
+    ('77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+     'sess-c11-live', 'inbound', null, 'answered', now() - interval '1 minute');
+  claimed := public.api_claim_outbound_line(
+    '77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+    'nonce-c11-b', '+14165550300', '+14165550999', now() - interval '4 hours');
+  if claimed is distinct from false then
+    raise exception 'C-11 FAILED: live (answered) line was claimable';
+  end if;
+  update public.calls set state = null where call_session_id = 'sess-c11-live';
+  claimed := public.api_claim_outbound_line(
+    '77777777-7777-4777-8777-777000000000', '77777777-7777-4777-8777-777000000002',
+    'nonce-c11-c', '+14165550300', '+14165550999', now() - interval '4 hours');
+  if claimed is distinct from false then
+    raise exception 'C-11 FAILED: NULL-state (legacy/outbound) live line was claimable';
+  end if;
+  update public.calls set outcome = 'answered', state = 'ended_answered'
+   where call_session_id = 'sess-c11-live';
+
+  -- The call.initiated re-check gets the same gate: with ONLY the stranded
+  -- row on the number, the consumed nonce must authorize, not line_busy.
+  insert into public.outbound_call_authorizations
+    (nonce, company_id, phone_number_id, from_e164, customer_e164)
+  values
+    ('nonce-c11-d', '77777777-7777-4777-8777-777000000000',
+     '77777777-7777-4777-8777-777000000002', '+14165550300', '+14165550999');
+  v := public.api_authorize_outbound_call(
+    'nonce-c11-d', '+14165550300', '+14165550999', 'sess-c11-out', 120);
+  if (v->>'authorized')::boolean is distinct from true then
+    raise exception 'C-11 FAILED: initiate re-check still line_busy on a stranded row (%)', v;
+  end if;
+
+  raise notice 'C-11 PASSED: two-tier sweep honors the terminal mirror; stranded rows free the line, live ones hold it';
+end $$;
+
 rollback;
