@@ -19,6 +19,7 @@ import {
   buildMemberRingState,
   buildVoicemailState,
   defaultGreeting,
+  LOONEXT_CALLER_HEADER,
   LOONEXT_SESSION_HEADER,
   RING_TIMEOUT_SECS,
   sanitizeGreeting,
@@ -85,6 +86,13 @@ export interface SessionRuntime {
        *  the inbound INVITE to its server session deterministically. Same S the
        *  clientState above is built from. */
       sessionId: string;
+      /** #212: the REAL external caller (machine.callerE164), stamped as the
+       *  X-Loonext-Caller custom SIP header. `from` above is the business
+       *  number the connection owns (Telnyx rewrites any other `from` for a
+       *  WebRTC leg), so the caller cannot ride it - the client reads this
+       *  header and shows the caller instead of our own number. Null for an
+       *  anonymous/CLIR caller: no header, client shows "Unknown caller". */
+      caller?: string | null;
     }): Promise<DialResult>;
     /** T2 step 2: answer the inbound leg (bri anchor). "ok" covers both a
      *  fresh 2xx and the replay case (4xx but the GET says alive/answered). */
@@ -289,8 +297,15 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               // CALLS-CLIENT-V2 §3.2: session-correlation header on the DO
               // (T1d/T4) dial path — present whether or not CALLS_V3_LEGACY is
               // set. Name MUST start with X-; value = the same S as clientState.
+              // #212: X-Loonext-Caller carries the REAL caller (from is the
+              // owned business number, which Telnyx keeps for the WebRTC leg);
+              // omitted entirely for an anonymous/CLIR caller so the client
+              // shows "Unknown caller", never our own number.
               custom_headers: [
                 { name: LOONEXT_SESSION_HEADER, value: input.sessionId },
+                ...(input.caller
+                  ? [{ name: LOONEXT_CALLER_HEADER, value: input.caller }]
+                  : []),
               ],
             },
           })) as { data?: { call_control_id?: string } };

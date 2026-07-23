@@ -509,6 +509,9 @@ export class CallSessionDO extends DurableObject<Env> {
             // CALLS-CLIENT-V2 §3.2: the same S built into clientState above,
             // stamped as the X-Loonext-Session custom SIP header on the dial.
             sessionId: machine.callSessionId,
+            // #212: the real caller rides X-Loonext-Caller so the member's
+            // ring shows who is calling, not our own business number (from).
+            caller: machine.callerE164,
           });
           if ("ccid" in result) {
             await this.rt.ledgerInsert({
