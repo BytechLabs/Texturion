@@ -34,7 +34,12 @@ import {
   OUTBOUND_CUSTOMER_STATE,
   type CompanyVoiceState,
 } from "../messaging/voice-webhook";
-import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
+import {
+  LOONEXT_SESSION_HEADER,
+  RING_TIMEOUT_SECS,
+  VOICEMAILS_BUCKET,
+} from "../messaging/inbound-ring";
+import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
 import {
   parseCursor,
   parseJsonBody,
@@ -413,16 +418,22 @@ async function authorizeOutboundCall(
 }
 
 /**
- * POST /v1/calls/browser (D43 #135) — authorize a call the member will place
- * IN THE BROWSER via the WebRTC softphone. The server does NOT dial: it runs
- * the outbound gates + the per-conversation in-flight guard, then returns the
- * business number to present as caller ID, the customer number to dial, and
- * the `oc_customer` client_state tag the client stamps on newCall — so the
- * resulting PSTN leg records through the EXACT same webhook path as a D38
- * bridge's customer leg (one calling-minutes pool, threading, direction
- * outbound), with no agent leg and no cell. The calls row is created by the
- * webhook when the leg's events arrive (appears in /calls a beat later, then
- * live via the call.updated broadcast).
+ * POST /v1/calls/browser (D43 #135, #213) — place an outbound call. The SERVER
+ * dials the customer (not the browser): it runs the outbound gates + the
+ * per-conversation in-flight guard + claims the line, then dials the customer as
+ * a real Call-Control PSTN leg (the oc leg) on the voice connection. That leg's
+ * call.initiated mints the outbound CallSessionDO, which stamps
+ * customer_call_control_id = THIS controllable customer leg (the #213 fix — the
+ * browser dialing the customer previously produced only the placer's WebRTC leg,
+ * so the transfer bridge-steal grabbed the wrong leg and dropped the customer)
+ * and rings the PLACER's own softphone (the op leg); the placer's browser
+ * auto-answers by X-Loonext-Session correlation and the DO bridges op↔oc.
+ *
+ * Returns { from, to, call_session_id }: the business number to present, the
+ * customer number (for the "Calling …" display), and S (the ONE id the client
+ * addresses the live call by). The client NO LONGER dials — it waits for the op
+ * INVITE and auto-answers it. `client_state` is still returned for wire-shape
+ * stability but is no longer used by the client.
  */
 callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   const env = getEnv(c.env);
@@ -476,20 +487,59 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
     );
   }
 
+  // #213: SERVER-dial the customer as a real, controllable Call-Control PSTN leg
+  // on the voice connection. This leg's call.initiated flows through the SAME
+  // loadOutboundInitiatedContext path (nonce consume → row under S → stamp
+  // customer_call_control_id = THIS leg), so customer_call_control_id is finally
+  // the real customer (not the placer's browser leg). The 4-part oc client_state
+  // + X-Loonext-Session=S route it to the DO keyed on S; the ring timeout bounds
+  // how long the customer's phone rings.
+  const clientState = buildOutboundState(
+    OUTBOUND_CUSTOMER_STATE,
+    auth.customer,
+    nonce,
+    sessionId,
+  );
+  try {
+    await telnyxRequest(env, {
+      method: "POST",
+      path: "/v2/calls",
+      body: {
+        connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+        to: auth.customer,
+        from: auth.businessNumber,
+        timeout_secs: RING_TIMEOUT_SECS,
+        client_state: clientState,
+        custom_headers: [{ name: LOONEXT_SESSION_HEADER, value: sessionId }],
+      },
+    });
+  } catch (cause) {
+    // A 4xx is a DEFINITE refusal (no leg was created) → release the line
+    // reservation so the member isn't wedged "on another call". A 5xx/timeout is
+    // AMBIGUOUS (a leg MIGHT exist and its call.initiated will still mint +
+    // self-heal), so leave the reservation for the webhook path to resolve. Either
+    // way the failure propagates to the framework's 500 handler (the client shows
+    // "Couldn't start the call") — there is no SPEC §7 code for a carrier fault.
+    if (cause instanceof TelnyxApiError && cause.status < 500) {
+      await db
+        .from("outbound_call_authorizations")
+        .delete()
+        .eq("nonce", nonce)
+        .eq("company_id", companyId);
+    }
+    throw cause instanceof Error
+      ? cause
+      : new Error("outbound customer dial failed");
+  }
+
   return c.json({
     from: auth.businessNumber,
     to: auth.customer,
-    // 4-part `oc_customer|<customer>|<nonce>|<S>`. The client passes client_state
-    // verbatim (verified: neither client parses it), so it is opaque to it.
-    client_state: buildOutboundState(
-      OUTBOUND_CUSTOMER_STATE,
-      auth.customer,
-      nonce,
-      sessionId,
-    ),
-    // #211: the client seeds its live-call sessionId from this at placement. The
-    // transfer/consult affordance lights only on a serverAddressable read
-    // (GET /state or /targets), never on bare presence of this id.
+    // Wire-shape stability only — the client no longer dials with this (#213).
+    client_state: clientState,
+    // #211: the client seeds its live-call sessionId from this at placement, then
+    // waits for the op INVITE (X-Loonext-Session=S) and auto-answers it. The
+    // transfer/consult affordance lights only on a serverAddressable read.
     call_session_id: sessionId,
   });
 });

@@ -100,6 +100,49 @@ describe("sessionIdForPlacedCall (#211 outbound parity)", () => {
   });
 });
 
+describe("#213 placement reconcile (server-dialed outbound)", () => {
+  const S = "11111111-1111-4111-8111-111111111111";
+  const PLACEMENT = `placement:${S}`;
+
+  it("placement_connected rekeys the Calling… chip onto the real SDK call id, keeping it outbound + active", () => {
+    const state = run([
+      { type: "ready" },
+      { type: "placing", id: PLACEMENT, sessionId: S, peer: PEER_A },
+      { type: "placement_connected", placementId: PLACEMENT, id: "sdk-op-1", sessionId: S },
+      { type: "sdk_state", id: "sdk-op-1", state: "active", now: 2000 },
+    ]);
+    expect(state.calls).toHaveLength(1);
+    const call = state.calls[0];
+    expect(call.id).toBe("sdk-op-1"); // rekeyed
+    expect(call.sessionId).toBe(S);
+    expect(call.direction).toBe("outbound");
+    expect(call.phase).toBe("active");
+    expect(state.activeId).toBe("sdk-op-1");
+  });
+
+  it("placement_connected on a cancelled (already-removed) chip is a no-op", () => {
+    const state = run([
+      { type: "ready" },
+      { type: "placing", id: PLACEMENT, sessionId: S, peer: PEER_A },
+      { type: "dismissed", id: PLACEMENT }, // user cancelled during Calling…
+      { type: "placement_connected", placementId: PLACEMENT, id: "sdk-op-1", sessionId: S },
+    ]);
+    expect(state.calls).toHaveLength(0);
+    expect(state.activeId).toBeNull();
+  });
+
+  it("placement_failed drops the Calling… chip and surfaces an error", () => {
+    const state = run([
+      { type: "ready" },
+      { type: "placing", id: PLACEMENT, sessionId: S, peer: PEER_A },
+      { type: "placement_failed", placementId: PLACEMENT, message: "Couldn't reach the line." },
+    ]);
+    expect(state.calls).toHaveLength(0);
+    expect(state.activeId).toBeNull();
+    expect(state.error).toBe("Couldn't reach the line.");
+  });
+});
+
 describe("softphoneReducer — single call", () => {
   it("placing → active stamps activeSince once and keeps it", () => {
     const state = run([

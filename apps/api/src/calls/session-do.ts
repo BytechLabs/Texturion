@@ -28,7 +28,10 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
-import { parseOutboundSessionId } from "../messaging/voice-webhook";
+import {
+  parseOutboundPlacerState,
+  parseOutboundSessionId,
+} from "../messaging/voice-webhook";
 
 import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./runtime";
 import {
@@ -107,6 +110,9 @@ interface CallPayload {
   call_screening_result?: string;
   shaken_stir_attestation?: string;
   caller_id_name?: string;
+  /** #213: custom SIP headers on the leg — plumbed to
+   *  loadOutboundInitiatedContext's X-RTC defense guard. */
+  custom_headers?: { name?: string; value?: string }[] | null;
 }
 
 /** Read a Telnyx event's payload as the inbound-call surface the DO parses. */
@@ -525,6 +531,44 @@ export class CallSessionDO extends DurableObject<Env> {
         await this.save(machine);
         return followUps;
       }
+      case "telnyx-dial-placer": {
+        // #213: dial the PLACER's own SIP credential as the `op` leg. Same dial
+        // primitive as a member ring, but with the op client_state + the customer
+        // as X-Loonext-Caller (so the placer's browser shows who it's calling, not
+        // our own number) + X-Loonext-Session=S (so the browser correlates the
+        // INVITE to its pending placement and AUTO-answers). Re-enters as a
+        // dial-outcome that re-keys the pending op leg (or resolves the call on a
+        // known-dead placer dial).
+        if (!machine) return [];
+        if (!this.spendCommand(machine, false)) {
+          return [{ type: "dial-outcome", pendingKey: effect.pendingKey, ccid: null, failure: "known-dead" }];
+        }
+        const clientState = this.rt.buildClientStates.outboundPlacer(
+          machine.callSessionId,
+          effect.userId,
+        );
+        const result = await this.rt.telnyx.dial({
+          sipTarget: effect.sipTarget,
+          fromE164: machine.businessNumberE164 ?? "",
+          clientState,
+          sessionId: machine.callSessionId,
+          // The placer is calling the CUSTOMER (machine.callerE164 holds the
+          // customer number for an outbound call), so show them the customer.
+          caller: machine.callerE164,
+        });
+        if ("ccid" in result) {
+          await this.rt.ledgerInsert({
+            sessionId: machine.callSessionId,
+            ccid: result.ccid,
+            companyId: machine.companyId,
+            userId: effect.userId,
+          });
+          await this.save(machine);
+          return [{ type: "dial-outcome", pendingKey: effect.pendingKey, ccid: result.ccid, failure: null }];
+        }
+        await this.save(machine);
+        return [{ type: "dial-outcome", pendingKey: effect.pendingKey, ccid: null, failure: result.failure }];
+      }
       case "telnyx-answer-inbound": {
         if (!machine || !effect.ccid) return [];
         if (!this.spendCommand(machine, true)) return [];
@@ -783,10 +827,19 @@ export class CallSessionDO extends DurableObject<Env> {
     // hangup); it is the id THIS DO is keyed on (part-4 == S == idFromName), NOT
     // payload.call_session_id (Telnyx's T, which differs for outbound).
     const outboundSession = parseOutboundSessionId(payload.client_state);
+    // #213: the placer (op) leg carries `op|S|userId`; S (part-2, a valid UUID)
+    // is the id THIS DO is keyed on. Present for op answered/hangup (its
+    // initiated is a no-op — the DO dialed it and stamps its ccid via dial-outcome).
+    const placerState = parseOutboundPlacerState(payload.client_state);
 
     if (eventType === "call.initiated") {
-      // #211 T-O1: a 4-part oc call.initiated (browser-originated outbound,
-      // part-4 = a well-formed UUID = S) mints an OUTBOUND machine. The router
+      // #213: the placer (op) leg's own call.initiated is a no-op — the DO
+      // server-dialed it and stamps its ccid from the dial response (dial-outcome);
+      // the webhook is redundant and must NOT fall through to the inbound
+      // loadInitiatedContext (its `to` is a sip: URI, direction outgoing).
+      if (placerState) return null;
+      // #211 T-O1: a 4-part oc call.initiated (SERVER-dialed outbound customer
+      // leg, part-4 = a well-formed UUID = S) mints an OUTBOUND machine. The router
       // only routes it here when part-4 is a valid UUID; loadOutboundInitiatedContext
       // is the authority (nonce consume + tag-part-4==nonce-bound-S check) and
       // rejects-without-minting on any mismatch (S1/M3).
@@ -797,6 +850,7 @@ export class CallSessionDO extends DurableObject<Env> {
           client_state: payload.client_state ?? null,
           to: payload.to ?? "",
           from: payload.from,
+          custom_headers: payload.custom_headers ?? null,
         });
         if (ctx === "drop") return null;
         if (ctx === "reject") {
@@ -831,11 +885,15 @@ export class CallSessionDO extends DurableObject<Env> {
     }
 
     // Learn the session id this object is keyed on: brm legs carry it in the
-    // tag (S); a 4-part oc leg carries it as part-4 (S); every other inbound leg
-    // in payload.call_session_id. For an oc leg, part-4 (S) is authoritative —
-    // NEVER payload.call_session_id (Telnyx's T, which differs for outbound).
+    // tag (S); a 4-part oc leg carries it as part-4 (S); an op placer leg carries
+    // it as part-2 (S); every other inbound leg in payload.call_session_id. For
+    // an oc/op leg, the tag's S is authoritative — NEVER payload.call_session_id
+    // (Telnyx's T, which differs for a server-dialed outbound leg).
     const sessionId =
-      memberState?.sessionId ?? outboundSession ?? payload.call_session_id;
+      memberState?.sessionId ??
+      outboundSession ??
+      placerState?.sessionId ??
+      payload.call_session_id;
     if (sessionId) await this.rememberSessionId(sessionId);
 
     // Every non-initiated event needs a machine — adopt if the DO is empty.
@@ -863,6 +921,33 @@ export class CallSessionDO extends DurableObject<Env> {
           event: {
             type: "outbound-hangup",
             payload: payload as Record<string, unknown>,
+          },
+        };
+      }
+      return null;
+    }
+
+    // #213 T-O4 / T-O5: the placer (op) leg's answered / hangup route to the
+    // outbound machine (keyed on S = the op tag's part-2). answered → bridge
+    // op↔oc; hangup → owner-death teardown (or expected post-transfer). Its
+    // initiated was a no-op above.
+    if (placerState && payload.call_control_id) {
+      if (eventType === "call.answered") {
+        return {
+          event: {
+            type: "outbound-placer-answered",
+            ccid: payload.call_control_id,
+            userId: placerState.userId,
+            destination: payload.to ?? null,
+          },
+        };
+      }
+      if (eventType === "call.hangup") {
+        return {
+          event: {
+            type: "outbound-placer-hangup",
+            ccid: payload.call_control_id,
+            userId: placerState.userId,
           },
         };
       }

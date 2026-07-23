@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildMemberRingState } from "../messaging/inbound-ring";
 import {
+  buildOutboundPlacerState,
   buildOutboundState,
   OUTBOUND_CUSTOMER_STATE,
 } from "../messaging/voice-webhook";
@@ -39,6 +40,8 @@ const BRM = buildMemberRingState({
   caller: "+15551000",
   inboundCcid: "cust-ccid",
 });
+// #213: the placer (op) leg — server-dialed, keyed on S (the tag's part-2).
+const OP = buildOutboundPlacerState(S, "placer-1");
 
 function ev(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
   return { data: { id: "x", event_type: eventType, payload } as never };
@@ -82,6 +85,10 @@ describe("isSessionFamilyCallEvent — #211 arity routing (unconditional)", () =
   });
 
   it("brm / bri / vmi are DO-owned; the untagged inbound family too", () => {
+    // #213: the op placer leg is DO-owned (server-dialed, keyed on S) for its
+    // answered/hangup (direction outgoing).
+    expect(isSessionFamilyCallEvent(ev("call.answered", { client_state: OP, direction: "outgoing" }))).toBe(true);
+    expect(isSessionFamilyCallEvent(ev("call.hangup", { client_state: OP, direction: "outgoing" }))).toBe(true);
     expect(isSessionFamilyCallEvent(ev("call.answered", { client_state: BRM }))).toBe(true);
     expect(isSessionFamilyCallEvent(ev("call.hangup", { client_state: btoa("bri||2026-01-01T00:00:00Z") }))).toBe(true);
     expect(isSessionFamilyCallEvent(ev("call.hangup", { client_state: btoa("vmi|") }))).toBe(true);
@@ -104,6 +111,8 @@ describe("sessionKeyFor — the ONE id every keying site resolves to", () => {
 
   it("a brm leg keys on the tag's embedded session; untagged on call_session_id", () => {
     expect(sessionKeyFor(ev("call.answered", { client_state: BRM }))).toBe("sess-S");
+    // #213: the op leg keys on S (part-2), NEVER Telnyx's differing call_session_id.
+    expect(sessionKeyFor(ev("call.answered", { client_state: OP, call_session_id: "telnyx-T-op" }))).toBe(S);
     expect(sessionKeyFor(ev("call.hangup", { call_session_id: "sess-inbound" }))).toBe("sess-inbound");
   });
 });

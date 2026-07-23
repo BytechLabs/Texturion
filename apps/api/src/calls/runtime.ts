@@ -26,6 +26,7 @@ import {
   screeningFlagged,
 } from "../messaging/inbound-ring";
 import {
+  buildOutboundPlacerState,
   companyOverVoiceCap,
   type CompanyVoiceState,
   handleTerminalCallEvent,
@@ -161,6 +162,13 @@ export interface SessionRuntime {
     client_state: string | null;
     to: string;
     from?: string;
+    /** #213 defense-in-depth: the oc leg's custom SIP headers. A leg carrying any
+     *  X-RTC-* header is a WebRTC/browser leg (the placer), NEVER the customer —
+     *  stamping it as customer_call_control_id is exactly the #213 wrong-bridge.
+     *  The server now dials the customer on the VOICE connection (no X-RTC), so
+     *  this never trips in practice; it converts any future regression that
+     *  re-routes a browser leg here into an honest reject, not a silent hijack. */
+    custom_headers?: { name?: string; value?: string }[] | null;
   }): Promise<OutboundInitiatedContext | "reject" | "drop">;
   /** §7.5 adoption read. */
   loadAdoptionRow(sessionId: string): Promise<AdoptionRow | null>;
@@ -219,6 +227,8 @@ export interface SessionRuntime {
     }): string;
     briAnswered(caller: string | null, answeredAtIso: string): string;
     vmi(caller: string | null): string;
+    /** #213: the outbound placer (op) leg's client_state — `op|S|userId`. */
+    outboundPlacer(sessionId: string, userId: string): string;
   };
   greetingText(machine: SessionMachine): string;
 }
@@ -545,6 +555,28 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         return "reject";
       }
 
+      // (1.5) #213 defense-in-depth: the oc leg MUST be the SERVER-dialed customer
+      //       leg (voice connection, no WebRTC headers). A leg carrying any
+      //       X-RTC-* custom header is a browser/WebRTC leg — the placer, NEVER the
+      //       customer; stamping it as customer_call_control_id is exactly the #213
+      //       wrong-bridge. Reject it (hang up + mint nothing) so a future
+      //       regression that re-routes a browser leg here fails HONESTLY instead
+      //       of silently hijacking the transfer target. The server's own oc dial
+      //       carries only X-Loonext-Session, so this never trips in practice.
+      if (
+        (payload.custom_headers ?? []).some((header) =>
+          /^x-rtc/i.test(header?.name ?? ""),
+        )
+      ) {
+        Sentry.captureMessage(
+          `#213 guard: oc call.initiated for ${embeddedSession} carried an X-RTC-* ` +
+            `header (a browser/placer leg, not the customer) — rejected to prevent ` +
+            `a wrong-leg customer_call_control_id stamp`,
+          "warning",
+        );
+        return "reject";
+      }
+
       // (2) #136: enforce US/CA on the TELNYX-REPORTED destination (payload.to,
       //     unforgeable) — NEVER the browser-echoed customer, which a member
       //     could keep benign while dialing a premium/Caribbean number.
@@ -658,12 +690,34 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         throw new Error(`outbound metadata stamp failed: ${stampError.message}`);
       }
 
+      // (8) #213: the placer's SIP credential — the DO dials it as the `op` leg so
+      //     the placer's browser rings, auto-answers, and bridges to this oc leg.
+      //     Scoped to the AUTHORIZED company + the placing member. A missing
+      //     credential (the placer holds none) leaves placerSipUsername null; the
+      //     reducer then rings no placer (the oc timeout / janitor resolves it).
+      let placerSipUsername: string | null = null;
+      if (auth.user_id) {
+        const { data: credRows, error: credError } = await db
+          .from("member_telephony_credentials")
+          .select("sip_username")
+          .eq("company_id", auth.company_id)
+          .eq("user_id", auth.user_id)
+          .limit(1);
+        if (credError) {
+          throw new Error(`placer credential lookup failed: ${credError.message}`);
+        }
+        placerSipUsername =
+          (credRows?.[0] as { sip_username?: string } | undefined)?.sip_username ??
+          null;
+      }
+
       return {
         callSessionId: auth.session_id,
         customerCcid: callControlId,
         companyId: auth.company_id,
         phoneNumberId: auth.phone_number_id,
         userId: auth.user_id ?? null,
+        placerSipUsername,
         customer: customerE164,
         businessNumberE164,
       };
@@ -942,6 +996,8 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       briAnswered: (caller, answeredAtIso) =>
         buildBrowserAnsweredState(caller, answeredAtIso),
       vmi: (caller) => buildVoicemailState(caller),
+      outboundPlacer: (sessionId, userId) =>
+        buildOutboundPlacerState(sessionId, userId),
     },
 
     greetingText(machine) {

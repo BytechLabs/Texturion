@@ -33,7 +33,10 @@ import * as Sentry from "@sentry/cloudflare";
 
 import type { Env } from "../env";
 import { parseMemberRingState } from "../messaging/inbound-ring";
-import { parseOutboundSessionId } from "../messaging/voice-webhook";
+import {
+  parseOutboundPlacerState,
+  parseOutboundSessionId,
+} from "../messaging/voice-webhook";
 import type { TelnyxEvent } from "../messaging/types";
 
 import type { CallSessionDO } from "./session-do";
@@ -64,6 +67,11 @@ export function isSessionFamilyCallEvent(event: TelnyxEvent): boolean {
   if (parseOutboundSessionId(payload.client_state)) {
     return true;
   }
+  // #213: the placer (op) leg — a server-dialed leg carrying `op|S|userId` — is
+  // DO-owned for its answered/hangup (and its initiated no-op), keyed on S.
+  if (parseOutboundPlacerState(payload.client_state)) {
+    return true;
+  }
   const prefix = decodePrefix(payload.client_state);
   if (prefix) {
     // brm (member ring) / bri (answered inbound) / vmi (voicemail inbound) are
@@ -89,7 +97,15 @@ export function sessionKeyFor(event: TelnyxEvent): string | null {
   // (which differs for outbound). brm keys on the tag's embedded session; every
   // other inbound leg keys on payload.call_session_id (inbound's S IS Telnyx's id).
   const outboundSession = parseOutboundSessionId(payload.client_state);
-  return memberState?.sessionId ?? outboundSession ?? payload.call_session_id ?? null;
+  // #213: the op placer leg keys on the tag's part-2 (S).
+  const placerSession = parseOutboundPlacerState(payload.client_state)?.sessionId;
+  return (
+    memberState?.sessionId ??
+    outboundSession ??
+    placerSession ??
+    payload.call_session_id ??
+    null
+  );
 }
 
 /**

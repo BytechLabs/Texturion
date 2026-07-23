@@ -46,9 +46,12 @@ import java.util.concurrent.atomic.AtomicInteger
  *  - after every fire-and-forget action the test pumps, then asserts —
  *    one thread, one ordered queue, no interleaving left to chance.
  *
- * Covered invariants: client_state passthrough, by-leg resolution on inbound
- * answer, mint-on-connect (never per call), the call-waiting invariants, and
- * the calls-v3 §10 client protocol — ring-me eligibility (push while a leg is
+ * Covered invariants: #213 server-dialed outbound (placeCall does NOT dial —
+ * it authorizes, shows a "Calling…" chip, then auto-answers the server-dialed
+ * placer (op) INVITE correlated by X-Loonext-Session=S, with cancel-declines and
+ * an honest timeout), by-leg resolution on inbound answer, mint-on-connect
+ * (never per call), the call-waiting invariants, and the calls-v3 §10 client
+ * protocol — ring-me eligibility (push while a leg is
  * live never rings; the §6 `no_local_leg` attestation; the recent_leg retry),
  * presentation dismissal on a ringing-exit (`call.updated` / `call_end` push,
  * SILENCE only — never a client hangup), and §10.1.4 one-presentation-per-
@@ -277,20 +280,28 @@ class SoftphoneCoreTest {
         val scope: CoroutineScope,
     )
 
-    private fun TestScope.harness(virtualClock: Boolean = false): Harness {
+    private fun TestScope.harness(
+        virtualClock: Boolean = false,
+        placementTimeoutMs: Long = 20_000,
+    ): Harness {
         // The core's scope shares runTest's scheduler through a
         // StandardTestDispatcher: every launch inside SoftphoneCore is queued
         // on the (single-threaded, virtual-time) test scheduler and runs only
         // under runCurrent()/first{} — never eagerly, never on another thread.
         // [virtualClock] additionally pins the core's `now` to the scheduler's
         // virtual time, so wall-clock policies (the #195 F2 ring TTL) can be
-        // driven deterministically with advanceTimeBy.
+        // driven deterministically with advanceTimeBy. [placementTimeoutMs] pins
+        // the #213 op-INVITE wait so the timeout path is drivable with advanceTimeBy.
         val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val sdk = FakeSdk()
         val core = if (virtualClock) {
-            SoftphoneCore(FakeCallsApi(), sdk, scope, now = { testScheduler.currentTime })
+            SoftphoneCore(
+                FakeCallsApi(), sdk, scope,
+                now = { testScheduler.currentTime },
+                placementTimeoutMs = placementTimeoutMs,
+            )
         } else {
-            SoftphoneCore(FakeCallsApi(), sdk, scope)
+            SoftphoneCore(FakeCallsApi(), sdk, scope, placementTimeoutMs = placementTimeoutMs)
         }
         return Harness(core, sdk, scope)
     }
@@ -301,30 +312,163 @@ class SoftphoneCoreTest {
         state.first { it.status == SoftphoneStatus.READY }
     }
 
-    // ------------------------------------------------------------- outbound
+    // --------------------------------------------- outbound (#213 server-dialed)
 
     @Test
-    fun `client_state from the server goes into newCall VERBATIM`() = runTest {
+    fun `placeCall does NOT dial the customer - it authorizes and shows a Calling chip`() = runTest {
+        // #213: the client no longer dials. placeCall authorizes, registers a
+        // pending placement keyed on S, and shows a CONNECTING outbound "Calling…"
+        // chip for the customer — no newCall, no client-side customer leg.
+        authCallSessionId = "S-op"
         val h = harness()
         h.core.start("company-1", "Sam")
         h.core.awaitReady()
 
         h.core.placeCall(displayName = "Ari", to = "+15552223333")
-        runCurrent() // start the new leg's phase watcher
+        runCurrent()
 
-        assertEquals(1, h.sdk.placed.size)
-        val placed = h.sdk.placed.single()
-        assertEquals(serverClientState, placed.clientState)
-        assertEquals("+15552223333", placed.destinationNumber)
-        assertEquals("+15550001111", placed.callerIdNumber)
+        assertTrue("the client NEVER dials the customer (#213)", h.sdk.placed.isEmpty())
         val call = h.core.state.value.calls.single()
         assertEquals(CallPhase.CONNECTING, call.phase)
         assertEquals(CallDirection.OUTBOUND, call.direction)
+        assertEquals("the chip is the customer", "+15552223333", call.peerNumber)
+        assertEquals("Ari", call.peerName)
+        assertEquals("S is stamped at placement", "S-op", call.sessionId)
+        assertEquals("no by-leg resolve for an outbound placement", 0, byLegHits.get())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a server that returns no session fails placeCall honestly - no silent dead chip`() = runTest {
+        // Calls v3 always mints S; if it is somehow absent there is no op INVITE to
+        // correlate, so placeCall fails honestly rather than leaving a dead chip.
+        authCallSessionId = null
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        try {
+            h.core.placeCall(displayName = "Ari", to = "+15552223333")
+            fail("expected conflict")
+        } catch (cause: ApiException) {
+            assertEquals(ApiErrorCode.CONFLICT, cause.code)
+        }
+        assertTrue("no dangling Calling… chip", h.core.state.value.calls.isEmpty())
+        assertTrue(h.sdk.placed.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `the server-dialed op INVITE auto-answers and reconciles the Calling chip`() = runTest {
+        // The server rings THIS member's own softphone as the placer (op) leg,
+        // carrying X-Loonext-Session=S. The core auto-answers it and reconciles the
+        // "Calling…" chip onto the real SDK call — still OUTBOUND to the customer,
+        // never the inbound-ring path (no by-leg resolve; S already known).
+        authCallSessionId = "S-op"
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent()
+        assertEquals("placement:S-op", h.core.state.value.calls.single().id)
+
+        val op = FakeHandle("op-leg-1")
+        h.sdk.ring(op, name = "ignored", number = "+19995550100", headerSession = "S-op")
+        runCurrent()
+
+        assertEquals("the op INVITE is auto-answered", "+15552223333", op.accepted)
+        assertFalse("auto-answer is not a decline", op.ended)
+        val call = h.core.state.value.calls.single()
+        assertEquals("the chip rekeys onto the real SDK call", "op-leg-1", call.id)
+        assertEquals(CallDirection.OUTBOUND, call.direction)
+        assertEquals("the customer stays the peer", "+15552223333", call.peerNumber)
+        assertEquals("S-op", call.sessionId)
+        assertEquals("op-leg-1", h.core.state.value.activeId)
+        assertEquals("an op leg NEVER resolves by-leg (that is inbound-only)", 0, byLegHits.get())
+
+        // It behaves as a normal outbound call from here — connects on ACTIVE.
+        op.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+        val active = h.core.state.value.calls.single()
+        assertEquals(CallPhase.ACTIVE, active.phase)
+        assertEquals("the server S survives (no SDK backfill)", "S-op", active.sessionId)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `an INVITE for a different session still rings as inbound - not swallowed by a placement`() = runTest {
+        // A pending placement must only claim ITS OWN op leg (matching S). A genuine
+        // inbound ring for another session presents normally.
+        authCallSessionId = "S-op"
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent()
+
+        val inbound = FakeHandle("in-9", callControlId = "ccid-9")
+        h.sdk.ring(inbound, name = "Dana", number = "+15557778888", headerSession = "S-other")
+        runCurrent()
+
+        assertFalse("the unrelated INVITE is not declined", inbound.ended)
+        val inboundCall = h.core.state.value.calls.first { it.id == "in-9" }
+        assertEquals(CallDirection.INBOUND, inboundCall.direction)
+        assertEquals(CallPhase.RINGING, inboundCall.phase)
+        // The placement chip is untouched, still Calling….
+        val placement = h.core.state.value.calls.first { it.id == "placement:S-op" }
+        assertEquals(CallPhase.CONNECTING, placement.phase)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `cancelling during Calling declines the op INVITE when it arrives`() = runTest {
+        // The member hangs up the "Calling…" chip before the op INVITE lands. The
+        // placement is marked cancelled; when the op INVITE arrives it is DECLINED
+        // (hung up) so the DO tears down the server-dialed customer leg.
+        authCallSessionId = "S-op"
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent()
+
+        h.core.hangup("placement:S-op")
+        runCurrent()
+        assertTrue("the Calling… chip is gone on cancel", h.core.state.value.calls.isEmpty())
+
+        val op = FakeHandle("op-leg-1")
+        h.sdk.ring(op, headerSession = "S-op")
+        runCurrent()
+
+        assertTrue("the op INVITE for a cancelled placement is declined", op.ended)
+        assertTrue("it is never presented", h.core.state.value.calls.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `the op INVITE never arriving times the placement out with an honest error`() = runTest {
+        authCallSessionId = "S-op"
+        val h = harness(placementTimeoutMs = 20_000)
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+        runCurrent()
+        assertEquals(CallPhase.CONNECTING, h.core.state.value.calls.single().phase)
+
+        advanceTimeBy(20_001)
+        runCurrent()
+
+        assertTrue("the timed-out Calling… chip is dropped", h.core.state.value.calls.isEmpty())
+        assertEquals(
+            "Couldn't reach the line. Please try again.",
+            h.core.state.value.error,
+        )
         h.scope.cancel()
     }
 
     @Test
     fun `the token is minted on connect only - never per call`() = runTest {
+        authCallSessionId = "S-A"
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
@@ -332,11 +476,17 @@ class SoftphoneCoreTest {
 
         h.core.placeCall(displayName = "A", to = "+15552223333")
         runCurrent()
-        h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ACTIVE
+        val opA = FakeHandle("op-A")
+        h.sdk.ring(opA, headerSession = "S-A")
         runCurrent()
-        h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ENDED
+        opA.phaseFlow.value = CallPhase.ACTIVE
         runCurrent()
+        opA.phaseFlow.value = CallPhase.ENDED
+        runCurrent()
+
+        authCallSessionId = "S-B"
         h.core.placeCall(displayName = "B", to = "+15552223333")
+        runCurrent()
 
         assertEquals("two calls, still one mint", 1, tokenMints.get())
         assertEquals(1, h.sdk.connects)
@@ -344,81 +494,20 @@ class SoftphoneCoreTest {
     }
 
     @Test
-    fun `placeCall stamps the outbound sessionId from the authorize response at CONNECTING`() = runTest {
-        // #211: the server-minted session (S) is known at authorize, so it is
-        // stamped at PLACEMENT. The outbound call is server-addressable the
-        // instant it connects, with no wait for the SDK session at ACTIVE.
-        authCallSessionId = "S-outbound"
-        val h = harness()
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.placeCall(displayName = "Ari", to = "+15552223333")
-        runCurrent()
-
-        val call = h.core.state.value.calls.single()
-        assertEquals(CallPhase.CONNECTING, call.phase)
-        assertEquals("S-outbound", call.sessionId)
-        assertEquals("the stamped session is not an SDK fallback", 0, byLegHits.get())
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `the stamped authorize session survives the SDK backfill at ACTIVE`() = runTest {
-        // The server session (S) must NOT be overwritten by the SDK's own
-        // (distinct) Telnyx session id once the leg goes ACTIVE — the ACTIVE
-        // backfill only fires for a null sessionId (the older-server path).
-        authCallSessionId = "S-outbound"
-        val h = harness()
-        h.sdk.nextOutboundSessionId = "sdk-leg-id"
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.placeCall(displayName = "A", to = "+15552223333")
-        runCurrent()
-
-        h.sdk.outboundHandles.single().phaseFlow.value = CallPhase.ACTIVE
-        runCurrent()
-
-        val call = h.core.state.value.calls.single()
-        assertEquals(CallPhase.ACTIVE, call.phase)
-        assertEquals("the server S wins over the SDK leg id", "S-outbound", call.sessionId)
-        h.scope.cancel()
-    }
-
-    @Test
-    fun `an older server without a session backfills from the SDK at ACTIVE - no by-leg call`() = runTest {
-        // Pre-#211 / kill-switch server: authorize returns no call_session_id,
-        // so the snapshot is CONNECTING with a null session; the SDK's own
-        // session then backfills it at ACTIVE, exactly as before (fallback only).
-        val h = harness()
-        h.sdk.nextOutboundSessionId = "sess-out"
-        h.core.start("company-1")
-        h.core.awaitReady()
-        h.core.placeCall(displayName = "A", to = "+15552223333")
-        runCurrent()
-        assertNull("no server session to stamp", h.core.state.value.calls.single().sessionId)
-
-        h.sdk.outboundHandles.single().phaseFlow.value = CallPhase.ACTIVE
-        runCurrent()
-
-        val call = h.core.state.value.calls.single()
-        assertEquals(CallPhase.ACTIVE, call.phase)
-        assertEquals("sess-out", call.sessionId)
-        assertEquals("outbound never resolves by-leg", 0, byLegHits.get())
-        h.scope.cancel()
-    }
-
-    @Test
     fun `a second concurrent placeCall is refused before third-line abuse`() = runTest {
+        // Two live placements already occupy both lines; a third is refused BEFORE
+        // authorize (the placement chip counts as a live call).
         val h = harness()
         h.core.start("company-1")
         h.core.awaitReady()
+        authCallSessionId = "S-A"
         h.core.placeCall(displayName = "A", to = "+15552223333")
         runCurrent()
-        h.sdk.outboundHandles[0].phaseFlow.value = CallPhase.ACTIVE
-        runCurrent()
+        authCallSessionId = "S-B"
         h.core.placeCall(displayName = "B", to = "+15552223333")
         runCurrent()
         try {
+            authCallSessionId = "S-C"
             h.core.placeCall(displayName = "C", to = "+15552223333")
             fail("expected conflict")
         } catch (cause: ApiException) {

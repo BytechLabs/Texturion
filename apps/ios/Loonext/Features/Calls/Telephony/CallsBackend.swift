@@ -9,12 +9,21 @@ import Foundation
 /// Core/Model when convenient). Property names ARE the wire names
 /// (CodableDefaults.swift rule).
 
-/// POST /v1/calls/browser response — client_state goes into newCall VERBATIM
-/// (see `ClientState` for the iOS SDK boundary rule).
+/// POST /v1/calls/browser response.
+///
+/// #213: the SERVER dials the customer now, so the client no longer dials with
+/// `client_state` — `call_session_id` (S) is the key field: the client keys its
+/// pending placement on it and correlates the server-dialed placer (op) INVITE
+/// (`X-Loonext-Session=S`) to it. `from`/`to` are the business + customer
+/// numbers for the "Calling…" display. `client_state` is kept for wire-shape
+/// stability (still returned) but is decode-safe/optional — the client never
+/// uses it. `call_session_id` is optional so a pre-#211/kill-switch server that
+/// returns none still decodes (placeCall then fails honestly).
 struct BrowserCallAuth: Codable, Sendable {
     let from: String
     let to: String
-    let client_state: String
+    let client_state: String?
+    let call_session_id: String?
 }
 
 struct OutboundCallBody: Codable, Sendable {

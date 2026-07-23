@@ -13,6 +13,7 @@ import { CallSessionDO } from "./session-do";
 import type { AdoptionRow, SessionRuntime } from "./runtime";
 import type { InitiatedContext, OutboundInitiatedContext } from "./transitions";
 import {
+  buildOutboundPlacerState,
   buildOutboundState,
   OUTBOUND_CUSTOMER_STATE,
 } from "../messaging/voice-webhook";
@@ -183,6 +184,7 @@ function makeRuntime(config: FakeConfig = {}) {
       memberRing: () => "brm-state",
       briAnswered: () => "bri-state",
       vmi: () => "vmi-state",
+      outboundPlacer: () => "op-state",
     },
     greetingText: () => "Hello from Acme",
   };
@@ -303,6 +305,7 @@ function ocCtx(overrides: Partial<OutboundInitiatedContext> = {}): OutboundIniti
     companyId: "co1",
     phoneNumberId: "pn1",
     userId: "placer-1",
+    placerSipUsername: "placer-sip",
     customer: OUTBOUND_CUSTOMER,
     businessNumberE164: "+19995000",
     ...overrides,
@@ -323,6 +326,25 @@ function ocEvent(id: string, eventType: string, extra: Record<string, unknown> =
         from: "+19995000",
         client_state: OC_STATE,
         ...extra,
+      } as never,
+    },
+  };
+}
+
+/** #213: an op (placer) leg event. Its ccid is the fake dial's first result
+ *  ("cc0" — the mint dials exactly one op leg), and it carries the op tag. */
+function opEvent(id: string, eventType: string, ccid = "cc0"): TelnyxEvent {
+  return {
+    data: {
+      id,
+      event_type: eventType,
+      payload: {
+        call_control_id: ccid,
+        call_session_id: "telnyx-T-op",
+        direction: "outgoing",
+        to: "sip:placer-sip@sip.telnyx.com",
+        from: "+19995000",
+        client_state: buildOutboundPlacerState(OUTBOUND_S, "placer-1"),
       } as never,
     },
   };
@@ -666,8 +688,13 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     expect(snap?.state).toBe("dialing");
     expect(snap?.direction).toBe("outbound");
     expect(snap?.answered_by_user_id).toBe("placer-1");
-    // No member dials for outbound; the janitor is armed but no ring alarm.
-    expect(calls.dials).toHaveLength(0);
+    // #213: the mint dials the PLACER (op) leg to their SIP credential; the
+    // janitor is armed but no ring alarm.
+    expect(calls.dials).toHaveLength(1);
+    expect(calls.dials[0]).toMatchObject({
+      sipTarget: "sip:placer-sip@sip.telnyx.com",
+      sessionId: OUTBOUND_S,
+    });
     expect(store.getAlarmAt()).not.toBeNull();
     const mirrored = calls.mirrors.find((m) => m.state === "dialing");
     expect(mirrored).toMatchObject({ state: "dialing", answered_by_user_id: "placer-1" });
@@ -755,6 +782,43 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
     expect(await instance.snapshot(OUTBOUND_S)).toBeNull();
     expect(calls.mirrors).toHaveLength(0); // no state ever mirrored
+    expect(calls.hangups).toContain("oc-ccid");
+  });
+
+  // ---- #213: the placer (op) leg on the DO ---------------------------------
+
+  it("T-O4: the placer answering EARLY-bridges op↔oc (ringback), still 'dialing' until the customer answers", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated")); // mint + dial op (cc0)
+    await instance.onTelnyxEvent(opEvent("e2", "call.answered")); // placer answers first
+    // Early bridge fired (so Telnyx relays ringback and will tear op on oc death).
+    expect(calls.bridges).toContainEqual({ member: "cc0", inbound: "oc-ccid" });
+    expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("dialing");
+    await instance.onTelnyxEvent(ocEvent("e3", "call.answered")); // customer answers
+    expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("answered");
+    // The guaranteed fallback bridge also fired (harmless re-bridge of the pair).
+    expect(calls.bridges.filter((b) => b.member === "cc0" && b.inbound === "oc-ccid")).toHaveLength(2);
+  });
+
+  it("op call.initiated is a no-op — never misrouted to the inbound loadInitiatedContext", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    const dialsBefore = calls.dials.length;
+    const stamp = await instance.onTelnyxEvent(opEvent("e2", "call.initiated"));
+    expect(stamp).toBe(true);
+    // No inbound mint, no extra dial — the DO already dialed the op leg.
+    expect(calls.dials.length).toBe(dialsBefore);
+    expect((await instance.snapshot(OUTBOUND_S))?.direction).toBe("outbound");
+  });
+
+  it("T-O5: the placer hanging up after answer tears the call down (customer hung up)", async () => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+    await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
+    await instance.onTelnyxEvent(opEvent("e2", "call.answered"));
+    await instance.onTelnyxEvent(ocEvent("e3", "call.answered")); // customer picks up → answered
+    expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("answered");
+    await instance.onTelnyxEvent(opEvent("e4", "call.hangup")); // placer ends the call
+    // Owner (the placer) dropped with no intent → teardown hangs up the customer.
     expect(calls.hangups).toContain("oc-ccid");
   });
 });

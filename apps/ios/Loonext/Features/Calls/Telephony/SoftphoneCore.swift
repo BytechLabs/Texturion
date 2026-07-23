@@ -17,11 +17,14 @@ enum CoreEvent: Sendable, Equatable {
 /// Invariants (BINDING, from the calls domain contract):
 /// - The login token is minted ON CONNECT ONLY — never per call (rate-limited).
 ///   Recovery reconnects mint fresh, which is also the auth-failure fix.
-/// - client_state from POST /v1/calls/browser reaches the wire VERBATIM
-///   (`ClientState.forIOSSdk` — on iOS the SDK sends it unmodified).
+/// - #213 OUTBOUND: the SERVER dials the customer; the client NEVER dials it.
+///   `placeCall` authorizes (getting S), registers a pending placement, and
+///   waits for the server-dialed placer (op) INVITE (an inbound SDK call
+///   carrying `X-Loonext-Session=S`), auto-answers it, and reconciles it into
+///   the "Calling…" chip as an OUTBOUND call whose customer session is S.
 /// - An answered INBOUND call's SDK leg is the RING leg — the customer
 ///   call_session_id resolves via GET /v1/calls/live/by-leg/{ccid} before any
-///   live-call op can run.
+///   live-call op can run. (An OUTBOUND op leg already knows S — no by-leg.)
 /// - Max 2 concurrent calls; answering the second holds the first; a third
 ///   inbound declines immediately so the answer race resolves elsewhere.
 /// - Recovery never rebuilds the client while any call is live (#138).
@@ -35,6 +38,13 @@ final class SoftphoneCore {
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let recoverDebounce: Duration
     @ObservationIgnored private let readyTimeout: Duration
+
+    /// #213 — how long to wait for the server-dialed placer (op) INVITE after
+    /// authorize before giving up on a placement. Set just PAST the server's 45s
+    /// ring window so a late op INVITE can never arrive after the timeout fires
+    /// and be mistaken for a fresh inbound ring (review M2). Mirrors the web
+    /// `PLACEMENT_TIMEOUT_MS` (48s); injectable so the timeout path is unit-testable.
+    @ObservationIgnored private let placementTimeout: Duration
 
     private(set) var state = SoftphoneSnapshot() {
         didSet { onState?(state) }
@@ -80,17 +90,52 @@ final class SoftphoneCore {
     /// iOS push credential can ring this device while the socket is down.
     @ObservationIgnored private var pushDeviceToken: String?
 
+    /// #213 — an outbound placement awaiting its server-dialed placer (op)
+    /// INVITE, keyed by S (`call_session_id` from POST /v1/calls/browser). The
+    /// SERVER dials the customer as a real Call-Control leg AND rings THIS
+    /// member's own softphone as the placer (op) leg; that INVITE arrives as an
+    /// *inbound* SDK call carrying `X-Loonext-Session=S`. `onIncoming` correlates
+    /// it here, AUTO-answers it, and reconciles the "Calling…" chip — never a
+    /// ring UI. The client NO LONGER dials the customer. A Swift port of the web
+    /// `pendingPlacementsRef` (apps/web/src/lib/softphone/provider.tsx).
+    private struct PendingPlacement {
+        /// The synthetic "Calling…" chip id (= S) until the op INVITE rekeys it.
+        let placementId: String
+        /// The customer, for the chip + the op-leg peer fallback.
+        let peer: (name: String, number: String)
+        /// The call that was ACTIVE when this call was placed (nil if idle). It
+        /// is SDK-held only when the op leg actually connects (#148 — never held
+        /// against a placement that may still time out), so iOS never leaves two
+        /// un-held legs fighting for the audio path (there is no single-sink
+        /// swap like the web).
+        let previousActiveId: String?
+        /// Fires `placementFailed` if the op INVITE never lands in the window.
+        let timeout: Task<Void, Never>
+    }
+
+    @ObservationIgnored private var pendingPlacements: [String: PendingPlacement] = [:]
+
+    /// #213 — placements the user cancelled during "Calling…" (before the op
+    /// INVITE landed). When the op INVITE arrives for a cancelled S it is
+    /// DECLINED (hung up) so the DO tears down the server-dialed customer.
+    @ObservationIgnored private var cancelledPlacements: Set<String> = []
+
+
     init(
         api: any CallsBackend,
         sdk: any SoftphoneSdk,
         recoverDebounce: Duration = .seconds(4),
         readyTimeout: Duration = .seconds(15),
+        // #213: past the server's 45s ring window so a late op INVITE can't arrive
+        // after the timeout and be mistaken for a fresh inbound ring (matches web).
+        placementTimeout: Duration = .seconds(48),
         now: @escaping () -> Date = { Date() }
     ) {
         self.api = api
         self.sdk = sdk
         self.recoverDebounce = recoverDebounce
         self.readyTimeout = readyTimeout
+        self.placementTimeout = placementTimeout
         self.now = now
         sdk.onEvent = { [weak self] event in
             self?.onSdkEvent(event)
@@ -265,16 +310,40 @@ final class SoftphoneCore {
             )
             scheduleRecover()
 
-        case .incoming(let call, let callerName, let callerNumber):
-            onIncoming(call, callerName: callerName, callerNumber: callerNumber)
+        case .incoming(let call, let callerName, let callerNumber, let sessionHeader):
+            onIncoming(
+                call,
+                callerName: callerName,
+                callerNumber: callerNumber,
+                sessionHeader: sessionHeader
+            )
         }
     }
 
     private func onIncoming(
         _ handle: any SdkCallHandle,
         callerName: String?,
-        callerNumber: String?
+        callerNumber: String?,
+        sessionHeader: String?
     ) {
+        // #213: FIRST — is this THIS member's own server-dialed placer (op) leg
+        // for a call they just placed? The server stamps X-Loonext-Session=S on
+        // the placer dial; correlate it to the placement registered in placeCall.
+        // Checked before the dedup/ceiling gates so an op leg is never declined
+        // as an "over-ceiling" inbound ring.
+        if let session = sessionHeader, !session.isEmpty {
+            if let pending = pendingPlacements[session] {
+                connectPlacement(pending, session: session, handle: handle, callerNumber: callerNumber)
+                return
+            }
+            if cancelledPlacements.contains(session) {
+                // The member cancelled during "Calling…" — decline the op leg so
+                // the DO tears the call down (drops the server-dialed customer).
+                cancelledPlacements.remove(session)
+                handle.end()
+                return
+            }
+        }
         if state.calls.contains(where: { $0.id == handle.id }) { return }
         // Beyond the two-call ceiling: decline immediately so the answer race
         // resolves elsewhere without waiting out the ring timeout.
@@ -302,6 +371,65 @@ final class SoftphoneCore {
         watch(handle)
         ensureRingTtlSweep()
         onEvent?(.incomingRinging(snapshot))
+    }
+
+    /// #213 — the server-dialed placer (op) INVITE for a pending placement
+    /// arrived. AUTO-answer it (the mic was pre-granted before authorize, so no
+    /// re-prompt) and reconcile it into the existing "Calling…" chip: rekey the
+    /// synthetic S id onto the real SDK call id, KEEPING it OUTBOUND to the
+    /// customer with S as the (already-known) server session. Because the chip
+    /// stays `direction == .outbound` with `sessionId == S`, `onPhase` does NOT
+    /// run the inbound by-leg resolver — the customer session is already known —
+    /// which is exactly the web `placementSdkIds` carve-out, achieved here for
+    /// free via the snapshot direction. Never presents the incoming-ring UI.
+    private func connectPlacement(
+        _ pending: PendingPlacement,
+        session: String,
+        handle: any SdkCallHandle,
+        callerNumber: String?
+    ) {
+        pending.timeout.cancel()
+        pendingPlacements.removeValue(forKey: session)
+        let id = handle.id
+        handles[id] = handle
+        sdkPhases[id] = .connecting
+        // The op leg's peer IS the customer. The server rides X-Loonext-Caller
+        // (surfaced here as `callerNumber`) on the placer dial, and the
+        // placement's stored customer number (= auth.to) is the header-less
+        // fallback — both are the SAME server-side customer E.164 by
+        // construction, so the "Calling…" chip's peer (set at placing to auth.to)
+        // already carries it. `placementConnected` keeps that peer + the outbound
+        // direction while rekeying onto the real SDK leg (web-exact).
+        let customerNumber: String
+        if let caller = callerNumber, !caller.isEmpty {
+            customerNumber = caller
+        } else {
+            customerNumber = pending.peer.number
+        }
+        state = CallStateMachine.placementConnected(
+            state,
+            placementId: pending.placementId,
+            id: id,
+            sessionId: session,
+            peerNumber: customerNumber
+        )
+        watch(handle)
+        // The op leg now exists (#148): SDK-hold whatever call was active when
+        // this call was placed, so its audio path yields to the connecting
+        // outbound leg. The reducer also demotes it structurally when the op leg
+        // goes `.active`; this makes the SDK match. `requestHold` is a no-op if
+        // that call already ended or is no longer active.
+        if let previousActive = pending.previousActiveId, previousActive != id {
+            requestHold(previousActive, hold: true)
+        }
+        // Answer AFTER the watch is installed so the leg's `.active` transition
+        // is never missed.
+        handle.answer()
+        if let placed = state.calls.first(where: { $0.id == id }) {
+            // Present it to CallKit as OUTBOUND now (deferred from placeCall,
+            // where no SDK-mapped UUID existed yet — see placeCall).
+            onEvent?(.outgoingPlaced(placed))
+        }
     }
 
     private func watch(_ handle: any SdkCallHandle) {
@@ -467,9 +595,21 @@ final class SoftphoneCore {
     /// Place an outbound call. Exactly one origin: an existing thread, a
     /// contact (no thread yet), or raw dialed digits. Gate refusals surface as
     /// `ApiError` BY CODE (usage_cap_reached, subscription_inactive, conflict
-    /// "line on another call", validation_failed). The current active call is
-    /// held only AFTER the new leg exists (#148) — an authorize or connect
-    /// failure never strands the live call on hold.
+    /// "line on another call", validation_failed).
+    ///
+    /// #213: the SERVER now dials the customer (a real, controllable
+    /// Call-Control leg) and rings THIS member's own softphone as the placer
+    /// (op) leg — the client NO LONGER dials the customer (that only ever
+    /// produced the placer's own WebRTC leg, so a blind transfer's bridge-steal
+    /// grabbed the wrong leg and dropped the customer). Authorize returns S; we
+    /// register a PENDING PLACEMENT keyed on S and show a "Calling…" chip, then
+    /// wait for the op INVITE (an inbound SDK call carrying X-Loonext-Session=S)
+    /// which `onIncoming` auto-answers and reconciles into this chip. No dial.
+    ///
+    /// CallKit is reported at reconcile-time (connectPlacement), not here: the
+    /// op leg's SDK UUID — the one the Telnyx SDK keys its CallKit answer/end on
+    /// — is unknown until the INVITE lands, and CallKit calls cannot be
+    /// re-keyed, so the brief "Calling…" window is in-app-chip only.
     func placeCall(
         displayName: String,
         conversationId: String? = nil,
@@ -498,31 +638,57 @@ final class SoftphoneCore {
             to: to,
             phoneNumberId: phoneNumberId
         )
+        // Make sure the phone is registered so the op INVITE can reach us (the
+        // same registration that makes inbound ring work). No newCall.
         try await ensureConnected()
         try await awaitReady()
-        // client_state VERBATIM on the wire — the webhook hangs up any leg
-        // without the valid single-use nonce inside it.
-        let handle = try sdk.newCall(
-            callerIdName: callerIdName,
-            callerIdNumber: auth.from,
-            destinationNumber: auth.to,
-            clientState: ClientState.forIOSSdk(auth.client_state)
-        )
-        if let active = state.activeId {
-            requestHold(active, hold: true)
+        guard let sessionId = auth.call_session_id, !sessionId.isEmpty else {
+            // A server that returned no S cannot be correlated to an op INVITE —
+            // fail honestly rather than leave a silent dead chip. Mirrors web.
+            throw ApiError(
+                code: ApiErrorCode.conflict,
+                message: "Couldn't start the call. Please try again.",
+                httpStatus: 409
+            )
         }
-        handles[handle.id] = handle
-        sdkPhases[handle.id] = .connecting
+        let peer = (name: displayName.isBlank ? auth.to : displayName, number: auth.to)
+        // The call currently holding the audio (if any) — held only when the op
+        // leg connects (connectPlacement), never eagerly against a placement
+        // that could still time out (#148).
+        let previousActiveId = state.activeId
+        // A per-placement timeout: if the op INVITE never arrives (server dial
+        // failed after the 200, or the ring window lapsed), drop the chip + warn.
+        let timeout = Task { [weak self, placementTimeout] in
+            try? await Task.sleep(for: placementTimeout)
+            guard let self else { return }
+            guard self.pendingPlacements[sessionId] != nil else { return }
+            self.pendingPlacements.removeValue(forKey: sessionId)
+            self.state = CallStateMachine.placementFailed(
+                self.state,
+                placementId: sessionId,
+                message: "Couldn't reach the line. Please try again."
+            )
+        }
+        pendingPlacements[sessionId] = PendingPlacement(
+            placementId: sessionId,
+            peer: peer,
+            previousActiveId: previousActiveId,
+            timeout: timeout
+        )
+        // The synthetic "Calling…" chip. Its id IS S (a server-minted UUID, so a
+        // valid CallKit UUID once reconciled); it carries S as the session so a
+        // transfer/consult affordance can light immediately. No leg to hold the
+        // current active call against yet — the op leg going `.active` demotes
+        // it structurally (onPhase), so nothing is held prematurely (#148).
         let snapshot = CallSnapshot(
-            id: handle.id,
+            id: sessionId,
             direction: .outbound,
-            peerName: displayName.isBlank ? auth.to : displayName,
-            peerNumber: auth.to,
-            phase: .connecting
+            peerName: peer.name,
+            peerNumber: peer.number,
+            phase: .connecting,
+            sessionId: sessionId
         )
         state = CallStateMachine.placing(state, snapshot)
-        watch(handle)
-        onEvent?(.outgoingPlaced(snapshot))
     }
 
     /// Answer a ringing call; any active call is held first (call waiting).
@@ -552,6 +718,17 @@ final class SoftphoneCore {
 
     /// Decline a ringing call / hang up a live one — same SDK verb.
     func hangup(_ id: String) {
+        // #213: cancelling a placement that is still "Calling…" (no op INVITE
+        // yet). Its chip id is S and there is no SDK call to hang up; mark S
+        // cancelled so the op INVITE, when it arrives, is DECLINED (the DO then
+        // drops the server-dialed customer), and clear the pending timer + chip.
+        if let pending = pendingPlacements[id] {
+            pending.timeout.cancel()
+            pendingPlacements.removeValue(forKey: id)
+            cancelledPlacements.insert(id)
+            state = CallStateMachine.dismissed(state, id: id)
+            return
+        }
         guard let handle = handles[id] else {
             // Already torn down — just clear the chip.
             state = CallStateMachine.dismissed(state, id: id)
@@ -672,6 +849,20 @@ final class SoftphoneCore {
 enum CallerHeaders {
     static let callerHeader = "X-Loonext-Caller"
     static let callerNameHeader = "X-Loonext-Caller-Name"
+
+    /// #213 correlation — the server session `X-Loonext-Session` (= S) stamped on
+    /// every member ring dial AND on the outbound placer (op) dial. The mirror of
+    /// Android's `TelecomCallReducer.HEADER_NAME` / `correlateInvite`. The core
+    /// matches this against its pending placements: a hit is THIS member's own
+    /// server-dialed op leg (auto-answer it), anything else is a genuine inbound
+    /// ring resolved the existing way.
+    static let sessionHeader = "X-Loonext-Session"
+
+    /// The server session off `X-Loonext-Session`, or nil when absent/blank.
+    /// Case-insensitive, forward-compatible — same discipline as `caller`.
+    static func session(from headers: [String: String]?) -> String? {
+        value(headers, named: sessionHeader)
+    }
 
     /// The real caller's E.164 off `X-Loonext-Caller`, or nil when absent/blank.
     static func caller(from headers: [String: String]?) -> String? {

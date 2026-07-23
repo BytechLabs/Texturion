@@ -41,7 +41,12 @@ sealed interface CoreEvent {
  * Invariants (BINDING, from the calls domain contract + calls-v3 §10):
  * - The login token is minted ON CONNECT ONLY — never per call (rate-limited).
  *   Recovery reconnects mint fresh, which is also the auth-failure fix.
- * - client_state from POST /v1/calls/browser goes into newCall VERBATIM.
+ * - #213: an OUTBOUND call is SERVER-dialed. placeCall does NOT dial the
+ *   customer (that produced only the placer's own WebRTC leg, so a transfer
+ *   grabbed the wrong leg and dropped the customer). It authorizes, registers a
+ *   pending placement keyed on the server session S, and AUTO-answers the
+ *   server-dialed placer (op) INVITE that arrives carrying X-Loonext-Session=S,
+ *   presenting it as the outbound call to the customer.
  * - An answered INBOUND call's SDK leg is the RING leg — the customer
  *   call_session_id resolves via GET /v1/calls/live/by-leg/{ccid} before any
  *   live-call op can run.
@@ -65,7 +70,40 @@ class SoftphoneCore(
     private val now: () -> Long = { System.currentTimeMillis() },
     private val recoverDebounceMs: Long = 4_000,
     private val readyTimeoutMs: Long = 15_000,
+    /**
+     * #213: how long to wait for the server-dialed placer (op) INVITE after
+     * authorize before giving up on a placement. Set just PAST the server's 45s
+     * ring window so a late op INVITE can never arrive after the timeout fires and
+     * be mistaken for a fresh inbound ring (matches web PLACEMENT_TIMEOUT_MS): by
+     * the time this elapses the server-dialed op/oc legs have themselves timed out.
+     * The normal INVITE arrives in ~1–3s.
+     */
+    private val placementTimeoutMs: Long = 48_000,
 ) {
+    companion object {
+        /**
+         * #213: the synthetic "Calling…" chip id for a pending placement, keyed on
+         * the server session S — mirrors the web `placement:<S>`. It carries the
+         * outbound chip until the op INVITE arrives and reconciles it onto the real
+         * SDK call id.
+         */
+        private const val PLACEMENT_PREFIX = "placement:"
+
+        fun placementId(session: String): String = "$PLACEMENT_PREFIX$session"
+
+        /** The session S back out of a placement chip id, or null if [id] is a
+         *  real SDK call id (a reconciled placement / inbound leg). */
+        fun placementSession(id: String): String? =
+            if (id.startsWith(PLACEMENT_PREFIX)) id.removePrefix(PLACEMENT_PREFIX) else null
+
+        /** Honest failure copy when the op INVITE never arrives (mirror web). */
+        const val PLACEMENT_UNREACHABLE = "Couldn't reach the line. Please try again."
+
+        /** A server that returned no session S can't be correlated to an op
+         *  INVITE — fail honestly rather than leave a silent dead chip. */
+        const val PLACEMENT_NO_SESSION = "Couldn't start the call. Please try again."
+    }
+
     private val _state = MutableStateFlow(SoftphoneSnapshot())
     val state: StateFlow<SoftphoneSnapshot> = _state
 
@@ -85,6 +123,32 @@ class SoftphoneCore(
 
     /** Handles whose by-leg resolution is running or done (resolve once). */
     private val resolvingLegs = mutableSetOf<String>()
+
+    /**
+     * #213: an outbound placement awaiting its server-dialed placer (op) INVITE.
+     * The server dials the CUSTOMER (a real Call-Control leg) and rings THIS
+     * member's own softphone as the placer (op) leg — the client NO LONGER dials.
+     * The op INVITE arrives as an INBOUND SDK call carrying X-Loonext-Session=S;
+     * we correlate it here, AUTO-answer it, and reconcile the "Calling…" chip —
+     * never presenting it as an incoming ring.
+     */
+    private class PendingPlacement(
+        val placementId: String,
+        val peerName: String,
+        val peerNumber: String,
+        /** Armed once the socket is READY (the op INVITE can only arrive then);
+         *  cancelled on connect, on reconcile, on cancel, or on client death. */
+        var timer: Job? = null,
+    )
+
+    /** Placements awaiting their op INVITE, keyed by S (the call_session_id from
+     *  POST /calls/browser). */
+    private val pendingPlacements = mutableMapOf<String, PendingPlacement>()
+
+    /** Sessions the member CANCELLED during "Calling…" (hung up before the op
+     *  INVITE arrived) — when the op INVITE for one of these lands it is DECLINED
+     *  so the DO tears the server-dialed customer leg down. */
+    private val cancelledPlacements = mutableSetOf<String>()
 
     /**
      * §10.1.4 held INVITEs — legs this device received but does NOT present
@@ -368,6 +432,21 @@ class SoftphoneCore(
         val headerSession =
             (correlation as? TelecomCallReducer.Correlation.Header)?.session
         val legId = event.legId
+        // #213: the server-dialed placer (op) leg for an outbound call THIS member
+        // just placed. The server stamps X-Loonext-Session=S on the op dial, so a
+        // match against a pending placement means this is OUR own outbound leg —
+        // AUTO-answer it and reconcile the "Calling…" chip, NEVER the inbound-ring
+        // path (its by-leg resolver is for inbound rings; S is already known here).
+        if (headerSession != null) {
+            pendingPlacements[headerSession]?.let { pending ->
+                acceptPlacementOpLeg(event.call, headerSession, pending)
+                return
+            }
+            if (cancelledPlacements.remove(headerSession)) {
+                declineCancelledPlacement(event.call, headerSession)
+                return
+            }
+        }
         // §10.1.4 one presentation per session per device: the shared Telnyx
         // credential forks every leg's INVITE to all of a member's devices,
         // so a second INVITE for a session this device already presents is held
@@ -404,6 +483,66 @@ class SoftphoneCore(
             return
         }
         presentIncoming(event.call, name, number, headerSession, legId)
+    }
+
+    /**
+     * #213: THIS member's own server-dialed placer (op) leg arrived (its
+     * X-Loonext-Session matched a pending placement). AUTO-answer it — the mic was
+     * pre-granted at placeCall so the accept never re-prompts — and reconcile the
+     * synthetic "Calling…" chip onto this real SDK call, keeping it an OUTBOUND
+     * call to the customer. The session S is already known, so this leg NEVER runs
+     * the by-leg resolver used for inbound rings (it stays OUTBOUND, and the
+     * OUTBOUND-at-ACTIVE session backfill also skips it since sessionId is set).
+     */
+    private fun acceptPlacementOpLeg(
+        handle: SdkCallHandle,
+        session: String,
+        pending: PendingPlacement,
+    ) {
+        pending.timer?.cancel()
+        pendingPlacements.remove(session)
+        val id = handle.id
+        CallFlowLog.log(
+            "place",
+            "op INVITE bound for placement S=${CallFlowLog.tail(session)} leg=${CallFlowLog.tail(id)} - auto-answering",
+        )
+        handles[id] = handle
+        sdkPhases[id] = CallPhase.CONNECTING
+        // Answer the op INVITE. The customer is the party we dialed; there is no
+        // "destination number" to route here beyond satisfying the SDK accept API,
+        // so pass the stored customer number (a header-absent op leg would still
+        // carry it from the placement).
+        runCatching { handle.accept(pending.peerNumber.ifBlank { "unknown" }) }
+            .onFailure { cause ->
+                // #168A: degrade to an in-app line, never process death. The chip is
+                // reconciled below regardless; a leg the SDK already tore down ends
+                // itself through its phase flow.
+                reportUiError("Couldn't connect the call.")
+                onInternalFailure?.invoke("placement-accept", cause)
+            }
+        _state.update { CallStateMachine.placementConnected(it, pending.placementId, id, session) }
+        watch(handle)
+        // §7: present it to Telecom as an OUTGOING call (same audio ownership as a
+        // normal outbound dial) — keyed on this real leg id, which is now the chip's.
+        _state.value.calls.firstOrNull { it.id == id }?.let {
+            _events.tryEmit(CoreEvent.OutgoingPlaced(it))
+        }
+    }
+
+    /**
+     * #213: the op INVITE for a placement the member CANCELLED during "Calling…"
+     * arrived — DECLINE it (hang up) so the DO tears the call down and drops the
+     * server-dialed customer leg. This IS explicit user action — the member's own
+     * earlier cancel (which populated [cancelledPlacements] from [hangup]), simply
+     * deferred until the op leg finally materialized — NOT a staleness/reconcile
+     * kill. The op leg is presented nowhere, so there is no chip to clear.
+     */
+    private fun declineCancelledPlacement(handle: SdkCallHandle, session: String) {
+        CallFlowLog.log(
+            "place",
+            "op INVITE for cancelled placement S=${CallFlowLog.tail(session)} - declining",
+        )
+        runCatching { handle.end() }
     }
 
     private fun presentIncoming(
@@ -694,6 +833,17 @@ class SoftphoneCore(
             )
             releaseHeld(id)
         }
+        // #213: a pending placement's op INVITE can never arrive on a dead socket —
+        // fail it honestly now instead of leaving a "Calling…" chip hanging for the
+        // full placement timeout (the timer is the backstop for a live socket).
+        pendingPlacements.entries.toList().forEach { (session, pending) ->
+            pending.timer?.cancel()
+            pendingPlacements.remove(session)
+            CallFlowLog.log("reap", "client died - failing pending placement S=${CallFlowLog.tail(session)}")
+            _state.update {
+                CallStateMachine.placementFailed(it, pending.placementId, PLACEMENT_UNREACHABLE)
+            }
+        }
     }
 
     /**
@@ -864,9 +1014,17 @@ class SoftphoneCore(
      * Place an outbound call. Exactly one origin: an existing thread, a
      * contact (no thread yet), or raw dialed digits. Gate refusals surface as
      * [ApiException] BY CODE (usage_cap_reached, subscription_inactive,
-     * conflict "line on another call", validation_failed). The current active
-     * call is held only AFTER the new leg exists (#148) — an authorize or
-     * connect failure never strands the live call on hold.
+     * conflict "line on another call", validation_failed).
+     *
+     * #213: the client NO LONGER dials the customer. Dialing the customer from
+     * here produced only the PLACER's own WebRTC leg, so customer_call_control_id
+     * was stamped with the placer's leg and a blind transfer's bridge-steal
+     * grabbed the placer and dropped the customer. Now the SERVER dials the
+     * customer as a real Call-Control leg AND rings THIS member's own softphone as
+     * the placer (op) leg. So placeCall authorizes, registers a PENDING PLACEMENT
+     * keyed on the server session S, shows a "Calling…" chip, and WAITS for the op
+     * INVITE (an inbound SDK call carrying X-Loonext-Session=S) which [onIncoming]
+     * auto-answers and reconciles into this chip. No newCall.
      */
     suspend fun placeCall(
         displayName: String,
@@ -894,35 +1052,62 @@ class SoftphoneCore(
             to = to,
             phoneNumberId = phoneNumberId,
         )
-        ensureConnected()
-        awaitReady()
-        // client_state VERBATIM — the webhook hangs up any leg without the
-        // valid single-use nonce inside it.
-        val handle = sdk.newCall(
-            callerIdName = callerIdName,
-            callerIdNumber = auth.from,
-            destinationNumber = auth.to,
-            clientState = auth.client_state,
-        )
-        _state.value.activeId?.let { requestHold(it, hold = true) }
-        handles[handle.id] = handle
-        sdkPhases[handle.id] = CallPhase.CONNECTING
-        val snapshot = CallSnapshot(
-            id = handle.id,
-            direction = CallDirection.OUTBOUND,
-            peerName = displayName.ifBlank { auth.to },
-            peerNumber = auth.to,
-            phase = CallPhase.CONNECTING,
-            // #211: stamp the server-minted customer session (S) at PLACEMENT.
-            // It is known at authorize, so live-call ops no longer wait for the
-            // SDK's Telnyx session id to surface at ACTIVE. Null from a pre-#211
-            // / kill-switch server; the SDK-session fallback below then fills it
-            // when the leg goes ACTIVE, exactly as before.
-            sessionId = auth.call_session_id,
-        )
-        _state.update { CallStateMachine.placing(it, snapshot) }
-        watch(handle)
-        _events.tryEmit(CoreEvent.OutgoingPlaced(snapshot))
+        val session = auth.call_session_id
+        if (session.isNullOrBlank()) {
+            // A server that returned no S cannot be correlated to an op INVITE —
+            // fail honestly rather than leave a silent dead chip. (Calls v3 always
+            // mints S; the field stays nullable only for decode safety.)
+            throw ApiException(ApiErrorCode.CONFLICT, PLACEMENT_NO_SESSION, 409)
+        }
+        val placementId = placementId(session)
+        val peerName = displayName.ifBlank { auth.to }
+        // Arm the correlation + show the "Calling…" chip BEFORE (re)connecting, so
+        // an op INVITE that races our readiness is still recognized as OUR own
+        // placement (never mis-presented as an inbound ring). The customer is the
+        // peer; the chip is OUTBOUND/CONNECTING with S already stamped.
+        pendingPlacements[session] = PendingPlacement(placementId, peerName, auth.to)
+        _state.update {
+            CallStateMachine.placing(
+                it,
+                CallSnapshot(
+                    id = placementId,
+                    direction = CallDirection.OUTBOUND,
+                    peerName = peerName,
+                    peerNumber = auth.to,
+                    phase = CallPhase.CONNECTING,
+                    sessionId = session,
+                ),
+            )
+        }
+        CallFlowLog.log("place", "authorized S=${CallFlowLog.tail(session)} - awaiting op INVITE (no client dial)")
+        // Make sure the phone is registered so the op INVITE can reach us (the same
+        // registration that makes inbound ring work). No newCall.
+        try {
+            ensureConnected()
+            awaitReady()
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            // Registration failed — the op INVITE can never reach us. Drop the chip;
+            // the thrown ApiException carries the honest reason to the caller.
+            pendingPlacements.remove(session)?.timer?.cancel()
+            _state.update { CallStateMachine.dismissed(it, placementId) }
+            throw cause
+        }
+        // Registered — arm the timeout window now (the op INVITE can only arrive
+        // once we can receive it). If the op INVITE already landed during connect,
+        // the placement was consumed above and there is nothing left to time out.
+        pendingPlacements[session]?.let { pending ->
+            pending.timer = scope.launch {
+                delay(placementTimeoutMs)
+                if (pendingPlacements.remove(session) != null) {
+                    CallFlowLog.log("place", "placement timed out S=${CallFlowLog.tail(session)}")
+                    _state.update {
+                        CallStateMachine.placementFailed(it, placementId, PLACEMENT_UNREACHABLE)
+                    }
+                }
+            }
+        }
     }
 
     /** Answer a ringing call; any active call is held first (call waiting). */
@@ -945,6 +1130,20 @@ class SoftphoneCore(
 
     /** Decline a ringing call / hang up a live one — same SDK verb. */
     fun hangup(id: String) {
+        // #213: cancelling a placement still "Calling…" (no op INVITE yet). Its chip
+        // id is placement:<S> and there is no SDK leg to end; mark S cancelled so the
+        // op INVITE, when it arrives, is DECLINED (the DO then drops the server-dialed
+        // customer), and clear the pending timer + chip.
+        placementSession(id)?.let { session ->
+            val pending = pendingPlacements.remove(session)
+            if (pending != null) {
+                pending.timer?.cancel()
+                cancelledPlacements += session
+                CallFlowLog.log("place", "placement cancelled S=${CallFlowLog.tail(session)} - will decline the op INVITE")
+                _state.update { CallStateMachine.dismissed(it, id) }
+                return
+            }
+        }
         val handle = handles[id]
         if (handle == null) {
             // Already torn down — just clear the chip.

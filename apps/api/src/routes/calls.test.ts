@@ -376,14 +376,21 @@ describe("POST /v1/calls/browser (D43)", () => {
     return sb;
   }
 
-  it("authorizes: mints a single-use auth + returns from/to and the 4-part oc_customer|customer|nonce|S tag — no Telnyx dial", async () => {
-    const sb = browserWorld();
-    const dial: Stub = stubRoute(
+  /** #213: the server now dials the customer (POST https://api.telnyx.com/v2/calls)
+   *  on the success path — every test that gets past the gates + line claim must
+   *  stub it or the unstubbed fetch throws (→ 500). */
+  function telnyxDialStub(): Stub {
+    return stubRoute(
       (url, request) =>
         request.method === "POST" &&
         url.href === "https://api.telnyx.com/v2/calls",
-      () => ({ data: {} }),
+      () => ({ data: { call_control_id: "oc-leg-ccid" } }),
     );
+  }
+
+  it("#213: authorizes, mints a single-use auth, AND server-dials the customer as the oc leg (X-Loonext-Session=S)", async () => {
+    const sb = browserWorld();
+    const dial = telnyxDialStub();
     stubFetch(jwksRoute(auth), sb.route, dial.route);
 
     const res = await apiRequest(
@@ -402,10 +409,9 @@ describe("POST /v1/calls/browser (D43)", () => {
     };
     expect(bodyOut.from).toBe("+16135550100");
     expect(bodyOut.to).toBe("+16135551000");
-    // #211: v3 is the sole path, so the tag is ALWAYS the 4-part
-    // base64("oc_customer|<customer>|<nonce>|<S>"). The nonce is the webhook's
-    // single-use authorization; S (part-4) is the ONE id the DO, the calls-row
-    // PK, and the client all key on — echoed back as call_session_id.
+    // #211: the tag is the 4-part base64("oc_customer|<customer>|<nonce>|<S>").
+    // S (part-4) is the ONE id the DO, the calls-row PK, and the client all key
+    // on — echoed back as call_session_id.
     const decoded = atob(bodyOut.client_state).split("|");
     expect(decoded).toHaveLength(4);
     expect(decoded[0]).toBe("oc_customer");
@@ -413,9 +419,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(decoded[2]).toBeTruthy(); // a nonce is present
     expect(bodyOut.call_session_id).toBeTruthy();
     expect(decoded[3]).toBe(bodyOut.call_session_id); // part-4 == S
-    // The atomic line-claim RPC was called with that exact nonce + caller ID
-    // (it reserves the line AND mints the authorization under one lock), AND
-    // stores S + the placing member so the webhook derives the row PK from S.
+    // The atomic line-claim RPC was called with that exact nonce + caller ID.
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
     expect(claim).toHaveLength(1);
     expect(claim[0].body).toMatchObject({
@@ -425,8 +429,23 @@ describe("POST /v1/calls/browser (D43)", () => {
       p_call_session_id: bodyOut.call_session_id,
     });
     expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
-    // The server never dials — the browser does.
-    expect(dial.calls).toHaveLength(0);
+    // #213: the SERVER dials the customer as a real Call-Control leg — the exact
+    // oc tag + X-Loonext-Session=S so the leg's webhook flows to the DO keyed on S
+    // and stamps customer_call_control_id = THIS controllable customer leg.
+    expect(dial.calls).toHaveLength(1);
+    const dialBody = dial.calls[0].body as {
+      to: string;
+      from: string;
+      client_state: string;
+      custom_headers: { name: string; value: string }[];
+    };
+    expect(dialBody.to).toBe("+16135551000");
+    expect(dialBody.from).toBe("+16135550100");
+    expect(dialBody.client_state).toBe(bodyOut.client_state);
+    expect(dialBody.custom_headers).toContainEqual({
+      name: "X-Loonext-Session",
+      value: bodyOut.call_session_id,
+    });
   });
 
   it("402s a non-active subscription", async () => {
@@ -491,7 +510,7 @@ describe("POST /v1/calls/browser (D43)", () => {
   it("authorizes a near-cap tenant with NO live calls — the reserve only bites on concurrency (#144)", async () => {
     // Same 60s-under-cap usage, but no in-flight calls → reserve 0 → allowed.
     const sb = browserWorld({ voiceSeconds: 7500 * 60 - 60, inflight: [] });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, telnyxDialStub().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
       companyId: COMPANY_ID,
@@ -520,7 +539,7 @@ describe("POST /v1/calls/browser (D43)", () => {
 
   it("calls a CONTACT with no thread yet (contact_id) — resolves the sole active number", async () => {
     const sb = browserWorld({ contactPhone: "+16475551234" });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, telnyxDialStub().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
       companyId: COMPANY_ID,
@@ -541,7 +560,7 @@ describe("POST /v1/calls/browser (D43)", () => {
 
   it("DIALS a raw number (dialer) — normalizes it and resolves the sole active number", async () => {
     const sb = browserWorld();
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, telnyxDialStub().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
       companyId: COMPANY_ID,
@@ -589,6 +608,47 @@ describe("POST /v1/calls/browser (D43)", () => {
     });
   });
 
+  it("#213: a 4xx customer-dial refusal RELEASES the line reservation (no wedged 'on another call')", async () => {
+    const sb = browserWorld();
+    const del = sb.on("DELETE", "/rest/v1/outbound_call_authorizations", () => []);
+    const dial = stubRoute(
+      (url, request) =>
+        request.method === "POST" && url.href === "https://api.telnyx.com/v2/calls",
+      () => new Response(JSON.stringify({ errors: [{ code: "10015" }] }), { status: 422 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(500); // no SPEC §7 code for a carrier fault → framework 500
+    // The reservation was released so a retry isn't blocked as "on another call".
+    expect(sb.find("DELETE", "/rest/v1/outbound_call_authorizations")).toHaveLength(1);
+    void del;
+  });
+
+  it("#213: a 5xx customer-dial fault does NOT release the line (a leg may exist; the webhook path self-heals)", async () => {
+    const sb = browserWorld();
+    sb.on("DELETE", "/rest/v1/outbound_call_authorizations", () => []);
+    const dial = stubRoute(
+      (url, request) =>
+        request.method === "POST" && url.href === "https://api.telnyx.com/v2/calls",
+      () => new Response("upstream", { status: 502 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(500);
+    // NOT released — the 10-min authorization sweeper is the backstop if no leg formed.
+    expect(sb.find("DELETE", "/rest/v1/outbound_call_authorizations")).toHaveLength(0);
+  });
+
   it("presents the chosen phone_number_id when the company owns several", async () => {
     const sb = browserWorld({
       numbers: [
@@ -596,7 +656,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         { id: "bbbbbbbb-0000-4000-8000-000000000003", number_e164: "+14165550200" },
       ],
     });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, telnyxDialStub().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
       companyId: COMPANY_ID,

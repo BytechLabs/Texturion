@@ -1,6 +1,5 @@
 package com.loonext.android.telephony
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -16,27 +15,31 @@ import java.io.File
  */
 class ClientHangupLintTest {
     @Test
-    fun `the SDK-leg teardown handle-end appears only inside fun hangup`() {
+    fun `the SDK-leg teardown handle-end appears only on explicit user-action paths`() {
         val src = readMainSource("telephony/SoftphoneCore.kt")
 
-        // handle.end() is the SDK leg-teardown verb. It must occur exactly once
-        // in the whole core, and that once must be the explicit user hangup.
+        // handle.end() is the SDK leg-teardown verb. It may appear ONLY on explicit
+        // user-action teardown paths — never a staleness/reconcile kill (the deleted
+        // StaleRing regression, §12.3). The allowed sites, keyed by their enclosing
+        // function name:
+        //  - hangup                    — the user hung up / declined a presented leg.
+        //  - declineCancelledPlacement — #213: the member cancelled a placement during
+        //    "Calling…"; the server-dialed op INVITE, arriving later, is declined (the
+        //    SAME user action, deferred until the op leg materialized).
+        val allowedFns = setOf("hangup", "declineCancelledPlacement")
+        val funDecl = Regex("""fun\s+(\w+)\s*\(""")
         val occurrences = Regex("""\.end\(\)""").findAll(src).map { it.range.first }.toList()
-        assertEquals(
-            "exactly one SDK-leg teardown in SoftphoneCore — any more is a client-initiated kill",
-            1,
-            occurrences.size,
-        )
-
-        val hangupStart = src.indexOf("fun hangup(")
-        assertTrue("fun hangup() must exist", hangupStart >= 0)
-        // The next top-level method after hangup bounds its body.
-        val nextMethod = src.indexOf("\n    fun ", hangupStart + 1)
-        assertTrue("a method follows hangup()", nextMethod > hangupStart)
-        assertTrue(
-            "the only handle.end() is on the user-action (hangup) path",
-            occurrences.single() in hangupStart until nextMethod,
-        )
+        assertTrue("at least one SDK-leg teardown must exist (the user hangup)", occurrences.isNotEmpty())
+        for (at in occurrences) {
+            // The nearest preceding `fun name(` is the enclosing method (lambdas carry
+            // no `fun name(`, so an .end() inside a lambda still resolves to its method).
+            val enclosing = funDecl.findAll(src.substring(0, at)).lastOrNull()?.groupValues?.get(1)
+            assertTrue(
+                "handle.end() at offset $at is inside `fun $enclosing` — not an explicit " +
+                    "user-action teardown ($allowedFns); a client-initiated staleness kill",
+                enclosing in allowedFns,
+            )
+        }
     }
 
     @Test

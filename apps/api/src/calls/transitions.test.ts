@@ -867,6 +867,7 @@ function ocContext(
     companyId: "co1",
     phoneNumberId: "pn1",
     userId: "placer",
+    placerSipUsername: "placer-sip",
     customer: "+15551234",
     businessNumberE164: "+19995000",
     ...overrides,
@@ -966,6 +967,185 @@ describe("#211 outbound — T-O3 terminal (totality)", () => {
     const aj = reduce(answeredOutbound(), { type: "alarm-janitor" }, 9_000, keyGen());
     expect(aj.machine?.state).toBe("ended_answered");
     expect(terminalMerge(aj.effects)?.briAnsweredAtIso).toBe(answeredOutbound().answeredAtIso);
+  });
+});
+
+describe("#213 outbound — placer (op) leg lifecycle", () => {
+  function dialOutcome(m: SessionMachine, pendingKey: string, ccid: string) {
+    return reduce(m, { type: "dial-outcome", pendingKey, ccid, failure: null }, 1_500, keyGen());
+  }
+  /** A dialing machine whose op leg has been adopted onto `op-ccid`. */
+  function opDialedMachine(): { machine: SessionMachine; opCcid: string } {
+    const m = dialingMachine();
+    const pending = m.legs[0];
+    const r = dialOutcome(m, pending.key, "op-ccid");
+    return { machine: r.machine as SessionMachine, opCcid: "op-ccid" };
+  }
+  // The op leg was dialed to the placer's own credential.
+  const OP_DEST = "sip:placer-sip@sip.telnyx.com";
+  function placerAnswered(m: SessionMachine, opCcid: string, nowMs: number) {
+    return reduce(
+      m,
+      { type: "outbound-placer-answered", ccid: opCcid, userId: "placer", destination: OP_DEST },
+      nowMs,
+      keyGen(),
+    );
+  }
+
+  it("mint dials the PLACER (op) leg to their SIP credential + tracks a pending leg", () => {
+    const r = reduce(null, { type: "outbound-initiated", context: ocContext() }, 1_000, keyGen());
+    const dial = r.effects.find((e) => e.kind === "telnyx-dial-placer") as
+      | Extract<Effect, { kind: "telnyx-dial-placer" }>
+      | undefined;
+    expect(dial).toBeDefined();
+    expect(dial?.userId).toBe("placer");
+    expect(dial?.sipTarget).toBe("sip:placer-sip@sip.telnyx.com");
+    expect(r.machine?.legs).toHaveLength(1);
+    expect(r.machine?.legs[0]).toMatchObject({ userId: "placer", status: "dialing", ccid: null });
+  });
+
+  it("mint with NO placer credential rings no one + warns (never a dial)", () => {
+    const r = reduce(null, { type: "outbound-initiated", context: ocContext({ placerSipUsername: null }) }, 1_000, keyGen());
+    expect(has(r.effects, "telnyx-dial-placer")).toBe(false);
+    expect(r.machine?.legs).toHaveLength(0);
+    expect(has(r.effects, "sentry-warn")).toBe(true);
+  });
+
+  it("op answered EARLY-bridges op↔oc (ringback while the customer rings) + stays 'dialing'", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const r = placerAnswered(machine, opCcid, 2_000);
+    // Early bridge: the placer's leg is bridged to the still-ringing customer so
+    // Telnyx relays ringback AND the customer's hangup will tear the placer leg.
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
+      | Extract<Effect, { kind: "telnyx-bridge" }>
+      | undefined;
+    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
+    expect(r.machine?.legs[0].status).toBe("answered");
+    expect(r.machine?.state).toBe("dialing"); // not 'answered' until the customer picks up
+  });
+
+  it("customer answers AFTER the placer → T-O2 re-bridges as the guaranteed fallback", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const opUp = placerAnswered(machine, opCcid, 2_000).machine as SessionMachine;
+    const r = reduce(opUp, { type: "outbound-answered" }, 2_500, keyGen());
+    // The fallback bridge (both answered) — covers the case Telnyx refused the
+    // early ring-bridge, so the pair is guaranteed connected.
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
+      | Extract<Effect, { kind: "telnyx-bridge" }>
+      | undefined;
+    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
+    expect(r.machine?.state).toBe("answered");
+  });
+
+  it("placer answers AFTER the customer → T-O4 bridges op↔oc", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const ocUp = reduce(machine, { type: "outbound-answered" }, 2_000, keyGen()).machine as SessionMachine;
+    expect(ocUp.state).toBe("answered");
+    const r = placerAnswered(ocUp, opCcid, 2_500);
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
+      | Extract<Effect, { kind: "telnyx-bridge" }>
+      | undefined;
+    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
+  });
+
+  it("op answered is idempotent (a re-delivery does not re-bridge)", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const once = placerAnswered(machine, opCcid, 2_100);
+    const twice = placerAnswered(once.machine as SessionMachine, opCcid, 2_200);
+    expect(has(twice.effects, "telnyx-bridge")).toBe(false);
+  });
+
+  it("op answered into an ALREADY-terminal call hangs up the stray op leg (H1 no-strand)", () => {
+    const { machine, opCcid } = opDialedMachine();
+    // The customer hung up first → terminal.
+    const ended = reduce(machine, { type: "outbound-hangup", payload: null }, 2_000, keyGen()).machine as SessionMachine;
+    expect(ended.state.startsWith("ended_")).toBe(true);
+    const r = placerAnswered(ended, opCcid, 2_500);
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup" && e.ccid === "op-ccid");
+    expect(hangup).toBeDefined();
+  });
+
+  it("terminal teardown reaps an answered-but-unbridged op leg (H1 no-strand on customer no-answer)", () => {
+    const { machine, opCcid } = opDialedMachine();
+    // Placer answered (early bridge attempted) but the customer NEVER answers →
+    // oc times out → outbound-hangup. terminalize must hang up the answered op leg.
+    const opUp = placerAnswered(machine, opCcid, 2_000).machine as SessionMachine;
+    expect(opUp.legs[0].status).toBe("answered");
+    const r = reduce(opUp, { type: "outbound-hangup", payload: null }, 5_000, keyGen());
+    expect(r.machine?.state).toBe("ended_missed");
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup" && e.ccid === "op-ccid");
+    expect(hangup).toBeDefined();
+    expect(r.machine?.legs[0].status).toBe("dead");
+  });
+
+  it("placer hangup in 'answered' (owner, no intent) tears the call down — hang up the customer", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const bridged = placerAnswered(machine, opCcid, 2_000).machine as SessionMachine;
+    const answered = reduce(bridged, { type: "outbound-answered" }, 2_500, keyGen()).machine as SessionMachine;
+    const r = reduce(answered, { type: "outbound-placer-hangup", ccid: opCcid, userId: "placer" }, 3_000, keyGen());
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup") as
+      | Extract<Effect, { kind: "telnyx-hangup" }>
+      | undefined;
+    expect(hangup).toMatchObject({ ccid: "oc-cust", terminal: true });
+    expect(r.machine?.state).toBe("answered"); // the oc hangup webhook runs T-O3
+  });
+
+  it("placer hangup mid-transfer (intent live) flags stand-down, does NOT hang up the customer", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const answered = reduce(
+      placerAnswered(machine, opCcid, 2_000).machine as SessionMachine,
+      { type: "outbound-answered" },
+      2_500,
+      keyGen(),
+    ).machine as SessionMachine;
+    const withIntent = reduce(answered, { type: "register-intent", kind: "transfer", targetUserId: "mate" }, 2_600, keyGen()).machine as SessionMachine;
+    const r = reduce(withIntent, { type: "outbound-placer-hangup", ccid: opCcid, userId: "placer" }, 3_000, keyGen());
+    expect(has(r.effects, "telnyx-hangup")).toBe(false);
+    expect(r.machine?.ownerLegDeadDuringIntent).toBe("placer");
+  });
+
+  it("placer hangup after ownership moved to the teammate is bookkeeping only", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const answered = reduce(
+      placerAnswered(machine, opCcid, 2_000).machine as SessionMachine,
+      { type: "outbound-answered" },
+      2_500,
+      keyGen(),
+    ).machine as SessionMachine;
+    // A transfer handed ownership to the teammate.
+    const handed = reduce(answered, { type: "set-owner", userId: "mate" }, 2_700, keyGen()).machine as SessionMachine;
+    const r = reduce(handed, { type: "outbound-placer-hangup", ccid: opCcid, userId: "placer" }, 3_000, keyGen());
+    expect(has(r.effects, "telnyx-hangup")).toBe(false);
+    expect(r.machine?.state).toBe("answered"); // the customer is the teammate's now
+  });
+
+  it("placer hangup in 'dialing' (never bridged) → ended_missed + drop the customer", () => {
+    const { machine, opCcid } = opDialedMachine();
+    const r = reduce(machine, { type: "outbound-placer-hangup", ccid: opCcid, userId: "placer" }, 3_000, keyGen());
+    expect(r.machine?.state).toBe("ended_missed");
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup" && e.ccid === "oc-cust");
+    expect(hangup).toBeDefined();
+    expect(terminalMerge(r.effects)?.mode).toBe("synthetic");
+  });
+
+  it("a KNOWN-dead placer dial in 'dialing' resolves the call (ended_missed) + drops the customer — no avenue ladder", () => {
+    const m = dialingMachine();
+    const pending = m.legs[0];
+    const r = reduce(m, { type: "dial-outcome", pendingKey: pending.key, ccid: null, failure: "known-dead" }, 1_500, keyGen());
+    expect(r.machine?.state).toBe("ended_missed");
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup" && e.ccid === "oc-cust");
+    expect(hangup).toBeDefined();
+    // Never voicemail (the inbound-only ladder must not run for outbound).
+    expect(has(r.effects, "telnyx-answer-vm")).toBe(false);
+  });
+
+  it("an AMBIGUOUS placer dial in 'dialing' is retained (a later webhook / janitor reconciles)", () => {
+    const m = dialingMachine();
+    const pending = m.legs[0];
+    const r = reduce(m, { type: "dial-outcome", pendingKey: pending.key, ccid: null, failure: "ambiguous" }, 1_500, keyGen());
+    expect(r.machine?.state).toBe("dialing"); // not terminal
+    expect(r.machine?.legs[0].status).toBe("ambiguous");
+    expect(has(r.effects, "telnyx-hangup")).toBe(false);
   });
 });
 

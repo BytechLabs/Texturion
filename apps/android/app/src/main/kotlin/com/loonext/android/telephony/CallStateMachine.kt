@@ -118,6 +118,44 @@ object CallStateMachine {
     fun sessionKnown(state: SoftphoneSnapshot, id: String, sessionId: String): SoftphoneSnapshot =
         update(state, id) { it.copy(sessionId = sessionId) }
 
+    /**
+     * #213: the server-dialed placer (op) INVITE for a pending placement arrived
+     * and was auto-answered — rekey the synthetic "Calling…" chip ([placementId])
+     * onto the real SDK call [id]; it stays an OUTBOUND call to the customer. A
+     * chip already gone (the user cancelled during "Calling…") is a no-op — the
+     * core declines the op leg instead of reconciling. Mirrors the web reducer's
+     * `placement_connected` (apps/web/src/lib/softphone/state.ts).
+     */
+    fun placementConnected(
+        state: SoftphoneSnapshot,
+        placementId: String,
+        id: String,
+        sessionId: String,
+    ): SoftphoneSnapshot {
+        if (state.calls.none { it.id == placementId }) return state
+        return state.copy(
+            calls = state.calls.map {
+                if (it.id == placementId) it.copy(id = id, sessionId = sessionId) else it
+            },
+            activeId = if (state.activeId == placementId) id else state.activeId,
+        )
+    }
+
+    /**
+     * #213: the op INVITE never arrived (server dial failed / timed out, or the
+     * registration that would receive it failed). Drop the "Calling…" chip and
+     * surface an honest error. Mirrors the web reducer's `placement_failed`.
+     */
+    fun placementFailed(
+        state: SoftphoneSnapshot,
+        placementId: String,
+        message: String,
+    ): SoftphoneSnapshot = state.copy(
+        error = message,
+        calls = state.calls.filter { it.id != placementId },
+        activeId = if (state.activeId == placementId) null else state.activeId,
+    )
+
     fun muted(state: SoftphoneSnapshot, id: String, muted: Boolean): SoftphoneSnapshot =
         update(state, id) { it.copy(muted = muted) }
 

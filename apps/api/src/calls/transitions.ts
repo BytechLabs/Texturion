@@ -160,11 +160,12 @@ export interface SessionMachine {
   callerE164: string | null;
   businessNumberE164: string | null;
   /** #211 (D6): the far-party PSTN leg, BOTH directions. Inbound: the
-   *  customer's own incoming leg. Outbound: the Telnyx outdial (oc) leg whose
-   *  party IS the customer — the placer's browser SIP leg is deliberately
-   *  unrepresented (D10), so transfer/consult/teardown target this column in
-   *  either direction. Renamed from `inboundCcid`; session-do aliases a
-   *  pre-#211 persisted machine's old key on load. */
+   *  customer's own incoming leg. Outbound (#213): the SERVER-dialed oc leg
+   *  whose party IS the customer — a real, controllable Call-Control leg (the
+   *  browser no longer dials the customer). transfer/consult/teardown target
+   *  this column in either direction; the placer's own leg is the `op` ring leg
+   *  in `legs` (D10 superseded — the placer IS represented now). Renamed from
+   *  `inboundCcid`; session-do aliases a pre-#211 persisted machine's old key. */
   customerCcid: string | null;
   /** #211: inbound (the customer rang us) vs outbound (we placed the call).
    *  Drives the direction-aware terminal merge (D8 — NEVER text the customer on
@@ -232,7 +233,8 @@ export interface OutboundInitiatedContext {
    *  the DO idFromName key. One value by construction. */
   callSessionId: string;
   /** The oc (outdial) leg's call_control_id — the customer's PSTN channel
-   *  (machine.customerCcid). The placer's browser SIP leg is unrepresented. */
+   *  (machine.customerCcid). #213: this is the SERVER-dialed oc leg, so it is a
+   *  real controllable customer leg (not the placer's browser leg). */
   customerCcid: string;
   companyId: string;
   phoneNumberId: string;
@@ -240,6 +242,13 @@ export interface OutboundInitiatedContext {
    *  Null only on the rare replay-of-an-evicted-DO edge where the row's
    *  answered_by was never stamped (a degraded-but-honest unattributed owner). */
   userId: string | null;
+  /** #213: the placer's SIP username (member_telephony_credentials) — the DO
+   *  dials `sip:<placerSipUsername>@sip.telnyx.com` as the `op` leg so the
+   *  placer's browser rings and auto-answers, then bridges to the oc customer
+   *  leg. Null only when the placer somehow holds no credential (they place from
+   *  a registered softphone, so this is a degraded edge — the reducer then rings
+   *  no placer and the call resolves by the oc timeout / janitor). */
+  placerSipUsername: string | null;
   /** The customer number (the calls row's caller_e164; the threading anchor). */
   customer: string | null;
   businessNumberE164: string | null;
@@ -329,7 +338,21 @@ export type SessionEvent =
    *  outbound state. Carries the raw Telnyx payload so the event-mode terminal
    *  merge replays it through the existing billing/threading delegate (keyed on
    *  S via the shell's outboundSessionId override — M1). */
-  | { type: "outbound-hangup"; payload: Record<string, unknown> | null };
+  | { type: "outbound-hangup"; payload: Record<string, unknown> | null }
+  /** #213 T-O4: the placer (op) leg answered — the member's browser auto-answered
+   *  the server-dialed placement INVITE. Bridge it to the oc customer leg (the
+   *  placer now hears the customer's ringback / talk). `destination` is the
+   *  Telnyx-reported dial target (§17.1 adoption binding). */
+  | {
+      type: "outbound-placer-answered";
+      ccid: string;
+      userId: string;
+      destination: string | null;
+    }
+  /** #213 T-O5: the placer (op) leg hung up. If it was the owner and no transfer
+   *  intent is live, tear the call down (hang up the customer). Post-transfer the
+   *  placer is no longer the owner, so its death is expected bookkeeping. */
+  | { type: "outbound-placer-hangup"; ccid: string; userId: string };
 
 export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "initiated",
@@ -355,6 +378,8 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "outbound-initiated",
   "outbound-answered",
   "outbound-hangup",
+  "outbound-placer-answered",
+  "outbound-placer-hangup",
 ];
 
 export type AlarmKind =
@@ -383,6 +408,17 @@ export type Effect =
         sipTarget: string;
         source: "engine" | "ring_me";
       }[];
+    }
+  | {
+      /** #213: dial the outbound PLACER (op) leg — the placer's own SIP
+       *  credential. The executor stamps the `op|S|userId` client_state + the
+       *  X-Loonext-Session (=S) and X-Loonext-Caller (=customer) headers so the
+       *  placer's browser correlates the INVITE to its pending placement and
+       *  auto-answers. Its dial-outcome re-keys the pending op leg like any dial. */
+      kind: "telnyx-dial-placer";
+      pendingKey: string;
+      userId: string;
+      sipTarget: string;
     }
   | { kind: "telnyx-answer-inbound"; ccid: string; answerIntent: AnswerIntent }
   | { kind: "telnyx-answer-vm"; ccid: string }
@@ -521,6 +557,22 @@ function terminalize(
   machine.state = target;
   machine.ringDeadlineMs = null;
   cancelAllLiveLegs(machine, effects, true);
+  // #213 (adversarial-review H1): for OUTBOUND, also hang up any ANSWERED leg —
+  // the placer's op leg. cancelAllLiveLegs only reaps {dialing,ringing,canceling}
+  // legs; an op leg the placer answered but that was never bridged (the customer
+  // never answered, so Telnyx has no bridged pair to tear) would otherwise strand
+  // (live, silent, shown "connected"). A bridged op leg is already dead here (its
+  // own hangup ran) so this is a harmless no-op; only the unbridged case is reaped.
+  // Inbound answered member legs auto-tear via their bridge, so this is
+  // outbound-only to keep inbound hangup accounting byte-identical.
+  if (machine.direction === "outbound") {
+    for (const leg of machine.legs) {
+      if (leg.status === "answered" && leg.ccid) {
+        leg.status = "dead";
+        effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: true });
+      }
+    }
+  }
   effects.push({
     kind: "mirror",
     set: { state: target, ...extraMirror },
@@ -572,7 +624,7 @@ export function reduce(
       // of an authorized outbound initiated re-enters here idempotently.
       return { machine, effects: [] };
     }
-    return reduceOutboundInitiated(event.context, nowMs);
+    return reduceOutboundInitiated(event.context, nowMs, pendingKeyFor);
   }
 
   if (machine === null) {
@@ -612,12 +664,30 @@ export function reduce(
         set: { state: "answered", answered_at: answeredAtIso },
         terminal: false,
       });
+      // #213: the customer answered. If the placer's op leg is already answered,
+      // bridge them now (the second-to-answer bridge — both are answered, so it
+      // never targets a ringing leg). If the placer hasn't answered yet, T-O4
+      // owns the bridge when it does.
+      const placerCcid = answeredPlacerCcid(next);
+      if (placerCcid && next.customerCcid) {
+        effects.push({
+          kind: "telnyx-bridge",
+          memberCcid: placerCcid,
+          customerCcid: next.customerCcid,
+        });
+      }
       return { machine: next, effects };
     }
 
     // ---- T-O3: outbound customer (oc) leg hung up (terminal) --------------
     case "outbound-hangup":
       return reduceOutboundHangup(next, event, effects, nowMs);
+
+    // ---- T-O4 / T-O5: outbound PLACER (op) leg lifecycle ------------------
+    case "outbound-placer-answered":
+      return reduceOutboundPlacerAnswered(next, event, effects);
+    case "outbound-placer-hangup":
+      return reduceOutboundPlacerHangup(next, event, effects, nowMs);
 
     // ---- T11 --------------------------------------------------------------
     case "speak-ended": {
@@ -811,6 +881,28 @@ export function reduce(
       } else {
         leg.status = "dead"; // T3's "dial POST threw with a KNOWN-dead outcome"
       }
+      // #213: for an OUTBOUND call the failed dial is the PLACER (op) leg — the
+      // avenue ladder is inbound-only (and no-ops outside 'ringing' anyway). A
+      // KNOWN-dead placer dial means the placer can never connect, so resolve the
+      // call (ended_missed) and drop the customer leg rather than ring them in
+      // silence. An 'ambiguous' placer dial is retained (a later op answered/
+      // hangup webhook still reconciles it; the janitor is the ultimate backstop).
+      if (next.direction === "outbound") {
+        if (event.failure === "known-dead" && !isTerminal(next.state)) {
+          terminalize(
+            next,
+            effects,
+            nowMs,
+            "ended_missed",
+            { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
+            null,
+          );
+          if (next.customerCcid) {
+            effects.push({ kind: "telnyx-hangup", ccid: next.customerCcid, terminal: true });
+          }
+        }
+        return { machine: next, effects };
+      }
       runAvenueLadder(next, effects);
       return { machine: next, effects };
     }
@@ -989,20 +1081,26 @@ function reduceInitiated(
 }
 
 /**
- * #211 T-O1: mint an OUTBOUND machine in 'dialing' from an authorized 4-part oc
- * call.initiated. Owner-from-mint (D9): answeredByUserId = the placing member,
- * mirrored immediately so /calls/live/mine crash recovery and GET /targets
- * busy-truth work with ZERO query changes; answered_at is stamped only at T-O2
- * (the billing anchor — a call that never proved it connected never bills). NO
- * ring/fanout/dial-deadline alarms: the placer is already on the line hearing
- * carrier ringback, and runaway dials are bounded by the #145 creation-age cron
- * plus the 4h janitor — a machine-side ring cap would silently change UX. The
- * customer (oc) leg is the machine's customerCcid; the placer's browser SIP leg
- * is deliberately unrepresented (D10), so there are NO tracked legs.
+ * #211/#213 T-O1: mint an OUTBOUND machine in 'dialing' from an authorized 4-part
+ * oc call.initiated (the SERVER-dialed customer leg). Owner-from-mint (D9):
+ * answeredByUserId = the placing member, mirrored immediately so
+ * /calls/live/mine crash recovery and GET /targets busy-truth work with ZERO
+ * query changes; answered_at is stamped only at T-O2 (the billing anchor — a
+ * call that never proved it connected never bills).
+ *
+ * #213: the customer (oc) leg is the machine's customerCcid — now a REAL
+ * server-dialed customer leg (the browser no longer dials the customer). This
+ * ALSO dials the PLACER as an `op` leg (the placer's own SIP credential): the
+ * placer's browser auto-answers it and the DO bridges op↔oc, exactly mirroring
+ * the inbound member-ring→bridge. The op leg is a tracked leg (so its ccid is
+ * stamped by dial-outcome and it is torn down on terminal). A janitor alarm is
+ * the runaway backstop (no ring alarm — the oc dial carries its own
+ * RING_TIMEOUT_SECS bound, and a member-side ring cap would change UX).
  */
 function reduceOutboundInitiated(
   context: OutboundInitiatedContext,
   nowMs: number,
+  pendingKeyFor: () => string,
 ): ReduceResult {
   const machine: SessionMachine = {
     state: "dialing",
@@ -1040,7 +1138,173 @@ function reduceOutboundInitiated(
     },
     { kind: "arm-alarm", alarm: "janitor", atMs: nowMs + JANITOR_MS },
   ];
+  // #213: ring the placer (op leg) so they hear the call + can be bridged. A
+  // missing placerSipUsername (they somehow hold no credential) means we cannot
+  // ring them — leave a breadcrumb; the oc leg then times out / the janitor
+  // resolves it (never a wedge). The owner-from-mint placer userId is context.userId.
+  if (context.placerSipUsername && context.userId) {
+    const pendingKey = `leg:pending:${pendingKeyFor()}`;
+    const sipTarget = `sip:${context.placerSipUsername}@sip.telnyx.com`;
+    machine.legs.push({
+      key: pendingKey,
+      ccid: null,
+      userId: context.userId,
+      status: "dialing",
+      source: "engine",
+      dialedAtMs: nowMs,
+      sipTarget,
+    });
+    effects.push({
+      kind: "telnyx-dial-placer",
+      pendingKey,
+      userId: context.userId,
+      sipTarget,
+    });
+  } else {
+    effects.push({
+      kind: "sentry-warn",
+      message:
+        `#213 outbound ${context.callSessionId}: no placer SIP credential — ` +
+        `cannot ring the placer; the oc leg / janitor will resolve the session`,
+    });
+  }
   return { machine, effects };
+}
+
+/**
+ * #213 T-O4: the placer (op) leg answered. Adopt its ccid onto the pending op
+ * record (destination-bound like §17.1) and mark it answered. The bridge fires
+ * only once BOTH legs are answered (here iff the customer already answered, i.e.
+ * state==='answered'; otherwise T-O2 bridges when the customer answers) — the
+ * proven consult/complete prod mechanic bridges answered-to-answered, so we never
+ * bridge onto a still-ringing leg (which Telnyx can reject, leaving the pair
+ * un-bridged / silent). A re-delivery in a terminal state is a no-op.
+ */
+function reduceOutboundPlacerAnswered(
+  next: SessionMachine,
+  event: Extract<SessionEvent, { type: "outbound-placer-answered" }>,
+  effects: Effect[],
+): ReduceResult {
+  if (next.direction !== "outbound" || isTerminal(next.state)) {
+    // The customer hung up in the sub-second before this op answered was
+    // processed → the call is already terminal. The op leg the placer's browser
+    // just answered would otherwise STRAND (it is not in `legs` as live, so the
+    // terminal teardown never reaps it) — hang it up here (adversarial-review H1).
+    effects.push({ kind: "telnyx-hangup", ccid: event.ccid, terminal: true });
+    return { machine: next, effects };
+  }
+  let leg = next.legs.find((entry) => entry.ccid === event.ccid);
+  if (!leg) {
+    // Adopt onto the pending op record for this placer (ccid stamped either by
+    // dial-outcome or here, whichever webhook wins the race). Bound by BOTH the
+    // userId AND the dialed sipTarget (§17.1 destination binding, parity with
+    // reduceMemberAnswered — a leg the DO didn't dial to this target is never
+    // adopted; review L1).
+    const candidate = next.legs.find(
+      (entry) =>
+        entry.ccid === null &&
+        (entry.status === "dialing" || entry.status === "ambiguous") &&
+        entry.userId === event.userId &&
+        (event.destination === null || entry.sipTarget === event.destination),
+    );
+    if (candidate) {
+      candidate.ccid = event.ccid;
+      candidate.key = `leg:${event.ccid}`;
+      leg = candidate;
+    }
+  }
+  if (!leg) {
+    // No matching op record — a forged/stray op answered. Defensive hangup.
+    effects.push({ kind: "telnyx-hangup", ccid: event.ccid, terminal: false });
+    return { machine: next, effects };
+  }
+  if (leg.status === "answered") return { machine: next, effects }; // idempotent
+  leg.status = "answered";
+  // #213: bridge the placer to the customer NOW (the placer's browser answered
+  // its op INVITE almost instantly, while the customer is likely still ringing).
+  // Telnyx relays the customer's ringback to the placer over this bridge (early
+  // media), and — crucially — bridging means the customer leg's eventual hangup
+  // TEARS this op leg too (no stranded placer). If Telnyx refuses to bridge onto
+  // a still-ringing leg, the command 4xxs but the op leg is alive, so the
+  // executor returns "ok" (no teardown) and T-O2's bridge (both answered) is the
+  // guaranteed fallback. Belt-and-suspenders: `terminalize` also hangs up any
+  // answered outbound leg, so an unbridged op leg is reaped on the terminal path.
+  if (next.customerCcid) {
+    effects.push({
+      kind: "telnyx-bridge",
+      memberCcid: event.ccid,
+      customerCcid: next.customerCcid,
+    });
+  }
+  return { machine: next, effects };
+}
+
+/** #213: the answered op (placer) leg's ccid, or null — used by T-O2 as the
+ *  GUARANTEED bridge fallback: if the placer answered before the customer, the
+ *  early bridge in reduceOutboundPlacerAnswered may have been refused by Telnyx
+ *  (ring-bridge), so re-issue it once both legs are answered (a redundant bridge
+ *  of an already-bridged pair is a harmless no-op / swallowed 4xx). */
+function answeredPlacerCcid(machine: SessionMachine): string | null {
+  const leg = machine.legs.find(
+    (entry) => entry.status === "answered" && entry.ccid !== null,
+  );
+  return leg?.ccid ?? null;
+}
+
+/**
+ * #213 T-O5: the placer (op) leg hung up. Mirrors the inbound T7 owner-death
+ * discipline (reduceMemberHangup) for the outbound placer:
+ *   - post-transfer the owner is the TEAMMATE, so a placer-leg death is expected
+ *     bookkeeping (Telnyx unbridged the placer when the target answered);
+ *   - a live transfer intent flags ownerLegDeadDuringIntent so clearIntent /
+ *     intent-expiry re-run the teardown, never a bare hang;
+ *   - otherwise the placer WAS the owner and dropped: tear the call down (hang
+ *     up the customer → its oc hangup runs T-O3; a dead oc re-enters as
+ *     inbound-leg-gone). In 'dialing' (placer never bridged) the call cannot
+ *     complete → terminal ended_missed + drop the customer.
+ */
+function reduceOutboundPlacerHangup(
+  next: SessionMachine,
+  event: Extract<SessionEvent, { type: "outbound-placer-hangup" }>,
+  effects: Effect[],
+  nowMs: number,
+): ReduceResult {
+  if (isTerminal(next.state)) return { machine: next, effects };
+  const leg = next.legs.find((entry) => entry.ccid === event.ccid);
+  if (leg && leg.status !== "dead") leg.status = "dead";
+
+  // Not the current owner (e.g. after a transfer handed ownership to the
+  // teammate) — the customer is not stranded; bookkeeping only.
+  if (next.answeredByUserId !== null && next.answeredByUserId !== event.userId) {
+    return { machine: next, effects };
+  }
+
+  if (next.state === "answered") {
+    if (next.intent !== null) {
+      // Stand-down: the placer dying mid-transfer is the EXPECTED shape of a
+      // blind transfer; flag it so clearIntent/intent-expiry re-run teardown.
+      next.ownerLegDeadDuringIntent = event.userId;
+      return { machine: next, effects };
+    }
+    ownerDeathTeardown(next, effects);
+    return { machine: next, effects };
+  }
+
+  // 'dialing': the placer left before the customer connected → the call cannot
+  // proceed. Resolve it directly (never wait out the oc timeout in silence) and
+  // drop the customer leg.
+  terminalize(
+    next,
+    effects,
+    nowMs,
+    "ended_missed",
+    { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
+    null,
+  );
+  if (next.customerCcid) {
+    effects.push({ kind: "telnyx-hangup", ccid: next.customerCcid, terminal: true });
+  }
+  return { machine: next, effects };
 }
 
 /**

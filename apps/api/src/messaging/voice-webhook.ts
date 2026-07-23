@@ -70,6 +70,14 @@ export const OUTBOUND_AGENT_STATE = "oc_agent";
 /** D38 outbound bridge: the CUSTOMER leg (the transfer target). */
 export const OUTBOUND_CUSTOMER_STATE = "oc_customer";
 
+/** #213 outbound parity: the PLACER leg — the member's own softphone, dialed
+ *  BY THE SERVER (not the browser) so the customer becomes a real, controllable
+ *  Call-Control leg. `op|<S>|<placerUserId>`: the placer's browser correlates
+ *  the INVITE to its pending placement by X-Loonext-Session (= S) and
+ *  auto-answers it; on answer the DO bridges it to the oc customer leg. This is
+ *  the outbound analog of a `brm` inbound member ring. */
+export const OUTBOUND_PLACER_STATE = "op";
+
 /** Hard ceiling on any single leg's BILLABLE seconds — a defense-in-depth
  *  sanity bound (4h, well above the 2h runaway-call hangup) so a garbage or
  *  attacker-controlled talk-time anchor can never bill an absurd amount. */
@@ -264,6 +272,37 @@ export function parseOutboundSessionId(
   if (parts[0] !== OUTBOUND_CUSTOMER_STATE) return null;
   const s = parts[3];
   return s && OUTBOUND_SESSION_UUID_RE.test(s) ? s : null;
+}
+
+/** #213: build the outbound PLACER (op) leg's client_state — `op|<S>|<userId>`.
+ *  The DO dials this to the placer's own SIP credential; the placer's browser
+ *  correlates the INVITE to its pending placement by the X-Loonext-Session
+ *  header (= S) and auto-answers it, then the DO bridges it to the oc leg. */
+export function buildOutboundPlacerState(
+  sessionId: string,
+  userId: string,
+): string {
+  return btoa(`${OUTBOUND_PLACER_STATE}|${sessionId}|${userId}`);
+}
+
+/** #213: parse the outbound placer (op) leg's client_state. Returns
+ *  `{ sessionId, userId }` when the tag is `op` and part-2 (S) is a well-formed
+ *  UUID; null otherwise (a non-op tag, a malformed/absent S, or a missing
+ *  userId). S is the id THIS leg's DO is keyed on — never Telnyx's
+ *  call_session_id (which differs for a server-dialed outbound leg). */
+export function parseOutboundPlacerState(
+  raw: string | null | undefined,
+): { sessionId: string; userId: string } | null {
+  const decoded = decodeClientState(raw ?? null);
+  if (!decoded) return null;
+  const parts = decoded.split("|");
+  if (parts[0] !== OUTBOUND_PLACER_STATE) return null;
+  const sessionId = parts[1];
+  const userId = parts[2];
+  if (!sessionId || !OUTBOUND_SESSION_UUID_RE.test(sessionId) || !userId) {
+    return null;
+  }
+  return { sessionId, userId };
 }
 
 /** Call-Control entry point (dispatched from /webhooks/telnyx). */

@@ -27,8 +27,18 @@ enum SdkEvent {
     /// A socket/auth error — often a dead token; recovery re-mints.
     case error(String?)
 
-    /// A new inbound invite (the ring engine or a transfer dialed us).
-    case incoming(call: any SdkCallHandle, callerName: String?, callerNumber: String?)
+    /// A new inbound invite (the ring engine, a transfer, OR — #213 — THIS
+    /// member's own server-dialed placer (op) leg for an outbound call they
+    /// just placed). `sessionHeader` is the `X-Loonext-Session` custom SIP
+    /// header (= S) the server stamps on every ring/placer dial, extracted at
+    /// the SDK boundary; the core correlates it to a pending placement to
+    /// decide whether to auto-answer (op leg) or present a ring (inbound).
+    case incoming(
+        call: any SdkCallHandle,
+        callerName: String?,
+        callerNumber: String?,
+        sessionHeader: String?
+    )
 }
 
 @MainActor

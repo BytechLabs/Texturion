@@ -35,8 +35,11 @@ enum CallPhase: Sendable, Equatable {
 
 struct CallSnapshot: Sendable, Equatable, Identifiable {
     /// The SDK call's id (the Telnyx call UUID, lowercased) — the state's
-    /// map key AND the CallKit call UUID.
-    let id: String
+    /// map key AND the CallKit call UUID. Mutable so #213 can REKEY a "Calling…"
+    /// placement chip (initially keyed on S) onto the real op leg's SDK id once
+    /// the server-dialed placer INVITE lands (`placementConnected`); no other
+    /// path reassigns it.
+    var id: String
     var direction: CallDirection
     /// Resolved display name (contact > CNAM > number) at ring/place time.
     var peerName: String
@@ -134,6 +137,52 @@ enum CallStateMachine {
         sessionId: String
     ) -> SoftphoneSnapshot {
         update(state, id: id) { $0.sessionId = sessionId }
+    }
+
+    /// #213: the server-dialed placer (op) INVITE for a pending placement
+    /// arrived and was auto-answered. Rekey the synthetic "Calling…" chip
+    /// (`placementId` = S) onto the real SDK call `id`; it STAYS an OUTBOUND
+    /// call to the customer and keeps the server session S. `peerNumber` is the
+    /// customer from the op leg's `X-Loonext-Caller` header, falling back (at the
+    /// call site) to the placement's stored `auth.to` — both are the same
+    /// customer E.164 by construction, so the result matches the web
+    /// `placement_connected` reducer (which keeps the placing peer). If the chip
+    /// is gone (the user cancelled during "Calling…", or the placement already
+    /// timed out), this is a no-op — the core declines the op leg instead.
+    static func placementConnected(
+        _ state: SoftphoneSnapshot,
+        placementId: String,
+        id: String,
+        sessionId: String,
+        peerNumber: String
+    ) -> SoftphoneSnapshot {
+        guard state.calls.contains(where: { $0.id == placementId }) else { return state }
+        var next = state
+        next.calls = state.calls.map { call in
+            guard call.id == placementId else { return call }
+            var updated = call
+            updated.id = id
+            updated.sessionId = sessionId
+            if !peerNumber.isEmpty { updated.peerNumber = peerNumber }
+            return updated
+        }
+        if state.activeId == placementId { next.activeId = id }
+        return next
+    }
+
+    /// #213: the op INVITE never arrived (server dial failed / timed out). Drop
+    /// the "Calling…" chip and surface an honest error. Mirrors the web
+    /// `placement_failed` reducer.
+    static func placementFailed(
+        _ state: SoftphoneSnapshot,
+        placementId: String,
+        message: String
+    ) -> SoftphoneSnapshot {
+        var next = state
+        next.error = message
+        next.calls = state.calls.filter { $0.id != placementId }
+        if state.activeId == placementId { next.activeId = nil }
+        return next
     }
 
     static func muted(_ state: SoftphoneSnapshot, id: String, muted: Bool) -> SoftphoneSnapshot {

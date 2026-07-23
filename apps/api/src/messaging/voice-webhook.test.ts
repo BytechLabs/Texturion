@@ -26,10 +26,12 @@ import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import {
   handleCallEvent,
   handleVoicemailSaved,
+  buildOutboundPlacerState,
   buildOutboundState,
   FORWARD_LEG_STATE,
   INBOUND_FORWARDED_STATE,
   OUTBOUND_CUSTOMER_STATE,
+  parseOutboundPlacerState,
   parseOutboundSessionId,
 } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";
@@ -362,6 +364,30 @@ describe("#211 outbound tag parsing (buildOutboundState / parseOutboundSessionId
 
   it("a non-oc tag (bri) parses to null", () => {
     expect(parseOutboundSessionId(btoa("bri||2026-01-01T00:00:00Z"))).toBeNull();
+  });
+});
+
+describe("#213 outbound placer tag (buildOutboundPlacerState / parseOutboundPlacerState)", () => {
+  const S = "11111111-1111-4111-8111-111111111111";
+
+  it("round-trip: builds op|<S>|<userId> and parses S + userId", () => {
+    const tag = buildOutboundPlacerState(S, "user-9");
+    expect(atob(tag).split("|")).toEqual(["op", S, "user-9"]);
+    expect(parseOutboundPlacerState(tag)).toEqual({ sessionId: S, userId: "user-9" });
+  });
+
+  it("a malformed S (not a UUID) parses to null — never keyed on", () => {
+    expect(parseOutboundPlacerState(btoa("op|not-a-uuid|user-9"))).toBeNull();
+  });
+
+  it("a missing userId parses to null", () => {
+    expect(parseOutboundPlacerState(btoa(`op|${S}`))).toBeNull();
+  });
+
+  it("an oc tag is NOT parsed as a placer tag (and vice-versa)", () => {
+    const oc = buildOutboundState(OUTBOUND_CUSTOMER_STATE, "+15551234567", "nonce-1", S);
+    expect(parseOutboundPlacerState(oc)).toBeNull();
+    expect(parseOutboundSessionId(buildOutboundPlacerState(S, "user-9"))).toBeNull();
   });
 });
 

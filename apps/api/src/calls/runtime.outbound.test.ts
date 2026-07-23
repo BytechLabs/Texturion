@@ -61,6 +61,14 @@ function companiesStub() {
   ]);
 }
 
+/** #213: the FRESH path looks up the placer's SIP credential (to dial the op
+ *  leg). Present in the fresh-mint tests so the credential GET resolves. */
+function credentialsStub(sipUsername: string | null = "placer-sip") {
+  return stubRoute(restMatch(env, "GET", "member_telephony_credentials"), () =>
+    sipUsername ? [{ sip_username: sipUsername }] : [],
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -121,7 +129,8 @@ describe("loadOutboundInitiatedContext — #211 call-hijack fix", () => {
     }));
     const companies = companiesStub();
     const stamp = stampStub();
-    stubFetch(rpc.route, companies.route, stamp.route);
+    const creds = credentialsStub();
+    stubFetch(rpc.route, companies.route, stamp.route, creds.route);
 
     const result = await createSessionRuntime(env).loadOutboundInitiatedContext(payload());
 
@@ -131,6 +140,8 @@ describe("loadOutboundInitiatedContext — #211 call-hijack fix", () => {
       companyId: COMPANY,
       phoneNumberId: NUMBER,
       customer: CUSTOMER,
+      // #213: the placer's SIP credential to ring the op leg with.
+      placerSipUsername: "placer-sip",
     });
     // Exactly one stamp, scoped by session id AND company AND number, carrying
     // the fresh leg's control id.
@@ -203,5 +214,55 @@ describe("loadOutboundInitiatedContext — #211 call-hijack fix", () => {
 
     expect(result).toBe("drop"); // dropped: the victim's live leg is untouched
     expect(stamp.calls).toHaveLength(0); // NO customer_call_control_id overwrite
+  });
+
+  it("#213 X-RTC guard: an oc leg carrying an X-RTC-* header REJECTS with no write (never stamps a browser leg)", async () => {
+    // The #213 regression: a browser/WebRTC leg (carries X-RTC-* headers) was
+    // stamped as customer_call_control_id, so the transfer bridge-steal grabbed
+    // the placer and dropped the customer. The server now dials the customer on
+    // the voice connection (no X-RTC), but this guard converts any future path
+    // that routes a browser leg here into an HONEST reject instead of a silent
+    // wrong-leg stamp. It fires BEFORE the authorize RPC, so no RPC/stamp runs.
+    const rpc = stubRoute(rpcMatch(env, "api_authorize_outbound_call"), () => ({
+      authorized: true,
+      company_id: COMPANY,
+      phone_number_id: NUMBER,
+      replay: false,
+      session_id: S,
+      user_id: "eeeeeeee-0000-4000-8000-00000000000e",
+    }));
+    const stamp = stampStub();
+    stubFetch(rpc.route, stamp.route);
+
+    const result = await createSessionRuntime(env).loadOutboundInitiatedContext({
+      ...payload(),
+      custom_headers: [
+        { name: "X-Loonext-Session", value: S },
+        { name: "X-RTC-CALLID", value: "rtc-123" },
+      ],
+    });
+
+    expect(result).toBe("reject");
+    expect(rpc.calls).toHaveLength(0); // rejected before the nonce is even consumed
+    expect(stamp.calls).toHaveLength(0); // no customer_call_control_id write
+  });
+
+  it("#213: a fresh mint whose placer holds NO credential returns placerSipUsername=null (the reducer then rings no placer)", async () => {
+    const rpc = stubRoute(rpcMatch(env, "api_authorize_outbound_call"), () => ({
+      authorized: true,
+      company_id: COMPANY,
+      phone_number_id: NUMBER,
+      replay: false,
+      session_id: S,
+      user_id: "eeeeeeee-0000-4000-8000-00000000000e",
+    }));
+    const companies = companiesStub();
+    const stamp = stampStub();
+    const creds = credentialsStub(null); // no credential row for the placer
+    stubFetch(rpc.route, companies.route, stamp.route, creds.route);
+
+    const result = await createSessionRuntime(env).loadOutboundInitiatedContext(payload());
+
+    expect(result).toMatchObject({ callSessionId: S, placerSipUsername: null });
   });
 });

@@ -110,9 +110,15 @@ private final class FakeSdk: SoftphoneSdk {
     func ring(
         _ handle: FakeHandle,
         name: String? = "Dana",
-        number: String? = "+15557778888"
+        number: String? = "+15557778888",
+        sessionHeader: String? = nil
     ) {
-        onEvent?(.incoming(call: handle, callerName: name, callerNumber: number))
+        onEvent?(.incoming(
+            call: handle,
+            callerName: name,
+            callerNumber: number,
+            sessionHeader: sessionHeader
+        ))
     }
 
     func emit(_ event: SdkEvent) { onEvent?(event) }
@@ -131,6 +137,11 @@ private final class FakeBackend: CallsBackend {
     var ringMeCalls: [String] = []
     var ringMeError: ApiError?
 
+    /// #213: the server session (S) the next authorize returns. The op leg then
+    /// carries `X-Loonext-Session = S` so the core correlates it. Nil simulates a
+    /// pre-#211 server that returned no id (placeCall must fail honestly).
+    var nextSessionId: String? = "11111111-1111-4111-8111-111111111111"
+
     func mintToken(companyId: String) async throws -> WebRtcToken {
         tokenMints += 1
         return WebRtcToken(token: "telnyx-jwt", sip_username: "sip-u1", expires_in_hours: 24)
@@ -146,7 +157,8 @@ private final class FakeBackend: CallsBackend {
         BrowserCallAuth(
             from: "+15550001111",
             to: to ?? "+15552223333",
-            client_state: serverClientState
+            client_state: serverClientState,
+            call_session_id: nextSessionId
         )
     }
 
@@ -285,6 +297,81 @@ final class CallStateMachineTests: XCTestCase {
         XCTAssertEqual(.disconnected, state.status)
         XCTAssertEqual(1, state.calls.count)
     }
+
+    // MARK: #213 placement reconcile (server-dialed outbound — web state.test.ts port)
+
+    /// The synthetic "Calling…" chip is keyed on S until the op INVITE rekeys it.
+    private func placement(_ s: String) -> CallSnapshot {
+        CallSnapshot(
+            id: s,
+            direction: .outbound,
+            peerName: "Dana Roofer",
+            peerNumber: "+16135551000",
+            phase: .connecting,
+            sessionId: s
+        )
+    }
+
+    func testPlacementConnectedRekeysTheCallingChipKeepingItOutboundAndActive() {
+        let s = "11111111-1111-4111-8111-111111111111"
+        var state = CallStateMachine.ready(SoftphoneSnapshot())
+        state = CallStateMachine.placing(state, placement(s))
+        state = CallStateMachine.placementConnected(
+            state, placementId: s, id: "sdk-op-1", sessionId: s, peerNumber: "+16135551000"
+        )
+        state = CallStateMachine.sdkPhase(state, id: "sdk-op-1", phase: .active, now: at(2))
+
+        XCTAssertEqual(1, state.calls.count)
+        let call = state.calls[0]
+        XCTAssertEqual("sdk-op-1", call.id) // rekeyed onto the SDK leg
+        XCTAssertEqual(s, call.sessionId)
+        XCTAssertEqual(.outbound, call.direction)
+        XCTAssertEqual(.active, call.phase)
+        XCTAssertEqual("sdk-op-1", state.activeId)
+    }
+
+    func testPlacementConnectedOnACancelledChipIsANoOp() {
+        let s = "11111111-1111-4111-8111-111111111111"
+        var state = CallStateMachine.ready(SoftphoneSnapshot())
+        state = CallStateMachine.placing(state, placement(s))
+        state = CallStateMachine.dismissed(state, id: s) // user cancelled during Calling…
+        state = CallStateMachine.placementConnected(
+            state, placementId: s, id: "sdk-op-1", sessionId: s, peerNumber: "+16135551000"
+        )
+        XCTAssertTrue(state.calls.isEmpty)
+        XCTAssertNil(state.activeId)
+    }
+
+    func testPlacementFailedDropsTheCallingChipAndSurfacesAnError() {
+        let s = "11111111-1111-4111-8111-111111111111"
+        var state = CallStateMachine.ready(SoftphoneSnapshot())
+        state = CallStateMachine.placing(state, placement(s))
+        state = CallStateMachine.placementFailed(
+            state, placementId: s, message: "Couldn't reach the line."
+        )
+        XCTAssertTrue(state.calls.isEmpty)
+        XCTAssertNil(state.activeId)
+        XCTAssertEqual("Couldn't reach the line.", state.error)
+    }
+
+    func testPlacementConnectedPrefersTheHeaderCustomerNumber() {
+        // The op leg's X-Loonext-Caller wins for the displayed peer; a blank one
+        // keeps the placing number (both are the same customer by construction).
+        let s = "11111111-1111-4111-8111-111111111111"
+        var state = CallStateMachine.ready(SoftphoneSnapshot())
+        state = CallStateMachine.placing(state, placement(s))
+        state = CallStateMachine.placementConnected(
+            state, placementId: s, id: "sdk-op-1", sessionId: s, peerNumber: "+16139990000"
+        )
+        XCTAssertEqual("+16139990000", state.calls.first?.peerNumber)
+
+        var kept = CallStateMachine.ready(SoftphoneSnapshot())
+        kept = CallStateMachine.placing(kept, placement(s))
+        kept = CallStateMachine.placementConnected(
+            kept, placementId: s, id: "sdk-op-2", sessionId: s, peerNumber: ""
+        )
+        XCTAssertEqual("+16135551000", kept.calls.first?.peerNumber)
+    }
 }
 
 // MARK: - ClientState (the iOS boundary is VERBATIM — no Android-style decode)
@@ -364,22 +451,111 @@ final class TelephonyMappingTests: XCTestCase {
         }
     }
 
-    // MARK: outbound
+    // Server-minted session ids (S) — real UUIDs, the shape POST /calls/browser
+    // returns and stamps on the op leg's X-Loonext-Session header.
+    private let sessionA = "11111111-1111-4111-8111-111111111111"
+    private let sessionB = "22222222-2222-4222-8222-222222222222"
+    private let sessionC = "33333333-3333-4333-8333-333333333333"
 
-    func testClientStateFromTheServerGoesIntoNewCallVerbatim() async throws {
+    /// #213 outbound flow: place a call and connect its SERVER-dialed placer (op)
+    /// leg. authorize (returns S) → pending placement + "Calling…" chip → the op
+    /// INVITE arrives as an inbound SDK call carrying X-Loonext-Session=S → the
+    /// core auto-answers it and reconciles it into the chip. Returns the op leg
+    /// handle to drive (the chip's id is now the op leg's SDK id).
+    @discardableResult
+    private func placeAndConnect(
+        _ core: SoftphoneCore,
+        _ sdk: FakeSdk,
+        _ backend: FakeBackend,
+        to: String = "+15552223333",
+        displayName: String = "A",
+        session: String = "11111111-1111-4111-8111-111111111111",
+        opId: String = "op-1",
+        callControlId: String = "ccid-op-1"
+    ) async throws -> FakeHandle {
+        backend.nextSessionId = session
+        try await core.placeCall(displayName: displayName, to: to)
+        let op = FakeHandle(
+            id: opId,
+            callControlId: callControlId,
+            telnyxSessionId: "telnyx-\(opId)"
+        )
+        sdk.ring(op, name: displayName, number: to, sessionHeader: session)
+        return op
+    }
+
+    // MARK: outbound (#213 server-dialed)
+
+    func testPlacingDoesNotDialTheCustomerTheServerDoes() async throws {
         let (core, sdk, backend) = makeCore()
         try await startReady(core)
 
+        backend.nextSessionId = sessionA
         try await core.placeCall(displayName: "Ari", to: "+15552223333")
 
-        XCTAssertEqual(1, sdk.placed.count)
-        let placed = try XCTUnwrap(sdk.placed.first)
-        XCTAssertEqual(backend.serverClientState, placed.clientState)
-        XCTAssertEqual("+15552223333", placed.destinationNumber)
-        XCTAssertEqual("+15550001111", placed.callerIdNumber)
-        let call = try XCTUnwrap(core.state.calls.first)
-        XCTAssertEqual(.connecting, call.phase)
-        XCTAssertEqual(.outbound, call.direction)
+        // #213: the SERVER dials the customer — the client issues NO newCall.
+        XCTAssertTrue(sdk.placed.isEmpty, "the client never dials the customer")
+        // A "Calling…" chip keyed on S: outbound, connecting, session already S.
+        let chip = try XCTUnwrap(core.state.calls.first)
+        XCTAssertEqual(sessionA, chip.id)
+        XCTAssertEqual(.outbound, chip.direction)
+        XCTAssertEqual(.connecting, chip.phase)
+        XCTAssertEqual(sessionA, chip.sessionId)
+        XCTAssertEqual("+15552223333", chip.peerNumber)
+        XCTAssertEqual(sessionA, core.state.activeId)
+    }
+
+    func testPlaceCallFailsHonestlyWhenTheServerReturnsNoSession() async throws {
+        let (core, _, backend) = makeCore()
+        try await startReady(core)
+        backend.nextSessionId = nil // a pre-#211 / kill-switch server
+
+        do {
+            try await core.placeCall(displayName: "Ari", to: "+15552223333")
+            XCTFail("expected conflict")
+        } catch let error as ApiError {
+            XCTAssertEqual(ApiErrorCode.conflict, error.code)
+        }
+        XCTAssertTrue(core.state.calls.isEmpty, "no silent dead chip")
+    }
+
+    func testTheOpInviteIsAutoAnsweredAndReconciledAsOutbound() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        let op = try await placeAndConnect(
+            core, sdk, backend, to: "+15552223333", displayName: "Ari",
+            session: sessionA, opId: "op-1"
+        )
+
+        // Auto-answered (the mic was pre-granted before authorize) — never a ring.
+        XCTAssertTrue(op.answered, "the op leg is auto-answered")
+        // Reconciled: the chip rekeyed onto the SDK leg, still OUTBOUND, session S.
+        let chip = try XCTUnwrap(core.state.calls.first)
+        XCTAssertEqual("op-1", chip.id)
+        XCTAssertEqual(.outbound, chip.direction)
+        XCTAssertEqual(sessionA, chip.sessionId)
+        XCTAssertEqual("+15552223333", chip.peerNumber)
+
+        // Goes active with NO by-leg resolve — the customer session is already S.
+        op.report(.active)
+        XCTAssertEqual(.active, core.state.calls.first?.phase)
+        XCTAssertEqual("op-1", core.state.activeId)
+        XCTAssertEqual(0, backend.byLegHits, "the outbound op leg never resolves by-leg")
+    }
+
+    func testTheOpLegPeerPrefersTheXLoonextCallerHeader() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+        backend.nextSessionId = sessionA
+        // Placed against a contact (no `to`) — the placing peer number is auth.to;
+        // the op leg then carries the customer on X-Loonext-Caller (its number).
+        try await core.placeCall(displayName: "Ari", contactId: "contact-1")
+        let op = FakeHandle(id: "op-1", callControlId: "ccid-op-1")
+        // The op INVITE's callerNumber == X-Loonext-Caller (the customer).
+        sdk.ring(op, name: "Ari", number: "+15559998888", sessionHeader: sessionA)
+        XCTAssertEqual("+15559998888", core.state.calls.first?.peerNumber)
+        XCTAssertEqual(.outbound, core.state.calls.first?.direction)
     }
 
     func testTheTokenIsMintedOnConnectOnlyNeverPerCall() async throws {
@@ -387,41 +563,134 @@ final class TelephonyMappingTests: XCTestCase {
         try await startReady(core)
         XCTAssertEqual(1, backend.tokenMints)
 
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        sdk.outboundHandles[0].report(.active)
-        sdk.outboundHandles[0].report(.ended)
-        try await core.placeCall(displayName: "B", to: "+15552223333")
+        let op1 = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
+        op1.report(.active)
+        op1.report(.ended)
+        let op2 = try await placeAndConnect(core, sdk, backend, session: sessionB, opId: "op-2")
+        _ = op2
 
         XCTAssertEqual(1, backend.tokenMints, "two calls, still one mint")
         XCTAssertEqual(1, sdk.connects)
     }
 
-    func testAnOutboundLegIsTheCustomerLegItsSessionLandsWithNoByLegCall() async throws {
+    func testTheOutboundSessionIsKnownAtPlacementNoByLegCall() async throws {
         let (core, sdk, backend) = makeCore()
-        sdk.nextOutboundSessionId = "sess-out"
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
 
-        sdk.outboundHandles[0].report(.active)
+        let op = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
+        // Session S is known from AUTHORIZE — before the leg even goes active.
+        XCTAssertEqual(sessionA, core.state.calls.first?.sessionId)
 
+        op.report(.active)
         let call = try XCTUnwrap(core.state.calls.first)
         XCTAssertEqual(.active, call.phase)
-        XCTAssertEqual("sess-out", call.sessionId)
+        XCTAssertEqual(sessionA, call.sessionId)
         XCTAssertEqual(0, backend.byLegHits, "outbound never resolves by-leg")
     }
 
     func testAThirdConcurrentPlaceCallIsRefusedBeforeThirdLineAbuse() async throws {
-        let (core, sdk, _) = makeCore()
+        let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        sdk.outboundHandles[0].report(.active)
-        try await core.placeCall(displayName: "B", to: "+15552223333")
+
+        let op1 = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
+        op1.report(.active)
+        // A second placement (still "Calling…") — that is two live lines.
+        backend.nextSessionId = sessionB
+        try await core.placeCall(displayName: "B", to: "+15552224444")
+
         do {
-            try await core.placeCall(displayName: "C", to: "+15552223333")
+            backend.nextSessionId = sessionC
+            try await core.placeCall(displayName: "C", to: "+15552225555")
             XCTFail("expected conflict")
         } catch let error as ApiError {
             XCTAssertEqual(ApiErrorCode.conflict, error.code)
         }
+    }
+
+    // MARK: #213 placement lifecycle (correlate / cancel-declines / timeout)
+
+    func testCancellingDuringCallingDeclinesTheLateOpInvite() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        backend.nextSessionId = sessionA
+        try await core.placeCall(displayName: "Ari", to: "+15552223333")
+        // Cancel while still "Calling…" (no op INVITE yet).
+        core.hangup(sessionA)
+        XCTAssertTrue(core.state.calls.isEmpty, "the Calling… chip clears on cancel")
+
+        // The op INVITE arrives LATE for the cancelled placement -> DECLINED so
+        // the DO drops the server-dialed customer; never a ring, never answered.
+        let op = FakeHandle(id: "op-late", callControlId: "ccid-late")
+        sdk.ring(op, name: "Ari", number: "+15552223333", sessionHeader: sessionA)
+        XCTAssertTrue(op.ended, "the late op leg is hung up (the DO drops the customer)")
+        XCTAssertFalse(op.answered, "a cancelled placement's op leg is never answered")
+        XCTAssertTrue(core.state.calls.isEmpty, "no ring UI for a cancelled placement")
+    }
+
+    func testConnectingAnOutboundWhileOnACallHoldsTheFirst() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        // On a first (inbound) call.
+        let first = FakeHandle(id: "in-1", callControlId: "ccid-1")
+        sdk.ring(first, name: "First")
+        core.answer("in-1")
+        first.report(.active)
+        XCTAssertEqual("in-1", core.state.activeId)
+
+        // Place a second (outbound) call and connect its server-dialed op leg.
+        let op = try await placeAndConnect(
+            core, sdk, backend, to: "+15552224444", displayName: "Bob",
+            session: sessionB, opId: "op-2"
+        )
+        // #148 + one-audio-path: the op leg connecting SDK-holds the first call
+        // (iOS has no single-sink swap, so an un-held first leg would keep audio).
+        XCTAssertEqual(1, first.holds, "the active first call was SDK-held on connect")
+
+        op.report(.active)
+        first.report(.held)
+        XCTAssertEqual("op-2", core.state.activeId)
+        XCTAssertEqual(.held, core.state.calls.first { $0.id == "in-1" }?.phase)
+        XCTAssertEqual(.active, core.state.calls.first { $0.id == "op-2" }?.phase)
+    }
+
+    func testAnInboundRingWithASessionHeaderIsPresentedNormally() async throws {
+        let (core, sdk, _) = makeCore()
+        try await startReady(core)
+
+        // A genuine inbound ring ALSO carries X-Loonext-Session, but there is no
+        // pending placement for it -> the normal ring path (never auto-answered).
+        let ring = FakeHandle(id: "in-1", callControlId: "ccid-in-1")
+        sdk.ring(ring, name: "Dana", number: "+15551230000", sessionHeader: "inbound-session-xyz")
+
+        XCTAssertEqual(.ringing, core.state.calls.first?.phase)
+        XCTAssertEqual(.inbound, core.state.calls.first?.direction)
+        XCTAssertFalse(ring.answered, "an inbound ring is never auto-answered")
+    }
+
+    func testAPlacementTimesOutWhenTheOpInviteNeverArrives() async throws {
+        let backend = FakeBackend()
+        let sdk = FakeSdk()
+        let core = SoftphoneCore(
+            api: backend,
+            sdk: sdk,
+            recoverDebounce: .milliseconds(5),
+            readyTimeout: .seconds(5),
+            placementTimeout: .milliseconds(30)
+        )
+        core.start(companyId: "company-1", callerIdName: "Sam")
+        try await core.awaitReady()
+
+        backend.nextSessionId = sessionA
+        try await core.placeCall(displayName: "Ari", to: "+15552223333")
+        XCTAssertEqual(.connecting, core.state.calls.first?.phase)
+
+        // The op INVITE never arrives -> the chip drops + an honest error.
+        try await waitFor("placement timeout") {
+            core.state.calls.isEmpty && core.state.error != nil
+        }
+        XCTAssertEqual("Couldn't reach the line. Please try again.", core.state.error)
     }
 
     // MARK: inbound + answer mapping (CXAnswerCallAction's core half)
@@ -553,10 +822,9 @@ final class TelephonyMappingTests: XCTestCase {
     }
 
     func testHoldCommandsConsultTheSdkPhaseNotTheReducedState() async throws {
-        let (core, sdk, _) = makeCore()
+        let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        let handle = sdk.outboundHandles[0]
+        let handle = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
         handle.report(.active)
 
         core.toggleHold(handle.id)
@@ -575,10 +843,9 @@ final class TelephonyMappingTests: XCTestCase {
     // MARK: mute / DTMF / end mapping
 
     func testMuteMapsToTheHandleAndTheState() async throws {
-        let (core, sdk, _) = makeCore()
+        let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        let handle = sdk.outboundHandles[0]
+        let handle = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
         handle.report(.active)
 
         core.setMuted(handle.id, muted: true)
@@ -591,10 +858,9 @@ final class TelephonyMappingTests: XCTestCase {
     }
 
     func testDtmfMapsEachDigitToTheHandle() async throws {
-        let (core, sdk, _) = makeCore()
+        let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        let handle = sdk.outboundHandles[0]
+        let handle = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
         handle.report(.active)
 
         // CallsManager's CXPlayDTMFCallAction handler feeds digits one at a
@@ -606,10 +872,9 @@ final class TelephonyMappingTests: XCTestCase {
     }
 
     func testHangupMapsToHandleEndAndDismissClearsAnEndedChip() async throws {
-        let (core, sdk, _) = makeCore()
+        let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        let handle = sdk.outboundHandles[0]
+        let handle = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
         handle.report(.active)
 
         core.hangup(handle.id)
@@ -692,8 +957,7 @@ final class TelephonyMappingTests: XCTestCase {
     func testTheWatchdogNeverRebuildsWhileACallIsLive() async throws {
         let (core, sdk, backend) = makeCore()
         try await startReady(core)
-        try await core.placeCall(displayName: "A", to: "+15552223333")
-        let handle = sdk.outboundHandles[0]
+        let handle = try await placeAndConnect(core, sdk, backend, session: sessionA, opId: "op-1")
         handle.report(.active)
 
         sdk.emit(.error("socket died"))
@@ -897,5 +1161,15 @@ final class CallerHeaderTests: XCTestCase {
         XCTAssertEqual("+15557778888", resolved.number)
         XCTAssertEqual("DANA F", resolved.name)
         XCTAssertNil(CallerHeaders.caller(from: nil))
+    }
+
+    // #213: the X-Loonext-Session correlation header (case-insensitive, blank-safe).
+    func testSessionHeaderIsReadCaseInsensitivelyAndBlankSafe() {
+        let s = "11111111-1111-4111-8111-111111111111"
+        XCTAssertEqual(s, CallerHeaders.session(from: ["X-Loonext-Session": s]))
+        XCTAssertEqual(s, CallerHeaders.session(from: ["x-loonext-session": s]))
+        XCTAssertNil(CallerHeaders.session(from: ["X-Loonext-Session": "   "]))
+        XCTAssertNil(CallerHeaders.session(from: nil))
+        XCTAssertNil(CallerHeaders.session(from: ["X-Loonext-Caller": "+15551234567"]))
     }
 }

@@ -306,6 +306,16 @@ final class CallsManager {
             lastPhases[call.id] = call.phase
         }
 
+        // #213: a "Calling…" placement chip is tracked by S (never reported to
+        // CallKit — its SDK-mapped UUID isn't known until the op INVITE lands),
+        // then rekeys onto the op leg's SDK id (or drops on cancel/timeout). Its
+        // old id leaves both the snapshot and `reportedToCallKit`, so the
+        // teardown loop above never prunes its `lastPhases` record — do it here
+        // so stale phase entries don't accumulate across placed calls.
+        lastPhases = lastPhases.filter {
+            reportedToCallKit.contains($0.key) || byId[$0.key] != nil
+        }
+
         syncAudioFallback()
     }
 
@@ -337,8 +347,10 @@ final class CallsManager {
 
     private func wireCallKit() {
         callKit.callbacks.performStart = { action in
-            // The dial already happened (authorize-then-newCall) — this
-            // transaction just registers it with the system.
+            // #213: the SERVER dialed the customer and the op leg is already
+            // auto-answered by the time we report the outbound to CallKit
+            // (at placement reconcile) — this transaction just registers it
+            // with the system.
             action.fulfill()
         }
         callKit.callbacks.performAnswer = { [weak self] action in

@@ -18,24 +18,39 @@ import kotlinx.serialization.Serializable
  * uses [HttpCallsApi]; behavior is byte-for-byte the old CallsApi class.
  */
 
-/** POST /v1/calls/browser response — client_state goes into newCall VERBATIM. */
+/**
+ * POST /v1/calls/browser response.
+ *
+ * #213: the client NO LONGER dials the customer, so it no longer feeds anything
+ * into an SDK `newCall`. The SERVER dials the customer as a real Call-Control leg
+ * AND rings this member's own softphone as the placer (op) leg; the client waits
+ * for that op INVITE (correlated by X-Loonext-Session = [call_session_id]) and
+ * auto-answers it. [call_session_id] (S) is the key field now; [from] is only the
+ * caller-ID display, [to] the customer for the "Calling…" chip. [client_state] is
+ * retained for wire-shape stability but is no longer used by the client.
+ */
 @Serializable
 data class BrowserCallAuth(
     val from: String,
     val to: String,
-    val client_state: String,
+    /** Wire-shape stability only — the client no longer dials with this (#213).
+     *  Nullable + defaulted for decode-safety parity with iOS: the client never
+     *  reads it, so its absence must never fail the authorize decode. */
+    val client_state: String? = null,
     /**
-     * #211 outbound parity: the server-minted, nonce-bound customer
-     * call_session_id (S) for this outbound leg. This is the ONE id the
-     * CallSessionDO, the webhooks, and every live-call op key on. The client
-     * stamps [CallSnapshot.sessionId] from it at PLACEMENT, so transfer/consult
-     * no longer waits on the SDK's own (distinct) Telnyx session id.
+     * #211/#213 outbound parity: the server-minted, nonce-bound customer
+     * call_session_id (S) for this outbound call. This is the ONE id the
+     * CallSessionDO, the webhooks, and every live-call op key on, AND the key the
+     * client correlates the incoming op INVITE against (X-Loonext-Session = S) to
+     * auto-answer it. The client stamps [CallSnapshot.sessionId] from it at
+     * PLACEMENT, so transfer/consult is server-addressable the instant the call
+     * connects.
      *
-     * Nullable and defaulted purely for decode safety: the server always
-     * mints it now (calls v3 is the sole path), but its ABSENCE must never be
-     * an authorize error (the leg still places; the SDK session backfills at
-     * ACTIVE, and transfer simply stays dark until a serverAddressable read
-     * confirms the session). ApiClient already sets ignoreUnknownKeys.
+     * Nullable and defaulted purely for decode safety: the server always mints it
+     * now (calls v3 is the sole path). Its ABSENCE is not a decode error — but with
+     * no S there is no op INVITE to correlate, so placeCall fails honestly rather
+     * than leave a silent dead "Calling…" chip. ApiClient already sets
+     * ignoreUnknownKeys.
      */
     val call_session_id: String? = null,
 )

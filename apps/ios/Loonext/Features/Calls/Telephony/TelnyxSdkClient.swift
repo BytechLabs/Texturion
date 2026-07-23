@@ -155,10 +155,17 @@ final class TelnyxSdkClient: NSObject, SoftphoneSdk {
             inviteNumber: info.callerNumber,
             inviteName: info.callerName
         )
+        // #213: the server session (S) off the INVITE's X-Loonext-Session header —
+        // present on both a genuine inbound ring and THIS member's own
+        // server-dialed placer (op) leg. The core disambiguates via its pending
+        // placements. For an op leg the resolved `callerNumber` is already the
+        // customer (X-Loonext-Caller), so no extra plumbing is needed for the peer.
+        let sessionHeader = CallerHeaders.session(from: call.inviteCustomHeaders)
         onEvent?(.incoming(
             call: handle,
             callerName: resolved.name,
-            callerNumber: resolved.number
+            callerNumber: resolved.number,
+            sessionHeader: sessionHeader
         ))
     }
 

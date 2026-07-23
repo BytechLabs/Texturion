@@ -1528,8 +1528,11 @@ DO split, no stranded row.
 
 - **Authorize** (`POST /v1/calls/browser`) mints the IDENTITY (S) + the line
   reservation, stores S + the placing member on the reservation, returns
-  `call_session_id: S`, and embeds the 4-part tag. This is UNCONDITIONAL (v3 is
-  the sole path): S is ALWAYS minted and the tag is ALWAYS 4-part.
+  `call_session_id: S`, and (#213) **SERVER-dials the customer** with the 4-part
+  tag + `X-Loonext-Session=S` — the browser no longer dials (§18.8). This is
+  UNCONDITIONAL (v3 is the sole path): S is ALWAYS minted and the tag is ALWAYS
+  4-part. A 4xx dial refusal releases the line reservation; a 5xx/ambiguous dial
+  leaves it for the webhook path to self-heal.
 - **call.initiated** mints the MACHINE (T-O1) via `loadOutboundInitiatedContext`
   (nonce consumption + the part-4==S check). Reservation semantics stay
   bit-identical: the auth row is the 30s reservation; the calls row lands only
@@ -1539,9 +1542,11 @@ DO split, no stranded row.
 
 | # | Trigger | Effect |
 |---|---|---|
-| T-O1 | 4-part oc `call.initiated`, part-4==S | mint `dialing`, owner from mint, mirror `{state:'dialing', answered_by_user_id}`, arm the 4h janitor. NO ring/fanout/dial alarms. A reject context hangs up the leg and mints nothing. |
-| T-O2 | oc `call.answered` in `dialing` | `answered` + mirror `{state, answered_at}`. Idempotent re-delivery is a no-op. |
-| T-O3 | oc `call.hangup`, any non-terminal outbound state | `ended_answered` if `answeredAtIso` else `ended_missed`; `terminalize()` reused; terminal-merge **mode `event`** carrying `machine.answeredAtIso`. |
+| T-O1 | 4-part oc `call.initiated`, part-4==S (the SERVER-dialed customer leg, #213) | mint `dialing`, owner from mint, mirror `{state:'dialing', answered_by_user_id}`, **dial the PLACER (op leg)** to their SIP credential, arm the 4h janitor. NO ring/fanout alarms. A reject context hangs up the leg and mints nothing. |
+| T-O2 | oc `call.answered` in `dialing` | `answered` + mirror `{state, answered_at}`. If the placer's op leg already answered, re-issue **bridge(op, oc)** as the GUARANTEED fallback (covers Telnyx refusing the T-O4 ring-bridge; a redundant re-bridge is a harmless swallowed 4xx). Idempotent re-delivery is a no-op. |
+| T-O3 | oc `call.hangup`, any non-terminal outbound state | `ended_answered` if `answeredAtIso` else `ended_missed`; `terminalize()` reused (which, for outbound, also hangs up any ANSWERED op leg so an unbridged placer never strands); terminal-merge **mode `event`** carrying `machine.answeredAtIso`. |
+| T-O4 (#213) | op `call.answered` | adopt the op leg's ccid (bound on userId AND sipTarget); **EARLY bridge(op, oc)** while the customer is still ringing so Telnyx relays ringback AND the customer's eventual hangup tears the op leg (no strand). Stays `dialing` until the customer answers (T-O2). If the op answers into an already-terminal call, hang up its ccid (no strand). |
+| T-O5 (#213) | op `call.hangup` | owner (placer) death: no live intent → teardown (hang up the customer → T-O3); a live transfer intent flags `ownerLegDeadDuringIntent` (expected mid-transfer); post-transfer (owner = teammate) → bookkeeping only; in `dialing` (never bridged) → `ended_missed` + drop the customer. A KNOWN-dead op dial resolves the same way. |
 
 ### 18.4 Outbound billing is mirror-independent AND addresses the S-row (M1)
 
@@ -1610,14 +1615,61 @@ correctness backstop, so a slow or absent oc `call.hangup` is a latency issue,
 never a lost or wedged call. T-O3 terminalizes on the oc hangup when it arrives;
 the janitor covers a silent machine.
 
-### 18.8 D10 leg topology
+### 18.8 Leg topology — #213 SUPERSEDES D10 (server-dialed origination)
 
-The machine's `customerCcid` is the oc-tagged outdial leg whose party is the
-CUSTOMER. **The placer's browser SIP leg is deliberately UNREPRESENTED** in the
-DO leg map and the `call_member_legs` ledger — we never learn its ccid, and no
-mechanic needs it (transfer, consult bridge-steal, and teardown all target
-`customerCcid`). Owner-browser death reaches the machine as the oc leg's
-`call.hangup` (Telnyx tears the bridged pair) → T-O3.
+**The #213 bug (fixed):** the original design had the BROWSER dial the customer
+(`newCall(destinationNumber: customer)`). Telnyx exposes exactly ONE Call-Control
+leg for that — the placer's own WebRTC leg (on the credential connection, carries
+`X-RTC-*` headers); the customer is that leg's uncontrollable far sub-leg with no
+independent `call_control_id`. So `loadOutboundInitiatedContext` stamped
+`customer_call_control_id` with the PLACER's leg, and the blind-transfer
+bridge-steal `bridge(teammateBrt <- customer_call_control_id)` connected the
+teammate to the TRANSFEROR and evicted the customer (confirmed on prod: the
+stamped leg carried `X-RTC-*` headers, impossible on a real PSTN leg).
+
+**The fix — mirror the inbound ring→bridge:**
+
+- **`POST /v1/calls/browser` SERVER-dials the customer** (not the browser) on the
+  voice connection with the `oc_customer|customer|nonce|S` tag + `X-Loonext-Session=S`.
+  Its `call.initiated` flows through the SAME `loadOutboundInitiatedContext` path,
+  so `customer_call_control_id` is now the REAL, controllable customer PSTN leg.
+- **`loadOutboundInitiatedContext` X-RTC guard (defense-in-depth):** it REJECTS
+  (hangs up + mints nothing) any oc leg carrying an `X-RTC-*` custom header — a
+  browser/WebRTC leg is the placer, never the customer. The server's own oc dial
+  carries only `X-Loonext-Session`, so this never trips in practice; it converts
+  any future regression that re-routes a browser leg here into an honest failure.
+- **The placer is a server-dialed `op` leg** (`op|<S>|<userId>`), dialed by the DO
+  at T-O1 to the placer's own SIP credential — EXACTLY like an inbound `brm`
+  member ring, with `X-Loonext-Session=S` + `X-Loonext-Caller=customer`. The
+  placer's client correlates the INVITE to its pending placement (by
+  `X-Loonext-Session`) and **AUTO-answers** it (never a ring UI). On its
+  `call.answered` (T-O4) the DO **EARLY-bridges op↔oc** while the customer is
+  still ringing, so Telnyx relays the customer's ringback to the placer AND the
+  customer's eventual hangup tears the placer leg. Robust to the Telnyx
+  ring-bridge behavior: if Telnyx refuses to bridge onto a ringing leg the
+  command is a no-op (the op leg is alive → the executor returns "ok", no
+  teardown) and T-O2 re-issues the bridge once both are answered; and
+  `terminalize()` hangs up any answered outbound leg, so an unbridged op leg is
+  always reaped. The op leg IS represented in the DO leg map (its ccid is stamped
+  by the dial-outcome / adopted at answer, bound on userId AND sipTarget).
+- **Transfer/consult now work by construction:** `customer_call_control_id` is the
+  real customer leg, so the existing consult-style bridge-steal (§18.7) connects
+  the teammate to the CUSTOMER and drops the placer — no transfer-code change was
+  needed; the topology was always written for a real customer leg, the origination
+  just never produced one. Full in/out parity for transfer, consult, hold.
+- **Placer (owner) death** now reaches the machine as the `op` leg's `call.hangup`
+  (T-O5): teardown when the placer was the owner and no transfer intent is live,
+  bookkeeping post-transfer, direct resolution in `dialing`. The 4h janitor (T16)
+  remains the correctness backstop.
+- **Billing:** the customer's talk time bills once via the oc terminal merge (M1);
+  the placer's op leg is WebRTC (no PSTN cost) and its hangup routes to
+  `outbound-placer-hangup` (never the billing terminal merge), fixing the old
+  mis-bill where the placer's WebRTC leg was metered as customer talk time.
+
+**Client:** the web/iOS/Android softphones no longer `newCall` the customer; they
+register a pending placement keyed by S (from the authorize body) and auto-answer
+the correlated op INVITE, presenting it as the OUTBOUND call to the customer. WebRTC
+audio is founder-on-device verified (the harness can't run WebRTC).
 
 ### 18.9 One id, no flags
 

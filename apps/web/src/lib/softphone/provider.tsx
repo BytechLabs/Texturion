@@ -39,7 +39,6 @@ import { ApiError } from "@/lib/api/error";
 import {
   INITIAL_SOFTPHONE_STATE,
   isTerminalSdkState,
-  sessionIdForPlacedCall,
   softphoneReducer,
   type CallInfo,
   type SoftphoneState,
@@ -67,7 +66,24 @@ interface TelnyxCall {
   options?: {
     remoteCallerName?: string;
     remoteCallerNumber?: string;
+    /** #213: the INVITE's custom SIP headers ({name,value}) — the @telnyx/webrtc
+     *  SDK surfaces `dialogParams.custom_headers` here. Carries X-Loonext-Session
+     *  (= S) on a server-dialed placer (op) leg so the browser correlates it to
+     *  its pending placement and auto-answers, and X-Loonext-Caller (the customer). */
+    customHeaders?: { name?: string; value?: string }[];
   };
+}
+
+/** #213: read a custom SIP header off an incoming call's options (case-insensitive
+ *  name match; the SDK preserves the server's casing but we never rely on it). */
+function customHeader(call: TelnyxCall, name: string): string | null {
+  const headers = call.options?.customHeaders ?? [];
+  for (const header of headers) {
+    if ((header?.name ?? "").toLowerCase() === name.toLowerCase()) {
+      return header?.value ?? null;
+    }
+  }
+  return null;
 }
 interface TelnyxClient {
   on: (event: string, handler: (payload?: unknown) => void) => void;
@@ -83,6 +99,14 @@ interface TelnyxClient {
 
 /** At most one active + one waiting/held — a third concurrent call declines. */
 const MAX_CONCURRENT_CALLS = 2;
+
+/** #213: how long to wait for the server-dialed placer (op) INVITE after
+ *  authorize before giving up on a placement. Set just PAST the server's 45s ring
+ *  window (RING_TIMEOUT_SECS) so a late op INVITE can never arrive after the
+ *  timeout has fired and be mistaken for a fresh inbound ring (adversarial-review
+ *  M2): by the time this elapses the server-dialed op/oc legs have themselves
+ *  timed out, so no INVITE is in flight. The normal INVITE arrives in ~1–3s. */
+const PLACEMENT_TIMEOUT_MS = 48_000;
 
 /** A microphone-permission failure carrying a member-facing, actionable
  *  message (distinguished from an ApiError in the call catch blocks). */
@@ -228,6 +252,25 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // Holds the latest recovery scheduler so the SDK event handlers (captured
   // once inside ensureClient) can reach it without a callback dependency cycle.
   const scheduleRecoverRef = useRef<(() => void) | null>(null);
+  // #213: outbound placements awaiting their server-dialed placer (op) INVITE,
+  // keyed by S (the call_session_id from POST /calls/browser). The op INVITE
+  // arrives as an *inbound* SDK call carrying X-Loonext-Session=S; we correlate
+  // it here, AUTO-answer it, and reconcile the "Calling…" chip — NEVER showing it
+  // as an incoming ring. Cleared on connect, on a per-placement timeout, or on
+  // cancel. `placementSdkIds` marks the resulting SDK call ids so the active
+  // handler treats them as outbound (session S already known — no resolveByLeg).
+  const pendingPlacementsRef = useRef<
+    Map<string, { placementId: string; timer: ReturnType<typeof setTimeout> }>
+  >(new Map());
+  // #213: EVERY placement session S we've ever registered (bounded, TTL-evicted).
+  // A server-dialed op INVITE carries X-Loonext-Session=S; a genuine inbound ring
+  // carries a DIFFERENT session. So an INVITE whose session ∈ this set is one of
+  // OUR placement legs: auto-answer it if still pending, otherwise DECLINE it
+  // (cancelled / timed-out / a duplicate for an already-connected placement) —
+  // NEVER show it as a spurious inbound ring. Identity-based, so correctness never
+  // rests on the 48s>45s timing margin (review M2).
+  const registeredPlacementsRef = useRef<Set<string>>(new Set());
+  const placementSdkIdsRef = useRef<Set<string>>(new Set());
 
   /** True while any tracked call is still up (not torn down). A live call OWNS
    *  its client's RTP/peer connection, so the recovery watchdog must never
@@ -303,15 +346,66 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         if (!call) return;
 
         if (!callsRef.current.has(call.id)) {
-          // A NEW inbound invite — the ring engine (or a transfer/consult)
-          // dialed this member. Beyond the member's two-call ceiling it
-          // declines immediately, so the answer race resolves elsewhere
-          // without waiting out the ring timeout.
+          // A NEW inbound invite — the ring engine, a transfer/consult, OR
+          // (#213) THIS member's own server-dialed placer (op) leg for an
+          // outbound call they just placed.
           if (call.direction === "inbound" && call.state === "ringing") {
-            const live = [...callsRef.current.values()].filter(
-              (c) => !isTerminalSdkState(c.state),
-            );
-            if (live.length >= MAX_CONCURRENT_CALLS) {
+            // #213: is this the op leg for one of our pending placements? The
+            // server stamped X-Loonext-Session=S on the placer dial; correlate
+            // it to the placement we registered in placeCall.
+            const opSession = customHeader(call, "X-Loonext-Session");
+            const pending = opSession
+              ? pendingPlacementsRef.current.get(opSession)
+              : undefined;
+            if (opSession && pending) {
+              // OUR outbound leg — auto-answer it (mic pre-granted in placeCall)
+              // and reconcile the "Calling…" chip. Never a ring UI. This slot was
+              // already reserved at placeCall (the placement counts toward the
+              // ceiling below), so no ceiling re-check here.
+              clearTimeout(pending.timer);
+              pendingPlacementsRef.current.delete(opSession);
+              callsRef.current.set(call.id, call);
+              placementSdkIdsRef.current.add(call.id);
+              // Answer immediately — the mic was pre-granted in placeCall. Any
+              // other active call is SDK-held structurally when THIS one goes
+              // 'active' (the active branch below), matching the reducer's demotion.
+              try {
+                call.answer();
+              } catch {
+                /* the customer/placer leg died in the same instant */
+              }
+              dispatch({
+                type: "placement_connected",
+                placementId: pending.placementId,
+                id: call.id,
+                sessionId: opSession,
+              });
+              return;
+            }
+            if (opSession && registeredPlacementsRef.current.has(opSession)) {
+              // A placement op leg we registered but is no longer pending — the
+              // member cancelled during "Calling…", it timed out, or this is a
+              // duplicate for an already-connected placement. DECLINE it (never a
+              // spurious inbound ring): a decline tears the DO's server-dialed
+              // customer down. Identity-based, so it holds regardless of timing.
+              try {
+                call.hangup();
+              } catch {
+                /* already gone */
+              }
+              return;
+            }
+            // A genuine INBOUND ring. Beyond the two-call ceiling it declines
+            // immediately, so the answer race resolves elsewhere. A #213
+            // placement in flight (authorized, op INVITE not yet arrived) is NOT
+            // in callsRef yet, so count pendingPlacements too — else a placement
+            // fails to reserve its slot and a racing inbound could breach the
+            // ceiling (adversarial-review MEDIUM).
+            const live =
+              [...callsRef.current.values()].filter(
+                (c) => !isTerminalSdkState(c.state),
+              ).length + pendingPlacementsRef.current.size;
+            if (live >= MAX_CONCURRENT_CALLS) {
               try {
                 call.hangup();
               } catch {
@@ -353,7 +447,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             });
           }
           attachActiveAudio(call);
-          if (call.direction === "inbound") {
+          if (placementSdkIdsRef.current.has(call.id)) {
+            // #213: our own outbound placer (op) leg — the session (S) is already
+            // known from the placement, so DON'T resolveByLeg (that resolver is
+            // for inbound RING legs). The chip already carries S.
+          } else if (call.direction === "inbound") {
             // The SDK session for an answered inbound call is the ring leg's,
             // not the customer's — resolve the real (customer) session so
             // transfer / consult / notes address the right calls row. Once
@@ -390,6 +488,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         if (isTerminalSdkState(call.state)) {
           closeRingNotification(ringNotesRef.current, call.id);
           callsRef.current.delete(call.id);
+          placementSdkIdsRef.current.delete(call.id); // #213 cleanup
           // A recovery may have been deferred while this call held the client
           // (#138). Now that the line may be idle, re-arm the watchdog so a
           // genuinely down socket still gets rebuilt once no call is left.
@@ -513,40 +612,62 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       try {
         // Mic FIRST — before we reserve the line. A denial here never strands a
         // reservation (no "on another call" phantom), never bills, and surfaces
-        // an actionable message instead of a silent "ended".
+        // an actionable message instead of a silent "ended". It also pre-grants
+        // the mic so the AUTO-answer of the op INVITE below never re-prompts.
         await acquireMicOrThrow();
-        // Authorize (gates + line busy) — a refusal never spins up audio. The
-        // server resolves the destination from whichever origin is set.
+        // #213: the SERVER now dials the customer (a real, controllable
+        // Call-Control leg) and rings THIS member's own softphone as the placer
+        // (op) leg — the browser NO LONGER dials the customer (that only ever
+        // produced the placer's WebRTC leg, so a transfer grabbed the wrong leg
+        // and dropped the customer). Authorize returns S; we register a pending
+        // placement keyed on S and wait for the op INVITE (an inbound SDK call
+        // carrying X-Loonext-Session=S), which the notification handler
+        // auto-answers and reconciles into this "Calling…" chip.
         const auth = await authorize.mutateAsync({
           conversation_id: conversationId,
           contact_id: contactId,
           to,
           phone_number_id: phoneNumberId,
         });
-        // Build the client + leg BEFORE demoting the current call (#148). If
-        // ensureClient()/newCall throws (a token-mint or webrtc import failure
-        // during a socket flap), a pre-emptive hold would have left the member's
-        // active call needlessly on hold. Hold only once the new leg exists.
-        const client = await ensureClient();
-        const call = client.newCall({
-          destinationNumber: auth.to,
-          callerNumber: auth.from,
-          clientState: auth.client_state,
-        });
-        holdActive();
-        callsRef.current.set(call.id, call);
+        // Make sure the phone is registered so the op INVITE can reach us (the
+        // same registration that makes inbound ring work). No newCall.
+        await ensureClient();
+        const sessionId = auth.call_session_id;
+        if (!sessionId) {
+          // A server that returned no S cannot be correlated to an op INVITE —
+          // fail honestly rather than leave a silent dead chip.
+          throw new ApiError(
+            "conflict",
+            "Couldn't start the call. Please try again.",
+            409,
+          );
+        }
+        const placementId = `placement:${sessionId}`;
+        const peer = { name: contactName, number: auth.to };
+        // A per-placement timeout: if the op INVITE never arrives (server dial
+        // failed after the 200, or the ring window lapsed), drop the chip + warn.
+        const timer = setTimeout(() => {
+          pendingPlacementsRef.current.delete(sessionId);
+          dispatch({
+            type: "placement_failed",
+            placementId,
+            message: "Couldn't reach the line. Please try again.",
+          });
+        }, PLACEMENT_TIMEOUT_MS);
+        pendingPlacementsRef.current.set(sessionId, { placementId, timer });
+        // Remember S as one of OUR placement sessions (identity-based op-INVITE
+        // correlation), and evict it once no op INVITE can still be in flight
+        // (past the server ring window) so the set stays bounded.
+        registeredPlacementsRef.current.add(sessionId);
+        setTimeout(
+          () => registeredPlacementsRef.current.delete(sessionId),
+          PLACEMENT_TIMEOUT_MS,
+        );
         dispatch({
           type: "placing",
-          id: call.id,
-          // #211 outbound parity: seed the server-minted session id (S) so
-          // transfer/consult can address the call the instant it's placed; the
-          // SDK's telnyx session id (T != S) is only a nil-safe fallback for an
-          // old server that returned no call_session_id (3-part legacy tag).
-          sessionId: sessionIdForPlacedCall(
-            auth.call_session_id,
-            call.telnyxIDs?.telnyxSessionId,
-          ),
-          peer: { name: contactName, number: auth.to },
+          id: placementId,
+          sessionId,
+          peer,
         });
       } catch (cause) {
         dispatch({
@@ -559,7 +680,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         throw cause;
       }
     },
-    [authorize, ensureClient, holdActive],
+    [authorize, ensureClient],
   );
 
   const answer = useCallback(
@@ -594,6 +715,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const hangup = useCallback((id?: string) => {
     const targetId = id ?? stateRef.current.activeId;
     if (!targetId) return;
+    // #213: cancelling a placement that is still "Calling…" (no op INVITE yet).
+    // Its chip id is `placement:<S>` and there is no SDK call to hang up; mark
+    // S cancelled so the op INVITE, when it arrives, is DECLINED (the DO then
+    // drops the server-dialed customer), and clear the pending timer + chip.
+    if (targetId.startsWith("placement:")) {
+      const sessionId = targetId.slice("placement:".length);
+      const pending = pendingPlacementsRef.current.get(sessionId);
+      if (pending) {
+        // Cancel during "Calling…": stop the timer and drop it from pending. S
+        // stays in registeredPlacements (TTL-evicted), so the op INVITE — if one
+        // is still coming — is DECLINED (not rung), tearing down the DO's
+        // server-dialed customer. No separate cancelled-set to leak.
+        clearTimeout(pending.timer);
+        pendingPlacementsRef.current.delete(sessionId);
+        dispatch({ type: "dismissed", id: targetId });
+        return;
+      }
+    }
     const call = callsRef.current.get(targetId);
     try {
       call?.hangup();

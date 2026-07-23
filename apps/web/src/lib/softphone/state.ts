@@ -115,6 +115,18 @@ export type SoftphoneAction =
       sessionId: string | null;
       peer: { name: string; number: string };
     }
+  /** #213: the server-dialed placer (op) INVITE for a pending placement arrived
+   *  and was auto-answered. Rekey the synthetic "Calling…" chip (`placementId`)
+   *  onto the real SDK call `id`; it stays an OUTBOUND call to the customer. */
+  | {
+      type: "placement_connected";
+      placementId: string;
+      id: string;
+      sessionId: string;
+    }
+  /** #213: the op INVITE never arrived (server dial failed / timed out). Drop the
+   *  "Calling…" chip and surface an honest error. */
+  | { type: "placement_failed"; placementId: string; message: string }
   | { type: "session_known"; id: string; sessionId: string }
   | { type: "sdk_state"; id: string; state: string; now: number }
   | { type: "held"; id: string; held: boolean }
@@ -208,6 +220,31 @@ export function softphoneReducer(
         calls: [...state.calls.filter((c) => c.phase !== "ended"), call],
       };
     }
+    case "placement_connected": {
+      // Rekey the synthetic placement chip onto the real SDK call id (the
+      // provider keys callsRef by SDK id, so hold/mute/hangup now resolve). If
+      // the chip is gone (the user cancelled during "Calling…"), no-op — the
+      // provider declines the op leg instead of reconciling.
+      if (!state.calls.some((c) => c.id === action.placementId)) return state;
+      return {
+        ...state,
+        calls: state.calls.map((c) =>
+          c.id === action.placementId
+            ? { ...c, id: action.id, sessionId: action.sessionId }
+            : c,
+        ),
+        activeId:
+          state.activeId === action.placementId ? action.id : state.activeId,
+      };
+    }
+    case "placement_failed":
+      return {
+        ...state,
+        error: action.message,
+        calls: state.calls.filter((c) => c.id !== action.placementId),
+        activeId:
+          state.activeId === action.placementId ? null : state.activeId,
+      };
     case "session_known":
       return updateCall(state, action.id, { sessionId: action.sessionId });
     case "sdk_state": {
